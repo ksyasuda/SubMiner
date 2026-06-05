@@ -23,6 +23,7 @@ export interface OverlayNotificationPayload {
   id?: string;
   title: string;
   body?: string;
+  image?: string;
   variant?: OverlayNotificationVariant;
   position?: OverlayNotificationPosition;
   persistent?: boolean;

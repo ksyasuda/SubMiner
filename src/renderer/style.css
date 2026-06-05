@@ -149,7 +149,7 @@ body:focus-visible,
 .overlay-notification-stack {
   position: absolute;
   top: 16px;
-  width: min(360px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -184,8 +184,8 @@ body:focus-visible,
   grid-template-columns: 22px minmax(0, 1fr) 22px;
   gap: 11px;
   align-items: start;
-  min-height: 64px;
-  padding: 13px 14px 13px 17px;
+  min-height: 76px;
+  padding: 16px 16px 16px 20px;
   border-radius: 11px;
   border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 24%, var(--ctp-surface1));
   background: linear-gradient(
@@ -231,6 +231,23 @@ body:focus-visible,
 
 .overlay-notification-card.error {
   --overlay-notification-accent: var(--ctp-red);
+}
+
+.overlay-notification-card.has-image {
+  grid-template-columns: 56px minmax(0, 1fr) 22px;
+  min-height: 88px;
+  padding-left: 14px;
+}
+
+.overlay-notification-image {
+  width: 56px;
+  height: 56px;
+  align-self: center;
+  display: block;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--overlay-notification-accent) 28%, var(--ctp-surface2));
+  background: var(--ctp-crust);
+  object-fit: cover;
 }
 
 .overlay-notification-icon {

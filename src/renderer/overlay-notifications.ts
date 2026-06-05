@@ -122,6 +122,12 @@ function normalizeVariant(
   return variant ?? 'info';
 }
 
+function normalizeImageSource(image: string | undefined): string | null {
+  if (!image) return null;
+  const trimmed = image.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function setInteractiveState(ctx: RendererContext, value: boolean): void {
   ctx.state.isOverOverlayNotification = value;
   syncOverlayMouseIgnoreState(ctx);
@@ -157,14 +163,23 @@ export function createOverlayNotificationRenderer(
     ctx.dom.overlayNotificationStack.classList.add(overlayNotificationPositionClass(position));
 
     for (const entry of visible) {
+      const imageSource = normalizeImageSource(entry.image);
       const card = document.createElement('section');
-      card.className = `overlay-notification-card ${normalizeVariant(entry.variant)}`;
+      card.className = `overlay-notification-card ${normalizeVariant(entry.variant)}${
+        imageSource ? ' has-image' : ''
+      }`;
       card.dataset.notificationId = entry.id;
       card.setAttribute('role', 'status');
 
-      const icon = document.createElement('span');
-      icon.className = 'overlay-notification-icon';
-      icon.setAttribute('aria-hidden', 'true');
+      const leading = imageSource ? document.createElement('img') : document.createElement('span');
+      leading.className = imageSource ? 'overlay-notification-image' : 'overlay-notification-icon';
+      leading.setAttribute('aria-hidden', 'true');
+      if (imageSource) {
+        const image = leading as HTMLImageElement;
+        image.src = imageSource;
+        image.alt = '';
+        image.decoding = 'async';
+      }
 
       const content = document.createElement('div');
       content.className = 'overlay-notification-content';
@@ -205,7 +220,7 @@ export function createOverlayNotificationRenderer(
       closeButton.textContent = '×';
       closeButton.addEventListener('click', () => remove(entry.id));
 
-      card.append(icon, content, closeButton);
+      card.append(leading, content, closeButton);
       ctx.dom.overlayNotificationStack.append(card);
     }
 

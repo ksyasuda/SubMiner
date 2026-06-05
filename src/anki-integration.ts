@@ -20,6 +20,7 @@ import { AnkiConnectClient } from './anki-connect';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -118,6 +119,10 @@ function shouldPreferMediaTitleForMiscInfo(rawPath: string, filename: string): b
     loweredFilename === 'index.m3u8' ||
     loweredFilename === 'playlist.m3u8'
   );
+}
+
+function toOverlayNotificationImageSource(filePath: string): string {
+  return pathToFileURL(filePath).toString();
 }
 
 export class AnkiIntegration {
@@ -1082,56 +1087,64 @@ export class AnkiIntegration {
       this.clearUpdateProgress();
     }
 
-    if ((type === 'overlay' || type === 'both') && this.overlayNotificationCallback) {
+    const shouldShowOverlayNotification =
+      (type === 'overlay' || type === 'both') && this.overlayNotificationCallback !== null;
+    const shouldShowSystemNotification =
+      (type === 'system' || type === 'both' || type === 'osd-system') &&
+      this.notificationCallback !== null;
+    const notificationIconPath =
+      shouldShowOverlayNotification || shouldShowSystemNotification
+        ? await this.generateNotificationIconPath(noteId)
+        : undefined;
+
+    if (shouldShowOverlayNotification && this.overlayNotificationCallback) {
       this.overlayNotificationCallback({
         id: 'anki-update-progress',
         title: 'Anki Card Updated',
         body: message,
+        ...(notificationIconPath
+          ? { image: toOverlayNotificationImageSource(notificationIconPath) }
+          : {}),
         variant: errorSuffix === undefined ? 'success' : 'error',
         persistent: false,
       });
     }
 
-    if (
-      (type === 'system' || type === 'both' || type === 'osd-system') &&
-      this.notificationCallback
-    ) {
-      let notificationIconPath: string | undefined;
-
-      if (this.mpvClient && this.mpvClient.currentVideoPath) {
-        try {
-          const timestamp = this.mpvClient.currentTimePos || 0;
-          const notificationIconSource = await resolveMediaGenerationInputPath(
-            this.mpvClient,
-            'video',
-          );
-          if (!notificationIconSource) {
-            throw new Error('No media source available for notification icon');
-          }
-          const iconBuffer = await this.mediaGenerator.generateNotificationIcon(
-            notificationIconSource,
-            timestamp,
-          );
-          if (iconBuffer && iconBuffer.length > 0) {
-            notificationIconPath = this.mediaGenerator.writeNotificationIconToFile(
-              iconBuffer,
-              noteId,
-            );
-          }
-        } catch (err) {
-          log.warn('Failed to generate notification icon:', (err as Error).message);
-        }
-      }
-
+    if (shouldShowSystemNotification && this.notificationCallback) {
       this.notificationCallback('Anki Card Updated', {
         body: message,
         icon: notificationIconPath,
       });
-
-      if (notificationIconPath) {
-        this.mediaGenerator.scheduleNotificationIconCleanup(notificationIconPath);
-      }
     }
+
+    if (notificationIconPath) {
+      this.mediaGenerator.scheduleNotificationIconCleanup(notificationIconPath);
+    }
+  }
+
+  private async generateNotificationIconPath(noteId: number): Promise<string | undefined> {
+    if (!this.mpvClient?.currentVideoPath) {
+      return undefined;
+    }
+
+    try {
+      const timestamp = this.mpvClient.currentTimePos || 0;
+      const notificationIconSource = await resolveMediaGenerationInputPath(this.mpvClient, 'video');
+      if (!notificationIconSource) {
+        throw new Error('No media source available for notification icon');
+      }
+      const iconBuffer = await this.mediaGenerator.generateNotificationIcon(
+        notificationIconSource,
+        timestamp,
+      );
+      if (iconBuffer && iconBuffer.length > 0) {
+        return this.mediaGenerator.writeNotificationIconToFile(iconBuffer, noteId);
+      }
+    } catch (err) {
+      log.warn('Failed to generate notification icon:', (err as Error).message);
+    }
+
+    return undefined;
   }
 
   private showUpdateResult(message: string, success: boolean): void {
