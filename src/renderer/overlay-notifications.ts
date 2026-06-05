@@ -16,6 +16,16 @@ const OVERLAY_NOTIFICATION_POSITION_CLASSES = [
   'position-top',
   'position-top-right',
 ] as const;
+const OVERLAY_NOTIFICATION_VARIANT_CLASSES = [
+  'info',
+  'progress',
+  'success',
+  'warning',
+  'error',
+] as const;
+// Matches the `.leaving` animation duration in style.css; the fallback timer guards
+// against `animationend` never firing (e.g. element detached or reduced-motion).
+const OVERLAY_NOTIFICATION_EXIT_FALLBACK_MS = 260;
 
 export type OverlayNotificationEntry = Required<
   Pick<OverlayNotificationPayload, 'id' | 'title' | 'persistent'>
@@ -139,6 +149,10 @@ export function createOverlayNotificationRenderer(
 ) {
   const store = createOverlayNotificationStore();
   const timers = new Map<string, number>();
+  // Live card elements keyed by notification id so re-renders reuse them: the enter
+  // animation only plays for freshly created cards instead of replaying on every render.
+  const cards = new Map<string, HTMLElement>();
+  const leaving = new Set<string>();
   let position: OverlayNotificationPosition = DEFAULT_OVERLAY_NOTIFICATION_POSITION;
 
   function clearTimer(id: string): void {
@@ -149,82 +163,149 @@ export function createOverlayNotificationRenderer(
     }
   }
 
+  function commitExit(id: string, card: HTMLElement): void {
+    if (!leaving.has(id)) return;
+    leaving.delete(id);
+    cards.delete(id);
+    card.remove();
+    if (cards.size === 0) {
+      ctx.dom.overlayNotificationStack.classList.add('hidden');
+      setInteractiveState(ctx, false);
+    }
+    options.onChanged?.();
+  }
+
+  function beginExit(id: string, card: HTMLElement): void {
+    if (leaving.has(id)) return;
+    leaving.add(id);
+    card.classList.remove('entering');
+    card.classList.add('leaving');
+    const finalize = () => {
+      window.clearTimeout(fallback);
+      commitExit(id, card);
+    };
+    const fallback = window.setTimeout(finalize, OVERLAY_NOTIFICATION_EXIT_FALLBACK_MS);
+    card.addEventListener(
+      'animationend',
+      (event) => {
+        if ((event as AnimationEvent).animationName?.startsWith('overlay-notification-leave')) {
+          finalize();
+        }
+      },
+      { once: true },
+    );
+  }
+
   function remove(id: string): void {
     clearTimer(id);
     store.remove(id);
-    render();
+    const card = cards.get(id);
+    if (card) {
+      beginExit(id, card);
+    } else {
+      render();
+    }
+  }
+
+  function populateCard(card: HTMLElement, entry: OverlayNotificationEntry): void {
+    const imageSource = normalizeImageSource(entry.image);
+    card.classList.add('overlay-notification-card');
+    for (const variant of OVERLAY_NOTIFICATION_VARIANT_CLASSES) {
+      card.classList.toggle(variant, variant === normalizeVariant(entry.variant));
+    }
+    card.classList.toggle('has-image', Boolean(imageSource));
+    card.dataset.notificationId = entry.id;
+    card.setAttribute('role', 'status');
+
+    const leadingEl = imageSource ? document.createElement('img') : document.createElement('span');
+    leadingEl.className = imageSource ? 'overlay-notification-image' : 'overlay-notification-icon';
+    leadingEl.setAttribute('aria-hidden', 'true');
+    if (imageSource) {
+      const image = leadingEl as HTMLImageElement;
+      image.src = imageSource;
+      image.alt = '';
+      image.decoding = 'async';
+    }
+
+    const content = document.createElement('div');
+    content.className = 'overlay-notification-content';
+
+    const title = document.createElement('div');
+    title.className = 'overlay-notification-title';
+    title.textContent = entry.title;
+    content.append(title);
+
+    if (entry.body && entry.body.trim().length > 0) {
+      const body = document.createElement('div');
+      body.className = 'overlay-notification-body';
+      body.textContent = entry.body;
+      content.append(body);
+    }
+
+    if (entry.actions && entry.actions.length > 0) {
+      const actions = document.createElement('div');
+      actions.className = 'overlay-notification-actions';
+      for (const action of entry.actions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'overlay-notification-action';
+        button.textContent = action.label;
+        button.addEventListener('click', () => {
+          window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id);
+          remove(entry.id);
+        });
+        actions.append(button);
+      }
+      content.append(actions);
+    }
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'overlay-notification-close';
+    closeButton.setAttribute('aria-label', 'Dismiss notification');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', () => remove(entry.id));
+
+    card.replaceChildren(leadingEl, content, closeButton);
   }
 
   function render(): void {
     const visible = store.visible();
-    ctx.dom.overlayNotificationStack.replaceChildren();
-    ctx.dom.overlayNotificationStack.classList.toggle('hidden', visible.length === 0);
+    const visibleIds = new Set(visible.map((entry) => entry.id));
+    ctx.dom.overlayNotificationStack.classList.toggle(
+      'hidden',
+      visible.length === 0 && leaving.size === 0,
+    );
     ctx.dom.overlayNotificationStack.classList.remove(...OVERLAY_NOTIFICATION_POSITION_CLASSES);
     ctx.dom.overlayNotificationStack.classList.add(overlayNotificationPositionClass(position));
 
+    // Cards that vanished from the store without an explicit remove() (e.g. pruned when
+    // over the visible cap) still need to animate out.
+    for (const [id, card] of cards) {
+      if (!visibleIds.has(id)) {
+        beginExit(id, card);
+      }
+    }
+
     for (const entry of visible) {
-      const imageSource = normalizeImageSource(entry.image);
-      const card = document.createElement('section');
-      card.className = `overlay-notification-card ${normalizeVariant(entry.variant)}${
-        imageSource ? ' has-image' : ''
-      }`;
-      card.dataset.notificationId = entry.id;
-      card.setAttribute('role', 'status');
-
-      const leading = imageSource ? document.createElement('img') : document.createElement('span');
-      leading.className = imageSource ? 'overlay-notification-image' : 'overlay-notification-icon';
-      leading.setAttribute('aria-hidden', 'true');
-      if (imageSource) {
-        const image = leading as HTMLImageElement;
-        image.src = imageSource;
-        image.alt = '';
-        image.decoding = 'async';
+      let card = cards.get(entry.id);
+      if (card && leaving.has(entry.id)) {
+        // The card was animating out but has been re-shown: cancel the exit.
+        leaving.delete(entry.id);
+        card.classList.remove('leaving');
       }
-
-      const content = document.createElement('div');
-      content.className = 'overlay-notification-content';
-
-      const title = document.createElement('div');
-      title.className = 'overlay-notification-title';
-      title.textContent = entry.title;
-      content.append(title);
-
-      if (entry.body && entry.body.trim().length > 0) {
-        const body = document.createElement('div');
-        body.className = 'overlay-notification-body';
-        body.textContent = entry.body;
-        content.append(body);
+      if (!card) {
+        card = document.createElement('section');
+        card.classList.add('entering');
+        cards.set(entry.id, card);
       }
-
-      if (entry.actions && entry.actions.length > 0) {
-        const actions = document.createElement('div');
-        actions.className = 'overlay-notification-actions';
-        for (const action of entry.actions) {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'overlay-notification-action';
-          button.textContent = action.label;
-          button.addEventListener('click', () => {
-            window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id);
-            remove(entry.id);
-          });
-          actions.append(button);
-        }
-        content.append(actions);
-      }
-
-      const closeButton = document.createElement('button');
-      closeButton.type = 'button';
-      closeButton.className = 'overlay-notification-close';
-      closeButton.setAttribute('aria-label', 'Dismiss notification');
-      closeButton.textContent = '×';
-      closeButton.addEventListener('click', () => remove(entry.id));
-
-      card.append(leading, content, closeButton);
+      populateCard(card, entry);
+      // Appending an element already in the stack just moves it, keeping visible order
+      // without restarting its enter animation.
       ctx.dom.overlayNotificationStack.append(card);
     }
 
-    if (visible.length === 0) {
+    if (visible.length === 0 && leaving.size === 0) {
       setInteractiveState(ctx, false);
     }
     options.onChanged?.();

@@ -198,7 +198,32 @@ body:focus-visible,
     0 1px 0 rgba(202, 211, 245, 0.05) inset;
   color: var(--ctp-text);
   overflow: hidden;
-  animation: overlay-notification-enter 140ms ease-out;
+}
+
+/* Direction-aware enter/exit — slide in from the stack's anchored edge, slide back out. */
+.overlay-notification-card.entering {
+  animation: overlay-notification-enter-right 240ms cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+
+.overlay-notification-card.leaving {
+  pointer-events: none;
+  animation: overlay-notification-leave-right 190ms cubic-bezier(0.55, 0.06, 0.68, 0.19) both;
+}
+
+.overlay-notification-stack.position-top-left .overlay-notification-card.entering {
+  animation-name: overlay-notification-enter-left;
+}
+
+.overlay-notification-stack.position-top-left .overlay-notification-card.leaving {
+  animation-name: overlay-notification-leave-left;
+}
+
+.overlay-notification-stack.position-top .overlay-notification-card.entering {
+  animation-name: overlay-notification-enter-top;
+}
+
+.overlay-notification-stack.position-top .overlay-notification-card.leaving {
+  animation-name: overlay-notification-leave-top;
 }
 
 .overlay-notification-card::before {
@@ -365,15 +390,82 @@ body:focus-visible,
   color: var(--ctp-red);
 }
 
-@keyframes overlay-notification-enter {
+@keyframes overlay-notification-enter-right {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateX(28px) scale(0.96);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes overlay-notification-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes overlay-notification-enter-top {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes overlay-notification-leave-right {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(28px) scale(0.94);
+  }
+}
+
+@keyframes overlay-notification-leave-left {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-28px) scale(0.94);
+  }
+}
+
+@keyframes overlay-notification-leave-top {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-notification-card.entering,
+  .overlay-notification-card.leaving {
+    animation-duration: 1ms;
   }
 }
 
