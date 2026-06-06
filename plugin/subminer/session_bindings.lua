@@ -244,6 +244,8 @@ function M.create(ctx)
 			return { "--toggle-secondary-sub" }
 		elseif action_id == "toggleSubtitleSidebar" then
 			return { "--toggle-subtitle-sidebar" }
+		elseif action_id == "toggleNotificationHistory" then
+			return { "--session-action", '{"actionId":"toggleNotificationHistory"}' }
 		elseif action_id == "markAudioCard" then
 			return { "--mark-audio-card" }
 		elseif action_id == "markWatched" then

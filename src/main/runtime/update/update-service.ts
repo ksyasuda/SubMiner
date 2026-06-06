@@ -15,6 +15,7 @@ export interface UpdateCheckRequest {
   source: UpdateCheckSource;
   force?: boolean;
   launcherPath?: string;
+  installWhenAvailable?: boolean;
 }
 
 export type UpdateCheckStatus =
@@ -164,9 +165,11 @@ export function createUpdateService(deps: UpdateServiceDeps) {
         return { status: 'update-available', version: latest.version };
       }
 
-      const choice = await deps.showUpdateAvailableDialog(latest.version);
-      if (choice === 'close') {
-        return { status: 'update-available', version: latest.version };
+      if (!request.installWhenAvailable) {
+        const choice = await deps.showUpdateAvailableDialog(latest.version);
+        if (choice === 'close') {
+          return { status: 'update-available', version: latest.version };
+        }
       }
 
       const canInstallAppUpdate = appUpdate.available && appUpdate.canUpdate !== false;

@@ -236,6 +236,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
+      'toggleNotificationHistory',
     ] as const;
 
     for (const key of shortcutKeys) {

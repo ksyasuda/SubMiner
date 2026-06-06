@@ -68,6 +68,11 @@ prefetch work and re-centers prefetch around the live playback time.
 
 - `mpv.pauseUntilOverlayReady` waits for tokenization warmup plus visible-overlay readiness before
   releasing the mpv startup gate.
+- Cold `--start --background --managed-playback` launches handle initial args before the deferred
+  Yomitan wait, so the tray and visible overlay shell can receive startup notifications while
+  tokenization and annotation warmups continue.
+- The mpv plugin has a 30-second fallback for cold starts; app-side retry/release budgets match that
+  window so readiness can still arrive before fallback resumes playback.
 - If mpv is already on a subtitle, SubMiner still prefers the resolved current subtitle payload and
   waits for a fresh measured subtitle rectangle before signaling readiness.
 - If mpv is before the first subtitle, SubMiner sends a synthetic warm readiness payload after

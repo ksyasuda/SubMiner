@@ -158,6 +158,7 @@ export interface AppReadyRuntimeDeps {
   shouldRunHeadlessInitialCommand?: () => boolean;
   shouldUseMinimalStartup?: () => boolean;
   shouldSkipHeavyStartup?: () => boolean;
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup?: () => boolean;
 }
 
 const REQUIRED_ANKI_FIELD_MAPPING_KEYS = [
@@ -229,6 +230,23 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const startupStartedAtMs = now();
   const ensureYomitanExtensionReady =
     deps.ensureYomitanExtensionLoaded ?? deps.loadYomitanExtension;
+  let firstRunSetupHandled = false;
+  let initialArgsHandled = false;
+  const handleFirstRunSetupOnce = async (): Promise<void> => {
+    if (firstRunSetupHandled) {
+      return;
+    }
+    firstRunSetupHandled = true;
+    await deps.handleFirstRunSetup();
+  };
+  const handleInitialArgsOnce = (): void => {
+    if (initialArgsHandled) {
+      return;
+    }
+    initialArgsHandled = true;
+    deps.handleInitialArgs();
+  };
+
   deps.ensureDefaultConfigBootstrap();
   if (deps.shouldRunHeadlessInitialCommand?.()) {
     deps.reloadConfig();
@@ -247,7 +265,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.shouldUseMinimalStartup?.()) {
     deps.reloadConfig();
-    deps.handleInitialArgs();
+    handleInitialArgsOnce();
     return;
   }
 
@@ -256,8 +274,8 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   if (deps.shouldSkipHeavyStartup?.()) {
     await ensureYomitanExtensionReady();
     deps.reloadConfig();
-    await deps.handleFirstRunSetup();
-    deps.handleInitialArgs();
+    await handleFirstRunSetupOnce();
+    handleInitialArgsOnce();
     deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
     return;
   }
@@ -332,10 +350,15 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     deps.initializeOverlayRuntime();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
-    await ensureYomitanExtensionReady();
+    if (deps.shouldHandleInitialArgsBeforeDeferredOverlayWarmup?.()) {
+      await handleFirstRunSetupOnce();
+      handleInitialArgsOnce();
+    } else {
+      await ensureYomitanExtensionReady();
+    }
   }
 
-  await deps.handleFirstRunSetup();
-  deps.handleInitialArgs();
+  await handleFirstRunSetupOnce();
+  handleInitialArgsOnce();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

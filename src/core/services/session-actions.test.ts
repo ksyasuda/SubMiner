@@ -25,6 +25,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     mineSentenceCount: (count) => calls.push(`mine:${count}`),
     toggleSecondarySub: () => calls.push('secondary'),
     toggleSubtitleSidebar: () => calls.push('sidebar'),
+    toggleNotificationHistory: () => calls.push('notification-history'),
     markLastCardAsAudioCard: async () => {
       calls.push('audio');
     },

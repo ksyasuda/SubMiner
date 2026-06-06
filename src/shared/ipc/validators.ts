@@ -20,6 +20,7 @@ const RESERVED_CONTROLLER_PROFILE_IDS = new Set(['__proto__', 'constructor', 'pr
 
 const SESSION_ACTION_IDS: SessionActionId[] = [
   'toggleStatsOverlay',
+  'markWatched',
   'toggleVisibleOverlay',
   'copySubtitle',
   'copySubtitleMultiple',
@@ -31,6 +32,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'toggleSecondarySub',
   'markAudioCard',
   'toggleSubtitleSidebar',
+  'toggleNotificationHistory',
   'openRuntimeOptions',
   'openSessionHelp',
   'openCharacterDictionaryManager',

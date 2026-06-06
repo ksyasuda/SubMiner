@@ -1,5 +1,5 @@
 const DEFAULT_AUTOPLAY_RELEASE_RETRY_DELAY_MS = 200;
-const STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS = 15_000;
+const STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS = 30_000;
 
 export function resolveAutoplayReadyMaxReleaseAttempts(options?: {
   forceWhilePaused?: boolean;

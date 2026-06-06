@@ -53,6 +53,10 @@ export interface IpcServiceDeps {
     interactive: boolean,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  handleOverlayNotificationAction?: (
+    notificationId: string,
+    actionId: string,
+  ) => void | Promise<void>;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleDevTools: () => void;
@@ -80,6 +84,7 @@ export interface IpcServiceDeps {
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
+  getOverlayNotificationPosition: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -223,6 +228,18 @@ function parseSubtitleMiningContext(payload: unknown): SubtitleMiningContext | n
   return parsed;
 }
 
+function parseOverlayNotificationActionPayload(
+  payload: unknown,
+): { notificationId: string; actionId: string } | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  const notificationId = record.notificationId;
+  const actionId = record.actionId;
+  if (typeof notificationId !== 'string' || notificationId.trim().length === 0) return null;
+  if (typeof actionId !== 'string' || actionId.trim().length === 0) return null;
+  return { notificationId, actionId };
+}
+
 export interface IpcDepsRuntimeOptions {
   getMainWindow: () => WindowLike | null;
   getVisibleOverlayVisibility: () => boolean;
@@ -242,6 +259,10 @@ export interface IpcDepsRuntimeOptions {
     interactive: boolean,
     senderWindow: ElectronBrowserWindow | null,
   ) => void;
+  handleOverlayNotificationAction?: (
+    notificationId: string,
+    actionId: string,
+  ) => void | Promise<void>;
   openYomitanSettings: () => void;
   quitApp: () => void;
   toggleVisibleOverlay: () => void;
@@ -262,6 +283,7 @@ export interface IpcDepsRuntimeOptions {
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
+  getOverlayNotificationPosition: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -312,6 +334,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     onOverlayModalOpened: options.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: options.onOverlayMouseInteractionChanged,
     onOverlayInteractiveHint: options.onOverlayInteractiveHint,
+    handleOverlayNotificationAction: options.handleOverlayNotificationAction,
     openYomitanSettings: options.openYomitanSettings,
     recordSubtitleMiningContext: options.recordSubtitleMiningContext,
     quitApp: options.quitApp,
@@ -349,6 +372,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     dispatchSessionAction: options.dispatchSessionAction ?? (async () => {}),
     getStatsToggleKey: options.getStatsToggleKey,
     getMarkWatchedKey: options.getMarkWatchedKey,
+    getOverlayNotificationPosition: options.getOverlayNotificationPosition,
     getControllerConfig: options.getControllerConfig,
     saveControllerConfig: options.saveControllerConfig,
     saveControllerPreference: options.saveControllerPreference,
@@ -472,6 +496,18 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     const senderWindow =
       electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
     deps.onOverlayModalOpened(parsedModal, senderWindow);
+  });
+  ipc.on(IPC_CHANNELS.command.overlayNotificationAction, (_event: unknown, payload: unknown) => {
+    const parsedPayload = parseOverlayNotificationActionPayload(payload);
+    if (!parsedPayload) return;
+    void Promise.resolve(
+      deps.handleOverlayNotificationAction?.(parsedPayload.notificationId, parsedPayload.actionId),
+    ).catch((error) => {
+      console.warn(
+        'Failed to handle overlay notification action:',
+        error instanceof Error ? error.message : String(error),
+      );
+    });
   });
 
   ipc.handle(
@@ -639,6 +675,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getMarkWatchedKey, () => {
     return deps.getMarkWatchedKey();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getOverlayNotificationPosition, () => {
+    return deps.getOverlayNotificationPosition();
   });
 
   ipc.handle(IPC_CHANNELS.request.getControllerConfig, () => {

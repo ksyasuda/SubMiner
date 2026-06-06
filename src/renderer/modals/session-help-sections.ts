@@ -201,6 +201,8 @@ function describeSessionAction(
       return 'Toggle secondary subtitle mode';
     case 'toggleSubtitleSidebar':
       return 'Toggle subtitle sidebar';
+    case 'toggleNotificationHistory':
+      return 'Toggle notification history';
     case 'markAudioCard':
       return 'Mark audio card';
     case 'markWatched':
@@ -254,6 +256,7 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'toggleVisibleOverlay':
     case 'toggleSecondarySub':
     case 'toggleSubtitleSidebar':
+    case 'toggleNotificationHistory':
       return 'Overlay controls';
     case 'triggerSubsync':
       return 'Subtitle sync';

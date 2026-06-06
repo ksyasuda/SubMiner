@@ -2,7 +2,7 @@ import type { SubtitleData } from '../../types';
 import { resolveAutoplayReadyMaxReleaseAttempts } from './startup-autoplay-release-policy';
 
 const PENDING_AUTOPLAY_READY_RETRY_DELAY_MS = 200;
-const MAX_PENDING_AUTOPLAY_READY_RETRY_ATTEMPTS = 75;
+const MAX_PENDING_AUTOPLAY_READY_RETRY_ATTEMPTS = 150;
 
 type MpvClientLike = {
   connected?: boolean;

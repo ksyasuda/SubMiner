@@ -32,6 +32,7 @@ export function syncOverlayMouseIgnoreState(ctx: RendererContext): void {
     ctx.state.isOverSubtitle ||
     ctx.state.isOverSubtitleSidebar ||
     ctx.state.isOverOverlayNotification ||
+    ctx.state.isOverNotificationHistory ||
     shouldKeepWindowInteractive;
   const shouldMarkOverlayInteractive = ctx.platform?.isLinuxPlatform
     ? shouldKeepWindowInteractive

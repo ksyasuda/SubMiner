@@ -48,7 +48,9 @@ import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
 import {
   createOverlayNotificationRenderer,
   handleOverlayNotificationEvent,
+  overlayNotificationPositionClass,
 } from './overlay-notifications.js';
+import { createOverlayNotificationHistoryPanel } from './overlay-notification-history.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
@@ -116,8 +118,12 @@ function syncSettingsModalSubtitleSuppression(): void {
 
 const subtitleRenderer = createSubtitleRenderer(ctx);
 const measurementReporter = createOverlayContentMeasurementReporter(ctx);
+const notificationHistory = createOverlayNotificationHistoryPanel(ctx, {
+  onChanged: () => measurementReporter.schedule(),
+});
 const overlayNotifications = createOverlayNotificationRenderer(ctx, {
   onChanged: () => measurementReporter.schedule(),
+  onShow: (entry) => notificationHistory.record(entry),
 });
 const positioning = createPositioningController(ctx);
 const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
@@ -432,12 +438,30 @@ function restoreOverlayInteractionAfterError(): void {
   }
 }
 
+const OVERLAY_TOAST_POSITION_CLASSES = [
+  'position-top-left',
+  'position-top',
+  'position-top-right',
+] as const;
+
+// Mirror the notification stack's current position onto a toast so error/status toasts honor the
+// configured `notifications.overlayPosition` instead of always pinning to the top-right corner.
+function applyConfiguredToastPosition(toast: HTMLElement): void {
+  const stackClasses = ctx.dom.overlayNotificationStack.classList;
+  const active =
+    OVERLAY_TOAST_POSITION_CLASSES.find((cls) => stackClasses.contains(cls)) ??
+    'position-top-right';
+  toast.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
+  toast.classList.add(active);
+}
+
 function showOverlayErrorToast(message: string): void {
   if (overlayErrorToastTimeout) {
     clearTimeout(overlayErrorToastTimeout);
     overlayErrorToastTimeout = null;
   }
   ctx.dom.overlayErrorToast.textContent = message;
+  applyConfiguredToastPosition(ctx.dom.overlayErrorToast);
   ctx.dom.overlayErrorToast.classList.remove('hidden');
   overlayErrorToastTimeout = setTimeout(() => {
     ctx.dom.overlayErrorToast.classList.add('hidden');
@@ -624,8 +648,25 @@ async function init(): Promise<void> {
       handleOverlayNotificationEvent(overlayNotifications, payload);
     });
   });
+  window.electronAPI.onNotificationHistoryToggle(() => {
+    runGuarded('notification-history:toggle', () => {
+      notificationHistory.toggle();
+    });
+  });
 
   await keyboardHandlers.setupMpvInputForwarding();
+
+  // Seed the notification stack position from config so the stack, error/status toasts, and the
+  // notification history panel side are correct before the first notification arrives.
+  try {
+    const overlayNotificationPosition = await window.electronAPI.getOverlayNotificationPosition();
+    ctx.dom.overlayNotificationStack.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
+    ctx.dom.overlayNotificationStack.classList.add(
+      overlayNotificationPositionClass(overlayNotificationPosition),
+    );
+  } catch {
+    // Non-fatal: keep the default position class from index.html.
+  }
 
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);

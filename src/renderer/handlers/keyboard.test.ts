@@ -94,6 +94,7 @@ function createEmptyShortcuts(): ConfiguredShortcuts {
     openControllerSelect: null,
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
+    toggleNotificationHistory: null,
   };
 }
 
@@ -133,6 +134,7 @@ function installKeyboardTestGlobals() {
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',
     toggleSubtitleSidebar: '',
+    toggleNotificationHistory: '',
     toggleVisibleOverlayGlobal: '',
   };
   let markActiveVideoWatchedResult = true;
@@ -1178,6 +1180,7 @@ test('refreshConfiguredShortcuts updates hot-reloaded stats and watched keys', a
       openControllerSelect: 'Alt+C',
       openControllerDebug: 'Alt+Shift+C',
       toggleSubtitleSidebar: '',
+      toggleNotificationHistory: '',
       toggleVisibleOverlayGlobal: '',
     });
     testGlobals.setStatsToggleKey('');

@@ -41,13 +41,16 @@ type FakeElement = {
   classList: ReturnType<typeof createClassList>;
   append: (...children: FakeElement[]) => void;
   replaceChildren: (...children: FakeElement[]) => void;
+  remove: () => void;
   setAttribute: (name: string, value: string) => void;
   getAttribute: (name: string) => string | null;
   addEventListener: (type: string, listener: (event?: unknown) => void) => void;
+  dispatchEventType: (type: string, event?: unknown) => void;
 };
 
 function createFakeElement(tagName = 'div'): FakeElement {
   const attributes = new Map<string, string>();
+  const listeners = new Map<string, Array<(event?: unknown) => void>>();
   const element: FakeElement = {
     tagName: tagName.toUpperCase(),
     className: '',
@@ -68,7 +71,13 @@ function createFakeElement(tagName = 'div'): FakeElement {
       attributes.set(name, value);
     },
     getAttribute: (name) => attributes.get(name) ?? null,
-    addEventListener: () => undefined,
+    remove: () => undefined,
+    addEventListener: (type, listener) => {
+      listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+    },
+    dispatchEventType: (type, event) => {
+      for (const listener of listeners.get(type) ?? []) listener(event);
+    },
   };
   return element;
 }
@@ -197,10 +206,89 @@ test('overlay notification renderer shows thumbnail image from payload', () => {
   }
 });
 
+test('overlay notification action buttons send action ids', () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const stack = createFakeElement();
+  const sentActions: Array<{ notificationId: string; actionId: string }> = [];
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: {
+      createElement: (tagName: string) => createFakeElement(tagName),
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: () => undefined,
+      setTimeout: () => {
+        return 1;
+      },
+      electronAPI: {
+        sendOverlayNotificationAction: (notificationId: string, actionId: string) => {
+          sentActions.push({ notificationId, actionId });
+        },
+      },
+    },
+  });
+
+  try {
+    const renderer = createOverlayNotificationRenderer({
+      dom: {
+        overlayNotificationStack: stack,
+      },
+      state: {
+        isOverOverlayNotification: false,
+      },
+    } as never);
+
+    renderer.show({
+      id: 'subminer-update-available',
+      title: 'SubMiner update available',
+      body: 'SubMiner v0.15.0 is available',
+      persistent: true,
+      actions: [{ id: 'install-update', label: 'Update' }],
+    });
+
+    const card = stack.children[0];
+    if (!card) {
+      assert.fail('Expected overlay notification card.');
+    }
+    const button = findChildByClass(card, 'overlay-notification-action');
+    if (!button) {
+      assert.fail('Expected overlay notification action button.');
+    }
+
+    button.dispatchEventType('click');
+
+    assert.deepEqual(sentActions, [
+      { notificationId: 'subminer-update-available', actionId: 'install-update' },
+    ]);
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+});
+
 test('overlay notification cards use larger display dimensions', () => {
   assert.match(
     overlayNotificationCss,
     /\.overlay-notification-stack\s*\{[^}]*width:\s*min\(420px,\s*calc\(100vw - 32px\)\);/s,
+  );
+  assert.match(
+    overlayNotificationCss,
+    /\.overlay-notification-stack\s*\{[^}]*z-index:\s*2147483647\s*!important;/s,
   );
   assert.match(overlayNotificationCss, /\.overlay-notification-card\s*\{[^}]*min-height:\s*72px;/s);
   assert.match(
@@ -213,7 +301,10 @@ test('overlay notification cards use larger display dimensions', () => {
     overlayNotificationCss,
     /\.overlay-notification-card\.has-image\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*100px\)\s+minmax\(0,\s*1fr\)\s+22px;/s,
   );
-  assert.match(overlayNotificationCss, /\.overlay-notification-image\s*\{[^}]*max-width:\s*100px;/s);
+  assert.match(
+    overlayNotificationCss,
+    /\.overlay-notification-image\s*\{[^}]*max-width:\s*100px;/s,
+  );
   assert.match(
     overlayNotificationCss,
     /\.overlay-notification-image\s*\{[^}]*aspect-ratio:\s*100 \/ 56;/s,

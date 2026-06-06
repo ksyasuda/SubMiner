@@ -36,6 +36,28 @@ test('notifyUpdateAvailable routes notification surfaces from config', async () 
   ]);
 });
 
+test('notifyUpdateAvailable adds an install action to overlay update notifications', async () => {
+  const payloads: OverlayNotificationPayload[] = [];
+
+  await notifyUpdateAvailable(
+    { notificationType: 'overlay', version: '0.15.0' },
+    {
+      showSystemNotification: () => {},
+      showOsdNotification: async () => {},
+      showOverlayNotification: (nextPayload) => {
+        payloads.push(nextPayload);
+      },
+      log: () => {},
+    },
+  );
+
+  const payload = payloads[0];
+  assert.ok(payload);
+  assert.deepEqual(payload.actions, [{ id: 'install-update', label: 'Update' }]);
+  assert.equal(payload.id, 'subminer-update-available');
+  assert.equal(payload.persistent, true);
+});
+
 test('notifyUpdateAvailable logs osd fallback when overlay notification fails', async () => {
   const calls: string[] = [];
 

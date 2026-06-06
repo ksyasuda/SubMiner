@@ -192,6 +192,7 @@ import {
 import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
   shouldStartAutomaticUpdateChecks,
 } from './main/runtime/startup-mode-flags';
@@ -604,7 +605,11 @@ import {
 } from './main/runtime/update/release-assets';
 import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
-import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
+import {
+  INSTALL_UPDATE_ACTION_ID,
+  notifyUpdateAvailable,
+  UPDATE_AVAILABLE_NOTIFICATION_ID,
+} from './main/runtime/update/update-notifications';
 import { withConfiguredOverlayNotificationPosition } from './main/runtime/overlay-notification-position';
 import {
   getPlaybackFeedbackNotificationOptions,
@@ -3367,6 +3372,10 @@ function dismissOverlayNotification(id: string): void {
   sendOverlayNotificationEvent({ id, dismiss: true });
 }
 
+function toggleNotificationHistoryPanel(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.notificationHistoryToggle);
+}
+
 function showConfiguredStatusNotification(
   message: string,
   options: ConfiguredStatusNotificationOptions = {},
@@ -5082,6 +5091,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldUseMinimalStartup: () =>
       getStartupModeFlags(appState.initialArgs).shouldUseMinimalStartup,
     shouldSkipHeavyStartup: () => getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () =>
+      shouldHandleInitialArgsBeforeDeferredOverlayWarmup(appState.initialArgs),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -6707,6 +6718,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     mineSentenceCount: (count) => handleMineSentenceDigit(count),
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
     toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
+    toggleNotificationHistory: () => toggleNotificationHistoryPanel(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     markActiveVideoWatched: async () => {
       ensureImmersionTrackerStarted();
@@ -6855,6 +6867,21 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         linuxOverlayInteractiveHint = interactive;
         applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
+      handleOverlayNotificationAction: (notificationId, actionId) => {
+        if (
+          notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
+          actionId === INSTALL_UPDATE_ACTION_ID
+        ) {
+          void getUpdateService()
+            .checkForUpdates({
+              source: 'manual',
+              installWhenAvailable: true,
+            })
+            .catch((error) => {
+              logger.warn('Failed to install update from overlay notification action:', error);
+            });
+        }
+      },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
       recordSubtitleMiningContext: (context) => recordSubtitleMiningContext(context),
@@ -6996,6 +7023,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
       getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
+      getOverlayNotificationPosition: () => getResolvedConfig().notifications.overlayPosition,
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();

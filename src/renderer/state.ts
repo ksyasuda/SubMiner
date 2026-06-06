@@ -32,6 +32,8 @@ export type RendererState = {
   isOverSubtitle: boolean;
   isOverSubtitleSidebar: boolean;
   isOverOverlayNotification: boolean;
+  isOverNotificationHistory: boolean;
+  notificationHistoryOpen: boolean;
   isDragging: boolean;
   dragStartY: number;
   startYPercent: number;
@@ -145,6 +147,8 @@ export function createRendererState(): RendererState {
     isOverSubtitle: false,
     isOverSubtitleSidebar: false,
     isOverOverlayNotification: false,
+    isOverNotificationHistory: false,
+    notificationHistoryOpen: false,
     isDragging: false,
     dragStartY: 0,
     startYPercent: 0,

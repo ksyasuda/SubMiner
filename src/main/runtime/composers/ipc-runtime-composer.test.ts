@@ -58,6 +58,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
         dispatchSessionAction: async () => {},
         getStatsToggleKey: () => 'Backquote',
         getMarkWatchedKey: () => 'KeyW',
+        getOverlayNotificationPosition: () => 'top-right',
         getControllerConfig: () => ({}) as never,
         saveControllerConfig: () => {},
         saveControllerPreference: () => {},

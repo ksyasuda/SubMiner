@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AppReadyRuntimeDeps, runAppReadyRuntime } from './startup';
 
+function waitTurn(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
   const calls: string[] = [];
   const deps = {
@@ -275,6 +279,71 @@ test('runAppReadyRuntime does not await background warmups', async () => {
   assert.equal(calls.includes('warmupDone'), false);
   assert.ok(releaseWarmup);
   releaseWarmup();
+});
+
+test('runAppReadyRuntime handles managed background initial args before deferred Yomitan wait', async () => {
+  const calls: string[] = [];
+  let releaseYomitan!: () => void;
+  const yomitanGate = new Promise<void>((resolve) => {
+    releaseYomitan = resolve;
+  });
+  const { deps } = makeDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () => true,
+    loadYomitanExtension: async () => {
+      calls.push('loadYomitanExtension:start');
+      await yomitanGate;
+      calls.push('loadYomitanExtension:done');
+    },
+    handleFirstRunSetup: async () => {
+      calls.push('handleFirstRunSetup');
+    },
+    handleInitialArgs: () => {
+      calls.push('handleInitialArgs');
+    },
+  } as Partial<AppReadyRuntimeDeps>);
+
+  const readyPromise = runAppReadyRuntime(deps);
+  await waitTurn();
+
+  try {
+    assert.ok(calls.includes('handleFirstRunSetup'));
+    assert.ok(calls.includes('handleInitialArgs'));
+    assert.equal(calls.includes('loadYomitanExtension:done'), false);
+  } finally {
+    releaseYomitan();
+    await readyPromise;
+  }
+});
+
+test('runAppReadyRuntime keeps non-managed deferred overlay startup behind Yomitan readiness', async () => {
+  const calls: string[] = [];
+  let releaseYomitan!: () => void;
+  const yomitanGate = new Promise<void>((resolve) => {
+    releaseYomitan = resolve;
+  });
+  const { deps } = makeDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () => false,
+    loadYomitanExtension: async () => {
+      calls.push('loadYomitanExtension:start');
+      await yomitanGate;
+      calls.push('loadYomitanExtension:done');
+    },
+    handleInitialArgs: () => {
+      calls.push('handleInitialArgs');
+    },
+  } as Partial<AppReadyRuntimeDeps>);
+
+  const readyPromise = runAppReadyRuntime(deps);
+  await waitTurn();
+
+  assert.equal(calls.includes('handleInitialArgs'), false);
+
+  releaseYomitan();
+  await readyPromise;
+
+  assert.ok(calls.indexOf('loadYomitanExtension:done') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime starts background warmups before core runtime services', async () => {

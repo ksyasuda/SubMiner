@@ -62,6 +62,7 @@ export const IPC_CHANNELS = {
     getConfigShortcuts: 'get-config-shortcuts',
     getStatsToggleKey: 'get-stats-toggle-key',
     getMarkWatchedKey: 'get-mark-watched-key',
+    getOverlayNotificationPosition: 'get-overlay-notification-position',
     getControllerConfig: 'get-controller-config',
     getSecondarySubMode: 'get-secondary-sub-mode',
     getCurrentSecondarySub: 'get-current-secondary-sub',
@@ -146,6 +147,7 @@ export const IPC_CHANNELS = {
     primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     configHotReload: 'config:hot-reload',
     overlayNotification: 'overlay:notification',
+    notificationHistoryToggle: 'notification-history:toggle',
   },
 } as const;
 

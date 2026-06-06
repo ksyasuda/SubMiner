@@ -4,10 +4,16 @@ breaking: true
 
 - Added overlay notifications with a Catppuccin Macchiato stack, a 3-second transient timeout, and persistent long-running job notifications for character dictionary sync.
 - Added `notifications.overlayPosition` to place overlay notifications at the top left, top center, or top right; top right remains the default.
+- Added a notification history panel (default `Ctrl+N`, configurable via `shortcuts.toggleNotificationHistory`) that logs every notification shown during the session; the toggle works whether the overlay or mpv has focus, the panel slides in from the same edge as notifications (right when centered), and entries can be removed individually or cleared.
+- Made the overlay error/recovery toast follow the configured `notifications.overlayPosition` instead of always pinning to the top-right corner, and seeded the notification stack and history panel side from that position at startup.
 - Routed startup tokenization and subtitle annotation status through the configured notification surfaces; the bundled mpv plugin now only emits startup OSD messages for `osd` and `osd-system`.
+- Initialized the tray and visible overlay shell before deferred tokenization warmups finish on cold managed background startup, while keeping playback paused until SubMiner reports autoplay readiness.
 - Kept playback feedback such as subtitle visibility, subtitle track, and subtitle delay text on overlay/OSD surfaces only; desktop/system notifications are reserved for real notifications like mined cards, errors, and updates.
 - Reused the active primary/secondary subtitle mode overlay notification while cycling modes so rapid toggles update one card instead of stacking duplicate feedback.
 - Fixed mined-card overlay notifications so `overlay` and `both` modes show the same generated card thumbnail as system notifications.
+- Added an Update button to overlay update-available notifications so users can start the app update flow from the notification.
+- Fixed sentence-card mining so the Ctrl+S flow shows only the Anki update progress notification instead of also stacking a generic SubMiner toast.
+- Fixed overlay notification layering so notification close/actions stay clickable above subtitle bars on Linux overlays.
 - Fixed character dictionary sync so duplicate MPV media-path events do not repeat check/ready notifications for the same opened video.
 - Changed `both` notification routing to mean overlay + system; users who used `both` for mpv OSD + system notifications should set `notificationType` to `osd-system` in `config.jsonc`.
 - Kept `osd` and `osd-system` as config-file-only legacy notification values; Settings normally offers only overlay, system, both, and none, while still showing an already configured legacy value as selected.

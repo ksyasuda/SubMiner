@@ -622,5 +622,11 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.shortcuts.toggleSubtitleSidebar,
       description: 'Accelerator that toggles the subtitle sidebar visibility.',
     },
+    {
+      path: 'shortcuts.toggleNotificationHistory',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.toggleNotificationHistory,
+      description: 'Accelerator that toggles the overlay notification history panel.',
+    },
   ];
 }

@@ -145,7 +145,7 @@ function setInteractiveState(ctx: RendererContext, value: boolean): void {
 
 export function createOverlayNotificationRenderer(
   ctx: RendererContext,
-  options: { onChanged?: () => void } = {},
+  options: { onChanged?: () => void; onShow?: (entry: OverlayNotificationEntry) => void } = {},
 ) {
   const store = createOverlayNotificationStore();
   const timers = new Map<string, number>();
@@ -321,6 +321,7 @@ export function createOverlayNotificationRenderer(
   function show(payload: OverlayNotificationPayload): string {
     const entry = store.upsert(payload);
     position = entry.position ?? DEFAULT_OVERLAY_NOTIFICATION_POSITION;
+    options.onShow?.(entry);
     clearTimer(entry.id);
     if (!entry.persistent) {
       const timeoutMs = Math.max(0, entry.timeoutMs ?? DEFAULT_OVERLAY_NOTIFICATION_TIMEOUT_MS);

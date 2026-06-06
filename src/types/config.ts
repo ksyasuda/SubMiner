@@ -125,6 +125,7 @@ export interface ShortcutsConfig {
   openControllerSelect?: string | null;
   openControllerDebug?: string | null;
   toggleSubtitleSidebar?: string | null;
+  toggleNotificationHistory?: string | null;
 }
 
 export interface Config {

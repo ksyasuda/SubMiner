@@ -1768,6 +1768,32 @@ do
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
 			auto_start_pause_until_ready_owns_initial_pause = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for default pause timeout scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		has_timeout(recorded.timeouts, 30),
+		"pause-until-ready default timeout should give cold app startup 30 seconds"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			auto_start_pause_until_ready_owns_initial_pause = "yes",
 			auto_start_pause_until_ready_timeout_seconds = 0.1,
 			socket_path = "/tmp/subminer-socket",
 		},

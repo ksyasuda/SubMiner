@@ -210,6 +210,8 @@ Configure automatic update checks and update notifications:
 | `notificationType`   | `"overlay"` \| `"system"` \| `"both"` \| `"none"` | How SubMiner announces available updates. Default `"system"`. `"both"` means overlay + system.      |
 | `channel`            | `"stable"` \| `"prerelease"`                      | Release channel used for update checks. Use `"prerelease"` to test beta/RC releases.                |
 
+When `notificationType` is `"overlay"` or `"both"`, update-available overlay notifications include an **Update** button that starts the app update flow.
+
 `osd` and `osd-system` are legacy config-file-only notification values. The Settings window offers `overlay`, `system`, `both`, and `none`; if your config already contains `osd` or `osd-system`, it is shown as the selected value but not offered as a normal choice. If you previously used `both` for mpv OSD + system notifications, set `notificationType` to `"osd-system"` in `config.jsonc` to keep that behavior.
 
 ### Notifications
@@ -228,6 +230,10 @@ Configure where overlay notification cards appear:
 | ----------------- | ---------------------------------------- | ------------------------------------------------------------------ |
 | `overlayPosition` | `"top-left"` \| `"top"` \| `"top-right"` | Position for in-overlay notification cards. Default `"top-right"`. |
 
+#### Notification history panel
+
+Every overlay notification shown during a session is also recorded in a notification history panel. Press `Ctrl+N` (configurable via [`shortcuts.toggleNotificationHistory`](#shortcuts-configuration)) to toggle the panel; the binding works whether the overlay or mpv has focus. The panel slides in from the same edge the notifications use — left when `overlayPosition` is `"top-left"`, and right for `"top-right"` or `"top"` (centered). Each entry can be removed individually, or use **Clear** to empty the history. History is session-only and is not persisted across restarts.
+
 Startup tokenization and subtitle annotation status follows the configured notification surface. The bundled mpv plugin only shows its startup OSD messages when `ankiConnect.behavior.notificationType` is set to `"osd"` or `"osd-system"` in `config.jsonc`.
 
 ### Auto-Start Overlay
@@ -244,7 +250,7 @@ Control whether the overlay automatically becomes visible when it connects to mp
 | -------------------- | --------------- | ----------------------------------------------------- |
 | `auto_start_overlay` | `true`, `false` | Auto-show overlay on mpv connection (default: `true`) |
 
-When you launch through the SubMiner app or the `subminer` wrapper, the launcher reads these settings from this config and injects them into the mpv plugin at runtime - there is no separate plugin config file to edit. `auto_start_overlay` controls whether the visible overlay shows on auto-start. Two related keys in the `mpv` block tune startup behavior: `mpv.autoStartSubMiner` starts the overlay automatically when a file loads, and `mpv.pauseUntilOverlayReady` pauses mpv on visible auto-start until SubMiner signals overlay/tokenization readiness.
+When you launch through the SubMiner app or the `subminer` wrapper, the launcher reads these settings from this config and injects them into the mpv plugin at runtime - there is no separate plugin config file to edit. `auto_start_overlay` controls whether the visible overlay shows on auto-start. Two related keys in the `mpv` block tune startup behavior: `mpv.autoStartSubMiner` starts the overlay automatically when a file loads, and `mpv.pauseUntilOverlayReady` pauses mpv on visible auto-start until SubMiner signals overlay/tokenization readiness. On cold managed background startup, SubMiner brings up the tray and visible overlay shell before tokenization and annotation warmups finish, then releases playback only after autoplay readiness.
 
 On Windows, packaged plugin installs also rewrite the plugin socket path to `\\.\pipe\subminer-socket`.
 
@@ -641,31 +647,33 @@ See `config.example.jsonc` for detailed configuration options.
     "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
     "toggleSubtitleSidebar": "Backslash",
+    "toggleNotificationHistory": "Ctrl+N",
     "multiCopyTimeoutMs": 3000
   }
 }
 ```
 
-| Option                           | Values           | Description                                                                                                                               |
-| -------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `toggleVisibleOverlayGlobal`     | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                       |
-| `copySubtitle`                   | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                |
-| `copySubtitleMultiple`           | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                   |
-| `updateLastCardFromClipboard`    | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                            |
-| `triggerFieldGrouping`           | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when automatic card updates are disabled)  |
-| `triggerSubsync`                 | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                 |
-| `mineSentence`                   | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                            |
-| `mineSentenceMultiple`           | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                     |
-| `multiCopyTimeoutMs`             | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                           |
-| `toggleSecondarySub`             | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                   |
-| `markAudioCard`                  | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                   |
-| `openCharacterDictionaryManager` | string \| `null` | Opens the loaded character dictionary manager (default: `"CommandOrControl+D"`)                                                           |
-| `openRuntimeOptions`             | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                       |
-| `openSessionHelp`                | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                             |
-| `openControllerSelect`           | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                              |
-| `openControllerDebug`            | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                               |
-| `openJimaku`                     | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                 |
-| `toggleSubtitleSidebar`          | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting. |
+| Option                           | Values           | Description                                                                                                                                                            |
+| -------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toggleVisibleOverlayGlobal`     | string \| `null` | Global accelerator for toggling visible subtitle overlay (default: `"Alt+Shift+O"`)                                                                                    |
+| `copySubtitle`                   | string \| `null` | Accelerator for copying current subtitle (default: `"CommandOrControl+C"`)                                                                                             |
+| `copySubtitleMultiple`           | string \| `null` | Accelerator for multi-copy mode (default: `"CommandOrControl+Shift+C"`)                                                                                                |
+| `updateLastCardFromClipboard`    | string \| `null` | Accelerator for updating card from clipboard (default: `"CommandOrControl+V"`)                                                                                         |
+| `triggerFieldGrouping`           | string \| `null` | Accelerator for Kiku field grouping on last card (default: `"CommandOrControl+G"`; only active when automatic card updates are disabled)                               |
+| `triggerSubsync`                 | string \| `null` | Accelerator for running Subsync (default: `"Ctrl+Alt+S"`)                                                                                                              |
+| `mineSentence`                   | string \| `null` | Accelerator for creating sentence card from current subtitle (default: `"CommandOrControl+S"`)                                                                         |
+| `mineSentenceMultiple`           | string \| `null` | Accelerator for multi-mine sentence card mode (default: `"CommandOrControl+Shift+S"`)                                                                                  |
+| `multiCopyTimeoutMs`             | number           | Timeout in ms for multi-copy/mine digit input (default: `3000`)                                                                                                        |
+| `toggleSecondarySub`             | string \| `null` | Accelerator for cycling secondary subtitle mode (default: `"CommandOrControl+Shift+V"`)                                                                                |
+| `markAudioCard`                  | string \| `null` | Accelerator for marking last card as audio card (default: `"CommandOrControl+Shift+A"`)                                                                                |
+| `openCharacterDictionaryManager` | string \| `null` | Opens the loaded character dictionary manager (default: `"CommandOrControl+D"`)                                                                                        |
+| `openRuntimeOptions`             | string \| `null` | Opens runtime options palette for live session-only toggles (default: `"CommandOrControl+Shift+O"`)                                                                    |
+| `openSessionHelp`                | string \| `null` | Opens the in-overlay session help modal (default: `"CommandOrControl+Slash"`)                                                                                          |
+| `openControllerSelect`           | string \| `null` | Opens the controller config/remap modal (default: `"Alt+C"`)                                                                                                           |
+| `openControllerDebug`            | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                                            |
+| `openJimaku`                     | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                                              |
+| `toggleSubtitleSidebar`          | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.                              |
+| `toggleNotificationHistory`      | string \| `null` | Toggles the overlay notification history panel (default: `"Ctrl+N"`). The panel slides in from the same edge as notifications (right when notifications are centered). |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
@@ -1479,18 +1487,18 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 }
 ```
 
-| Option                   | Values                                                                      | Description                                                                                                                         |
-| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`) |
-| `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                        |
-| `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                          |
-| `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)          |
-| `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                     |
-| `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                           |
-| `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness (default: `true`)                    |
-| `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)        |
-| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection, chapter markers, and the skip-intro key (default: `true`)                                           |
-| `aniskipButtonKey`       | string                                                                      | mpv key used to skip the detected intro while the skip prompt is visible (default: `"TAB"`)                                         |
+| Option                   | Values                                                                      | Description                                                                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`)         |
+| `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                                |
+| `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                                  |
+| `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)                  |
+| `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                             |
+| `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                                   |
+| `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness, with a 30-second fallback (default: `true`) |
+| `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)                |
+| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection, chapter markers, and the skip-intro key (default: `true`)                                                   |
+| `aniskipButtonKey`       | string                                                                      | mpv key used to skip the detected intro while the skip prompt is visible (default: `"TAB"`)                                                 |
 
 If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 

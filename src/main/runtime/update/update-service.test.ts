@@ -96,6 +96,28 @@ test('manual update check falls back to GitHub release when app metadata is unav
   assert.deepEqual(calls, ['available-dialog:0.15.0']);
 });
 
+test('manual update install request skips available dialog and updates app', async () => {
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+    showUpdateAvailableDialog: async () => {
+      throw new Error('unexpected update confirmation');
+    },
+    updateLauncher: async (_launcherPath, channel) => {
+      calls.push(`launcher:${channel}`);
+      return { status: 'skipped' };
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({
+    source: 'manual',
+    installWhenAvailable: true,
+  });
+
+  assert.equal(result.status, 'updated');
+  assert.deepEqual(calls, ['download', 'launcher:stable', 'restart-dialog']);
+});
+
 test('manual update check reports available when no update asset was applied', async () => {
   const { deps, calls } = createDeps({
     checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),

@@ -14,6 +14,8 @@ export interface SubminerPluginRuntimeScriptOptConfig {
   texthookerEnabled: boolean;
 }
 
+const AUTO_START_PAUSE_UNTIL_READY_TIMEOUT_SECONDS = 30;
+
 function boolScriptOpt(value: boolean): 'yes' | 'no' {
   return value ? 'yes' : 'no';
 }
@@ -42,6 +44,7 @@ export function buildSubminerPluginRuntimeScriptOptParts(
     `subminer-auto_start_pause_until_ready=${boolScriptOpt(
       runtimeConfig.autoStartPauseUntilReady,
     )}`,
+    `subminer-auto_start_pause_until_ready_timeout_seconds=${AUTO_START_PAUSE_UNTIL_READY_TIMEOUT_SECONDS}`,
     `subminer-osd_messages=${boolScriptOpt(runtimeConfig.osdMessages)}`,
     `subminer-texthooker_enabled=${boolScriptOpt(runtimeConfig.texthookerEnabled)}`,
   ];

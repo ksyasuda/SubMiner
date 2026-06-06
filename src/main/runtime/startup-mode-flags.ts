@@ -29,6 +29,12 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
   };
 }
 
+export function shouldHandleInitialArgsBeforeDeferredOverlayWarmup(
+  initialArgs: CliArgs | null | undefined,
+): boolean {
+  return Boolean(initialArgs?.start && initialArgs.background && initialArgs.managedPlayback);
+}
+
 export function shouldRefreshAnilistOnConfigReload(
   initialArgs: CliArgs | null | undefined,
 ): boolean {

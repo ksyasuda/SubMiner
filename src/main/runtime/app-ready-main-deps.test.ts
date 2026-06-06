@@ -48,6 +48,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
     startBackgroundWarmups: () => calls.push('start-warmups'),
     texthookerOnlyMode: false,
     shouldAutoInitializeOverlayRuntimeFromConfig: () => true,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () => true,
     setVisibleOverlayVisible: () => calls.push('set-visible-overlay'),
     initializeOverlayRuntime: () => calls.push('init-overlay'),
     handleInitialArgs: () => calls.push('handle-initial-args'),
@@ -64,6 +65,7 @@ test('app-ready main deps builder returns mapped app-ready runtime deps', async 
   assert.equal(onReady.defaultTexthookerPort, 5174);
   assert.equal(onReady.texthookerOnlyMode, false);
   assert.equal(onReady.shouldAutoInitializeOverlayRuntimeFromConfig(), true);
+  assert.equal(onReady.shouldHandleInitialArgsBeforeDeferredOverlayWarmup?.(), true);
   assert.equal(onReady.now?.(), 123);
   onReady.loadSubtitlePosition();
   onReady.resolveKeybindings();

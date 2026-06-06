@@ -582,6 +582,7 @@ function subsectionForPath(path: string): string | undefined {
     if (
       leaf === 'toggleVisibleOverlayGlobal' ||
       leaf === 'toggleSubtitleSidebar' ||
+      leaf === 'toggleNotificationHistory' ||
       leaf === 'toggleSecondarySub' ||
       leaf === 'toggleStatsOverlay' ||
       leaf === 'markWatched'

@@ -59,6 +59,7 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'openControllerSelect', actionId: 'openControllerSelect' },
   { key: 'openControllerDebug', actionId: 'openControllerDebug' },
   { key: 'toggleSubtitleSidebar', actionId: 'toggleSubtitleSidebar' },
+  { key: 'toggleNotificationHistory', actionId: 'toggleNotificationHistory' },
 ];
 
 function normalizeModifiers(modifiers: SessionKeyModifier[]): SessionKeyModifier[] {

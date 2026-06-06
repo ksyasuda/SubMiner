@@ -48,6 +48,31 @@
         aria-live="polite"
         aria-atomic="false"
       ></div>
+      <aside
+        id="overlayNotificationHistory"
+        class="notification-history side-right"
+        role="dialog"
+        aria-label="Notification history"
+        aria-hidden="true"
+      >
+        <header class="notification-history-header">
+          <span class="notification-history-title">Notifications</span>
+          <div class="notification-history-header-actions">
+            <button class="notification-history-clear" type="button">Clear</button>
+            <button
+              class="notification-history-close"
+              type="button"
+              aria-label="Close notification history"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+        <div class="notification-history-body">
+          <ul class="notification-history-list"></ul>
+          <div class="notification-history-empty">No notifications yet</div>
+        </div>
+      </aside>
       <div id="secondarySubContainer" class="secondary-sub-hidden">
         <div id="secondarySubRoot"></div>
       </div>

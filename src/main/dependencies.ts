@@ -60,6 +60,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
   onOverlayMouseInteractionChanged?: IpcDepsRuntimeOptions['onOverlayMouseInteractionChanged'];
   onOverlayInteractiveHint?: IpcDepsRuntimeOptions['onOverlayInteractiveHint'];
+  handleOverlayNotificationAction?: IpcDepsRuntimeOptions['handleOverlayNotificationAction'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
@@ -83,6 +84,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   dispatchSessionAction: IpcDepsRuntimeOptions['dispatchSessionAction'];
   getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
   getMarkWatchedKey: IpcDepsRuntimeOptions['getMarkWatchedKey'];
+  getOverlayNotificationPosition: IpcDepsRuntimeOptions['getOverlayNotificationPosition'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
@@ -243,6 +245,7 @@ export function createMainIpcRuntimeServiceDeps(
     onOverlayModalOpened: params.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: params.onOverlayMouseInteractionChanged,
     onOverlayInteractiveHint: params.onOverlayInteractiveHint,
+    handleOverlayNotificationAction: params.handleOverlayNotificationAction,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
@@ -264,6 +267,7 @@ export function createMainIpcRuntimeServiceDeps(
     dispatchSessionAction: params.dispatchSessionAction,
     getStatsToggleKey: params.getStatsToggleKey,
     getMarkWatchedKey: params.getMarkWatchedKey,
+    getOverlayNotificationPosition: params.getOverlayNotificationPosition,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,

@@ -19,6 +19,7 @@ export interface ConfiguredShortcuts {
   openControllerSelect: string | null | undefined;
   openControllerDebug: string | null | undefined;
   toggleSubtitleSidebar: string | null | undefined;
+  toggleNotificationHistory: string | null | undefined;
 }
 
 export function resolveConfiguredShortcuts(
@@ -67,5 +68,6 @@ export function resolveConfiguredShortcuts(
     openControllerSelect: normalizeShortcut(shortcutValue('openControllerSelect')),
     openControllerDebug: normalizeShortcut(shortcutValue('openControllerDebug')),
     toggleSubtitleSidebar: normalizeShortcut(shortcutValue('toggleSubtitleSidebar')),
+    toggleNotificationHistory: normalizeShortcut(shortcutValue('toggleNotificationHistory')),
   };
 }

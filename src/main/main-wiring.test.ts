@@ -118,6 +118,15 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
   );
 });
 
+test('update overlay notification action triggers install flow', () => {
+  const source = readMainSource();
+
+  assert.match(source, /handleOverlayNotificationAction:\s*\(notificationId,\s*actionId\)\s*=>/);
+  assert.match(source, /notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID/);
+  assert.match(source, /actionId === INSTALL_UPDATE_ACTION_ID/);
+  assert.match(source, /installWhenAvailable:\s*true/);
+});
+
 test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
   const source = readMainSource();
   const actionBlock = source.match(

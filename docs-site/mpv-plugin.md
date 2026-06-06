@@ -1,6 +1,6 @@
 # MPV Plugin
 
-**What this is:** mpv is the video player SubMiner overlays subtitles on. The SubMiner mpv plugin is a small Lua script that runs *inside* mpv and gives you in-player keybindings to control the SubMiner overlay (start/stop/toggle, skip intro, etc.) without leaving the player window.
+**What this is:** mpv is the video player SubMiner overlays subtitles on. The SubMiner mpv plugin is a small Lua script that runs _inside_ mpv and gives you in-player keybindings to control the SubMiner overlay (start/stop/toggle, skip intro, etc.) without leaving the player window.
 
 **Who needs this page:** Most users never touch the plugin directly - SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
 
@@ -29,18 +29,18 @@ input-ipc-server=\\.\pipe\subminer-socket
 
 Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "chord"):
 
-| Chord            | Action                                 |
-| ---------------- | -------------------------------------- |
-| `y-y`            | Open menu                              |
-| `y-s`            | Start overlay                          |
-| `y-S`            | Stop overlay                           |
-| `y-t`            | Toggle visible overlay                 |
-| `y-o`            | Open settings window                   |
-| `y-r`            | Restart overlay                        |
-| `y-c`            | Check status                           |
-| `y-h`            | Open session help / keybinding modal   |
-| `v`              | Toggle primary subtitle bar visibility |
-| `TAB` (default)  | Skip intro (AniSkip)                   |
+| Chord           | Action                                 |
+| --------------- | -------------------------------------- |
+| `y-y`           | Open menu                              |
+| `y-s`           | Start overlay                          |
+| `y-S`           | Stop overlay                           |
+| `y-t`           | Toggle visible overlay                 |
+| `y-o`           | Open settings window                   |
+| `y-r`           | Restart overlay                        |
+| `y-c`           | Check status                           |
+| `y-h`           | Open session help / keybinding modal   |
+| `v`             | Toggle primary subtitle bar visibility |
+| `TAB` (default) | Skip intro (AniSkip)                   |
 
 The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it. See [AniSkip Integration](/aniskip-integration) for setup and details.
 
@@ -151,7 +151,7 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 For how the plugin's auto-start fits into the full launch sequence - including when the launcher starts the overlay instead of the plugin - see [Playback Startup Flow](./architecture#playback-startup-flow).
 
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay.
-- **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
+- **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused. On cold managed background startup, SubMiner opens the tray and visible overlay shell before tokenization warmups finish, then the plugin resumes playback after SubMiner reports tokenization-ready (with a 30-second timeout fallback).
 - **Duplicate auto-start events**: Repeated `file-loaded` hooks while overlay is already running are ignored for auto-start triggers (prevents duplicate start attempts).
 - **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.
 - **Texthooker**: Starts as a separate subprocess before the overlay to ensure the app lock is acquired first.
