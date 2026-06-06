@@ -211,6 +211,7 @@ async function main(): Promise<void> {
         }),
       getSecondarySubtitleLanguages: () =>
         configService.reloadConfig().secondarySub.secondarySubLanguages,
+      getStatsMiningAlassPath: () => configService.reloadConfig().subsync.alass_path,
       addYomitanNote: async (word: string) =>
         await invokeStatsWordHelper({
           helperScriptPath: wordHelperScriptPath,

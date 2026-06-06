@@ -26,6 +26,7 @@ import type {
   StatsExcludedWord,
   StatsCoverImagesData,
 } from '../types/stats';
+import type { StatsMineCardParams, StatsMineCardResponse } from './mining';
 import { appendCoverRetryToken } from './cover-retry';
 
 type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
@@ -234,16 +235,7 @@ export const apiClient = {
       body: JSON.stringify(info),
     });
   },
-  mineCard: async (params: {
-    sourcePath: string;
-    startMs: number;
-    endMs: number;
-    sentence: string;
-    word: string;
-    secondaryText?: string | null;
-    videoTitle: string;
-    mode: 'word' | 'sentence' | 'audio';
-  }): Promise<{ noteId?: number; error?: string; errors?: string[] }> => {
+  mineCard: async (params: StatsMineCardParams): Promise<StatsMineCardResponse> => {
     const res = await fetch(`${BASE_URL}/api/stats/mine-card?mode=${params.mode}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -4,6 +4,7 @@ import {
   getSentenceSearchMineAvailability,
   renderSentenceWithMatches,
 } from '../../lib/sentence-search';
+import { buildStatsMineCardParams, getStatsMineCardError } from '../../lib/mining';
 import type { SentenceSearchResult } from '../../types/stats';
 
 const SEARCH_LIMIT = 50;
@@ -100,27 +101,19 @@ export function SearchTab() {
     if (mode === 'sentence' ? !availability.canMineSentence : !availability.canMineWordAudio) {
       return;
     }
-    if (!result.sourcePath || result.segmentStartMs == null || result.segmentEndMs == null) {
+    const searchedWord = availability.exactMatch ? query.trim() : '';
+    const params = buildStatsMineCardParams(result, searchedWord, mode);
+    if (!params) {
       return;
     }
 
     const key = statusKey(result, index, mode);
     setMineStatus((prev) => ({ ...prev, [key]: { loading: true } }));
     try {
-      const searchedWord = availability.exactMatch ? query.trim() : '';
-      const response = await apiClient.mineCard({
-        sourcePath: result.sourcePath,
-        startMs: result.segmentStartMs,
-        endMs: result.segmentEndMs,
-        sentence: result.text,
-        word: searchedWord,
-        secondaryText: result.secondaryText,
-        videoTitle: result.videoTitle,
-        mode,
-      });
-
-      if (response.error) {
-        setMineStatus((prev) => ({ ...prev, [key]: { error: response.error } }));
+      const response = await apiClient.mineCard(params);
+      const responseError = getStatsMineCardError(response);
+      if (responseError) {
+        setMineStatus((prev) => ({ ...prev, [key]: { error: responseError } }));
         return;
       }
       setMineStatus((prev) => ({ ...prev, [key]: { success: true } }));

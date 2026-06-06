@@ -1305,7 +1305,7 @@ export class ImmersionTrackerService {
     const cleaned = normalizeText(text);
     if (!cleaned) return;
 
-    if (!endSec || endSec <= 0) {
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
       return;
     }
 

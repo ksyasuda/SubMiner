@@ -4,7 +4,7 @@ This guide walks through the sentence mining loop - from watching a video to cre
 
 ## Overview
 
-*Sentence mining* means turning real sentences you encounter while watching native video into Anki flashcards, so you learn vocabulary in the context where you actually met it. SubMiner automates the tedious parts of that loop.
+_Sentence mining_ means turning real sentences you encounter while watching native video into Anki flashcards, so you learn vocabulary in the context where you actually met it. SubMiner automates the tedious parts of that loop.
 
 SubMiner runs as a transparent overlay on top of mpv (the video player). As subtitles play, the overlay displays them as interactive text. You hover a word, trigger a Yomitan dictionary lookup with your configured lookup key/modifier, then create an Anki card with a single action. SubMiner automatically attaches the sentence, an audio clip, and a screenshot to that card - no manual copy-pasting or screen capturing.
 
@@ -122,10 +122,10 @@ By default the **primary** bar is `visible` (`subtitleStyle.primaryDefaultMode`)
 
 Cycle each bar's mode at runtime with its own shortcut:
 
-| Shortcut             | Action                                                   | Config key                     |
-| -------------------- | -------------------------------------------------------- | ------------------------------ |
-| `V`                  | Cycle primary subtitle mode (hidden → visible → hover)   | overlay-local                  |
-| `Ctrl/Cmd+Shift+V`   | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
+| Shortcut           | Action                                                   | Config key                     |
+| ------------------ | -------------------------------------------------------- | ------------------------------ |
+| `V`                | Cycle primary subtitle mode (hidden → visible → hover)   | overlay-local                  |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub` |
 
 ### Modal Surfaces
 
@@ -165,6 +165,8 @@ If your subtitle file is out of sync with the audio, SubMiner can resynchronize 
 4. SubMiner runs the sync and reloads the corrected subtitle.
 
 For remote streams, including Jellyfin playback, the modal only offers alass. Jellyfin subtitle URLs are cached as temporary subtitle files so alass can read them, but the video stream is not downloaded. ffsubsync needs direct access to the local media file and is unavailable for stream URLs.
+
+When you mine a sentence card from the stats dashboard, SubMiner can also use `alass` automatically to align a local English sidecar against the matching local Japanese sidecar before filling the card translation field. The source subtitle files are not modified; SubMiner writes a temporary retimed copy and reuses it while the stats server is running.
 
 Install the sync tools separately - see [Troubleshooting](/troubleshooting#subtitle-sync-subsync) if the tools are not found.
 

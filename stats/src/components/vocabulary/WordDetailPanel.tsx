@@ -2,6 +2,11 @@ import { useRef, useState, useEffect } from 'react';
 import { useWordDetail } from '../../hooks/useWordDetail';
 import { apiClient } from '../../lib/api-client';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
+import {
+  buildStatsMineCardParams,
+  getStatsMineCardError,
+  getStatsMineCardUnavailableReason,
+} from '../../lib/mining';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 import { PosBadge } from './pos-helpers';
@@ -135,25 +140,18 @@ export function WordDetailPanel({
     occ: VocabularyOccurrenceEntry,
     mode: 'word' | 'sentence' | 'audio',
   ) => {
-    if (!occ.sourcePath || occ.segmentStartMs == null || occ.segmentEndMs == null) {
+    const params = buildStatsMineCardParams(occ, data!.detail.headword, mode);
+    if (!params) {
       return;
     }
 
     const key = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}-${mode}`;
     setMineStatus((prev) => ({ ...prev, [key]: { loading: true } }));
     try {
-      const result = await apiClient.mineCard({
-        sourcePath: occ.sourcePath!,
-        startMs: occ.segmentStartMs!,
-        endMs: occ.segmentEndMs!,
-        sentence: occ.text,
-        word: data!.detail.headword,
-        secondaryText: occ.secondaryText,
-        videoTitle: occ.videoTitle,
-        mode,
-      });
-      if (result.error) {
-        setMineStatus((prev) => ({ ...prev, [key]: { error: result.error } }));
+      const result = await apiClient.mineCard(params);
+      const responseError = getStatsMineCardError(result);
+      if (responseError) {
+        setMineStatus((prev) => ({ ...prev, [key]: { error: responseError } }));
       } else {
         setMineStatus((prev) => ({ ...prev, [key]: { success: true } }));
         const label =
@@ -368,15 +366,7 @@ export function WordDetailPanel({
                               · session {occ.sessionId}
                             </span>
                             {(() => {
-                              const canMine =
-                                !!occ.sourcePath &&
-                                occ.segmentStartMs != null &&
-                                occ.segmentEndMs != null;
-                              const unavailableReason = canMine
-                                ? null
-                                : occ.sourcePath
-                                  ? 'This line is missing segment timing.'
-                                  : 'This source has no local file path.';
+                              const unavailableReason = getStatsMineCardUnavailableReason(occ);
                               const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
                               const wordStatus = mineStatus[`${baseKey}-word`];
                               const sentenceStatus = mineStatus[`${baseKey}-sentence`];

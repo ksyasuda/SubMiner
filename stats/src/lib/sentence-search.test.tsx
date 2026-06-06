@@ -61,6 +61,17 @@ test('getSentenceSearchMineAvailability disables every mining mode without sourc
   });
 });
 
+test('getSentenceSearchMineAvailability disables every mining mode with invalid source timing', () => {
+  const result = makeResult({ segmentStartMs: 2500, segmentEndMs: 2400 });
+
+  assert.deepEqual(getSentenceSearchMineAvailability(result, '猫'), {
+    canMineSentence: false,
+    canMineWordAudio: false,
+    exactMatch: true,
+    unavailableReason: 'This line has invalid segment timing.',
+  });
+});
+
 test('renderSentenceWithMatches highlights exact searched-word matches', () => {
   const markup = renderToStaticMarkup(<>{renderSentenceWithMatches('猫が寝る', '猫')}</>);
 

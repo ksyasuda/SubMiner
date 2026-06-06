@@ -17,7 +17,11 @@ import {
 } from '../../anki-field-config.js';
 import { resolveAnimatedImageLeadInSeconds } from '../../anki-integration/animated-image-sync.js';
 import type { AnilistRateLimiter } from './anilist/rate-limiter.js';
-import { resolveSecondarySubtitleTextFromSidecar } from './secondary-subtitle-sidecar.js';
+import {
+  resolveRetimedSecondarySubtitleTextFromSidecar,
+  resolveSecondarySubtitleTextFromSidecar,
+  type RetimedSecondarySubtitleInput,
+} from './secondary-subtitle-sidecar.js';
 
 type StatsServerNoteInfo = {
   noteId: number;
@@ -366,6 +370,11 @@ export interface StatsServerConfig {
   getYomitanAnkiDeckName?: () => Promise<string | null | undefined> | string | null | undefined;
   secondarySubtitleLanguages?: string[];
   getSecondarySubtitleLanguages?: () => string[] | undefined;
+  statsMiningAlassPath?: string;
+  getStatsMiningAlassPath?: () => string | null | undefined;
+  resolveRetimedSecondarySubtitleText?: (
+    input: RetimedSecondarySubtitleInput,
+  ) => Promise<string> | string;
   anilistRateLimiter?: AnilistRateLimiter;
   addYomitanNote?: (word: string) => Promise<number | null>;
   resolveAnkiNoteId?: (noteId: number) => number;
@@ -501,6 +510,11 @@ export function createStatsApp(
     getYomitanAnkiDeckName?: () => Promise<string | null | undefined> | string | null | undefined;
     secondarySubtitleLanguages?: string[];
     getSecondarySubtitleLanguages?: () => string[] | undefined;
+    statsMiningAlassPath?: string;
+    getStatsMiningAlassPath?: () => string | null | undefined;
+    resolveRetimedSecondarySubtitleText?: (
+      input: RetimedSecondarySubtitleInput,
+    ) => Promise<string> | string;
     anilistRateLimiter?: AnilistRateLimiter;
     addYomitanNote?: (word: string) => Promise<number | null>;
     resolveAnkiNoteId?: (noteId: number) => number;
@@ -516,6 +530,8 @@ export function createStatsApp(
     options?.getAnkiConnectConfig?.() ?? options?.ankiConnectConfig;
   const getSecondarySubtitleLanguages = (): string[] =>
     options?.getSecondarySubtitleLanguages?.() ?? options?.secondarySubtitleLanguages ?? [];
+  const getStatsMiningAlassPath = (): string | null | undefined =>
+    options?.getStatsMiningAlassPath?.() ?? options?.statsMiningAlassPath;
   const getEffectiveMiningDeckName = async (ankiConfig: AnkiConnectConfig): Promise<string> => {
     const configuredDeckName = ankiConfig.deck?.trim() ?? '';
     if (configuredDeckName) return configuredDeckName;
@@ -1086,6 +1102,9 @@ export function createStatsApp(
     if (!sourcePath || !sentence || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
       return c.json({ error: 'sourcePath, sentence, startMs, and endMs are required' }, 400);
     }
+    if (endMs <= startMs) {
+      return c.json({ error: 'endMs must be greater than startMs' }, 400);
+    }
 
     if (!existsSync(sourcePath)) {
       return c.json({ error: 'File not found' }, 404);
@@ -1095,13 +1114,35 @@ export function createStatsApp(
     if (!ankiConfig) {
       return c.json({ error: 'AnkiConnect is not configured' }, 500);
     }
+    const secondarySubtitleLanguages = getSecondarySubtitleLanguages();
+    let retimedSecondaryText = '';
+    if (mode === 'sentence') {
+      try {
+        retimedSecondaryText = await (
+          options?.resolveRetimedSecondarySubtitleText ??
+          resolveRetimedSecondarySubtitleTextFromSidecar
+        )({
+          sourcePath,
+          startMs,
+          endMs,
+          languages: secondarySubtitleLanguages,
+          alassPath: getStatsMiningAlassPath(),
+        });
+      } catch (error) {
+        statsMiningLogger.warn(
+          'Failed to resolve retimed secondary subtitle for stats mining:',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
     const secondaryText =
+      retimedSecondaryText ||
       bodySecondaryText ||
       resolveSecondarySubtitleTextFromSidecar({
         sourcePath,
         startMs,
         endMs,
-        languages: getSecondarySubtitleLanguages(),
+        languages: secondarySubtitleLanguages,
       });
 
     const client = new AnkiConnectClient(ankiConfig.url ?? 'http://127.0.0.1:8765');
@@ -1250,18 +1291,20 @@ export function createStatsApp(
           errors.push(`image: ${(err as Error).message}`);
         }
       }
+      if (generateAudio && !audioBuffer && audioResult.status === 'fulfilled') {
+        errors.push('audio: no audio generated');
+      }
+      if (generateImage && !imageBuffer) {
+        errors.push('image: no image generated');
+      }
 
       const mediaFields: Record<string, string> = {};
       const timestamp = Date.now();
       const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
-      const translationFieldName = ankiConfig.fields?.translation ?? 'SelectionText';
       const audioFieldName = getStatsWordMiningAudioFieldName(ankiConfig, noteInfo);
       const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
 
       mediaFields[sentenceFieldName] = highlightedSentence;
-      if (secondaryText) {
-        mediaFields[translationFieldName] = secondaryText;
-      }
 
       if (audioBuffer) {
         const audioFilename = `subminer_audio_${timestamp}.mp3`;
@@ -1489,6 +1532,9 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     getYomitanAnkiDeckName: config.getYomitanAnkiDeckName,
     secondarySubtitleLanguages: config.secondarySubtitleLanguages,
     getSecondarySubtitleLanguages: config.getSecondarySubtitleLanguages,
+    statsMiningAlassPath: config.statsMiningAlassPath,
+    getStatsMiningAlassPath: config.getStatsMiningAlassPath,
+    resolveRetimedSecondarySubtitleText: config.resolveRetimedSecondarySubtitleText,
     anilistRateLimiter: config.anilistRateLimiter,
     addYomitanNote: config.addYomitanNote,
     resolveAnkiNoteId: config.resolveAnkiNoteId,

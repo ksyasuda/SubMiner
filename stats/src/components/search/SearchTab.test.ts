@@ -16,7 +16,7 @@ test('formatSentenceSearchMatchCountLabel uses singular label for one result', (
 test('SearchTab forwards stored secondary subtitle text when mining from search results', () => {
   const source = fs.readFileSync(SEARCH_TAB_PATH, 'utf8');
 
-  assert.match(source, /secondaryText:\s*result\.secondaryText/);
+  assert.match(source, /buildStatsMineCardParams\(result,\s*searchedWord,\s*mode\)/);
 });
 
 test('SearchTab enables headword sentence search by default and forwards the toggle', () => {

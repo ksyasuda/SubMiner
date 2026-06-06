@@ -4471,6 +4471,7 @@ const startLocalStatsServer = (): void => {
       getAnkiConnectConfig: () => getResolvedConfig().ankiConnect,
       getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
       getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+      getStatsMiningAlassPath: () => getResolvedConfig().subsync.alass_path,
       anilistRateLimiter,
       resolveAnkiNoteId: (noteId: number) =>
         appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,

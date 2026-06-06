@@ -1122,6 +1122,8 @@ Sync the active subtitle track from the overlay picker using `alass` or `ffsubsy
 | `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
+Stats dashboard sentence mining also uses `alass_path` when available to align a local English sidecar against the local Japanese sidecar before filling the card translation field. This stats-only retime writes a temporary cached copy and never edits the original subtitle files.
+
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
 

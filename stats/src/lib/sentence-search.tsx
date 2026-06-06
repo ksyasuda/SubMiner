@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { SentenceSearchResult } from '../types/stats';
+import { getStatsMineCardUnavailableReason } from './mining';
 
 export interface SentenceMatchRange {
   start: number;
@@ -41,11 +42,7 @@ export function getSentenceSearchMineAvailability(
   query: string,
 ): SentenceSearchMineAvailability {
   const exactMatch = findExactSentenceMatches(result.text, query).length > 0;
-  const unavailableReason = !result.sourcePath
-    ? 'This source has no local file path.'
-    : result.segmentStartMs == null || result.segmentEndMs == null
-      ? 'This line is missing segment timing.'
-      : null;
+  const unavailableReason = getStatsMineCardUnavailableReason(result);
 
   return {
     canMineSentence: unavailableReason === null,

@@ -1164,6 +1164,54 @@ test('recordSubtitleLine leaves session token counts at zero when tokenization i
   }
 });
 
+test('recordSubtitleLine skips invalid cue timing and still stores the later valid cue', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/timing.mkv', 'Timing');
+    tracker.recordSubtitleLine('same subtitle', 953.991, 953.891);
+    tracker.recordSubtitleLine('same subtitle', 953.991, 956.56);
+
+    const privateApi = tracker as unknown as {
+      flushTelemetry: (force?: boolean) => void;
+      flushNow: () => void;
+    };
+    privateApi.flushTelemetry(true);
+    privateApi.flushNow();
+
+    const db = new Database(dbPath);
+    const rows = db
+      .prepare(
+        `SELECT line_index, segment_start_ms, segment_end_ms, text
+         FROM imm_subtitle_lines
+         ORDER BY line_id ASC`,
+      )
+      .all() as Array<{
+      line_index: number;
+      segment_start_ms: number | null;
+      segment_end_ms: number | null;
+      text: string;
+    }>;
+    db.close();
+
+    assert.deepEqual(rows, [
+      {
+        line_index: 1,
+        segment_start_ms: 953991,
+        segment_end_ms: 956560,
+        text: 'same subtitle',
+      },
+    ]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('subtitle-line event payload omits duplicated subtitle text', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
