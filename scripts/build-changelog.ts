@@ -311,8 +311,8 @@ function defaultRunClaude(input: string, args: string[]): string {
   }
 }
 
-function resolveFragmentRelativePath(fragmentPath: string): string {
-  return fragmentPath.replace(/^.*?(changes\/.*)$/u, '$1');
+function resolveFragmentRelativePath(fragmentPath: string, cwd: string): string {
+  return path.relative(cwd, fragmentPath).split(path.sep).join('/');
 }
 
 // Walks git history + the GitHub API to attribute each released fragment to the
@@ -340,7 +340,7 @@ function defaultResolveContributions(fragmentPaths: string[], cwd: string): Cont
 
     const byPr = new Map<number, Contribution>();
     for (const fragmentPath of fragmentPaths) {
-      const relativePath = resolveFragmentRelativePath(fragmentPath);
+      const relativePath = resolveFragmentRelativePath(fragmentPath, cwd);
       // git log lists newest first, so the commit that *added* the file is the
       // last line of the --diff-filter=A history.
       const addingSha = execFileSync(
@@ -428,7 +428,7 @@ function resolveContributionsForFragments(
 ): Contribution[] {
   const resolve = deps?.resolveContributions ?? defaultResolveContributions;
   return resolve(
-    fragments.map((fragment) => fragment.path),
+    fragments.filter((fragment) => fragment.type !== 'internal').map((fragment) => fragment.path),
     cwd,
   );
 }
