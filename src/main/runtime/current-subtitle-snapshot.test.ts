@@ -62,6 +62,21 @@ test('renderer current subtitle snapshot tokenizes uncached subtitles when token
   assert.deepEqual(payload.tokens, [{ text: '新' }]);
 });
 
+test('renderer current subtitle snapshot reports resolved payload for startup readiness', async () => {
+  const resolvedPayloads: SubtitleData[] = [];
+  const payload = await resolveCurrentSubtitleForRenderer({
+    currentSubText: '起動字幕',
+    currentSubtitleData: null,
+    withCurrentSubtitleTiming: withTiming,
+    tokenizeSubtitle: async (text) => ({ text, tokens: [{ text: '起' } as never] }),
+    onResolvedSubtitle: (resolved) => {
+      resolvedPayloads.push(resolved);
+    },
+  });
+
+  assert.deepEqual(resolvedPayloads, [payload]);
+});
+
 test('visible overlay subtitle prime refreshes current text from mpv before showing overlay', async () => {
   const calls: string[] = [];
 

@@ -10,13 +10,20 @@ export async function resolveCurrentSubtitleForRenderer(deps: {
   currentSubtitleData: SubtitleData | null;
   withCurrentSubtitleTiming: (payload: SubtitleData) => SubtitleData;
   tokenizeSubtitle?: (text: string) => Promise<SubtitleData | null>;
+  onResolvedSubtitle?: (payload: SubtitleData) => void;
 }): Promise<SubtitleData> {
+  const resolve = (payload: SubtitleData): SubtitleData => {
+    const timedPayload = deps.withCurrentSubtitleTiming(payload);
+    deps.onResolvedSubtitle?.(timedPayload);
+    return timedPayload;
+  };
+
   if (deps.currentSubtitleData?.text === deps.currentSubText) {
-    return deps.withCurrentSubtitleTiming(deps.currentSubtitleData);
+    return resolve(deps.currentSubtitleData);
   }
 
   if (!deps.currentSubText.trim()) {
-    return deps.withCurrentSubtitleTiming({
+    return resolve({
       text: deps.currentSubText,
       tokens: null,
     });
@@ -24,10 +31,10 @@ export async function resolveCurrentSubtitleForRenderer(deps: {
 
   const tokenized = await deps.tokenizeSubtitle?.(deps.currentSubText);
   if (tokenized) {
-    return deps.withCurrentSubtitleTiming(tokenized);
+    return resolve(tokenized);
   }
 
-  return deps.withCurrentSubtitleTiming({
+  return resolve({
     text: deps.currentSubText,
     tokens: null,
   });

@@ -183,6 +183,34 @@ test('media path change handler signals autoplay readiness from warm media path'
   ]);
 });
 
+test('media path change handler schedules character dictionary once per media path', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvMediaPathChangeHandler({
+    updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
+    reportJellyfinRemoteStopped: () => calls.push('stopped'),
+    restoreMpvSubVisibility: () => calls.push('restore-mpv-sub'),
+    resetSubtitleSidebarEmbeddedLayout: () => calls.push('reset-sidebar-layout'),
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: (mediaKey) => calls.push(`reset:${String(mediaKey)}`),
+    maybeProbeAnilistDuration: (mediaKey) => calls.push(`probe:${mediaKey}`),
+    ensureAnilistMediaGuess: (mediaKey) => calls.push(`guess:${mediaKey}`),
+    syncImmersionMediaState: () => calls.push('sync'),
+    scheduleCharacterDictionarySync: () => calls.push('dict-sync'),
+    refreshDiscordPresence: () => calls.push('presence'),
+  });
+
+  handler({ path: '/tmp/video.mkv' });
+  handler({ path: '/tmp/video.mkv' });
+  handler({ path: '/tmp/next-video.mkv' });
+  handler({ path: '' });
+  handler({ path: '/tmp/video.mkv' });
+
+  assert.deepEqual(
+    calls.filter((call) => call === 'dict-sync'),
+    ['dict-sync', 'dict-sync', 'dict-sync'],
+  );
+});
+
 test('media path change handler marks Jellyfin remote playback loaded from media path', () => {
   const calls: string[] = [];
   const handler = createHandleMpvMediaPathChangeHandler({

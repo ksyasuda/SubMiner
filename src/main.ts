@@ -6863,6 +6863,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           tokenizeSubtitle: tokenizeSubtitleForCurrent
             ? (text) => tokenizeSubtitleForCurrent(text)
             : undefined,
+          onResolvedSubtitle: (payload) => {
+            appState.currentSubtitleData = payload;
+            autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+          },
         });
       },
       getCurrentSubtitleRaw: () => appState.currentSubText,

@@ -8,5 +8,6 @@ breaking: true
 - Kept playback feedback such as subtitle visibility, subtitle track, and subtitle delay text on overlay/OSD surfaces only; desktop/system notifications are reserved for real notifications like mined cards, errors, and updates.
 - Reused the active primary/secondary subtitle mode overlay notification while cycling modes so rapid toggles update one card instead of stacking duplicate feedback.
 - Fixed mined-card overlay notifications so `overlay` and `both` modes show the same generated card thumbnail as system notifications.
+- Fixed character dictionary sync so duplicate MPV media-path events do not repeat check/ready notifications for the same opened video.
 - Changed `both` notification routing to mean overlay + system; users who used `both` for mpv OSD + system notifications should set `notificationType` to `osd-system` in `config.jsonc`.
 - Kept `osd` and `osd-system` as config-file-only legacy notification values; Settings normally offers only overlay, system, both, and none, while still showing an already configured legacy value as selected.
