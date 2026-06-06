@@ -381,6 +381,15 @@ export interface SentenceSearchResultRow {
   text: string;
 }
 
+export interface SentenceSearchHeadwordTerm {
+  term: string;
+  headwords: string[];
+}
+
+export interface SentenceSearchOptions {
+  headwordTerms?: SentenceSearchHeadwordTerm[];
+}
+
 export interface SessionEventRow {
   eventType: number;
   tsMs: number;

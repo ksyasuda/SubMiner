@@ -7,6 +7,7 @@ import { createLogger, setLogLevel } from './logger';
 import { loadYomitanExtension } from './core/services/yomitan-extension-loader';
 import {
   addYomitanNoteViaSearch,
+  getYomitanCurrentAnkiDeckName,
   syncYomitanDefaultAnkiServer,
 } from './core/services/tokenizer/yomitan-parser-runtime';
 import type { StatsWordHelperResponse } from './stats-word-helper-client';
@@ -54,13 +55,14 @@ function writeResponse(responsePath: string | undefined, payload: StatsWordHelpe
 const responsePath = readFlagValue(process.argv, '--stats-word-helper-response-path')?.trim();
 const userDataPath = readFlagValue(process.argv, '--stats-word-helper-user-data-path')?.trim();
 const word = readFlagValue(process.argv, '--stats-word-helper-word');
+const readDeck = process.argv.includes('--stats-word-helper-read-deck');
 const logLevel = readFlagValue(process.argv, '--log-level');
 
 if (logLevel) {
   setLogLevel(logLevel, 'cli');
 }
 
-if (!userDataPath || !word) {
+if (!userDataPath || (!word && !readDeck)) {
   writeResponse(responsePath, {
     ok: false,
     error: 'Missing stats word helper arguments.',
@@ -125,48 +127,42 @@ async function main(): Promise<void> {
       throw new Error('Yomitan extension failed to load.');
     }
 
+    const yomitanDeps = {
+      getYomitanExt: () => yomitanExt,
+      getYomitanSession: () => yomitanSession,
+      getYomitanParserWindow: () => yomitanParserWindow,
+      setYomitanParserWindow: (window: BrowserWindow | null) => {
+        yomitanParserWindow = window;
+      },
+      getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
+      setYomitanParserReadyPromise: (promise: Promise<void> | null) => {
+        yomitanParserReadyPromise = promise;
+      },
+      getYomitanParserInitPromise: () => yomitanParserInitPromise,
+      setYomitanParserInitPromise: (promise: Promise<boolean> | null) => {
+        yomitanParserInitPromise = promise;
+      },
+    };
+
+    if (readDeck) {
+      const deckName = await getYomitanCurrentAnkiDeckName(yomitanDeps, logger);
+      writeResponse(responsePath, {
+        ok: true,
+        deckName,
+      });
+      cleanup();
+      app.exit(0);
+      return;
+    }
+
     await syncYomitanDefaultAnkiServer(
       config.ankiConnect?.url || 'http://127.0.0.1:8765',
-      {
-        getYomitanExt: () => yomitanExt,
-        getYomitanSession: () => yomitanSession,
-        getYomitanParserWindow: () => yomitanParserWindow,
-        setYomitanParserWindow: (window) => {
-          yomitanParserWindow = window;
-        },
-        getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
-        setYomitanParserReadyPromise: (promise) => {
-          yomitanParserReadyPromise = promise;
-        },
-        getYomitanParserInitPromise: () => yomitanParserInitPromise,
-        setYomitanParserInitPromise: (promise) => {
-          yomitanParserInitPromise = promise;
-        },
-      },
+      yomitanDeps,
       logger,
-      { forceOverride: true },
+      { forceOverride: true, deck: config.ankiConnect?.deck },
     );
 
-    const addResult = await addYomitanNoteViaSearch(
-      word!,
-      {
-        getYomitanExt: () => yomitanExt,
-        getYomitanSession: () => yomitanSession,
-        getYomitanParserWindow: () => yomitanParserWindow,
-        setYomitanParserWindow: (window) => {
-          yomitanParserWindow = window;
-        },
-        getYomitanParserReadyPromise: () => yomitanParserReadyPromise,
-        setYomitanParserReadyPromise: (promise) => {
-          yomitanParserReadyPromise = promise;
-        },
-        getYomitanParserInitPromise: () => yomitanParserInitPromise,
-        setYomitanParserInitPromise: (promise) => {
-          yomitanParserInitPromise = promise;
-        },
-      },
-      logger,
-    );
+    const addResult = await addYomitanNoteViaSearch(word!, yomitanDeps, logger);
 
     const noteId = addResult.noteId;
     if (typeof noteId !== 'number') {

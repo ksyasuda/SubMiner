@@ -116,11 +116,12 @@ export const apiClient = {
     fetchJson<VocabularyOccurrenceEntry[]>(
       `/api/stats/vocabulary/occurrences?headword=${encodeURIComponent(headword)}&word=${encodeURIComponent(word)}&reading=${encodeURIComponent(reading)}&limit=${limit}&offset=${offset}`,
     ),
-  searchSentences: (query: string, limit = 50) =>
+  searchSentences: (query: string, limit = 50, searchByHeadword = true) =>
     fetchJson<SentenceSearchResult[]>(
       `/api/stats/sentences/search?${new URLSearchParams({
         q: query,
         limit: String(limit),
+        headword: String(searchByHeadword),
       }).toString()}`,
     ),
   getKanji: (limit = 100) => fetchJson<KanjiEntry[]>(`/api/stats/kanji?limit=${limit}`),

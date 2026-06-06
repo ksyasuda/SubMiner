@@ -338,7 +338,10 @@ function withTempDir<T>(fn: (dir: string) => Promise<T> | T): Promise<T> | T {
 type CapturedAnkiRequest = {
   action?: string;
   params?: {
+    cards?: number[];
+    deck?: string;
     notes?: number[];
+    query?: string;
     note?: {
       id?: number;
       deckName?: string;
@@ -384,6 +387,10 @@ async function withFakeAnkiConnect<T>(
           })),
           error: null,
         };
+      } else if (payload.action === 'findCards') {
+        body = { result: [9001], error: null };
+      } else if (payload.action === 'changeDeck') {
+        body = { result: null, error: null };
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -433,6 +440,43 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body));
+  });
+
+  it('GET /api/stats/sentences/search resolves headword candidates by default', async () => {
+    const seen: Array<{
+      query: string;
+      limit: number;
+      options: unknown;
+    }> = [];
+    const resolvedTerms: string[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        searchSubtitleSentences: async (query: string, limit: number, options: unknown) => {
+          seen.push({ query, limit, options });
+          return [];
+        },
+      }),
+      {
+        resolveSentenceSearchHeadwords: async (term: string) => {
+          resolvedTerms.push(term);
+          return term === '知らない' ? ['知る'] : [];
+        },
+      },
+    );
+
+    const res = await app.request(
+      '/api/stats/sentences/search?q=%E7%9F%A5%E3%82%89%E3%81%AA%E3%81%84&limit=12',
+    );
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(resolvedTerms, ['知らない']);
+    assert.deepEqual(seen, [
+      {
+        query: '知らない',
+        limit: 12,
+        options: { headwordTerms: [{ term: '知らない', headwords: ['知る'] }] },
+      },
+    ]);
   });
 
   it('GET /api/stats/sessions enriches known-word metrics using filtered persisted totals', async () => {
@@ -1162,8 +1206,58 @@ describe('stats server API routes', () => {
         const addNoteRequest = requests.find((request) => request.action === 'addNote');
         assert.equal(addNoteRequest?.params?.note?.deckName, 'Default');
         assert.equal(addNoteRequest?.params?.note?.modelName, 'Lapis Morph');
-        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '<b>猫</b>を見た');
+        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '猫を見た');
         assert.equal(addNoteRequest?.params?.note?.fields?.IsSentenceCard, 'x');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card uses Yomitan deck for direct sentence cards when config deck is empty', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          getYomitanAnkiDeckName: async () => 'Minecraft',
+          ankiConnectConfig: {
+            url,
+            deck: '',
+            tags: ['SubMiner'],
+            fields: {
+              word: 'Expression',
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+            isLapis: {
+              enabled: true,
+              sentenceCardModel: 'Lapis Morph',
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=sentence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            secondaryText: 'I saw a cat',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+        const addNoteRequest = requests.find((request) => request.action === 'addNote');
+        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
       });
     });
   });
@@ -1294,7 +1388,7 @@ describe('stats server API routes', () => {
     });
   });
 
-  it('POST /api/stats/mine-card leaves word card selection text to Yomitan glossary fields', async () => {
+  it('POST /api/stats/mine-card writes secondary subtitles to word card selection text', async () => {
     await withTempDir(async (dir) => {
       const sourcePath = path.join(dir, 'episode.mkv');
       fs.writeFileSync(sourcePath, 'fake media');
@@ -1340,7 +1434,286 @@ describe('stats server API routes', () => {
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         assert.equal(updateRequest?.params?.note?.id, 777);
         assert.equal(updateRequest?.params?.note?.fields?.Sentence, '<b>猫</b>を見た');
-        assert.equal(updateRequest?.params?.note?.fields?.SelectionText, undefined);
+        assert.equal(updateRequest?.params?.note?.fields?.SelectionText, 'I saw a cat');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card moves Yomitan-created word notes to the configured deck', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => 777,
+          ankiConnectConfig: {
+            url,
+            deck: 'Mining',
+            fields: {
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+
+        const findCardsRequest = requests.find((request) => request.action === 'findCards');
+        assert.equal(findCardsRequest?.params?.query, 'nid:777');
+        const changeDeckRequest = requests.find((request) => request.action === 'changeDeck');
+        assert.deepEqual(changeDeckRequest?.params?.cards, [9001]);
+        assert.equal(changeDeckRequest?.params?.deck, 'Mining');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card moves Yomitan-created word notes to Yomitan deck when config deck is empty', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          getYomitanAnkiDeckName: async () => 'Minecraft',
+          addYomitanNote: async () => 777,
+          ankiConnectConfig: {
+            url,
+            deck: '',
+            fields: {
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+
+        const findCardsRequest = requests.find((request) => request.action === 'findCards');
+        assert.equal(findCardsRequest?.params?.query, 'nid:777');
+        const changeDeckRequest = requests.find((request) => request.action === 'changeDeck');
+        assert.deepEqual(changeDeckRequest?.params?.cards, [9001]);
+        assert.equal(changeDeckRequest?.params?.deck, 'Minecraft');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card uses the full sentence as sentence-card expression', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: {
+            url,
+            deck: 'Minecraft',
+            tags: ['SubMiner'],
+            fields: {
+              word: 'Expression',
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+            isLapis: {
+              enabled: true,
+              sentenceCardModel: 'Lapis Morph',
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=sentence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            secondaryText: 'I saw a cat',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+
+        const addNoteRequest = requests.find((request) => request.action === 'addNote');
+        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
+        assert.equal(addNoteRequest?.params?.note?.fields?.Expression, '猫を見た');
+        assert.equal(addNoteRequest?.params?.note?.fields?.Sentence, '猫を見た');
+        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, 'I saw a cat');
+        assert.equal(addNoteRequest?.params?.note?.fields?.IsSentenceCard, 'x');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card fills selection text from a matching secondary sidecar subtitle', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      fs.writeFileSync(
+        path.join(dir, 'episode.en.srt'),
+        [
+          '1',
+          '00:00:00,800 --> 00:00:02,500',
+          'I saw a cat.',
+          '',
+          '2',
+          '00:00:03,000 --> 00:00:04,000',
+          'Not this line.',
+          '',
+        ].join('\n'),
+      );
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: {
+            url,
+            deck: 'Minecraft',
+            tags: ['SubMiner'],
+            fields: {
+              word: 'Expression',
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+            isLapis: {
+              enabled: true,
+              sentenceCardModel: 'Lapis Morph',
+            },
+          },
+          secondarySubtitleLanguages: ['en'],
+        } as Parameters<typeof createStatsApp>[1]);
+
+        const res = await app.request('/api/stats/mine-card?mode=sentence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '猫を見た',
+            word: '猫',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+
+        const addNoteRequest = requests.find((request) => request.action === 'addNote');
+        assert.equal(addNoteRequest?.params?.note?.deckName, 'Minecraft');
+        assert.equal(addNoteRequest?.params?.note?.fields?.SelectionText, 'I saw a cat.');
+      });
+    });
+  });
+
+  it('POST /api/stats/mine-card does not append the next sidecar cue near a timing boundary', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      fs.writeFileSync(
+        path.join(dir, 'episode.en.srt'),
+        [
+          '1',
+          '00:00:00,800 --> 00:00:01,500',
+          "I don't give a damn what family she's from.",
+          '',
+          '2',
+          '00:00:01,700 --> 00:00:03,000',
+          'That snobby attitude just pisses me off!',
+          '',
+        ].join('\n'),
+      );
+
+      await withFakeAnkiConnect(async (requests, url) => {
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: {
+            url,
+            deck: 'Minecraft',
+            tags: ['SubMiner'],
+            fields: {
+              word: 'Expression',
+              sentence: 'Sentence',
+              translation: 'SelectionText',
+            },
+            media: {
+              generateAudio: false,
+              generateImage: false,
+            },
+            isLapis: {
+              enabled: true,
+              sentenceCardModel: 'Lapis Morph',
+            },
+          },
+          secondarySubtitleLanguages: ['en'],
+        } as Parameters<typeof createStatsApp>[1]);
+
+        const res = await app.request('/api/stats/mine-card?mode=sentence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1_000,
+            endMs: 2_000,
+            sentence: '名門か何だか知らねえが',
+            word: '名門',
+            videoTitle: 'Episode 1',
+          }),
+        });
+
+        const body = await res.json();
+        assert.equal(res.status, 200, JSON.stringify(body));
+
+        const addNoteRequest = requests.find((request) => request.action === 'addNote');
+        assert.equal(
+          addNoteRequest?.params?.note?.fields?.SelectionText,
+          "I don't give a damn what family she's from.",
+        );
       });
     });
   });
@@ -1466,6 +1839,8 @@ describe('stats server API routes', () => {
             'generateAudio',
             'generateScreenshot',
             'addNote',
+            'findCards',
+            'changeDeck',
             'uploadAudio',
             'uploadImage',
             'updateNoteFields',

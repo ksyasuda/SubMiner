@@ -103,7 +103,13 @@ test('searchSentences encodes realtime sentence search requests', async () => {
     await apiClient.searchSentences('猫 食べる', 25);
     assert.equal(
       seenUrl,
-      `${BASE_URL}/api/stats/sentences/search?q=%E7%8C%AB+%E9%A3%9F%E3%81%B9%E3%82%8B&limit=25`,
+      `${BASE_URL}/api/stats/sentences/search?q=%E7%8C%AB+%E9%A3%9F%E3%81%B9%E3%82%8B&limit=25&headword=true`,
+    );
+
+    await apiClient.searchSentences('猫 食べる', 25, false);
+    assert.equal(
+      seenUrl,
+      `${BASE_URL}/api/stats/sentences/search?q=%E7%8C%AB+%E9%A3%9F%E3%81%B9%E3%82%8B&limit=25&headword=false`,
     );
   } finally {
     globalThis.fetch = originalFetch;

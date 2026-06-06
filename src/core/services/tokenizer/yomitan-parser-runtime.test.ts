@@ -151,6 +151,56 @@ test('syncYomitanDefaultAnkiServer injects force override when enabled', async (
   assert.match(scriptValue, /forceOverride = true/);
 });
 
+test('syncYomitanDefaultAnkiServer updates the active profile Anki deck', async () => {
+  const optionsFull = {
+    profileCurrent: 0,
+    profiles: [
+      {
+        options: {
+          anki: {
+            server: 'http://127.0.0.1:8766',
+            cardFormats: [
+              { type: 'term', deck: 'Default', model: 'Mining Note', fields: {} },
+              { type: 'kanji', deck: 'Kanji', model: 'Kanji Note', fields: {} },
+            ],
+            terms: { deck: 'Default', model: 'Legacy Note', fields: {} },
+          },
+        },
+      },
+    ],
+  };
+  let savedOptions: typeof optionsFull | null = null;
+  const deps = createDeps((script) =>
+    runInjectedYomitanScript(script, (action, params) => {
+      if (action === 'optionsGetFull') {
+        return JSON.parse(JSON.stringify(optionsFull));
+      }
+      if (action === 'setAllSettings') {
+        savedOptions = (params as { value: typeof optionsFull }).value;
+        return true;
+      }
+      throw new Error(`Unexpected action: ${action}`);
+    }),
+  );
+
+  const synced = await syncYomitanDefaultAnkiServer(
+    'http://127.0.0.1:8766',
+    deps,
+    {
+      error: () => undefined,
+      info: () => undefined,
+    },
+    { deck: 'Minecraft', forceOverride: true },
+  );
+
+  assert.equal(synced, true);
+  assert.ok(savedOptions);
+  const saved = savedOptions as typeof optionsFull;
+  assert.equal(saved.profiles[0]?.options.anki.cardFormats[0]?.deck, 'Minecraft');
+  assert.equal(saved.profiles[0]?.options.anki.cardFormats[1]?.deck, 'Kanji');
+  assert.equal(saved.profiles[0]?.options.anki.terms.deck, 'Minecraft');
+});
+
 test('syncYomitanDefaultAnkiServer logs and returns false on script failure', async () => {
   const deps = createDeps(async () => {
     throw new Error('execute failed');

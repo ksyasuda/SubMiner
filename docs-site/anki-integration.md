@@ -4,11 +4,12 @@ SubMiner uses the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-
 This project is built primarily for [Kiku](https://kiku.youyoumu.my.id/) and [Lapis](https://github.com/donkuri/lapis) note types, including sentence-card and field-grouping behavior.
 
 ::: tip New to these terms?
+
 - **Anki** is the flashcard app where your study cards live.
 - **AnkiConnect** is a free add-on that lets other programs (like SubMiner) talk to Anki over a local connection. SubMiner needs it installed to add or edit cards.
 - A **note type** (also called a "model") is the template that defines what a card looks like - for example the Kiku or Lapis templates many Japanese learners use.
 - A **field** is one labeled slot in that template, such as `Sentence`, `Expression`, or `Picture`. SubMiner fills these fields when it mines a card.
-:::
+  :::
 
 ## Prerequisites
 
@@ -22,7 +23,7 @@ AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the po
 
 When you add a word via Yomitan, SubMiner detects the new card and fills in the sentence, audio, image, and translation fields automatically. Two detection methods are available:
 
-**Proxy mode** (default) - SubMiner runs a local *proxy*: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
+**Proxy mode** (default) - SubMiner runs a local _proxy_: a small middleman server that sits between Yomitan and Anki. Yomitan sends new cards to SubMiner, SubMiner enriches them, then passes them along to Anki. This makes enrichment instant.
 
 **Polling mode** (fallback, when the proxy is disabled) - SubMiner asks AnkiConnect every few seconds whether any new cards were added, then enriches them. Simpler setup, but with a short delay (~3 seconds).
 
@@ -36,7 +37,7 @@ In both modes, the enrichment workflow is the same:
 4. Fills the translation field from the secondary subtitle or AI.
 5. Writes metadata to the miscInfo field.
 
-Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks. In Settings, the AnkiConnect deck dropdown auto-fills from Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect.
+Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it uses Yomitan's current mining deck when available; otherwise it searches all decks. In Settings, the AnkiConnect deck dropdown auto-fills and persists Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect.
 Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
 
 ### Proxy Mode Setup (Yomitan / Texthooker)

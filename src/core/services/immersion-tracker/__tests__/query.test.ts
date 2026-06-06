@@ -3785,6 +3785,90 @@ test('searchSubtitleSentences searches known subtitle lines and returns media co
   }
 });
 
+test('searchSubtitleSentences searches subtitle lines by resolved headword candidates', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Little Witch Academia',
+      canonicalTitle: 'Little Witch Academia',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"test"}',
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/lwa-05.mkv', {
+      canonicalTitle: 'Episode 5',
+      sourcePath: '/tmp/Little Witch Academia S01E05.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Little Witch Academia S01E05.mkv',
+      parsedTitle: 'Little Witch Academia',
+      parsedSeason: 1,
+      parsedEpisode: 5,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":5}',
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 4_000_000);
+    const lineResult = db
+      .prepare(
+        `INSERT INTO imm_subtitle_lines (
+          session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+          text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        sessionId,
+        null,
+        videoId,
+        animeId,
+        20,
+        247_000,
+        250_000,
+        'ああ、名無しが何だか知らねえが',
+        null,
+        4_000,
+        4_000,
+      );
+    const wordResult = db
+      .prepare(
+        `INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('知る', '知らねえ', 'しらねえ', 'verb', '動詞', '自立', '', 4_000, 4_000, 1);
+    db.prepare(
+      `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
+       VALUES (?, ?, ?)`,
+    ).run(Number(lineResult.lastInsertRowid), Number(wordResult.lastInsertRowid), 1);
+
+    assert.deepEqual(searchSubtitleSentences(db, '知らない', 10), []);
+
+    const rows = searchSubtitleSentences(db, '知らない', 10, {
+      headwordTerms: [{ term: '知らない', headwords: ['知る'] }],
+    });
+
+    assert.deepEqual(
+      rows.map((row) => row.text),
+      ['ああ、名無しが何だか知らねえが'],
+    );
+    assert.deepEqual(
+      searchSubtitleSentences(db, '知らねえ', 10).map((row) => row.text),
+      ['ああ、名無しが何だか知らねえが'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line context', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

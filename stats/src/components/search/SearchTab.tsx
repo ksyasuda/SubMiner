@@ -41,8 +41,13 @@ function buttonLabel(
   return 'Sentence';
 }
 
+export function formatSentenceSearchMatchCountLabel(count: number): string {
+  return count === 1 ? 'Match' : 'Matches';
+}
+
 export function SearchTab() {
   const [query, setQuery] = useState('');
+  const [searchByHeadword, setSearchByHeadword] = useState(true);
   const [results, setResults] = useState<SentenceSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +70,7 @@ export function SearchTab() {
     setError(null);
     const timer = window.setTimeout(() => {
       apiClient
-        .searchSentences(trimmed, SEARCH_LIMIT)
+        .searchSentences(trimmed, SEARCH_LIMIT, searchByHeadword)
         .then((nextResults) => {
           if (requestId !== requestRef.current) return;
           setResults(nextResults);
@@ -84,7 +89,7 @@ export function SearchTab() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, searchByHeadword]);
 
   const handleMine = async (
     result: SentenceSearchResult,
@@ -132,27 +137,37 @@ export function SearchTab() {
   return (
     <div className="space-y-4">
       <section className="rounded-lg border border-ctp-surface1 bg-ctp-mantle/70 p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <label className="min-w-0 flex-1">
-            <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-ctp-overlay1">
-              Sentence Search
-            </span>
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search sentence text or media..."
-              className="w-full rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-3 text-base text-ctp-text placeholder:text-ctp-overlay2 focus:border-ctp-yellow focus:outline-none"
-              autoComplete="off"
-            />
-          </label>
-          <div className="rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-2 text-right">
-            <div className="text-xl font-semibold text-ctp-yellow">
+        <span className="mb-3 block text-xs font-semibold uppercase tracking-[0.18em] text-ctp-overlay1">
+          Sentence Search
+        </span>
+        <div className="flex items-stretch gap-3">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search sentence text or media..."
+            className="min-w-0 flex-1 rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-3 text-base text-ctp-text placeholder:text-ctp-overlay2 focus:border-ctp-yellow focus:outline-none"
+            autoComplete="off"
+            aria-label="Sentence search"
+          />
+          <div className="flex min-w-[5rem] flex-col items-center justify-center rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-2">
+            <div className="text-xl font-semibold leading-none text-ctp-yellow">
               {loading ? '...' : results.length}
             </div>
-            <div className="text-[11px] uppercase tracking-wide text-ctp-overlay1">Matches</div>
+            <div className="mt-1 text-[11px] uppercase tracking-wide text-ctp-overlay1">
+              {loading ? 'Matches' : formatSentenceSearchMatchCountLabel(results.length)}
+            </div>
           </div>
         </div>
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-ctp-overlay1">
+          <input
+            type="checkbox"
+            checked={searchByHeadword}
+            onChange={(event) => setSearchByHeadword(event.target.checked)}
+            className="h-4 w-4 rounded border-ctp-surface2 bg-ctp-surface0 text-ctp-yellow focus:ring-ctp-yellow"
+          />
+          Search by headword
+        </label>
       </section>
 
       {error && (

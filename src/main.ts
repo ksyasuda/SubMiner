@@ -1833,6 +1833,31 @@ function getCurrentAutoplaySubtitlePayload(): SubtitleData | null {
   return payload;
 }
 
+async function resolveSentenceSearchHeadwords(term: string): Promise<string[]> {
+  const fallback = term.trim() ? [term.trim()] : [];
+  try {
+    const tokenized = tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(term) : null;
+    const tokens = tokenized?.tokens ?? [];
+    if (tokens.length === 0) return fallback;
+
+    const seen = new Set<string>();
+    const headwords: string[] = [];
+    for (const token of tokens) {
+      const headword = (token.headword || token.surface).trim();
+      if (!headword || seen.has(headword)) continue;
+      seen.add(headword);
+      headwords.push(headword);
+    }
+    return headwords.length > 0 ? headwords : fallback;
+  } catch (error) {
+    logger.debug(
+      'Failed to resolve sentence-search headwords:',
+      error instanceof Error ? error.message : String(error),
+    );
+    return fallback;
+  }
+}
+
 function signalCurrentSubtitleAutoplayReady(): void {
   autoplayReadyGate.flushPendingAutoplayReadySignal();
   const payload = getCurrentAutoplaySubtitlePayload();
@@ -2240,6 +2265,18 @@ const configHotReloadRuntime = createConfigHotReloadRuntime(
   buildConfigHotReloadRuntimeMainDepsHandler(),
 );
 
+async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
+  await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
+  return getYomitanCurrentAnkiDeckNameCore(getYomitanParserRuntimeDeps(), {
+    error: (message, ...args) => {
+      logger.error(message, ...args);
+    },
+    info: (message, ...args) => {
+      logger.info(message, ...args);
+    },
+  });
+}
+
 const configSettingsRuntime = createConfigSettingsRuntime({
   fields: configSettingsFields,
   getConfigPath: () => configService.getConfigPath(),
@@ -2250,17 +2287,7 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   onHotReloadApplied: applyConfigHotReloadDiff,
   defaultAnkiConnectUrl: DEFAULT_CONFIG.ankiConnect.url,
   createAnkiClient: (url) => new AnkiConnectClient(url),
-  getYomitanAnkiDeckName: async () => {
-    await yomitanExtensionRuntime.ensureYomitanExtensionLoaded();
-    return getYomitanCurrentAnkiDeckNameCore(getYomitanParserRuntimeDeps(), {
-      error: (message, ...args) => {
-        logger.error(message, ...args);
-      },
-      info: (message, ...args) => {
-        logger.info(message, ...args);
-      },
-    });
-  },
+  getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
   getSettingsWindow: () => appState.configSettingsWindow,
   setSettingsWindow: (window) => {
     appState.configSettingsWindow = window as BrowserWindow | null;
@@ -4442,13 +4469,17 @@ const startLocalStatsServer = (): void => {
       knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
       mpvSocketPath: appState.mpvSocketPath,
       getAnkiConnectConfig: () => getResolvedConfig().ankiConnect,
+      getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
+      getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
       anilistRateLimiter,
       resolveAnkiNoteId: (noteId: number) =>
         appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
+      resolveSentenceSearchHeadwords,
       addYomitanNote: async (word: string) => {
         const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
           forceOverride: true,
+          deck: getResolvedConfig().ankiConnect.deck,
         });
         const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
         if (result.noteId && result.duplicateNoteIds.length > 0) {
@@ -5640,7 +5671,7 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return extension;
 }
 
-let lastSyncedYomitanAnkiServer: string | null = null;
+let lastSyncedYomitanAnkiSettingsKey: string | null = null;
 
 function getPreferredYomitanAnkiServerUrl(): string {
   return getPreferredYomitanAnkiServerUrlRuntime(getResolvedConfig().ankiConnect);
@@ -5671,7 +5702,10 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
   }
 
   const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
-  if (!targetUrl || targetUrl === lastSyncedYomitanAnkiServer) {
+  const ankiConnectConfig = getResolvedConfig().ankiConnect;
+  const targetDeck = ankiConnectConfig?.deck?.trim() ?? '';
+  const targetSettingsKey = `${targetUrl}\n${targetDeck}`;
+  if (!targetUrl || targetSettingsKey === lastSyncedYomitanAnkiSettingsKey) {
     return;
   }
 
@@ -5687,12 +5721,15 @@ async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
       },
     },
     {
-      forceOverride: shouldForceOverrideYomitanAnkiServer(getResolvedConfig().ankiConnect),
+      forceOverride: ankiConnectConfig
+        ? shouldForceOverrideYomitanAnkiServer(ankiConnectConfig)
+        : false,
+      deck: targetDeck,
     },
   );
 
   if (synced) {
-    lastSyncedYomitanAnkiServer = targetUrl;
+    lastSyncedYomitanAnkiSettingsKey = targetSettingsKey;
   }
 }
 

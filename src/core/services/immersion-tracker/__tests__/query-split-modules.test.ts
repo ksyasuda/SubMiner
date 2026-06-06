@@ -356,6 +356,81 @@ test('split session and lexical helpers return distinct-headword, detail, appear
   }
 });
 
+test('similar words use same reading and shared kanji without kana suffix noise', () => {
+  const { db, dbPath, stmts } = createDb();
+
+  try {
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Similar Words Anime',
+      canonicalTitle: 'Similar Words Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/similar-words.mkv', {
+      canonicalTitle: 'Similar Words Episode',
+      sourcePath: '/tmp/similar-words.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const sessionId = startSessionRecord(db, videoId, 1_000_000).sessionId;
+
+    const araiId = insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 1,
+      text: '荒い息',
+      word: { headword: '荒い', word: '荒い', reading: 'あらい' },
+    });
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 2,
+      text: '洗い物',
+      word: { headword: '洗い', word: '洗い', reading: 'あらい' },
+    });
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 3,
+      text: '荒波',
+      word: { headword: '荒波', word: '荒波', reading: 'あらなみ' },
+    });
+
+    for (let lineIndex = 4; lineIndex < 9; lineIndex++) {
+      insertWordOccurrence(db, stmts, {
+        sessionId,
+        videoId,
+        animeId,
+        lineIndex,
+        text: '良い',
+        word: { headword: '良い', word: '良い', reading: 'よい' },
+      });
+    }
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 9,
+      text: 'お構いなく',
+      word: { headword: 'お構いなく', word: 'お構いなく', reading: 'おかまいなく' },
+    });
+
+    assert.deepEqual(
+      getSimilarWords(db, araiId, 10).map((row) => row.headword),
+      ['洗い', '荒波'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('split library helpers return anime/media session and analytics rows', () => {
   const { db, dbPath, stmts } = createDb();
 

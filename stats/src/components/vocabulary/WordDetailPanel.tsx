@@ -301,7 +301,7 @@ export function WordDetailPanel({
                 {data.similarWords.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Similar Words
+                      Related Seen Words
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
                       {data.similarWords.map((sw) => (

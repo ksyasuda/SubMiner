@@ -15,6 +15,8 @@ import {
 import { writeStatsCliCommandResponse } from './main/runtime/stats-cli-command';
 import {
   createInvokeStatsWordHelperHandler,
+  createReadStatsYomitanDeckNameHandler,
+  type StatsWordHelperSpawnOptions,
   type StatsWordHelperResponse,
 } from './stats-word-helper-client';
 
@@ -58,19 +60,22 @@ async function waitForWordHelperResponse(responsePath: string): Promise<StatsWor
   };
 }
 
-const invokeStatsWordHelper = createInvokeStatsWordHelperHandler({
-  createTempDir: (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)),
-  joinPath: (...parts) => path.join(...parts),
-  spawnHelper: async (options) => {
+const statsWordHelperDeps = {
+  createTempDir: (prefix: string) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)),
+  joinPath: (...parts: string[]) => path.join(...parts),
+  spawnHelper: async (options: StatsWordHelperSpawnOptions) => {
     const childArgs = [
       options.scriptPath,
       '--stats-word-helper-response-path',
       options.responsePath,
       '--stats-word-helper-user-data-path',
       options.userDataPath,
-      '--stats-word-helper-word',
-      options.word,
     ];
+    if (options.mode === 'deck-name') {
+      childArgs.push('--stats-word-helper-read-deck');
+    } else {
+      childArgs.push('--stats-word-helper-word', options.word ?? '');
+    }
     const logLevel = readFlagValue(process.argv, '--log-level');
     if (logLevel) {
       childArgs.push('--log-level', logLevel);
@@ -88,10 +93,13 @@ const invokeStatsWordHelper = createInvokeStatsWordHelperHandler({
     });
   },
   waitForResponse: waitForWordHelperResponse,
-  removeDir: (targetPath) => {
+  removeDir: (targetPath: string) => {
     fs.rmSync(targetPath, { recursive: true, force: true });
   },
-});
+};
+
+const invokeStatsWordHelper = createInvokeStatsWordHelperHandler(statsWordHelperDeps);
+const readStatsYomitanDeckName = createReadStatsYomitanDeckNameHandler(statsWordHelperDeps);
 
 const userDataPath = readFlagValue(process.argv, '--stats-user-data-path')?.trim();
 const responsePath = readFlagValue(process.argv, '--stats-response-path')?.trim();
@@ -196,6 +204,13 @@ async function main(): Promise<void> {
       tracker,
       knownWordCachePath,
       getAnkiConnectConfig: () => configService.reloadConfig().ankiConnect,
+      getYomitanAnkiDeckName: async () =>
+        await readStatsYomitanDeckName({
+          helperScriptPath: wordHelperScriptPath,
+          userDataPath: daemonUserDataPath,
+        }),
+      getSecondarySubtitleLanguages: () =>
+        configService.reloadConfig().secondarySub.secondarySubLanguages,
       addYomitanNote: async (word: string) =>
         await invokeStatsWordHelper({
           helperScriptPath: wordHelperScriptPath,

@@ -1783,6 +1783,7 @@ export async function syncYomitanDefaultAnkiServer(
   logger: LoggerLike,
   options?: {
     forceOverride?: boolean;
+    deck?: string;
   },
 ): Promise<boolean> {
   const normalizedTargetServer = serverUrl.trim();
@@ -1790,6 +1791,7 @@ export async function syncYomitanDefaultAnkiServer(
     return false;
   }
   const forceOverride = options?.forceOverride === true;
+  const normalizedTargetDeck = options?.deck?.trim() ?? '';
 
   const isReady = await ensureYomitanParserWindow(deps, logger);
   const parserWindow = deps.getYomitanParserWindow();
@@ -1819,6 +1821,7 @@ export async function syncYomitanDefaultAnkiServer(
         });
 
       const targetServer = ${JSON.stringify(normalizedTargetServer)};
+      const targetDeck = ${JSON.stringify(normalizedTargetDeck)};
       const forceOverride = ${forceOverride ? 'true' : 'false'};
       const optionsFull = await invoke("optionsGetFull", undefined);
       const profiles = Array.isArray(optionsFull.profiles) ? optionsFull.profiles : [];
@@ -1843,18 +1846,54 @@ export async function syncYomitanDefaultAnkiServer(
 
       const currentServerRaw = targetProfile.options.anki.server;
       const currentServer = typeof currentServerRaw === "string" ? currentServerRaw.trim() : "";
-      if (currentServer === targetServer) {
-        return { updated: false, matched: true, reason: "already-target", currentServer, targetServer };
-      }
-      const canReplaceCurrent =
-        forceOverride || currentServer.length === 0 || currentServer === "http://127.0.0.1:8765";
-      if (!canReplaceCurrent) {
-        return { updated: false, matched: false, reason: "blocked-existing-server", currentServer, targetServer };
+      let changed = false;
+      if (currentServer !== targetServer) {
+        const canReplaceCurrent =
+          forceOverride || currentServer.length === 0 || currentServer === "http://127.0.0.1:8765";
+        if (!canReplaceCurrent) {
+          return { updated: false, matched: false, reason: "blocked-existing-server", currentServer, targetServer };
+        }
+
+        targetProfile.options.anki.server = targetServer;
+        changed = true;
       }
 
-      targetProfile.options.anki.server = targetServer;
+      if (targetDeck) {
+        const cardFormats = Array.isArray(targetProfile.options.anki.cardFormats)
+          ? targetProfile.options.anki.cardFormats
+          : [];
+        for (const cardFormat of cardFormats) {
+          if (
+            !cardFormat ||
+            typeof cardFormat !== "object" ||
+            cardFormat.type !== "term" ||
+            cardFormat.enabled === false
+          ) {
+            continue;
+          }
+          const currentDeck = typeof cardFormat.deck === "string" ? cardFormat.deck.trim() : "";
+          if (currentDeck !== targetDeck) {
+            cardFormat.deck = targetDeck;
+            changed = true;
+          }
+        }
+
+        const terms = targetProfile.options.anki.terms;
+        if (terms && typeof terms === "object") {
+          const currentTermDeck = typeof terms.deck === "string" ? terms.deck.trim() : "";
+          if (currentTermDeck !== targetDeck) {
+            terms.deck = targetDeck;
+            changed = true;
+          }
+        }
+      }
+
+      if (!changed) {
+        return { updated: false, matched: true, reason: "already-target", currentServer, targetServer, targetDeck };
+      }
+
       await invoke("setAllSettings", { value: optionsFull, source: "subminer" });
-      return { updated: true, matched: true, currentServer, targetServer };
+      return { updated: true, matched: true, currentServer, targetServer, targetDeck };
     })();
   `;
 

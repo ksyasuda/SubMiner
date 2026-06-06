@@ -149,6 +149,7 @@ import {
   type MediaLibraryRow,
   type NewAnimePerDayRow,
   type QueuedWrite,
+  type SentenceSearchOptions,
   type SentenceSearchResultRow,
   type SessionEventRow,
   type SessionState,
@@ -570,8 +571,12 @@ export class ImmersionTrackerService {
     return getKanjiOccurrences(this.db, kanji, limit, offset);
   }
 
-  async searchSubtitleSentences(query: string, limit = 50): Promise<SentenceSearchResultRow[]> {
-    return searchSubtitleSentences(this.db, query, limit);
+  async searchSubtitleSentences(
+    query: string,
+    limit = 50,
+    options?: SentenceSearchOptions,
+  ): Promise<SentenceSearchResultRow[]> {
+    return searchSubtitleSentences(this.db, query, limit, options);
   }
 
   async getSessionEvents(

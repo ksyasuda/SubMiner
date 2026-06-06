@@ -100,7 +100,7 @@ Stats server config lives under `stats`:
 
 ## Mining Cards from the Stats Page
 
-The Search tab and the Vocabulary tab's word detail panel both mine from subtitle lines in your viewing history. Each line with a valid source file offers sentence-card mining; word/audio mining is available when the selected word or searched word appears in the sentence:
+The Search tab and the Vocabulary tab's word detail panel both mine from subtitle lines in your viewing history. Search matches sentence text and media titles, and **Search by headword** is enabled by default so dictionary-form searches such as `知らない` can find tracked subtitle lines with inflected variants. Turn that toggle off for exact text/title matching only. Each line with a valid source file offers sentence-card mining; word/audio mining is available when the selected word or searched word appears in the sentence:
 
 - **Mine Word** - performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via a short-lived hidden helper, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
 - **Mine Sentence** - creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio and image from the source video.

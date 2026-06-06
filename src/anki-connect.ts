@@ -156,6 +156,22 @@ export class AnkiConnectClient {
     return (result as number[]) || [];
   }
 
+  async findCards(query: string, options?: { maxRetries?: number }): Promise<number[]> {
+    const result = await this.invoke('findCards', { query }, options);
+    return (result as number[]) || [];
+  }
+
+  async changeDeck(cardIds: number[], deckName: string): Promise<void> {
+    if (cardIds.length === 0 || !deckName.trim()) {
+      return;
+    }
+
+    await this.invoke('changeDeck', {
+      cards: cardIds,
+      deck: deckName,
+    });
+  }
+
   async deckNames(): Promise<string[]> {
     const result = await this.invoke('deckNames');
     return Array.isArray(result)

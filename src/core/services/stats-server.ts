@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
+import { splitSentenceSearchTerms } from './immersion-tracker/query-lexical.js';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import { basename, extname, resolve, sep } from 'node:path';
 import { readFileSync, existsSync, statSync } from 'node:fs';
@@ -16,6 +17,7 @@ import {
 } from '../../anki-field-config.js';
 import { resolveAnimatedImageLeadInSeconds } from '../../anki-integration/animated-image-sync.js';
 import type { AnilistRateLimiter } from './anilist/rate-limiter.js';
+import { resolveSecondarySubtitleTextFromSidecar } from './secondary-subtitle-sidecar.js';
 
 type StatsServerNoteInfo = {
   noteId: number;
@@ -356,9 +358,13 @@ export interface StatsServerConfig {
   mpvSocketPath?: string;
   ankiConnectConfig?: AnkiConnectConfig;
   getAnkiConnectConfig?: () => AnkiConnectConfig | undefined;
+  getYomitanAnkiDeckName?: () => Promise<string | null | undefined> | string | null | undefined;
+  secondarySubtitleLanguages?: string[];
+  getSecondarySubtitleLanguages?: () => string[] | undefined;
   anilistRateLimiter?: AnilistRateLimiter;
   addYomitanNote?: (word: string) => Promise<number | null>;
   resolveAnkiNoteId?: (noteId: number) => number;
+  resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
 }
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
@@ -383,6 +389,47 @@ const statsMiningLogger = createLogger('stats:mining');
 
 function defaultNowMs(): number {
   return Date.now();
+}
+
+function parseBooleanQuery(raw: string | undefined, fallback: boolean): boolean {
+  if (raw === undefined) return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return fallback;
+  return !['0', 'false', 'no', 'off'].includes(normalized);
+}
+
+function uniqueNonEmptyStrings(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
+}
+
+async function buildSentenceSearchOptions(
+  query: string,
+  searchByHeadword: boolean,
+  resolveSentenceSearchHeadwords: ((term: string) => Promise<string[]> | string[]) | undefined,
+): Promise<{ headwordTerms: Array<{ term: string; headwords: string[] }> } | undefined> {
+  if (!searchByHeadword) return undefined;
+
+  const terms = splitSentenceSearchTerms(query);
+  const headwordTerms: Array<{ term: string; headwords: string[] }> = [];
+  for (const term of terms) {
+    const resolved = resolveSentenceSearchHeadwords
+      ? await resolveSentenceSearchHeadwords(term)
+      : [term];
+    const headwords = uniqueNonEmptyStrings(resolved);
+    if (headwords.length > 0) {
+      headwordTerms.push({ term, headwords });
+    }
+  }
+
+  return headwordTerms.length > 0 ? { headwordTerms } : undefined;
 }
 
 function buildAnkiNotePreview(
@@ -446,9 +493,13 @@ export function createStatsApp(
     mpvSocketPath?: string;
     ankiConnectConfig?: AnkiConnectConfig;
     getAnkiConnectConfig?: () => AnkiConnectConfig | undefined;
+    getYomitanAnkiDeckName?: () => Promise<string | null | undefined> | string | null | undefined;
+    secondarySubtitleLanguages?: string[];
+    getSecondarySubtitleLanguages?: () => string[] | undefined;
     anilistRateLimiter?: AnilistRateLimiter;
     addYomitanNote?: (word: string) => Promise<number | null>;
     resolveAnkiNoteId?: (noteId: number) => number;
+    resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
     createMediaGenerator?: () => StatsServerMediaGenerator;
     onMiningTiming?: (event: StatsMiningTimingEvent) => void;
     nowMs?: () => number;
@@ -458,6 +509,23 @@ export function createStatsApp(
   const nowMs = options?.nowMs ?? defaultNowMs;
   const getAnkiConnectConfig = (): AnkiConnectConfig | undefined =>
     options?.getAnkiConnectConfig?.() ?? options?.ankiConnectConfig;
+  const getSecondarySubtitleLanguages = (): string[] =>
+    options?.getSecondarySubtitleLanguages?.() ?? options?.secondarySubtitleLanguages ?? [];
+  const getEffectiveMiningDeckName = async (ankiConfig: AnkiConnectConfig): Promise<string> => {
+    const configuredDeckName = ankiConfig.deck?.trim() ?? '';
+    if (configuredDeckName) return configuredDeckName;
+
+    try {
+      const yomitanDeckName = await options?.getYomitanAnkiDeckName?.();
+      return typeof yomitanDeckName === 'string' ? yomitanDeckName.trim() : '';
+    } catch (error) {
+      statsMiningLogger.warn(
+        'Failed to resolve Yomitan Anki deck for stats mining:',
+        error instanceof Error ? error.message : String(error),
+      );
+      return '';
+    }
+  };
 
   const recordMiningTiming = (event: StatsMiningTimingEvent): void => {
     options?.onMiningTiming?.(event);
@@ -659,7 +727,13 @@ export function createStatsApp(
     const query = (c.req.query('q') ?? '').trim();
     if (!query) return c.json([]);
     const limit = parseIntQuery(c.req.query('limit'), 50, 100);
-    const rows = await tracker.searchSubtitleSentences(query, limit);
+    const searchByHeadword = parseBooleanQuery(c.req.query('headword'), true);
+    const searchOptions = await buildSentenceSearchOptions(
+      query,
+      searchByHeadword,
+      options?.resolveSentenceSearchHeadwords,
+    );
+    const rows = await tracker.searchSubtitleSentences(query, limit, searchOptions);
     return c.json(rows);
   });
 
@@ -997,7 +1071,8 @@ export function createStatsApp(
     const endMs = typeof body?.endMs === 'number' ? body.endMs : NaN;
     const sentence = typeof body?.sentence === 'string' ? body.sentence.trim() : '';
     const word = typeof body?.word === 'string' ? body.word.trim() : '';
-    const secondaryText = typeof body?.secondaryText === 'string' ? body.secondaryText.trim() : '';
+    const bodySecondaryText =
+      typeof body?.secondaryText === 'string' ? body.secondaryText.trim() : '';
     const videoTitle = typeof body?.videoTitle === 'string' ? body.videoTitle.trim() : '';
     const rawMode = c.req.query('mode');
     const mode = rawMode === 'audio' ? 'audio' : rawMode === 'word' ? 'word' : 'sentence';
@@ -1014,6 +1089,14 @@ export function createStatsApp(
     if (!ankiConfig) {
       return c.json({ error: 'AnkiConnect is not configured' }, 500);
     }
+    const secondaryText =
+      bodySecondaryText ||
+      resolveSecondarySubtitleTextFromSidecar({
+        sourcePath,
+        startMs,
+        endMs,
+        languages: getSecondarySubtitleLanguages(),
+      });
 
     const client = new AnkiConnectClient(ankiConfig.url ?? 'http://127.0.0.1:8765');
     const mediaGen = options?.createMediaGenerator?.() ?? new MediaGenerator();
@@ -1080,6 +1163,25 @@ export function createStatsApp(
 
     const errors: string[] = [];
     let noteId: number;
+    let effectiveDeckNamePromise: Promise<string> | null = null;
+    const getEffectiveDeckNameForRequest = (): Promise<string> => {
+      effectiveDeckNamePromise ??= getEffectiveMiningDeckName(ankiConfig);
+      return effectiveDeckNamePromise;
+    };
+    const moveNoteToConfiguredDeck = async (id: number): Promise<void> => {
+      const deckName = await getEffectiveDeckNameForRequest();
+      if (!deckName) {
+        return;
+      }
+      try {
+        const cardIds = await timeMiningPhase(mode, 'findCards', () =>
+          client.findCards(`nid:${id}`),
+        );
+        await timeMiningPhase(mode, 'changeDeck', () => client.changeDeck(cardIds, deckName));
+      } catch (err) {
+        errors.push(`deck: ${(err as Error).message}`);
+      }
+    };
 
     if (mode === 'word') {
       if (!options?.addYomitanNote) {
@@ -1107,6 +1209,7 @@ export function createStatsApp(
       }
 
       noteId = yomitanResult.value;
+      await moveNoteToConfiguredDeck(noteId);
       const audioBuffer = audioResult.status === 'fulfilled' ? audioResult.value : null;
       if (audioResult.status === 'rejected')
         errors.push(`audio: ${(audioResult.reason as Error).message}`);
@@ -1145,10 +1248,14 @@ export function createStatsApp(
       const mediaFields: Record<string, string> = {};
       const timestamp = Date.now();
       const sentenceFieldName = ankiConfig.fields?.sentence ?? 'Sentence';
+      const translationFieldName = ankiConfig.fields?.translation ?? 'SelectionText';
       const audioFieldName = getStatsWordMiningAudioFieldName(ankiConfig, noteInfo);
       const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
 
       mediaFields[sentenceFieldName] = highlightedSentence;
+      if (secondaryText) {
+        mediaFields[translationFieldName] = secondaryText;
+      }
 
       if (audioBuffer) {
         const audioFilename = `subminer_audio_${timestamp}.mp3`;
@@ -1214,7 +1321,7 @@ export function createStatsApp(
     const miscInfoFieldName = ankiConfig.fields?.miscInfo ?? '';
 
     const fields: Record<string, string> = {
-      [sentenceFieldName]: highlightedSentence,
+      [sentenceFieldName]: mode === 'sentence' ? sentence : highlightedSentence,
     };
 
     if (mode === 'sentence' && secondaryText) {
@@ -1222,7 +1329,9 @@ export function createStatsApp(
     }
 
     if (ankiConfig.isLapis?.enabled || ankiConfig.isKiku?.enabled) {
-      if (word) {
+      if (mode === 'sentence') {
+        fields[wordFieldName] = sentence;
+      } else if (word) {
         fields[wordFieldName] = word;
       }
       if (mode === 'sentence') {
@@ -1233,13 +1342,13 @@ export function createStatsApp(
     }
 
     const model = ankiConfig.isLapis?.sentenceCardModel || 'Basic';
-    const deck = ankiConfig.deck?.trim() || 'Default';
     const tags = ankiConfig.tags ?? ['SubMiner'];
 
     const addNotePromise = timeMiningPhase(
       mode,
       'addNote',
-      () => client.addNote(deck, model, fields, tags),
+      async () =>
+        client.addNote((await getEffectiveDeckNameForRequest()) || 'Default', model, fields, tags),
       (id) => ({
         noteId: id,
       }),
@@ -1265,6 +1374,7 @@ export function createStatsApp(
       );
     }
     noteId = addNoteResult.value;
+    await moveNoteToConfiguredDeck(noteId);
 
     const mediaFields: Record<string, string> = {};
     const timestamp = Date.now();
@@ -1370,9 +1480,13 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     mpvSocketPath: config.mpvSocketPath,
     ankiConnectConfig: config.ankiConnectConfig,
     getAnkiConnectConfig: config.getAnkiConnectConfig,
+    getYomitanAnkiDeckName: config.getYomitanAnkiDeckName,
+    secondarySubtitleLanguages: config.secondarySubtitleLanguages,
+    getSecondarySubtitleLanguages: config.getSecondarySubtitleLanguages,
     anilistRateLimiter: config.anilistRateLimiter,
     addYomitanNote: config.addYomitanNote,
     resolveAnkiNoteId: config.resolveAnkiNoteId,
+    resolveSentenceSearchHeadwords: config.resolveSentenceSearchHeadwords,
   });
 
   const bunRuntime = globalThis as typeof globalThis & {
