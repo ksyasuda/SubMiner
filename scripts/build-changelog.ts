@@ -4,6 +4,20 @@ import { execFileSync } from 'node:child_process';
 
 type RunClaude = (input: string, args: string[]) => string;
 
+// A single PR's contribution, resolved from the fragment files released in this
+// cycle. Used to append GitHub-style attribution to the release notes.
+type Contribution = {
+  prNumber: number;
+  login: string;
+  title: string;
+  isFirstContribution: boolean;
+};
+
+// Resolves the contributions behind a set of changelog fragment paths. Injected
+// in tests so we never hit git/gh; the default implementation walks git history
+// and the GitHub API.
+type ResolveContributions = (fragmentPaths: string[], cwd: string) => Contribution[];
+
 type ChangelogFsDeps = {
   existsSync?: (candidate: string) => boolean;
   mkdirSync?: (candidate: string, options: { recursive: true }) => void;
@@ -13,6 +27,7 @@ type ChangelogFsDeps = {
   writeFileSync?: (candidate: string, content: string, encoding: BufferEncoding) => void;
   log?: (message: string) => void;
   runClaude?: RunClaude;
+  resolveContributions?: ResolveContributions;
 };
 
 type PolishMode = 'changelog' | 'release-notes';
@@ -296,6 +311,152 @@ function defaultRunClaude(input: string, args: string[]): string {
   }
 }
 
+function resolveFragmentRelativePath(fragmentPath: string, cwd: string): string {
+  return path.relative(cwd, fragmentPath).split(path.sep).join('/');
+}
+
+// Walks git history + the GitHub API to attribute each released fragment to the
+// PR (and author) that introduced it. One git call and one gh call per fragment,
+// plus one gh call per unique author for the first-contribution check. Best
+// effort: if gh is unavailable/unauthenticated or any lookup fails, we warn and
+// drop attribution rather than failing the release.
+function defaultResolveContributions(fragmentPaths: string[], cwd: string): Contribution[] {
+  if (fragmentPaths.length === 0) {
+    return [];
+  }
+
+  try {
+    const slug = execFileSync(
+      'gh',
+      ['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner'],
+      {
+        cwd,
+        encoding: 'utf8',
+      },
+    ).trim();
+    if (!slug) {
+      return [];
+    }
+
+    const byPr = new Map<number, Contribution>();
+    for (const fragmentPath of fragmentPaths) {
+      const relativePath = resolveFragmentRelativePath(fragmentPath, cwd);
+      // git log lists newest first, so the commit that *added* the file is the
+      // last line of the --diff-filter=A history.
+      const addingSha = execFileSync(
+        'git',
+        ['log', '--diff-filter=A', '--follow', '--format=%H', '--', relativePath],
+        { cwd, encoding: 'utf8' },
+      )
+        .trim()
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .pop();
+      if (!addingSha) {
+        continue;
+      }
+
+      const prRaw = execFileSync(
+        'gh',
+        [
+          'api',
+          `repos/${slug}/commits/${addingSha}/pulls`,
+          '--jq',
+          '.[0] // empty | {number, login: .user.login, title}',
+        ],
+        { cwd, encoding: 'utf8' },
+      ).trim();
+      if (!prRaw) {
+        continue;
+      }
+
+      const pr = JSON.parse(prRaw) as { number?: number; login?: string; title?: string };
+      if (typeof pr.number !== 'number' || !pr.login || !pr.title) {
+        continue;
+      }
+      if (!byPr.has(pr.number)) {
+        byPr.set(pr.number, {
+          prNumber: pr.number,
+          login: pr.login,
+          title: pr.title,
+          isFirstContribution: false,
+        });
+      }
+    }
+
+    const firstPrByAuthor = new Map<string, number | null>();
+    for (const contribution of byPr.values()) {
+      if (!firstPrByAuthor.has(contribution.login)) {
+        const firstRaw = execFileSync(
+          'gh',
+          [
+            'api',
+            '-X',
+            'GET',
+            'search/issues',
+            '-f',
+            `q=repo:${slug} is:pr is:merged author:${contribution.login}`,
+            '-f',
+            'sort=created',
+            '-f',
+            'order=asc',
+            '-f',
+            'per_page=1',
+            '--jq',
+            '.items[0].number // empty',
+          ],
+          { cwd, encoding: 'utf8' },
+        ).trim();
+        firstPrByAuthor.set(contribution.login, firstRaw ? Number.parseInt(firstRaw, 10) : null);
+      }
+      const firstPr = firstPrByAuthor.get(contribution.login) ?? null;
+      contribution.isFirstContribution = firstPr !== null && firstPr === contribution.prNumber;
+    }
+
+    return [...byPr.values()].sort((a, b) => a.prNumber - b.prNumber);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Skipping contributor attribution: ${message}`);
+    return [];
+  }
+}
+
+function resolveContributionsForFragments(
+  fragments: ChangeFragment[],
+  cwd: string,
+  deps?: ChangelogFsDeps,
+): Contribution[] {
+  const resolve = deps?.resolveContributions ?? defaultResolveContributions;
+  return resolve(
+    fragments.filter((fragment) => fragment.type !== 'internal').map((fragment) => fragment.path),
+    cwd,
+  );
+}
+
+function renderContributorsSections(contributions: Contribution[]): string[] {
+  if (contributions.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = ['## What’s Changed', ''];
+  for (const contribution of contributions) {
+    lines.push(`- ${contribution.title} by @${contribution.login} in #${contribution.prNumber}`);
+  }
+
+  const firstTimers = contributions.filter((contribution) => contribution.isFirstContribution);
+  if (firstTimers.length > 0) {
+    lines.push('', '## New Contributors', '');
+    for (const contribution of firstTimers) {
+      lines.push(
+        `- @${contribution.login} made their first contribution in #${contribution.prNumber}`,
+      );
+    }
+  }
+
+  lines.push('');
+  return lines;
+}
+
 function serializeFragmentsForPrompt(
   fragments: ChangeFragment[],
   mode: PolishMode,
@@ -473,6 +634,7 @@ function renderReleaseNotes(
   changes: string,
   options?: {
     disclaimer?: string;
+    contributions?: Contribution[];
   },
 ): string {
   const prefix = options?.disclaimer ? [options.disclaimer, ''] : [];
@@ -494,6 +656,7 @@ function renderReleaseNotes(
     '',
     'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',
     '',
+    ...renderContributorsSections(options?.contributions ?? []),
   ].join('\n');
 }
 
@@ -504,6 +667,7 @@ function writeReleaseNotesFile(
   options?: {
     disclaimer?: string;
     outputPath?: string;
+    contributions?: Contribution[];
   },
 ): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
@@ -530,6 +694,7 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
   const version = resolveVersion(options ?? {});
   const date = resolveDate(options?.date);
   const fragments = readChangeFragments(cwd, options?.deps);
+  const contributions = resolveContributionsForFragments(fragments, cwd, options?.deps);
   const existingChangelogPath = path.join(cwd, 'CHANGELOG.md');
   const existingChangelog = existsSync(existingChangelogPath)
     ? readFileSync(existingChangelogPath, 'utf8')
@@ -547,6 +712,7 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
       cwd,
       stripDetailsBlocks(existingReleaseSection),
       options?.deps,
+      { contributions },
     );
     log(`Generated ${releaseNotesPath}`);
 
@@ -572,7 +738,9 @@ export function writeChangelogArtifacts(options?: ChangelogOptions): {
     date,
     deps: options?.deps,
   });
-  const releaseNotesPath = writeReleaseNotesFile(cwd, releaseNotesBody, options?.deps);
+  const releaseNotesPath = writeReleaseNotesFile(cwd, releaseNotesBody, options?.deps, {
+    contributions,
+  });
   log(`Generated ${releaseNotesPath}`);
 
   for (const fragment of fragments) {
@@ -833,10 +1001,12 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
     existingReleaseNotes,
     deps: options?.deps,
   });
+  const contributions = resolveContributionsForFragments(fragments, cwd, options?.deps);
   return writeReleaseNotesFile(cwd, changes, options?.deps, {
     disclaimer:
       '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
     outputPath: PRERELEASE_NOTES_PATH,
+    contributions,
   });
 }
 

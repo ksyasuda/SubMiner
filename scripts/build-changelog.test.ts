@@ -1065,6 +1065,85 @@ test('writeChangelogArtifacts filters internal fragments from the release-notes 
   }
 });
 
+test('writeChangelogArtifacts appends contributor attribution and a new-contributors section to release notes', async () => {
+  const { writeChangelogArtifacts } = await loadModule();
+  const workspace = createWorkspace('release-notes-contributors');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), '# Changelog\n', 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Added a feature.'].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '002.md'),
+    ['type: fixed', 'area: jellyfin', '', '- Fixed a bug.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = defaultStubClaude();
+    const resolveContributionsCalls: string[][] = [];
+    writeChangelogArtifacts({
+      cwd: projectRoot,
+      version: '0.6.0',
+      date: '2026-05-06',
+      deps: {
+        runClaude: stub.runClaude,
+        resolveContributions: (fragmentPaths) => {
+          resolveContributionsCalls.push(fragmentPaths);
+          return [
+            {
+              prNumber: 110,
+              login: 'ksyasuda',
+              title: 'feat(overlay): add a feature',
+              isFirstContribution: false,
+            },
+            {
+              prNumber: 112,
+              login: 'bee-san',
+              title: 'fix(jellyfin): restart remote session',
+              isFirstContribution: true,
+            },
+          ];
+        },
+      },
+    });
+
+    assert.equal(resolveContributionsCalls.length, 1, 'resolves contributions once per release');
+    assert.deepEqual(resolveContributionsCalls[0], [
+      path.join(projectRoot, 'changes', '001.md'),
+      path.join(projectRoot, 'changes', '002.md'),
+    ]);
+
+    const releaseNotes = fs.readFileSync(
+      path.join(projectRoot, 'release', 'release-notes.md'),
+      'utf8',
+    );
+    assert.match(releaseNotes, /## What’s Changed\n\n/);
+    assert.match(releaseNotes, /- feat\(overlay\): add a feature by @ksyasuda in #110\n/);
+    assert.match(releaseNotes, /- fix\(jellyfin\): restart remote session by @bee-san in #112\n/);
+    assert.match(
+      releaseNotes,
+      /## New Contributors\n\n- @bee-san made their first contribution in #112/,
+    );
+    assert.doesNotMatch(
+      releaseNotes,
+      /ksyasuda made their first contribution/,
+      'returning contributors are not listed under New Contributors',
+    );
+
+    // Attribution is a release-notes concern only; the CHANGELOG stays clean.
+    const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
+    assert.doesNotMatch(changelog, /What’s Changed/);
+    assert.doesNotMatch(changelog, /New Contributors/);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('writeChangelogArtifacts strips <details> blocks from release notes when reusing an existing CHANGELOG section', async () => {
   const { writeChangelogArtifacts } = await loadModule();
   const workspace = createWorkspace('reuse-existing-section');
