@@ -153,6 +153,16 @@ export type JellyfinRuntimeComposerResult = ComposerOutputs<{
   openJellyfinSetupWindow: ReturnType<typeof createOpenJellyfinSetupWindowHandler>;
 }>;
 
+export function createRestartJellyfinRemoteSessionAfterSetupLoginHandler(deps: {
+  getCurrentSession: () => unknown | null;
+  startJellyfinRemoteSession: (options?: { explicit?: boolean }) => Promise<void>;
+}) {
+  return async (): Promise<void> => {
+    const hasActiveSession = deps.getCurrentSession() !== null;
+    await deps.startJellyfinRemoteSession(hasActiveSession ? { explicit: true } : undefined);
+  };
+}
+
 export function composeJellyfinRuntimeHandlers(
   options: JellyfinRuntimeComposerOptions,
 ): JellyfinRuntimeComposerResult {
@@ -268,12 +278,19 @@ export function composeJellyfinRuntimeHandlers(
   const maybeFocusExistingJellyfinSetupWindow = createMaybeFocusExistingJellyfinSetupWindowHandler(
     options.maybeFocusExistingJellyfinSetupWindowMainDeps,
   );
+  const restartJellyfinRemoteSessionAfterSetupLogin =
+    createRestartJellyfinRemoteSessionAfterSetupLoginHandler({
+      getCurrentSession: () => options.startJellyfinRemoteSessionMainDeps.getCurrentSession(),
+      startJellyfinRemoteSession: (startOptions) => startJellyfinRemoteSession(startOptions),
+    });
   const openJellyfinSetupWindow = createOpenJellyfinSetupWindowHandler(
     createBuildOpenJellyfinSetupWindowMainDepsHandler({
       ...options.openJellyfinSetupWindowMainDeps,
       maybeFocusExistingSetupWindow: maybeFocusExistingJellyfinSetupWindow,
       getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
       getJellyfinClientInfo: () => getJellyfinClientInfo(),
+      restartRemoteSession: () => restartJellyfinRemoteSessionAfterSetupLogin(),
+      stopRemoteSession: () => stopJellyfinRemoteSession(),
     })(),
   );
 

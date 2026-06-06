@@ -160,6 +160,9 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
       patchPayload = session;
       calls.push('patch');
     },
+    restartRemoteSession: async () => {
+      calls.push('restart-remote');
+    },
     logInfo: () => calls.push('info'),
     logError: () => calls.push('error'),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
@@ -172,7 +175,14 @@ test('createHandleJellyfinSetupSubmissionHandler applies successful login', asyn
     'b',
   );
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['save', 'patch', 'info', 'osd:Jellyfin login success', 'reload']);
+  assert.deepEqual(calls, [
+    'save',
+    'patch',
+    'restart-remote',
+    'info',
+    'osd:Jellyfin login success',
+    'reload',
+  ]);
   assert.equal(authPassword, 'b');
   assert.deepEqual(savedSession, { accessToken: 'token', userId: 'uid' });
   assert.deepEqual(patchPayload, {
@@ -329,6 +339,7 @@ test('createHandleJellyfinSetupSubmissionHandler handles logout and done', async
     saveStoredSession: () => calls.push('save'),
     clearStoredSession: () => calls.push('clear'),
     patchJellyfinConfig: () => calls.push('patch'),
+    stopRemoteSession: () => calls.push('stop-remote'),
     logInfo: (message) => calls.push(message),
     logError: () => calls.push('error'),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
@@ -340,6 +351,7 @@ test('createHandleJellyfinSetupSubmissionHandler handles logout and done', async
   assert.equal(await handler('subminer://jellyfin-setup?action=done'), true);
   assert.deepEqual(calls, [
     'clear',
+    'stop-remote',
     'Cleared stored Jellyfin auth session.',
     'osd:Jellyfin logged out',
     'reload',

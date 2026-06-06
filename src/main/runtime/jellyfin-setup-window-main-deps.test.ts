@@ -40,6 +40,10 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     clearStoredSession: () => calls.push('clear-session'),
     patchJellyfinConfig: () => calls.push('patch'),
     persistAuthenticatedSession: () => calls.push('persist'),
+    restartRemoteSession: () => {
+      calls.push('restart-remote');
+    },
+    stopRemoteSession: () => calls.push('stop-remote'),
     logInfo: (message) => calls.push(`info:${message}`),
     logError: (message) => calls.push(`error:${message}`),
     showMpvOsd: (message) => calls.push(`osd:${message}`),
@@ -95,6 +99,8 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     },
     deps.getJellyfinClientInfo(),
   );
+  await deps.restartRemoteSession?.();
+  deps.stopRemoteSession?.();
   deps.logInfo('ok');
   deps.logError('bad', null);
   deps.showMpvOsd('toast');
@@ -110,6 +116,8 @@ test('open jellyfin setup window main deps builder maps callbacks', async () => 
     'clear-session',
     'patch',
     'persist',
+    'restart-remote',
+    'stop-remote',
     'info:ok',
     'error:bad',
     'osd:toast',

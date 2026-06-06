@@ -20,6 +20,10 @@ export function createBuildOpenJellyfinSetupWindowMainDepsHandler(
     persistAuthenticatedSession: deps.persistAuthenticatedSession
       ? (session, clientInfo) => deps.persistAuthenticatedSession?.(session, clientInfo)
       : undefined,
+    restartRemoteSession: deps.restartRemoteSession
+      ? () => deps.restartRemoteSession?.()
+      : undefined,
+    stopRemoteSession: deps.stopRemoteSession ? () => deps.stopRemoteSession?.() : undefined,
     logInfo: (message: string) => deps.logInfo(message),
     logError: (message: string, error: unknown) => deps.logError(message, error),
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
