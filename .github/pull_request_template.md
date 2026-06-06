@@ -31,6 +31,6 @@ If docs-site/ changed, also: bun run docs:test && bun run docs:build
 
 ## Checklist
 
-- [ ] Added a changelog fragment, or this PR is labeled `skip-changelog` (see [`changes/README.md`](../changes/README.md))
+- [ ] Reconciled current-outcome changelog fragment(s), or this PR is labeled `skip-changelog` (see [`changes/README.md`](../changes/README.md))
 - [ ] Docs updated in the same PR if behavior, defaults, flags, shortcuts, ports, or APIs changed
 - [ ] Relevant checks pass locally (typecheck, tests, build)

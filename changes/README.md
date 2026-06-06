@@ -31,6 +31,13 @@ Rules:
 - `README.md` is ignored by the generator
 - if a PR should not produce release notes, apply the `skip-changelog` label instead of adding a fragment
 
+PR branch workflow:
+
+- Before adding a fragment or bullet, inspect the `changes/*.md` files already changed in the PR
+- If the new work fixes, modifies, renames, or supersedes behavior introduced or referenced by that fragment, edit or remove the stale bullet instead of adding follow-up churn
+- Add a new bullet only when it describes a truly separate user-visible outcome
+- Multiple fragment files are allowed when one PR has genuinely separate release-note outcomes, but keep them minimized and current
+
 How fragments turn into a release:
 
 - At release time, `bun run changelog:build` (and `bun run changelog:prerelease-notes`) pipes every pending fragment through `claude -p` to merge related items, drop noise, and rewrite into a clean user-facing release body. Write fragments as raw, informative notes — don't worry about polished prose, deduping across PRs, or line-by-line phrasing. The polish step handles all of that.

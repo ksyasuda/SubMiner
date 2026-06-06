@@ -68,7 +68,7 @@ Start here, then leave this file.
 
 ## Release / PR Notes
 
-- User-visible PRs need one fragment in `changes/*.md` — format and rules in [`changes/README.md`](./changes/README.md) (`type` + `area` keys required; apply the `skip-changelog` label to opt out)
+- User-visible PRs need reconciled current-outcome fragment(s) in `changes/*.md` — format and rules in [`changes/README.md`](./changes/README.md) (`type` + `area` keys required; inspect existing same-PR fragments, then update/remove stale bullets or add only genuinely separate outcomes; apply the `skip-changelog` label to opt out)
 - User-visible docs changes get a `type: docs` fragment
 - CI enforces `bun run changelog:lint` and `bun run changelog:pr-check`
 - PR review helpers:
