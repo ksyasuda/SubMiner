@@ -29,6 +29,7 @@ type SidecarCandidate = {
 type RetimedSubtitleCacheEntry = {
   path: string;
   cleanupDir: string;
+  promise?: Promise<string>;
 };
 
 export type RetimedSubtitleCommandRunner = (
@@ -353,6 +354,9 @@ async function retimeSecondarySubtitle(input: {
   if (!key) return '';
 
   const cached = retimedSubtitleCache.get(key);
+  if (cached?.promise) {
+    return cached.promise;
+  }
   if (cached && existsSync(cached.path)) {
     return cached.path;
   }
@@ -371,19 +375,25 @@ async function retimeSecondarySubtitle(input: {
     `${parsedSecondary.name}.retimed${parsedSecondary.ext || '.srt'}`,
   );
 
-  const result = await input.runAlass(
-    input.alassPath,
-    input.primaryPath,
-    input.secondaryPath,
-    outputPath,
-  );
-  if (!result.ok || !existsSync(outputPath)) {
-    rmSync(cleanupDir, { recursive: true, force: true });
-    return '';
-  }
-
-  retimedSubtitleCache.set(key, { path: outputPath, cleanupDir });
-  return outputPath;
+  const entry: RetimedSubtitleCacheEntry = { path: outputPath, cleanupDir };
+  entry.promise = input
+    .runAlass(input.alassPath, input.primaryPath, input.secondaryPath, outputPath)
+    .then((result) => {
+      if (!result.ok || !existsSync(outputPath)) {
+        rmSync(cleanupDir, { recursive: true, force: true });
+        retimedSubtitleCache.delete(key);
+        return '';
+      }
+      entry.promise = undefined;
+      return outputPath;
+    })
+    .catch(() => {
+      rmSync(cleanupDir, { recursive: true, force: true });
+      retimedSubtitleCache.delete(key);
+      return '';
+    });
+  retimedSubtitleCache.set(key, entry);
+  return entry.promise;
 }
 
 export function resolveSecondarySubtitleTextFromSidecar(input: {

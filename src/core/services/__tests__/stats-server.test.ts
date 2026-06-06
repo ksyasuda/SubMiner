@@ -966,7 +966,7 @@ describe('stats server API routes', () => {
                 videoId,
                 anilistId: null,
                 coverUrl: null,
-                coverBlob: Buffer.from([0x89, 0x50]),
+                coverBlob: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
                 titleRomaji: null,
                 titleEnglish: null,
                 episodesTotal: null,
@@ -997,8 +997,8 @@ describe('stats server API routes', () => {
       },
       media: {
         7: {
-          contentType: 'image/jpeg',
-          dataUrl: 'data:image/jpeg;base64,iVA=',
+          contentType: 'image/png',
+          dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
         },
         99999: null,
       },
@@ -1365,7 +1365,7 @@ describe('stats server API routes', () => {
     });
   });
 
-  it('POST /api/stats/mine-card prefers retimed sidecar secondary text for sentence cards', async () => {
+  it('POST /api/stats/mine-card prefers request secondary text over retimed fallback', async () => {
     await withTempDir(async (dir) => {
       const sourcePath = path.join(dir, 'episode.mkv');
       fs.writeFileSync(sourcePath, 'fake media');
@@ -1414,7 +1414,7 @@ describe('stats server API routes', () => {
         const addNoteRequest = requests.find((request) => request.action === 'addNote');
         assert.equal(
           addNoteRequest?.params?.note?.fields?.SelectionText,
-          'Aligned English subtitle',
+          'Stale stored English subtitle',
         );
       });
     });
@@ -1478,6 +1478,74 @@ Aligned English subtitle
         assert.equal(second, 'Aligned English subtitle');
         assert.equal(alassRuns, 1);
         assert.equal(fs.readFileSync(englishPath, 'utf8'), originalEnglish);
+      } finally {
+        clearRetimedSecondarySubtitleCache();
+      }
+    });
+  });
+
+  it('shares in-flight retimed secondary subtitle work for concurrent requests', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      const japanesePath = path.join(dir, 'episode.ja.srt');
+      const englishPath = path.join(dir, 'episode.en.srt');
+      const alassPath = path.join(dir, 'alass-cli');
+      fs.writeFileSync(sourcePath, 'fake media');
+      fs.writeFileSync(alassPath, 'fake alass');
+      fs.writeFileSync(
+        japanesePath,
+        `1
+00:00:01,000 --> 00:00:02,000
+猫を見た
+`,
+      );
+      fs.writeFileSync(
+        englishPath,
+        `1
+00:00:09,000 --> 00:00:10,000
+Stale English subtitle
+`,
+      );
+
+      let alassRuns = 0;
+      let releaseAlass!: () => void;
+      const alassGate = new Promise<void>((resolve) => {
+        releaseAlass = resolve;
+      });
+      const input = {
+        sourcePath,
+        startMs: 1_000,
+        endMs: 2_000,
+        alassPath,
+        runAlass: async (
+          _alassPath: string,
+          _referencePath: string,
+          _inputPath: string,
+          outputPath: string,
+        ) => {
+          alassRuns += 1;
+          await alassGate;
+          fs.writeFileSync(
+            outputPath,
+            `1
+00:00:01,000 --> 00:00:02,000
+Aligned English subtitle
+`,
+          );
+          return { ok: true, code: 0, stdout: '', stderr: '' };
+        },
+      };
+
+      try {
+        const first = resolveRetimedSecondarySubtitleTextFromSidecar(input);
+        const second = resolveRetimedSecondarySubtitleTextFromSidecar(input);
+        releaseAlass();
+
+        assert.deepEqual(await Promise.all([first, second]), [
+          'Aligned English subtitle',
+          'Aligned English subtitle',
+        ]);
+        assert.equal(alassRuns, 1);
       } finally {
         clearRetimedSecondarySubtitleCache();
       }
@@ -2385,6 +2453,20 @@ Aligned English subtitle
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anki/browse', { method: 'POST' });
     assert.equal(res.status, 400);
+  });
+
+  it('POST /api/stats/anki/browse uses configured AnkiConnect URL', async () => {
+    await withFakeAnkiConnect(async (requests, url) => {
+      const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: { url },
+      });
+
+      const res = await app.request('/api/stats/anki/browse?noteId=12345', { method: 'POST' });
+
+      assert.equal(res.status, 200);
+      assert.equal(requests[0]?.action, 'guiBrowse');
+      assert.deepEqual(requests[0]?.params, { query: 'nid:12345' });
+    });
   });
 
   it('GET /api/stats/anilist/search uses the configured AniList rate limiter', async () => {

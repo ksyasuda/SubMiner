@@ -88,8 +88,8 @@ export interface StatsCoverImage {
 }
 
 export interface StatsCoverImagesData {
-  anime: Record<string, StatsCoverImage | null>;
-  media: Record<string, StatsCoverImage | null>;
+  anime: Record<number, StatsCoverImage | null>;
+  media: Record<number, StatsCoverImage | null>;
 }
 
 export interface KanjiEntry {

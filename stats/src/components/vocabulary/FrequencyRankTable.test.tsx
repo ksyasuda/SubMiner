@@ -24,6 +24,46 @@ function makeEntry(over: Partial<VocabularyEntry>): VocabularyEntry {
   } as VocabularyEntry;
 }
 
+function withLocalStorage<T>(initial: Record<string, string>, run: () => T): T {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map(Object.entries(initial));
+  const storage = {
+    get length() {
+      return values.size;
+    },
+    clear() {
+      values.clear();
+    },
+    getItem(key: string) {
+      return values.get(key) ?? null;
+    },
+    key(index: number) {
+      return Array.from(values.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      values.delete(key);
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value);
+    },
+  } as Storage;
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: storage,
+  });
+
+  try {
+    return run();
+  } finally {
+    if (previous) {
+      Object.defineProperty(globalThis, 'localStorage', previous);
+    } else {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  }
+}
+
 test('renders headword and reading inline in a single column (no separate Reading header)', () => {
   const entry = makeEntry({});
   const markup = renderToStaticMarkup(
@@ -83,4 +123,41 @@ test('renders a Hide Kana filter button', () => {
     <FrequencyRankTable words={[entry]} knownWords={new Set()} />,
   );
   assert.match(markup, /Hide Kana/);
+});
+
+test('uses saved Hide Kana preference on first render', () => {
+  const markup = withLocalStorage({ 'subminer.stats.frequencyRank.hideKanaOnly': 'true' }, () =>
+    renderToStaticMarkup(
+      <FrequencyRankTable
+        words={[
+          makeEntry({ wordId: 1, headword: 'さらに', word: 'さらに', frequencyRank: 10 }),
+          makeEntry({
+            wordId: 2,
+            headword: '前に',
+            word: '前に',
+            reading: 'まえに',
+            frequencyRank: 20,
+          }),
+        ]}
+        knownWords={new Set()}
+      />,
+    ),
+  );
+
+  assert.doesNotMatch(markup, />さらに</);
+  assert.match(markup, />前に</);
+});
+
+test('uses saved Hide Known preference on first render', () => {
+  const markup = withLocalStorage({ 'subminer.stats.frequencyRank.hideKnown': 'false' }, () =>
+    renderToStaticMarkup(
+      <FrequencyRankTable
+        words={[makeEntry({ headword: '日本語', word: '日本語', frequencyRank: 10 })]}
+        knownWords={new Set(['日本語'])}
+      />,
+    ),
+  );
+
+  assert.match(markup, />Most Common Words Seen</);
+  assert.match(markup, />日本語</);
 });

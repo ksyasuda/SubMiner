@@ -10,6 +10,8 @@ interface FrequencyRankTableProps {
 }
 
 const PAGE_SIZE = 25;
+const HIDE_KNOWN_STORAGE_KEY = 'subminer.stats.frequencyRank.hideKnown';
+const HIDE_KANA_ONLY_STORAGE_KEY = 'subminer.stats.frequencyRank.hideKanaOnly';
 
 interface FrequencyRankOptions {
   hideKnown: boolean;
@@ -29,6 +31,33 @@ function isWordKnown(w: VocabularyEntry, knownWords: Set<string>): boolean {
 
 function isKanaOnlyWord(w: VocabularyEntry): boolean {
   return isKanaOnlyTokenText(w.headword || w.word);
+}
+
+function getPreferenceStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readBooleanPreference(key: string, fallback: boolean): boolean {
+  try {
+    const value = getPreferenceStorage()?.getItem(key);
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeBooleanPreference(key: string, value: boolean): void {
+  try {
+    getPreferenceStorage()?.setItem(key, String(value));
+  } catch {
+    // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
+  }
 }
 
 export function buildFrequencyRankRows(
@@ -70,8 +99,12 @@ export function buildFrequencyRankRows(
 
 export function FrequencyRankTable({ words, knownWords, onSelectWord }: FrequencyRankTableProps) {
   const [page, setPage] = useState(0);
-  const [hideKnown, setHideKnown] = useState(true);
-  const [hideKanaOnly, setHideKanaOnly] = useState(false);
+  const [hideKnown, setHideKnown] = useState(() =>
+    readBooleanPreference(HIDE_KNOWN_STORAGE_KEY, true),
+  );
+  const [hideKanaOnly, setHideKanaOnly] = useState(() =>
+    readBooleanPreference(HIDE_KANA_ONLY_STORAGE_KEY, false),
+  );
   const [collapsed, setCollapsed] = useState(false);
 
   const hasKnownData = knownWords.size > 0;
@@ -116,7 +149,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
               type="button"
               aria-pressed={hideKnown}
               onClick={() => {
-                setHideKnown(!hideKnown);
+                const next = !hideKnown;
+                setHideKnown(next);
+                writeBooleanPreference(HIDE_KNOWN_STORAGE_KEY, next);
                 setPage(0);
               }}
               className={`px-2.5 py-1 rounded-lg text-xs transition-colors border ${
@@ -132,7 +167,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
             type="button"
             aria-pressed={hideKanaOnly}
             onClick={() => {
-              setHideKanaOnly(!hideKanaOnly);
+              const next = !hideKanaOnly;
+              setHideKanaOnly(next);
+              writeBooleanPreference(HIDE_KANA_ONLY_STORAGE_KEY, next);
               setPage(0);
             }}
             className={`px-2.5 py-1 rounded-lg text-xs transition-colors border ${
@@ -150,7 +187,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
         <div className="text-xs text-ctp-overlay2 mt-3">
           {hideKnown && hasKnownData && !hideKanaOnly
             ? 'All ranked words are already in Anki!'
-            : hideKnown || hideKanaOnly
+            : (hideKnown && hasKnownData) || hideKanaOnly
               ? 'No ranked words match the active filters.'
               : 'No words with frequency data.'}
         </div>

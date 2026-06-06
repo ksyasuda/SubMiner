@@ -52,7 +52,7 @@ type StatsExcludedWordPayload = {
 };
 
 type StatsCoverImagePayload = {
-  contentType: 'image/jpeg';
+  contentType: string;
   dataUrl: string;
 } | null;
 
@@ -126,10 +126,41 @@ function coverImagePayload(
   art: { coverBlob?: Uint8Array | null } | null | undefined,
 ): StatsCoverImagePayload {
   if (!art?.coverBlob) return null;
+  const bytes = new Uint8Array(art.coverBlob);
+  const contentType = detectImageContentType(bytes);
   return {
-    contentType: 'image/jpeg',
-    dataUrl: `data:image/jpeg;base64,${Buffer.from(art.coverBlob).toString('base64')}`,
+    contentType,
+    dataUrl: `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`,
   };
+}
+
+function detectImageContentType(bytes: Uint8Array): string {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47
+  ) {
+    return 'image/png';
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return 'application/octet-stream';
 }
 
 function resolveStatsNoteFieldName(
@@ -960,17 +991,17 @@ export function createStatsApp(
     const body = (await c.req.json().catch(() => null)) as StatsCoverBatchBody | null;
     const animeIds = parsePositiveIdList(body?.animeIds);
     const videoIds = parsePositiveIdList(body?.videoIds);
-    const anime: Record<string, StatsCoverImagePayload> = {};
-    const media: Record<string, StatsCoverImagePayload> = {};
+    const anime: Record<number, StatsCoverImagePayload> = {};
+    const media: Record<number, StatsCoverImagePayload> = {};
 
     await Promise.all(
       animeIds.map(async (animeId) => {
-        anime[String(animeId)] = coverImagePayload(await tracker.getAnimeCoverArt(animeId));
+        anime[animeId] = coverImagePayload(await tracker.getAnimeCoverArt(animeId));
       }),
     );
     await Promise.all(
       videoIds.map(async (videoId) => {
-        media[String(videoId)] = coverImagePayload(await tracker.getCoverArt(videoId));
+        media[videoId] = coverImagePayload(await tracker.getCoverArt(videoId));
       }),
     );
 
@@ -1024,8 +1055,9 @@ export function createStatsApp(
   app.post('/api/stats/anki/browse', async (c) => {
     const noteId = parseIntQuery(c.req.query('noteId'), 0);
     if (noteId <= 0) return c.body(null, 400);
+    const ankiConfig = getAnkiConnectConfig();
     try {
-      const response = await fetch('http://127.0.0.1:8765', {
+      const response = await fetch(ankiConfig?.url ?? 'http://127.0.0.1:8765', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),
@@ -1136,8 +1168,8 @@ export function createStatsApp(
       }
     }
     const secondaryText =
-      retimedSecondaryText ||
       bodySecondaryText ||
+      retimedSecondaryText ||
       resolveSecondarySubtitleTextFromSidecar({
         sourcePath,
         startMs,
