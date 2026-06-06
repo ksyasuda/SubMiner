@@ -425,6 +425,8 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
   clearStoredSession: () => void;
   patchJellyfinConfig: (session: JellyfinSession) => void;
   persistAuthenticatedSession?: (session: JellyfinSession, clientInfo: JellyfinClientInfo) => void;
+  restartRemoteSession?: () => Promise<void> | void;
+  stopRemoteSession?: () => void;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
   showMpvOsd: (message: string) => void;
@@ -447,6 +449,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
     if (submission.action === 'logout') {
       try {
         deps.clearStoredSession();
+        deps.stopRemoteSession?.();
         deps.logInfo('Cleared stored Jellyfin auth session.');
         deps.showMpvOsd('Jellyfin logged out');
         deps.reloadSetupWindow({
@@ -491,6 +494,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
         deps.saveStoredSession({ accessToken: session.accessToken, userId: session.userId });
         deps.patchJellyfinConfig(session);
       }
+      await deps.restartRemoteSession?.();
       deps.logInfo(`Jellyfin setup saved for ${session.username}.`);
       deps.showMpvOsd('Jellyfin login success');
       deps.reloadSetupWindow({
@@ -593,6 +597,8 @@ export function createOpenJellyfinSetupWindowHandler<
   clearStoredSession: () => void;
   patchJellyfinConfig: (session: JellyfinSession) => void;
   persistAuthenticatedSession?: (session: JellyfinSession, clientInfo: JellyfinClientInfo) => void;
+  restartRemoteSession?: () => Promise<void> | void;
+  stopRemoteSession?: () => void;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
   showMpvOsd: (message: string) => void;
@@ -633,6 +639,10 @@ export function createOpenJellyfinSetupWindowHandler<
       persistAuthenticatedSession: deps.persistAuthenticatedSession
         ? (session, clientInfo) => deps.persistAuthenticatedSession?.(session, clientInfo)
         : undefined,
+      restartRemoteSession: deps.restartRemoteSession
+        ? () => deps.restartRemoteSession?.()
+        : undefined,
+      stopRemoteSession: deps.stopRemoteSession ? () => deps.stopRemoteSession?.() : undefined,
       logInfo: (message) => deps.logInfo(message),
       logError: (message, error) => deps.logError(message, error),
       showMpvOsd: (message) => deps.showMpvOsd(message),

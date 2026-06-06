@@ -274,6 +274,8 @@ export function composeJellyfinRuntimeHandlers(
       maybeFocusExistingSetupWindow: maybeFocusExistingJellyfinSetupWindow,
       getResolvedJellyfinConfig: () => getResolvedJellyfinConfig(),
       getJellyfinClientInfo: () => getJellyfinClientInfo(),
+      restartRemoteSession: () => startJellyfinRemoteSession({ explicit: true }),
+      stopRemoteSession: () => stopJellyfinRemoteSession(),
     })(),
   );
 
