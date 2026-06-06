@@ -220,8 +220,6 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
 }
 ```
 
-`notificationType` controls how a mined-card confirmation is shown: `osd` draws an on-screen message over the video, `system` posts a desktop notification, `both` does both, and `none` stays silent. The `osd` (and `both`) path also flashes a small screenshot of the mined frame in the overlay, matching the picture shown on the system notification.
-
 `overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated sentence audio, while leaving the word audio field unchanged.
 
 ## AI Translation

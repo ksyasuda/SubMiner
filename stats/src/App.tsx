@@ -188,6 +188,7 @@ export function App() {
                 <OverviewTab
                   onNavigateToMediaDetail={navigateToOverviewMediaDetail}
                   onNavigateToSession={navigateToSession}
+                  isActive={activeTab === 'overview'}
                 />
               </section>
             ) : null}

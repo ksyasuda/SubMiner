@@ -22,6 +22,14 @@ export function getCoverImageKey(kind: CoverImageKind, id: number): string {
   return `${kind}:${id}`;
 }
 
+export function buildCoverImageRequestKey(
+  animeIds: number[],
+  videoIds: number[],
+  refreshToken = 0,
+): string {
+  return `a:${animeIds.join(',')}|m:${videoIds.join(',')}|r:${refreshToken}`;
+}
+
 export function collectSessionCoverRequests(
   sessions: Pick<SessionSummary, 'animeId' | 'videoId'>[],
 ): CoverImageRequest {

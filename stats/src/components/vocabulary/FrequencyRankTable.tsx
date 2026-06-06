@@ -11,45 +11,74 @@ interface FrequencyRankTableProps {
 
 const PAGE_SIZE = 25;
 
+interface FrequencyRankOptions {
+  hideKnown: boolean;
+  hideKanaOnly: boolean;
+}
+
+const KANA_ONLY_TEXT = /^[\p{Script=Hiragana}\p{Script=Katakana}\u30fc\u309d\u309e\u30fd\u30fe]+$/u;
+
+export function isKanaOnlyTokenText(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && KANA_ONLY_TEXT.test(trimmed);
+}
+
+function isWordKnown(w: VocabularyEntry, knownWords: Set<string>): boolean {
+  return knownWords.has(w.headword) || knownWords.has(w.word);
+}
+
+function isKanaOnlyWord(w: VocabularyEntry): boolean {
+  return isKanaOnlyTokenText(w.headword || w.word);
+}
+
+export function buildFrequencyRankRows(
+  words: VocabularyEntry[],
+  knownWords: Set<string>,
+  options: FrequencyRankOptions,
+): VocabularyEntry[] {
+  const hasKnownData = knownWords.size > 0;
+  let filtered = words.filter((w) => w.frequencyRank != null && w.frequencyRank > 0);
+  if (options.hideKnown && hasKnownData) {
+    filtered = filtered.filter((w) => !isWordKnown(w, knownWords));
+  }
+  if (options.hideKanaOnly) {
+    filtered = filtered.filter((w) => !isKanaOnlyWord(w));
+  }
+
+  const byHeadword = new Map<string, VocabularyEntry>();
+  for (const w of filtered) {
+    const existing = byHeadword.get(w.headword);
+    if (!existing) {
+      byHeadword.set(w.headword, { ...w });
+    } else {
+      existing.frequency += w.frequency;
+      existing.animeCount = Math.max(existing.animeCount, w.animeCount);
+      if (w.frequencyRank! < existing.frequencyRank!) {
+        existing.frequencyRank = w.frequencyRank;
+      }
+      if (!existing.reading && w.reading) {
+        existing.reading = w.reading;
+      }
+      if (!existing.partOfSpeech && w.partOfSpeech) {
+        existing.partOfSpeech = w.partOfSpeech;
+      }
+    }
+  }
+
+  return [...byHeadword.values()].sort((a, b) => a.frequencyRank! - b.frequencyRank!);
+}
+
 export function FrequencyRankTable({ words, knownWords, onSelectWord }: FrequencyRankTableProps) {
   const [page, setPage] = useState(0);
   const [hideKnown, setHideKnown] = useState(true);
+  const [hideKanaOnly, setHideKanaOnly] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   const hasKnownData = knownWords.size > 0;
 
-  const isWordKnown = (w: VocabularyEntry): boolean => {
-    return knownWords.has(w.headword) || knownWords.has(w.word);
-  };
-
   const ranked = useMemo(() => {
-    let filtered = words.filter((w) => w.frequencyRank != null && w.frequencyRank > 0);
-    if (hideKnown && hasKnownData) {
-      filtered = filtered.filter((w) => !isWordKnown(w));
-    }
-
-    const byHeadword = new Map<string, VocabularyEntry>();
-    for (const w of filtered) {
-      const existing = byHeadword.get(w.headword);
-      if (!existing) {
-        byHeadword.set(w.headword, { ...w });
-      } else {
-        existing.frequency += w.frequency;
-        existing.animeCount = Math.max(existing.animeCount, w.animeCount);
-        if (w.frequencyRank! < existing.frequencyRank!) {
-          existing.frequencyRank = w.frequencyRank;
-        }
-        if (!existing.reading && w.reading) {
-          existing.reading = w.reading;
-        }
-        if (!existing.partOfSpeech && w.partOfSpeech) {
-          existing.partOfSpeech = w.partOfSpeech;
-        }
-      }
-    }
-
-    return [...byHeadword.values()].sort((a, b) => a.frequencyRank! - b.frequencyRank!);
-  }, [words, knownWords, hideKnown, hasKnownData]);
+    return buildFrequencyRankRows(words, knownWords, { hideKnown, hideKanaOnly });
+  }, [words, knownWords, hideKnown, hideKanaOnly]);
 
   if (words.every((w) => w.frequencyRank == null)) {
     return (
@@ -81,10 +110,11 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           </span>
           {hideKnown && hasKnownData ? 'Common Words Not Yet Mined' : 'Most Common Words Seen'}
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {hasKnownData && (
             <button
               type="button"
+              aria-pressed={hideKnown}
               onClick={() => {
                 setHideKnown(!hideKnown);
                 setPage(0);
@@ -98,12 +128,31 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
               Hide Known
             </button>
           )}
+          <button
+            type="button"
+            aria-pressed={hideKanaOnly}
+            onClick={() => {
+              setHideKanaOnly(!hideKanaOnly);
+              setPage(0);
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs transition-colors border ${
+              hideKanaOnly
+                ? 'bg-ctp-surface2 text-ctp-text border-ctp-blue/50'
+                : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
+            }`}
+          >
+            Hide Kana
+          </button>
           <span className="text-xs text-ctp-overlay2">{ranked.length} words</span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
         <div className="text-xs text-ctp-overlay2 mt-3">
-          {hideKnown ? 'All ranked words are already in Anki!' : 'No words with frequency data.'}
+          {hideKnown && hasKnownData && !hideKanaOnly
+            ? 'All ranked words are already in Anki!'
+            : hideKnown || hideKanaOnly
+              ? 'No ranked words match the active filters.'
+              : 'No words with frequency data.'}
         </div>
       ) : (
         <>

@@ -6,8 +6,37 @@ export type ExcludedWord = StatsExcludedWord;
 
 const STORAGE_KEY = 'subminer-excluded-words';
 
-function toKey(w: ExcludedWord): string {
-  return `${w.headword}\0${w.word}\0${w.reading}`;
+type ExclusionCandidate = { headword: string; word: string; reading: string };
+
+function normalizedTokenText(value: string): string {
+  return value.trim();
+}
+
+export function getExcludedWordTokenKey(w: ExclusionCandidate): string {
+  return (
+    normalizedTokenText(w.headword) || normalizedTokenText(w.word) || normalizedTokenText(w.reading)
+  );
+}
+
+function getExcludedWordAliasKeys(w: ExclusionCandidate): string[] {
+  const aliases = [normalizedTokenText(w.headword), normalizedTokenText(w.word)].filter(Boolean);
+  const unique = new Set(aliases);
+  if (unique.size === 0) unique.add(getExcludedWordTokenKey(w));
+  return [...unique];
+}
+
+export function dedupeExcludedWords(words: ExcludedWord[]): ExcludedWord[] {
+  const byToken = new Map<string, ExcludedWord>();
+  for (const word of words) {
+    const key = getExcludedWordTokenKey(word);
+    if (!byToken.has(key)) byToken.set(key, word);
+  }
+  return [...byToken.values()];
+}
+
+export function isExcludedWord(excluded: ExcludedWord[], w: ExclusionCandidate): boolean {
+  const excludedKeys = new Set(excluded.flatMap(getExcludedWordAliasKeys));
+  return getExcludedWordAliasKeys(w).some((key) => excludedKeys.has(key));
 }
 
 let cached: ExcludedWord[] | null = null;
@@ -22,13 +51,15 @@ function readLocalStorage(): ExcludedWord[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (row): row is ExcludedWord =>
-        row !== null &&
-        typeof row === 'object' &&
-        typeof (row as ExcludedWord).headword === 'string' &&
-        typeof (row as ExcludedWord).word === 'string' &&
-        typeof (row as ExcludedWord).reading === 'string',
+    return dedupeExcludedWords(
+      parsed.filter(
+        (row): row is ExcludedWord =>
+          row !== null &&
+          typeof row === 'object' &&
+          typeof (row as ExcludedWord).headword === 'string' &&
+          typeof (row as ExcludedWord).word === 'string' &&
+          typeof (row as ExcludedWord).reading === 'string',
+      ),
     );
   } catch {
     return [];
@@ -48,14 +79,15 @@ function load(): ExcludedWord[] {
 
 function getKeySet(): Set<string> {
   if (cachedKeys) return cachedKeys;
-  cachedKeys = new Set(load().map(toKey));
+  cachedKeys = new Set(load().flatMap(getExcludedWordAliasKeys));
   return cachedKeys;
 }
 
 function applyWords(words: ExcludedWord[]): void {
-  cached = words;
-  cachedKeys = new Set(words.map(toKey));
-  writeLocalStorage(words);
+  const normalized = dedupeExcludedWords(words);
+  cached = normalized;
+  cachedKeys = new Set(normalized.flatMap(getExcludedWordAliasKeys));
+  writeLocalStorage(normalized);
   for (const fn of listeners) fn();
 }
 
@@ -67,10 +99,11 @@ export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
   const previousWords = [...load()];
   const previousRevision = revision;
   const writeRevision = previousRevision + 1;
+  const normalized = dedupeExcludedWords(words);
   revision = writeRevision;
-  applyWords(words);
+  applyWords(normalized);
   try {
-    await apiClient.setExcludedWords(words);
+    await apiClient.setExcludedWords(normalized);
   } catch (error) {
     if (revision === writeRevision) {
       revision = previousRevision;
@@ -137,22 +170,27 @@ export function useExcludedWords() {
   }, []);
 
   const isExcluded = useCallback(
-    (w: { headword: string; word: string; reading: string }) => getKeySet().has(toKey(w)),
+    (w: ExclusionCandidate) => getExcludedWordAliasKeys(w).some((key) => getKeySet().has(key)),
     [excluded],
   );
 
   const toggleExclusion = useCallback((w: ExcludedWord) => {
-    const key = toKey(w);
     const current = load();
-    if (getKeySet().has(key)) {
-      void setExcludedWords(current.filter((e) => toKey(e) !== key));
+    const candidateKeys = new Set(getExcludedWordAliasKeys(w));
+    const existing = current.find((e) =>
+      getExcludedWordAliasKeys(e).some((key) => candidateKeys.has(key)),
+    );
+    if (existing) {
+      const key = getExcludedWordTokenKey(existing);
+      void setExcludedWords(current.filter((e) => getExcludedWordTokenKey(e) !== key));
     } else {
       void setExcludedWords([...current, w]);
     }
   }, []);
 
   const removeExclusion = useCallback((w: ExcludedWord) => {
-    void setExcludedWords(load().filter((e) => toKey(e) !== toKey(w)));
+    const key = getExcludedWordTokenKey(w);
+    void setExcludedWords(load().filter((e) => getExcludedWordTokenKey(e) !== key));
   }, []);
 
   const clearAll = useCallback(() => {

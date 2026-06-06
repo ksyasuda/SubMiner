@@ -51,7 +51,6 @@ import type {
   OverlayContentMeasurement,
   ShortcutsConfig,
   ConfigHotReloadPayload,
-  MiningImagePayload,
   ControllerConfigUpdate,
   ControllerPreferenceUpdate,
   ResolvedControllerConfig,
@@ -222,10 +221,6 @@ const onSecondarySubtitleSetEvent = createLatestValueIpcListenerWithPayload<stri
 const onSecondarySubtitleModeEvent = createLatestValueIpcListenerWithPayload<SecondarySubMode>(
   IPC_CHANNELS.event.secondarySubtitleMode,
   (payload) => payload as SecondarySubMode,
-);
-const onMiningImageEvent = createLatestValueIpcListenerWithPayload<MiningImagePayload>(
-  IPC_CHANNELS.event.miningImage,
-  (payload) => payload as MiningImagePayload,
 );
 
 const electronAPI: ElectronAPI = {
@@ -472,9 +467,6 @@ const electronAPI: ElectronAPI = {
         callback(payload);
       },
     );
-  },
-  onMiningImage: (callback: (payload: MiningImagePayload) => void) => {
-    onMiningImageEvent(callback);
   },
 };
 

@@ -24,7 +24,6 @@ import type {
   SubtitlePosition,
   SubsyncManualPayload,
   ConfigHotReloadPayload,
-  MiningImagePayload,
 } from '../types';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createGamepadController } from './handlers/gamepad-controller.js';
@@ -212,7 +211,6 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
 let lastSubtitlePreview = '';
 let lastSecondarySubtitlePreview = '';
 let overlayErrorToastTimeout: ReturnType<typeof setTimeout> | null = null;
-let miningImageToastTimeout: ReturnType<typeof setTimeout> | null = null;
 let controllerAnimationFrameId: number | null = null;
 
 function truncateForErrorLog(text: string): string {
@@ -439,23 +437,6 @@ function showOverlayErrorToast(message: string): void {
     ctx.dom.overlayErrorToast.textContent = '';
     overlayErrorToastTimeout = null;
   }, 3200);
-}
-
-function showMiningImageToast(image: string): void {
-  if (!image) {
-    return;
-  }
-  if (miningImageToastTimeout) {
-    clearTimeout(miningImageToastTimeout);
-    miningImageToastTimeout = null;
-  }
-  ctx.dom.miningImageToastImage.src = image;
-  ctx.dom.miningImageToast.classList.remove('hidden');
-  miningImageToastTimeout = setTimeout(() => {
-    ctx.dom.miningImageToast.classList.add('hidden');
-    ctx.dom.miningImageToastImage.removeAttribute('src');
-    miningImageToastTimeout = null;
-  }, 3000);
 }
 
 const recovery = createRendererRecoveryController({
@@ -750,11 +731,6 @@ async function init(): Promise<void> {
       ctx.state.subtitleSidebarAutoScroll = payload.subtitleSidebar.autoScroll;
       void subtitleSidebarModal.refreshSubtitleSidebarSnapshot();
       measurementReporter.schedule();
-    });
-  });
-  window.electronAPI.onMiningImage((payload: MiningImagePayload) => {
-    runGuarded('mining:image', () => {
-      showMiningImageToast(payload.image);
     });
   });
   mouseHandlers.setupDragging();

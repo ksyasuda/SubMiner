@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  buildCoverImageRequestKey,
   collectSessionCoverRequests,
   getCoverImageKey,
   mergeCoverImageData,
@@ -9,15 +10,19 @@ import { getCoverRetryDelayMs } from '../lib/cover-retry';
 import type { SessionSummary } from '../types/stats';
 import { getStatsClient } from './useStatsApi';
 
-function buildRequestKey(animeIds: number[], videoIds: number[]): string {
-  return `a:${animeIds.join(',')}|m:${videoIds.join(',')}`;
+interface UseCoverImagesOptions {
+  enabled?: boolean;
 }
 
-export function useCoverImages(sessions: SessionSummary[]): CoverImageMap {
+export function useCoverImages(
+  sessions: SessionSummary[],
+  options: UseCoverImagesOptions = {},
+): CoverImageMap {
+  const enabled = options.enabled ?? true;
   const requests = useMemo(() => collectSessionCoverRequests(sessions), [sessions]);
   const requestKey = useMemo(
-    () => buildRequestKey(requests.animeIds, requests.videoIds),
-    [requests],
+    () => buildCoverImageRequestKey(requests.animeIds, requests.videoIds, enabled ? 1 : 0),
+    [requests, enabled],
   );
   const [images, setImages] = useState<CoverImageMap>({});
 
@@ -50,6 +55,12 @@ export function useCoverImages(sessions: SessionSummary[]): CoverImageMap {
       timer = setTimeout(() => {
         void load(missingAnimeIds, missingVideoIds, attempt + 1);
       }, getCoverRetryDelayMs(attempt));
+    }
+
+    if (!enabled) {
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (requests.animeIds.length === 0 && requests.videoIds.length === 0) {

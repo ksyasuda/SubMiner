@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { collectSessionCoverRequests, getCoverImageKey } from './cover-images';
+import {
+  buildCoverImageRequestKey,
+  collectSessionCoverRequests,
+  getCoverImageKey,
+} from './cover-images';
 import type { SessionSummary } from '../types/stats';
 
 function makeSession(overrides: Partial<SessionSummary> & { sessionId: number }): SessionSummary {
@@ -41,4 +45,8 @@ test('collectSessionCoverRequests dedupes anime ids and only requests media for 
 test('getCoverImageKey separates anime and media ids', () => {
   assert.equal(getCoverImageKey('anime', 1), 'anime:1');
   assert.equal(getCoverImageKey('media', 1), 'media:1');
+});
+
+test('buildCoverImageRequestKey changes when callers force a cover refresh', () => {
+  assert.notEqual(buildCoverImageRequestKey([10], [], 0), buildCoverImageRequestKey([10], [], 1));
 });

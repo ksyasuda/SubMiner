@@ -144,7 +144,6 @@ export const IPC_CHANNELS = {
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
     configHotReload: 'config:hot-reload',
-    miningImage: 'mining:image',
   },
 } as const;
 

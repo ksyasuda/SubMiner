@@ -20,6 +20,7 @@ interface RecentSessionsProps {
   onDeleteDayGroup: (dayLabel: string, daySessions: SessionSummary[]) => void;
   onDeleteAnimeGroup: (sessions: SessionSummary[]) => void;
   deletingIds: Set<number>;
+  isActive?: boolean;
 }
 
 interface AnimeGroup {
@@ -352,8 +353,9 @@ export function RecentSessions({
   onDeleteDayGroup,
   onDeleteAnimeGroup,
   deletingIds,
+  isActive = true,
 }: RecentSessionsProps) {
-  const coverImages = useCoverImages(sessions);
+  const coverImages = useCoverImages(sessions, { enabled: isActive });
 
   if (sessions.length === 0) {
     return (

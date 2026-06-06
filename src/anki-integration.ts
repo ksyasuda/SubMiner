@@ -148,7 +148,6 @@ export class AnkiIntegration {
   private runtime: AnkiIntegrationRuntime;
   private aiConfig: AiConfig;
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
-  private miningImageOverlayCallback: ((image: string) => void) | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
   private noteIdRedirects = new Map<number, number>();
@@ -1019,54 +1018,40 @@ export class AnkiIntegration {
       : `Updated card: ${label}`;
 
     const type = this.config.behavior?.notificationType || 'osd';
-    const wantsOsd = type === 'osd' || type === 'both';
-    const wantsSystem =
-      (type === 'system' || type === 'both') && this.notificationCallback !== null;
-    const wantsOverlayImage = wantsOsd && this.miningImageOverlayCallback !== null;
 
-    if (wantsOsd) {
+    if (type === 'osd' || type === 'both') {
       this.showUpdateResult(message, errorSuffix === undefined);
     } else {
       this.clearUpdateProgress();
     }
 
-    if (!wantsSystem && !wantsOverlayImage) {
-      return;
-    }
+    if ((type === 'system' || type === 'both') && this.notificationCallback) {
+      let notificationIconPath: string | undefined;
 
-    // Generate the frame screenshot once and reuse it for the system notification
-    // icon and the in-overlay image toast.
-    let iconBuffer: Buffer | undefined;
-    if (this.mpvClient && this.mpvClient.currentVideoPath) {
-      try {
-        const timestamp = this.mpvClient.currentTimePos || 0;
-        const notificationIconSource = await resolveMediaGenerationInputPath(
-          this.mpvClient,
-          'video',
-        );
-        if (!notificationIconSource) {
-          throw new Error('No media source available for notification icon');
+      if (this.mpvClient && this.mpvClient.currentVideoPath) {
+        try {
+          const timestamp = this.mpvClient.currentTimePos || 0;
+          const notificationIconSource = await resolveMediaGenerationInputPath(
+            this.mpvClient,
+            'video',
+          );
+          if (!notificationIconSource) {
+            throw new Error('No media source available for notification icon');
+          }
+          const iconBuffer = await this.mediaGenerator.generateNotificationIcon(
+            notificationIconSource,
+            timestamp,
+          );
+          if (iconBuffer && iconBuffer.length > 0) {
+            notificationIconPath = this.mediaGenerator.writeNotificationIconToFile(
+              iconBuffer,
+              noteId,
+            );
+          }
+        } catch (err) {
+          log.warn('Failed to generate notification icon:', (err as Error).message);
         }
-        const buffer = await this.mediaGenerator.generateNotificationIcon(
-          notificationIconSource,
-          timestamp,
-        );
-        if (buffer && buffer.length > 0) {
-          iconBuffer = buffer;
-        }
-      } catch (err) {
-        log.warn('Failed to generate notification icon:', (err as Error).message);
       }
-    }
-
-    if (wantsOverlayImage && iconBuffer && this.miningImageOverlayCallback) {
-      this.miningImageOverlayCallback(`data:image/png;base64,${iconBuffer.toString('base64')}`);
-    }
-
-    if (wantsSystem && this.notificationCallback) {
-      const notificationIconPath = iconBuffer
-        ? this.mediaGenerator.writeNotificationIconToFile(iconBuffer, noteId)
-        : undefined;
 
       this.notificationCallback('Anki Card Updated', {
         body: message,
@@ -1377,10 +1362,6 @@ export class AnkiIntegration {
 
   setKnownWordCacheUpdatedCallback(callback: (() => void) | null): void {
     this.knownWordCacheUpdatedCallback = callback;
-  }
-
-  setMiningImageOverlayCallback(callback: ((image: string) => void) | null): void {
-    this.miningImageOverlayCallback = callback;
   }
 
   setSubtitleMiningContextConsumer(callback: (() => SubtitleMiningContext | null) | null): void {

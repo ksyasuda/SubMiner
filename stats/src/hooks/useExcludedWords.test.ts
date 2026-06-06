@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  isExcludedWord,
   getExcludedWordsSnapshot,
   initializeExcludedWordsStore,
   resetExcludedWordsStoreForTests,
@@ -98,6 +99,46 @@ test('setExcludedWords updates the database-backed exclusion list', async () => 
     restore();
     resetExcludedWordsStoreForTests();
   }
+});
+
+test('setExcludedWords persists one row per excluded token', async () => {
+  resetExcludedWordsStoreForTests();
+  const { values: storage, restore } = installLocalStorage();
+  const originalFetch = globalThis.fetch;
+  let seenBody = '';
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    seenBody = String(init?.body ?? '');
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof globalThis.fetch;
+
+  try {
+    const rows = [
+      { headword: 'ない', word: 'ない', reading: 'ない' },
+      { headword: 'ない', word: '無い', reading: 'ない' },
+    ];
+    const expected = [{ headword: 'ない', word: 'ない', reading: 'ない' }];
+
+    await setExcludedWords(rows);
+
+    assert.deepEqual(getExcludedWordsSnapshot(), expected);
+    assert.equal(seenBody, JSON.stringify({ words: expected }));
+    assert.equal(storage.get(STORAGE_KEY), JSON.stringify(expected));
+  } finally {
+    globalThis.fetch = originalFetch;
+    restore();
+    resetExcludedWordsStoreForTests();
+  }
+});
+
+test('exclusion matching covers vocabulary rows with the same visible token', () => {
+  const excluded = [{ headword: 'ない', word: 'ない', reading: 'ない' }];
+
+  assert.equal(isExcludedWord(excluded, { headword: 'ない', word: '無い', reading: 'ない' }), true);
+  assert.equal(isExcludedWord(excluded, { headword: '無い', word: 'ない', reading: 'ない' }), true);
+  assert.equal(
+    isExcludedWord(excluded, { headword: 'なる', word: 'なる', reading: 'なる' }),
+    false,
+  );
 });
 
 test('setExcludedWords rolls back local state when persistence fails', async () => {
