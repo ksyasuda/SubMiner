@@ -1013,9 +1013,10 @@ export function createStatsApp(
     if (animeId <= 0) return c.body(null, 404);
     const art = await tracker.getAnimeCoverArt(animeId);
     if (!art?.coverBlob) return c.body(null, 404);
-    return new Response(new Uint8Array(art.coverBlob), {
+    const bytes = new Uint8Array(art.coverBlob);
+    return new Response(bytes, {
       headers: {
-        'Content-Type': 'image/jpeg',
+        'Content-Type': detectImageContentType(bytes),
         'Cache-Control': 'public, max-age=86400',
       },
     });
@@ -1030,9 +1031,10 @@ export function createStatsApp(
       art = await tracker.getCoverArt(videoId);
     }
     if (!art?.coverBlob) return c.body(null, 404);
-    return new Response(new Uint8Array(art.coverBlob), {
+    const bytes = new Uint8Array(art.coverBlob);
+    return new Response(bytes, {
       headers: {
-        'Content-Type': 'image/jpeg',
+        'Content-Type': detectImageContentType(bytes),
         'Cache-Control': 'public, max-age=604800',
       },
     });
@@ -1110,7 +1112,7 @@ export function createStatsApp(
       return c.json(
         (result.result ?? []).map((note) => ({
           ...note,
-          preview: buildAnkiNotePreview(note.fields, getAnkiConnectConfig()),
+          preview: buildAnkiNotePreview(note.fields, ankiConfig),
         })),
       );
     } catch {
@@ -1148,7 +1150,7 @@ export function createStatsApp(
     }
     const secondarySubtitleLanguages = getSecondarySubtitleLanguages();
     let retimedSecondaryText = '';
-    if (mode === 'sentence') {
+    if (mode === 'sentence' && !bodySecondaryText) {
       try {
         retimedSecondaryText = await (
           options?.resolveRetimedSecondarySubtitleText ??

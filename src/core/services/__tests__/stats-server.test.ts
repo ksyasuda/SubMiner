@@ -950,6 +950,26 @@ describe('stats server API routes', () => {
     assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
   });
 
+  it('GET /api/stats/anime/:animeId/cover serves detected cover MIME type', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () => ({
+          videoId: 1,
+          anilistId: 21858,
+          coverUrl: 'https://example.com/cover.png',
+          coverBlob: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          titleRomaji: 'Little Witch Academia',
+          titleEnglish: 'Little Witch Academia',
+          episodesTotal: 25,
+          fetchedAtMs: Date.now(),
+        }),
+      }),
+    );
+    const res = await app.request('/api/stats/anime/1/cover');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+  });
+
   it('GET /api/stats/anime/:animeId/cover returns 404 for missing anime', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anime/99999/cover');
@@ -1371,8 +1391,12 @@ describe('stats server API routes', () => {
       fs.writeFileSync(sourcePath, 'fake media');
 
       await withFakeAnkiConnect(async (requests, url) => {
+        let retimedCalls = 0;
         const options = {
-          resolveRetimedSecondarySubtitleText: async () => 'Aligned English subtitle',
+          resolveRetimedSecondarySubtitleText: async () => {
+            retimedCalls += 1;
+            return 'Aligned English subtitle';
+          },
           ankiConnectConfig: {
             url,
             deck: 'Mining',
@@ -1416,6 +1440,7 @@ describe('stats server API routes', () => {
           addNoteRequest?.params?.note?.fields?.SelectionText,
           'Stale stored English subtitle',
         );
+        assert.equal(retimedCalls, 0);
       });
     });
   });
@@ -2634,6 +2659,52 @@ Aligned English subtitle
     }
   });
 
+  it('POST /api/stats/anki/notesInfo builds previews with the same config used for fetch', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          result: [
+            {
+              noteId: 444,
+              fields: {
+                TargetWord: { value: '一致' },
+                OtherWord: { value: '不一致' },
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      )) as typeof fetch;
+
+    try {
+      let configCalls = 0;
+      const app = createStatsApp(createMockTracker(), {
+        getAnkiConnectConfig: () => {
+          configCalls += 1;
+          return {
+            url: 'http://127.0.0.1:8765',
+            fields: { word: configCalls === 1 ? 'TargetWord' : 'OtherWord' },
+          };
+        },
+      });
+      const res = await app.request('/api/stats/anki/notesInfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteIds: [444] }),
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(configCalls, 1);
+      assert.equal((await res.json())[0].preview.word, '一致');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('serves stats index and asset files from absolute static dir paths', async () => {
     await withTempDir(async (dir) => {
       const assetDir = path.join(dir, 'assets');
@@ -2667,7 +2738,9 @@ Aligned English subtitle
                 videoId: 1,
                 anilistId: 1,
                 coverUrl: 'https://example.com/cover.jpg',
-                coverBlob: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+                coverBlob: Buffer.from([
+                  0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+                ]),
                 titleRomaji: 'Test',
                 titleEnglish: 'Test',
                 episodesTotal: 12,
@@ -2684,7 +2757,7 @@ Aligned English subtitle
 
     const res = await app.request('/api/stats/media/1/cover');
     assert.equal(res.status, 200);
-    assert.equal(res.headers.get('content-type'), 'image/jpeg');
+    assert.equal(res.headers.get('content-type'), 'image/webp');
     assert.equal(ensureCalls, 1);
   });
 
