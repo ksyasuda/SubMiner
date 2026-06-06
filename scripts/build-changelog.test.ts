@@ -488,7 +488,7 @@ test('verifyPullRequestChangelog requires fragments for user-facing changes and 
         changedEntries: [{ path: 'src/main-entry.ts', status: 'M' }],
         changedLabels: [],
       }),
-    /requires a changelog fragment/,
+    /requires a reconciled changelog fragment/,
   );
 
   assert.doesNotThrow(() =>
@@ -514,7 +514,7 @@ test('verifyPullRequestChangelog requires fragments for user-facing changes and 
         ],
         changedLabels: [],
       }),
-    /requires a changelog fragment/,
+    /requires a reconciled changelog fragment/,
   );
 
   assert.doesNotThrow(() =>
@@ -522,6 +522,27 @@ test('verifyPullRequestChangelog requires fragments for user-facing changes and 
       changedEntries: [
         { path: 'src/main-entry.ts', status: 'M' },
         { path: 'changes/001.md', status: 'A' },
+      ],
+      changedLabels: [],
+    }),
+  );
+
+  assert.doesNotThrow(() =>
+    verifyPullRequestChangelog({
+      changedEntries: [
+        { path: 'src/main-entry.ts', status: 'M' },
+        { path: 'changes/001.md', status: 'M' },
+      ],
+      changedLabels: [],
+    }),
+  );
+
+  assert.doesNotThrow(() =>
+    verifyPullRequestChangelog({
+      changedEntries: [
+        { path: 'src/main-entry.ts', status: 'M' },
+        { path: 'changes/001.md', status: 'A' },
+        { path: 'changes/002.md', status: 'A' },
       ],
       changedLabels: [],
     }),

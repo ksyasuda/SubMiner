@@ -661,14 +661,15 @@ export function verifyPullRequestChangelog(options: PullRequestChangelogOptions)
     return;
   }
 
-  const hasFragment = normalizedEntries.some(
+  const fragmentEntries = normalizedEntries.filter(
     (entry) => entry.status !== 'D' && isFragmentPath(entry.path),
   );
+  const hasFragment = fragmentEntries.length > 0;
   const requiresFragment = normalizedEntries.some((entry) => !isIgnoredPullRequestPath(entry.path));
 
   if (requiresFragment && !hasFragment) {
     throw new Error(
-      `This pull request changes release-relevant files and requires a changelog fragment under changes/ or the ${SKIP_CHANGELOG_LABEL} label.`,
+      `This pull request changes release-relevant files and requires a reconciled changelog fragment under changes/ or the ${SKIP_CHANGELOG_LABEL} label. Before adding a new fragment, update the existing PR fragment when the new work modifies, fixes, or supersedes behavior already described there.`,
     );
   }
 }
