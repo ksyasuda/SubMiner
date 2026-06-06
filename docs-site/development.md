@@ -11,15 +11,10 @@ For internal architecture/workflow guidance, use `docs/README.md` at the repo ro
 ```bash
 git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
-# if you cloned without --recurse-submodules:
-git submodule update --init --recursive
-
-bun install
-(cd stats && bun install --frozen-lockfile)
-(cd vendor/texthooker-ui && bun install --frozen-lockfile)
+make deps
 ```
 
-`make deps` is still available as a convenience wrapper around the same dependency install flow.
+`make deps` initializes submodules and installs root, `stats/`, and `vendor/texthooker-ui` dependencies. The Yomitan submodule installs its own dependencies on demand during `bun run build`.
 
 ## Building
 
@@ -216,7 +211,7 @@ Run `make help` for a full list of targets. Key ones:
 | `make build`                | Build platform package for detected OS                            |
 | `make build-launcher`       | Generate Bun launcher wrapper at `dist/launcher/subminer`         |
 | `make install`              | Install platform artifacts (wrapper, theme, AppImage/app bundle)  |
-| `make deps`                 | Install JS dependencies (root + stats + texthooker-ui)            |
+| `make deps`                 | Init submodules and install root/stats/texthooker-ui deps         |
 | `make pretty`               | Run scoped Prettier formatting for maintained source/config files |
 | `make generate-config`      | Generate default config from centralized registry                 |
 | `make build-linux`          | Convenience wrapper for Linux packaging                           |

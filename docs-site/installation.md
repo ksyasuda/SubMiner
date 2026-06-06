@@ -185,7 +185,7 @@ Make sure `mpv.exe` is on your `PATH`, or set `mpv.executablePath` in the config
 ```bash
 git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
-bun install
+make deps
 bun run build
 
 # Optional: build AppImage
@@ -202,7 +202,7 @@ Bundled Yomitan is built during `bun run build`.
 ```bash
 git clone --recurse-submodules https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
-git submodule update --init --recursive
+make deps
 make build-macos
 ```
 
@@ -216,14 +216,14 @@ The built app will be in the `release` directory (`.dmg` and `.zip`). For unsign
 ```powershell
 git clone https://github.com/ksyasuda/SubMiner.git
 cd SubMiner
+git submodule update --init --recursive
 bun install
-
-# Windows requires building texthooker-ui manually before the main build
-Set-Location vendor/texthooker-ui
+Set-Location stats
+bun install --frozen-lockfile
+Set-Location ../vendor/texthooker-ui
 bun install --frozen-lockfile
 bun run build
 Set-Location ../..
-
 bun run build:win
 ```
 

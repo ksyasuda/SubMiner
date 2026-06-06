@@ -1,4 +1,4 @@
-.PHONY: help deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop docs-test docs-build docs-build-versioned docs-dev
+.PHONY: help submodules deps build build-launcher install build-linux build-macos build-macos-unsigned clean install-linux install-macos install-windows uninstall uninstall-linux uninstall-macos uninstall-windows print-dirs pretty lint ensure-bun generate-config generate-example-config dev-start dev-start-macos dev-watch dev-watch-macos dev-toggle dev-stop docs-test docs-build docs-build-versioned docs-dev
 
 APP_NAME := subminer
 THEME_SOURCE := assets/themes/subminer.rasi
@@ -72,7 +72,8 @@ help:
 		"  generate-config  Generate ~/.config/SubMiner/config.jsonc from centralized defaults" \
 		"" \
 		"Other targets:" \
-		"  deps             Install JS dependencies (root + stats + texthooker-ui)" \
+		"  submodules       Initialize/update git submodules" \
+		"  deps             Initialize submodules and install JS dependencies (root + stats + texthooker-ui)" \
 		"  uninstall-linux  Remove Linux install artifacts" \
 		"  uninstall-macos  Remove macOS install artifacts" \
 		"  uninstall-windows Remove Windows mpv plugin artifacts" \
@@ -105,8 +106,10 @@ print-dirs:
 		"MACOS_APP_SRC=$(MACOS_APP_SRC)" \
 		"MACOS_ZIP_SRC=$(MACOS_ZIP_SRC)"
 
-deps:
-	@$(MAKE) --no-print-directory ensure-bun
+submodules:
+	@git submodule update --init --recursive
+
+deps: submodules ensure-bun
 	@bun install
 	@cd stats && bun install --frozen-lockfile
 	@cd vendor/texthooker-ui && bun install --frozen-lockfile
