@@ -172,6 +172,7 @@ function getStatsWordMiningAudioFieldName(
 function getStatsDirectMiningAudioFieldNames(
   ankiConfig: AnkiConnectConfig,
   noteInfo: StatsServerNoteInfo | null,
+  mode: 'sentence' | 'audio',
 ): string[] {
   const configuredAudioField = ankiConfig.fields?.audio ?? 'ExpressionAudio';
   if (!ankiConfig.isLapis?.enabled && !ankiConfig.isKiku?.enabled) {
@@ -184,6 +185,10 @@ function getStatsDirectMiningAudioFieldNames(
   const expressionAudioField = noteInfo
     ? resolveStatsNoteFieldName(noteInfo, configuredAudioField)
     : null;
+
+  if (mode === 'sentence') {
+    return uniqueFieldNames(sentenceAudioField);
+  }
 
   return uniqueFieldNames(sentenceAudioField, expressionAudioField);
 }
@@ -1395,7 +1400,7 @@ export function createStatsApp(
           client.storeMediaFile(audioFilename, audioBuffer),
         );
         const audioValue = `[sound:${audioFilename}]`;
-        for (const fieldName of getStatsDirectMiningAudioFieldNames(ankiConfig, noteInfo)) {
+        for (const fieldName of getStatsDirectMiningAudioFieldNames(ankiConfig, noteInfo, mode)) {
           mediaFields[fieldName] = audioValue;
         }
       } catch (err) {

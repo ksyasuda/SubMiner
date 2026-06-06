@@ -22,11 +22,11 @@ test('SearchTab forwards stored secondary subtitle text when mining from search 
 test('SearchTab enables headword sentence search by default and forwards the toggle', () => {
   const source = fs.readFileSync(SEARCH_TAB_PATH, 'utf8');
 
+  assert.match(source, /const \[searchByHeadword,\s*setSearchByHeadword\] = useState\(true\);/);
   assert.match(
     source,
-    /const \[searchByHeadword,\s*setSearchByHeadword\] = useState\(true\);/,
+    /apiClient\s*\.\s*searchSentences\(trimmed,\s*SEARCH_LIMIT,\s*searchByHeadword\)/,
   );
-  assert.match(source, /apiClient\s*\.\s*searchSentences\(trimmed,\s*SEARCH_LIMIT,\s*searchByHeadword\)/);
   assert.match(source, /checked=\{searchByHeadword\}/);
   assert.match(source, /setSearchByHeadword\(event\.target\.checked\)/);
 });

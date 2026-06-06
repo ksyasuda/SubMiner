@@ -1852,7 +1852,7 @@ describe('stats server API routes', () => {
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         const audioValue = updateRequest?.params?.note?.fields?.SentenceAudio;
         assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+\.mp3\]$/);
-        assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, audioValue);
+        assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, undefined);
       });
     });
   });
