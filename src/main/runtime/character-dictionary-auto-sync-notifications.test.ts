@@ -4,6 +4,7 @@ import {
   notifyCharacterDictionaryAutoSyncStatus,
   type CharacterDictionaryAutoSyncNotificationEvent,
 } from './character-dictionary-auto-sync-notifications';
+import { createStartupOsdSequencer } from './startup-osd-sequencer';
 
 function makeEvent(
   phase: CharacterDictionaryAutoSyncNotificationEvent['phase'],
@@ -70,7 +71,7 @@ test('auto sync notifications send osd updates for progress phases', () => {
   ]);
 });
 
-test('auto sync notifications route both to overlay and system only', () => {
+test('auto sync notifications prefer overlay delivery for both when overlay is available', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
@@ -100,9 +101,7 @@ test('auto sync notifications route both to overlay and system only', () => {
 
   assert.deepEqual(calls, [
     'overlay:character-dictionary-auto-sync:Character dictionary:syncing:pin',
-    'desktop:SubMiner:syncing',
     'overlay:character-dictionary-auto-sync:Character dictionary:ready:auto',
-    'desktop:SubMiner:ready',
   ]);
 });
 
@@ -186,4 +185,30 @@ test('auto sync notifications send osd-system desktop updates with startup seque
   });
 
   assert.deepEqual(calls, ['sequencer:importing:importing', 'desktop:SubMiner:importing']);
+});
+
+test('auto sync notifications let startup sequencer own osd-system desktop delivery', () => {
+  const calls: string[] = [];
+  const startupOsdSequencer = createStartupOsdSequencer({
+    getNotificationType: () => 'osd-system',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showDesktopNotification: (title, options) => {
+      calls.push(`desktop:${title}:${options.body ?? ''}`);
+    },
+  });
+  startupOsdSequencer.markTokenizationReady();
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('importing', 'importing'), {
+    getNotificationType: () => 'osd-system',
+    showOsd: (message) => {
+      calls.push(`direct-osd:${message}`);
+    },
+    showDesktopNotification: (title, options) =>
+      calls.push(`direct-desktop:${title}:${options.body ?? ''}`),
+    startupOsdSequencer,
+  });
+
+  assert.deepEqual(calls, ['osd:importing', 'desktop:SubMiner:importing']);
 });

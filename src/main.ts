@@ -1896,10 +1896,16 @@ async function resolveSentenceSearchHeadwords(term: string): Promise<string[]> {
 function signalCurrentSubtitleAutoplayReady(): void {
   autoplayReadyGate.flushPendingAutoplayReadySignal();
   const payload = getCurrentAutoplaySubtitlePayload();
-  if (!payload) {
+  if (payload) {
+    autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
     return;
   }
-  autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+  if (!appState.currentSubText.trim()) {
+    autoplayReadyGate.maybeSignalPluginAutoplayReady(
+      { text: '__warm__', tokens: null },
+      { forceWhilePaused: true },
+    );
+  }
 }
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({

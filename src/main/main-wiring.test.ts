@@ -216,10 +216,13 @@ test('subtitle sidebar open state is restored for replacement visible overlay wi
   assert.match(depsBlock, /subtitleSidebarRequestedOpen/);
 });
 
-test('warm tokenization release reuses current subtitle payload instead of synthetic readiness', () => {
+test('warm tokenization release can signal readiness before the first subtitle appears', () => {
   const source = readMainSource();
   const warmReleaseBlock = source.match(
     /signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+  const signalBlock = source.match(
+    /function signalCurrentSubtitleAutoplayReady\(\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
   const currentPayloadBlock = source.match(
     /function getCurrentAutoplaySubtitlePayload\(\): SubtitleData \| null \{(?<body>[\s\S]*?)\n\}/,
@@ -230,7 +233,12 @@ test('warm tokenization release reuses current subtitle payload instead of synth
     warmReleaseBlock,
     /signalAutoplayReady: \(\) => signalCurrentSubtitleAutoplayReady\(\)/,
   );
-  assert.doesNotMatch(warmReleaseBlock, /__warm__/);
+
+  assert.ok(signalBlock);
+  assert.match(signalBlock, /const payload = getCurrentAutoplaySubtitlePayload\(\);/);
+  assert.match(signalBlock, /if \(payload\) \{/);
+  assert.match(signalBlock, /if \(!appState\.currentSubText\.trim\(\)\) \{/);
+  assert.match(signalBlock, /text: '__warm__'/);
 
   assert.ok(currentPayloadBlock);
   assert.match(currentPayloadBlock, /appState\.currentSubtitleData/);

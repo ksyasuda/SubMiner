@@ -64,6 +64,16 @@ prefetch work and re-centers prefetch around the live playback time.
 - If secondary `requestProperty` fails, the primary flow stays complete and only a debug line is
   written.
 
+## Startup Ready Release
+
+- `mpv.pauseUntilOverlayReady` waits for tokenization warmup plus visible-overlay readiness before
+  releasing the mpv startup gate.
+- If mpv is already on a subtitle, SubMiner still prefers the resolved current subtitle payload and
+  waits for a fresh measured subtitle rectangle before signaling readiness.
+- If mpv is before the first subtitle, SubMiner sends a synthetic warm readiness payload after
+  tokenization warmup and visible overlay content-ready. This releases playback without waiting for
+  a later subtitle event that cannot happen while mpv is paused.
+
 ## Linux/X11 Window Shape
 
 - `restoreLinuxOverlayWindowShape()` reads `BrowserWindow.getBounds()` and calls `setShape()` with

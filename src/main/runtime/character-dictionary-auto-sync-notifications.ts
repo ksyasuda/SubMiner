@@ -35,6 +35,8 @@ export function notifyCharacterDictionaryAutoSyncStatus(
 ): void {
   const type = deps.getNotificationType() ?? 'overlay';
   if (type === 'none') return;
+  let overlayShown = false;
+  let startupSequencerShown = false;
 
   if (shouldShowOverlay(type)) {
     if (deps.showOverlayNotification) {
@@ -45,6 +47,7 @@ export function notifyCharacterDictionaryAutoSyncStatus(
         variant: overlayVariantForPhase(event.phase),
         persistent: !isTerminalPhase(event.phase),
       });
+      overlayShown = true;
     } else if (!shouldShowDesktop(type)) {
       deps.showDesktopNotification('SubMiner', { body: event.message });
     }
@@ -52,7 +55,7 @@ export function notifyCharacterDictionaryAutoSyncStatus(
 
   if (shouldShowOsd(type)) {
     if (deps.startupOsdSequencer) {
-      deps.startupOsdSequencer.notifyCharacterDictionaryStatus({
+      startupSequencerShown = deps.startupOsdSequencer.notifyCharacterDictionaryStatus({
         phase: event.phase,
         message: event.message,
       });
@@ -61,7 +64,7 @@ export function notifyCharacterDictionaryAutoSyncStatus(
     }
   }
 
-  if (shouldShowDesktop(type)) {
+  if (shouldShowDesktop(type) && !overlayShown && !startupSequencerShown) {
     deps.showDesktopNotification('SubMiner', { body: event.message });
   }
 }

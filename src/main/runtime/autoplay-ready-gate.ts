@@ -1,6 +1,9 @@
 import type { SubtitleData } from '../../types';
 import { resolveAutoplayReadyMaxReleaseAttempts } from './startup-autoplay-release-policy';
 
+const PENDING_AUTOPLAY_READY_RETRY_DELAY_MS = 200;
+const MAX_PENDING_AUTOPLAY_READY_RETRY_ATTEMPTS = 75;
+
 type MpvClientLike = {
   connected?: boolean;
   requestProperty: (property: string) => Promise<unknown>;
@@ -34,12 +37,22 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
   let autoPlayReadySignalMediaPath: string | null = null;
   let autoPlayReadySignalGeneration = 0;
   let pendingAutoplayReadySignal: AutoplayReadySignal | null = null;
+  let pendingAutoplayReadyRetryToken = 0;
+  let pendingAutoplayReadyRetryAttempts = 0;
+  let scheduledPendingAutoplayReadyRetryToken: number | null = null;
   const now = deps.now ?? (() => Date.now());
+
+  const invalidatePendingAutoplayReadyRetry = (): void => {
+    pendingAutoplayReadyRetryToken += 1;
+    pendingAutoplayReadyRetryAttempts = 0;
+    scheduledPendingAutoplayReadyRetryToken = null;
+  };
 
   const invalidatePendingAutoplayReadyFallbacks = (): void => {
     autoPlayReadySignalMediaPath = null;
     pendingAutoplayReadySignal = null;
     autoPlayReadySignalGeneration += 1;
+    invalidatePendingAutoplayReadyRetry();
   };
 
   const isSignalTargetReady = (signal: AutoplayReadySignal): boolean =>
@@ -52,18 +65,43 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     pendingAutoplayReadySignal = null;
     autoPlayReadySignalMediaPath = getSignalMediaPath();
     autoPlayReadySignalGeneration += 1;
+    invalidatePendingAutoplayReadyRetry();
   };
 
-  const setPendingAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
+  const setPendingAutoplayReadySignal = (signal: AutoplayReadySignal): boolean => {
     if (
       pendingAutoplayReadySignal &&
       pendingAutoplayReadySignal.mediaPath === signal.mediaPath &&
       pendingAutoplayReadySignal.payload.text === signal.payload.text &&
       pendingAutoplayReadySignal.requestedAtMs <= signal.requestedAtMs
     ) {
-      return;
+      return false;
     }
     pendingAutoplayReadySignal = signal;
+    pendingAutoplayReadyRetryAttempts = 0;
+    return true;
+  };
+
+  const schedulePendingAutoplayReadyRetry = (): void => {
+    if (scheduledPendingAutoplayReadyRetryToken === pendingAutoplayReadyRetryToken) {
+      return;
+    }
+    if (pendingAutoplayReadyRetryAttempts >= MAX_PENDING_AUTOPLAY_READY_RETRY_ATTEMPTS) {
+      return;
+    }
+
+    const retryToken = pendingAutoplayReadyRetryToken;
+    pendingAutoplayReadyRetryAttempts += 1;
+    scheduledPendingAutoplayReadyRetryToken = retryToken;
+    deps.schedule(() => {
+      if (scheduledPendingAutoplayReadyRetryToken === retryToken) {
+        scheduledPendingAutoplayReadyRetryToken = null;
+      }
+      if (retryToken !== pendingAutoplayReadyRetryToken || !pendingAutoplayReadySignal) {
+        return;
+      }
+      flushPendingAutoplayReadySignal();
+    }, PENDING_AUTOPLAY_READY_RETRY_DELAY_MS);
   };
 
   const releaseAutoplayReadySignal = (signal: AutoplayReadySignal): void => {
@@ -139,6 +177,7 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
     };
 
     pendingAutoplayReadySignal = null;
+    invalidatePendingAutoplayReadyRetry();
     autoPlayReadySignalMediaPath = mediaPath;
     const playbackGeneration = ++autoPlayReadySignalGeneration;
     deps.signalPluginAutoplayReady();
@@ -152,10 +191,13 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return;
     }
     if (!isSignalTargetReady(signal)) {
-      setPendingAutoplayReadySignal(signal);
-      deps.logDebug(
-        `[autoplay-ready] deferred until signal target is ready for media ${signal.mediaPath}`,
-      );
+      const pendingSignalChanged = setPendingAutoplayReadySignal(signal);
+      schedulePendingAutoplayReadyRetry();
+      if (pendingSignalChanged) {
+        deps.logDebug(
+          `[autoplay-ready] deferred until signal target is ready for media ${signal.mediaPath}`,
+        );
+      }
       return;
     }
 
