@@ -354,6 +354,7 @@ type CapturedAnkiRequest = {
 
 async function withFakeAnkiConnect<T>(
   fn: (requests: CapturedAnkiRequest[], url: string) => Promise<T>,
+  options?: { notesInfoFields?: Record<string, { value: string }> | null },
 ): Promise<T> {
   const requests: CapturedAnkiRequest[] = [];
   const server = http.createServer((req, res) => {
@@ -373,18 +374,21 @@ async function withFakeAnkiConnect<T>(
       } else if (payload.action === 'notesInfo') {
         const noteIds = payload.params?.notes ?? [];
         body = {
-          result: noteIds.map((noteId) => ({
-            noteId,
-            fields: {
-              Expression: { value: '猫' },
-              ExpressionAudio: { value: '[sound:word.mp3]' },
-              Sentence: { value: '' },
-              SentenceAudio: { value: '' },
-              Picture: { value: '' },
-              MiscInfo: { value: '' },
-              SelectionText: { value: '' },
-            },
-          })),
+          result:
+            options?.notesInfoFields === null
+              ? []
+              : noteIds.map((noteId) => ({
+                  noteId,
+                  fields: options?.notesInfoFields ?? {
+                    Expression: { value: '猫' },
+                    ExpressionAudio: { value: '[sound:word.mp3]' },
+                    Sentence: { value: '' },
+                    SentenceAudio: { value: '' },
+                    Picture: { value: '' },
+                    MiscInfo: { value: '' },
+                    SelectionText: { value: '' },
+                  },
+                })),
           error: null,
         };
       } else if (payload.action === 'findCards') {
@@ -1771,6 +1775,65 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('POST /api/stats/mine-card writes audio cards to configured audio field when note info is missing', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(
+        async (requests, url) => {
+          const app = createStatsApp(createMockTracker(), {
+            createMediaGenerator: () => ({
+              generateAudio: async () => Buffer.from('audio'),
+              generateScreenshot: async () => null,
+              generateAnimatedImage: async () => null,
+            }),
+            ankiConnectConfig: {
+              url,
+              deck: 'Mining',
+              fields: {
+                audio: 'Voice',
+                image: 'Picture',
+                sentence: 'Sentence',
+              },
+              media: {
+                generateAudio: true,
+                generateImage: false,
+              },
+              isLapis: {
+                enabled: true,
+                sentenceCardModel: 'Lapis Morph',
+              },
+            },
+          });
+
+          const res = await app.request('/api/stats/mine-card?mode=audio', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourcePath,
+              startMs: 1_000,
+              endMs: 2_000,
+              sentence: '猫を見た',
+              word: '猫',
+              videoTitle: 'Episode 1',
+            }),
+          });
+
+          const body = await res.json();
+          assert.equal(res.status, 200, JSON.stringify(body));
+
+          const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
+          assert.match(
+            updateRequest?.params?.note?.fields?.Voice ?? '',
+            /^\[sound:subminer_audio_\d+\.mp3\]$/,
+          );
+        },
+        { notesInfoFields: null },
+      );
+    });
+  });
+
   it('POST /api/stats/mine-card records timing for slow sentence mining phases', async () => {
     await withTempDir(async (dir) => {
       const sourcePath = path.join(dir, 'episode.mkv');
@@ -1989,9 +2052,12 @@ describe('stats server API routes', () => {
 
   it('POST /api/stats/anki/notesInfo resolves stale note ids through the configured alias resolver', async () => {
     const originalFetch = globalThis.fetch;
-    const requests: unknown[] = [];
-    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-      requests.push(init?.body ? JSON.parse(String(init.body)) : null);
+    const requests: Array<{ input: string; body: unknown }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({
+        input: String(input),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
       return new Response(
         JSON.stringify({
           result: [
@@ -2012,6 +2078,7 @@ describe('stats server API routes', () => {
 
     try {
       const app = createStatsApp(createMockTracker(), {
+        ankiConnectConfig: { url: 'http://127.0.0.1:9876' },
         resolveAnkiNoteId: (noteId) => (noteId === 111 ? 222 : noteId),
       });
       const res = await app.request('/api/stats/anki/notesInfo', {
@@ -2023,9 +2090,12 @@ describe('stats server API routes', () => {
       assert.equal(res.status, 200);
       assert.deepEqual(requests, [
         {
-          action: 'notesInfo',
-          version: 6,
-          params: { notes: [222] },
+          input: 'http://127.0.0.1:9876',
+          body: {
+            action: 'notesInfo',
+            version: 6,
+            params: { notes: [222] },
+          },
         },
       ]);
       assert.deepEqual(await res.json(), [

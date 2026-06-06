@@ -237,6 +237,21 @@ test('warm tokenization release reuses current subtitle payload instead of synth
   assert.match(currentPayloadBlock, /payload\.text !== appState\.currentSubText/);
 });
 
+test('stats server Yomitan note creation honors configured Anki server override policy', () => {
+  const source = readMainSource();
+  const startStatsServerBlock = source.match(
+    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n    \}\);/,
+  )?.groups?.body;
+  const addYomitanNoteBlock = startStatsServerBlock?.match(
+    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
+  )?.groups?.body;
+
+  assert.ok(addYomitanNoteBlock);
+  assert.match(addYomitanNoteBlock, /const ankiConnectConfig = getResolvedConfig\(\)\.ankiConnect;/);
+  assert.match(addYomitanNoteBlock, /shouldForceOverrideYomitanAnkiServer\(ankiConnectConfig\)/);
+  assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
+});
+
 test('Linux visible overlay recreation clears stale input state before creating replacement window', () => {
   const source = readMainSource();
   const actionBlock = source.match(

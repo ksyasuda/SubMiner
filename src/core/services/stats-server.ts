@@ -184,7 +184,7 @@ function getStatsDirectMiningAudioFieldNames(
     : 'SentenceAudio';
   const expressionAudioField = noteInfo
     ? resolveStatsNoteFieldName(noteInfo, configuredAudioField)
-    : null;
+    : configuredAudioField;
 
   if (mode === 'sentence') {
     return uniqueFieldNames(sentenceAudioField);
@@ -1045,7 +1045,8 @@ export function createStatsApp(
       ),
     );
     try {
-      const response = await fetch('http://127.0.0.1:8765', {
+      const ankiConfig = getAnkiConnectConfig();
+      const response = await fetch(ankiConfig?.url ?? 'http://127.0.0.1:8765', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(ANKI_CONNECT_FETCH_TIMEOUT_MS),

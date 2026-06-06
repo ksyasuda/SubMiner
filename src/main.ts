@@ -4476,10 +4476,11 @@ const startLocalStatsServer = (): void => {
         appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
       resolveSentenceSearchHeadwords,
       addYomitanNote: async (word: string) => {
-        const ankiUrl = getResolvedConfig().ankiConnect.url || 'http://127.0.0.1:8765';
+        const ankiConnectConfig = getResolvedConfig().ankiConnect;
+        const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
         await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
-          forceOverride: true,
-          deck: getResolvedConfig().ankiConnect.deck,
+          forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
+          deck: ankiConnectConfig.deck,
         });
         const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
         if (result.noteId && result.duplicateNoteIds.length > 0) {
