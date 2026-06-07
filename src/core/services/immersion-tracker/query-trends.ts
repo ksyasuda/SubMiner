@@ -74,6 +74,8 @@ export interface TrendsDashboardQueryResult {
   };
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
+    cardsPerHour: TrendChartPoint[];
+    readingSpeed: TrendChartPoint[];
   };
   animeCumulative: {
     watchTime: TrendPerAnimePoint[];
@@ -223,6 +225,26 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
       words: value.words,
       sessions: value.sessions,
     }));
+}
+
+function buildEfficiencyRates(rows: ReturnType<typeof buildAggregatedTrendRows>): {
+  cardsPerHour: TrendChartPoint[];
+  readingSpeed: TrendChartPoint[];
+} {
+  const cardsPerHour: TrendChartPoint[] = [];
+  const readingSpeed: TrendChartPoint[] = [];
+  for (const row of rows) {
+    const hours = row.activeMin / 60;
+    cardsPerHour.push({
+      label: row.label,
+      value: hours > 0 ? +(row.cards / hours).toFixed(1) : 0,
+    });
+    readingSpeed.push({
+      label: row.label,
+      value: row.activeMin > 0 ? +(row.words / row.activeMin).toFixed(1) : 0,
+    });
+  }
+  return { cardsPerHour, readingSpeed };
 }
 
 function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
@@ -675,6 +697,7 @@ export function getTrendsDashboard(
   );
 
   const aggregatedRows = buildAggregatedTrendRows(chartRollups);
+  const efficiency = buildEfficiencyRates(aggregatedRows);
   const activity = {
     watchTime: aggregatedRows.map((row) => ({ label: row.label, value: row.activeMin })),
     cards: aggregatedRows.map((row) => ({ label: row.label, value: row.cards })),
@@ -724,6 +747,8 @@ export function getTrendsDashboard(
     },
     ratios: {
       lookupsPerHundred: buildLookupsPerHundredWords(sessions, groupBy),
+      cardsPerHour: efficiency.cardsPerHour,
+      readingSpeed: efficiency.readingSpeed,
     },
     animeCumulative: {
       watchTime: buildCumulativePerAnime(animePerDay.watchTime),

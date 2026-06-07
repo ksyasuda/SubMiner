@@ -761,6 +761,10 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
     assert.equal(dashboard.progress.watchTime[1]?.value, 75);
     assert.equal(dashboard.progress.lookups[1]?.value, 18);
     assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, +((8 / 120) * 100).toFixed(1));
+    assert.equal(dashboard.ratios.cardsPerHour[0]?.value, +(2 / (30 / 60)).toFixed(1));
+    assert.equal(dashboard.ratios.cardsPerHour[1]?.value, +(3 / (45 / 60)).toFixed(1));
+    assert.equal(dashboard.ratios.readingSpeed[0]?.value, +(120 / 30).toFixed(1));
+    assert.equal(dashboard.ratios.readingSpeed[1]?.value, +(140 / 45).toFixed(1));
     assert.equal(dashboard.librarySummary[0]?.title, 'Trend Dashboard Anime');
     assert.equal(dashboard.animeCumulative.watchTime[1]?.value, 75);
     assert.equal(

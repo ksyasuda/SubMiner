@@ -349,6 +349,8 @@ export interface TrendsDashboardData {
   };
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
+    cardsPerHour: TrendChartPoint[];
+    readingSpeed: TrendChartPoint[];
   };
   librarySummary: LibrarySummaryRow[];
   animeCumulative: {

@@ -54,7 +54,7 @@ When YouTube channel metadata is available, the Library tab groups videos by cre
 
 #### Trends
 
-Watch time, sessions, words seen, and per-anime progress/pattern charts with configurable date ranges and grouping.
+Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words learned and episodes), Efficiency (reading speed, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
