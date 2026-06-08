@@ -6,6 +6,7 @@ import path from 'node:path';
 import { toMonthKey } from './immersion-tracker/maintenance';
 import { enqueueWrite } from './immersion-tracker/queue';
 import { toDbTimestamp } from './immersion-tracker/query-shared';
+import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import { Database, type DatabaseSync } from './immersion-tracker/sqlite';
 import { nowMs as trackerNowMs } from './immersion-tracker/time';
 import {
@@ -1925,7 +1926,118 @@ test('startup repairs existing Jellyfin stream video links to metadata rows', as
       sessionRows.map((row) => row.canonical_title),
       ['Frieren S01E09 Aura the Guillotine', 'KonoSuba S01E06 Decision! Class Rep'],
     );
-    assert.equal(sessionRows.some((row) => row.source_url?.includes('api_key=')), false);
+    assert.equal(
+      sessionRows.some((row) => row.source_url?.includes('api_key=')),
+      false,
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('Jellyfin link repair removes merged leaked anime rows and sanitizes orphan video titles', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const db = privateApi.db;
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const leakedTitle =
+      'http://jellyfin.local/Videos/item-20/stream?static=true&api_key=secret-token&MediaSourceId=ms-1';
+    const orphanLeakedTitle =
+      'http://jellyfin.local/Videos/item-21/stream?static=true&api_key=secret-token&MediaSourceId=ms-2&AudioStreamIndex=3';
+
+    const existingAnime = db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          )
+          VALUES ('frieren', 'Frieren', ?, ?)
+          RETURNING anime_id
+        `,
+      )
+      .get(timestamp, timestamp) as { anime_id: number };
+    const leakedAnime = db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          )
+          VALUES ('http jellyfin local videos item 20 stream static true api key secret token mediasourceid ms 1', ?, ?, ?)
+          RETURNING anime_id
+        `,
+      )
+      .get(leakedTitle, timestamp, timestamp) as { anime_id: number };
+
+    db.prepare(
+      `
+        INSERT INTO imm_videos (
+          video_key,
+          anime_id,
+          canonical_title,
+          source_type,
+          source_url,
+          duration_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        )
+        VALUES (?, ?, 'Frieren', 2, ?, 0, ?, ?)
+      `,
+    ).run(`remote:${leakedTitle}`, leakedAnime.anime_id, leakedTitle, timestamp, timestamp);
+    db.prepare(
+      `
+        INSERT INTO imm_videos (
+          video_key,
+          anime_id,
+          canonical_title,
+          source_type,
+          source_url,
+          duration_ms,
+          CREATED_DATE,
+          LAST_UPDATE_DATE
+        )
+        VALUES (?, NULL, ?, 2, ?, 0, ?, ?)
+      `,
+    ).run(
+      `remote:${orphanLeakedTitle}`,
+      orphanLeakedTitle,
+      orphanLeakedTitle,
+      timestamp,
+      timestamp,
+    );
+
+    const summary = repairJellyfinStreamVideoLinks(db);
+
+    assert.equal(summary.repaired, 3);
+    const leakedAnimeRow = db
+      .prepare('SELECT anime_id FROM imm_anime WHERE anime_id = ?')
+      .get(leakedAnime.anime_id);
+    assert.equal(leakedAnimeRow, undefined);
+    const reparentedCount = db
+      .prepare('SELECT COUNT(*) AS count FROM imm_videos WHERE anime_id = ?')
+      .get(existingAnime.anime_id) as { count: number };
+    assert.equal(reparentedCount.count, 1);
+    const orphanVideo = db
+      .prepare(
+        `
+          SELECT canonical_title
+          FROM imm_videos
+          WHERE source_url = 'jellyfin://jellyfin.local/item/item-21'
+        `,
+      )
+      .get() as { canonical_title: string };
+    assert.equal(orphanVideo.canonical_title, 'Jellyfin Video');
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

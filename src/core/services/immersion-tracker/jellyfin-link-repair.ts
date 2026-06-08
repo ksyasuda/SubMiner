@@ -9,6 +9,7 @@ type LegacyJellyfinVideoRow = {
   video_id: number;
   video_key: string;
   source_url: string | null;
+  canonical_title: string;
 };
 
 type JellyfinTargetVideoRow = {
@@ -95,21 +96,22 @@ function buildJellyfinStatsUrlFromLegacyStream(url: URL): string | null {
   return `jellyfin://${url.host}/item/${encodeURIComponent(itemId)}`;
 }
 
-function buildSanitizedJellyfinVideoKey(db: DatabaseSync, videoId: number, statsUrl: string): string {
+function buildSanitizedJellyfinVideoKey(
+  db: DatabaseSync,
+  videoId: number,
+  statsUrl: string,
+): string {
   const baseKey = `remote:${statsUrl}`;
-  const existing = db.prepare('SELECT video_id FROM imm_videos WHERE video_key = ?').get(baseKey) as
-    | { video_id: number }
-    | null;
+  const existing = db
+    .prepare('SELECT video_id FROM imm_videos WHERE video_key = ?')
+    .get(baseKey) as { video_id: number } | null;
   if (!existing || existing.video_id === videoId) {
     return baseKey;
   }
   return `${baseKey}#legacy-${videoId}`;
 }
 
-function repairLeakedJellyfinAnimeTitles(
-  db: DatabaseSync,
-  currentTimestamp: string,
-): number {
+function repairLeakedJellyfinAnimeTitles(db: DatabaseSync, currentTimestamp: string): number {
   const candidates = (
     db
       .prepare(
@@ -182,7 +184,19 @@ function repairLeakedJellyfinAnimeTitles(
           `,
         )
         .run(existing.anime_id, currentTimestamp, candidate.anime_id) as { changes: number };
+      const animeDelete = db
+        .prepare(
+          `
+            DELETE FROM imm_anime
+            WHERE anime_id = ?
+              AND NOT EXISTS (SELECT 1 FROM imm_videos WHERE anime_id = ?)
+              AND NOT EXISTS (SELECT 1 FROM imm_subtitle_lines WHERE anime_id = ?)
+          `,
+        )
+        .run(candidate.anime_id, candidate.anime_id, candidate.anime_id) as { changes: number };
       if (videoUpdate.changes > 0 || subtitleUpdate.changes > 0) {
+        repaired += 1;
+      } else if (animeDelete.changes > 0) {
         repaired += 1;
       }
       continue;
@@ -244,7 +258,7 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
   const candidates = db
     .prepare(
       `
-        SELECT video_id, video_key, source_url
+        SELECT video_id, video_key, source_url, canonical_title
         FROM imm_videos
         WHERE source_type = 2
           AND (
@@ -287,6 +301,9 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         continue;
       }
       const sanitizedVideoKey = buildSanitizedJellyfinVideoKey(db, candidate.video_id, statsUrl);
+      const sanitizedCanonicalTitle = looksLikeLeakedJellyfinTitle(candidate.canonical_title)
+        ? 'Jellyfin Video'
+        : candidate.canonical_title;
       const target = db
         .prepare(
           `
@@ -317,19 +334,22 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
               SET
                 video_key = ?,
                 source_url = ?,
+                canonical_title = ?,
                 parser_source = COALESCE(parser_source, 'jellyfin'),
                 LAST_UPDATE_DATE = ?
               WHERE video_id = ?
-                AND (video_key != ? OR source_url != ?)
+                AND (video_key != ? OR source_url != ? OR canonical_title != ?)
             `,
           )
           .run(
             sanitizedVideoKey,
             statsUrl,
+            sanitizedCanonicalTitle,
             currentTimestamp,
             candidate.video_id,
             sanitizedVideoKey,
             statsUrl,
+            sanitizedCanonicalTitle,
           ) as { changes: number };
         if (updated.changes > 0) {
           summary.repaired += 1;
