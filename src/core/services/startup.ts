@@ -232,6 +232,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     deps.ensureYomitanExtensionLoaded ?? deps.loadYomitanExtension;
   let firstRunSetupHandled = false;
   let initialArgsHandled = false;
+  let backgroundWarmupsHandled = false;
   const handleFirstRunSetupOnce = async (): Promise<void> => {
     if (firstRunSetupHandled) {
       return;
@@ -245,6 +246,13 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
     }
     initialArgsHandled = true;
     deps.handleInitialArgs();
+  };
+  const startBackgroundWarmupsOnce = (): void => {
+    if (backgroundWarmupsHandled) {
+      return;
+    }
+    backgroundWarmupsHandled = true;
+    deps.startBackgroundWarmups();
   };
 
   deps.ensureDefaultConfigBootstrap();
@@ -297,8 +305,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
-  deps.startBackgroundWarmups();
-
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
   deps.createMpvClient();
@@ -344,16 +350,19 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
+    startBackgroundWarmupsOnce();
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
-    await ensureYomitanExtensionReady();
     deps.setVisibleOverlayVisible(true);
     deps.initializeOverlayRuntime();
+    startBackgroundWarmupsOnce();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
     if (deps.shouldHandleInitialArgsBeforeDeferredOverlayWarmup?.()) {
       await handleFirstRunSetupOnce();
       handleInitialArgsOnce();
+      startBackgroundWarmupsOnce();
     } else {
+      startBackgroundWarmupsOnce();
       await ensureYomitanExtensionReady();
     }
   }

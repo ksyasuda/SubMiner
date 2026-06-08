@@ -58,6 +58,22 @@ test('renderer reports subtitle bounds immediately after initial subtitle layout
   assert.ok(immediateMeasurementIndex < listenerIndex);
 });
 
+test('renderer wires subtitle pointer handlers before first subtitle paint', () => {
+  const primaryMouseEnterIndex = indexOfRequired(
+    "ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);",
+  );
+  const pointerTrackingIndex = indexOfRequired('mouseHandlers.setupPointerTracking();');
+  const initialRenderIndex = indexOfRequired('subtitleRenderer.renderSubtitle(initialSubtitle);');
+  const initialMeasurementIndex = indexOfRequired(
+    'positioning.applyYPercent(positioning.getCurrentYPercent());\n  measurementReporter.emitNow();',
+  );
+
+  assert.ok(primaryMouseEnterIndex < initialRenderIndex);
+  assert.ok(pointerTrackingIndex < initialRenderIndex);
+  assert.ok(primaryMouseEnterIndex < initialMeasurementIndex);
+  assert.ok(pointerTrackingIndex < initialMeasurementIndex);
+});
+
 test('renderer reports subtitle bounds immediately after live subtitle layout', () => {
   const liveRenderIndex = indexOfRequired('subtitleRenderer.renderSubtitle(data);');
   const liveLayoutIndex = indexOfRequired(

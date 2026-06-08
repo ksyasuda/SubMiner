@@ -21,6 +21,7 @@ export interface OverlayNotificationAction {
 
 export interface OverlayNotificationPayload {
   id?: string;
+  historyId?: string;
   title: string;
   body?: string;
   image?: string;

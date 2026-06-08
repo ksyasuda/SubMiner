@@ -43,8 +43,8 @@ function M.create(ctx)
 		end
 	end
 
-	local function show_osd(message)
-		if opts.osd_messages then
+	local function show_osd(message, options)
+		if opts.osd_messages or (options and options.force == true) then
 			local payload = "SubMiner: " .. message
 			local sent = false
 			if type(mp.osd_message) == "function" then

@@ -49,9 +49,7 @@ export function notifyConfiguredStatus(
     return;
   }
 
-  const overlayReady = deps.isOverlayReady?.() !== false;
-
-  if (showOverlay && overlayReady) {
+  if (showOverlay) {
     if (deps.showOverlayNotification) {
       deps.showOverlayNotification({
         id: options.id,
@@ -63,8 +61,6 @@ export function notifyConfiguredStatus(
     } else if (desktopEnabled && !shouldShowDesktop(type)) {
       deps.showDesktopNotification(options.title ?? 'SubMiner', { body: message });
     }
-  } else if (showOverlay && !showOsd) {
-    deps.showOsd(message);
   }
 
   if (showOsd) {

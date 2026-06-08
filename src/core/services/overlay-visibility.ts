@@ -311,8 +311,18 @@ export function updateVisibleOverlayVisibility(args: {
     !args.isWindowsPlatform &&
     (!args.forceMousePassthrough || args.isMacOSPlatform === true);
 
+  const isWaitingForOverlayContentReady = (): boolean => {
+    const hasWebContents =
+      typeof (mainWindow as unknown as { webContents?: unknown }).webContents === 'object';
+    return (
+      !mainWindow.isVisible() &&
+      hasWebContents &&
+      !isOverlayWindowContentReady(mainWindow as unknown as import('electron').BrowserWindow)
+    );
+  };
+
   const maybeShowOverlayLoadingOsd = (): void => {
-    if (!args.isMacOSPlatform || !args.showOverlayLoadingOsd) {
+    if (!args.showOverlayLoadingOsd) {
       return;
     }
     if (args.shouldShowOverlayLoadingOsd && !args.shouldShowOverlayLoadingOsd()) {
@@ -322,9 +332,6 @@ export function updateVisibleOverlayVisibility(args: {
     args.markOverlayLoadingOsdShown?.();
   };
   const maybeDismissOverlayLoadingOsd = (): void => {
-    if (!args.isMacOSPlatform) {
-      return;
-    }
     args.dismissOverlayLoadingOsd?.();
   };
 
@@ -379,8 +386,15 @@ export function updateVisibleOverlayVisibility(args: {
       args.syncOverlayShortcuts();
       return;
     }
-    args.setTrackerNotReadyWarningShown(false);
-    maybeDismissOverlayLoadingOsd();
+    if (isWaitingForOverlayContentReady()) {
+      if (!args.trackerNotReadyWarningShown) {
+        args.setTrackerNotReadyWarningShown(true);
+        maybeShowOverlayLoadingOsd();
+      }
+    } else {
+      args.setTrackerNotReadyWarningShown(false);
+      maybeDismissOverlayLoadingOsd();
+    }
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);

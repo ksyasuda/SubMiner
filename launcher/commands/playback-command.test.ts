@@ -343,6 +343,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
   };
   let availabilityConfigDir: string | undefined;
   let overlayConfigDir: string | undefined;
+  let overlayLoadingOsd: boolean | undefined;
 
   try {
     process.env.XDG_CONFIG_HOME = xdgConfigHome;
@@ -353,7 +354,19 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
       chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
       checkDependencies: () => {},
       registerCleanup: () => {},
-      startMpv: async () => {},
+      startMpv: async (
+        _target,
+        _targetKind,
+        _args,
+        _socketPath,
+        _appPath,
+        _preloadedSubtitles,
+        options,
+      ) => {
+        overlayLoadingOsd = (
+          options?.runtimePluginConfig as { overlayLoadingOsd?: boolean } | undefined
+        )?.overlayLoadingOsd;
+      },
       waitForUnixSocketReady: async () => true,
       startOverlay: async (_appPath, _args, _socketPath, _extraAppArgs = [], configDir) => {
         overlayConfigDir = configDir;
@@ -370,6 +383,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
 
     assert.equal(availabilityConfigDir, expectedConfigDir);
     assert.equal(overlayConfigDir, expectedConfigDir);
+    assert.equal(overlayLoadingOsd, true);
   } finally {
     if (originalXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME;

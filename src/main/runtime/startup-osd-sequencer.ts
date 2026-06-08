@@ -135,7 +135,9 @@ export function createStartupOsdSequencer(deps: StartupOsdSequencerDeps): {
   return {
     reset: () => {
       tokenizationReady = tokenizationWarmupCompleted;
-      tokenizationLoadingShown = false;
+      if (tokenizationWarmupCompleted) {
+        tokenizationLoadingShown = false;
+      }
       annotationLoadingMessage = null;
       pendingDictionaryProgress = null;
       pendingDictionaryFailure = null;

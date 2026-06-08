@@ -62,6 +62,25 @@ test('renderer current subtitle snapshot tokenizes uncached subtitles when token
   assert.deepEqual(payload.tokens, [{ text: '新' }]);
 });
 
+test('renderer current subtitle snapshot can skip cold tokenizer for first paint', async () => {
+  let tokenizerCalled = false;
+  const payload = await resolveCurrentSubtitleForRenderer({
+    currentSubText: 'まだキャッシュされていない字幕',
+    currentSubtitleData: null,
+    withCurrentSubtitleTiming: withTiming,
+    tokenizeUncached: false,
+    tokenizeSubtitle: async (text) => {
+      tokenizerCalled = true;
+      return { text, tokens: [{ text: 'ま' } as never] };
+    },
+  });
+
+  assert.equal(tokenizerCalled, false);
+  assert.equal(payload.text, 'まだキャッシュされていない字幕');
+  assert.equal(payload.startTime, 1);
+  assert.equal(payload.tokens, null);
+});
+
 test('renderer current subtitle snapshot reports resolved payload for startup readiness', async () => {
   const resolvedPayloads: SubtitleData[] = [];
   const payload = await resolveCurrentSubtitleForRenderer({
@@ -97,6 +116,29 @@ test('visible overlay subtitle prime refreshes current text from mpv before show
   });
 
   assert.deepEqual(calls, ['request:sub-text', 'set:国内外から', 'refresh:国内外から']);
+});
+
+test('visible overlay subtitle prime can defer uncached tokenization until after first paint', async () => {
+  const calls: string[] = [];
+
+  await primeVisibleOverlaySubtitleFromMpv({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        calls.push(`request:${name}`);
+        return '国内外から';
+      },
+    }),
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getCurrentSubtitleData: () => null,
+    consumeCachedSubtitle: () => null,
+    onSubtitleChange: (text) => calls.push(`change:${text}`),
+    refreshCurrentSubtitle: (text) => calls.push(`refresh:${text}`),
+    emitSubtitle: (payload) => calls.push(`emit:${payload.text}`),
+    deferUncachedRefresh: true,
+  });
+
+  assert.deepEqual(calls, ['request:sub-text', 'set:国内外から']);
 });
 
 test('visible overlay subtitle prime repaints cached current subtitle immediately', async () => {

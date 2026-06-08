@@ -64,6 +64,7 @@ import {
   type ForegroundSuppressionGraceState,
   mapOverlayMeasurementForPointerInteraction,
   resolveForegroundSuppressionWithGrace,
+  shouldPrimeLinuxOverlayInteractionFromMeasurement,
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
@@ -610,7 +611,10 @@ import {
   notifyUpdateAvailable,
   UPDATE_AVAILABLE_NOTIFICATION_ID,
 } from './main/runtime/update/update-notifications';
+import { createOverlayLoadingOsdController } from './main/runtime/overlay-loading-osd';
+import { createMaybeStartOverlayLoadingOsdHandler } from './main/runtime/overlay-loading-osd-start';
 import { withConfiguredOverlayNotificationPosition } from './main/runtime/overlay-notification-position';
+import { createOverlayNotificationDelivery } from './main/runtime/overlay-notification-delivery';
 import {
   getPlaybackFeedbackNotificationOptions,
   notifyConfiguredStatus,
@@ -1312,7 +1316,6 @@ const autoplayReadyGate = createAutoplayReadyGate({
     broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
   },
   isSignalTargetReady: (signal) =>
-    isTokenizationWarmupReady() &&
     isVisibleOverlayAutoplayTargetReady(
       {
         getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
@@ -1943,6 +1946,8 @@ let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
 const AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS = 2;
 let autoplaySubtitlePrimedMediaPath: string | null = null;
+let visibleOverlaySubtitleRefreshAfterFirstPaintTimer: ReturnType<typeof setTimeout> | null = null;
+const VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS = 100;
 
 function getCurrentAutoplayMediaPath(): string | null {
   return appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
@@ -2017,6 +2022,7 @@ async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
       subtitlePrefetchService?.onSeek(lastObservedTimePos);
       subtitleProcessingController.refreshCurrentSubtitle(text);
     },
+    deferUncachedRefresh: true,
     emitSubtitle: (payload) => emitSubtitlePayload(payload),
     setCurrentSecondarySubText: (text) => {
       if (appState.mpvClient) {
@@ -2030,6 +2036,38 @@ async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
       logger.debug(message);
     },
   });
+}
+
+function cancelVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
+  if (!visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
+    return;
+  }
+  clearTimeout(visibleOverlaySubtitleRefreshAfterFirstPaintTimer);
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
+}
+
+function scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
+  if (visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
+    return;
+  }
+  if (!overlayManager.getVisibleOverlayVisible() || !appState.currentSubText.trim()) {
+    return;
+  }
+
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = setTimeout(() => {
+    visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
+    if (!overlayManager.getVisibleOverlayVisible()) {
+      return;
+    }
+    const text = appState.currentSubText;
+    if (!text.trim()) {
+      return;
+    }
+    subtitlePrefetchService?.pause();
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
+    subtitleProcessingController.refreshCurrentSubtitle(text);
+  }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();
 }
 
 async function primeAutoplaySubtitleFromParsedCues(
@@ -2666,7 +2704,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
       showOverlayLoadingStatusNotification(message);
     },
     dismissOverlayLoadingOsd: () => {
-      dismissOverlayNotification('overlay-loading-status');
+      dismissOverlayLoadingStatusNotification();
     },
     hideNonNativeOverlayWhenTargetUnfocused: () =>
       shouldRunLinuxOverlayZOrderKeepAlive() &&
@@ -2695,6 +2733,7 @@ const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
 // subtitle pointer interaction. Right after playback starts the overlay can briefly become the
 // X11 active window, which would otherwise leave subtitles inert for a poll cycle (~1s).
 const LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS = 500;
+const LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS = 1_500;
 const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
@@ -2709,6 +2748,8 @@ const linuxPointerForegroundSuppressionGrace: ForegroundSuppressionGraceState = 
 };
 let visibleOverlayInteractionActive = false;
 let linuxOverlayInputShapeActive = false;
+let linuxVisibleOverlayStartupInputPrimed = false;
+let linuxVisibleOverlayStartupInputGraceUntilMs = 0;
 // Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
 // region is interactive, so the cursor poll keeps the overlay interactive even when the cursor
 // moves off measured subtitle/sidebar rects onto the popup.
@@ -2731,6 +2772,7 @@ const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHa
 function resetVisibleOverlayInputState(): void {
   visibleOverlayInteractionActive = false;
   linuxOverlayInputShapeActive = false;
+  resetLinuxVisibleOverlayStartupInputPrimer();
   linuxOverlayInteractiveHint = false;
   overlayContentMeasurementStore.clear('visible');
   const mainWindow = overlayManager.getMainWindow();
@@ -3203,6 +3245,23 @@ function shouldUseLinuxOverlayInputShape(): boolean {
   return false;
 }
 
+function hasLinuxVisibleOverlayStartupInputGrace(): boolean {
+  return (
+    process.platform === 'linux' &&
+    linuxVisibleOverlayStartupInputGraceUntilMs > 0 &&
+    Date.now() < linuxVisibleOverlayStartupInputGraceUntilMs
+  );
+}
+
+function clearLinuxVisibleOverlayStartupInputGrace(): void {
+  linuxVisibleOverlayStartupInputGraceUntilMs = 0;
+}
+
+function resetLinuxVisibleOverlayStartupInputPrimer(): void {
+  linuxVisibleOverlayStartupInputPrimed = false;
+  clearLinuxVisibleOverlayStartupInputGrace();
+}
+
 function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
   if (!shouldUseLinuxOverlayInputShape()) {
     linuxOverlayInputShapeActive = false;
@@ -3239,6 +3298,28 @@ function updateLinuxOverlayPointerInteractionActive(active: boolean): void {
   }
 
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+}
+
+function primeLinuxOverlayPointerInteractionAfterFirstMeasurement(): void {
+  if (process.platform !== 'linux') return;
+  if (linuxVisibleOverlayStartupInputPrimed) return;
+  if (shouldUseLinuxOverlayInputShape()) return;
+  if (
+    !shouldPrimeLinuxOverlayInteractionFromMeasurement({
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      getMainWindow: () => overlayManager.getMainWindow(),
+      getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
+      shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
+      shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
+    })
+  ) {
+    return;
+  }
+
+  linuxVisibleOverlayStartupInputPrimed = true;
+  linuxVisibleOverlayStartupInputGraceUntilMs =
+    Date.now() + LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS;
+  updateLinuxOverlayPointerInteractionActive(true);
 }
 
 const linuxOverlayZOrderKeepAliveDeps = {
@@ -3301,7 +3382,8 @@ const linuxOverlayPointerInteractionDeps = {
   getCursorScreenPoint: () =>
     linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
   getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
-  getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
+  getRendererInteractiveHint: () =>
+    linuxOverlayInteractiveHint || hasLinuxVisibleOverlayStartupInputGrace(),
   shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
   shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
   shouldUseInputShape: shouldUseLinuxOverlayInputShape,
@@ -3358,8 +3440,38 @@ function getConfiguredStatusNotificationType(): NotificationType {
   return resolveOverlayReadinessNotificationType(configuredType, isVisibleOverlayContentReady());
 }
 
+function isOverlayWindowReadyForNotification(window: BrowserWindow): boolean {
+  if (window.isDestroyed() || !isOverlayWindowContentReady(window)) {
+    return false;
+  }
+  if (window.webContents.isLoading()) {
+    return false;
+  }
+  const currentURL = window.webContents.getURL();
+  return currentURL !== '' && currentURL !== 'about:blank';
+}
+
+function hasReadyOverlayNotificationWindow(): boolean {
+  return getOverlayWindows().some((window) => isOverlayWindowReadyForNotification(window));
+}
+
+const overlayNotificationDelivery = createOverlayNotificationDelivery({
+  hasReadyOverlayWindow: () => hasReadyOverlayNotificationWindow(),
+  send: (payload) => {
+    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
+  },
+  scheduleFlushRetry: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearFlushRetry: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+});
+let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null =
+  null;
+
+function flushQueuedOverlayNotifications(): void {
+  overlayNotificationDelivery.flush();
+}
+
 function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
-  broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
+  overlayNotificationDelivery.send(payload);
 }
 
 function showOverlayNotification(payload: OverlayNotificationPayload): void {
@@ -3432,15 +3544,46 @@ function showYoutubeFlowStatusNotification(message: string): void {
   });
 }
 
-function showOverlayLoadingStatusNotification(message: string): void {
-  showConfiguredStatusNotification(message, {
-    id: 'overlay-loading-status',
-    title: 'SubMiner',
-    variant: 'progress',
-    persistent: true,
-    desktop: false,
-  });
+function getOverlayLoadingOsdController(): ReturnType<typeof createOverlayLoadingOsdController> {
+  if (!overlayLoadingOsdController) {
+    overlayLoadingOsdController = createOverlayLoadingOsdController({
+      showOsd: (message) => {
+        showMpvOsd(message);
+      },
+      clearOsd: () => {
+        sendMpvCommandRuntime(appState.mpvClient, ['show-text', '', '1']);
+      },
+      setInterval: (callback, delayMs) => {
+        const timer = setInterval(callback, delayMs);
+        timer.unref?.();
+        return timer;
+      },
+      clearInterval: (timer) => {
+        clearInterval(timer as ReturnType<typeof setInterval>);
+      },
+    });
+  }
+  return overlayLoadingOsdController;
 }
+
+function showOverlayLoadingStatusNotification(message: string): void {
+  void message;
+  getOverlayLoadingOsdController().start();
+}
+
+function dismissOverlayLoadingStatusNotification(): void {
+  getOverlayLoadingOsdController().stop();
+  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-overlay-loading-ready']);
+  dismissOverlayNotification('overlay-loading-status');
+}
+
+const maybeStartOverlayLoadingOsd = createMaybeStartOverlayLoadingOsdHandler({
+  getVisibleOverlayRequested: () => overlayManager.getVisibleOverlayVisible(),
+  isOverlayContentReady: () => isVisibleOverlayContentReady(),
+  startOverlayLoadingOsd: () => {
+    showOverlayLoadingStatusNotification('Overlay loading...');
+  },
+});
 
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
@@ -5194,6 +5337,7 @@ const {
       void reportJellyfinRemoteStopped();
     },
     onMpvConnected: () => {
+      maybeStartOverlayLoadingOsd();
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -5231,6 +5375,7 @@ const {
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
     updateCurrentMediaPath: (path) => {
       const normalizedPath = path.trim();
+      maybeStartOverlayLoadingOsd(normalizedPath);
       const previousPath = appState.currentMediaPath?.trim() || null;
       const preserveParsedSubtitleCues = isSameYoutubeMediaPath(
         normalizedPath,
@@ -6893,6 +7038,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           currentSubText: appState.currentSubText,
           currentSubtitleData: appState.currentSubtitleData,
           withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
+          tokenizeUncached: false,
           tokenizeSubtitle: tokenizeSubtitleForCurrent
             ? (text) => tokenizeSubtitleForCurrent(text)
             : undefined,
@@ -7046,7 +7192,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       reportOverlayContentBounds: (payload: unknown) => {
         if (overlayContentMeasurementStore.report(payload)) {
           tickLinuxOverlayPointerInteractionNow();
+          primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
           autoplayReadyGate.flushPendingAutoplayReadySignal();
+          scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
         }
       },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
@@ -7416,12 +7564,14 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         linuxVisibleOverlayWindowMode === 'fullscreen-override',
       onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
       onVisibleWindowFocused: () => requestLinuxOverlayZOrderFollow(),
+      onWindowDidFinishLoad: () => {
+        flushQueuedOverlayNotifications();
+      },
       onWindowContentReady: () => {
-        dismissOverlayNotification('overlay-loading-status');
+        dismissOverlayLoadingStatusNotification();
+        flushQueuedOverlayNotifications();
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-        if (appState.currentSubText.trim()) {
-          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-        }
+        primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
         autoplayReadyGate.flushPendingAutoplayReadySignal();
       },
       onWindowClosed: (windowKind, window) => {
@@ -7701,10 +7851,13 @@ function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
     autoplayReadyGate.markCurrentMediaAutoplayReady();
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     resetVisibleOverlayInputState();
   }
   if (visible) {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -7719,9 +7872,12 @@ function toggleVisibleOverlay(): void {
   const nextVisible = !overlayManager.getVisibleOverlayVisible();
   if (!nextVisible) {
     autoplayReadyGate.markCurrentMediaAutoplayReady();
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     resetVisibleOverlayInputState();
   } else {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -7732,11 +7888,14 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     resetVisibleOverlayInputState();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();

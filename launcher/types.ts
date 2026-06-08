@@ -207,6 +207,7 @@ export interface PluginRuntimeConfig {
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
+  overlayLoadingOsd?: boolean;
   osdMessages: boolean;
   texthookerEnabled: boolean;
 }

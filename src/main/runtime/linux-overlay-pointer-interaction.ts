@@ -146,6 +146,29 @@ function measuredRectsForInput(measurement: OverlayContentMeasurementLike): Poin
       : [];
 }
 
+function hasMeasuredInputRects(measurement: OverlayContentMeasurementLike): boolean {
+  return measuredRectsForInput(measurement).some((rect) => rect.width > 0 && rect.height > 0);
+}
+
+export function shouldPrimeLinuxOverlayInteractionFromMeasurement(deps: {
+  getVisibleOverlayVisible: () => boolean;
+  getMainWindow: () => PointerInteractionWindow | null;
+  getSubtitleMeasurement: () => OverlayContentMeasurementLike;
+  shouldSuspend: () => boolean;
+  shouldSuppressInteraction?: () => boolean;
+}): boolean {
+  if (!deps.getVisibleOverlayVisible()) return false;
+  if (deps.shouldSuspend()) return false;
+
+  const mainWindow = deps.getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
+    return false;
+  }
+
+  if (deps.shouldSuppressInteraction?.()) return false;
+  return hasMeasuredInputRects(deps.getSubtitleMeasurement());
+}
+
 function clampRectToWindow(rect: PointerRect, bounds: PointerRect): PointerRect | null {
   const left = Math.max(0, Math.floor(rect.x));
   const top = Math.max(0, Math.floor(rect.y));

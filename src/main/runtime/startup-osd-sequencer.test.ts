@@ -161,6 +161,34 @@ test('startup OSD reset keeps tokenization ready after first warmup', () => {
   assert.deepEqual(osdMessages, ['Updating character dictionary for Frieren...']);
 });
 
+test('startup OSD reset preserves in-flight tokenization loading for ready update', () => {
+  const calls: string[] = [];
+  const sequencer = createStartupOsdSequencer({
+    getNotificationType: () => 'both',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showOverlayNotification: (payload) => {
+      calls.push(
+        `overlay:${payload.id}:${payload.body}:${payload.variant}:${payload.persistent ? 'pin' : 'auto'}`,
+      );
+    },
+    showDesktopNotification: (title, options) => {
+      calls.push(`desktop:${title}:${options.body ?? ''}`);
+    },
+  });
+
+  sequencer.showTokenizationLoading('Loading subtitle tokenization...');
+  sequencer.reset();
+  sequencer.markTokenizationReady();
+
+  assert.deepEqual(calls, [
+    'overlay:startup-tokenization:Loading subtitle tokenization...:progress:pin',
+    'overlay:startup-tokenization:Subtitle tokenization ready:success:auto',
+    'desktop:SubMiner:Subtitle tokenization ready',
+  ]);
+});
+
 test('startup OSD shows later dictionary progress immediately once tokenization is ready', () => {
   const osdMessages: string[] = [];
   const sequencer = createStartupOsdSequencer({

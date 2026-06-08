@@ -122,7 +122,10 @@ const notificationHistory = createOverlayNotificationHistoryPanel(ctx, {
   onChanged: () => measurementReporter.schedule(),
 });
 const overlayNotifications = createOverlayNotificationRenderer(ctx, {
-  onChanged: () => measurementReporter.schedule(),
+  onChanged: () => {
+    notificationHistory.syncSide();
+    measurementReporter.schedule();
+  },
   onShow: (entry) => notificationHistory.record(entry),
 });
 const positioning = createPositioningController(ctx);
@@ -632,6 +635,19 @@ async function init(): Promise<void> {
     syncOverlayMouseIgnoreState(ctx);
   }
 
+  // Seed the notification stack position from config before subscribing to history toggles, so the
+  // closed history panel starts on the same side it will slide in from.
+  try {
+    const overlayNotificationPosition = await window.electronAPI.getOverlayNotificationPosition();
+    ctx.dom.overlayNotificationStack.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
+    ctx.dom.overlayNotificationStack.classList.add(
+      overlayNotificationPositionClass(overlayNotificationPosition),
+    );
+    notificationHistory.syncSide();
+  } catch {
+    // Non-fatal: keep the default position class from index.html.
+  }
+
   window.electronAPI.onOverlayPointerRecoveryRequested(() => {
     runGuarded('overlay:pointer-recovery', () => {
       if (!ctx.platform.isMacOSPlatform || !ctx.platform.shouldToggleMouseIgnore) {
@@ -656,18 +672,6 @@ async function init(): Promise<void> {
 
   await keyboardHandlers.setupMpvInputForwarding();
 
-  // Seed the notification stack position from config so the stack, error/status toasts, and the
-  // notification history panel side are correct before the first notification arrives.
-  try {
-    const overlayNotificationPosition = await window.electronAPI.getOverlayNotificationPosition();
-    ctx.dom.overlayNotificationStack.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
-    ctx.dom.overlayNotificationStack.classList.add(
-      overlayNotificationPositionClass(overlayNotificationPosition),
-    );
-  } catch {
-    // Non-fatal: keep the default position class from index.html.
-  }
-
   const initialSubtitleStyle = await window.electronAPI.getSubtitleStyle();
   subtitleRenderer.applySubtitleStyle(initialSubtitleStyle);
   subtitleRenderer.updatePrimarySubMode(initialSubtitleStyle?.primaryDefaultMode ?? 'visible');
@@ -676,6 +680,22 @@ async function init(): Promise<void> {
     'startup',
   );
   measurementReporter.schedule();
+
+  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
+  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseenter',
+    mouseHandlers.handleSecondaryMouseEnter,
+  );
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseleave',
+    mouseHandlers.handleSecondaryMouseLeave,
+  );
+
+  mouseHandlers.setupResizeHandler();
+  mouseHandlers.setupPointerTracking();
+  mouseHandlers.setupSelectionObserver();
+  mouseHandlers.setupYomitanObserver();
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     runGuarded('subtitle-position:update', () => {
@@ -731,21 +751,6 @@ async function init(): Promise<void> {
   subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
   measurementReporter.schedule();
 
-  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
-  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener(
-    'mouseenter',
-    mouseHandlers.handleSecondaryMouseEnter,
-  );
-  ctx.dom.secondarySubContainer.addEventListener(
-    'mouseleave',
-    mouseHandlers.handleSecondaryMouseLeave,
-  );
-
-  mouseHandlers.setupResizeHandler();
-  mouseHandlers.setupPointerTracking();
-  mouseHandlers.setupSelectionObserver();
-  mouseHandlers.setupYomitanObserver();
   setupDragDropToMpvQueue();
   window.addEventListener('resize', () => {
     measurementReporter.schedule();

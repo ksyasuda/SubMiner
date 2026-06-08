@@ -10,6 +10,7 @@ export interface SubminerPluginRuntimeScriptOptConfig {
   autoStart: boolean;
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
+  overlayLoadingOsd?: boolean;
   osdMessages: boolean;
   texthookerEnabled: boolean;
 }
@@ -35,12 +36,16 @@ export function buildSubminerPluginRuntimeScriptOptParts(
   const binaryPath = sanitizeScriptOptValue(runtimeConfig.binaryPath?.trim() || fallbackAppPath);
   const socketPath = sanitizeScriptOptValue(runtimeConfig.socketPath);
   const backend = sanitizeScriptOptValue(runtimeConfig.backend);
+  const overlayLoadingOsd =
+    runtimeConfig.overlayLoadingOsd ??
+    (runtimeConfig.autoStart && runtimeConfig.autoStartVisibleOverlay);
   return [
     `subminer-binary_path=${binaryPath}`,
     `subminer-socket_path=${socketPath}`,
     `subminer-backend=${backend}`,
     `subminer-auto_start=${boolScriptOpt(runtimeConfig.autoStart)}`,
     `subminer-auto_start_visible_overlay=${boolScriptOpt(runtimeConfig.autoStartVisibleOverlay)}`,
+    `subminer-overlay_loading_osd=${boolScriptOpt(overlayLoadingOsd)}`,
     `subminer-auto_start_pause_until_ready=${boolScriptOpt(
       runtimeConfig.autoStartPauseUntilReady,
     )}`,

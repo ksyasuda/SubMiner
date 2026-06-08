@@ -11,12 +11,12 @@ test('notification routing preserves system notification while overlay is not re
   assert.equal(resolveOverlayReadinessNotificationType('system', false), 'system');
 });
 
-test('notification routing preserves both as osd plus system while overlay is not ready', () => {
-  assert.equal(resolveOverlayReadinessNotificationType('both', false), 'osd-system');
+test('notification routing preserves both while overlay is not ready', () => {
+  assert.equal(resolveOverlayReadinessNotificationType('both', false), 'both');
 });
 
-test('notification routing falls back overlay-only notification to osd while overlay is not ready', () => {
-  assert.equal(resolveOverlayReadinessNotificationType('overlay', false), 'osd');
+test('notification routing preserves overlay-only notification while overlay is not ready', () => {
+  assert.equal(resolveOverlayReadinessNotificationType('overlay', false), 'overlay');
 });
 
 test('notification routing predicates classify delivery channels', () => {

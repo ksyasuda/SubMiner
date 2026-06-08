@@ -29,25 +29,29 @@ function overlayVariantForPhase(
   return 'progress';
 }
 
+function historyIdForEvent(event: CharacterDictionaryAutoSyncNotificationEvent): string {
+  const mediaId = typeof event.mediaId === 'number' ? String(event.mediaId) : 'current';
+  return `character-dictionary-auto-sync-${mediaId}-${event.phase}`;
+}
+
 export function notifyCharacterDictionaryAutoSyncStatus(
   event: CharacterDictionaryAutoSyncNotificationEvent,
   deps: CharacterDictionaryAutoSyncNotificationDeps,
 ): void {
   const type = deps.getNotificationType() ?? 'overlay';
   if (type === 'none') return;
-  let overlayShown = false;
   let startupSequencerShown = false;
 
   if (shouldShowOverlay(type)) {
     if (deps.showOverlayNotification) {
       deps.showOverlayNotification({
         id: 'character-dictionary-auto-sync',
+        historyId: historyIdForEvent(event),
         title: 'Character dictionary',
         body: event.message,
         variant: overlayVariantForPhase(event.phase),
         persistent: !isTerminalPhase(event.phase),
       });
-      overlayShown = true;
     } else if (!shouldShowDesktop(type)) {
       deps.showDesktopNotification('SubMiner', { body: event.message });
     }
@@ -64,7 +68,7 @@ export function notifyCharacterDictionaryAutoSyncStatus(
     }
   }
 
-  if (shouldShowDesktop(type) && !overlayShown && !startupSequencerShown) {
+  if (shouldShowDesktop(type) && !startupSequencerShown) {
     deps.showDesktopNotification('SubMiner', { body: event.message });
   }
 }

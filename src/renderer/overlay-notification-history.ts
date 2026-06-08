@@ -35,9 +35,10 @@ function normalizeVariant(
 }
 
 /**
- * Session-scoped log of every overlay notification that was shown. Entries are keyed by id so a
- * progress notification that updates in place (same id, new body) overwrites its record rather than
- * piling up duplicates. Ordering is by first-seen so the panel can render newest-first.
+ * Session-scoped log of every overlay notification that was shown. Entries are keyed by historyId
+ * when provided, otherwise by live notification id. Reusing a key updates the record in place;
+ * distinct history keys preserve separate visible events. Ordering is by first-seen so the panel can
+ * render newest-first.
  */
 export function createOverlayNotificationHistoryStore(
   options: OverlayNotificationHistoryStoreOptions = {},
@@ -48,9 +49,10 @@ export function createOverlayNotificationHistoryStore(
 
   function record(entry: OverlayNotificationEntry): OverlayNotificationHistoryEntry {
     const timestamp = now();
-    const existing = entries.get(entry.id);
+    const historyId = entry.historyId?.trim() || entry.id;
+    const existing = entries.get(historyId);
     const next: OverlayNotificationHistoryEntry = {
-      id: entry.id,
+      id: historyId,
       title: entry.title,
       body: entry.body,
       image: entry.image,
@@ -60,7 +62,7 @@ export function createOverlayNotificationHistoryStore(
     };
     // Setting an existing key keeps its original insertion slot, so an in-place update (same id,
     // new body) refreshes content without jumping the entry to the top of the panel.
-    entries.set(entry.id, next);
+    entries.set(historyId, next);
     while (entries.size > max) {
       const oldest = entries.keys().next().value;
       if (oldest === undefined) break;
@@ -221,6 +223,7 @@ export function createOverlayNotificationHistoryPanel(
     if (open) setInteractive(true);
   });
   panel.addEventListener('mouseleave', () => setInteractive(false));
+  applySide();
 
   function record(entry: OverlayNotificationEntry): void {
     store.record(entry);
@@ -237,5 +240,6 @@ export function createOverlayNotificationHistoryPanel(
     open: () => setOpen(true),
     close: () => setOpen(false),
     isOpen: () => open,
+    syncSide: applySide,
   };
 }

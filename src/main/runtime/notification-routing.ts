@@ -14,16 +14,7 @@ export function shouldShowDesktop(type: NotificationType): boolean {
 
 export function resolveOverlayReadinessNotificationType(
   type: NotificationType,
-  overlayReady: boolean,
+  _overlayReady: boolean,
 ): NotificationType {
-  if (overlayReady) {
-    return type;
-  }
-  if (type === 'overlay') {
-    return 'osd';
-  }
-  if (type === 'both') {
-    return 'osd-system';
-  }
   return type;
 }

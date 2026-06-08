@@ -346,20 +346,15 @@ test('runAppReadyRuntime keeps non-managed deferred overlay startup behind Yomit
   assert.ok(calls.indexOf('loadYomitanExtension:done') < calls.indexOf('handleInitialArgs'));
 });
 
-test('runAppReadyRuntime starts background warmups before core runtime services', async () => {
-  const calls: string[] = [];
-  const { deps } = makeDeps({
-    startBackgroundWarmups: () => {
-      calls.push('startBackgroundWarmups');
-    },
-    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
-    createMpvClient: () => calls.push('createMpvClient'),
-  });
+test('runAppReadyRuntime starts background warmups after overlay startup', async () => {
+  const { deps, calls } = makeDeps();
 
   await runAppReadyRuntime(deps);
 
-  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('loadSubtitlePosition'));
-  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('createMpvClient'));
+  assert.ok(calls.indexOf('loadSubtitlePosition') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('createMpvClient') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('initializeOverlayRuntime') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime exits before service init when critical anki mappings are invalid', async () => {

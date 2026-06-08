@@ -71,7 +71,7 @@ test('auto sync notifications send osd updates for progress phases', () => {
   ]);
 });
 
-test('auto sync notifications prefer overlay delivery for both when overlay is available', () => {
+test('auto sync notifications send overlay and desktop delivery for both', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
@@ -83,7 +83,7 @@ test('auto sync notifications prefer overlay delivery for both when overlay is a
       calls.push(`desktop:${title}:${options.body ?? ''}`),
     showOverlayNotification: (payload) =>
       calls.push(
-        `overlay:${payload.id}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
+        `overlay:${payload.id}:${payload.historyId}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
       ),
   });
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('ready', 'ready'), {
@@ -95,13 +95,15 @@ test('auto sync notifications prefer overlay delivery for both when overlay is a
       calls.push(`desktop:${title}:${options.body ?? ''}`),
     showOverlayNotification: (payload) =>
       calls.push(
-        `overlay:${payload.id}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
+        `overlay:${payload.id}:${payload.historyId}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
       ),
   });
 
   assert.deepEqual(calls, [
-    'overlay:character-dictionary-auto-sync:Character dictionary:syncing:pin',
-    'overlay:character-dictionary-auto-sync:Character dictionary:ready:auto',
+    'overlay:character-dictionary-auto-sync:character-dictionary-auto-sync-101291-syncing:Character dictionary:syncing:pin',
+    'desktop:SubMiner:syncing',
+    'overlay:character-dictionary-auto-sync:character-dictionary-auto-sync-101291-ready:Character dictionary:ready:auto',
+    'desktop:SubMiner:ready',
   ]);
 });
 
