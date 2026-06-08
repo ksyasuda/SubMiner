@@ -28,7 +28,7 @@ test('notifyConfiguredStatus routes both to overlay and system without osd', () 
   ]);
 });
 
-test('notifyConfiguredStatus queues pre-overlay both status through overlay sender and desktop', () => {
+test('notifyConfiguredStatus falls back to desktop for pre-overlay both status', () => {
   const calls: string[] = [];
 
   notifyConfiguredStatus('Overlay loading...', {
@@ -43,10 +43,10 @@ test('notifyConfiguredStatus queues pre-overlay both status through overlay send
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['overlay::Overlay loading...', 'desktop:SubMiner:Overlay loading...']);
+  assert.deepEqual(calls, ['desktop:SubMiner:Overlay loading...']);
 });
 
-test('notifyConfiguredStatus queues pre-overlay overlay-only status without osd fallback', () => {
+test('notifyConfiguredStatus falls back to desktop for pre-overlay overlay-only status', () => {
   const calls: string[] = [];
 
   notifyConfiguredStatus('Overlay loading...', {
@@ -61,7 +61,7 @@ test('notifyConfiguredStatus queues pre-overlay overlay-only status without osd 
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['overlay::Overlay loading...']);
+  assert.deepEqual(calls, ['desktop:SubMiner:Overlay loading...']);
 });
 
 test('notifyConfiguredStatus routes pre-overlay system status to desktop only', () => {

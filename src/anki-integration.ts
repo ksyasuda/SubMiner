@@ -886,7 +886,7 @@ export class AnkiIntegration {
   }
 
   private getNotificationType(): NotificationType {
-    return this.config.behavior?.notificationType ?? 'overlay';
+    return this.config.behavior?.notificationType ?? 'osd';
   }
 
   private shouldUseOsdNotifications(): boolean {

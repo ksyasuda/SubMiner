@@ -38,7 +38,7 @@ export function showStatusNotification(
   message: string,
   context: UiFeedbackNotificationContext,
 ): void {
-  const type = context.getNotificationType() ?? 'overlay';
+  const type = context.getNotificationType() ?? 'osd';
 
   if (type === 'none') {
     return;

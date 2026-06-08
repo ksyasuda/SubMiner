@@ -50,7 +50,8 @@ export function notifyConfiguredStatus(
   }
 
   if (showOverlay) {
-    if (deps.showOverlayNotification) {
+    const overlayReady = deps.isOverlayReady?.() ?? true;
+    if (deps.showOverlayNotification && overlayReady) {
       deps.showOverlayNotification({
         id: options.id,
         title: options.title ?? 'SubMiner',

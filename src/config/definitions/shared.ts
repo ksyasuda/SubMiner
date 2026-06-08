@@ -27,7 +27,16 @@ export interface ConfigOptionRegistryEntry {
   kind: ConfigValueKind;
   defaultValue: unknown;
   description: string;
+  /**
+   * Complete runtime-valid enum options, including legacy file-config values such as
+   * `osd` and `osd-system` in NOTIFICATION_TYPE_VALUES.
+   */
   enumValues?: readonly string[];
+  /**
+   * Optional settings UI subset when legacy/runtime-valid enum options should remain
+   * editable in config files but hidden from new UI choices, for example
+   * SETTINGS_NOTIFICATION_TYPE_VALUES.
+   */
   settingsEnumValues?: readonly string[];
   runtime?: RuntimeOptionRegistryEntry;
 }

@@ -3432,7 +3432,11 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
 
 function isVisibleOverlayContentReady(): boolean {
   const overlayWindow = overlayManager.getMainWindow();
-  return Boolean(overlayWindow && isOverlayWindowContentReady(overlayWindow));
+  return Boolean(
+    overlayManager.getVisibleOverlayVisible() &&
+    overlayWindow &&
+    isOverlayWindowReadyForNotification(overlayWindow),
+  );
 }
 
 function getConfiguredStatusNotificationType(): NotificationType {
@@ -3451,20 +3455,15 @@ function isOverlayWindowReadyForNotification(window: BrowserWindow): boolean {
   return currentURL !== '' && currentURL !== 'about:blank';
 }
 
-function hasReadyOverlayNotificationWindow(): boolean {
-  return getOverlayWindows().some((window) => isOverlayWindowReadyForNotification(window));
-}
-
 const overlayNotificationDelivery = createOverlayNotificationDelivery({
-  hasReadyOverlayWindow: () => hasReadyOverlayNotificationWindow(),
+  hasReadyOverlayWindow: () => isVisibleOverlayContentReady(),
   send: (payload) => {
     broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
   },
   scheduleFlushRetry: (callback, delayMs) => setTimeout(callback, delayMs),
   clearFlushRetry: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 });
-let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null =
-  null;
+let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null = null;
 
 function flushQueuedOverlayNotifications(): void {
   overlayNotificationDelivery.flush();
@@ -7850,6 +7849,7 @@ function notifyMpvPluginVisibleOverlayVisibility(visible: boolean): void {
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
+    dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
@@ -7871,6 +7871,7 @@ function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   const nextVisible = !overlayManager.getVisibleOverlayVisible();
   if (!nextVisible) {
+    dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
@@ -7888,6 +7889,7 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    dismissOverlayLoadingStatusNotification();
     cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     resetVisibleOverlayInputState();
     autoplayReadyGate.markCurrentMediaAutoplayReady();

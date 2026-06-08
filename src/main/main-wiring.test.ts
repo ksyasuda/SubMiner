@@ -112,7 +112,7 @@ test('manual visible overlay toggles only release current-media autoplay when hi
   assert.ok(actionBlock);
   assert.match(
     actionBlock,
-    /if \(!nextVisible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
+    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
   );
 });
 
@@ -133,15 +133,15 @@ test('all visible overlay hide paths clear stale overlay input state', () => {
   assert.ok(setOverlayBlock);
   assert.match(
     setVisibleBlock,
-    /if \(!visible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);\s+resetVisibleOverlayInputState\(\);/,
+    /if \(!visible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
   );
   assert.match(
     toggleBlock,
-    /if \(!nextVisible\) \{\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);\s+resetVisibleOverlayInputState\(\);/,
+    /if \(!nextVisible\) \{[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);[\s\S]*?resetVisibleOverlayInputState\(\);/,
   );
   assert.match(
     setOverlayBlock,
-    /if \(!visible\) \{\s+cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);\s+resetVisibleOverlayInputState\(\);\s+autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);\s+cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
+    /if \(!visible\) \{[\s\S]*?cancelVisibleOverlaySubtitleRefreshAfterFirstPaint\(\);[\s\S]*?resetVisibleOverlayInputState\(\);[\s\S]*?autoplayReadyGate\.markCurrentMediaAutoplayReady\(\);[\s\S]*?cancelPendingLinuxMpvFullscreenOverlayRefreshBurst\(\);/,
   );
 });
 
@@ -416,6 +416,49 @@ test('manual visible overlay changes notify mpv plugin visibility state', () => 
   assert.match(setBlock, /notifyMpvPluginVisibleOverlayVisibility\(visible\);/);
   assert.match(toggleBlock, /const nextVisible = !overlayManager\.getVisibleOverlayVisible\(\);/);
   assert.match(toggleBlock, /notifyMpvPluginVisibleOverlayVisibility\(nextVisible\);/);
+});
+
+test('manual visible overlay hide dismisses loading OSD', () => {
+  const source = readMainSource();
+  const setBlock = source.match(
+    /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const toggleBlock = source.match(
+    /function toggleVisibleOverlay\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const setOverlayBlock = source.match(
+    /function setOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(setBlock);
+  assert.ok(toggleBlock);
+  assert.ok(setOverlayBlock);
+  assert.match(setBlock, /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/);
+  assert.match(
+    toggleBlock,
+    /if \(!nextVisible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
+  );
+  assert.match(
+    setOverlayBlock,
+    /if \(!visible\) \{[\s\S]*?dismissOverlayLoadingStatusNotification\(\);/,
+  );
+});
+
+test('configured overlay notifications require visible ready overlay window', () => {
+  const source = readMainSource();
+  const readinessBlock = source.match(
+    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+  const statusBlock = source.match(
+    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(readinessBlock);
+  assert.ok(statusBlock);
+  assert.match(readinessBlock, /overlayManager\.getVisibleOverlayVisible\(\)/);
+  assert.match(readinessBlock, /isOverlayWindowReadyForNotification\(overlayWindow\)/);
+  assert.doesNotMatch(readinessBlock, /isOverlayWindowContentReady\(overlayWindow\)/);
+  assert.match(statusBlock, /isOverlayReady: \(\) => isVisibleOverlayContentReady\(\)/);
 });
 
 test('manual visible overlay show primes current subtitle from mpv before relying on live events', () => {

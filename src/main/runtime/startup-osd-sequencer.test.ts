@@ -170,7 +170,7 @@ test('startup OSD reset preserves in-flight tokenization loading for ready updat
     },
     showOverlayNotification: (payload) => {
       calls.push(
-        `overlay:${payload.id}:${payload.body}:${payload.variant}:${payload.persistent ? 'pin' : 'auto'}`,
+        `overlay:${payload.id}:${payload.title}:${payload.body}:${payload.variant}:${payload.persistent ? 'pin' : 'auto'}`,
       );
     },
     showDesktopNotification: (title, options) => {
@@ -183,8 +183,8 @@ test('startup OSD reset preserves in-flight tokenization loading for ready updat
   sequencer.markTokenizationReady();
 
   assert.deepEqual(calls, [
-    'overlay:startup-tokenization:Loading subtitle tokenization...:progress:pin',
-    'overlay:startup-tokenization:Subtitle tokenization ready:success:auto',
+    'overlay:startup-tokenization:Subtitle tokenization:Loading subtitle tokenization...:progress:pin',
+    'overlay:startup-tokenization:Subtitle tokenization:Subtitle tokenization ready:success:auto',
     'desktop:SubMiner:Subtitle tokenization ready',
   ]);
 });

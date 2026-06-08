@@ -175,7 +175,7 @@ body:focus-visible,
   flex-direction: column;
   gap: 8px;
   pointer-events: auto;
-  z-index: 2147483647 !important;
+  z-index: 2147483647;
 }
 
 .overlay-notification-stack.position-top-left {
@@ -1900,7 +1900,7 @@ iframe.yomitan-popup,
 iframe[id^='yomitan-popup'],
 [data-subminer-yomitan-popup-host='true'] {
   pointer-events: auto !important;
-  z-index: 2147483647 !important;
+  z-index: 2147483645;
 }
 
 .kiku-info-text {

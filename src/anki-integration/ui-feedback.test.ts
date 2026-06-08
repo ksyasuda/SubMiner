@@ -83,6 +83,25 @@ test('showStatusNotification falls back to system when overlay delivery is unava
   assert.deepEqual(calls, ['system:SubMiner:Waiting for card update']);
 });
 
+test('showStatusNotification defaults to mpv osd when notification type is unset', () => {
+  const calls: string[] = [];
+
+  showStatusNotification('Card updated', {
+    getNotificationType: () => undefined,
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showOverlayNotification: (payload) => {
+      calls.push(`overlay:${payload.body}`);
+    },
+    showSystemNotification: (title, options) => {
+      calls.push(`system:${title}:${options.body}`);
+    },
+  });
+
+  assert.deepEqual(calls, ['osd:Card updated']);
+});
+
 test('showStatusNotification does not duplicate system notifications for both', () => {
   const calls: string[] = [];
 

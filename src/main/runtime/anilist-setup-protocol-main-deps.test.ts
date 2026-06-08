@@ -23,6 +23,18 @@ test('notify anilist setup main deps builder maps callbacks', () => {
   assert.deepEqual(calls, ['osd:ok', 'notify:SubMiner', 'log:done']);
 });
 
+test('notify anilist setup main deps builder preserves optional notification callbacks', () => {
+  const deps = createBuildNotifyAnilistSetupMainDepsHandler({
+    hasMpvClient: () => true,
+    showMpvOsd: () => {},
+    showDesktopNotification: () => {},
+    logInfo: () => {},
+  })();
+
+  assert.equal(deps.getNotificationType, undefined);
+  assert.equal(deps.showOverlayNotification, undefined);
+});
+
 test('consume anilist setup token main deps builder maps callbacks', () => {
   const calls: string[] = [];
   const deps = createBuildConsumeAnilistSetupTokenFromUrlMainDepsHandler({
