@@ -18,19 +18,50 @@ function normalizedSearchWord(query: string): string {
   return query.trim();
 }
 
+function buildFoldedSearchIndex(text: string): {
+  text: string;
+  sourceStartByIndex: number[];
+  sourceEndByIndex: number[];
+} {
+  let foldedText = '';
+  const sourceStartByIndex: number[] = [];
+  const sourceEndByIndex: number[] = [];
+
+  for (let sourceStart = 0; sourceStart < text.length; ) {
+    const codePoint = text.codePointAt(sourceStart);
+    if (codePoint == null) break;
+
+    const char = String.fromCodePoint(codePoint);
+    const sourceEnd = sourceStart + char.length;
+    const foldedChar = char.toLocaleLowerCase();
+    for (let index = 0; index < foldedChar.length; index++) {
+      sourceStartByIndex.push(sourceStart);
+      sourceEndByIndex.push(sourceEnd);
+    }
+    foldedText += foldedChar;
+    sourceStart = sourceEnd;
+  }
+
+  return { text: foldedText, sourceStartByIndex, sourceEndByIndex };
+}
+
 export function findExactSentenceMatches(text: string, query: string): SentenceMatchRange[] {
   const needle = normalizedSearchWord(query);
   if (!needle) return [];
 
   const ranges: SentenceMatchRange[] = [];
-  const haystack = text.toLocaleLowerCase();
+  const haystack = buildFoldedSearchIndex(text);
   const normalizedNeedle = needle.toLocaleLowerCase();
   let searchFrom = 0;
 
-  while (searchFrom < haystack.length) {
-    const index = haystack.indexOf(normalizedNeedle, searchFrom);
+  while (searchFrom < haystack.text.length) {
+    const index = haystack.text.indexOf(normalizedNeedle, searchFrom);
     if (index < 0) break;
-    ranges.push({ start: index, end: index + normalizedNeedle.length });
+    const endIndex = index + normalizedNeedle.length - 1;
+    ranges.push({
+      start: haystack.sourceStartByIndex[index] ?? index,
+      end: haystack.sourceEndByIndex[endIndex] ?? index + normalizedNeedle.length,
+    });
     searchFrom = index + normalizedNeedle.length;
   }
 

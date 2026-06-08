@@ -32,8 +32,8 @@ test('findExactSentenceMatches returns every exact searched-word range', () => {
   ]);
 });
 
-test('findExactSentenceMatches uses normalized match length for case-folded ranges', () => {
-  assert.deepEqual(findExactSentenceMatches('İstanbul', 'İ'), [{ start: 0, end: 2 }]);
+test('findExactSentenceMatches keeps source-text ranges under case folding', () => {
+  assert.deepEqual(findExactSentenceMatches('İstanbul', 'İ'), [{ start: 0, end: 1 }]);
 });
 
 test('getSentenceSearchMineAvailability gates word and audio mining on exact sentence match', () => {

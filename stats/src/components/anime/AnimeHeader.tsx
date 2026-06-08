@@ -39,7 +39,7 @@ export function AnimeHeader({
   const uniqueAltTitles = [...new Set(altTitles)];
 
   const hasMultipleEntries = anilistEntries.length > 1;
-  const coverCacheToken = (detail.anilistId ?? 0) + coverRetryToken;
+  const coverCacheToken = (detail.anilistId ?? 0) * 1_000_000 + coverRetryToken;
 
   return (
     <div className="flex gap-4">
