@@ -275,6 +275,46 @@ test('updateAnilistPostWatchProgress marks the final season episode completed', 
   }
 });
 
+test('updateAnilistPostWatchProgress marks an already watched final season episode completed', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = (async (_input, init) => {
+    call += 1;
+    const body = JSON.parse(String(init?.body)) as { variables?: Record<string, unknown> };
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 12, episodes: 12, title: { english: 'Final Show' } }],
+          },
+        },
+      });
+    }
+    if (call === 2) {
+      return createJsonResponse({
+        data: {
+          Media: { id: 12, mediaListEntry: { progress: 12, status: 'CURRENT' } },
+        },
+      });
+    }
+
+    assert.equal(body.variables?.progress, 12);
+    assert.equal(body.variables?.status, 'COMPLETED');
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 12, status: 'COMPLETED' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Final Show', 12);
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /completed/i);
+    assert.equal(call, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('updateAnilistPostWatchProgress skips when progress already reached', async () => {
   const originalFetch = globalThis.fetch;
   let call = 0;
