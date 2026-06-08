@@ -142,7 +142,12 @@ export function AnimeDetailView({
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
+  const [coverRetryToken, setCoverRetryToken] = useState(0);
   const knownWordsSummary = useAnimeKnownWords(animeId);
+
+  useEffect(() => {
+    setCoverRetryToken(0);
+  }, [animeId]);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
@@ -161,6 +166,7 @@ export function AnimeDetailView({
       <AnimeHeader
         detail={detail}
         anilistEntries={anilistEntries ?? []}
+        coverRetryToken={coverRetryToken}
         onChangeAnilist={() => setShowAnilistSelector(true)}
       />
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
@@ -177,6 +183,7 @@ export function AnimeDetailView({
           onClose={() => setShowAnilistSelector(false)}
           onLinked={() => {
             setShowAnilistSelector(false);
+            setCoverRetryToken((value) => value + 1);
             reload();
           }}
         />

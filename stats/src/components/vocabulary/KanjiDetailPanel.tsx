@@ -87,15 +87,15 @@ export function KanjiDetailPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close kanji detail panel"
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-xl border-l border-ctp-surface1 bg-ctp-mantle shadow-2xl">
-        <div className="flex h-full flex-col">
+      <aside className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">

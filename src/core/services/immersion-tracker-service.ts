@@ -1169,6 +1169,8 @@ export class ImmersionTrackerService {
     const itemTitle = normalizeText(metadata.itemTitle) || displayTitle;
     const seriesTitle = normalizeText(metadata.seriesTitle);
     const libraryTitle = seriesTitle || itemTitle;
+    const seasonNumber = normalizeMetadataInt(metadata.seasonNumber);
+    const episodeNumber = normalizeMetadataInt(metadata.episodeNumber);
     if (!libraryTitle) {
       return;
     }
@@ -1192,12 +1194,13 @@ export class ImmersionTrackerService {
       itemTitle,
       seriesTitle: seriesTitle || null,
       displayTitle,
-      seasonNumber: normalizeMetadataInt(metadata.seasonNumber),
-      episodeNumber: normalizeMetadataInt(metadata.episodeNumber),
+      seasonNumber,
+      episodeNumber,
     });
     const animeId = getOrCreateAnimeRecord(this.db, {
       parsedTitle: libraryTitle,
       canonicalTitle: libraryTitle,
+      seasonScope: seasonNumber,
       anilistId: null,
       titleRomaji: null,
       titleEnglish: null,
@@ -1208,8 +1211,8 @@ export class ImmersionTrackerService {
       animeId,
       parsedBasename: null,
       parsedTitle: libraryTitle,
-      parsedSeason: normalizeMetadataInt(metadata.seasonNumber),
-      parsedEpisode: normalizeMetadataInt(metadata.episodeNumber),
+      parsedSeason: seasonNumber,
+      parsedEpisode: episodeNumber,
       parserSource: 'jellyfin',
       parserConfidence: 1,
       parseMetadataJson: metadataJson,
@@ -1837,6 +1840,7 @@ export class ImmersionTrackerService {
         const animeId = getOrCreateAnimeRecord(this.db, {
           parsedTitle: parsed.parsedTitle,
           canonicalTitle: parsed.parsedTitle,
+          seasonScope: parsed.parsedSeason,
           anilistId: null,
           titleRomaji: null,
           titleEnglish: null,

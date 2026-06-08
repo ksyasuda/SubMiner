@@ -813,7 +813,7 @@ test('ensureSchema migrates legacy videos and backfills anime metadata from file
       .all() as Array<{ canonical_title: string }>;
     assert.deepEqual(
       animeRows.map((row) => row.canonical_title),
-      ['Frieren', 'Little Witch Academia'],
+      ['Frieren', 'Little Witch Academia Season 2'],
     );
 
     const littleWitchRows = db
@@ -855,7 +855,7 @@ test('ensureSchema migrates legacy videos and backfills anime metadata from file
       })),
       [
         {
-          animeTitle: 'Little Witch Academia',
+          animeTitle: 'Little Witch Academia Season 2',
           parsedTitle: 'Little Witch Academia',
           parsedBasename: 'Little Witch Academia S02E05.mkv',
           parsedSeason: 2,
@@ -863,7 +863,7 @@ test('ensureSchema migrates legacy videos and backfills anime metadata from file
           parserSource: 'fallback',
         },
         {
-          animeTitle: 'Little Witch Academia',
+          animeTitle: 'Little Witch Academia Season 2',
           parsedTitle: 'Little Witch Academia',
           parsedBasename: 'Little Witch Academia S02E06.mkv',
           parsedSeason: 2,

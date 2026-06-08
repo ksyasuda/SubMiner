@@ -178,7 +178,7 @@ export function TrendsTab() {
           type="line"
         />
         <TrendChart
-          title="New Words Learned (cumulative)"
+          title="New Words Seen (cumulative)"
           data={data.progress.newWords}
           color="#c6a0f6"
           type="line"

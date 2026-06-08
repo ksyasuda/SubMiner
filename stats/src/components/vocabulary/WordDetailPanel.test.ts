@@ -23,3 +23,10 @@ test('WordDetailPanel shows partial media mining errors instead of silent succes
   assert.match(source, /getStatsMineCardError/);
   assert.match(source, /const responseError = getStatsMineCardError\(result\);/);
 });
+
+test('WordDetailPanel uses the wider centered detail modal layout', () => {
+  const source = fs.readFileSync(WORD_DETAIL_PANEL_PATH, 'utf8');
+
+  assert.match(source, /fixed inset-0 z-40 flex items-center justify-center p-4/);
+  assert.match(source, /relative flex max-h-\[85vh\] w-full max-w-2xl flex-col/);
+});

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SessionBucket } from '../../lib/session-grouping';
 import type { SessionSummary } from '../../types/stats';
-import { buildBucketDeleteHandler } from './SessionsTab';
+import {
+  buildBucketDeleteHandler,
+  decrementDeletingSessionCounts,
+  incrementDeletingSessionCounts,
+} from './SessionsTab';
 
 function makeSession(over: Partial<SessionSummary>): SessionSummary {
   return {
@@ -108,6 +112,24 @@ test('buildBucketDeleteHandler signals deleted session IDs after confirm, before
 
   assert.deepEqual(events, ['confirm', 'start', 'delete', 'success']);
   assert.deepEqual(startedIds, [11, 22, 33]);
+});
+
+test('deleting session counts keep rows disabled during overlapping delete flows', () => {
+  let deleting = new Map<number, number>();
+  deleting = incrementDeletingSessionCounts(deleting, [11]);
+  deleting = incrementDeletingSessionCounts(deleting, [11, 22]);
+
+  assert.equal(deleting.get(11), 2);
+  assert.equal(deleting.get(22), 1);
+
+  deleting = decrementDeletingSessionCounts(deleting, [11]);
+
+  assert.equal(deleting.get(11), 1);
+  assert.equal(deleting.has(22), true);
+
+  deleting = decrementDeletingSessionCounts(deleting, [11, 22]);
+
+  assert.equal(deleting.size, 0);
 });
 
 test('buildBucketDeleteHandler does not call onStart when confirm returns false', async () => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { SentenceSearchResult } from '../types/stats';
 import { getStatsMineCardUnavailableReason } from './mining';
 
@@ -30,8 +30,8 @@ export function findExactSentenceMatches(text: string, query: string): SentenceM
   while (searchFrom < haystack.length) {
     const index = haystack.indexOf(normalizedNeedle, searchFrom);
     if (index < 0) break;
-    ranges.push({ start: index, end: index + needle.length });
-    searchFrom = index + needle.length;
+    ranges.push({ start: index, end: index + normalizedNeedle.length });
+    searchFrom = index + normalizedNeedle.length;
   }
 
   return ranges;
@@ -60,7 +60,7 @@ export function renderSentenceWithMatches(text: string, query: string): ReactNod
   let cursor = 0;
   ranges.forEach((range, index) => {
     if (range.start > cursor) {
-      parts.push(text.slice(cursor, range.start));
+      parts.push(<Fragment key={`text-${cursor}`}>{text.slice(cursor, range.start)}</Fragment>);
     }
     parts.push(
       <mark
@@ -74,7 +74,7 @@ export function renderSentenceWithMatches(text: string, query: string): ReactNod
   });
 
   if (cursor < text.length) {
-    parts.push(text.slice(cursor));
+    parts.push(<Fragment key={`text-${cursor}`}>{text.slice(cursor)}</Fragment>);
   }
 
   return parts;

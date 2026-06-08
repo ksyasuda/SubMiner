@@ -48,13 +48,15 @@ Recent sessions, streak calendar, watch-time history, and a tracking snapshot wi
 
 Cover-art library with search and sorting, per-series progress, episode drill-down, and direct links into mined cards.
 
+Local files and Jellyfin items with detected season numbers are split into season-specific library entries, so `Season 1` and `Season 2` folders do not merge into one show card.
+
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
 ![Stats Library](/screenshots/stats-library.png)
 
 #### Trends
 
-Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words learned and episodes), Efficiency (reading speed, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
+Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (reading speed, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
@@ -66,7 +68,7 @@ Expandable session history with new-word activity, cumulative totals, and pause/
 
 #### Vocabulary
 
-Top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
+Top repeated words (click a bar to open the word), new-word timeline, cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 

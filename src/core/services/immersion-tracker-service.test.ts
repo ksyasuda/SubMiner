@@ -1518,7 +1518,7 @@ test('handleMediaChange links parsed anime metadata on the active video row', as
     assert.equal(row?.parsed_season, 2);
     assert.equal(row?.parsed_episode, 5);
     assert.ok(row?.parser_source === 'guessit' || row?.parser_source === 'fallback');
-    assert.equal(row?.anime_title, 'Little Witch Academia');
+    assert.equal(row?.anime_title, 'Little Witch Academia Season 2');
     assert.equal(row?.anilist_id, null);
   } finally {
     tracker?.destroy();
@@ -1583,14 +1583,89 @@ test('handleMediaChange reuses the same provisional anime row across matching fi
         {
           sourcePath: '/tmp/Little Witch Academia S02E05.mkv',
           parsedEpisode: 5,
-          animeTitle: 'Little Witch Academia',
+          animeTitle: 'Little Witch Academia Season 2',
           anilistId: null,
         },
         {
           sourcePath: '/tmp/Little Witch Academia S02E06.mkv',
           parsedEpisode: 6,
-          animeTitle: 'Little Witch Academia',
+          animeTitle: 'Little Witch Academia Season 2',
           anilistId: null,
+        },
+      ],
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('handleMediaChange splits matching parsed titles across distinct seasons', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    tracker.handleMediaChange('/tmp/KonoSuba/Season 1/KonoSuba S01E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    tracker.handleMediaChange('/tmp/KonoSuba/Season 2/KonoSuba S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+    };
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            v.source_path,
+            v.anime_id,
+            v.parsed_season,
+            a.canonical_title AS anime_title,
+            a.normalized_title_key
+          FROM imm_videos v
+          LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+          WHERE v.source_path IN (?, ?)
+          ORDER BY v.source_path
+        `,
+      )
+      .all(
+        '/tmp/KonoSuba/Season 1/KonoSuba S01E05.mkv',
+        '/tmp/KonoSuba/Season 2/KonoSuba S02E05.mkv',
+      ) as Array<{
+      source_path: string | null;
+      anime_id: number | null;
+      parsed_season: number | null;
+      anime_title: string | null;
+      normalized_title_key: string | null;
+    }>;
+
+    assert.equal(rows.length, 2);
+    assert.ok(rows[0]?.anime_id);
+    assert.ok(rows[1]?.anime_id);
+    assert.notEqual(rows[0]?.anime_id, rows[1]?.anime_id);
+    assert.deepEqual(
+      rows.map((row) => ({
+        sourcePath: row.source_path,
+        parsedSeason: row.parsed_season,
+        animeTitle: row.anime_title,
+        normalizedTitleKey: row.normalized_title_key,
+      })),
+      [
+        {
+          sourcePath: '/tmp/KonoSuba/Season 1/KonoSuba S01E05.mkv',
+          parsedSeason: 1,
+          animeTitle: 'KonoSuba Season 1',
+          normalizedTitleKey: 'konosuba season 1',
+        },
+        {
+          sourcePath: '/tmp/KonoSuba/Season 2/KonoSuba S02E05.mkv',
+          parsedSeason: 2,
+          animeTitle: 'KonoSuba Season 2',
+          normalizedTitleKey: 'konosuba season 2',
         },
       ],
     );
@@ -1685,7 +1760,7 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
     assert.equal(jellyfinRow.parsed_season, 2);
     assert.equal(jellyfinRow.parsed_episode, 2);
     assert.equal(jellyfinRow.parser_source, 'jellyfin');
-    assert.equal(jellyfinRow.anime_title, 'The Beginning After the End');
+    assert.equal(jellyfinRow.anime_title, 'The Beginning After the End Season 2');
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

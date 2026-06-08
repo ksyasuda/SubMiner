@@ -4,6 +4,7 @@ import type { AnimeDetailData, AnilistEntry } from '../../types/stats';
 interface AnimeHeaderProps {
   detail: AnimeDetailData['detail'];
   anilistEntries: AnilistEntry[];
+  coverRetryToken?: number;
   onChangeAnilist?: () => void;
 }
 
@@ -26,19 +27,26 @@ function AnilistButton({ entry }: { entry: AnilistEntry }) {
   );
 }
 
-export function AnimeHeader({ detail, anilistEntries, onChangeAnilist }: AnimeHeaderProps) {
+export function AnimeHeader({
+  detail,
+  anilistEntries,
+  coverRetryToken = 0,
+  onChangeAnilist,
+}: AnimeHeaderProps) {
   const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative].filter(
     (t): t is string => t != null && t !== detail.canonicalTitle,
   );
   const uniqueAltTitles = [...new Set(altTitles)];
 
   const hasMultipleEntries = anilistEntries.length > 1;
+  const coverCacheToken = (detail.anilistId ?? 0) + coverRetryToken;
 
   return (
     <div className="flex gap-4">
       <AnimeCoverImage
         animeId={detail.animeId}
         title={detail.canonicalTitle}
+        coverRetryToken={coverCacheToken}
         className="w-32 h-44 rounded-lg shrink-0"
       />
       <div className="flex-1 min-w-0">

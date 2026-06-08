@@ -57,6 +57,29 @@ export function buildBucketDeleteHandler(deps: BucketDeleteDeps): () => Promise<
   };
 }
 
+export function incrementDeletingSessionCounts(
+  prev: ReadonlyMap<number, number>,
+  ids: number[],
+): Map<number, number> {
+  const next = new Map(prev);
+  for (const id of ids) next.set(id, (next.get(id) ?? 0) + 1);
+  return next;
+}
+
+export function decrementDeletingSessionCounts(
+  prev: ReadonlyMap<number, number>,
+  ids: number[],
+): Map<number, number> {
+  const next = new Map(prev);
+  for (const id of ids) {
+    const count = next.get(id);
+    if (!count) continue;
+    if (count <= 1) next.delete(id);
+    else next.set(id, count - 1);
+  }
+  return next;
+}
+
 interface SessionsTabProps {
   initialSessionId?: number | null;
   onClearInitialSession?: () => void;
@@ -74,7 +97,9 @@ export function SessionsTab({
   const [search, setSearch] = useState('');
   const [visibleSessions, setVisibleSessions] = useState<SessionSummary[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deletingSessionIds, setDeletingSessionIds] = useState<Set<number>>(() => new Set());
+  const [deletingSessionIds, setDeletingSessionIds] = useState<Map<number, number>>(
+    () => new Map(),
+  );
   const [deletingBucketKey, setDeletingBucketKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,6 +148,14 @@ export function SessionsTab({
     });
   };
 
+  const markDeleting = (ids: number[]) => {
+    setDeletingSessionIds((prev) => incrementDeletingSessionCounts(prev, ids));
+  };
+
+  const unmarkDeleting = (ids: number[]) => {
+    setDeletingSessionIds((prev) => decrementDeletingSessionCounts(prev, ids));
+  };
+
   const handleDeleteSession = async (session: SessionSummary) => {
     let confirmed = false;
     try {
@@ -134,11 +167,7 @@ export function SessionsTab({
     if (!confirmed) return;
 
     setDeleteError(null);
-    setDeletingSessionIds((prev) => {
-      const next = new Set(prev);
-      next.add(session.sessionId);
-      return next;
-    });
+    markDeleting([session.sessionId]);
     try {
       await apiClient.deleteSession(session.sessionId);
       setVisibleSessions((prev) => prev.filter((item) => item.sessionId !== session.sessionId));
@@ -146,11 +175,7 @@ export function SessionsTab({
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
     } finally {
-      setDeletingSessionIds((prev) => {
-        const next = new Set(prev);
-        next.delete(session.sessionId);
-        return next;
-      });
+      unmarkDeleting([session.sessionId]);
     }
   };
 
@@ -161,12 +186,7 @@ export function SessionsTab({
       bucket,
       apiClient,
       confirm: confirmBucketDelete,
-      onStart: (ids) =>
-        setDeletingSessionIds((prev) => {
-          const next = new Set(prev);
-          for (const id of ids) next.add(id);
-          return next;
-        }),
+      onStart: (ids) => markDeleting(ids),
       onSuccess: (ids) => {
         const deleted = new Set(ids);
         setVisibleSessions((prev) => prev.filter((s) => !deleted.has(s.sessionId)));
@@ -184,11 +204,7 @@ export function SessionsTab({
       await handler();
     } finally {
       setDeletingBucketKey(null);
-      setDeletingSessionIds((prev) => {
-        const next = new Set(prev);
-        for (const session of bucket.sessions) next.delete(session.sessionId);
-        return next;
-      });
+      unmarkDeleting(bucket.sessions.map((session) => session.sessionId));
     }
   };
 

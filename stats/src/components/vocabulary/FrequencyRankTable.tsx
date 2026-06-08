@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { PosBadge } from './pos-helpers';
 import { fullReading } from '../../lib/reading-utils';
+import { isKanaOnlyTokenText } from '../../lib/kana-token';
+import { readBooleanPreference, writeBooleanPreference } from '../../lib/preference-storage';
 import type { VocabularyEntry } from '../../types/stats';
 
 interface FrequencyRankTableProps {
@@ -18,12 +20,7 @@ interface FrequencyRankOptions {
   hideKanaOnly: boolean;
 }
 
-const KANA_ONLY_TEXT = /^[\p{Script=Hiragana}\p{Script=Katakana}\u30fc\u309d\u309e\u30fd\u30fe]+$/u;
-
-export function isKanaOnlyTokenText(text: string): boolean {
-  const trimmed = text.trim();
-  return trimmed.length > 0 && KANA_ONLY_TEXT.test(trimmed);
-}
+export { isKanaOnlyTokenText };
 
 function isWordKnown(w: VocabularyEntry, knownWords: Set<string>): boolean {
   return knownWords.has(w.headword) || knownWords.has(w.word);
@@ -31,33 +28,6 @@ function isWordKnown(w: VocabularyEntry, knownWords: Set<string>): boolean {
 
 function isKanaOnlyWord(w: VocabularyEntry): boolean {
   return isKanaOnlyTokenText(w.headword || w.word);
-}
-
-function getPreferenceStorage(): Storage | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function readBooleanPreference(key: string, fallback: boolean): boolean {
-  try {
-    const value = getPreferenceStorage()?.getItem(key);
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeBooleanPreference(key: string, value: boolean): void {
-  try {
-    getPreferenceStorage()?.setItem(key, String(value));
-  } catch {
-    // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
-  }
 }
 
 export function buildFrequencyRankRows(

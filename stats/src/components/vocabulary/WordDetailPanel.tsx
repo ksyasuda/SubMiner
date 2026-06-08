@@ -184,7 +184,7 @@ export function WordDetailPanel({
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <aside className="relative flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
+      <aside className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">

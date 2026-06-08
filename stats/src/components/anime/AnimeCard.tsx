@@ -18,6 +18,7 @@ export function AnimeCard({ anime, onClick }: AnimeCardProps) {
         <AnimeCoverImage
           animeId={anime.animeId}
           title={anime.canonicalTitle}
+          coverRetryToken={anime.anilistId ?? 0}
           className="w-full aspect-[3/4] rounded-t-lg transition-transform duration-200 group-hover:scale-105"
         />
       </div>

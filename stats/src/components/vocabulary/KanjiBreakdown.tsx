@@ -18,7 +18,7 @@ const FREQ_TIERS = [
 ] as const;
 
 function tierFor(intensity: number) {
-  return FREQ_TIERS.find((tier) => intensity >= tier.min) ?? FREQ_TIERS[FREQ_TIERS.length - 1];
+  return FREQ_TIERS.find((tier) => intensity >= tier.min) ?? FREQ_TIERS[FREQ_TIERS.length - 1]!;
 }
 
 export function KanjiBreakdown({
