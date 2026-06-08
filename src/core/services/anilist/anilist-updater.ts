@@ -228,7 +228,7 @@ function pickBestSearchResult(
       native?: string | null;
     };
   }>,
-): { id: number; title: string } | null {
+): { id: number; title: string; episodes: number | null } | null {
   const filtered = media.filter((item) => {
     const totalEpisodes = item.episodes;
     return totalEpisodes === null || totalEpisodes >= episode;
@@ -247,7 +247,7 @@ function pickBestSearchResult(
   const selected = exact ?? candidates[0]!;
   const selectedTitle =
     selected.title?.english || selected.title?.romaji || selected.title?.native || title;
-  return { id: selected.id, title: selectedTitle };
+  return { id: selected.id, title: selectedTitle, episodes: selected.episodes };
 }
 
 function isUpdateableListStatus(status: string | null | undefined): boolean {
@@ -257,6 +257,15 @@ function isUpdateableListStatus(status: string | null | undefined): boolean {
 function formatListStatus(status: string | null | undefined): string {
   if (!status) return 'not in your AniList Planning or Watching list';
   return `marked ${status.toLowerCase().replace(/_/g, ' ')} on AniList`;
+}
+
+function isKnownFinalEpisode(totalEpisodes: number | null, episode: number): boolean {
+  return (
+    typeof totalEpisodes === 'number' &&
+    Number.isInteger(totalEpisodes) &&
+    totalEpisodes > 0 &&
+    episode === totalEpisodes
+  );
 }
 
 export async function guessAnilistMediaInfo(
@@ -394,7 +403,8 @@ export async function updateAnilistPostWatchProgress(
   }
 
   const currentProgress = entry.progress ?? 0;
-  if (typeof currentProgress === 'number' && currentProgress >= episode) {
+  const shouldMarkCompleted = isKnownFinalEpisode(picked.episodes, episode);
+  if (typeof currentProgress === 'number' && currentProgress >= episode && !shouldMarkCompleted) {
     return {
       status: 'skipped',
       message: `AniList already at episode ${currentProgress} (${picked.title}).`,
@@ -404,14 +414,18 @@ export async function updateAnilistPostWatchProgress(
   const saveResponse = await anilistGraphQl<AnilistSaveEntryData>(
     accessToken,
     `
-      mutation ($mediaId: Int!, $progress: Int!) {
-        SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: CURRENT) {
+      mutation ($mediaId: Int!, $progress: Int!, $status: MediaListStatus!) {
+        SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status) {
           progress
           status
         }
       }
     `,
-    { mediaId: picked.id, progress: episode },
+    {
+      mediaId: picked.id,
+      progress: episode,
+      status: shouldMarkCompleted ? 'COMPLETED' : 'CURRENT',
+    },
     options,
   );
   const saveError = firstErrorMessage(saveResponse);
@@ -421,6 +435,8 @@ export async function updateAnilistPostWatchProgress(
 
   return {
     status: 'updated',
-    message: `AniList updated "${picked.title}" to episode ${episode}.`,
+    message: shouldMarkCompleted
+      ? `AniList updated "${picked.title}" to episode ${episode} and marked it completed.`
+      : `AniList updated "${picked.title}" to episode ${episode}.`,
   };
 }
