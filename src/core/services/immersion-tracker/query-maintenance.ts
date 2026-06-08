@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
 import { rebuildLifetimeSummariesInTransaction } from './lifetime';
-import { rebuildRollupsInTransaction } from './maintenance';
+import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import { nowMs } from './time';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
@@ -474,13 +474,14 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
   const sessionIds = [sessionId];
   const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
   const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+  const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
     rebuildLifetimeSummariesInTransaction(db);
-    rebuildRollupsInTransaction(db);
+    refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -492,13 +493,14 @@ export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   if (sessionIds.length === 0) return;
   const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
   const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+  const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
     deleteSessionsByIds(db, sessionIds);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
     rebuildLifetimeSummariesInTransaction(db);
-    rebuildRollupsInTransaction(db);
+    refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -536,7 +538,6 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
     refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
     rebuildLifetimeSummariesInTransaction(db);
-    rebuildRollupsInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

@@ -55,6 +55,7 @@ import {
   getStatsExcludedWords,
   getVocabularyStats,
   replaceStatsExcludedWords,
+  searchSubtitleSentences,
   getWordAnimeAppearances,
   getWordDetail,
   getWordOccurrences,
@@ -89,6 +90,7 @@ import {
   markVideoWatched,
   upsertCoverArt,
 } from './immersion-tracker/query-maintenance';
+import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -148,6 +150,8 @@ import {
   type MediaLibraryRow,
   type NewAnimePerDayRow,
   type QueuedWrite,
+  type SentenceSearchOptions,
+  type SentenceSearchResultRow,
   type SessionEventRow,
   type SessionState,
   type SessionSummaryQueryRow,
@@ -328,6 +332,34 @@ function buildJellyfinStatsMediaPath(mediaPath: string, itemId: string): string 
   }
 }
 
+const JELLYFIN_MEDIA_ALIAS_QUERY_KEYS = [
+  'api_key',
+  'StartTimeTicks',
+  'AudioStreamIndex',
+  'SubtitleStreamIndex',
+];
+
+function deleteSearchParamsCaseInsensitive(searchParams: URLSearchParams, names: string[]): void {
+  const loweredNames = new Set(names.map((name) => name.toLowerCase()));
+  for (const key of [...searchParams.keys()]) {
+    if (loweredNames.has(key.toLowerCase())) {
+      searchParams.delete(key);
+    }
+  }
+}
+
+function buildJellyfinMediaPathAliasCandidates(mediaPath: string): string[] {
+  const candidates = new Set<string>([mediaPath]);
+  try {
+    const parsed = new URL(mediaPath);
+    deleteSearchParamsCaseInsensitive(parsed.searchParams, JELLYFIN_MEDIA_ALIAS_QUERY_KEYS);
+    candidates.add(parsed.toString());
+  } catch {
+    // Non-URL fallback paths are already represented by the raw candidate.
+  }
+  return [...candidates];
+}
+
 export class ImmersionTrackerService {
   private readonly logger = createLogger('main:immersion-tracker');
   private readonly db: DatabaseSync;
@@ -435,6 +467,12 @@ export class ImmersionTrackerService {
     if (reconciledSessions > 0) {
       this.logger.info(
         `Recovered stale active sessions on startup: reconciledSessions=${reconciledSessions}`,
+      );
+    }
+    const jellyfinRepair = repairJellyfinStreamVideoLinks(this.db);
+    if (jellyfinRepair.repaired > 0) {
+      this.logger.info(
+        `Repaired Jellyfin stats links on startup: scanned=${jellyfinRepair.scanned} repaired=${jellyfinRepair.repaired}`,
       );
     }
     if (shouldBackfillLifetimeSummaries(this.db)) {
@@ -566,6 +604,14 @@ export class ImmersionTrackerService {
 
   async getKanjiOccurrences(kanji: string, limit = 100, offset = 0): Promise<KanjiOccurrenceRow[]> {
     return getKanjiOccurrences(this.db, kanji, limit, offset);
+  }
+
+  async searchSubtitleSentences(
+    query: string,
+    limit = 50,
+    options?: SentenceSearchOptions,
+  ): Promise<SentenceSearchResultRow[]> {
+    return searchSubtitleSentences(this.db, query, limit, options);
   }
 
   async getSessionEvents(
@@ -1149,7 +1195,9 @@ export class ImmersionTrackerService {
       return;
     }
     const normalizedPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
-    this.mediaPathAliases.set(rawPath, normalizedPath);
+    for (const alias of buildJellyfinMediaPathAliasCandidates(rawPath)) {
+      this.mediaPathAliases.set(alias, normalizedPath);
+    }
 
     const displayTitle =
       normalizeText(metadata.displayTitle) ||
@@ -1158,6 +1206,8 @@ export class ImmersionTrackerService {
     const itemTitle = normalizeText(metadata.itemTitle) || displayTitle;
     const seriesTitle = normalizeText(metadata.seriesTitle);
     const libraryTitle = seriesTitle || itemTitle;
+    const seasonNumber = normalizeMetadataInt(metadata.seasonNumber);
+    const episodeNumber = normalizeMetadataInt(metadata.episodeNumber);
     if (!libraryTitle) {
       return;
     }
@@ -1181,12 +1231,13 @@ export class ImmersionTrackerService {
       itemTitle,
       seriesTitle: seriesTitle || null,
       displayTitle,
-      seasonNumber: normalizeMetadataInt(metadata.seasonNumber),
-      episodeNumber: normalizeMetadataInt(metadata.episodeNumber),
+      seasonNumber,
+      episodeNumber,
     });
     const animeId = getOrCreateAnimeRecord(this.db, {
       parsedTitle: libraryTitle,
       canonicalTitle: libraryTitle,
+      seasonScope: seasonNumber,
       anilistId: null,
       titleRomaji: null,
       titleEnglish: null,
@@ -1197,8 +1248,8 @@ export class ImmersionTrackerService {
       animeId,
       parsedBasename: null,
       parsedTitle: libraryTitle,
-      parsedSeason: normalizeMetadataInt(metadata.seasonNumber),
-      parsedEpisode: normalizeMetadataInt(metadata.episodeNumber),
+      parsedSeason: seasonNumber,
+      parsedEpisode: episodeNumber,
       parserSource: 'jellyfin',
       parserConfidence: 1,
       parseMetadataJson: metadataJson,
@@ -1221,7 +1272,10 @@ export class ImmersionTrackerService {
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
     const rawPath = normalizeMediaPath(mediaPath);
-    const normalizedPath = this.mediaPathAliases.get(rawPath) ?? rawPath;
+    const normalizedPath =
+      buildJellyfinMediaPathAliasCandidates(rawPath)
+        .map((alias) => this.mediaPathAliases.get(alias))
+        .find((alias): alias is string => Boolean(alias)) ?? rawPath;
     const normalizedTitle = normalizeText(mediaTitle);
     this.logger.info(
       `handleMediaChange called with path=${normalizedPath || '<empty>'} title=${normalizedTitle || '<empty>'}`,
@@ -1294,7 +1348,7 @@ export class ImmersionTrackerService {
     const cleaned = normalizeText(text);
     if (!cleaned) return;
 
-    if (!endSec || endSec <= 0) {
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || endSec <= startSec) {
       return;
     }
 
@@ -1826,6 +1880,7 @@ export class ImmersionTrackerService {
         const animeId = getOrCreateAnimeRecord(this.db, {
           parsedTitle: parsed.parsedTitle,
           canonicalTitle: parsed.parsedTitle,
+          seasonScope: parsed.parsedSeason,
           anilistId: null,
           titleRomaji: null,
           titleEnglish: null,

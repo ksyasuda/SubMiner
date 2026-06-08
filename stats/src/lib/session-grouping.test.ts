@@ -4,8 +4,9 @@ import type { SessionSummary } from '../types/stats';
 import { groupSessionsByVideo } from './session-grouping';
 
 function makeSession(overrides: Partial<SessionSummary> & { sessionId: number }): SessionSummary {
+  const { sessionId, ...rest } = overrides;
   return {
-    sessionId: overrides.sessionId,
+    sessionId,
     canonicalTitle: null,
     videoId: null,
     animeId: null,
@@ -22,7 +23,7 @@ function makeSession(overrides: Partial<SessionSummary> & { sessionId: number })
     yomitanLookupCount: 0,
     knownWordsSeen: 0,
     knownWordRate: 0,
-    ...overrides,
+    ...rest,
   };
 }
 

@@ -287,7 +287,7 @@ Notes:
 - For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
 - Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
 - Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
-- Secondary target languages come from `secondarySub.secondarySubLanguages` (empty by default; when empty, no language-based secondary track is auto-selected, though mpv's `--slang` list above still prefers English variants).
+- Secondary target languages come from `secondarySub.secondarySubLanguages` (empty by default; when empty, no language-based secondary track is auto-selected, though mpv's `--slang` list above still prefers English variants). When multiple matching secondary tracks exist, SubMiner prefers a non-Signs/Songs track.
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
 For local video files, SubMiner uses the same config-driven language priorities to auto-select the primary and secondary subtitle tracks from internal and external subtitle sources.

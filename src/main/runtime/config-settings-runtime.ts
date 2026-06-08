@@ -193,13 +193,38 @@ export function createConfigSettingsRuntime<TWindow extends ConfigSettingsWindow
     };
   }
 
+  function persistInferredYomitanDeckIfEmpty(deckName: string): void {
+    const normalizedDeckName = deckName.trim();
+    const configuredDeckName = deps.getConfig().ankiConnect?.deck?.trim() ?? '';
+    if (!normalizedDeckName || configuredDeckName) {
+      return;
+    }
+
+    const result = savePatch({
+      operations: [
+        {
+          op: 'set',
+          path: 'ankiConnect.deck',
+          value: normalizedDeckName,
+        },
+      ],
+    });
+    if (!result.ok) {
+      deps.log?.(
+        `Failed to persist inferred Yomitan Anki deck: ${result.error ?? 'unknown error'}`,
+      );
+    }
+  }
+
   async function getYomitanAnkiDeckName(): Promise<ConfigSettingsAnkiDeckResult> {
     if (!deps.getYomitanAnkiDeckName) {
       return { ok: true, value: '' };
     }
     try {
       const value = await deps.getYomitanAnkiDeckName();
-      return { ok: true, value: typeof value === 'string' ? value.trim() : '' };
+      const deckName = typeof value === 'string' ? value.trim() : '';
+      persistInferredYomitanDeckIfEmpty(deckName);
+      return { ok: true, value: deckName };
     } catch (error) {
       return {
         ok: false,

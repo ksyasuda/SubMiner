@@ -82,6 +82,16 @@ export interface StatsExcludedWord {
   reading: string;
 }
 
+export interface StatsCoverImage {
+  contentType: string;
+  dataUrl: string;
+}
+
+export interface StatsCoverImagesData {
+  anime: Record<number, StatsCoverImage | null>;
+  media: Record<number, StatsCoverImage | null>;
+}
+
 export interface KanjiEntry {
   kanjiId: number;
   kanji: string;
@@ -103,6 +113,20 @@ export interface VocabularyOccurrenceEntry {
   segmentEndMs: number | null;
   text: string;
   occurrenceCount: number;
+}
+
+export interface SentenceSearchResult {
+  animeId: number | null;
+  animeTitle: string | null;
+  videoId: number;
+  videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
+  sessionId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
 }
 
 export interface OverviewData {
@@ -325,6 +349,8 @@ export interface TrendsDashboardData {
   };
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
+    cardsPerHour: TrendChartPoint[];
+    readingSpeed: TrendChartPoint[];
   };
   librarySummary: LibrarySummaryRow[];
   animeCumulative: {

@@ -179,6 +179,32 @@ test('guessAnimeVideoMetadata uses guessit basename output first when available'
   });
 });
 
+test('guessAnimeVideoMetadata keeps season directory scope when guessit omits season', async () => {
+  const parsed = await guessAnimeVideoMetadata(
+    '/tmp/KonoSuba/Season 2/KonoSuba - 05.mkv',
+    'Episode 5',
+    {
+      runGuessit: async () =>
+        JSON.stringify({
+          title: 'KonoSuba',
+        }),
+    },
+  );
+
+  assert.deepEqual(parsed, {
+    parsedBasename: 'KonoSuba - 05.mkv',
+    parsedTitle: 'KonoSuba',
+    parsedSeason: 2,
+    parsedEpisode: null,
+    parserSource: 'guessit',
+    parserConfidence: 1,
+    parseMetadataJson: JSON.stringify({
+      filename: 'KonoSuba - 05.mkv',
+      source: 'guessit',
+    }),
+  });
+});
+
 test('guessAnimeVideoMetadata falls back to parser when guessit throws', async () => {
   const parsed = await guessAnimeVideoMetadata(
     '/tmp/Little Witch Academia S02E05.mkv',

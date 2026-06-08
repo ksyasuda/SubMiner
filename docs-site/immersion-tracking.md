@@ -18,8 +18,8 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 {
   "immersionTracking": {
     "enabled": true,
-    "dbPath": ""
-  }
+    "dbPath": "",
+  },
 }
 ```
 
@@ -48,13 +48,17 @@ Recent sessions, streak calendar, watch-time history, and a tracking snapshot wi
 
 Cover-art library with search and sorting, per-series progress, episode drill-down, and direct links into mined cards.
 
+Local files and Jellyfin items with detected season numbers are split into season-specific library entries, so `Season 1` and `Season 2` folders do not merge into one show card.
+
+Jellyfin stream URLs are normalized to stable item links before stats titles are shown, so playback query parameters are not displayed in the dashboard.
+
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
 ![Stats Library](/screenshots/stats-library.png)
 
 #### Trends
 
-Watch time, sessions, words seen, and per-anime progress/pattern charts with configurable date ranges and grouping.
+Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (words/min, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
@@ -66,9 +70,13 @@ Expandable session history with new-word activity, cumulative totals, and pause/
 
 #### Vocabulary
 
-Top repeated words (click a bar to open the word), new-word timeline, frequency rank table with full readings, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
+Top repeated words (click a bar to open the word), new-word timeline, cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
+
+#### Search
+
+Realtime search across tracked primary subtitle lines and media titles. Results show the source media, session, line number, timing, and sentence text. Secondary subtitle text is not shown or searched here because separate subtitle tracks may not line up sentence-for-sentence. Sentence cards can be mined from any result with a valid local source and timing. Word and audio card buttons appear only when the searched word exactly appears in the primary sentence text; matching text is highlighted in the result.
 
 Stats server config lives under `stats`:
 
@@ -78,8 +86,8 @@ Stats server config lives under `stats`:
     "toggleKey": "Backquote",
     "serverPort": 6969,
     "autoStartServer": true,
-    "autoOpenBrowser": false
-  }
+    "autoOpenBrowser": false,
+  },
 }
 ```
 
@@ -96,15 +104,15 @@ Stats server config lives under `stats`:
 
 ## Mining Cards from the Stats Page
 
-The Vocabulary tab's word detail panel shows example lines from your viewing history. Each example line with a valid source file offers three mining buttons:
+The Search tab and the Vocabulary tab's word detail panel both mine from subtitle lines in your viewing history. Search matches sentence text and media titles, and **Search by headword** is enabled by default so dictionary-form searches such as `知らない` can find tracked subtitle lines with inflected variants. Turn that toggle off for exact text/title matching only. Each line with a valid source file offers sentence-card mining; word/audio mining is available when the selected word or searched word appears in the sentence:
 
 - **Mine Word** - performs a full Yomitan dictionary lookup for the word (definition, reading, pitch accent, etc.) via a short-lived hidden helper, then enriches the card with sentence audio, a screenshot or animated AVIF clip, the highlighted sentence, and metadata extracted from the source video file. Requires Anki and Yomitan dictionaries to be loaded.
-- **Mine Sentence** - creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio, image, and translation from the secondary subtitle if available.
+- **Mine Sentence** - creates a sentence card directly with the `IsSentenceCard` flag set (for Lapis/Kiku workflows), along with audio and image from the source video.
 - **Mine Audio** - creates an audio-only card with the `IsAudioCard` flag, attaching only the sentence audio clip.
 
 All three modes respect your `ankiConnect` config: deck, model, field mappings, media settings (static vs AVIF, quality, dimensions), audio padding, metadata pattern, and tags. Media generation runs in parallel for faster card creation.
 
-Secondary subtitle text (typically English translations) is stored alongside primary subtitles during playback and used as the translation field when mining from the stats page.
+Secondary subtitle text (typically English translations) is stored alongside primary subtitles during playback and can be used as the translation field when mining sentence cards from Search or vocabulary occurrences. The Search tab does not use that text for display or matching.
 
 ### Word Exclusion List
 
@@ -114,12 +122,12 @@ The Vocabulary tab toolbar includes an **Exclusions** button for hiding words fr
 
 By default, SubMiner keeps all retention tables and raw data (`0` means keep all) while continuing daily/monthly rollup maintenance:
 
-| Data type      | Retention |
-| -------------- | --------- |
-| Raw events     | 0 (keep all)   |
-| Telemetry      | 0 (keep all)   |
-| Sessions      | 0 (keep all)   |
-| Daily rollups  | 0 (keep all)   |
+| Data type       | Retention    |
+| --------------- | ------------ |
+| Raw events      | 0 (keep all) |
+| Telemetry       | 0 (keep all) |
+| Sessions        | 0 (keep all) |
+| Daily rollups   | 0 (keep all) |
 | Monthly rollups | 0 (keep all) |
 
 Maintenance runs on startup and every 24 hours. Vacuum runs only when `retention.vacuumIntervalDays` is non-zero.
@@ -146,24 +154,24 @@ The tracker is optimized for "keep everything" defaults:
 
 All policy options live under `immersionTracking` in your config:
 
-| Option | Description |
-| ------ | ----------- |
-| `batchSize` | Writes per flush batch |
-| `flushIntervalMs` | Max delay between flushes (default: 500ms) |
-| `queueCap` | Max queued writes before oldest are dropped |
-| `payloadCapBytes` | Max payload size per write |
-| `maintenanceIntervalMs` | How often maintenance runs |
-| `retention.eventsDays` | Raw event retention |
-| `retention.telemetryDays` | Telemetry retention |
-| `retention.sessionsDays` | Session retention |
-| `retention.dailyRollupsDays` | Daily rollup retention |
-| `retention.monthlyRollupsDays` | Monthly rollup retention |
-| `retention.vacuumIntervalDays` | Minimum spacing between vacuums |
-| `retentionMode` | `preset` or `advanced` |
-| `retentionPreset` | `minimal`, `balanced`, or `deep-history` (used by `retentionMode`) |
-| `lifetimeSummaries.global` | Maintain global lifetime totals |
-| `lifetimeSummaries.anime` | Maintain per-anime lifetime totals |
-| `lifetimeSummaries.media` | Maintain per-media lifetime totals |
+| Option                         | Description                                                        |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `batchSize`                    | Writes per flush batch                                             |
+| `flushIntervalMs`              | Max delay between flushes (default: 500ms)                         |
+| `queueCap`                     | Max queued writes before oldest are dropped                        |
+| `payloadCapBytes`              | Max payload size per write                                         |
+| `maintenanceIntervalMs`        | How often maintenance runs                                         |
+| `retention.eventsDays`         | Raw event retention                                                |
+| `retention.telemetryDays`      | Telemetry retention                                                |
+| `retention.sessionsDays`       | Session retention                                                  |
+| `retention.dailyRollupsDays`   | Daily rollup retention                                             |
+| `retention.monthlyRollupsDays` | Monthly rollup retention                                           |
+| `retention.vacuumIntervalDays` | Minimum spacing between vacuums                                    |
+| `retentionMode`                | `preset` or `advanced`                                             |
+| `retentionPreset`              | `minimal`, `balanced`, or `deep-history` (used by `retentionMode`) |
+| `lifetimeSummaries.global`     | Maintain global lifetime totals                                    |
+| `lifetimeSummaries.anime`      | Maintain per-anime lifetime totals                                 |
+| `lifetimeSummaries.media`      | Maintain per-media lifetime totals                                 |
 
 ## Query Templates
 

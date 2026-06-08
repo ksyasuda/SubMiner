@@ -72,7 +72,7 @@ export function createHandleMpvSubtitleTimingHandler(deps: {
       Number.isFinite(end) ? end : 0,
     );
     const options = watchedSeconds > 0 ? { watchedSeconds } : undefined;
-    if (text.trim()) {
+    if (text.trim() && Number.isFinite(start) && Number.isFinite(end) && end > start) {
       deps.recordImmersionSubtitleLine(text, start, end);
       if (deps.hasSubtitleTimingTracker()) {
         deps.recordSubtitleTiming(text, start, end);

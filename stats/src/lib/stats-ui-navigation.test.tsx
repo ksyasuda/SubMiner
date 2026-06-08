@@ -10,6 +10,7 @@ test('TabBar renders Library instead of Anime for the media library tab', () => 
   assert.doesNotMatch(markup, />Anime</);
   assert.match(markup, />Overview</);
   assert.match(markup, />Library</);
+  assert.match(markup, />Search</);
 });
 
 test('EpisodeList renders explicit episode detail button alongside quick peek row', () => {

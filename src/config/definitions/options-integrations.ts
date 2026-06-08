@@ -63,7 +63,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.ankiConnect.deck,
       description:
-        'Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.',
+        'Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available.',
     },
     {
       path: 'ankiConnect.fields.word',

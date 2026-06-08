@@ -34,13 +34,13 @@ test('guessAnilistMediaInfo fills missing guessit episode from filename parser',
   });
 });
 
-test('guessAnilistMediaInfo ignores low-confidence parser details when guessit omits them', async () => {
+test('guessAnilistMediaInfo keeps season directory scope when guessit omits details', async () => {
   const result = await guessAnilistMediaInfo('/tmp/Season 2/Guessit Title.mkv', null, {
     runGuessit: async () => JSON.stringify({ title: 'Guessit Title' }),
   });
   assert.deepEqual(result, {
     title: 'Guessit Title',
-    season: null,
+    season: 2,
     episode: null,
     source: 'guessit',
   });

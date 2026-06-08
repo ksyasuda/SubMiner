@@ -356,6 +356,81 @@ test('split session and lexical helpers return distinct-headword, detail, appear
   }
 });
 
+test('similar words use same reading and shared kanji without kana suffix noise', () => {
+  const { db, dbPath, stmts } = createDb();
+
+  try {
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Similar Words Anime',
+      canonicalTitle: 'Similar Words Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/similar-words.mkv', {
+      canonicalTitle: 'Similar Words Episode',
+      sourcePath: '/tmp/similar-words.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const sessionId = startSessionRecord(db, videoId, 1_000_000).sessionId;
+
+    const araiId = insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 1,
+      text: '荒い息',
+      word: { headword: '荒い', word: '荒い', reading: 'あらい' },
+    });
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 2,
+      text: '洗い物',
+      word: { headword: '洗い', word: '洗い', reading: 'あらい' },
+    });
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 3,
+      text: '荒波',
+      word: { headword: '荒波', word: '荒波', reading: 'あらなみ' },
+    });
+
+    for (let lineIndex = 4; lineIndex < 9; lineIndex++) {
+      insertWordOccurrence(db, stmts, {
+        sessionId,
+        videoId,
+        animeId,
+        lineIndex,
+        text: '良い',
+        word: { headword: '良い', word: '良い', reading: 'よい' },
+      });
+    }
+    insertWordOccurrence(db, stmts, {
+      sessionId,
+      videoId,
+      animeId,
+      lineIndex: 9,
+      text: 'お構いなく',
+      word: { headword: 'お構いなく', word: 'お構いなく', reading: 'おかまいなく' },
+    });
+
+    assert.deepEqual(
+      getSimilarWords(db, araiId, 10).map((row) => row.headword),
+      ['洗い', '荒波'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('split library helpers return anime/media session and analytics rows', () => {
   const { db, dbPath, stmts } = createDb();
 
@@ -599,6 +674,79 @@ test('split maintenance helpers update anime metadata and watched state', () => 
     assert.equal(animeRow.episodes_total, 24);
     assert.equal(getVideoDurationMs(db, videoId), 222_000);
     assert.equal(isVideoWatched(db, videoId), true);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteSessions refreshes only rollups affected by deleted sessions', () => {
+  const { db, dbPath } = createDb();
+
+  try {
+    const keepVideoId = getOrCreateVideoRecord(db, 'local:/tmp/rollup-keep.mkv', {
+      canonicalTitle: 'Rollup Keep',
+      sourcePath: '/tmp/rollup-keep.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const dropVideoId = getOrCreateVideoRecord(db, 'local:/tmp/rollup-drop.mkv', {
+      canonicalTitle: 'Rollup Drop',
+      sourcePath: '/tmp/rollup-drop.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    const keepStartedAtMs = 1_700_000_000_000;
+    const dropStartedAtMs = 1_700_086_400_000;
+    const keepSessionId = startSessionRecord(db, keepVideoId, keepStartedAtMs).sessionId;
+    const dropSessionId = startSessionRecord(db, dropVideoId, dropStartedAtMs).sessionId;
+    finalizeSessionMetrics(db, keepSessionId, keepStartedAtMs, {
+      activeWatchedMs: 30_000,
+      cardsMined: 1,
+    });
+    finalizeSessionMetrics(db, dropSessionId, dropStartedAtMs, {
+      activeWatchedMs: 60_000,
+      cardsMined: 2,
+    });
+
+    const keepDay = getLocalEpochDay(db, keepStartedAtMs);
+    const dropDay = getLocalEpochDay(db, dropStartedAtMs);
+    const keepMonth = 202311;
+    const dropMonth = 202311;
+
+    const insertDaily = db.prepare(`
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertMonthly = db.prepare(`
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    insertDaily.run(keepDay, keepVideoId, 1, 0.5, 3, 6, 1, keepStartedAtMs, keepStartedAtMs);
+    insertDaily.run(dropDay, dropVideoId, 1, 1, 3, 6, 2, dropStartedAtMs, dropStartedAtMs);
+    insertMonthly.run(keepMonth, keepVideoId, 1, 0.5, 3, 6, 1, keepStartedAtMs, keepStartedAtMs);
+    insertMonthly.run(dropMonth, dropVideoId, 1, 1, 3, 6, 2, dropStartedAtMs, dropStartedAtMs);
+
+    deleteSessions(db, [dropSessionId]);
+
+    const dailyRows = db
+      .prepare('SELECT rollup_day, video_id, total_cards FROM imm_daily_rollups ORDER BY video_id')
+      .all() as Array<{ rollup_day: number; video_id: number; total_cards: number }>;
+    const monthlyRows = db
+      .prepare(
+        'SELECT rollup_month, video_id, total_cards FROM imm_monthly_rollups ORDER BY video_id',
+      )
+      .all() as Array<{ rollup_month: number; video_id: number; total_cards: number }>;
+
+    assert.deepEqual(dailyRows, [{ rollup_day: keepDay, video_id: keepVideoId, total_cards: 1 }]);
+    assert.deepEqual(monthlyRows, [
+      { rollup_month: keepMonth, video_id: keepVideoId, total_cards: 1 },
+    ]);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

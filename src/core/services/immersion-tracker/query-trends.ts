@@ -74,6 +74,8 @@ export interface TrendsDashboardQueryResult {
   };
   ratios: {
     lookupsPerHundred: TrendChartPoint[];
+    cardsPerHour: TrendChartPoint[];
+    readingSpeed: TrendChartPoint[];
   };
   animeCumulative: {
     watchTime: TrendPerAnimePoint[];
@@ -176,11 +178,31 @@ function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSe
   return session.tokensSeen;
 }
 
+function looksLikeJellyfinStreamTitle(title: string): boolean {
+  const lowered = title.toLowerCase();
+  const hasApiKey = /api[\s_-]*key(?:\s|=|$)/i.test(title);
+  return (
+    hasApiKey &&
+    (lowered.includes('stream?') ||
+      lowered.includes('/stream?') ||
+      lowered.includes('/videos/') ||
+      lowered.includes('mediasourceid'))
+  );
+}
+
+function sanitizeTrendTitle(title: string): string {
+  const normalized = title.trim();
+  if (!normalized) {
+    return 'Unknown';
+  }
+  return looksLikeJellyfinStreamTitle(normalized) ? 'Jellyfin Video' : normalized;
+}
+
 function resolveTrendAnimeTitle(value: {
   animeTitle: string | null;
   canonicalTitle: string | null;
 }): string {
-  return value.animeTitle ?? value.canonicalTitle ?? 'Unknown';
+  return sanitizeTrendTitle(value.animeTitle ?? value.canonicalTitle ?? 'Unknown');
 }
 
 function accumulatePoints(points: TrendChartPoint[]): TrendChartPoint[] {
@@ -223,6 +245,26 @@ function buildAggregatedTrendRows(rollups: ImmersionSessionRollupRow[]) {
       words: value.words,
       sessions: value.sessions,
     }));
+}
+
+function buildEfficiencyRates(rows: ReturnType<typeof buildAggregatedTrendRows>): {
+  cardsPerHour: TrendChartPoint[];
+  readingSpeed: TrendChartPoint[];
+} {
+  const cardsPerHour: TrendChartPoint[] = [];
+  const readingSpeed: TrendChartPoint[] = [];
+  for (const row of rows) {
+    const hours = row.activeMin / 60;
+    cardsPerHour.push({
+      label: row.label,
+      value: hours > 0 ? +(row.cards / hours).toFixed(1) : 0,
+    });
+    readingSpeed.push({
+      label: row.label,
+      value: row.activeMin > 0 ? +(row.words / row.activeMin).toFixed(1) : 0,
+    });
+  }
+  return { cardsPerHour, readingSpeed };
 }
 
 function buildWatchTimeByDayOfWeek(sessions: TrendSessionMetricRow[]): TrendChartPoint[] {
@@ -449,7 +491,7 @@ function getVideoAnimeTitleMap(
     )
     .all(...uniqueIds) as Array<{ videoId: number; animeTitle: string }>;
 
-  return new Map(rows.map((row) => [row.videoId, row.animeTitle]));
+  return new Map(rows.map((row) => [row.videoId, sanitizeTrendTitle(row.animeTitle)]));
 }
 
 function resolveVideoAnimeTitle(
@@ -675,6 +717,7 @@ export function getTrendsDashboard(
   );
 
   const aggregatedRows = buildAggregatedTrendRows(chartRollups);
+  const efficiency = buildEfficiencyRates(aggregatedRows);
   const activity = {
     watchTime: aggregatedRows.map((row) => ({ label: row.label, value: row.activeMin })),
     cards: aggregatedRows.map((row) => ({ label: row.label, value: row.cards })),
@@ -724,6 +767,8 @@ export function getTrendsDashboard(
     },
     ratios: {
       lookupsPerHundred: buildLookupsPerHundredWords(sessions, groupBy),
+      cardsPerHour: efficiency.cardsPerHour,
+      readingSpeed: efficiency.readingSpeed,
     },
     animeCumulative: {
       watchTime: buildCumulativePerAnime(animePerDay.watchTime),

@@ -29,7 +29,7 @@ export function AnilistSelector({
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -53,7 +53,7 @@ export function AnilistSelector({
 
   const handleInput = (value: string) => {
     setQuery(value);
-    clearTimeout(debounceRef.current);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => doSearch(value), 400);
   };
 

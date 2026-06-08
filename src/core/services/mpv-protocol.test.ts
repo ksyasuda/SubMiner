@@ -235,6 +235,27 @@ test('dispatchMpvProtocolMessage prefers the already selected matching secondary
   assert.deepEqual(state.commands, [{ command: ['set_property', 'secondary-sid', 3] }]);
 });
 
+test('dispatchMpvProtocolMessage skips signs and songs when choosing secondary subtitles', async () => {
+  const { deps, state } = createDeps({
+    getResolvedConfig: () => ({
+      secondarySub: { secondarySubLanguages: ['eng', 'en'] },
+    }),
+  });
+
+  await dispatchMpvProtocolMessage(
+    {
+      request_id: MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
+      data: [
+        { type: 'sub', id: 2, lang: 'eng', title: 'English Signs & Songs' },
+        { type: 'sub', id: 3, lang: 'eng', title: 'English Dialogue' },
+      ],
+    },
+    deps,
+  );
+
+  assert.deepEqual(state.commands, [{ command: ['set_property', 'secondary-sid', 3] }]);
+});
+
 test('dispatchMpvProtocolMessage restores secondary visibility on shutdown', async () => {
   const { deps, state } = createDeps();
 

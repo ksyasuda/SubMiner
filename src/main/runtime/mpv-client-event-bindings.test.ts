@@ -159,6 +159,30 @@ test('mpv subtitle timing handler runs AniList without timing tracker and passes
   assert.deepEqual(calls, ['immersion:line:899:901', 'post-watch:901']);
 });
 
+test('mpv subtitle timing handler skips invalid cue pairs until timing is complete', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleTimingHandler({
+    recordImmersionSubtitleLine: (text, start, end) =>
+      calls.push(`immersion:${text}:${start}:${end}`),
+    hasSubtitleTimingTracker: () => true,
+    recordSubtitleTiming: (text, start, end) => calls.push(`timing:${text}:${start}:${end}`),
+    maybeRunAnilistPostWatchUpdate: async (options) => {
+      calls.push(`post-watch:${options?.watchedSeconds}`);
+    },
+    logError: () => calls.push('error'),
+  });
+
+  handler({ text: 'line', start: 953.991, end: 953.891 });
+  handler({ text: 'line', start: 953.991, end: 956.56 });
+
+  assert.deepEqual(calls, [
+    'post-watch:953.991',
+    'immersion:line:953.991:956.56',
+    'timing:line:953.991:956.56',
+    'post-watch:956.56',
+  ]);
+});
+
 test('mpv event bindings register all expected events', () => {
   const seenEvents: string[] = [];
   const bindHandlers = createBindMpvClientEventHandlers({

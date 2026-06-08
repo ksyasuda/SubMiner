@@ -52,6 +52,11 @@ export interface ImmersionTrackerPolicy {
   };
 }
 
+export interface JellyfinLinkRepairSummary {
+  scanned: number;
+  repaired: number;
+}
+
 export interface TelemetryAccumulator {
   totalWatchedMs: number;
   activeWatchedMs: number;
@@ -365,6 +370,29 @@ export interface KanjiOccurrenceRow {
   segmentEndMs: number | null;
   text: string;
   occurrenceCount: number;
+}
+
+export interface SentenceSearchResultRow {
+  animeId: number | null;
+  animeTitle: string | null;
+  videoId: number;
+  videoTitle: string;
+  sourcePath: string | null;
+  secondaryText: string | null;
+  sessionId: number;
+  lineIndex: number;
+  segmentStartMs: number | null;
+  segmentEndMs: number | null;
+  text: string;
+}
+
+export interface SentenceSearchHeadwordTerm {
+  term: string;
+  headwords: string[];
+}
+
+export interface SentenceSearchOptions {
+  headwordTerms?: SentenceSearchHeadwordTerm[];
 }
 
 export interface SessionEventRow {

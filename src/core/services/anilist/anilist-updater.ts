@@ -292,7 +292,7 @@ export async function guessAnilistMediaInfo(
           title: buildGuessitTitle(title, alternativeTitle),
           ...(alternativeTitle ? { alternativeTitle } : {}),
           ...(year ? { year } : {}),
-          season: season ?? (canUseFallbackDetails ? fallback.season : null),
+          season: season ?? fallback.season,
           episode: episode ?? (canUseFallbackDetails ? fallback.episode : null),
           source: 'guessit',
         };

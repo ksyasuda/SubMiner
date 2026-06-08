@@ -5,7 +5,9 @@ import {
   formatNumber,
   formatSessionDayLabel,
 } from '../../lib/formatters';
-import { BASE_URL } from '../../lib/api-client';
+import { CoverThumbnail } from './CoverThumbnail';
+import { useCoverImages } from '../../hooks/useCoverImages';
+import type { CoverImageMap } from '../../lib/cover-images';
 import { getSessionDisplayWordCount } from '../../lib/session-word-count';
 import { getSessionNavigationTarget } from '../../lib/stats-navigation';
 import type { SessionSummary } from '../../types/stats';
@@ -18,6 +20,7 @@ interface RecentSessionsProps {
   onDeleteDayGroup: (dayLabel: string, daySessions: SessionSummary[]) => void;
   onDeleteAnimeGroup: (sessions: SessionSummary[]) => void;
   deletingIds: Set<number>;
+  isActive?: boolean;
 }
 
 interface AnimeGroup {
@@ -85,53 +88,20 @@ function groupSessionsByAnime(sessions: SessionSummary[]): AnimeGroup[] {
   return Array.from(map.values());
 }
 
-function CoverThumbnail({
-  animeId,
-  videoId,
-  title,
-}: {
-  animeId: number | null;
-  videoId: number | null;
-  title: string;
-}) {
-  const fallbackChar = title.charAt(0) || '?';
-  const [isFallback, setIsFallback] = useState(false);
-
-  if ((!animeId && !videoId) || isFallback) {
-    return (
-      <div className="w-12 h-16 rounded bg-ctp-surface2 flex items-center justify-center text-ctp-overlay2 text-lg font-bold shrink-0">
-        {fallbackChar}
-      </div>
-    );
-  }
-
-  const src =
-    animeId != null
-      ? `${BASE_URL}/api/stats/anime/${animeId}/cover`
-      : `${BASE_URL}/api/stats/media/${videoId}/cover`;
-
-  return (
-    <img
-      src={src}
-      alt=""
-      className="w-12 h-16 rounded object-cover shrink-0 bg-ctp-surface2"
-      onError={() => setIsFallback(true)}
-    />
-  );
-}
-
 function SessionItem({
   session,
   onNavigateToMediaDetail,
   onNavigateToSession,
   onDelete,
   deleteDisabled,
+  coverImages,
 }: {
   session: SessionSummary;
   onNavigateToMediaDetail: (videoId: number, sessionId?: number | null) => void;
   onNavigateToSession: (sessionId: number) => void;
   onDelete: () => void;
   deleteDisabled: boolean;
+  coverImages: CoverImageMap;
 }) {
   const displayWordCount = getSessionDisplayWordCount(session);
   const navigationTarget = getSessionNavigationTarget(session);
@@ -153,6 +123,7 @@ function SessionItem({
           animeId={session.animeId}
           videoId={session.videoId}
           title={session.canonicalTitle ?? 'Unknown'}
+          coverImages={coverImages}
         />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-ctp-text truncate">
@@ -205,6 +176,7 @@ function AnimeGroupRow({
   onDeleteSession,
   onDeleteAnimeGroup,
   deletingIds,
+  coverImages,
 }: {
   group: AnimeGroup;
   onNavigateToMediaDetail: (videoId: number, sessionId?: number | null) => void;
@@ -212,6 +184,7 @@ function AnimeGroupRow({
   onDeleteSession: (session: SessionSummary) => void;
   onDeleteAnimeGroup: (group: AnimeGroup) => void;
   deletingIds: Set<number>;
+  coverImages: CoverImageMap;
 }) {
   const [expanded, setExpanded] = useState(false);
   const groupDeleting = group.sessions.some((s) => deletingIds.has(s.sessionId));
@@ -225,6 +198,7 @@ function AnimeGroupRow({
         onNavigateToSession={onNavigateToSession}
         onDelete={() => onDeleteSession(s)}
         deleteDisabled={deletingIds.has(s.sessionId)}
+        coverImages={coverImages}
       />
     );
   }
@@ -247,6 +221,7 @@ function AnimeGroupRow({
             animeId={group.animeId}
             videoId={mostRecentSession.videoId}
             title={displayTitle}
+            coverImages={coverImages}
           />
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium text-ctp-text truncate">{displayTitle}</div>
@@ -319,6 +294,7 @@ function AnimeGroupRow({
                     animeId={s.animeId}
                     videoId={s.videoId}
                     title={s.canonicalTitle ?? 'Unknown'}
+                    coverImages={coverImages}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-ctp-subtext1 truncate">
@@ -377,7 +353,10 @@ export function RecentSessions({
   onDeleteDayGroup,
   onDeleteAnimeGroup,
   deletingIds,
+  isActive = true,
 }: RecentSessionsProps) {
+  const coverImages = useCoverImages(sessions, { enabled: isActive });
+
   if (sessions.length === 0) {
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
@@ -422,6 +401,7 @@ export function RecentSessions({
                   onDeleteSession={onDeleteSession}
                   onDeleteAnimeGroup={(g) => onDeleteAnimeGroup(g.sessions)}
                   deletingIds={deletingIds}
+                  coverImages={coverImages}
                 />
               ))}
             </div>

@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent } from 'react';
 
-export type TabId = 'overview' | 'anime' | 'trends' | 'vocabulary' | 'sessions';
+export type TabId = 'overview' | 'anime' | 'trends' | 'vocabulary' | 'search' | 'sessions';
 
 interface Tab {
   id: TabId;
@@ -12,6 +12,7 @@ const TABS: Tab[] = [
   { id: 'anime', label: 'Library' },
   { id: 'trends', label: 'Trends' },
   { id: 'vocabulary', label: 'Vocabulary' },
+  { id: 'search', label: 'Search' },
   { id: 'sessions', label: 'Sessions' },
 ];
 

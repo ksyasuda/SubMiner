@@ -6,6 +6,7 @@ import { StreakCalendar } from './StreakCalendar';
 import { RecentSessions } from './RecentSessions';
 import { TrackingSnapshot } from './TrackingSnapshot';
 import { TrendChart } from '../trends/TrendChart';
+import { DeleteProgressToast } from '../common/DeleteProgressToast';
 import { buildOverviewSummary, buildStreakCalendar } from '../../lib/dashboard-data';
 import { apiClient } from '../../lib/api-client';
 import { getStatsClient } from '../../hooks/useStatsApi';
@@ -19,9 +20,14 @@ import type { SessionSummary } from '../../types/stats';
 interface OverviewTabProps {
   onNavigateToMediaDetail: (videoId: number, sessionId?: number | null) => void;
   onNavigateToSession: (sessionId: number) => void;
+  isActive?: boolean;
 }
 
-export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: OverviewTabProps) {
+export function OverviewTab({
+  onNavigateToMediaDetail,
+  onNavigateToSession,
+  isActive = true,
+}: OverviewTabProps) {
   const { data, sessions, setSessions, loading, error } = useOverview();
   const { calendar, loading: calLoading } = useStreakCalendar(90);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -152,7 +158,10 @@ export function OverviewTab({ onNavigateToMediaDetail, onNavigateToSession }: Ov
         onDeleteDayGroup={handleDeleteDayGroup}
         onDeleteAnimeGroup={handleDeleteAnimeGroup}
         deletingIds={deletingIds}
+        isActive={isActive}
       />
+
+      <DeleteProgressToast count={deletingIds.size} />
     </div>
   );
 }

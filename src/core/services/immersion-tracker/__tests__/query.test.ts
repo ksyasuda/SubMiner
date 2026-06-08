@@ -35,9 +35,11 @@ import {
   getSessionTimeline,
   getSessionWordsByLine,
   getWordOccurrences,
+  searchSubtitleSentences,
   upsertCoverArt,
 } from '../query.js';
 import {
+  getLocalEpochDay,
   getShiftedLocalDaySec,
   getStartOfLocalDayTimestamp,
   toDbTimestamp,
@@ -759,12 +761,94 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
     assert.equal(dashboard.progress.watchTime[1]?.value, 75);
     assert.equal(dashboard.progress.lookups[1]?.value, 18);
     assert.equal(dashboard.ratios.lookupsPerHundred[0]?.value, +((8 / 120) * 100).toFixed(1));
+    assert.equal(dashboard.ratios.cardsPerHour[0]?.value, +(2 / (30 / 60)).toFixed(1));
+    assert.equal(dashboard.ratios.cardsPerHour[1]?.value, +(3 / (45 / 60)).toFixed(1));
+    assert.equal(dashboard.ratios.readingSpeed[0]?.value, +(120 / 30).toFixed(1));
+    assert.equal(dashboard.ratios.readingSpeed[1]?.value, +(140 / 45).toFixed(1));
     assert.equal(dashboard.librarySummary[0]?.title, 'Trend Dashboard Anime');
     assert.equal(dashboard.animeCumulative.watchTime[1]?.value, 75);
     assert.equal(
       dashboard.patterns.watchTimeByDayOfWeek.reduce((sum, point) => sum + point.value, 0),
       75,
     );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getTrendsDashboard redacts legacy Jellyfin stream titles', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const rawStreamTitle =
+      'stream?static true&api key secret-token&MediaSourceId ms-1&AudioStreamIndex 3&SubtitleStreamIndex 4';
+    const videoId = getOrCreateVideoRecord(
+      db,
+      'remote:http://jellyfin.local/Videos/item-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+      {
+        canonicalTitle: rawStreamTitle,
+        sourcePath: null,
+        sourceUrl:
+          'http://jellyfin.local/Videos/item-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: rawStreamTitle,
+      canonicalTitle: rawStreamTitle,
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename:
+        'stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+      parsedTitle: rawStreamTitle,
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'guessit',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    const startedAtMs = 1_700_000_000_000;
+    const session = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+        UPDATE imm_sessions
+        SET
+          ended_at_ms = ?,
+          total_watched_ms = ?,
+          active_watched_ms = ?,
+          tokens_seen = ?
+        WHERE session_id = ?
+      `,
+    ).run(`${startedAtMs + 30 * 60_000}`, 30 * 60_000, 30 * 60_000, 120, session.sessionId);
+    db.prepare(
+      `
+        INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(Math.floor(startedAtMs / 86_400_000), videoId, 1, 30, 10, 120, 0);
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    const titles = [
+      ...dashboard.animeCumulative.watchTime.map((point) => point.animeTitle),
+      ...dashboard.librarySummary.map((row) => row.title),
+    ];
+
+    assert.deepEqual([...new Set(titles)], ['Jellyfin Video']);
+    assert.equal(titles.some((title) => title.includes('api_key=')), false);
+    assert.equal(titles.some((title) => title.includes('api key')), false);
+    assert.equal(titles.some((title) => title.includes('secret-token')), false);
+    assert.equal(titles.some((title) => title.includes('stream?')), false);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -3686,6 +3770,187 @@ test('getWordOccurrences maps a normalized word back to anime, video, and subtit
   }
 });
 
+test('searchSubtitleSentences searches known subtitle lines and returns media context', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Dungeon Meshi',
+      canonicalTitle: 'Dungeon Meshi',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"test"}',
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/dungeon-meshi-01.mkv', {
+      canonicalTitle: 'Episode 1',
+      sourcePath: '/tmp/Dungeon Meshi 01.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Dungeon Meshi 01.mkv',
+      parsedTitle: 'Dungeon Meshi',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":1}',
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 3_000_000);
+
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+        session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+        text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      null,
+      videoId,
+      animeId,
+      7,
+      4_000,
+      5_500,
+      '魔物を食べるなんて信じられない',
+      'I cannot believe we are eating monsters',
+      3_000,
+      3_000,
+    );
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+        session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+        text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      sessionId,
+      null,
+      videoId,
+      animeId,
+      8,
+      6_000,
+      7_000,
+      'これは別の行です',
+      'Another line',
+      2_000,
+      2_000,
+    );
+
+    const rows = searchSubtitleSentences(db, '魔物 食べる', 10);
+
+    assert.deepEqual(rows, [
+      {
+        animeId,
+        animeTitle: 'Dungeon Meshi',
+        sourcePath: '/tmp/Dungeon Meshi 01.mkv',
+        secondaryText: 'I cannot believe we are eating monsters',
+        videoId,
+        videoTitle: 'Episode 1',
+        sessionId,
+        lineIndex: 7,
+        segmentStartMs: 4_000,
+        segmentEndMs: 5_500,
+        text: '魔物を食べるなんて信じられない',
+      },
+    ]);
+
+    assert.deepEqual(searchSubtitleSentences(db, 'monsters', 10), []);
+    assert.doesNotThrow(() => searchSubtitleSentences(db, '魔物', Number.POSITIVE_INFINITY));
+    assert.equal(searchSubtitleSentences(db, '魔物', -1).length, 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('searchSubtitleSentences searches subtitle lines by resolved headword candidates', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Little Witch Academia',
+      canonicalTitle: 'Little Witch Academia',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: '{"source":"test"}',
+    });
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/lwa-05.mkv', {
+      canonicalTitle: 'Episode 5',
+      sourcePath: '/tmp/Little Witch Academia S01E05.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: 'Little Witch Academia S01E05.mkv',
+      parsedTitle: 'Little Witch Academia',
+      parsedSeason: 1,
+      parsedEpisode: 5,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: '{"episode":5}',
+    });
+    const { sessionId } = startSessionRecord(db, videoId, 4_000_000);
+    const lineResult = db
+      .prepare(
+        `INSERT INTO imm_subtitle_lines (
+          session_id, event_id, video_id, anime_id, line_index, segment_start_ms, segment_end_ms,
+          text, secondary_text, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        sessionId,
+        null,
+        videoId,
+        animeId,
+        20,
+        247_000,
+        250_000,
+        'ああ、名無しが何だか知らねえが',
+        null,
+        4_000,
+        4_000,
+      );
+    const wordResult = db
+      .prepare(
+        `INSERT INTO imm_words (
+          headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('知る', '知らねえ', 'しらねえ', 'verb', '動詞', '自立', '', 4_000, 4_000, 1);
+    db.prepare(
+      `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
+       VALUES (?, ?, ?)`,
+    ).run(Number(lineResult.lastInsertRowid), Number(wordResult.lastInsertRowid), 1);
+
+    assert.deepEqual(searchSubtitleSentences(db, '知らない', 10), []);
+
+    const rows = searchSubtitleSentences(db, '知らない', 10, {
+      headwordTerms: [{ term: '知らない', headwords: ['知る'] }],
+    });
+
+    assert.deepEqual(
+      rows.map((row) => row.text),
+      ['ああ、名無しが何だか知らねえが'],
+    );
+    assert.deepEqual(
+      searchSubtitleSentences(db, '知らねえ', 10).map((row) => row.text),
+      ['ああ、名無しが何だか知らねえが'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line context', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
@@ -4100,8 +4365,14 @@ test('deleteSession removes zero-session media from library and trends', () => {
 
     const startedAtMs = 9_000_000;
     const endedAtMs = startedAtMs + 120_000;
-    const rollupDay = Math.floor(startedAtMs / 86_400_000);
-    const rollupMonth = 197001;
+    const rollupDay = getLocalEpochDay(db, startedAtMs);
+    const rollupMonth = (
+      db
+        .prepare(
+          "SELECT CAST(strftime('%Y%m', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollupMonth",
+        )
+        .get(startedAtMs) as { rollupMonth: number }
+    ).rollupMonth;
     const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
 
     db.prepare(

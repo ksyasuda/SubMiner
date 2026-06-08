@@ -38,7 +38,7 @@ SubMiner monitors playback and triggers an AniList progress update when an episo
 
 The update flow:
 
-1. **Title detection** -- SubMiner extracts the anime title, season, and episode number from the media filename. It tries [`guessit`](https://github.com/guessit-io/guessit) first for accurate parsing, then falls back to an internal filename parser if guessit is unavailable.
+1. **Title detection** -- SubMiner extracts the anime title, season, and episode number from the media filename and path. Season folders such as `Season 2` are treated as a strong season signal. SubMiner tries [`guessit`](https://github.com/guessit-io/guessit) first for accurate parsing, then falls back to an internal filename parser if guessit is unavailable.
 2. **AniList search** -- The detected title is searched against the AniList GraphQL API. For season 2 and later files, SubMiner searches the season-specific title first, then falls back to the base title. SubMiner picks the best match by comparing titles (romaji, English, native) and filtering by episode count.
 3. **Progress check** -- SubMiner fetches your current list entry for the matched media. The media must already be in Planning or Watching; otherwise SubMiner shows an MPV message explaining that the update is not possible. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
 4. **Mutation** -- A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`.

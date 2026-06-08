@@ -2,12 +2,18 @@ import { useRef, useState, useEffect } from 'react';
 import { useWordDetail } from '../../hooks/useWordDetail';
 import { apiClient } from '../../lib/api-client';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
+import {
+  buildStatsMineCardParams,
+  getStatsMineCardError,
+  getStatsMineCardUnavailableReason,
+} from '../../lib/mining';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 import { PosBadge } from './pos-helpers';
 
 const INITIAL_PAGE_SIZE = 5;
 const LOAD_MORE_SIZE = 10;
+const MEDIA_APPEARANCES_LIMIT = 5;
 
 type MineStatus = { loading?: boolean; success?: boolean; error?: string };
 
@@ -67,6 +73,7 @@ export function WordDetailPanel({
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
   const [mineStatus, setMineStatus] = useState<Record<string, MineStatus>>({});
+  const [showAllAnime, setShowAllAnime] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -77,6 +84,7 @@ export function WordDetailPanel({
     setOccError(null);
     setHasMore(false);
     setMineStatus({});
+    setShowAllAnime(false);
     requestIdRef.current++;
   }, [wordId]);
 
@@ -135,25 +143,18 @@ export function WordDetailPanel({
     occ: VocabularyOccurrenceEntry,
     mode: 'word' | 'sentence' | 'audio',
   ) => {
-    if (!occ.sourcePath || occ.segmentStartMs == null || occ.segmentEndMs == null) {
+    const params = buildStatsMineCardParams(occ, data!.detail.headword, mode);
+    if (!params) {
       return;
     }
 
     const key = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}-${mode}`;
     setMineStatus((prev) => ({ ...prev, [key]: { loading: true } }));
     try {
-      const result = await apiClient.mineCard({
-        sourcePath: occ.sourcePath!,
-        startMs: occ.segmentStartMs!,
-        endMs: occ.segmentEndMs!,
-        sentence: occ.text,
-        word: data!.detail.headword,
-        secondaryText: occ.secondaryText,
-        videoTitle: occ.videoTitle,
-        mode,
-      });
-      if (result.error) {
-        setMineStatus((prev) => ({ ...prev, [key]: { error: result.error } }));
+      const result = await apiClient.mineCard(params);
+      const responseError = getStatsMineCardError(result);
+      if (responseError) {
+        setMineStatus((prev) => ({ ...prev, [key]: { error: responseError } }));
       } else {
         setMineStatus((prev) => ({ ...prev, [key]: { success: true } }));
         const label =
@@ -179,15 +180,15 @@ export function WordDetailPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close word detail panel"
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-xl border-l border-ctp-surface1 bg-ctp-mantle shadow-2xl">
-        <div className="flex h-full flex-col">
+      <aside className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">
@@ -275,10 +276,13 @@ export function WordDetailPanel({
                 {data.animeAppearances.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Anime Appearances
+                      Media Appearances
                     </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map((a) => (
+                      {(showAllAnime
+                        ? data.animeAppearances
+                        : data.animeAppearances.slice(0, MEDIA_APPEARANCES_LIMIT)
+                      ).map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
@@ -295,13 +299,26 @@ export function WordDetailPanel({
                         </button>
                       ))}
                     </div>
+                    {data.animeAppearances.length > MEDIA_APPEARANCES_LIMIT && (
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
+                        onClick={() => setShowAllAnime((prev) => !prev)}
+                      >
+                        {showAllAnime
+                          ? 'Show less'
+                          : `Show ${formatNumber(
+                              data.animeAppearances.length - MEDIA_APPEARANCES_LIMIT,
+                            )} more`}
+                      </button>
+                    )}
                   </section>
                 )}
 
                 {data.similarWords.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Similar Words
+                      Related Seen Words
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
                       {data.similarWords.map((sw) => (
@@ -368,15 +385,7 @@ export function WordDetailPanel({
                               · session {occ.sessionId}
                             </span>
                             {(() => {
-                              const canMine =
-                                !!occ.sourcePath &&
-                                occ.segmentStartMs != null &&
-                                occ.segmentEndMs != null;
-                              const unavailableReason = canMine
-                                ? null
-                                : occ.sourcePath
-                                  ? 'This line is missing segment timing.'
-                                  : 'This source has no local file path.';
+                              const unavailableReason = getStatsMineCardUnavailableReason(occ);
                               const baseKey = `${occ.sessionId}-${occ.lineIndex}-${occ.segmentStartMs}`;
                               const wordStatus = mineStatus[`${baseKey}-word`];
                               const sentenceStatus = mineStatus[`${baseKey}-sentence`];

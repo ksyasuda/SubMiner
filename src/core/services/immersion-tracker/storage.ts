@@ -23,6 +23,7 @@ export interface TrackerPreparedStatements {
 export interface AnimeRecordInput {
   parsedTitle: string;
   canonicalTitle: string;
+  seasonScope?: number | null;
   anilistId: number | null;
   titleRomaji: string | null;
   titleEnglish: string | null;
@@ -300,6 +301,31 @@ export function normalizeAnimeIdentityKey(title: string): string {
     .replace(/\s+/g, ' ');
 }
 
+function normalizeSeasonScope(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+    return null;
+  }
+  return value;
+}
+
+function titleAlreadyHasSeasonScope(title: string, season: number): boolean {
+  const normalized = title.normalize('NFKC').toLowerCase();
+  const padded = String(season).padStart(2, '0');
+  return (
+    new RegExp(`\\bseason\\s*0?${season}\\b`, 'i').test(normalized) ||
+    new RegExp(`\\bs0?${season}\\b`, 'i').test(normalized) ||
+    new RegExp(`\\bs${padded}\\b`, 'i').test(normalized)
+  );
+}
+
+function buildSeasonScopedAnimeTitle(title: string, season: number | null): string {
+  const trimmed = title.trim();
+  if (!trimmed || season === null || titleAlreadyHasSeasonScope(trimmed, season)) {
+    return trimmed;
+  }
+  return `${trimmed} Season ${season}`;
+}
+
 function looksLikeEpisodeOnlyTitle(title: string): boolean {
   const normalized = title.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
   return /^(episode|ep)\s*\d{1,3}$/.test(normalized) || /^第\s*\d{1,3}\s*話$/.test(normalized);
@@ -478,7 +504,12 @@ function ensureStatsExcludedWordsTable(db: DatabaseSync): void {
 }
 
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
-  const normalizedTitleKey = normalizeAnimeIdentityKey(input.parsedTitle);
+  const seasonScope = normalizeSeasonScope(input.seasonScope);
+  const identityTitle = buildSeasonScopedAnimeTitle(input.parsedTitle, seasonScope);
+  const canonicalTitle =
+    buildSeasonScopedAnimeTitle(input.canonicalTitle || input.parsedTitle, seasonScope) ||
+    identityTitle;
+  const normalizedTitleKey = normalizeAnimeIdentityKey(identityTitle);
   if (!normalizedTitleKey) {
     throw new Error('parsedTitle is required to create or update an anime record');
   }
@@ -508,7 +539,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
-      input.canonicalTitle,
+      canonicalTitle,
       input.anilistId,
       input.titleRomaji,
       input.titleEnglish,
@@ -539,7 +570,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
     )
     .run(
       normalizedTitleKey,
-      input.canonicalTitle,
+      canonicalTitle,
       input.anilistId,
       input.titleRomaji,
       input.titleEnglish,
@@ -648,6 +679,7 @@ function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
     const animeId = getOrCreateAnimeRecord(db, {
       parsedTitle: parsed.title,
       canonicalTitle: parsed.title,
+      seasonScope: parsed.season,
       anilistId: null,
       titleRomaji: null,
       titleEnglish: null,

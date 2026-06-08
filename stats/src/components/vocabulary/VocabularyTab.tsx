@@ -36,7 +36,6 @@ export function VocabularyTab({
 }: VocabularyTabProps) {
   const { words, kanji, knownWords, loading, error } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
-  const [search, setSearch] = useState('');
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
 
@@ -116,14 +115,7 @@ export function VocabularyTab({
         />
       </div>
 
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search words..."
-          className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
-        />
+      <div className="flex items-center justify-end gap-3">
         {hasNames && (
           <button
             type="button"
@@ -178,12 +170,7 @@ export function VocabularyTab({
         onSelectWord={handleSelectWord}
       />
 
-      <WordList
-        words={filteredWords}
-        selectedKey={null}
-        onSelectWord={handleSelectWord}
-        search={search}
-      />
+      <WordList words={filteredWords} selectedKey={null} onSelectWord={handleSelectWord} />
 
       <KanjiBreakdown
         kanji={kanji}

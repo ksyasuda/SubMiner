@@ -5,6 +5,7 @@ import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 
 const OCCURRENCES_PAGE_SIZE = 50;
+const MEDIA_APPEARANCES_LIMIT = 5;
 
 interface KanjiDetailPanelProps {
   kanjiId: number | null;
@@ -21,6 +22,22 @@ function formatSegment(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function highlightKanji(text: string, kanji: string) {
+  if (!kanji) return text;
+  const parts = text.split(kanji);
+  if (parts.length === 1) return text;
+  return parts.flatMap((part, idx) =>
+    idx === 0
+      ? [part]
+      : [
+          <mark key={idx} className="rounded bg-ctp-teal/20 px-0.5 font-semibold text-ctp-teal">
+            {kanji}
+          </mark>,
+          part,
+        ],
+  );
+}
+
 export function KanjiDetailPanel({
   kanjiId,
   onClose,
@@ -34,6 +51,7 @@ export function KanjiDetailPanel({
   const [occError, setOccError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
+  const [showAllAnime, setShowAllAnime] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -43,6 +61,7 @@ export function KanjiDetailPanel({
     setOccLoadingMore(false);
     setOccError(null);
     setHasMore(false);
+    setShowAllAnime(false);
     requestIdRef.current++;
   }, [kanjiId]);
 
@@ -87,15 +106,15 @@ export function KanjiDetailPanel({
   };
 
   return (
-    <div className="fixed inset-0 z-40">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close kanji detail panel"
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      <aside className="absolute right-0 top-0 h-full w-full max-w-xl border-l border-ctp-surface1 bg-ctp-mantle shadow-2xl">
-        <div className="flex h-full flex-col">
+      <aside className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-start justify-between border-b border-ctp-surface1 px-5 py-4">
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-[0.18em] text-ctp-overlay1">
@@ -148,10 +167,13 @@ export function KanjiDetailPanel({
                 {data.animeAppearances.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Anime Appearances
+                      Media Appearances
                     </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map((a) => (
+                      {(showAllAnime
+                        ? data.animeAppearances
+                        : data.animeAppearances.slice(0, MEDIA_APPEARANCES_LIMIT)
+                      ).map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
@@ -168,6 +190,19 @@ export function KanjiDetailPanel({
                         </button>
                       ))}
                     </div>
+                    {data.animeAppearances.length > MEDIA_APPEARANCES_LIMIT && (
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-teal hover:text-ctp-teal"
+                        onClick={() => setShowAllAnime((prev) => !prev)}
+                      >
+                        {showAllAnime
+                          ? 'Show less'
+                          : `Show ${formatNumber(
+                              data.animeAppearances.length - MEDIA_APPEARANCES_LIMIT,
+                            )} more`}
+                      </button>
+                    )}
                   </section>
                 )}
 
@@ -237,7 +272,7 @@ export function KanjiDetailPanel({
                             session {occ.sessionId}
                           </div>
                           <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
-                            {occ.text}
+                            {highlightKanji(occ.text, data.detail.kanji)}
                           </p>
                         </article>
                       ))}

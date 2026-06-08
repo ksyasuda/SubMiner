@@ -1,13 +1,18 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAnimeLibrary } from '../../hooks/useAnimeLibrary';
 import { formatDuration } from '../../lib/formatters';
+import {
+  getLibraryCardSizeStorage,
+  readLibraryCardSizePreference,
+  type LibraryCardSize,
+  writeLibraryCardSizePreference,
+} from '../../lib/library-card-size';
 import { AnimeCard } from './AnimeCard';
 import { AnimeDetailView } from './AnimeDetailView';
 
 type SortKey = 'lastWatched' | 'watchTime' | 'cards' | 'episodes';
-type CardSize = 'sm' | 'md' | 'lg';
 
-const GRID_CLASSES: Record<CardSize, string> = {
+const GRID_CLASSES: Record<LibraryCardSize, string> = {
   sm: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
   md: 'grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9',
   lg: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7',
@@ -51,8 +56,20 @@ export function AnimeTab({
   const { anime, loading, error } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
-  const [cardSize, setCardSize] = useState<CardSize>('md');
+  const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
+    readLibraryCardSizePreference(
+      getLibraryCardSizeStorage(typeof window === 'undefined' ? null : window),
+    ),
+  );
   const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
+
+  function handleCardSizeChange(size: LibraryCardSize): void {
+    setCardSize(size);
+    writeLibraryCardSizePreference(
+      getLibraryCardSizeStorage(typeof window === 'undefined' ? null : window),
+      size,
+    );
+  }
 
   useEffect(() => {
     if (initialAnimeId != null) {
@@ -113,7 +130,7 @@ export function AnimeTab({
           {(['sm', 'md', 'lg'] as const).map((size) => (
             <button
               key={size}
-              onClick={() => setCardSize(size)}
+              onClick={() => handleCardSizeChange(size)}
               className={`px-2 py-1 rounded-md text-xs transition-colors ${
                 cardSize === size
                   ? 'bg-ctp-surface2 text-ctp-text shadow-sm'

@@ -148,7 +148,7 @@ export function TrendsTab() {
         onGroupByChange={setGroupBy}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <SectionHeader>Activity</SectionHeader>
+        <SectionHeader>Activity (per {groupBy === 'month' ? 'month' : 'day'})</SectionHeader>
         <TrendChart
           title="Watch Time (min)"
           data={data.activity.watchTime}
@@ -163,6 +163,72 @@ export function TrendsTab() {
         />
         <TrendChart title="Words Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
+
+        <SectionHeader>Cumulative Totals</SectionHeader>
+        <TrendChart
+          title="Watch Time, cumulative (min)"
+          data={data.progress.watchTime}
+          color="#8aadf4"
+          type="line"
+        />
+        <TrendChart
+          title="Words Seen (cumulative)"
+          data={data.progress.words}
+          color="#8bd5ca"
+          type="line"
+        />
+        <TrendChart
+          title="New Words Seen (cumulative)"
+          data={data.progress.newWords}
+          color="#c6a0f6"
+          type="line"
+        />
+        <TrendChart
+          title="Cards Mined (cumulative)"
+          data={data.progress.cards}
+          color={cardsMinedColor}
+          type="line"
+        />
+        <TrendChart
+          title="Episodes Watched (cumulative)"
+          data={data.progress.episodes}
+          color="#91d7e3"
+          type="line"
+        />
+        <TrendChart
+          title="Sessions (cumulative)"
+          data={data.progress.sessions}
+          color="#b7bdf8"
+          type="line"
+        />
+        <TrendChart
+          title="Lookups (cumulative)"
+          data={data.progress.lookups}
+          color="#f5bde6"
+          type="line"
+        />
+
+        <SectionHeader>Efficiency</SectionHeader>
+        <TrendChart
+          title="Words / Min"
+          data={data.ratios.readingSpeed}
+          color="#a6da95"
+          type="line"
+        />
+        <TrendChart
+          title="Cards / Hour"
+          data={data.ratios.cardsPerHour}
+          color={cardsMinedColor}
+          type="line"
+        />
+        <TrendChart
+          title="Lookups / 100 Words"
+          data={data.ratios.lookupsPerHundred}
+          color="#f5a97f"
+          type="line"
+        />
+
+        <SectionHeader>Patterns</SectionHeader>
         <TrendChart
           title="Watch Time by Day of Week (min)"
           data={data.patterns.watchTimeByDayOfWeek}
@@ -174,41 +240,6 @@ export function TrendsTab() {
           data={data.patterns.watchTimeByHour}
           color="#c6a0f6"
           type="bar"
-        />
-
-        <SectionHeader>Period Trends</SectionHeader>
-        <TrendChart
-          title="Watch Time (min)"
-          data={data.progress.watchTime}
-          color="#8aadf4"
-          type="line"
-        />
-        <TrendChart title="Sessions" data={data.progress.sessions} color="#b7bdf8" type="line" />
-        <TrendChart title="Words Seen" data={data.progress.words} color="#8bd5ca" type="line" />
-        <TrendChart
-          title="New Words Seen"
-          data={data.progress.newWords}
-          color="#c6a0f6"
-          type="line"
-        />
-        <TrendChart
-          title="Cards Mined"
-          data={data.progress.cards}
-          color={cardsMinedColor}
-          type="line"
-        />
-        <TrendChart
-          title="Episodes Watched"
-          data={data.progress.episodes}
-          color="#91d7e3"
-          type="line"
-        />
-        <TrendChart title="Lookups" data={data.progress.lookups} color="#f5bde6" type="line" />
-        <TrendChart
-          title="Lookups / 100 Words"
-          data={data.ratios.lookupsPerHundred}
-          color="#f5a97f"
-          type="line"
         />
 
         <SectionHeader>Library — Cumulative</SectionHeader>

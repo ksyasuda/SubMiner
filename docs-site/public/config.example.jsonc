@@ -496,7 +496,7 @@
     "tags": [
       "SubMiner"
     ], // Tags to add to cards mined or updated by SubMiner. Provide an empty array to disable automatic tagging.
-    "deck": "", // Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to search all decks.
+    "deck": "", // Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available.
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Card field that receives generated sentence audio.

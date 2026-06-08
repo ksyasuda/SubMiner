@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { PosBadge } from './pos-helpers';
+import { isKanaOnlyTokenText } from '../../lib/kana-token';
+import { readBooleanPreference, writeBooleanPreference } from '../../lib/preference-storage';
 import { fullReading } from '../../lib/reading-utils';
 import type { VocabularyEntry } from '../../types/stats';
 
@@ -10,6 +12,59 @@ interface CrossAnimeWordsTableProps {
 }
 
 const PAGE_SIZE = 25;
+const HIDE_KANA_ONLY_STORAGE_KEY = 'subminer.stats.crossAnimeWords.hideKanaOnly';
+
+interface CrossAnimeWordsOptions {
+  hideKnown: boolean;
+  hideKanaOnly: boolean;
+}
+
+function isWordKnown(w: VocabularyEntry, knownWords: Set<string>): boolean {
+  return knownWords.has(w.headword) || knownWords.has(w.word);
+}
+
+function isKanaOnlyWord(w: VocabularyEntry): boolean {
+  return isKanaOnlyTokenText(w.headword || w.word);
+}
+
+export function buildCrossAnimeWordRows(
+  words: VocabularyEntry[],
+  knownWords: Set<string>,
+  options: CrossAnimeWordsOptions,
+): VocabularyEntry[] {
+  const hasKnownData = knownWords.size > 0;
+  let filtered = words.filter((w) => w.animeCount >= 2);
+  if (options.hideKnown && hasKnownData) {
+    filtered = filtered.filter((w) => !isWordKnown(w, knownWords));
+  }
+  if (options.hideKanaOnly) {
+    filtered = filtered.filter((w) => !isKanaOnlyWord(w));
+  }
+
+  const byHeadword = new Map<string, VocabularyEntry>();
+  for (const w of filtered) {
+    const existing = byHeadword.get(w.headword);
+    if (!existing) {
+      byHeadword.set(w.headword, { ...w });
+    } else {
+      existing.frequency += w.frequency;
+      existing.animeCount = Math.max(existing.animeCount, w.animeCount);
+      if (
+        w.frequencyRank != null &&
+        (existing.frequencyRank == null || w.frequencyRank < existing.frequencyRank)
+      ) {
+        existing.frequencyRank = w.frequencyRank;
+      }
+      if (!existing.reading && w.reading) existing.reading = w.reading;
+      if (!existing.partOfSpeech && w.partOfSpeech) existing.partOfSpeech = w.partOfSpeech;
+    }
+  }
+
+  return [...byHeadword.values()].sort((a, b) => {
+    if (b.animeCount !== a.animeCount) return b.animeCount - a.animeCount;
+    return b.frequency - a.frequency;
+  });
+}
 
 export function CrossAnimeWordsTable({
   words,
@@ -18,40 +73,16 @@ export function CrossAnimeWordsTable({
 }: CrossAnimeWordsTableProps) {
   const [page, setPage] = useState(0);
   const [hideKnown, setHideKnown] = useState(true);
+  const [hideKanaOnly, setHideKanaOnly] = useState(() =>
+    readBooleanPreference(HIDE_KANA_ONLY_STORAGE_KEY, false),
+  );
   const [collapsed, setCollapsed] = useState(false);
 
   const hasKnownData = knownWords.size > 0;
 
   const ranked = useMemo(() => {
-    let filtered = words.filter((w) => w.animeCount >= 2);
-    if (hideKnown && hasKnownData) {
-      filtered = filtered.filter((w) => !knownWords.has(w.headword) && !knownWords.has(w.word));
-    }
-
-    const byHeadword = new Map<string, VocabularyEntry>();
-    for (const w of filtered) {
-      const existing = byHeadword.get(w.headword);
-      if (!existing) {
-        byHeadword.set(w.headword, { ...w });
-      } else {
-        existing.frequency += w.frequency;
-        existing.animeCount = Math.max(existing.animeCount, w.animeCount);
-        if (
-          w.frequencyRank != null &&
-          (existing.frequencyRank == null || w.frequencyRank < existing.frequencyRank)
-        ) {
-          existing.frequencyRank = w.frequencyRank;
-        }
-        if (!existing.reading && w.reading) existing.reading = w.reading;
-        if (!existing.partOfSpeech && w.partOfSpeech) existing.partOfSpeech = w.partOfSpeech;
-      }
-    }
-
-    return [...byHeadword.values()].sort((a, b) => {
-      if (b.animeCount !== a.animeCount) return b.animeCount - a.animeCount;
-      return b.frequency - a.frequency;
-    });
-  }, [words, knownWords, hideKnown, hasKnownData]);
+    return buildCrossAnimeWordRows(words, knownWords, { hideKnown, hideKanaOnly });
+  }, [words, knownWords, hideKnown, hideKanaOnly]);
 
   const hasMultiAnimeWords = words.some((w) => w.animeCount >= 2);
   if (!hasMultiAnimeWords) return null;
@@ -74,10 +105,11 @@ export function CrossAnimeWordsTable({
           </span>
           Words Across Multiple Titles
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {hasKnownData && (
             <button
               type="button"
+              aria-pressed={hideKnown}
               onClick={() => {
                 setHideKnown(!hideKnown);
                 setPage(0);
@@ -91,14 +123,33 @@ export function CrossAnimeWordsTable({
               Hide Known
             </button>
           )}
+          <button
+            type="button"
+            aria-pressed={hideKanaOnly}
+            onClick={() => {
+              const next = !hideKanaOnly;
+              setHideKanaOnly(next);
+              writeBooleanPreference(HIDE_KANA_ONLY_STORAGE_KEY, next);
+              setPage(0);
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs transition-colors border ${
+              hideKanaOnly
+                ? 'bg-ctp-surface2 text-ctp-text border-ctp-blue/50'
+                : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
+            }`}
+          >
+            Hide Kana
+          </button>
           <span className="text-xs text-ctp-overlay2">{ranked.length} words</span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
         <div className="text-xs text-ctp-overlay2 mt-3">
-          {hideKnown
+          {hideKnown && hasKnownData && !hideKanaOnly
             ? 'All words that span multiple titles are already known!'
-            : 'No words found across multiple titles.'}
+            : (hideKnown && hasKnownData) || hideKanaOnly
+              ? 'No words across multiple titles match the active filters.'
+              : 'No words found across multiple titles.'}
         </div>
       ) : (
         <>

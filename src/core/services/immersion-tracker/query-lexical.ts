@@ -7,6 +7,8 @@ import type {
   KanjiOccurrenceRow,
   KanjiStatsRow,
   KanjiWordRow,
+  SentenceSearchOptions,
+  SentenceSearchResultRow,
   SessionEventRow,
   SimilarWordRow,
   StatsExcludedWordRow,
@@ -20,6 +22,56 @@ import { nowMs } from './time';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
+const SENTENCE_SEARCH_MAX_LIMIT = 100;
+const KANJI_PATTERN = /\p{Script=Han}/gu;
+
+function resolveSentenceSearchLimit(limit: number): number {
+  if (!Number.isFinite(limit)) return SENTENCE_SEARCH_DEFAULT_LIMIT;
+  const normalized = Math.floor(limit);
+  if (normalized <= 0) return SENTENCE_SEARCH_DEFAULT_LIMIT;
+  return Math.min(normalized, SENTENCE_SEARCH_MAX_LIMIT);
+}
+
+export function splitSentenceSearchTerms(query: string): string[] {
+  return query
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function escapeLikeTerm(term: string): string {
+  return term.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function uniqueNonEmptyTerms(values: readonly string[] | undefined): string[] {
+  const seen = new Set<string>();
+  const terms: string[] = [];
+  for (const value of values ?? []) {
+    const term = value.trim();
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
+    terms.push(term);
+  }
+  return terms;
+}
+
+function getHeadwordCandidatesForSentenceSearchTerm(
+  term: string,
+  options: SentenceSearchOptions | undefined,
+): string[] {
+  const headwords =
+    options?.headwordTerms
+      ?.filter((entry) => entry.term === term)
+      .flatMap((entry) => entry.headwords) ?? [];
+  return uniqueNonEmptyTerms(headwords);
+}
+
+function uniqueKanji(text: string): string[] {
+  return Array.from(new Set(text.match(KANJI_PATTERN) ?? []));
+}
 
 function toVocabularyToken(row: VocabularyStatsRow): MergedToken {
   const partOfSpeech =
@@ -211,6 +263,70 @@ export function getKanjiOccurrences(
     .all(kanji, limit, offset) as unknown as KanjiOccurrenceRow[];
 }
 
+export function searchSubtitleSentences(
+  db: DatabaseSync,
+  query: string,
+  limit = SENTENCE_SEARCH_DEFAULT_LIMIT,
+  options?: SentenceSearchOptions,
+): SentenceSearchResultRow[] {
+  const terms = splitSentenceSearchTerms(query);
+  if (terms.length === 0) return [];
+  const resolvedLimit = resolveSentenceSearchLimit(limit);
+
+  const clauses: string[] = [];
+  const params: string[] = [];
+  for (const term of terms) {
+    const likeTerm = `%${escapeLikeTerm(term)}%`;
+    const headwords = getHeadwordCandidatesForSentenceSearchTerm(term, options);
+    const headwordClause =
+      headwords.length > 0
+        ? `
+        OR EXISTS (
+          SELECT 1
+          FROM imm_word_line_occurrences o
+          JOIN imm_words w ON w.id = o.word_id
+          WHERE o.line_id = l.line_id
+            AND w.headword IN (${headwords.map(() => '?').join(', ')})
+        )
+      `
+        : '';
+    clauses.push(`
+      (
+        l.text LIKE ? ESCAPE '\\'
+        OR v.canonical_title LIKE ? ESCAPE '\\'
+        OR COALESCE(a.canonical_title, '') LIKE ? ESCAPE '\\'
+        ${headwordClause}
+      )
+    `);
+    params.push(likeTerm, likeTerm, likeTerm, ...headwords);
+  }
+
+  return db
+    .prepare(
+      `
+        SELECT
+          l.anime_id AS animeId,
+          a.canonical_title AS animeTitle,
+          l.video_id AS videoId,
+          v.canonical_title AS videoTitle,
+          v.source_path AS sourcePath,
+          l.secondary_text AS secondaryText,
+          l.session_id AS sessionId,
+          l.line_index AS lineIndex,
+          l.segment_start_ms AS segmentStartMs,
+          l.segment_end_ms AS segmentEndMs,
+          l.text AS text
+        FROM imm_subtitle_lines l
+        JOIN imm_videos v ON v.video_id = l.video_id
+        LEFT JOIN imm_anime a ON a.anime_id = l.anime_id
+        WHERE ${clauses.join(' AND ')}
+        ORDER BY l.CREATED_DATE DESC, l.line_id DESC
+        LIMIT ?
+      `,
+    )
+    .all(...params, resolvedLimit) as unknown as SentenceSearchResultRow[];
+}
+
 export function getSessionEvents(
   db: DatabaseSync,
   sessionId: number,
@@ -287,24 +403,38 @@ export function getSimilarWords(db: DatabaseSync, wordId: number, limit = 10): S
     reading: string;
   } | null;
   if (!word || word.headword.trim() === '') return [];
+
+  const clauses: string[] = [];
+  const params: string[] = [];
+  const reading = word.reading.trim();
+  if (reading !== '') {
+    clauses.push('reading = ?');
+    params.push(word.reading);
+  }
+
+  for (const kanji of uniqueKanji(word.headword)) {
+    clauses.push("headword LIKE ? ESCAPE '\\'");
+    params.push(`%${escapeLikeTerm(kanji)}%`);
+  }
+
+  if (clauses.length === 0) return [];
+
+  const orderBy =
+    reading !== '' ? 'CASE WHEN reading = ? THEN 0 ELSE 1 END, frequency DESC' : 'frequency DESC';
+  const orderParams = reading !== '' ? [word.reading] : [];
+
   return db
     .prepare(
       `
     SELECT id AS wordId, headword, word, reading, frequency
     FROM imm_words
     WHERE id != ?
-    AND (reading = ? OR headword LIKE ? OR headword LIKE ?)
-    ORDER BY frequency DESC
+    AND (${clauses.join(' OR ')})
+    ORDER BY ${orderBy}
     LIMIT ?
   `,
     )
-    .all(
-      wordId,
-      word.reading,
-      `%${word.headword.charAt(0)}%`,
-      `%${word.headword.charAt(word.headword.length - 1)}%`,
-      limit,
-    ) as SimilarWordRow[];
+    .all(wordId, ...params, ...orderParams, limit) as SimilarWordRow[];
 }
 
 export function getKanjiDetail(db: DatabaseSync, kanjiId: number): KanjiDetailRow | null {

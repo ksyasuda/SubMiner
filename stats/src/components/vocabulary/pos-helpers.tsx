@@ -22,7 +22,9 @@ export function posColor(pos: string): string {
 
 export function PosBadge({ pos }: { pos: string }) {
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${posColor(pos)}`}>
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${posColor(pos)}`}
+    >
       {pos.replace(/_/g, ' ')}
     </span>
   );
