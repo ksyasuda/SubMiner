@@ -209,7 +209,7 @@
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.
     "toggleSubtitleSidebar": "Backslash", // Accelerator that toggles the subtitle sidebar visibility.
-    "toggleNotificationHistory": "Ctrl+N" // Accelerator that toggles the overlay notification history panel.
+    "toggleNotificationHistory": "CommandOrControl+N" // Accelerator that toggles the overlay notification history panel.
   }, // Overlay keyboard shortcuts. Set a shortcut to null to disable.
 
   // ==========================================

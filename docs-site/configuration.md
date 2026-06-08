@@ -232,7 +232,7 @@ Configure where overlay notification cards appear:
 
 #### Notification history panel
 
-Every overlay notification shown during a session is also recorded in a notification history panel. Press `Ctrl+N` (configurable via [`shortcuts.toggleNotificationHistory`](#shortcuts-configuration)) to toggle the panel; the binding works whether the overlay or mpv has focus. The panel slides in from the same edge the notifications use — left when `overlayPosition` is `"top-left"`, and right for `"top-right"` or `"top"` (centered). Character dictionary sync uses one live card but records each distinct phase in history. Each entry can be removed individually, or use **Clear** to empty the history. History is session-only and is not persisted across restarts.
+Every overlay notification shown during a session is also recorded in a notification history panel. Press `Ctrl/Cmd+N` (configurable via [`shortcuts.toggleNotificationHistory`](#shortcuts-configuration)) to toggle the panel; the binding works whether the overlay or mpv has focus. The panel slides in from the same edge the notifications use — left when `overlayPosition` is `"top-left"`, and right for `"top-right"` or `"top"` (centered). Character dictionary sync uses one live card but records each distinct phase in history. Each entry can be removed individually, or use **Clear** to empty the history. History is session-only and is not persisted across restarts.
 
 Startup tokenization, subtitle annotation, and character dictionary status follow the configured notification surface. When the surface is `"overlay"` or `"both"`, SubMiner queues those startup notifications until the overlay renderer is ready instead of falling back to mpv OSD. If loading and ready states both finish before the overlay can paint, the loading card is delivered first and then updates to ready shortly after. With `"both"`, character dictionary checking/building/importing/ready status also goes to system notifications; building and importing are only emitted when that work is actually needed. The bundled mpv plugin only shows its startup OSD messages when `ankiConnect.behavior.notificationType` is set to `"osd"` or `"osd-system"` in `config.jsonc`.
 
@@ -647,7 +647,7 @@ See `config.example.jsonc` for detailed configuration options.
     "openControllerDebug": "Alt+Shift+C",
     "openJimaku": "Ctrl+Shift+J",
     "toggleSubtitleSidebar": "Backslash",
-    "toggleNotificationHistory": "Ctrl+N",
+    "toggleNotificationHistory": "CommandOrControl+N",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -673,7 +673,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `openControllerDebug`            | string \| `null` | Opens the controller debug modal (default: `"Alt+Shift+C"`)                                                                                                            |
 | `openJimaku`                     | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                                              |
 | `toggleSubtitleSidebar`          | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.                              |
-| `toggleNotificationHistory`      | string \| `null` | Toggles the overlay notification history panel (default: `"Ctrl+N"`). The panel slides in from the same edge as notifications (right when notifications are centered). |
+| `toggleNotificationHistory`      | string \| `null` | Toggles the overlay notification history panel (default: `"CommandOrControl+N"`). The panel slides in from the same edge as notifications (right when notifications are centered). |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 

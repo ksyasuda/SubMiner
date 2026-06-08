@@ -98,6 +98,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
   assert.equal(config.shortcuts.openCharacterDictionaryManager, 'CommandOrControl+D');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
+  assert.equal(config.shortcuts.toggleNotificationHistory, 'CommandOrControl+N');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'transparent');

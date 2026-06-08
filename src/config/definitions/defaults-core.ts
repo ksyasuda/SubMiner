@@ -102,7 +102,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',
     toggleSubtitleSidebar: 'Backslash',
-    toggleNotificationHistory: 'Ctrl+N',
+    toggleNotificationHistory: 'CommandOrControl+N',
   },
   secondarySub: {
     secondarySubLanguages: [],
