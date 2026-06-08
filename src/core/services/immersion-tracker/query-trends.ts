@@ -178,11 +178,31 @@ function getTrendSessionWordCount(session: Pick<TrendSessionMetricRow, 'tokensSe
   return session.tokensSeen;
 }
 
+function looksLikeJellyfinStreamTitle(title: string): boolean {
+  const lowered = title.toLowerCase();
+  const hasApiKey = /api[\s_-]*key(?:\s|=|$)/i.test(title);
+  return (
+    hasApiKey &&
+    (lowered.includes('stream?') ||
+      lowered.includes('/stream?') ||
+      lowered.includes('/videos/') ||
+      lowered.includes('mediasourceid'))
+  );
+}
+
+function sanitizeTrendTitle(title: string): string {
+  const normalized = title.trim();
+  if (!normalized) {
+    return 'Unknown';
+  }
+  return looksLikeJellyfinStreamTitle(normalized) ? 'Jellyfin Video' : normalized;
+}
+
 function resolveTrendAnimeTitle(value: {
   animeTitle: string | null;
   canonicalTitle: string | null;
 }): string {
-  return value.animeTitle ?? value.canonicalTitle ?? 'Unknown';
+  return sanitizeTrendTitle(value.animeTitle ?? value.canonicalTitle ?? 'Unknown');
 }
 
 function accumulatePoints(points: TrendChartPoint[]): TrendChartPoint[] {
@@ -471,7 +491,7 @@ function getVideoAnimeTitleMap(
     )
     .all(...uniqueIds) as Array<{ videoId: number; animeTitle: string }>;
 
-  return new Map(rows.map((row) => [row.videoId, row.animeTitle]));
+  return new Map(rows.map((row) => [row.videoId, sanitizeTrendTitle(row.animeTitle)]));
 }
 
 function resolveVideoAnimeTitle(

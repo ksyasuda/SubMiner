@@ -52,6 +52,11 @@ export interface ImmersionTrackerPolicy {
   };
 }
 
+export interface JellyfinLinkRepairSummary {
+  scanned: number;
+  repaired: number;
+}
+
 export interface TelemetryAccumulator {
   totalWatchedMs: number;
   activeWatchedMs: number;

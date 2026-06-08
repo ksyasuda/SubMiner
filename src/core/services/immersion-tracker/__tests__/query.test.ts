@@ -777,6 +777,84 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
   }
 });
 
+test('getTrendsDashboard redacts legacy Jellyfin stream titles', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const rawStreamTitle =
+      'stream?static true&api key secret-token&MediaSourceId ms-1&AudioStreamIndex 3&SubtitleStreamIndex 4';
+    const videoId = getOrCreateVideoRecord(
+      db,
+      'remote:http://jellyfin.local/Videos/item-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+      {
+        canonicalTitle: rawStreamTitle,
+        sourcePath: null,
+        sourceUrl:
+          'http://jellyfin.local/Videos/item-1/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+        sourceType: SOURCE_TYPE_REMOTE,
+      },
+    );
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: rawStreamTitle,
+      canonicalTitle: rawStreamTitle,
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename:
+        'stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+      parsedTitle: rawStreamTitle,
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'guessit',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    const startedAtMs = 1_700_000_000_000;
+    const session = startSessionRecord(db, videoId, startedAtMs);
+    db.prepare(
+      `
+        UPDATE imm_sessions
+        SET
+          ended_at_ms = ?,
+          total_watched_ms = ?,
+          active_watched_ms = ?,
+          tokens_seen = ?
+        WHERE session_id = ?
+      `,
+    ).run(`${startedAtMs + 30 * 60_000}`, 30 * 60_000, 30 * 60_000, 120, session.sessionId);
+    db.prepare(
+      `
+        INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(Math.floor(startedAtMs / 86_400_000), videoId, 1, 30, 10, 120, 0);
+
+    const dashboard = getTrendsDashboard(db, 'all', 'day');
+    const titles = [
+      ...dashboard.animeCumulative.watchTime.map((point) => point.animeTitle),
+      ...dashboard.librarySummary.map((row) => row.title),
+    ];
+
+    assert.deepEqual([...new Set(titles)], ['Jellyfin Video']);
+    assert.equal(titles.some((title) => title.includes('api_key=')), false);
+    assert.equal(titles.some((title) => title.includes('api key')), false);
+    assert.equal(titles.some((title) => title.includes('secret-token')), false);
+    assert.equal(titles.some((title) => title.includes('stream?')), false);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

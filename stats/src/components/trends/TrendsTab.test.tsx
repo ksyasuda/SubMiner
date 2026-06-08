@@ -17,3 +17,10 @@ test('AnimeVisibilityFilter uses title visibility wording', () => {
   assert.match(markup, /Title Visibility/);
   assert.doesNotMatch(markup, /Anime Visibility/);
 });
+
+test('TrendsTab source labels words per minute without reading speed wording', async () => {
+  const source = await Bun.file(new URL('./TrendsTab.tsx', import.meta.url)).text();
+
+  assert.match(source, /title="Words \/ Min"/);
+  assert.doesNotMatch(source, /Reading Speed/);
+});

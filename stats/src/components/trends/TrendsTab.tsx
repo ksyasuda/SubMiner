@@ -210,7 +210,7 @@ export function TrendsTab() {
 
         <SectionHeader>Efficiency</SectionHeader>
         <TrendChart
-          title="Reading Speed (words / min)"
+          title="Words / Min"
           data={data.ratios.readingSpeed}
           color="#a6da95"
           type="line"

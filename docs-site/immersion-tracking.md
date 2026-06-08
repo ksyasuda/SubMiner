@@ -50,13 +50,15 @@ Cover-art library with search and sorting, per-series progress, episode drill-do
 
 Local files and Jellyfin items with detected season numbers are split into season-specific library entries, so `Season 1` and `Season 2` folders do not merge into one show card.
 
+Jellyfin stream URLs are normalized to stable item links before stats titles are shown, so playback query parameters are not displayed in the dashboard.
+
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
 ![Stats Library](/screenshots/stats-library.png)
 
 #### Trends
 
-Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (reading speed, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
+Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (words/min, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 

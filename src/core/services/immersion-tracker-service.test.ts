@@ -1718,8 +1718,41 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
       'http://jellyfin.local/Videos/item-2/stream?static=true&api_key=token&MediaSourceId=ms-1&StartTimeTicks=12000000',
       'The Beginning After the End S02E02 The Princess Begins Adventuring',
     );
+    tracker.handleMediaChange(null, null);
+    tracker.recordJellyfinPlaybackMetadata({
+      mediaPath:
+        'http://jellyfin.local/Videos/item-3/stream?static=true&api_key=token&MediaSourceId=ms-2',
+      displayTitle: 'The Beginning After the End S02E03 Dragon Has Left the Building',
+      itemTitle: 'Dragon Has Left the Building',
+      seriesTitle: 'The Beginning After the End',
+      seasonNumber: 2,
+      episodeNumber: 3,
+      itemId: 'item-3',
+    });
+    tracker.handleMediaChange(
+      'http://jellyfin.local/Videos/item-3/stream?static=true&api_key=token&MediaSourceId=ms-2&AudioStreamIndex=3&SubtitleStreamIndex=4',
+      'The Beginning After the End S02E03 Dragon Has Left the Building',
+    );
+    await waitForPendingAnimeMetadata(tracker);
 
     const privateApi = tracker as unknown as { db: DatabaseSync };
+    const videoRows = privateApi.db
+      .prepare(
+        `
+          SELECT source_url, canonical_title AS video_title
+          FROM imm_videos
+          ORDER BY video_id
+        `,
+      )
+      .all() as Array<{ source_url: string | null; video_title: string }>;
+    assert.equal(videoRows.length, 3);
+    assert.equal(
+      videoRows.some(
+        (row) => row.source_url?.includes('api_key=') || row.video_title.includes('api_key='),
+      ),
+      false,
+    );
+
     const rows = privateApi.db
       .prepare(
         `
@@ -1746,7 +1779,7 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
       anime_title: string;
     }>;
 
-    assert.equal(rows.length, 2);
+    assert.equal(rows.length, 3);
     assert.equal(new Set(rows.map((row) => row.anime_title)).size, 1);
     const jellyfinRow = rows.find(
       (row) => row.source_url === 'jellyfin://jellyfin.local/item/item-2',
@@ -1761,6 +1794,138 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
     assert.equal(jellyfinRow.parsed_episode, 2);
     assert.equal(jellyfinRow.parser_source, 'jellyfin');
     assert.equal(jellyfinRow.anime_title, 'The Beginning After the End Season 2');
+    const streamVariantRow = rows.find(
+      (row) => row.source_url === 'jellyfin://jellyfin.local/item/item-3',
+    );
+    assert.ok(streamVariantRow);
+    assert.equal(
+      streamVariantRow.video_title,
+      'The Beginning After the End S02E03 Dragon Has Left the Building',
+    );
+    assert.equal(streamVariantRow.source_url?.includes('api_key='), false);
+    assert.equal(streamVariantRow.video_title.includes('api_key='), false);
+    assert.equal(streamVariantRow.video_title.includes('stream?'), false);
+    assert.equal(streamVariantRow.parsed_title, 'The Beginning After the End');
+    assert.equal(streamVariantRow.parsed_season, 2);
+    assert.equal(streamVariantRow.parsed_episode, 3);
+    assert.equal(streamVariantRow.parser_source, 'jellyfin');
+    assert.equal(streamVariantRow.anime_title, 'The Beginning After the End Season 2');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('startup repairs existing Jellyfin stream video links to metadata rows', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const streamUrl =
+      'http://jellyfin.local/Videos/item-9/stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4';
+    tracker.handleMediaChange(
+      streamUrl,
+      'stream?static=true&api_key=secret-token&MediaSourceId=ms-1&AudioStreamIndex=3&SubtitleStreamIndex=4',
+    );
+    tracker.handleMediaChange(null, null);
+    const titledStreamUrl =
+      'http://jellyfin.local/Videos/item-10/stream?static=true&api_key=secret-token&MediaSourceId=ms-2';
+    tracker.handleMediaChange(titledStreamUrl, 'KonoSuba S01E06 Decision! Class Rep');
+    tracker.handleMediaChange(null, null);
+    tracker.recordJellyfinPlaybackMetadata({
+      mediaPath: 'http://jellyfin.local/Videos/item-9/stream?static=true&api_key=secret-token',
+      displayTitle: 'Frieren S01E09 Aura the Guillotine',
+      itemTitle: 'Aura the Guillotine',
+      seriesTitle: 'Frieren',
+      seasonNumber: 1,
+      episodeNumber: 9,
+      itemId: 'item-9',
+    });
+    tracker.destroy();
+    tracker = null;
+
+    tracker = new Ctor({ dbPath });
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const videoRows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            video_id,
+            video_key,
+            source_url,
+            canonical_title,
+            parser_source,
+            parsed_basename,
+            parsed_title,
+            parse_metadata_json
+          FROM imm_videos
+          ORDER BY video_id
+        `,
+      )
+      .all() as Array<{
+      video_id: number;
+      video_key: string;
+      source_url: string | null;
+      canonical_title: string;
+      parser_source: string | null;
+      parsed_basename: string | null;
+      parsed_title: string | null;
+      parse_metadata_json: string | null;
+    }>;
+    assert.equal(videoRows.length, 3);
+    const frierenRows = videoRows.filter(
+      (row) => row.source_url === 'jellyfin://jellyfin.local/item/item-9',
+    );
+    assert.equal(frierenRows.length, 2);
+    for (const row of frierenRows) {
+      assert.equal(row.source_url, 'jellyfin://jellyfin.local/item/item-9');
+      assert.equal(row.canonical_title, 'Frieren S01E09 Aura the Guillotine');
+      assert.equal(row.parser_source, 'jellyfin');
+      assert.equal(row.video_key.includes('api_key='), false);
+      assert.equal(row.source_url?.includes('api_key='), false);
+      assert.equal(row.canonical_title.includes('api_key='), false);
+    }
+    const titledRow = videoRows.find(
+      (row) => row.source_url === 'jellyfin://jellyfin.local/item/item-10',
+    );
+    assert.ok(titledRow);
+    assert.equal(titledRow.canonical_title, 'KonoSuba S01E06 Decision! Class Rep');
+    assert.equal(titledRow.video_key.includes('api_key='), false);
+    assert.equal(titledRow.source_url?.includes('api_key='), false);
+    assert.equal(JSON.stringify(videoRows).includes('api_key='), false);
+    assert.equal(JSON.stringify(videoRows).includes('secret-token'), false);
+
+    const animeRows = privateApi.db
+      .prepare(
+        `
+          SELECT canonical_title, normalized_title_key
+          FROM imm_anime
+          ORDER BY anime_id
+        `,
+      )
+      .all() as Array<{ canonical_title: string; normalized_title_key: string }>;
+    assert.equal(JSON.stringify(animeRows).includes('api_key='), false);
+    assert.equal(JSON.stringify(animeRows).includes('api key'), false);
+    assert.equal(JSON.stringify(animeRows).includes('secret-token'), false);
+
+    const sessionRows = privateApi.db
+      .prepare(
+        `
+          SELECT v.source_url, v.canonical_title
+          FROM imm_sessions s
+          JOIN imm_videos v ON v.video_id = s.video_id
+          ORDER BY s.session_id
+        `,
+      )
+      .all() as Array<{ source_url: string | null; canonical_title: string }>;
+    assert.deepEqual(
+      sessionRows.map((row) => row.canonical_title),
+      ['Frieren S01E09 Aura the Guillotine', 'KonoSuba S01E06 Decision! Class Rep'],
+    );
+    assert.equal(sessionRows.some((row) => row.source_url?.includes('api_key=')), false);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

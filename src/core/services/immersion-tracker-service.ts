@@ -90,6 +90,7 @@ import {
   markVideoWatched,
   upsertCoverArt,
 } from './immersion-tracker/query-maintenance';
+import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -331,6 +332,34 @@ function buildJellyfinStatsMediaPath(mediaPath: string, itemId: string): string 
   }
 }
 
+const JELLYFIN_MEDIA_ALIAS_QUERY_KEYS = [
+  'api_key',
+  'StartTimeTicks',
+  'AudioStreamIndex',
+  'SubtitleStreamIndex',
+];
+
+function deleteSearchParamsCaseInsensitive(searchParams: URLSearchParams, names: string[]): void {
+  const loweredNames = new Set(names.map((name) => name.toLowerCase()));
+  for (const key of [...searchParams.keys()]) {
+    if (loweredNames.has(key.toLowerCase())) {
+      searchParams.delete(key);
+    }
+  }
+}
+
+function buildJellyfinMediaPathAliasCandidates(mediaPath: string): string[] {
+  const candidates = new Set<string>([mediaPath]);
+  try {
+    const parsed = new URL(mediaPath);
+    deleteSearchParamsCaseInsensitive(parsed.searchParams, JELLYFIN_MEDIA_ALIAS_QUERY_KEYS);
+    candidates.add(parsed.toString());
+  } catch {
+    // Non-URL fallback paths are already represented by the raw candidate.
+  }
+  return [...candidates];
+}
+
 export class ImmersionTrackerService {
   private readonly logger = createLogger('main:immersion-tracker');
   private readonly db: DatabaseSync;
@@ -438,6 +467,12 @@ export class ImmersionTrackerService {
     if (reconciledSessions > 0) {
       this.logger.info(
         `Recovered stale active sessions on startup: reconciledSessions=${reconciledSessions}`,
+      );
+    }
+    const jellyfinRepair = repairJellyfinStreamVideoLinks(this.db);
+    if (jellyfinRepair.repaired > 0) {
+      this.logger.info(
+        `Repaired Jellyfin stats links on startup: scanned=${jellyfinRepair.scanned} repaired=${jellyfinRepair.repaired}`,
       );
     }
     if (shouldBackfillLifetimeSummaries(this.db)) {
@@ -1160,7 +1195,9 @@ export class ImmersionTrackerService {
       return;
     }
     const normalizedPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
-    this.mediaPathAliases.set(rawPath, normalizedPath);
+    for (const alias of buildJellyfinMediaPathAliasCandidates(rawPath)) {
+      this.mediaPathAliases.set(alias, normalizedPath);
+    }
 
     const displayTitle =
       normalizeText(metadata.displayTitle) ||
@@ -1235,7 +1272,10 @@ export class ImmersionTrackerService {
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
     const rawPath = normalizeMediaPath(mediaPath);
-    const normalizedPath = this.mediaPathAliases.get(rawPath) ?? rawPath;
+    const normalizedPath =
+      buildJellyfinMediaPathAliasCandidates(rawPath)
+        .map((alias) => this.mediaPathAliases.get(alias))
+        .find((alias): alias is string => Boolean(alias)) ?? rawPath;
     const normalizedTitle = normalizeText(mediaTitle);
     this.logger.info(
       `handleMediaChange called with path=${normalizedPath || '<empty>'} title=${normalizedTitle || '<empty>'}`,

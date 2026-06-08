@@ -5,6 +5,7 @@ import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 
 const OCCURRENCES_PAGE_SIZE = 50;
+const ANIME_APPEARANCES_LIMIT = 5;
 
 interface KanjiDetailPanelProps {
   kanjiId: number | null;
@@ -21,6 +22,25 @@ function formatSegment(ms: number | null): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function highlightKanji(text: string, kanji: string) {
+  if (!kanji) return text;
+  const parts = text.split(kanji);
+  if (parts.length === 1) return text;
+  return parts.flatMap((part, idx) =>
+    idx === 0
+      ? [part]
+      : [
+          <mark
+            key={idx}
+            className="rounded bg-ctp-teal/20 px-0.5 font-semibold text-ctp-teal"
+          >
+            {kanji}
+          </mark>,
+          part,
+        ],
+  );
+}
+
 export function KanjiDetailPanel({
   kanjiId,
   onClose,
@@ -34,6 +54,7 @@ export function KanjiDetailPanel({
   const [occError, setOccError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
+  const [showAllAnime, setShowAllAnime] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -43,6 +64,7 @@ export function KanjiDetailPanel({
     setOccLoadingMore(false);
     setOccError(null);
     setHasMore(false);
+    setShowAllAnime(false);
     requestIdRef.current++;
   }, [kanjiId]);
 
@@ -151,7 +173,10 @@ export function KanjiDetailPanel({
                       Anime Appearances
                     </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map((a) => (
+                      {(showAllAnime
+                        ? data.animeAppearances
+                        : data.animeAppearances.slice(0, ANIME_APPEARANCES_LIMIT)
+                      ).map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
@@ -168,6 +193,19 @@ export function KanjiDetailPanel({
                         </button>
                       ))}
                     </div>
+                    {data.animeAppearances.length > ANIME_APPEARANCES_LIMIT && (
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-teal hover:text-ctp-teal"
+                        onClick={() => setShowAllAnime((prev) => !prev)}
+                      >
+                        {showAllAnime
+                          ? 'Show less'
+                          : `Show ${formatNumber(
+                              data.animeAppearances.length - ANIME_APPEARANCES_LIMIT,
+                            )} more`}
+                      </button>
+                    )}
                   </section>
                 )}
 
@@ -237,7 +275,7 @@ export function KanjiDetailPanel({
                             session {occ.sessionId}
                           </div>
                           <p className="mt-3 rounded-lg bg-ctp-base/70 px-3 py-3 text-sm leading-6 text-ctp-text">
-                            {occ.text}
+                            {highlightKanji(occ.text, data.detail.kanji)}
                           </p>
                         </article>
                       ))}
