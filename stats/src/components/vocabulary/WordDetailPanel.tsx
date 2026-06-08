@@ -13,6 +13,7 @@ import { PosBadge } from './pos-helpers';
 
 const INITIAL_PAGE_SIZE = 5;
 const LOAD_MORE_SIZE = 10;
+const MEDIA_APPEARANCES_LIMIT = 5;
 
 type MineStatus = { loading?: boolean; success?: boolean; error?: string };
 
@@ -72,6 +73,7 @@ export function WordDetailPanel({
   const [hasMore, setHasMore] = useState(false);
   const [occLoaded, setOccLoaded] = useState(false);
   const [mineStatus, setMineStatus] = useState<Record<string, MineStatus>>({});
+  const [showAllAnime, setShowAllAnime] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -82,6 +84,7 @@ export function WordDetailPanel({
     setOccError(null);
     setHasMore(false);
     setMineStatus({});
+    setShowAllAnime(false);
     requestIdRef.current++;
   }, [wordId]);
 
@@ -273,10 +276,13 @@ export function WordDetailPanel({
                 {data.animeAppearances.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Anime Appearances
+                      Media Appearances
                     </h3>
                     <div className="space-y-1.5">
-                      {data.animeAppearances.map((a) => (
+                      {(showAllAnime
+                        ? data.animeAppearances
+                        : data.animeAppearances.slice(0, MEDIA_APPEARANCES_LIMIT)
+                      ).map((a) => (
                         <button
                           key={a.animeId}
                           type="button"
@@ -293,6 +299,19 @@ export function WordDetailPanel({
                         </button>
                       ))}
                     </div>
+                    {data.animeAppearances.length > MEDIA_APPEARANCES_LIMIT && (
+                      <button
+                        type="button"
+                        className="mt-2 w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
+                        onClick={() => setShowAllAnime((prev) => !prev)}
+                      >
+                        {showAllAnime
+                          ? 'Show less'
+                          : `Show ${formatNumber(
+                              data.animeAppearances.length - MEDIA_APPEARANCES_LIMIT,
+                            )} more`}
+                      </button>
+                    )}
                   </section>
                 )}
 

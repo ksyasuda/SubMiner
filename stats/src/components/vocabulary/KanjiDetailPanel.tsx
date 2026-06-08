@@ -5,7 +5,7 @@ import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../
 import type { VocabularyOccurrenceEntry } from '../../types/stats';
 
 const OCCURRENCES_PAGE_SIZE = 50;
-const ANIME_APPEARANCES_LIMIT = 5;
+const MEDIA_APPEARANCES_LIMIT = 5;
 
 interface KanjiDetailPanelProps {
   kanjiId: number | null;
@@ -30,10 +30,7 @@ function highlightKanji(text: string, kanji: string) {
     idx === 0
       ? [part]
       : [
-          <mark
-            key={idx}
-            className="rounded bg-ctp-teal/20 px-0.5 font-semibold text-ctp-teal"
-          >
+          <mark key={idx} className="rounded bg-ctp-teal/20 px-0.5 font-semibold text-ctp-teal">
             {kanji}
           </mark>,
           part,
@@ -170,12 +167,12 @@ export function KanjiDetailPanel({
                 {data.animeAppearances.length > 0 && (
                   <section>
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-ctp-overlay1 mb-2">
-                      Anime Appearances
+                      Media Appearances
                     </h3>
                     <div className="space-y-1.5">
                       {(showAllAnime
                         ? data.animeAppearances
-                        : data.animeAppearances.slice(0, ANIME_APPEARANCES_LIMIT)
+                        : data.animeAppearances.slice(0, MEDIA_APPEARANCES_LIMIT)
                       ).map((a) => (
                         <button
                           key={a.animeId}
@@ -193,7 +190,7 @@ export function KanjiDetailPanel({
                         </button>
                       ))}
                     </div>
-                    {data.animeAppearances.length > ANIME_APPEARANCES_LIMIT && (
+                    {data.animeAppearances.length > MEDIA_APPEARANCES_LIMIT && (
                       <button
                         type="button"
                         className="mt-2 w-full rounded-lg border border-ctp-surface2 bg-ctp-surface0 px-4 py-2 text-sm font-medium text-ctp-text transition hover:border-ctp-teal hover:text-ctp-teal"
@@ -202,7 +199,7 @@ export function KanjiDetailPanel({
                         {showAllAnime
                           ? 'Show less'
                           : `Show ${formatNumber(
-                              data.animeAppearances.length - ANIME_APPEARANCES_LIMIT,
+                              data.animeAppearances.length - MEDIA_APPEARANCES_LIMIT,
                             )} more`}
                       </button>
                     )}
