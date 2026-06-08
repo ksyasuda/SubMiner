@@ -108,7 +108,14 @@ function summarizeError(error: unknown): string {
 }
 
 export function createUpdateService(deps: UpdateServiceDeps) {
-  const inFlightBySource = new Map<UpdateCheckSource, Promise<UpdateCheckResult>>();
+  const inFlightBySource = new Map<string, Promise<UpdateCheckResult>>();
+
+  function getInFlightKey(request: UpdateCheckRequest): string {
+    if (request.source === 'manual') {
+      return request.installWhenAvailable ? 'manual:install' : 'manual:check';
+    }
+    return request.source;
+  }
 
   async function runCheck(request: UpdateCheckRequest): Promise<UpdateCheckResult> {
     const now = deps.now();
@@ -206,12 +213,13 @@ export function createUpdateService(deps: UpdateServiceDeps) {
 
   return {
     checkForUpdates(request: UpdateCheckRequest): Promise<UpdateCheckResult> {
-      const inFlight = inFlightBySource.get(request.source);
+      const key = getInFlightKey(request);
+      const inFlight = inFlightBySource.get(key);
       if (inFlight) return inFlight;
       const nextInFlight = runCheck(request).finally(() => {
-        inFlightBySource.delete(request.source);
+        inFlightBySource.delete(key);
       });
-      inFlightBySource.set(request.source, nextInFlight);
+      inFlightBySource.set(key, nextInFlight);
       return nextInFlight;
     },
     startAutomaticChecks(options: { startupDelayMs?: number; pollIntervalMs?: number } = {}): void {

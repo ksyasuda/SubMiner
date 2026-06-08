@@ -293,6 +293,28 @@ test('concurrent update checks share one in-flight check', async () => {
   assert.equal(checkCount, 1);
 });
 
+test('manual install request does not reuse in-flight manual check', async () => {
+  let checkCount = 0;
+  const resolveChecks: Array<(value: { available: boolean; version: string }) => void> = [];
+  const { deps } = createDeps({
+    checkAppUpdate: () =>
+      new Promise((resolve) => {
+        checkCount += 1;
+        resolveChecks.push(resolve);
+      }),
+  });
+  const service = createUpdateService(deps);
+  const manualCheck = service.checkForUpdates({ source: 'manual' });
+  const manualInstall = service.checkForUpdates({ source: 'manual', installWhenAvailable: true });
+
+  await Promise.resolve();
+  assert.equal(checkCount, 2);
+  for (const resolve of resolveChecks) {
+    resolve({ available: false, version: '0.14.0' });
+  }
+  await Promise.all([manualCheck, manualInstall]);
+});
+
 test('manual update check does not reuse in-flight automatic check', async () => {
   let checkCount = 0;
   const resolveChecks: Array<(value: { available: boolean; version: string }) => void> = [];
