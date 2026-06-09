@@ -1676,6 +1676,276 @@ test('handleMediaChange splits matching parsed titles across distinct seasons', 
   }
 });
 
+test('startup redistributes legacy combined anime rows across parsed seasons', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        anilist_id,
+        title_romaji,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'frieren',
+        'Frieren',
+        154587,
+        'Sousou no Frieren',
+        1000,
+        1000
+      );
+
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        anime_id,
+        source_type,
+        source_path,
+        parsed_basename,
+        parsed_title,
+        parsed_season,
+        parsed_episode,
+        parser_source,
+        parser_confidence,
+        watched,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          'local:/tmp/Frieren S01E01.mkv',
+          'Frieren S01E01',
+          1,
+          1,
+          '/tmp/Frieren S01E01.mkv',
+          'Frieren S01E01.mkv',
+          'Frieren',
+          1,
+          1,
+          'fallback',
+          0.9,
+          1,
+          0,
+          1000,
+          1000
+        ),
+        (
+          2,
+          'local:/tmp/Frieren S02E01.mkv',
+          'Frieren S02E01',
+          1,
+          1,
+          '/tmp/Frieren S02E01.mkv',
+          'Frieren S02E01.mkv',
+          'Frieren',
+          2,
+          1,
+          'fallback',
+          0.9,
+          1,
+          0,
+          1000,
+          1000
+        );
+
+      INSERT INTO imm_sessions (
+        session_id,
+        session_uuid,
+        video_id,
+        started_at_ms,
+        ended_at_ms,
+        status,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 'season-repair-session-1', 1, 1000, 2000, 2, 1000, 2000),
+        (2, 'season-repair-session-2', 2, 3000, 4000, 2, 3000, 4000);
+
+      INSERT INTO imm_session_telemetry (
+        session_id,
+        sample_ms,
+        total_watched_ms,
+        active_watched_ms,
+        lines_seen,
+        tokens_seen,
+        cards_mined,
+        lookup_count,
+        lookup_hits,
+        pause_count,
+        pause_ms,
+        seek_forward_count,
+        seek_backward_count,
+        media_buffer_events
+      ) VALUES
+        (1, 2000, 1000, 1000, 1, 10, 1, 0, 0, 0, 0, 0, 0, 0),
+        (2, 4000, 2000, 2000, 2, 20, 2, 0, 0, 0, 0, 0, 0, 0);
+    `);
+
+    tracker.destroy();
+    tracker = new Ctor({ dbPath });
+    const repairedApi = tracker as unknown as { db: DatabaseSync };
+
+    const rows = repairedApi.db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            a.normalized_title_key AS normalizedTitleKey,
+            a.anilist_id AS anilistId,
+            COUNT(v.video_id) AS videoCount,
+            COALESCE(lm.total_active_ms, 0) AS totalActiveMs
+          FROM imm_anime a
+          LEFT JOIN imm_videos v ON v.anime_id = a.anime_id
+          LEFT JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
+          GROUP BY a.anime_id
+          ORDER BY a.canonical_title ASC
+        `,
+      )
+      .all() as Array<{
+      canonicalTitle: string;
+      normalizedTitleKey: string;
+      anilistId: number | null;
+      videoCount: number;
+      totalActiveMs: number;
+    }>;
+
+    assert.deepEqual(rows, [
+      {
+        canonicalTitle: 'Frieren Season 1',
+        normalizedTitleKey: 'frieren season 1',
+        anilistId: 154587,
+        videoCount: 1,
+        totalActiveMs: 1000,
+      },
+      {
+        canonicalTitle: 'Frieren Season 2',
+        normalizedTitleKey: 'frieren season 2',
+        anilistId: null,
+        videoCount: 1,
+        totalActiveMs: 2000,
+      },
+    ]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('startup skips single-season anime rows during legacy season repair', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        anilist_id,
+        title_romaji,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'frieren',
+        'Frieren',
+        154587,
+        'Sousou no Frieren',
+        1000,
+        1000
+      );
+
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        anime_id,
+        source_type,
+        source_path,
+        parsed_basename,
+        parsed_title,
+        parsed_season,
+        parsed_episode,
+        parser_source,
+        parser_confidence,
+        watched,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'local:/tmp/Frieren S01E01.mkv',
+        'Frieren S01E01',
+        1,
+        1,
+        '/tmp/Frieren S01E01.mkv',
+        'Frieren S01E01.mkv',
+        'Frieren',
+        1,
+        1,
+        'fallback',
+        0.9,
+        1,
+        0,
+        1000,
+        1000
+      );
+    `);
+
+    tracker.destroy();
+    tracker = new Ctor({ dbPath });
+    const repairedApi = tracker as unknown as { db: DatabaseSync };
+
+    const rows = repairedApi.db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            a.normalized_title_key AS normalizedTitleKey,
+            a.anilist_id AS anilistId,
+            COUNT(v.video_id) AS videoCount
+          FROM imm_anime a
+          LEFT JOIN imm_videos v ON v.anime_id = a.anime_id
+          GROUP BY a.anime_id
+          ORDER BY a.anime_id ASC
+        `,
+      )
+      .all() as Array<{
+      canonicalTitle: string;
+      normalizedTitleKey: string;
+      anilistId: number | null;
+      videoCount: number;
+    }>;
+
+    assert.deepEqual(rows, [
+      {
+        canonicalTitle: 'Frieren',
+        normalizedTitleKey: 'frieren',
+        anilistId: 154587,
+        videoCount: 1,
+      },
+    ]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('Jellyfin playback metadata links stream videos to existing series title', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -2841,6 +3111,216 @@ test('reassignAnimeAnilist preserves existing description when description is om
 
     assert.equal(row?.anilistId, 33489);
     assert.equal(row?.description, 'Original description');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('reassignAnimeAnilist redistributes conflicting legacy combined row before assigning AniList id', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        anilist_id,
+        title_romaji,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          'konosuba',
+          'KonoSuba',
+          21202,
+          'Kono Subarashii Sekai ni Shukufuku wo!',
+          1000,
+          1000
+        ),
+        (
+          2,
+          'konosuba season 1',
+          'KonoSuba Season 1',
+          NULL,
+          NULL,
+          1000,
+          1000
+        );
+
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        anime_id,
+        source_type,
+        source_path,
+        parsed_basename,
+        parsed_title,
+        parsed_season,
+        parsed_episode,
+        parser_source,
+        parser_confidence,
+        watched,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (
+          1,
+          'local:/tmp/KonoSuba S01E01.mkv',
+          'KonoSuba S01E01',
+          1,
+          1,
+          '/tmp/KonoSuba S01E01.mkv',
+          'KonoSuba S01E01.mkv',
+          'KonoSuba',
+          1,
+          1,
+          'fallback',
+          0.9,
+          1,
+          0,
+          1000,
+          1000
+        ),
+        (
+          2,
+          'local:/tmp/KonoSuba S02E01.mkv',
+          'KonoSuba S02E01',
+          1,
+          1,
+          '/tmp/KonoSuba S02E01.mkv',
+          'KonoSuba S02E01.mkv',
+          'KonoSuba',
+          2,
+          1,
+          'fallback',
+          0.9,
+          1,
+          0,
+          1000,
+          1000
+        ),
+        (
+          3,
+          'local:/tmp/KonoSuba S01E02.mkv',
+          'KonoSuba S01E02',
+          2,
+          1,
+          '/tmp/KonoSuba S01E02.mkv',
+          'KonoSuba S01E02.mkv',
+          'KonoSuba',
+          1,
+          2,
+          'fallback',
+          0.9,
+          1,
+          0,
+          1000,
+          1000
+        );
+
+      INSERT INTO imm_sessions (
+        session_id,
+        session_uuid,
+        video_id,
+        started_at_ms,
+        ended_at_ms,
+        status,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 'anilist-conflict-session-1', 1, 1000, 2000, 2, 1000, 2000),
+        (2, 'anilist-conflict-session-2', 2, 3000, 4000, 2, 3000, 4000),
+        (3, 'anilist-conflict-session-3', 3, 5000, 6000, 2, 5000, 6000);
+
+      INSERT INTO imm_subtitle_lines (
+        session_id,
+        video_id,
+        anime_id,
+        line_index,
+        text,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 1, 1, 0, 'season one legacy line', 1000, 1000),
+        (2, 2, 1, 0, 'season two legacy line', 1000, 1000);
+
+      INSERT INTO imm_session_telemetry (
+        session_id,
+        sample_ms,
+        total_watched_ms,
+        active_watched_ms,
+        lines_seen,
+        tokens_seen,
+        cards_mined,
+        lookup_count,
+        lookup_hits,
+        pause_count,
+        pause_ms,
+        seek_forward_count,
+        seek_backward_count,
+        media_buffer_events
+      ) VALUES
+        (1, 2000, 1000, 1000, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0),
+        (2, 4000, 2000, 2000, 2, 20, 0, 0, 0, 0, 0, 0, 0, 0),
+        (3, 6000, 3000, 3000, 3, 30, 0, 0, 0, 0, 0, 0, 0, 0);
+    `);
+
+    await tracker.reassignAnimeAnilist(2, {
+      anilistId: 21202,
+      titleRomaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+    });
+
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            a.anilist_id AS anilistId,
+            COUNT(DISTINCT v.video_id) AS videoCount,
+            COUNT(DISTINCT sl.line_id) AS subtitleLineCount,
+            COALESCE(lm.total_active_ms, 0) AS totalActiveMs
+          FROM imm_anime a
+          LEFT JOIN imm_videos v ON v.anime_id = a.anime_id
+          LEFT JOIN imm_subtitle_lines sl ON sl.anime_id = a.anime_id
+          LEFT JOIN imm_lifetime_anime lm ON lm.anime_id = a.anime_id
+          GROUP BY a.anime_id
+          ORDER BY a.canonical_title ASC
+        `,
+      )
+      .all() as Array<{
+      canonicalTitle: string;
+      anilistId: number | null;
+      videoCount: number;
+      subtitleLineCount: number;
+      totalActiveMs: number;
+    }>;
+
+    assert.deepEqual(rows, [
+      {
+        canonicalTitle: 'KonoSuba Season 1',
+        anilistId: 21202,
+        videoCount: 2,
+        subtitleLineCount: 1,
+        totalActiveMs: 4000,
+      },
+      {
+        canonicalTitle: 'KonoSuba Season 2',
+        anilistId: null,
+        videoCount: 1,
+        subtitleLineCount: 1,
+        totalActiveMs: 2000,
+      },
+    ]);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

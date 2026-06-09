@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
-import { rebuildLifetimeSummariesInTransaction } from './lifetime';
+import { rebuildLifetimeSummaries, rebuildLifetimeSummariesInTransaction } from './lifetime';
 import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import { nowMs } from './time';
+import { resolveAnimeAnilistConflict } from './anime-season-repair';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
@@ -425,6 +426,14 @@ export function updateAnimeAnilistInfo(
   } | null;
   if (!row?.anime_id) return;
 
+  const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId);
+  const targetRow = db
+    .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+    .get(videoId) as {
+    anime_id: number | null;
+  } | null;
+  if (!targetRow?.anime_id) return;
+
   db.prepare(
     `
     UPDATE imm_anime
@@ -444,8 +453,11 @@ export function updateAnimeAnilistInfo(
     info.titleNative,
     info.episodesTotal,
     toDbTimestamp(nowMs()),
-    row.anime_id,
+    targetRow.anime_id,
   );
+  if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
+    rebuildLifetimeSummaries(db);
+  }
 }
 
 export function markVideoWatched(db: DatabaseSync, videoId: number, watched: boolean): void {
