@@ -275,13 +275,15 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
     const candidates = db
       .prepare(
         `
-          SELECT DISTINCT a.anime_id AS animeId
+          SELECT a.anime_id AS animeId
           FROM imm_anime a
           JOIN imm_videos v ON v.anime_id = a.anime_id
           WHERE v.parsed_title IS NOT NULL
             AND TRIM(v.parsed_title) != ''
             AND v.parsed_season IS NOT NULL
             AND v.parsed_season > 0
+          GROUP BY a.anime_id
+          HAVING COUNT(DISTINCT v.parsed_season) > 1
           ORDER BY a.anime_id ASC
         `,
       )

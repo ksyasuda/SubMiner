@@ -1842,6 +1842,110 @@ test('startup redistributes legacy combined anime rows across parsed seasons', a
   }
 });
 
+test('startup skips single-season anime rows during legacy season repair', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        anilist_id,
+        title_romaji,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'frieren',
+        'Frieren',
+        154587,
+        'Sousou no Frieren',
+        1000,
+        1000
+      );
+
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        anime_id,
+        source_type,
+        source_path,
+        parsed_basename,
+        parsed_title,
+        parsed_season,
+        parsed_episode,
+        parser_source,
+        parser_confidence,
+        watched,
+        duration_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'local:/tmp/Frieren S01E01.mkv',
+        'Frieren S01E01',
+        1,
+        1,
+        '/tmp/Frieren S01E01.mkv',
+        'Frieren S01E01.mkv',
+        'Frieren',
+        1,
+        1,
+        'fallback',
+        0.9,
+        1,
+        0,
+        1000,
+        1000
+      );
+    `);
+
+    tracker.destroy();
+    tracker = new Ctor({ dbPath });
+    const repairedApi = tracker as unknown as { db: DatabaseSync };
+
+    const rows = repairedApi.db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            a.normalized_title_key AS normalizedTitleKey,
+            a.anilist_id AS anilistId,
+            COUNT(v.video_id) AS videoCount
+          FROM imm_anime a
+          LEFT JOIN imm_videos v ON v.anime_id = a.anime_id
+          GROUP BY a.anime_id
+          ORDER BY a.anime_id ASC
+        `,
+      )
+      .all() as Array<{
+      canonicalTitle: string;
+      normalizedTitleKey: string;
+      anilistId: number | null;
+      videoCount: number;
+    }>;
+
+    assert.deepEqual(rows, [
+      {
+        canonicalTitle: 'Frieren',
+        normalizedTitleKey: 'frieren',
+        anilistId: 154587,
+        videoCount: 1,
+      },
+    ]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('Jellyfin playback metadata links stream videos to existing series title', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
