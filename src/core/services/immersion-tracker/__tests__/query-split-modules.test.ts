@@ -680,6 +680,116 @@ test('split maintenance helpers update anime metadata and watched state', () => 
   }
 });
 
+test('updateAnimeAnilistInfo redistributes legacy combined row before assigning duplicate AniList id', () => {
+  const { db, dbPath } = createDb();
+
+  try {
+    const legacyAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'KonoSuba',
+      canonicalTitle: 'KonoSuba',
+      anilistId: 21202,
+      titleRomaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const seasonAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'KonoSuba',
+      canonicalTitle: 'KonoSuba',
+      seasonScope: 1,
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const legacySeasonOneVideoId = getOrCreateVideoRecord(db, 'local:/tmp/konosuba-s01e01.mkv', {
+      canonicalTitle: 'KonoSuba S01E01',
+      sourcePath: '/tmp/konosuba-s01e01.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const legacySeasonTwoVideoId = getOrCreateVideoRecord(db, 'local:/tmp/konosuba-s02e01.mkv', {
+      canonicalTitle: 'KonoSuba S02E01',
+      sourcePath: '/tmp/konosuba-s02e01.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const targetVideoId = getOrCreateVideoRecord(db, 'local:/tmp/konosuba-s01e02.mkv', {
+      canonicalTitle: 'KonoSuba S01E02',
+      sourcePath: '/tmp/konosuba-s01e02.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+
+    linkVideoToAnimeRecord(db, legacySeasonOneVideoId, {
+      animeId: legacyAnimeId,
+      parsedBasename: 'konosuba-s01e01.mkv',
+      parsedTitle: 'KonoSuba',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, legacySeasonTwoVideoId, {
+      animeId: legacyAnimeId,
+      parsedBasename: 'konosuba-s02e01.mkv',
+      parsedTitle: 'KonoSuba',
+      parsedSeason: 2,
+      parsedEpisode: 1,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, targetVideoId, {
+      animeId: seasonAnimeId,
+      parsedBasename: 'konosuba-s01e02.mkv',
+      parsedTitle: 'KonoSuba',
+      parsedSeason: 1,
+      parsedEpisode: 2,
+      parserSource: 'test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    updateAnimeAnilistInfo(db, targetVideoId, {
+      anilistId: 21202,
+      titleRomaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
+      titleEnglish: null,
+      titleNative: null,
+      episodesTotal: 10,
+    });
+
+    const rows = db
+      .prepare(
+        `
+          SELECT
+            a.canonical_title AS canonicalTitle,
+            a.anilist_id AS anilistId,
+            COUNT(v.video_id) AS videoCount
+          FROM imm_anime a
+          LEFT JOIN imm_videos v ON v.anime_id = a.anime_id
+          GROUP BY a.anime_id
+          ORDER BY a.canonical_title ASC
+        `,
+      )
+      .all() as Array<{
+      canonicalTitle: string;
+      anilistId: number | null;
+      videoCount: number;
+    }>;
+
+    assert.deepEqual(rows, [
+      { canonicalTitle: 'KonoSuba Season 1', anilistId: 21202, videoCount: 2 },
+      { canonicalTitle: 'KonoSuba Season 2', anilistId: null, videoCount: 1 },
+    ]);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('deleteSessions refreshes only rollups affected by deleted sessions', () => {
   const { db, dbPath } = createDb();
 

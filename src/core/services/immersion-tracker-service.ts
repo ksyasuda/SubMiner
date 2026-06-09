@@ -92,6 +92,10 @@ import {
 } from './immersion-tracker/query-maintenance';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
+  repairLegacySeasonlessAnimeRows,
+  resolveAnimeAnilistConflict,
+} from './immersion-tracker/anime-season-repair';
+import {
   buildVideoKey,
   deriveCanonicalTitle,
   isKanji,
@@ -475,6 +479,13 @@ export class ImmersionTrackerService {
         `Repaired Jellyfin stats links on startup: scanned=${jellyfinRepair.scanned} repaired=${jellyfinRepair.repaired}`,
       );
     }
+    const seasonRepair = repairLegacySeasonlessAnimeRows(this.db);
+    if (seasonRepair.movedVideos > 0 || seasonRepair.deletedAnimeRows > 0) {
+      this.logger.info(
+        `Repaired season-scoped stats links on startup: scanned=${seasonRepair.scanned} movedVideos=${seasonRepair.movedVideos} deletedAnimeRows=${seasonRepair.deletedAnimeRows}`,
+      );
+      rebuildLifetimeSummaryTables(this.db);
+    }
     if (shouldBackfillLifetimeSummaries(this.db)) {
       const result = rebuildLifetimeSummaryTables(this.db);
       if (result.appliedSessions > 0) {
@@ -733,6 +744,7 @@ export class ImmersionTrackerService {
       coverUrl?: string | null;
     },
   ): Promise<void> {
+    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId);
     this.db
       .prepare(
         `
@@ -758,6 +770,9 @@ export class ImmersionTrackerService {
         nowMs(),
         animeId,
       );
+    if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
+      rebuildLifetimeSummaryTables(this.db);
+    }
 
     // Update cover art for all videos in this anime
     if (info.coverUrl) {
