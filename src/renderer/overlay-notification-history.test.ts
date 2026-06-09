@@ -130,6 +130,21 @@ test('history store defaults missing variant to info', () => {
   assert.equal(store.list()[0]?.variant, 'info');
 });
 
+test('history store preserves notification actions', () => {
+  const store = createOverlayNotificationHistoryStore();
+  store.record(
+    entry({
+      id: 'anki-update-progress',
+      title: 'Anki Card Updated',
+      actions: [{ id: 'open-anki-card', label: 'Open in Anki', noteId: 42 }],
+    }),
+  );
+
+  assert.deepEqual(store.list()[0]?.actions, [
+    { id: 'open-anki-card', label: 'Open in Anki', noteId: 42 },
+  ]);
+});
+
 test('panel side mirrors the notification stack position', () => {
   const stackWith = (positionClass: string) =>
     ({ classList: { contains: (token: string) => token === positionClass } }) as unknown as Element;
@@ -157,6 +172,59 @@ function createClassList(initialTokens: string[] = []) {
       else tokens.add(entry);
     },
   };
+}
+
+type FakeElement = {
+  tagName: string;
+  className: string;
+  textContent: string;
+  type: string;
+  dataset: Record<string, string>;
+  children: FakeElement[];
+  classList: ReturnType<typeof createClassList>;
+  append: (...children: FakeElement[]) => void;
+  replaceChildren: (...children: FakeElement[]) => void;
+  setAttribute: (name: string, value: string) => void;
+  addEventListener: (type: string, listener: () => void) => void;
+  dispatchEventType: (type: string) => void;
+};
+
+function createFakeElement(tagName = 'div'): FakeElement {
+  const listeners = new Map<string, Array<() => void>>();
+  const element: FakeElement = {
+    tagName: tagName.toUpperCase(),
+    className: '',
+    textContent: '',
+    type: '',
+    dataset: {},
+    children: [],
+    classList: createClassList(),
+    append: (...children) => {
+      element.children.push(...children);
+    },
+    replaceChildren: (...children) => {
+      element.children = [...children];
+    },
+    setAttribute: () => undefined,
+    addEventListener: (type, listener) => {
+      listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+    },
+    dispatchEventType: (type) => {
+      for (const listener of listeners.get(type) ?? []) listener();
+    },
+  };
+  return element;
+}
+
+function findChildByClass(element: FakeElement, className: string): FakeElement | null {
+  if (element.className.split(/\s+/).includes(className)) {
+    return element;
+  }
+  for (const child of element.children) {
+    const match = findChildByClass(child, className);
+    if (match) return match;
+  }
+  return null;
 }
 
 function createPanelHarness(stackPositionClass: string) {
@@ -198,6 +266,7 @@ function createPanelHarness(stackPositionClass: string) {
 
   const controller = createOverlayNotificationHistoryPanel({
     dom: {
+      overlay: createFakeElement(),
       overlayNotificationHistory: panel,
       overlayNotificationStack: stack,
     },
@@ -234,4 +303,113 @@ test('history panel resyncs the closed side before first open', () => {
   assert.equal(panel.classList.contains('side-left'), true);
   assert.equal(panel.classList.contains('side-right'), false);
   assert.equal(panel.classList.contains('open'), false);
+});
+
+test('history panel action buttons send action ids and note ids', () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const renderedItems: FakeElement[] = [];
+  const sentActions: Array<{ notificationId: string; actionId: string; noteId?: number }> = [];
+  const stack = {
+    classList: createClassList(['position-top-right']),
+  };
+  const clearButton = createFakeElement('button');
+  const closeButton = createFakeElement('button');
+  const list = {
+    replaceChildren: (...children: FakeElement[]) => {
+      renderedItems.splice(0, renderedItems.length, ...children);
+    },
+  };
+  const empty = createFakeElement();
+  const panel = {
+    classList: createClassList(['notification-history', 'side-right']),
+    setAttribute: () => undefined,
+    addEventListener: () => undefined,
+    querySelector: (selector: string) => {
+      switch (selector) {
+        case '.notification-history-list':
+          return list;
+        case '.notification-history-empty':
+          return empty;
+        case '.notification-history-clear':
+          return clearButton;
+        case '.notification-history-close':
+          return closeButton;
+        default:
+          return null;
+      }
+    },
+  };
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: {
+      createElement: (tagName: string) => createFakeElement(tagName),
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      electronAPI: {
+        sendOverlayNotificationAction: (
+          notificationId: string,
+          actionId: string,
+          options?: { noteId?: number },
+        ) => {
+          sentActions.push({ notificationId, actionId, noteId: options?.noteId });
+        },
+      },
+    },
+  });
+
+  try {
+    const controller = createOverlayNotificationHistoryPanel({
+      dom: {
+        overlay: createFakeElement(),
+        overlayNotificationHistory: panel,
+        overlayNotificationStack: stack,
+      },
+      state: {
+        isOverNotificationHistory: false,
+        notificationHistoryOpen: false,
+      },
+      platform: {
+        shouldToggleMouseIgnore: false,
+      },
+    } as never);
+
+    controller.record(
+      entry({
+        id: 'anki-update-progress',
+        title: 'Anki Card Updated',
+        actions: [{ id: 'open-anki-card', label: 'Open in Anki', noteId: 42 }],
+      }),
+    );
+    controller.open();
+
+    const button = renderedItems[0]
+      ? findChildByClass(renderedItems[0], 'notification-history-action')
+      : null;
+    if (!button) {
+      assert.fail('Expected notification history action button.');
+    }
+    button.dispatchEventType('click');
+
+    assert.deepEqual(sentActions, [
+      { notificationId: 'anki-update-progress', actionId: 'open-anki-card', noteId: 42 },
+    ]);
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
 });

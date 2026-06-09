@@ -143,6 +143,27 @@ function setInteractiveState(ctx: RendererContext, value: boolean): void {
   syncOverlayMouseIgnoreState(ctx);
 }
 
+function hasElementClass(element: Element | undefined, className: string): boolean {
+  if (!element) return false;
+  const legacyClassName = (element as { className?: unknown }).className;
+  return (
+    element.classList.contains(className) ||
+    (typeof legacyClassName === 'string' && legacyClassName.split(/\s+/).includes(className))
+  );
+}
+
+function isNotificationCardIcon(element: Element | undefined): boolean {
+  return hasElementClass(element, 'overlay-notification-icon');
+}
+
+function isNotificationCardContent(element: Element | undefined): element is HTMLElement {
+  return hasElementClass(element, 'overlay-notification-content');
+}
+
+function isNotificationCardCloseButton(element: Element | undefined): boolean {
+  return hasElementClass(element, 'overlay-notification-close');
+}
+
 export function createOverlayNotificationRenderer(
   ctx: RendererContext,
   options: { onChanged?: () => void; onShow?: (entry: OverlayNotificationEntry) => void } = {},
@@ -207,39 +228,19 @@ export function createOverlayNotificationRenderer(
     }
   }
 
-  function populateCard(card: HTMLElement, entry: OverlayNotificationEntry): void {
-    const imageSource = normalizeImageSource(entry.image);
-    card.classList.add('overlay-notification-card');
-    for (const variant of OVERLAY_NOTIFICATION_VARIANT_CLASSES) {
-      card.classList.toggle(variant, variant === normalizeVariant(entry.variant));
-    }
-    card.classList.toggle('has-image', Boolean(imageSource));
-    card.dataset.notificationId = entry.id;
-    card.setAttribute('role', 'status');
-
-    const leadingEl = imageSource ? document.createElement('img') : document.createElement('span');
-    leadingEl.className = imageSource ? 'overlay-notification-image' : 'overlay-notification-icon';
-    leadingEl.setAttribute('aria-hidden', 'true');
-    if (imageSource) {
-      const image = leadingEl as HTMLImageElement;
-      image.src = imageSource;
-      image.alt = '';
-      image.decoding = 'async';
-    }
-
-    const content = document.createElement('div');
+  function populateContent(content: HTMLElement, entry: OverlayNotificationEntry): void {
     content.className = 'overlay-notification-content';
 
     const title = document.createElement('div');
     title.className = 'overlay-notification-title';
     title.textContent = entry.title;
-    content.append(title);
+    const children: HTMLElement[] = [title];
 
     if (entry.body && entry.body.trim().length > 0) {
       const body = document.createElement('div');
       body.className = 'overlay-notification-body';
       body.textContent = entry.body;
-      content.append(body);
+      children.push(body);
     }
 
     if (entry.actions && entry.actions.length > 0) {
@@ -251,12 +252,59 @@ export function createOverlayNotificationRenderer(
         button.className = 'overlay-notification-action';
         button.textContent = action.label;
         button.addEventListener('click', () => {
-          window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id);
+          window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id, {
+            noteId: action.noteId,
+          });
           remove(entry.id);
         });
         actions.append(button);
       }
-      content.append(actions);
+      children.push(actions);
+    }
+    content.replaceChildren(...children);
+  }
+
+  function createContent(entry: OverlayNotificationEntry): HTMLElement {
+    const content = document.createElement('div');
+    populateContent(content, entry);
+    return content;
+  }
+
+  function populateCard(card: HTMLElement, entry: OverlayNotificationEntry): void {
+    const imageSource = normalizeImageSource(entry.image);
+    card.classList.add('overlay-notification-card');
+    for (const variant of OVERLAY_NOTIFICATION_VARIANT_CLASSES) {
+      card.classList.toggle(variant, variant === normalizeVariant(entry.variant));
+    }
+    card.classList.toggle('has-image', Boolean(imageSource));
+    card.dataset.notificationId = entry.id;
+    card.setAttribute('role', 'status');
+
+    const leadingNode = card.children[0];
+    const contentNode = card.children[1];
+    const closeNode = card.children[2];
+    if (
+      leadingNode &&
+      contentNode &&
+      closeNode &&
+      !imageSource &&
+      !entry.actions?.length &&
+      isNotificationCardIcon(leadingNode) &&
+      isNotificationCardContent(contentNode) &&
+      isNotificationCardCloseButton(closeNode)
+    ) {
+      populateContent(contentNode, entry);
+      return;
+    }
+
+    const leadingEl = imageSource ? document.createElement('img') : document.createElement('span');
+    leadingEl.className = imageSource ? 'overlay-notification-image' : 'overlay-notification-icon';
+    leadingEl.setAttribute('aria-hidden', 'true');
+    if (imageSource) {
+      const image = leadingEl as HTMLImageElement;
+      image.src = imageSource;
+      image.alt = '';
+      image.decoding = 'async';
     }
 
     const closeButton = document.createElement('button');
@@ -266,7 +314,7 @@ export function createOverlayNotificationRenderer(
     closeButton.textContent = '×';
     closeButton.addEventListener('click', () => remove(entry.id));
 
-    card.replaceChildren(leadingEl, content, closeButton);
+    card.replaceChildren(leadingEl, createContent(entry), closeButton);
   }
 
   function render(): void {

@@ -14,9 +14,12 @@ export type OverlayNotificationPosition = (typeof OVERLAY_NOTIFICATION_POSITION_
 
 export type OverlayNotificationVariant = 'info' | 'success' | 'warning' | 'error' | 'progress';
 
+export const OPEN_ANKI_CARD_ACTION_ID = 'open-anki-card';
+
 export interface OverlayNotificationAction {
   id: string;
   label: string;
+  noteId?: number;
 }
 
 export interface OverlayNotificationPayload {

@@ -1269,12 +1269,16 @@ test('registerIpcHandlers validates dispatchSessionAction payloads', async () =>
 
 test('registerIpcHandlers forwards valid overlay notification actions', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
-  const actions: Array<{ notificationId: string; actionId: string }> = [];
+  const actions: Array<{ notificationId: string; actionId: string; noteId?: number }> = [];
   registerIpcHandlers(
     createRegisterIpcDeps({
-      handleOverlayNotificationAction: (notificationId: string, actionId: string) => {
-        actions.push({ notificationId, actionId });
-      },
+      handleOverlayNotificationAction: ((
+        notificationId: string,
+        actionId: string,
+        noteId?: number,
+      ) => {
+        actions.push({ notificationId, actionId, noteId });
+      }) as IpcServiceDeps['handleOverlayNotificationAction'],
     } as Partial<IpcServiceDeps>),
     registrar,
   );
@@ -1285,10 +1289,19 @@ test('registerIpcHandlers forwards valid overlay notification actions', () => {
   actionHandler({}, null);
   actionHandler({}, { notificationId: '', actionId: 'install-update' });
   actionHandler({}, { notificationId: 'subminer-update-available', actionId: 42 });
+  actionHandler(
+    {},
+    { notificationId: 'anki-update-progress', actionId: 'open-anki-card', noteId: -1 },
+  );
   actionHandler({}, { notificationId: 'subminer-update-available', actionId: 'install-update' });
+  actionHandler(
+    {},
+    { notificationId: 'anki-update-progress', actionId: 'open-anki-card', noteId: 42 },
+  );
 
   assert.deepEqual(actions, [
-    { notificationId: 'subminer-update-available', actionId: 'install-update' },
+    { notificationId: 'subminer-update-available', actionId: 'install-update', noteId: undefined },
+    { notificationId: 'anki-update-progress', actionId: 'open-anki-card', noteId: 42 },
   ]);
 });
 

@@ -147,6 +147,7 @@ import type {
   UpdateChannel,
   WindowGeometry,
 } from './types';
+import { OPEN_ANKI_CARD_ACTION_ID } from './types';
 import { AnkiIntegration } from './anki-integration';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
@@ -3481,6 +3482,17 @@ function showOverlayNotification(payload: OverlayNotificationPayload): void {
 
 function dismissOverlayNotification(id: string): void {
   sendOverlayNotificationEvent({ id, dismiss: true });
+}
+
+async function openAnkiCardFromNotification(noteId: number): Promise<void> {
+  const activeIntegrationOpen = appState.ankiIntegration?.openNoteInAnki(noteId);
+  if (activeIntegrationOpen) {
+    await activeIntegrationOpen;
+    return;
+  }
+
+  const fallbackClient = new AnkiConnectClient(getResolvedConfig().ankiConnect.url);
+  await fallbackClient.openNoteInBrowser(noteId);
 }
 
 function toggleNotificationHistoryPanel(): void {
@@ -7011,7 +7023,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         linuxOverlayInteractiveHint = interactive;
         applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
-      handleOverlayNotificationAction: (notificationId, actionId) => {
+      handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
         if (
           notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
           actionId === INSTALL_UPDATE_ACTION_ID
@@ -7024,6 +7036,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             .catch((error) => {
               logger.warn('Failed to install update from overlay notification action:', error);
             });
+        }
+        if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
+          void openAnkiCardFromNotification(noteId).catch((error) => {
+            logger.warn('Failed to open Anki card from overlay notification action:', error);
+            showConfiguredStatusNotification('Failed to open Anki card in Anki.', {
+              id: 'open-anki-card-failed',
+              variant: 'error',
+            });
+          });
         }
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),

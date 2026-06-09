@@ -11,7 +11,9 @@ breaking: true
 - Initialized the tray and visible overlay shell before deferred tokenization warmups finish on visible-overlay startup, while keeping playback paused until SubMiner reports autoplay readiness.
 - Kept playback feedback such as subtitle visibility, subtitle track, and subtitle delay text on overlay/OSD surfaces only; desktop/system notifications are reserved for real notifications like mined cards, errors, and updates.
 - Reused the active primary/secondary subtitle mode overlay notification while cycling modes so rapid toggles update one card instead of stacking duplicate feedback.
-- Fixed mined-card overlay notifications so `overlay` and `both` modes show the same generated card thumbnail as system notifications.
+- Updated repeated progress notifications such as subsync syncing in place so their spinner stays live instead of flickering on every tick.
+- Fixed mined-card overlay notifications so `overlay` and `both` modes show generated card thumbnails in both live cards and the notification history panel.
+- Added Open in Anki buttons to mined-card overlay notifications and their history entries, with a direct AnkiConnect fallback when the live integration is unavailable.
 - Added an Update button to overlay update-available notifications so users can start the app update flow from the notification.
 - Fixed sentence-card mining so the Ctrl+S flow shows only the Anki update progress notification instead of also stacking a generic SubMiner toast.
 - Fixed overlay notification layering so notification close/actions stay clickable above subtitle bars on Linux overlays.

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import { AnkiIntegration } from './anki-integration';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
 import { AnkiConnectConfig } from './types';
@@ -13,6 +12,7 @@ type TestOverlayNotificationPayload = {
   body?: string;
   image?: string;
   variant?: string;
+  actions?: Array<{ id: string; label: string; noteId?: number }>;
 };
 
 interface IntegrationTestContext {
@@ -414,7 +414,7 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
 });
 
-test('AnkiIntegration includes generated notification image on overlay mined-card notifications', async () => {
+test('AnkiIntegration embeds generated notification image on overlay mined-card notifications', async () => {
   const desktopNotifications: Array<{ title: string; body?: string; icon?: string }> = [];
   const overlayNotifications: TestOverlayNotificationPayload[] = [];
   const generatedFrom: Array<{ videoPath: string; timestamp: number }> = [];
@@ -478,7 +478,13 @@ test('AnkiIntegration includes generated notification image on overlay mined-car
   assert.equal(overlayNotifications.length, 1);
   assert.equal(overlayNotifications[0]?.title, 'Anki Card Updated');
   assert.equal(overlayNotifications[0]?.body, 'Updated card: 食べる');
-  assert.equal(overlayNotifications[0]?.image, pathToFileURL(notificationIconPath).toString());
+  assert.equal(
+    overlayNotifications[0]?.image,
+    `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+  );
+  assert.deepEqual(overlayNotifications[0]?.actions, [
+    { id: 'open-anki-card', label: 'Open in Anki', noteId: 42 },
+  ]);
   assert.deepEqual(desktopNotifications, [
     {
       title: 'Anki Card Updated',
@@ -487,6 +493,73 @@ test('AnkiIntegration includes generated notification image on overlay mined-car
     },
   ]);
   assert.deepEqual(cleanupPaths, [notificationIconPath]);
+});
+
+test('AnkiIntegration keeps overlay notification image when temp icon write fails', async () => {
+  const desktopNotifications: Array<{ title: string; body?: string; icon?: string }> = [];
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const cleanupPaths: string[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+    {} as never,
+    {
+      currentVideoPath: '/tmp/show.mkv',
+      currentTimePos: 123.45,
+    } as never,
+    undefined,
+    (title, options) => {
+      desktopNotifications.push({ title, body: options.body, icon: options.icon });
+    },
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  (
+    integration as unknown as {
+      mediaGenerator: {
+        generateNotificationIcon: () => Promise<Buffer>;
+        writeNotificationIconToFile: () => string;
+        scheduleNotificationIconCleanup: (filePath: string) => void;
+      };
+    }
+  ).mediaGenerator = {
+    generateNotificationIcon: async () => Buffer.from('png'),
+    writeNotificationIconToFile: () => {
+      throw new Error('disk full');
+    },
+    scheduleNotificationIconCleanup: (filePath) => {
+      cleanupPaths.push(filePath);
+    },
+  };
+
+  await (
+    integration as unknown as {
+      showNotification: (noteId: number, label: string | number) => Promise<void>;
+    }
+  ).showNotification(42, '食べる');
+
+  assert.equal(
+    overlayNotifications[0]?.image,
+    `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+  );
+  assert.deepEqual(desktopNotifications, [
+    {
+      title: 'Anki Card Updated',
+      body: 'Updated card: 食べる',
+      icon: undefined,
+    },
+  ]);
+  assert.deepEqual(cleanupPaths, []);
 });
 
 test('AnkiIntegration routes workflow status notifications through configured surfaces', async () => {

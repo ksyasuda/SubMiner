@@ -719,6 +719,38 @@ body:focus-visible,
   color: var(--ctp-overlay1);
 }
 
+.notification-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.notification-history-action {
+  min-height: 24px;
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in srgb, var(--notification-history-accent) 38%, var(--ctp-surface2));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--notification-history-accent) 18%, var(--ctp-surface0));
+  color: var(--ctp-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.notification-history-action:hover {
+  border-color: color-mix(in srgb, var(--notification-history-accent) 70%, var(--ctp-surface2));
+  background: color-mix(in srgb, var(--notification-history-accent) 28%, var(--ctp-surface0));
+}
+
 .notification-history-remove {
   width: 22px;
   height: 22px;

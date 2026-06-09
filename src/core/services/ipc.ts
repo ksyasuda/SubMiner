@@ -56,6 +56,7 @@ export interface IpcServiceDeps {
   handleOverlayNotificationAction?: (
     notificationId: string,
     actionId: string,
+    noteId?: number,
   ) => void | Promise<void>;
   openYomitanSettings: () => void;
   quitApp: () => void;
@@ -230,14 +231,21 @@ function parseSubtitleMiningContext(payload: unknown): SubtitleMiningContext | n
 
 function parseOverlayNotificationActionPayload(
   payload: unknown,
-): { notificationId: string; actionId: string } | null {
+): { notificationId: string; actionId: string; noteId?: number } | null {
   if (!payload || typeof payload !== 'object') return null;
   const record = payload as Record<string, unknown>;
   const notificationId = record.notificationId;
   const actionId = record.actionId;
+  const noteId = record.noteId;
   if (typeof notificationId !== 'string' || notificationId.trim().length === 0) return null;
   if (typeof actionId !== 'string' || actionId.trim().length === 0) return null;
-  return { notificationId, actionId };
+  if (
+    noteId !== undefined &&
+    (typeof noteId !== 'number' || !Number.isInteger(noteId) || noteId <= 0)
+  ) {
+    return null;
+  }
+  return { notificationId, actionId, ...(typeof noteId === 'number' ? { noteId } : {}) };
 }
 
 export interface IpcDepsRuntimeOptions {
@@ -262,6 +270,7 @@ export interface IpcDepsRuntimeOptions {
   handleOverlayNotificationAction?: (
     notificationId: string,
     actionId: string,
+    noteId?: number,
   ) => void | Promise<void>;
   openYomitanSettings: () => void;
   quitApp: () => void;
@@ -501,7 +510,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     const parsedPayload = parseOverlayNotificationActionPayload(payload);
     if (!parsedPayload) return;
     void Promise.resolve(
-      deps.handleOverlayNotificationAction?.(parsedPayload.notificationId, parsedPayload.actionId),
+      deps.handleOverlayNotificationAction?.(
+        parsedPayload.notificationId,
+        parsedPayload.actionId,
+        parsedPayload.noteId,
+      ),
     ).catch((error) => {
       console.warn(
         'Failed to handle overlay notification action:',

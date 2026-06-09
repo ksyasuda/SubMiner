@@ -1,4 +1,4 @@
-import type { OverlayNotificationVariant } from '../types';
+import type { OverlayNotificationAction, OverlayNotificationVariant } from '../types';
 import type { RendererContext } from './context';
 import type { OverlayNotificationEntry } from './overlay-notifications.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -19,6 +19,7 @@ export type OverlayNotificationHistoryEntry = {
   body?: string;
   image?: string;
   variant: OverlayNotificationVariant;
+  actions?: OverlayNotificationAction[];
   createdAt: number;
   updatedAt: number;
 };
@@ -57,6 +58,7 @@ export function createOverlayNotificationHistoryStore(
       body: entry.body,
       image: entry.image,
       variant: normalizeVariant(entry.variant),
+      actions: entry.actions?.map((action) => ({ ...action })),
       createdAt: existing?.createdAt ?? timestamp,
       updatedAt: timestamp,
     };
@@ -176,6 +178,24 @@ export function createOverlayNotificationHistoryPanel(
     time.dateTime = new Date(entry.createdAt).toISOString();
     time.textContent = formatTime(entry.createdAt);
     content.append(time);
+
+    if (entry.actions && entry.actions.length > 0) {
+      const actions = document.createElement('div');
+      actions.className = 'notification-history-actions';
+      for (const action of entry.actions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'notification-history-action';
+        button.textContent = action.label;
+        button.addEventListener('click', () => {
+          window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id, {
+            noteId: action.noteId,
+          });
+        });
+        actions.append(button);
+      }
+      content.append(actions);
+    }
 
     const remove = document.createElement('button');
     remove.type = 'button';

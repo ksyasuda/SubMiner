@@ -165,10 +165,17 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
 test('update overlay notification action triggers install flow', () => {
   const source = readMainSource();
 
-  assert.match(source, /handleOverlayNotificationAction:\s*\(notificationId,\s*actionId\)\s*=>/);
+  assert.match(
+    source,
+    /handleOverlayNotificationAction:\s*\(notificationId,\s*actionId,\s*noteId\)\s*=>/,
+  );
   assert.match(source, /notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID/);
   assert.match(source, /actionId === INSTALL_UPDATE_ACTION_ID/);
   assert.match(source, /installWhenAvailable:\s*true/);
+  assert.match(source, /actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined/);
+  assert.match(source, /appState\.ankiIntegration\?\.openNoteInAnki\(noteId\)/);
+  assert.match(source, /new AnkiConnectClient\(getResolvedConfig\(\)\.ankiConnect\.url/);
+  assert.match(source, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
 test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
@@ -344,7 +351,10 @@ test('stats server Yomitan note creation honors configured Anki server override 
   )?.groups?.body;
 
   assert.ok(addYomitanNoteBlock);
-  assert.match(addYomitanNoteBlock, /const ankiConnectConfig = getResolvedConfig\(\)\.ankiConnect;/);
+  assert.match(
+    addYomitanNoteBlock,
+    /const ankiConnectConfig = getResolvedConfig\(\)\.ankiConnect;/,
+  );
   assert.match(addYomitanNoteBlock, /shouldForceOverrideYomitanAnkiServer\(ankiConnectConfig\)/);
   assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
 });

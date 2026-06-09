@@ -247,6 +247,13 @@ export class AnkiConnectClient {
     return (result as Record<string, unknown>[]) || [];
   }
 
+  async openNoteInBrowser(noteId: number): Promise<void> {
+    if (!Number.isInteger(noteId) || noteId <= 0) {
+      throw new Error('Invalid Anki note id');
+    }
+    await this.invoke('guiBrowse', { query: `nid:${noteId}` });
+  }
+
   async updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void> {
     await this.invoke('updateNoteFields', {
       note: {

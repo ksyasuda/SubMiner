@@ -39,6 +39,7 @@ type FakeElement = {
   dataset: Record<string, string>;
   children: FakeElement[];
   classList: ReturnType<typeof createClassList>;
+  replaceChildrenCalls: number;
   append: (...children: FakeElement[]) => void;
   replaceChildren: (...children: FakeElement[]) => void;
   remove: () => void;
@@ -61,10 +62,18 @@ function createFakeElement(tagName = 'div'): FakeElement {
     dataset: {},
     children: [],
     classList: createClassList(),
+    replaceChildrenCalls: 0,
     append: (...children) => {
-      element.children.push(...children);
+      for (const child of children) {
+        const existingIndex = element.children.indexOf(child);
+        if (existingIndex >= 0) {
+          element.children.splice(existingIndex, 1);
+        }
+        element.children.push(child);
+      }
     },
     replaceChildren: (...children) => {
+      element.replaceChildrenCalls += 1;
       element.children = [...children];
     },
     setAttribute: (name, value) => {
@@ -210,7 +219,7 @@ test('overlay notification action buttons send action ids', () => {
   const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const stack = createFakeElement();
-  const sentActions: Array<{ notificationId: string; actionId: string }> = [];
+  const sentActions: Array<{ notificationId: string; actionId: string; noteId?: number }> = [];
 
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -228,8 +237,12 @@ test('overlay notification action buttons send action ids', () => {
         return 1;
       },
       electronAPI: {
-        sendOverlayNotificationAction: (notificationId: string, actionId: string) => {
-          sentActions.push({ notificationId, actionId });
+        sendOverlayNotificationAction: (
+          notificationId: string,
+          actionId: string,
+          options?: { noteId?: number },
+        ) => {
+          sentActions.push({ notificationId, actionId, noteId: options?.noteId });
         },
       },
     },
@@ -250,7 +263,7 @@ test('overlay notification action buttons send action ids', () => {
       title: 'SubMiner update available',
       body: 'SubMiner v0.15.0 is available',
       persistent: true,
-      actions: [{ id: 'install-update', label: 'Update' }],
+      actions: [{ id: 'open-anki-card', label: 'Open in Anki', noteId: 42 }],
     });
 
     const card = stack.children[0];
@@ -265,8 +278,89 @@ test('overlay notification action buttons send action ids', () => {
     button.dispatchEventType('click');
 
     assert.deepEqual(sentActions, [
-      { notificationId: 'subminer-update-available', actionId: 'install-update' },
+      { notificationId: 'subminer-update-available', actionId: 'open-anki-card', noteId: 42 },
     ]);
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+});
+
+test('overlay notification renderer updates same-id progress without replacing the spinner', () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const stack = createFakeElement();
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: {
+      createElement: (tagName: string) => createFakeElement(tagName),
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: () => undefined,
+      setTimeout: () => {
+        return 1;
+      },
+    },
+  });
+
+  try {
+    const renderer = createOverlayNotificationRenderer({
+      dom: {
+        overlayNotificationStack: stack,
+      },
+      state: {
+        isOverOverlayNotification: false,
+      },
+    } as never);
+
+    renderer.show({
+      id: 'subsync-status',
+      title: 'Subsync',
+      body: 'Subsync: syncing |',
+      variant: 'progress',
+      persistent: true,
+    });
+
+    const card = stack.children[0];
+    if (!card) {
+      assert.fail('Expected overlay notification card.');
+    }
+    const spinner = findChildByClass(card, 'overlay-notification-icon');
+    if (!spinner) {
+      assert.fail('Expected overlay notification spinner.');
+    }
+    const cardReplacements = card.replaceChildrenCalls;
+
+    renderer.show({
+      id: 'subsync-status',
+      title: 'Subsync',
+      body: 'Subsync: syncing /',
+      variant: 'progress',
+      persistent: true,
+    });
+
+    assert.equal(stack.children.length, 1);
+    assert.equal(stack.children[0], card);
+    assert.equal(card.replaceChildrenCalls, cardReplacements);
+    assert.equal(findChildByClass(card, 'overlay-notification-icon'), spinner);
+    assert.equal(
+      findChildByClass(card, 'overlay-notification-body')?.textContent,
+      'Subsync: syncing /',
+    );
   } finally {
     if (originalDocument) {
       Object.defineProperty(globalThis, 'document', originalDocument);

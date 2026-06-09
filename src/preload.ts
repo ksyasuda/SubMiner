@@ -240,8 +240,16 @@ const electronAPI: ElectronAPI = {
   },
   onOverlayPointerRecoveryRequested: onOverlayPointerRecoveryRequestEvent,
   onOverlayNotification: onOverlayNotificationEvent,
-  sendOverlayNotificationAction: (notificationId: string, actionId: string) => {
-    ipcRenderer.send(IPC_CHANNELS.command.overlayNotificationAction, { notificationId, actionId });
+  sendOverlayNotificationAction: (
+    notificationId: string,
+    actionId: string,
+    options?: { noteId?: number },
+  ) => {
+    ipcRenderer.send(IPC_CHANNELS.command.overlayNotificationAction, {
+      notificationId,
+      actionId,
+      ...(options?.noteId !== undefined ? { noteId: options.noteId } : {}),
+    });
   },
   onNotificationHistoryToggle: onNotificationHistoryToggleEvent,
 

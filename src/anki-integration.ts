@@ -20,7 +20,6 @@ import { AnkiConnectClient } from './anki-connect';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { MediaGenerator } from './media-generator';
 import path from 'path';
-import { pathToFileURL } from 'url';
 import {
   AnkiConnectConfig,
   KikuDuplicateCardInfo,
@@ -30,6 +29,7 @@ import {
 } from './types/anki';
 import { AiConfig } from './types/integrations';
 import { MpvClient } from './types/runtime';
+import { OPEN_ANKI_CARD_ACTION_ID } from './types/notification';
 import type { NotificationType, OverlayNotificationPayload } from './types/notification';
 import type { NPlusOneMatchMode, SubtitleMiningContext } from './types/subtitle';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from './config';
@@ -121,8 +121,13 @@ function shouldPreferMediaTitleForMiscInfo(rawPath: string, filename: string): b
   );
 }
 
-function toOverlayNotificationImageSource(filePath: string): string {
-  return pathToFileURL(filePath).toString();
+function toOverlayNotificationImageSource(iconBuffer: Buffer): string {
+  return `data:image/png;base64,${iconBuffer.toString('base64')}`;
+}
+
+interface NotificationIcon {
+  filePath?: string;
+  overlayImageSource: string;
 }
 
 export class AnkiIntegration {
@@ -533,6 +538,10 @@ export class AnkiIntegration {
 
   getKnownWordMatchMode(): NPlusOneMatchMode {
     return this.config.knownWords?.matchMode ?? DEFAULT_ANKI_CONNECT_CONFIG.knownWords.matchMode;
+  }
+
+  async openNoteInAnki(noteId: number): Promise<void> {
+    await this.client.openNoteInBrowser(noteId);
   }
 
   private isKnownWordCacheEnabled(): boolean {
@@ -1092,9 +1101,9 @@ export class AnkiIntegration {
     const shouldShowSystemNotification =
       (type === 'system' || type === 'both' || type === 'osd-system') &&
       this.notificationCallback !== null;
-    const notificationIconPath =
+    const notificationIcon =
       shouldShowOverlayNotification || shouldShowSystemNotification
-        ? await this.generateNotificationIconPath(noteId)
+        ? await this.generateNotificationIcon(noteId, shouldShowSystemNotification)
         : undefined;
 
     if (shouldShowOverlayNotification && this.overlayNotificationCallback) {
@@ -1102,27 +1111,31 @@ export class AnkiIntegration {
         id: 'anki-update-progress',
         title: 'Anki Card Updated',
         body: message,
-        ...(notificationIconPath
-          ? { image: toOverlayNotificationImageSource(notificationIconPath) }
-          : {}),
+        ...(notificationIcon ? { image: notificationIcon.overlayImageSource } : {}),
         variant: errorSuffix === undefined ? 'success' : 'error',
         persistent: false,
+        actions: [{ id: OPEN_ANKI_CARD_ACTION_ID, label: 'Open in Anki', noteId }],
       });
     }
 
     if (shouldShowSystemNotification && this.notificationCallback) {
       this.notificationCallback('Anki Card Updated', {
         body: message,
-        icon: notificationIconPath,
+        icon: notificationIcon?.filePath,
       });
     }
 
-    if (notificationIconPath) {
-      this.mediaGenerator.scheduleNotificationIconCleanup(notificationIconPath);
+    if (notificationIcon) {
+      if (notificationIcon.filePath) {
+        this.mediaGenerator.scheduleNotificationIconCleanup(notificationIcon.filePath);
+      }
     }
   }
 
-  private async generateNotificationIconPath(noteId: number): Promise<string | undefined> {
+  private async generateNotificationIcon(
+    noteId: number,
+    shouldWriteToFile: boolean,
+  ): Promise<NotificationIcon | undefined> {
     if (!this.mpvClient?.currentVideoPath) {
       return undefined;
     }
@@ -1138,7 +1151,20 @@ export class AnkiIntegration {
         timestamp,
       );
       if (iconBuffer && iconBuffer.length > 0) {
-        return this.mediaGenerator.writeNotificationIconToFile(iconBuffer, noteId);
+        const notificationIcon: NotificationIcon = {
+          overlayImageSource: toOverlayNotificationImageSource(iconBuffer),
+        };
+        if (shouldWriteToFile) {
+          try {
+            notificationIcon.filePath = this.mediaGenerator.writeNotificationIconToFile(
+              iconBuffer,
+              noteId,
+            );
+          } catch (err) {
+            log.warn('Failed to write notification icon:', (err as Error).message);
+          }
+        }
+        return notificationIcon;
       }
     } catch (err) {
       log.warn('Failed to generate notification icon:', (err as Error).message);
