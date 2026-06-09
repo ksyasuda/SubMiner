@@ -12,6 +12,7 @@ breaking: true
 - Kept playback feedback such as subtitle visibility, subtitle track, and subtitle delay text on overlay/OSD surfaces only; desktop/system notifications are reserved for real notifications like mined cards, errors, and updates.
 - Reused the active primary/secondary subtitle mode overlay notification while cycling modes so rapid toggles update one card instead of stacking duplicate feedback.
 - Updated repeated progress notifications such as subsync syncing in place so their spinner stays live instead of flickering on every tick.
+- Stabilized overlay startup notifications so queued progress updates do not replay the card entrance animation or trigger macOS pass-through hover flicker after the loading OSD hands off to overlay notifications.
 - Fixed mined-card overlay notifications so `overlay` and `both` modes show generated card thumbnails in both live cards and the notification history panel.
 - Added Open in Anki buttons to mined-card overlay notifications and their history entries, with a direct AnkiConnect fallback when the live integration is unavailable.
 - Fixed those Open in Anki buttons so their fallback honors runtime AnkiConnect URL overrides and the default AnkiConnect endpoint.

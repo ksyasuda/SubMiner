@@ -164,6 +164,10 @@ function isNotificationCardCloseButton(element: Element | undefined): boolean {
   return hasElementClass(element, 'overlay-notification-close');
 }
 
+function hasExplicitNotificationActions(entry: OverlayNotificationEntry): boolean {
+  return (entry.actions?.length ?? 0) > 0;
+}
+
 export function createOverlayNotificationRenderer(
   ctx: RendererContext,
   options: { onChanged?: () => void; onShow?: (entry: OverlayNotificationEntry) => void } = {},
@@ -217,6 +221,39 @@ export function createOverlayNotificationRenderer(
     );
   }
 
+  function markEnterComplete(card: HTMLElement): void {
+    card.classList.remove('entering');
+  }
+
+  function watchEnterAnimation(card: HTMLElement): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const fallback = window.setTimeout(() => markEnterComplete(card), 320);
+    card.addEventListener(
+      'animationend',
+      (event) => {
+        if ((event as AnimationEvent).animationName?.startsWith('overlay-notification-enter')) {
+          window.clearTimeout(fallback);
+          markEnterComplete(card);
+        }
+      },
+      { once: true },
+    );
+  }
+
+  function appendCardIfNeeded(card: HTMLElement): void {
+    if (Array.prototype.includes.call(ctx.dom.overlayNotificationStack.children, card)) {
+      return;
+    }
+    ctx.dom.overlayNotificationStack.append(card);
+  }
+
+  function bindInteractiveControlHover(element: HTMLElement): void {
+    element.addEventListener('mouseenter', () => setInteractiveState(ctx, true));
+    element.addEventListener('mouseleave', () => setInteractiveState(ctx, false));
+  }
+
   function remove(id: string): void {
     clearTimer(id);
     store.remove(id);
@@ -251,6 +288,7 @@ export function createOverlayNotificationRenderer(
         button.type = 'button';
         button.className = 'overlay-notification-action';
         button.textContent = action.label;
+        bindInteractiveControlHover(button);
         button.addEventListener('click', () => {
           window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id, {
             noteId: action.noteId,
@@ -312,6 +350,9 @@ export function createOverlayNotificationRenderer(
     closeButton.className = 'overlay-notification-close';
     closeButton.setAttribute('aria-label', 'Dismiss notification');
     closeButton.textContent = '×';
+    if (hasExplicitNotificationActions(entry)) {
+      bindInteractiveControlHover(closeButton);
+    }
     closeButton.addEventListener('click', () => remove(entry.id));
 
     card.replaceChildren(leadingEl, createContent(entry), closeButton);
@@ -320,6 +361,7 @@ export function createOverlayNotificationRenderer(
   function render(): void {
     const visible = store.visible();
     const visibleIds = new Set(visible.map((entry) => entry.id));
+    const hasInteractiveCard = visible.some(hasExplicitNotificationActions);
     ctx.dom.overlayNotificationStack.classList.toggle(
       'hidden',
       visible.length === 0 && leaving.size === 0,
@@ -345,22 +387,25 @@ export function createOverlayNotificationRenderer(
       if (!card) {
         card = document.createElement('section');
         card.classList.add('entering');
+        watchEnterAnimation(card);
         cards.set(entry.id, card);
       }
       populateCard(card, entry);
-      // Appending an element already in the stack just moves it, keeping visible order
-      // without restarting its enter animation.
-      ctx.dom.overlayNotificationStack.append(card);
+      appendCardIfNeeded(card);
     }
 
     if (visible.length === 0 && leaving.size === 0) {
+      setInteractiveState(ctx, false);
+    } else if (!hasInteractiveCard && ctx.state.isOverOverlayNotification) {
       setInteractiveState(ctx, false);
     }
     options.onChanged?.();
   }
 
   ctx.dom.overlayNotificationStack.addEventListener('mouseenter', () => {
-    setInteractiveState(ctx, true);
+    if (store.visible().some(hasExplicitNotificationActions)) {
+      setInteractiveState(ctx, true);
+    }
   });
   ctx.dom.overlayNotificationStack.addEventListener('mouseleave', () => {
     setInteractiveState(ctx, false);

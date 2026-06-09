@@ -39,6 +39,7 @@ type FakeElement = {
   dataset: Record<string, string>;
   children: FakeElement[];
   classList: ReturnType<typeof createClassList>;
+  appendCalls: number;
   replaceChildrenCalls: number;
   append: (...children: FakeElement[]) => void;
   replaceChildren: (...children: FakeElement[]) => void;
@@ -62,8 +63,10 @@ function createFakeElement(tagName = 'div'): FakeElement {
     dataset: {},
     children: [],
     classList: createClassList(),
+    appendCalls: 0,
     replaceChildrenCalls: 0,
     append: (...children) => {
+      element.appendCalls += 1;
       for (const child of children) {
         const existingIndex = element.children.indexOf(child);
         if (existingIndex >= 0) {
@@ -339,6 +342,8 @@ test('overlay notification renderer updates same-id progress without replacing t
     if (!card) {
       assert.fail('Expected overlay notification card.');
     }
+    assert.equal(stack.appendCalls, 1);
+    assert.equal(card.classList.contains('entering'), true);
     const spinner = findChildByClass(card, 'overlay-notification-icon');
     if (!spinner) {
       assert.fail('Expected overlay notification spinner.');
@@ -355,12 +360,16 @@ test('overlay notification renderer updates same-id progress without replacing t
 
     assert.equal(stack.children.length, 1);
     assert.equal(stack.children[0], card);
+    assert.equal(stack.appendCalls, 1);
     assert.equal(card.replaceChildrenCalls, cardReplacements);
     assert.equal(findChildByClass(card, 'overlay-notification-icon'), spinner);
     assert.equal(
       findChildByClass(card, 'overlay-notification-body')?.textContent,
       'Subsync: syncing /',
     );
+
+    card.dispatchEventType('animationend', { animationName: 'overlay-notification-enter-right' });
+    assert.equal(card.classList.contains('entering'), false);
   } finally {
     if (originalDocument) {
       Object.defineProperty(globalThis, 'document', originalDocument);
