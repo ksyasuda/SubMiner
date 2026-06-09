@@ -174,7 +174,8 @@ test('update overlay notification action triggers install flow', () => {
   assert.match(source, /installWhenAvailable:\s*true/);
   assert.match(source, /actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined/);
   assert.match(source, /appState\.ankiIntegration\?\.openNoteInAnki\(noteId\)/);
-  assert.match(source, /new AnkiConnectClient\(getResolvedConfig\(\)\.ankiConnect\.url/);
+  assert.match(source, /appState\.runtimeOptionsManager\?\.getEffectiveAnkiConnectConfig/);
+  assert.match(source, /new AnkiConnectClient\(\s*effectiveAnkiConfig\.url \|\| DEFAULT_CONFIG\.ankiConnect\.url/);
   assert.match(source, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 

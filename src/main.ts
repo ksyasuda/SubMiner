@@ -3491,7 +3491,13 @@ async function openAnkiCardFromNotification(noteId: number): Promise<void> {
     return;
   }
 
-  const fallbackClient = new AnkiConnectClient(getResolvedConfig().ankiConnect.url);
+  const resolvedConfig = getResolvedConfig();
+  const effectiveAnkiConfig =
+    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
+    resolvedConfig.ankiConnect;
+  const fallbackClient = new AnkiConnectClient(
+    effectiveAnkiConfig.url || DEFAULT_CONFIG.ankiConnect.url,
+  );
   await fallbackClient.openNoteInBrowser(noteId);
 }
 
