@@ -875,14 +875,22 @@ function M.create(ctx)
 			return
 		end
 
+		local function show_restart_feedback(message)
+			notify_playback_feedback(message, function()
+				show_osd(message)
+			end)
+		end
+
+		start_overlay_loading_osd()
 		subminer_log("info", "process", "Restarting overlay...")
-		show_osd("Restarting...")
+		show_restart_feedback("Restarting...")
 
 		run_control_command_async("stop", nil, function(ok, result)
 			if not ok then
 				local reason = result and result.stderr or "unknown error"
 				subminer_log("warn", "process", "Restart stop command failed: " .. reason)
-				show_osd("Restart failed")
+				stop_overlay_loading_osd()
+				show_restart_feedback("Restart failed")
 				return
 			end
 
@@ -917,14 +925,17 @@ function M.create(ctx)
 							"process",
 							"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
 						)
-						show_osd("Restart failed")
+						stop_overlay_loading_osd()
+						show_restart_feedback("Restart failed")
 					else
 						wait_for_app_ping_state(true, "own the single-instance lock", function()
-							run_control_command_async("show-visible-overlay")
-							show_osd("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function()
+								show_restart_feedback("Restarted successfully")
+							end)
 						end, function()
-							run_control_command_async("show-visible-overlay")
-							show_osd("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function()
+								show_restart_feedback("Restarted successfully")
+							end)
 						end)
 					end
 				end)
@@ -933,7 +944,8 @@ function M.create(ctx)
 					ensure_texthooker_running(function() end)
 				end
 			end, function()
-				show_osd("Restart failed")
+				stop_overlay_loading_osd()
+				show_restart_feedback("Restart failed")
 			end)
 		end)
 	end

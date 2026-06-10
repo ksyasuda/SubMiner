@@ -10,6 +10,7 @@ breaking: true
 - Preserved character dictionary checking/building/importing/ready phases in overlay notification history and sent those phases to system notifications when `notificationType` is `both`.
 - Initialized the tray and visible overlay shell before deferred tokenization warmups finish on visible-overlay startup, while keeping playback paused until SubMiner reports autoplay readiness.
 - Kept playback feedback such as subtitle visibility, subtitle track, subtitle delay, and AniSkip prompt/skip text on overlay/OSD surfaces only; desktop/system notifications are reserved for real notifications like mined cards, errors, and updates.
+- Routed mpv-plugin restart feedback through the configured overlay/OSD feedback surface so `overlay` and `both` notification modes show restart progress and completion in the overlay, while keeping the loading OSD spinner visible until the overlay reports ready.
 - Reused the active primary/secondary subtitle mode overlay notification while cycling modes so rapid toggles update one card instead of stacking duplicate feedback.
 - Updated repeated progress notifications such as subsync syncing in place so their spinner stays live instead of flickering on every tick.
 - Stabilized overlay startup notifications so queued progress updates do not replay the card entrance animation or trigger macOS pass-through hover flicker after the loading OSD hands off to overlay notifications.
