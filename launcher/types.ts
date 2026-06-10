@@ -191,8 +191,6 @@ export interface LauncherMpvConfig {
   autoStartSubMiner?: boolean;
   pauseUntilOverlayReady?: boolean;
   subminerBinaryPath?: string;
-  aniskipEnabled?: boolean;
-  aniskipButtonKey?: string;
 }
 
 export interface LauncherLoggingConfig {
@@ -210,8 +208,6 @@ export interface PluginRuntimeConfig {
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
   texthookerEnabled: boolean;
-  aniskipEnabled: boolean;
-  aniskipButtonKey: string;
 }
 
 export interface CommandExecOptions {

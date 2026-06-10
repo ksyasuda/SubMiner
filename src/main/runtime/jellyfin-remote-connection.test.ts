@@ -79,8 +79,6 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'F8',
     }),
     getDefaultMpvLogPath: () => '/tmp/mp.log',
     defaultMpvArgs: ['--sid=auto'],
@@ -105,8 +103,8 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
   assert.match(scriptOpts ?? '', /subminer-auto_start_visible_overlay=no/);
   assert.match(scriptOpts ?? '', /subminer-auto_start_pause_until_ready=no/);
   assert.match(scriptOpts ?? '', /subminer-texthooker_enabled=no/);
-  assert.match(scriptOpts ?? '', /subminer-aniskip_enabled=yes/);
-  assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
+  assert.doesNotMatch(scriptOpts ?? '', /subminer-aniskip_enabled=/);
+  assert.doesNotMatch(scriptOpts ?? '', /subminer-aniskip_button_key=/);
 });
 
 test('createLaunchMpvIdleForJellyfinPlaybackHandler skips bundled script when installed plugin exists', () => {

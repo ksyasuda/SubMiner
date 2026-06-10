@@ -3,7 +3,6 @@ local M = {}
 function M.create(ctx)
 	local mp = ctx.mp
 	local process = ctx.process
-	local aniskip = ctx.aniskip
 	local hover = ctx.hover
 	local ui = ctx.ui
 	local state = ctx.state
@@ -42,12 +41,6 @@ function M.create(ctx)
 		end)
 		mp.register_script_message("subminer-autoplay-ready", function()
 			process.notify_auto_play_ready()
-		end)
-		mp.register_script_message("subminer-aniskip-refresh", function()
-			aniskip.fetch_aniskip_for_current_media("script-message")
-		end)
-		mp.register_script_message("subminer-skip-intro", function()
-			aniskip.skip_intro_now()
 		end)
 		mp.register_script_message(hover.HOVER_MESSAGE_NAME, function(payload_json)
 			hover.handle_hover_message(payload_json)

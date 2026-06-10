@@ -23,8 +23,6 @@ import {
   runAppCommandCaptureOutput,
   resolveLauncherRuntimePluginPath,
   resolveLauncherRuntimePluginPlan,
-  shouldResolveAniSkipMetadataForLaunch,
-  shouldResolveAniSkipMetadata,
   stopOverlay,
   startOverlay,
   state,
@@ -388,28 +386,9 @@ test('buildRuntimeExtraScriptOptParts marks launcher-owned startup pause gate', 
         autoStartVisibleOverlay: true,
         autoStartPauseUntilReady: true,
         texthookerEnabled: false,
-        aniskipEnabled: true,
-        aniskipButtonKey: 'TAB',
       },
     }),
     ['subminer-auto_start_pause_until_ready_owns_initial_pause=yes'],
-  );
-});
-
-test('shouldResolveAniSkipMetadataForLaunch respects disabled runtime plugin AniSkip', () => {
-  assert.equal(
-    shouldResolveAniSkipMetadataForLaunch('/tmp/video.mkv', 'file', undefined, {
-      socketPath: '/tmp/subminer.sock',
-      binaryPath: '',
-      backend: 'auto',
-      autoStart: true,
-      autoStartVisibleOverlay: true,
-      autoStartPauseUntilReady: true,
-      texthookerEnabled: false,
-      aniskipEnabled: false,
-      aniskipButtonKey: 'TAB',
-    }),
-    false,
   );
 });
 
@@ -563,20 +542,6 @@ test('waitForUnixSocketReady returns true when socket becomes connectable before
     net.createConnection = originalCreateConnection;
     fs.rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('shouldResolveAniSkipMetadata skips URL and YouTube-preloaded playback', () => {
-  assert.equal(shouldResolveAniSkipMetadata('/media/show.mkv', 'file'), true);
-  assert.equal(
-    shouldResolveAniSkipMetadata('https://www.youtube.com/watch?v=test123', 'url'),
-    false,
-  );
-  assert.equal(
-    shouldResolveAniSkipMetadata('/tmp/video123.webm', 'file', {
-      primaryPath: '/tmp/video123.ja.srt',
-    }),
-    false,
-  );
 });
 
 function makeArgs(overrides: Partial<Args> = {}): Args {

@@ -77,6 +77,7 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
   setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
   setLogRotation?: (rotation: ResolvedConfig['logging']['rotation']) => void;
   setLogFileToggles?: (files: ResolvedConfig['logging']['files']) => void;
+  applyAniSkipConfig?: () => void;
 }) {
   return () => ({
     setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) =>
@@ -99,6 +100,7 @@ export function createBuildConfigHotReloadAppliedMainDepsHandler(deps: {
       deps.setLogRotation?.(rotation),
     setLogFileToggles: (files: ResolvedConfig['logging']['files']) =>
       deps.setLogFileToggles?.(files),
+    applyAniSkipConfig: () => deps.applyAniSkipConfig?.(),
   });
 }
 

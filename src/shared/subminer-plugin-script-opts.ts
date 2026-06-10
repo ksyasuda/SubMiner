@@ -11,8 +11,6 @@ export interface SubminerPluginRuntimeScriptOptConfig {
   autoStartVisibleOverlay: boolean;
   autoStartPauseUntilReady: boolean;
   texthookerEnabled: boolean;
-  aniskipEnabled: boolean;
-  aniskipButtonKey: string;
 }
 
 function boolScriptOpt(value: boolean): 'yes' | 'no' {
@@ -34,7 +32,6 @@ export function buildSubminerPluginRuntimeScriptOptParts(
   const binaryPath = sanitizeScriptOptValue(runtimeConfig.binaryPath?.trim() || fallbackAppPath);
   const socketPath = sanitizeScriptOptValue(runtimeConfig.socketPath);
   const backend = sanitizeScriptOptValue(runtimeConfig.backend);
-  const aniskipButtonKey = sanitizeScriptOptValue(runtimeConfig.aniskipButtonKey);
   return [
     `subminer-binary_path=${binaryPath}`,
     `subminer-socket_path=${socketPath}`,
@@ -45,7 +42,5 @@ export function buildSubminerPluginRuntimeScriptOptParts(
       runtimeConfig.autoStartPauseUntilReady,
     )}`,
     `subminer-texthooker_enabled=${boolScriptOpt(runtimeConfig.texthookerEnabled)}`,
-    `subminer-aniskip_enabled=${boolScriptOpt(runtimeConfig.aniskipEnabled)}`,
-    `subminer-aniskip_button_key=${aniskipButtonKey}`,
   ];
 }

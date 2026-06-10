@@ -91,8 +91,6 @@ test('parseLauncherMpvConfig reads launch mode preference', () => {
       autoStartSubMiner: false,
       pauseUntilOverlayReady: false,
       subminerBinaryPath: '/opt/SubMiner/SubMiner.AppImage',
-      aniskipEnabled: false,
-      aniskipButtonKey: 'F8',
     },
   });
 
@@ -102,8 +100,6 @@ test('parseLauncherMpvConfig reads launch mode preference', () => {
   assert.equal(parsed.autoStartSubMiner, false);
   assert.equal(parsed.pauseUntilOverlayReady, false);
   assert.equal(parsed.subminerBinaryPath, '/opt/SubMiner/SubMiner.AppImage');
-  assert.equal(parsed.aniskipEnabled, false);
-  assert.equal(parsed.aniskipButtonKey, 'F8');
 });
 
 test('parseLauncherMpvConfig ignores blank subminer binary paths', () => {
@@ -138,8 +134,6 @@ test('parsePluginRuntimeConfigFromMainConfig maps config.jsonc values over plugi
       autoStartSubMiner: true,
       pauseUntilOverlayReady: true,
       subminerBinaryPath: '/opt/SubMiner/SubMiner.AppImage',
-      aniskipEnabled: false,
-      aniskipButtonKey: 'F8',
     },
   });
 
@@ -150,8 +144,6 @@ test('parsePluginRuntimeConfigFromMainConfig maps config.jsonc values over plugi
   assert.equal(parsed.autoStartPauseUntilReady, true);
   assert.equal(parsed.binaryPath, '/opt/SubMiner/SubMiner.AppImage');
   assert.equal(parsed.texthookerEnabled, false);
-  assert.equal(parsed.aniskipEnabled, false);
-  assert.equal(parsed.aniskipButtonKey, 'F8');
 });
 
 test('parsePluginRuntimeConfigFromMainConfig defaults to background-only managed startup', () => {
@@ -161,8 +153,6 @@ test('parsePluginRuntimeConfigFromMainConfig defaults to background-only managed
   assert.equal(parsed.autoStartVisibleOverlay, false);
   assert.equal(parsed.autoStartPauseUntilReady, true);
   assert.equal(parsed.texthookerEnabled, false);
-  assert.equal(parsed.aniskipEnabled, true);
-  assert.equal(parsed.aniskipButtonKey, 'TAB');
 });
 
 test('buildPluginRuntimeScriptOptParts emits config values that override plugin defaults', () => {
@@ -176,8 +166,6 @@ test('buildPluginRuntimeScriptOptParts emits config values that override plugin 
         autoStartVisibleOverlay: false,
         autoStartPauseUntilReady: true,
         texthookerEnabled: false,
-        aniskipEnabled: false,
-        aniskipButtonKey: 'F8',
       },
       '/fallback/SubMiner.AppImage',
     ),
@@ -189,8 +177,6 @@ test('buildPluginRuntimeScriptOptParts emits config values that override plugin 
       'subminer-auto_start_visible_overlay=no',
       'subminer-auto_start_pause_until_ready=yes',
       'subminer-texthooker_enabled=no',
-      'subminer-aniskip_enabled=no',
-      'subminer-aniskip_button_key=F8',
     ],
   );
 });
@@ -206,8 +192,6 @@ test('buildPluginRuntimeScriptOptParts strips script-option delimiters from stri
         autoStartVisibleOverlay: false,
         autoStartPauseUntilReady: true,
         texthookerEnabled: false,
-        aniskipEnabled: false,
-        aniskipButtonKey: 'F8,\nF9',
       },
       '/fallback/SubMiner.AppImage',
     ),
@@ -219,8 +203,6 @@ test('buildPluginRuntimeScriptOptParts strips script-option delimiters from stri
       'subminer-auto_start_visible_overlay=no',
       'subminer-auto_start_pause_until_ready=yes',
       'subminer-texthooker_enabled=no',
-      'subminer-aniskip_enabled=no',
-      'subminer-aniskip_button_key=F8 F9',
     ],
   );
 });
@@ -244,8 +226,6 @@ test('parseLauncherMpvConfig reads configured mpv profile', () => {
       pauseUntilOverlayReady: undefined,
       subminerBinaryPath: undefined,
       profile: 'anime',
-      aniskipEnabled: undefined,
-      aniskipButtonKey: undefined,
     },
   );
 

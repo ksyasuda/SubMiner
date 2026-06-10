@@ -634,8 +634,8 @@
     "autoStartSubMiner": true, // Start SubMiner in the background when SubMiner-managed mpv loads a file. Values: true | false
     "pauseUntilOverlayReady": true, // Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness. Values: true | false
     "subminerBinaryPath": "", // Optional SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path.
-    "aniskipEnabled": true, // Enable AniSkip intro detection and skip markers in the bundled mpv plugin. Values: true | false
-    "aniskipButtonKey": "TAB" // mpv key used to trigger the AniSkip button while the skip marker is visible.
+    "aniskipEnabled": true, // Enable AniSkip intro detection, chapter markers, and the skip-intro key. Values: true | false
+    "aniskipButtonKey": "TAB" // mpv key used to skip the detected intro while the skip prompt is visible.
   }, // SubMiner-managed mpv launch and bundled plugin options.
 
   // ==========================================

@@ -42,7 +42,7 @@ Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "
 | `v`              | Toggle primary subtitle bar visibility |
 | `TAB` (default)  | Skip intro (AniSkip)                   |
 
-The AniSkip key is **not** a `y` chord. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it.
+The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it. See [AniSkip Integration](/aniskip-integration) for setup and details.
 
 The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
 
@@ -133,9 +133,9 @@ script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
 script-message subminer-autoplay-ready
-script-message subminer-aniskip-refresh
-script-message subminer-skip-intro
 ```
+
+The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) still exist, but they are handled by the SubMiner app over the IPC socket rather than by the plugin - see [AniSkip Integration](/aniskip-integration#triggering-from-mpv).
 
 The `subminer-start` message accepts overrides:
 
@@ -146,26 +146,11 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 `log-level` here controls only logging verbosity passed to SubMiner.
 `--debug` is a separate app/dev-mode flag in the main CLI and should not be used here for logging.
 
-## AniSkip Intro Skip
-
-- AniSkip lookups are gated. The plugin only runs lookup when:
-  - SubMiner launcher metadata is present, or
-  - SubMiner app process is already running, or
-  - You explicitly call `script-message subminer-aniskip-refresh`.
-- Lookups are asynchronous (no blocking `ps`/`curl` on `file-loaded`).
-- MAL/title resolution is cached for the current mpv session.
-- When launched via `subminer`, launcher can pass `aniskip_payload` (pre-fetched AniSkip `skip-times` payload) and the plugin applies it directly without making API calls.
-- If the payload is absent or invalid, lookup falls back to title/MAL-based async fetch.
-- Install `guessit` for best detection quality (`python3 -m pip install --user guessit`).
-- If OP interval exists, plugin adds `AniSkip Intro Start` and `AniSkip Intro End` chapters.
-- At intro start, plugin shows an OSD hint for the first 3 seconds (`You can skip by pressing TAB` by default; the key reflects `mpv.aniskipButtonKey`).
-- Use `script-message subminer-aniskip-refresh` after changing media metadata/options to retry lookup.
-
 ## Lifecycle
 
 For how the plugin's auto-start fits into the full launch sequence - including when the launcher starts the overlay instead of the plugin - see [Playback Startup Flow](./architecture#playback-startup-flow).
 
-- **File loaded**: If `auto_start=yes`, the plugin starts the overlay, then defers AniSkip lookup until after startup delay.
+- **File loaded**: If `auto_start=yes`, the plugin starts the overlay.
 - **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused and the plugin resumes playback after SubMiner reports tokenization-ready (with timeout fallback).
 - **Duplicate auto-start events**: Repeated `file-loaded` hooks while overlay is already running are ignored for auto-start triggers (prevents duplicate start attempts).
 - **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.

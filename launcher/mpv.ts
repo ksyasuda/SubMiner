@@ -27,7 +27,7 @@ import {
   shouldForwardLogLevel,
 } from './types.js';
 import { appendToAppLog, getAppLogPath, log, fail, getMpvLogPath } from './log.js';
-import { buildSubminerScriptOpts, resolveAniSkipMetadataForFile } from './aniskip-metadata.js';
+import { buildSubminerScriptOpts } from './script-opts.js';
 import { buildPluginRuntimeScriptOptParts } from './config/plugin-runtime-config.js';
 import { nowMs } from './time.js';
 import {
@@ -823,38 +823,12 @@ export async function loadSubtitleIntoMpv(
   }
 }
 
-export function shouldResolveAniSkipMetadata(
-  target: string,
-  targetKind: 'file' | 'url',
-  preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-): boolean {
-  if (targetKind !== 'file') {
-    return false;
-  }
-  if (preloadedSubtitles?.primaryPath || preloadedSubtitles?.secondaryPath) {
-    return false;
-  }
-  return !isYoutubeTarget(target);
-}
-
 type StartMpvOptions = {
   startPaused?: boolean;
   disableYoutubeSubtitleAutoLoad?: boolean;
   runtimePluginPath?: string | null;
   runtimePluginConfig?: PluginRuntimeConfig;
 };
-
-export function shouldResolveAniSkipMetadataForLaunch(
-  target: string,
-  targetKind: 'file' | 'url',
-  preloadedSubtitles?: { primaryPath?: string; secondaryPath?: string },
-  runtimePluginConfig?: PluginRuntimeConfig,
-): boolean {
-  if (runtimePluginConfig?.aniskipEnabled === false) {
-    return false;
-  }
-  return shouldResolveAniSkipMetadata(target, targetKind, preloadedSubtitles);
-}
 
 export function buildRuntimeExtraScriptOptParts(
   target: string,
@@ -946,29 +920,14 @@ export async function startMpv(
   if (options?.startPaused) {
     mpvArgs.push('--pause=yes');
   }
-  const aniSkipMetadata = shouldResolveAniSkipMetadataForLaunch(
-    target,
-    targetKind,
-    preloadedSubtitles,
-    options?.runtimePluginConfig,
-  )
-    ? await resolveAniSkipMetadataForFile(target)
-    : null;
   const extraScriptOpts = buildRuntimeExtraScriptOptParts(target, targetKind, options);
   const runtimeScriptOpts = options?.runtimePluginConfig
     ? buildPluginRuntimeScriptOptParts(options.runtimePluginConfig, appPath)
     : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
-  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, aniSkipMetadata, args.logLevel, [
+  const scriptOpts = buildSubminerScriptOpts(appPath, socketPath, [
     ...runtimeScriptOpts,
     ...extraScriptOpts,
   ]);
-  if (aniSkipMetadata) {
-    log(
-      'debug',
-      args.logLevel,
-      `AniSkip metadata (${aniSkipMetadata.source}): title="${aniSkipMetadata.title}" season=${aniSkipMetadata.season ?? '-'} episode=${aniSkipMetadata.episode ?? '-'}`,
-    );
-  }
   mpvArgs.push(`--script-opts=${scriptOpts}`);
   mpvArgs.push(...buildMpvLoggingArgs(args.logLevel, getMpvLogPath(), mpvArgs));
 
@@ -1701,13 +1660,7 @@ export function launchMpvIdleDetached(
       ? buildPluginRuntimeScriptOptParts(runtimePluginConfig, appPath)
       : [`subminer-binary_path=${appPath}`, `subminer-socket_path=${socketPath}`];
     mpvArgs.push(
-      `--script-opts=${buildSubminerScriptOpts(
-        appPath,
-        socketPath,
-        null,
-        args.logLevel,
-        runtimeScriptOpts,
-      )}`,
+      `--script-opts=${buildSubminerScriptOpts(appPath, socketPath, runtimeScriptOpts)}`,
     );
     mpvArgs.push(...buildMpvLoggingArgs(args.logLevel, getMpvLogPath(), mpvArgs));
     mpvArgs.push(`--input-ipc-server=${socketPath}`);

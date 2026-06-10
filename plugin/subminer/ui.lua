@@ -1,13 +1,9 @@
 local M = {}
-local DEFAULT_ANISKIP_BUTTON_KEY = "TAB"
-local LEGACY_ANISKIP_BUTTON_KEY = "y-k"
 
 function M.create(ctx)
 	local mp = ctx.mp
 	local input = ctx.input
-	local opts = ctx.opts
 	local process = ctx.process
-	local aniskip = ctx.aniskip
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 
@@ -99,19 +95,6 @@ function M.create(ctx)
 			end
 			process.run_control_command_async("open-session-help")
 		end)
-		if type(opts.aniskip_button_key) == "string" and opts.aniskip_button_key ~= "" then
-			mp.add_key_binding(opts.aniskip_button_key, "subminer-skip-intro", function()
-				aniskip.skip_intro_now()
-			end)
-		end
-		if
-			opts.aniskip_button_key ~= LEGACY_ANISKIP_BUTTON_KEY
-			and opts.aniskip_button_key ~= DEFAULT_ANISKIP_BUTTON_KEY
-		then
-			mp.add_key_binding(LEGACY_ANISKIP_BUTTON_KEY, "subminer-skip-intro-fallback", function()
-				aniskip.skip_intro_now()
-			end)
-		end
 	end
 
 	return {

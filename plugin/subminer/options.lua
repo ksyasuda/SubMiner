@@ -1,5 +1,4 @@
 local M = {}
-local DEFAULT_ANISKIP_BUTTON_KEY = "TAB"
 
 local function normalize_socket_path_option(socket_path, default_socket_path)
 	if type(default_socket_path) ~= "string" then
@@ -37,16 +36,6 @@ function M.load(options_lib, default_socket_path)
 		auto_start_pause_until_ready_timeout_seconds = 15,
 		osd_messages = true,
 		log_level = "info",
-		aniskip_enabled = false,
-		aniskip_title = "",
-		aniskip_season = "",
-		aniskip_mal_id = "",
-		aniskip_episode = "",
-		aniskip_payload = "",
-		aniskip_show_button = true,
-		aniskip_button_text = "You can skip by pressing %s",
-		aniskip_button_key = DEFAULT_ANISKIP_BUTTON_KEY,
-		aniskip_button_duration = 3,
 	}
 
 	options_lib.read_options(opts, "subminer")

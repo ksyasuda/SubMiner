@@ -211,8 +211,6 @@ test('buildWindowsMpvLaunchArgs uses runtime plugin config script opts', () => {
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'F8',
     },
   );
 
@@ -224,8 +222,6 @@ test('buildWindowsMpvLaunchArgs uses runtime plugin config script opts', () => {
   assert.match(scriptOpts ?? '', /subminer-auto_start_visible_overlay=no/);
   assert.match(scriptOpts ?? '', /subminer-auto_start_pause_until_ready=no/);
   assert.match(scriptOpts ?? '', /subminer-texthooker_enabled=no/);
-  assert.match(scriptOpts ?? '', /subminer-aniskip_enabled=yes/);
-  assert.match(scriptOpts ?? '', /subminer-aniskip_button_key=F8/);
 });
 
 test('buildWindowsMpvLaunchArgs keeps Windows ipc default unless explicitly overridden', () => {
@@ -243,8 +239,6 @@ test('buildWindowsMpvLaunchArgs keeps Windows ipc default unless explicitly over
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'F7',
     },
   );
 
@@ -293,8 +287,6 @@ test('launchWindowsMpv attaches a launched video to a running app and disables p
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
       texthookerEnabled: true,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'TAB',
     },
   );
 
@@ -357,8 +349,6 @@ test('launchWindowsMpv leaves plugin auto-start enabled when no running app cont
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'TAB',
     },
   );
 
@@ -447,8 +437,6 @@ test('launchWindowsMpv forwards runtime logging config to mpv and plugin', async
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: true,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'TAB',
     },
   );
 

@@ -30,7 +30,7 @@ launcher/                 # Standalone CLI launcher wrapper and mpv helpers
 plugin/
   subminer/               # Modular mpv plugin (init · main · bootstrap · lifecycle · process
                           #   state · messages · hover · ui · options · environment · log
-                          #   binary · aniskip · aniskip_match)
+                          #   binary)
 src/
   ai/                      # AI translation provider utilities (client, config)
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
@@ -130,7 +130,7 @@ src/renderer/
 ### Launcher + Plugin Runtimes
 
 - `launcher/main.ts` dispatches commands through `launcher/commands/*` and shared config readers in `launcher/config/*`. It handles mpv startup, app passthrough, Jellyfin helper commands, and playback handoff.
-- `plugin/subminer/init.lua` runs inside mpv and loads modular Lua files: `main.lua` (orchestration), `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution), `aniskip.lua` + `aniskip_match.lua` (intro-skip UX).
+- `plugin/subminer/init.lua` runs inside mpv and loads modular Lua files: `main.lua` (orchestration), `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution). AniSkip intro detection lives in the SubMiner app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the IPC socket.
 
 ## Flow Diagram
 

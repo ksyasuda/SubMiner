@@ -680,6 +680,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.fields.miscInfo' ||
     path === 'ankiConnect.isLapis.sentenceCardModel' ||
     path === 'ankiConnect.isKiku.fieldGrouping' ||
+    path === 'mpv.aniskipEnabled' ||
     path === 'mpv.aniskipButtonKey' ||
     path === 'stats.toggleKey' ||
     path === 'stats.markWatchedKey' ||

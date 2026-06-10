@@ -83,8 +83,6 @@ function createContext(): LauncherCommandContext {
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'TAB',
     },
     appPath: '/tmp/SubMiner.AppImage',
     launcherJellyfinConfig: {},
@@ -210,8 +208,6 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
     autoStartVisibleOverlay: false,
     autoStartPauseUntilReady: false,
     texthookerEnabled: false,
-    aniskipEnabled: true,
-    aniskipButtonKey: 'TAB',
   };
   const appPath = context.appPath ?? '';
   state.appPath = appPath;
@@ -273,8 +269,6 @@ test('plugin auto-start playback attaches a warm background app through the laun
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
     texthookerEnabled: true,
-    aniskipEnabled: true,
-    aniskipButtonKey: 'TAB',
   };
   const calls: string[] = [];
   const receivedStartMpvOptions: Record<string, unknown>[] = [];
@@ -342,8 +336,6 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
     texthookerEnabled: true,
-    aniskipEnabled: true,
-    aniskipButtonKey: 'TAB',
   };
   let availabilityConfigDir: string | undefined;
   let overlayConfigDir: string | undefined;
@@ -404,8 +396,6 @@ test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
     texthookerEnabled: true,
-    aniskipEnabled: true,
-    aniskipButtonKey: 'TAB',
   };
   const calls: string[] = [];
 
