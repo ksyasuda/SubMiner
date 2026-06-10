@@ -33,6 +33,8 @@ import {
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
+import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
+import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import {
@@ -1468,8 +1470,6 @@ function getMpvPluginRuntimeConfig() {
     autoStartVisibleOverlay: config.auto_start_overlay,
     autoStartPauseUntilReady: config.mpv.pauseUntilOverlayReady,
     texthookerEnabled: config.texthooker.launchAtStartup,
-    aniskipEnabled: config.mpv.aniskipEnabled,
-    aniskipButtonKey: config.mpv.aniskipButtonKey,
   };
 }
 
@@ -2230,6 +2230,9 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
     },
     setLogFileToggles: (files) => {
       setLogFileToggles(files);
+    },
+    applyAniSkipConfig: () => {
+      aniSkipRuntime.applyConfigChange();
     },
   },
 );
@@ -5401,6 +5404,31 @@ signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease(
 });
 tokenizeSubtitleDeferred = tokenizeSubtitle;
 
+const aniSkipRuntime = createAniSkipRuntime({
+  getAniSkipConfig: () => ({
+    aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
+    aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
+  }),
+  resolveMetadataForFile: (mediaPath) => resolveAniSkipMetadataForFile(mediaPath),
+  sendMpvCommand: (command) => {
+    appState.mpvClient?.send({ command });
+  },
+  requestMpvProperty: (name) => {
+    if (!appState.mpvClient) {
+      return Promise.reject(new Error('MPV not connected'));
+    }
+    return appState.mpvClient.requestProperty(name);
+  },
+  isMpvConnected: () => appState.mpvClient?.connected === true,
+  getCurrentTimePos: () => appState.mpvClient?.currentTimePos ?? Number.NaN,
+  showMpvOsd: (text, durationMs) => {
+    appState.mpvClient?.send({ command: ['show-text', text, durationMs] });
+  },
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, error) => logger.warn(message, error),
+  logDebug: (message) => logger.debug(message),
+});
+
 function createMpvClientRuntimeService(): MpvIpcClient {
   const client = createMpvClientRuntimeServiceHandler() as MpvIpcClient;
   client.on('connection-change', ({ connected }) => {
@@ -5414,6 +5442,10 @@ function createMpvClientRuntimeService(): MpvIpcClient {
     broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
     overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
   });
+  client.on('connection-change', aniSkipRuntime.handleConnectionChange);
+  client.on('media-path-change', aniSkipRuntime.handleMediaPathChange);
+  client.on('time-pos-change', aniSkipRuntime.handleTimePosChange);
+  client.on('client-message', aniSkipRuntime.handleClientMessage);
   return client;
 }
 

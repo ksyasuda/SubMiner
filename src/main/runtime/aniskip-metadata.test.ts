@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   inferAniSkipMetadataForFile,
-  buildSubminerScriptOpts,
   parseAniSkipGuessitJson,
   resolveAniSkipMetadataForFile,
 } from './aniskip-metadata';
@@ -98,6 +97,20 @@ test('inferAniSkipMetadataForFile falls back to anime directory title when filen
   assert.equal(parsed.source, 'fallback');
 });
 
+test('inferAniSkipMetadataForFile handles release-group filename with trailing quality tags', () => {
+  const parsed = inferAniSkipMetadataForFile(
+    '/media/anime/Solo Leveling/Season 1/[SubsPlease] Solo Leveling - 01 (1080p) [ABCDEF12].mkv',
+    {
+      commandExists: () => false,
+      runGuessit: () => null,
+    },
+  );
+  assert.equal(parsed.title, 'Solo Leveling');
+  assert.equal(parsed.season, 1);
+  assert.equal(parsed.episode, 1);
+  assert.equal(parsed.source, 'fallback');
+});
+
 test('resolveAniSkipMetadataForFile resolves MAL id and intro payload', async () => {
   await withMockFetch(
     async (input) => {
@@ -133,6 +146,33 @@ test('resolveAniSkipMetadataForFile resolves MAL id and intro payload', async ()
   );
 });
 
+test('resolveAniSkipMetadataForFile accepts intro payload starting at zero', async () => {
+  await withMockFetch(
+    async (input) => {
+      const url = normalizeFetchInput(input);
+      if (url.includes('myanimelist.net/search/prefix.json')) {
+        return makeMockResponse({
+          categories: [{ items: [{ id: '1234', name: 'My Show' }] }],
+        });
+      }
+      if (url.includes('api.aniskip.com/v1/skip-times/1234/1')) {
+        return makeMockResponse({
+          found: true,
+          results: [{ skip_type: 'op', interval: { start_time: 0, end_time: 89.5 } }],
+        });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    },
+    async () => {
+      const resolved = await resolveAniSkipMetadataForFile('/media/My.Show.S01E01.mkv');
+      assert.equal(resolved.malId, 1234);
+      assert.equal(resolved.introStart, 0);
+      assert.equal(resolved.introEnd, 89.5);
+      assert.equal(resolved.lookupStatus, 'ready');
+    },
+  );
+});
+
 test('resolveAniSkipMetadataForFile emits missing_mal_id when MAL search misses', async () => {
   await withMockFetch(
     async () => makeMockResponse({ categories: [] }),
@@ -142,44 +182,4 @@ test('resolveAniSkipMetadataForFile emits missing_mal_id when MAL search misses'
       assert.equal(resolved.lookupStatus, 'missing_mal_id');
     },
   );
-});
-
-test('buildSubminerScriptOpts includes aniskip payload fields', () => {
-  const opts = buildSubminerScriptOpts(
-    '/tmp/SubMiner.AppImage',
-    '/tmp/subminer.sock',
-    {
-      title: "Frieren: Beyond Journey's End",
-      season: 1,
-      episode: 5,
-      source: 'guessit',
-      malId: 1234,
-      introStart: 30.5,
-      introEnd: 62,
-      lookupStatus: 'ready',
-    },
-    'debug',
-  );
-  const payloadMatch = opts.match(/subminer-aniskip_payload=([^,]+)/);
-  assert.match(opts, /subminer-binary_path=\/tmp\/SubMiner\.AppImage/);
-  assert.match(opts, /subminer-socket_path=\/tmp\/subminer\.sock/);
-  assert.doesNotMatch(opts, /subminer-log_level=/);
-  assert.match(opts, /subminer-aniskip_title=Frieren: Beyond Journey's End/);
-  assert.match(opts, /subminer-aniskip_season=1/);
-  assert.match(opts, /subminer-aniskip_episode=5/);
-  assert.match(opts, /subminer-aniskip_mal_id=1234/);
-  assert.match(opts, /subminer-aniskip_intro_start=30.5/);
-  assert.match(opts, /subminer-aniskip_intro_end=62/);
-  assert.match(opts, /subminer-aniskip_lookup_status=ready/);
-  assert.ok(payloadMatch !== null);
-  const encodedPayload = payloadMatch[1];
-  assert.ok(encodedPayload !== undefined);
-  assert.equal(encodedPayload.includes('%'), false);
-  const payloadJson = Buffer.from(encodedPayload, 'base64url').toString('utf-8');
-  const payload = JSON.parse(payloadJson);
-  assert.equal(payload.found, true);
-  const first = payload.results?.[0];
-  assert.equal(first.skip_type, 'op');
-  assert.equal(first.interval.start_time, 30.5);
-  assert.equal(first.interval.end_time, 62);
 });

@@ -1,7 +1,6 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import type { LogLevel } from './types.js';
-import { commandExists } from './util.js';
 
 export type AniSkipLookupStatus =
   | 'ready'
@@ -63,7 +62,8 @@ const ROMAN_SEASON_ALIASES: Record<number, readonly string[]> = {
 
 const MAL_PREFIX_API = 'https://myanimelist.net/search/prefix.json?type=anime&keyword=';
 const ANISKIP_PAYLOAD_API = 'https://api.aniskip.com/v1/skip-times/';
-const MAL_USER_AGENT = 'SubMiner-launcher/ani-skip';
+const ANISKIP_USER_AGENT = 'SubMiner/ani-skip';
+const ANISKIP_FETCH_TIMEOUT_MS = 8000;
 const MAL_MATCH_STOPWORDS = new Set([
   'the',
   'this',
@@ -76,6 +76,27 @@ const MAL_MATCH_STOPWORDS = new Set([
   'on',
   'and',
 ]);
+
+function commandExistsOnPath(command: string): boolean {
+  const pathEnv = process.env.PATH || '';
+  const extensions =
+    process.platform === 'win32' ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';') : [''];
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue;
+    for (const extension of extensions) {
+      const candidate = path.join(dir, `${command}${extension.toLowerCase()}`);
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        if (fs.statSync(candidate).isFile()) {
+          return true;
+        }
+      } catch {
+        // keep scanning PATH entries
+      }
+    }
+  }
+  return false;
+}
 
 function toPositiveInt(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
@@ -97,6 +118,19 @@ function toPositiveNumber(value: unknown): number | null {
   if (typeof value === 'string') {
     const parsed = Number.parseFloat(value);
     if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function toNonNegativeNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed) && parsed >= 0) {
       return parsed;
     }
   }
@@ -227,10 +261,6 @@ function toMalSearchItems(payload: unknown): MalSearchResult[] {
   return items;
 }
 
-function normalizeEpisodePayload(value: unknown): number | null {
-  return toPositiveNumber(value);
-}
-
 function parseAniSkipPayload(payload: unknown): { start: number; end: number } | null {
   const parsed = payload as AniSkipPayloadResponse;
   const results = Array.isArray(parsed?.results) ? parsed.results : null;
@@ -246,8 +276,8 @@ function parseAniSkipPayload(payload: unknown): { start: number; end: number } |
       continue;
     }
     const interval = result.interval as AniSkipIntervalPayload;
-    const start = normalizeEpisodePayload(interval?.start_time);
-    const end = normalizeEpisodePayload(interval?.end_time);
+    const start = toNonNegativeNumber(interval?.start_time);
+    const end = toPositiveNumber(interval?.end_time);
     if (start !== null && end !== null && end > start) {
       return { start, end };
     }
@@ -259,8 +289,9 @@ function parseAniSkipPayload(payload: unknown): { start: number; end: number } |
 async function fetchJson<T>(url: string): Promise<T | null> {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': MAL_USER_AGENT,
+      'User-Agent': ANISKIP_USER_AGENT,
     },
+    signal: AbortSignal.timeout(ANISKIP_FETCH_TIMEOUT_MS),
   });
   if (!response.ok) return null;
   try {
@@ -311,13 +342,17 @@ function detectEpisodeFromName(baseName: string): number | null {
   const patterns = [
     /[Ss]\d+[Ee](\d{1,3})/,
     /(?:^|[\s._-])[Ee][Pp]?[\s._-]*(\d{1,3})(?:$|[\s._-])/,
+    /(?:^|[\s._-])(\d{1,3})(?:$|[\s._-])/,
     /[-\s](\d{1,3})$/,
   ];
-  for (const pattern of patterns) {
-    const match = baseName.match(pattern);
-    if (!match || !match[1]) continue;
-    const parsed = Number.parseInt(match[1], 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  const groupStrippedName = baseName.replace(/\[[^\]]+\]/g, ' ').replace(/\([^)]+\)/g, ' ');
+  for (const candidate of [baseName, groupStrippedName]) {
+    for (const pattern of patterns) {
+      const match = candidate.match(pattern);
+      if (!match || !match[1]) continue;
+      const parsed = Number.parseInt(match[1], 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
   }
   return null;
 }
@@ -379,6 +414,7 @@ function cleanupTitle(value: string): string {
     .replace(/\([^)]+\)/g, ' ')
     .replace(/[Ss]\d+[Ee]\d+/g, ' ')
     .replace(/[Ee][Pp]?[\s._-]*\d+/g, ' ')
+    .replace(/(?:^|[\s._-])\d{1,3}\s*$/g, ' ')
     .replace(/[_\-.]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -443,7 +479,7 @@ function defaultRunGuessit(mediaPath: string): string | null {
 
 export function inferAniSkipMetadataForFile(
   mediaPath: string,
-  deps: InferAniSkipDeps = { commandExists, runGuessit: defaultRunGuessit },
+  deps: InferAniSkipDeps = { commandExists: commandExistsOnPath, runGuessit: defaultRunGuessit },
 ): AniSkipMetadata {
   if (deps.commandExists('guessit')) {
     const stdout = deps.runGuessit(mediaPath);
@@ -526,80 +562,4 @@ export async function resolveAniSkipMetadataForFile(mediaPath: string): Promise<
       lookupStatus: 'lookup_failed',
     };
   }
-}
-
-function sanitizeScriptOptValue(value: string): string {
-  return value
-    .replace(/,/g, ' ')
-    .replace(/[\r\n]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function buildLauncherAniSkipPayload(aniSkipMetadata: AniSkipMetadata): string | null {
-  if (!aniSkipMetadata.malId || !aniSkipMetadata.introStart || !aniSkipMetadata.introEnd) {
-    return null;
-  }
-  if (aniSkipMetadata.introEnd <= aniSkipMetadata.introStart) {
-    return null;
-  }
-  const payload = {
-    found: true,
-    results: [
-      {
-        skip_type: 'op',
-        interval: {
-          start_time: aniSkipMetadata.introStart,
-          end_time: aniSkipMetadata.introEnd,
-        },
-      },
-    ],
-  };
-  // mpv --script-opts treats `%` as an escape prefix, so URL-encoding can break parsing.
-  // Base64url stays script-opts-safe and is decoded by the plugin launcher payload parser.
-  return Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64url');
-}
-
-export function buildSubminerScriptOpts(
-  appPath: string,
-  socketPath: string,
-  aniSkipMetadata: AniSkipMetadata | null,
-  _logLevel: LogLevel = 'info',
-  extraParts: string[] = [],
-): string {
-  const hasBinaryPath = extraParts.some((part) => part.startsWith('subminer-binary_path='));
-  const hasSocketPath = extraParts.some((part) => part.startsWith('subminer-socket_path='));
-  const parts = [
-    ...(hasBinaryPath ? [] : [`subminer-binary_path=${sanitizeScriptOptValue(appPath)}`]),
-    ...(hasSocketPath ? [] : [`subminer-socket_path=${sanitizeScriptOptValue(socketPath)}`]),
-    ...extraParts.map(sanitizeScriptOptValue),
-  ];
-  if (aniSkipMetadata && aniSkipMetadata.title) {
-    parts.push(`subminer-aniskip_title=${sanitizeScriptOptValue(aniSkipMetadata.title)}`);
-  }
-  if (aniSkipMetadata && aniSkipMetadata.season && aniSkipMetadata.season > 0) {
-    parts.push(`subminer-aniskip_season=${aniSkipMetadata.season}`);
-  }
-  if (aniSkipMetadata && aniSkipMetadata.episode && aniSkipMetadata.episode > 0) {
-    parts.push(`subminer-aniskip_episode=${aniSkipMetadata.episode}`);
-  }
-  if (aniSkipMetadata && aniSkipMetadata.malId && aniSkipMetadata.malId > 0) {
-    parts.push(`subminer-aniskip_mal_id=${aniSkipMetadata.malId}`);
-  }
-  if (aniSkipMetadata && aniSkipMetadata.introStart !== null && aniSkipMetadata.introStart > 0) {
-    parts.push(`subminer-aniskip_intro_start=${aniSkipMetadata.introStart}`);
-  }
-  if (aniSkipMetadata && aniSkipMetadata.introEnd !== null && aniSkipMetadata.introEnd > 0) {
-    parts.push(`subminer-aniskip_intro_end=${aniSkipMetadata.introEnd}`);
-  }
-  if (aniSkipMetadata?.lookupStatus) {
-    parts.push(
-      `subminer-aniskip_lookup_status=${sanitizeScriptOptValue(aniSkipMetadata.lookupStatus)}`,
-    );
-  }
-  const aniskipPayload = aniSkipMetadata ? buildLauncherAniSkipPayload(aniSkipMetadata) : null;
-  if (aniskipPayload) {
-    parts.push(`subminer-aniskip_payload=${sanitizeScriptOptValue(aniskipPayload)}`);
-  }
-  return parts.join(',');
 }

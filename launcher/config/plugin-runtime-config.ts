@@ -54,8 +54,6 @@ export function parsePluginRuntimeConfigFromMainConfig(
     autoStartVisibleOverlay: booleanOrDefault(root?.auto_start_overlay, false),
     autoStartPauseUntilReady: booleanOrDefault(mpvConfig.pauseUntilOverlayReady, true),
     texthookerEnabled: booleanOrDefault(texthooker.launchAtStartup, false),
-    aniskipEnabled: booleanOrDefault(mpvConfig.aniskipEnabled, true),
-    aniskipButtonKey: nonEmptyStringOrDefault(mpvConfig.aniskipButtonKey, 'TAB'),
   };
 }
 
@@ -72,7 +70,7 @@ export function readPluginRuntimeConfig(logLevel: LogLevel): PluginRuntimeConfig
   log(
     'debug',
     logLevel,
-    `Using mpv plugin settings from SubMiner config: socket_path=${parsed.socketPath}, backend=${parsed.backend}, auto_start=${parsed.autoStart}, auto_start_visible_overlay=${parsed.autoStartVisibleOverlay}, auto_start_pause_until_ready=${parsed.autoStartPauseUntilReady}, texthooker_enabled=${parsed.texthookerEnabled}, aniskip_enabled=${parsed.aniskipEnabled}, aniskip_button_key=${parsed.aniskipButtonKey}`,
+    `Using mpv plugin settings from SubMiner config: socket_path=${parsed.socketPath}, backend=${parsed.backend}, auto_start=${parsed.autoStart}, auto_start_visible_overlay=${parsed.autoStartVisibleOverlay}, auto_start_pause_until_ready=${parsed.autoStartPauseUntilReady}, texthooker_enabled=${parsed.texthookerEnabled}`,
   );
   return parsed;
 }

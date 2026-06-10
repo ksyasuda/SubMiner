@@ -350,3 +350,21 @@ test('visibility and boolean parsers handle text values', () => {
   assert.equal(asBoolean('yes', false), true);
   assert.equal(asBoolean('0', true), false);
 });
+
+test('dispatchMpvProtocolMessage emits client-message string args', async () => {
+  const received: Array<{ args: string[] }> = [];
+  const { deps } = createDeps({
+    emitClientMessage: (payload) => {
+      received.push(payload);
+    },
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'client-message', args: ['subminer-skip-intro', 42, 'extra'] },
+    deps,
+  );
+  await dispatchMpvProtocolMessage({ event: 'client-message', args: [] }, deps);
+  await dispatchMpvProtocolMessage({ event: 'client-message' }, deps);
+
+  assert.deepEqual(received, [{ args: ['subminer-skip-intro', 'extra'] }]);
+});

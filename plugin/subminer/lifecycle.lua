@@ -10,7 +10,6 @@ function M.create(ctx)
 	local state = ctx.state
 	local options_helper = ctx.options_helper
 	local process = ctx.process
-	local aniskip = ctx.aniskip
 	local hover = ctx.hover
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
@@ -50,13 +49,6 @@ function M.create(ctx)
 
 	local function is_reload_end_file(reason)
 		return reason == "reload" or reason == "redirect"
-	end
-
-	local function schedule_aniskip_fetch(trigger_source, delay_seconds)
-		local delay = tonumber(delay_seconds) or 0
-		mp.add_timeout(delay, function()
-			aniskip.fetch_aniskip_for_current_media(trigger_source)
-		end)
 	end
 
 	local function clear_pending_visible_overlay_hide()
@@ -159,7 +151,6 @@ function M.create(ctx)
 			return
 		end
 		if not resolve_auto_start_enabled() then
-			schedule_aniskip_fetch("file-loaded", 0)
 			return
 		end
 
@@ -178,7 +169,6 @@ function M.create(ctx)
 					.. process.describe_mpv_ipc_socket_match(opts.socket_path)
 					.. ")"
 			)
-			schedule_aniskip_fetch("file-loaded", 0)
 			return
 		end
 
@@ -187,8 +177,6 @@ function M.create(ctx)
 			socket_path = opts.socket_path,
 			rearm_pause_until_ready = should_rearm_pause_until_ready(same_media_loaded),
 		})
-		-- Give the overlay process a moment to initialize before querying AniSkip.
-		schedule_aniskip_fetch("overlay-start", 0.8)
 	end
 
 	local function on_start_file()
@@ -267,7 +255,6 @@ function M.create(ctx)
 		local preserve_active_auto_start_gate = (
 			state.overlay_running and state.auto_play_ready_gate_armed and should_auto_start and has_matching_socket
 		)
-		aniskip.clear_aniskip_state()
 		if not preserve_active_auto_start_gate then
 			process.disarm_auto_play_ready_gate()
 		end
@@ -283,12 +270,10 @@ function M.create(ctx)
 		end
 
 		refresh_managed_subtitle_autoloading()
-		schedule_aniskip_fetch("file-loaded", 0)
 	end
 
 	local function on_shutdown()
 		next_auto_start_retry_generation()
-		aniskip.clear_aniskip_state()
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
 		clear_pending_visible_overlay_hide()
@@ -334,21 +319,11 @@ function M.create(ctx)
 		mp.register_event("shutdown", function()
 			hover.clear_hover_overlay()
 		end)
-		mp.register_event("end-file", function()
-			aniskip.clear_aniskip_state()
-		end)
-		mp.register_event("shutdown", function()
-			aniskip.clear_aniskip_state()
-		end)
 		mp.add_hook("on_unload", 10, function()
 			hover.clear_hover_overlay()
-			aniskip.clear_aniskip_state()
 		end)
 		mp.observe_property("sub-start", "native", function()
 			hover.clear_hover_overlay()
-		end)
-		mp.observe_property("time-pos", "number", function()
-			aniskip.update_intro_button_visibility()
 		end)
 	end
 

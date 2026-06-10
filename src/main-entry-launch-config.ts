@@ -28,8 +28,6 @@ export function buildWindowsMpvPluginRuntimeConfig(
     autoStartVisibleOverlay: config.auto_start_overlay,
     autoStartPauseUntilReady: config.mpv.pauseUntilOverlayReady,
     texthookerEnabled: config.texthooker.launchAtStartup,
-    aniskipEnabled: config.mpv.aniskipEnabled,
-    aniskipButtonKey: config.mpv.aniskipButtonKey,
   };
 }
 

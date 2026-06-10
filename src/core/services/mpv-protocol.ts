@@ -4,6 +4,7 @@ export type MpvMessage = {
   event?: string;
   name?: string;
   data?: unknown;
+  args?: unknown;
   request_id?: number;
   error?: string;
 };
@@ -94,6 +95,7 @@ export interface MpvProtocolHandleMessageDeps {
   restorePreviousSecondarySubVisibility: () => void;
   shouldQuitOnMpvShutdown: () => boolean;
   requestAppQuit: () => void;
+  emitClientMessage?: (payload: { args: string[] }) => void;
 }
 
 type SubtitleTrackCandidate = {
@@ -375,6 +377,13 @@ export async function dispatchMpvProtocolMessage(
           },
         });
       }
+    }
+  } else if (msg.event === 'client-message') {
+    const args = Array.isArray(msg.args)
+      ? msg.args.filter((arg): arg is string => typeof arg === 'string')
+      : [];
+    if (args.length > 0) {
+      deps.emitClientMessage?.({ args });
     }
   } else if (msg.event === 'shutdown') {
     deps.restorePreviousSecondarySubVisibility();

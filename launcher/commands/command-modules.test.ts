@@ -46,8 +46,6 @@ function createContext(overrides: Partial<LauncherCommandContext> = {}): Launche
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
       texthookerEnabled: false,
-      aniskipEnabled: true,
-      aniskipButtonKey: 'TAB',
     },
     appPath: '/tmp/subminer.app',
     launcherJellyfinConfig: {},

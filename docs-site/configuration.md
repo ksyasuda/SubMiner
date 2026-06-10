@@ -1468,8 +1468,8 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 | `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                           |
 | `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness (default: `true`)                    |
 | `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)        |
-| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection and skip markers in the bundled mpv plugin (default: `true`)                                         |
-| `aniskipButtonKey`       | string                                                                      | mpv key used to trigger the AniSkip button while the skip marker is visible (default: `"TAB"`)                                      |
+| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection, chapter markers, and the skip-intro key (default: `true`)                                           |
+| `aniskipButtonKey`       | string                                                                      | mpv key used to skip the detected intro while the skip prompt is visible (default: `"TAB"`)                                         |
 
 If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 

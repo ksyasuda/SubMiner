@@ -326,8 +326,6 @@ test('readConfiguredWindowsMpvLaunch includes defaults for runtime plugin script
       autoStartVisibleOverlay: DEFAULT_CONFIG.auto_start_overlay,
       autoStartPauseUntilReady: DEFAULT_CONFIG.mpv.pauseUntilOverlayReady,
       texthookerEnabled: DEFAULT_CONFIG.texthooker.launchAtStartup,
-      aniskipEnabled: DEFAULT_CONFIG.mpv.aniskipEnabled,
-      aniskipButtonKey: DEFAULT_CONFIG.mpv.aniskipButtonKey,
     });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -359,8 +357,6 @@ test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script 
           autoStartSubMiner: false,
           pauseUntilOverlayReady: false,
           subminerBinaryPath: 'C:\\SubMiner\\Custom.exe',
-          aniskipEnabled: false,
-          aniskipButtonKey: 'F8',
         },
       }),
     );
@@ -382,8 +378,6 @@ test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script 
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
       texthookerEnabled: true,
-      aniskipEnabled: false,
-      aniskipButtonKey: 'F8',
     });
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

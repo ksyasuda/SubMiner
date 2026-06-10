@@ -87,13 +87,6 @@ local function run_plugin_scenario(config)
 				}
 			end
 			if args[1] == "curl" then
-				local url = args[#args] or ""
-				if type(url) == "string" and url:find("myanimelist", 1, true) then
-					return { status = 0, stdout = config.mal_lookup_stdout or "{}", stderr = "" }
-				end
-				if type(url) == "string" and url:find("api.aniskip.com", 1, true) then
-					return { status = 0, stdout = config.aniskip_stdout or "{}", stderr = "" }
-				end
 				return { status = 0, stdout = "{}", stderr = "" }
 			end
 			return { status = 0, stdout = "", stderr = "" }
@@ -108,15 +101,8 @@ local function run_plugin_scenario(config)
 					return
 				end
 				if args[1] == "curl" then
-					local url = args[#args] or ""
-					if type(url) == "string" and url:find("myanimelist", 1, true) then
-						callback(true, { status = 0, stdout = config.mal_lookup_stdout or "{}", stderr = "" }, nil)
-						return
-					end
-					if type(url) == "string" and url:find("api.aniskip.com", 1, true) then
-						callback(true, { status = 0, stdout = config.aniskip_stdout or "{}", stderr = "" }, nil)
-						return
-					end
+					callback(true, { status = 0, stdout = "{}", stderr = "" }, nil)
+					return
 				end
 				for _, value in ipairs(args) do
 					if value == "--app-ping" then
@@ -263,34 +249,6 @@ local function run_plugin_scenario(config)
 				amount = 125,
 			}, nil
 		end
-		if json == "__MAL_FOUND__" then
-			return {
-				categories = {
-					{
-						items = {
-							{
-								id = 99,
-								name = "Sample Show",
-							},
-						},
-					},
-				},
-			}, nil
-		end
-		if json == "__ANISKIP_FOUND__" then
-			return {
-				found = true,
-				results = {
-					{
-						skip_type = "op",
-						interval = {
-							start_time = 12.3,
-							end_time = 45.6,
-						},
-					},
-				},
-			}, nil
-		end
 		return {}, nil
 	end
 
@@ -311,7 +269,6 @@ local function run_plugin_scenario(config)
 	package.loaded["process"] = nil
 	package.loaded["state"] = nil
 	package.loaded["ui"] = nil
-	package.loaded["aniskip"] = nil
 	_G.__subminer_plugin_bootstrapped = nil
 	local original_package_config = package.config
 	if config.platform == "windows" then
@@ -505,33 +462,6 @@ local function has_async_command(async_calls, executable)
 	return false
 end
 
-local function has_async_curl_for(async_calls, needle)
-	for _, call in ipairs(async_calls) do
-		local args = call.args or {}
-		if args[1] == "curl" then
-			local url = args[#args] or ""
-			if type(url) == "string" and url:find(needle, 1, true) then
-				return true
-			end
-		end
-	end
-	return false
-end
-
-local function count_async_curl_for(async_calls, needle)
-	local count = 0
-	for _, call in ipairs(async_calls) do
-		local args = call.args or {}
-		if args[1] == "curl" then
-			local url = args[#args] or ""
-			if type(url) == "string" and url:find(needle, 1, true) then
-				count = count + 1
-			end
-		end
-	end
-	return count
-end
-
 local function has_property_set(property_sets, name, value)
 	for _, call in ipairs(property_sets) do
 		if call.name == name and call.value == value then
@@ -629,15 +559,6 @@ local function fire_observer(recorded, name, value)
 	for _, listener in ipairs(listeners) do
 		listener(name, value)
 	end
-end
-
-local function has_key_binding(recorded, keys, name)
-	for _, binding in ipairs(recorded.key_bindings or {}) do
-		if binding.keys == keys and binding.name == name then
-			return true
-		end
-	end
-	return false
 end
 
 local binary_path = "/tmp/subminer-binary"
@@ -1325,7 +1246,6 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
-			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -1367,7 +1287,6 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
-			aniskip_enabled = "yes",
 		},
 		files = {
 			[binary_path] = true,
@@ -1404,14 +1323,11 @@ do
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "yes",
-			aniskip_enabled = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
 		path = media_path,
 		media_title = "Sample Show S01E01",
-		mal_lookup_stdout = "__MAL_FOUND__",
-		aniskip_stdout = "__ANISKIP_FOUND__",
 		files = {
 			[binary_path] = true,
 		},
@@ -1428,10 +1344,6 @@ do
 	assert_true(
 		count_property_set(recorded.property_sets, "pause", true) == 1,
 		"same-media reload should not re-arm pause-until-ready"
-	)
-	assert_true(
-		count_async_curl_for(recorded.async_calls, "api.aniskip.com") == 1,
-		"same-media reload should not repeat AniSkip lookup"
 	)
 end
 
@@ -1535,7 +1447,6 @@ do
 		option_overrides = {
 			binary_path = binary_path,
 			auto_start = "no",
-			aniskip_enabled = "yes",
 		},
 		media_title = "Random Movie",
 		files = {
@@ -1545,14 +1456,10 @@ do
 	assert_true(recorded ~= nil, "plugin failed to load for non-subminer file-load scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
 	assert_true(not has_sync_command(recorded.sync_calls, "ps"), "file-loaded should avoid synchronous process checks")
-	assert_true(not has_sync_command(recorded.sync_calls, "curl"), "file-loaded should avoid synchronous AniSkip network calls")
+	assert_true(not has_sync_command(recorded.sync_calls, "curl"), "file-loaded should not perform synchronous network calls")
 	assert_true(
-		not has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
-		"file-loaded without SubMiner context should skip AniSkip MAL lookup"
-	)
-	assert_true(
-		not has_async_curl_for(recorded.async_calls, "api.aniskip.com"),
-		"file-loaded without SubMiner context should skip AniSkip API lookup"
+		not has_async_command(recorded.async_calls, "curl"),
+		"file-loaded should not perform plugin-side AniSkip lookups (AniSkip now lives in the app)"
 	)
 end
 
@@ -1574,75 +1481,12 @@ do
 			[binary_path] = true,
 		},
 	})
-	assert_true(recorded ~= nil, "plugin failed to load for URL overlay-start AniSkip scenario: " .. tostring(err))
+	assert_true(recorded ~= nil, "plugin failed to load for URL overlay-start scenario: " .. tostring(err))
 	fire_event(recorded, "file-loaded")
 	assert_true(find_start_call(recorded.async_calls) ~= nil, "URL auto-start should still invoke --start command")
 	assert_true(
-		not has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
-		"URL playback should skip AniSkip MAL lookup even after overlay-start"
-	)
-	assert_true(
-		not has_async_curl_for(recorded.async_calls, "api.aniskip.com"),
-		"URL playback should skip AniSkip API lookup even after overlay-start"
-	)
-end
-
-do
-	local recorded, err = run_plugin_scenario({
-		process_list = "",
-		option_overrides = {
-			binary_path = binary_path,
-			auto_start = "no",
-			aniskip_enabled = "yes",
-		},
-		media_title = "Sample Show S01E01",
-		mal_lookup_stdout = "__MAL_FOUND__",
-		aniskip_stdout = "__ANISKIP_FOUND__",
-		files = {
-			[binary_path] = true,
-		},
-	})
-	assert_true(recorded ~= nil, "plugin failed to load for script-message AniSkip scenario: " .. tostring(err))
-	assert_true(recorded.script_messages["subminer-aniskip-refresh"] ~= nil, "subminer-aniskip-refresh script message not registered")
-	recorded.script_messages["subminer-aniskip-refresh"]()
-	assert_true(not has_sync_command(recorded.sync_calls, "curl"), "AniSkip refresh should not perform synchronous curl calls")
-	assert_true(has_async_command(recorded.async_calls, "curl"), "AniSkip refresh should perform async curl calls")
-	assert_true(
-		has_async_curl_for(recorded.async_calls, "myanimelist.net/search/prefix.json"),
-		"AniSkip refresh should perform MAL lookup even when app is not running"
-	)
-end
-
-do
-	local recorded, err = run_plugin_scenario({
-		process_list = "",
-		option_overrides = {
-			binary_path = binary_path,
-			auto_start = "no",
-			aniskip_enabled = "yes",
-		},
-		media_title = "Sample Show S01E01",
-		time_pos = 13,
-		mal_lookup_stdout = "__MAL_FOUND__",
-		aniskip_stdout = "__ANISKIP_FOUND__",
-		files = {
-			[binary_path] = true,
-		},
-	})
-	assert_true(recorded ~= nil, "plugin failed to load for default AniSkip keybinding scenario: " .. tostring(err))
-	assert_true(
-		has_key_binding(recorded, "TAB", "subminer-skip-intro"),
-		"default AniSkip keybinding should register TAB"
-	)
-	assert_true(
-		not has_key_binding(recorded, "y-k", "subminer-skip-intro-fallback"),
-		"default AniSkip keybinding should not also register legacy y-k fallback"
-	)
-	recorded.script_messages["subminer-aniskip-refresh"]()
-	fire_observer(recorded, "time-pos", 13)
-	assert_true(
-		has_osd_message(recorded.osd, "You can skip by pressing TAB"),
-		"default AniSkip prompt should mention TAB"
+		not has_async_command(recorded.async_calls, "curl"),
+		"URL playback should not trigger plugin-side network lookups"
 	)
 end
 

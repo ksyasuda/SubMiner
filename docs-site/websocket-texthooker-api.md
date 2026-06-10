@@ -265,9 +265,9 @@ script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
 script-message subminer-autoplay-ready
-script-message subminer-aniskip-refresh
-script-message subminer-skip-intro
 ```
+
+The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) are handled by the SubMiner app over the mpv IPC socket while it is connected.
 
 The start command also accepts inline overrides:
 
@@ -283,7 +283,7 @@ Examples:
 
 - send `subminer-start` after your own media-selection script chooses a file
 - send `subminer-status` before running follow-up automation
-- send `subminer-aniskip-refresh` after you update title/episode metadata
+- send `subminer-aniskip-refresh` after you update title/episode metadata (handled by the SubMiner app)
 
 #### Build a launcher wrapper
 

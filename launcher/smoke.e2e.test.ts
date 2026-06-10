@@ -559,7 +559,6 @@ test(
             socketPath: smokeCase.socketPath,
             autoStartSubMiner: true,
             pauseUntilOverlayReady: true,
-            aniskipEnabled: false,
           },
         }),
       );

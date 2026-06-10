@@ -22,6 +22,7 @@ type ConfigHotReloadAppliedDeps = {
   setLogLevel?: (level: ResolvedConfig['logging']['level']) => void;
   setLogRotation?: (rotation: ResolvedConfig['logging']['rotation']) => void;
   setLogFileToggles?: (files: ResolvedConfig['logging']['files']) => void;
+  applyAniSkipConfig?: () => void;
 };
 
 type ConfigHotReloadMessageDeps = {
@@ -168,6 +169,10 @@ export function createConfigHotReloadAppliedHandler(deps: ConfigHotReloadApplied
     }
     if (hasAnyHotReloadField(diff, ['logging.files'])) {
       deps.setLogFileToggles?.(config.logging.files);
+    }
+
+    if (hasAnyHotReloadField(diff, ['mpv.aniskipEnabled', 'mpv.aniskipButtonKey'])) {
+      deps.applyAniSkipConfig?.();
     }
 
     if (diff.hotReloadFields.length > 0) {

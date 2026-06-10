@@ -496,13 +496,13 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'mpv.aniskipEnabled',
       kind: 'boolean',
       defaultValue: defaultConfig.mpv.aniskipEnabled,
-      description: 'Enable AniSkip intro detection and skip markers in the bundled mpv plugin.',
+      description: 'Enable AniSkip intro detection, chapter markers, and the skip-intro key.',
     },
     {
       path: 'mpv.aniskipButtonKey',
       kind: 'string',
       defaultValue: defaultConfig.mpv.aniskipButtonKey,
-      description: 'mpv key used to trigger the AniSkip button while the skip marker is visible.',
+      description: 'mpv key used to skip the detected intro while the skip prompt is visible.',
     },
     {
       path: 'jellyfin.enabled',
