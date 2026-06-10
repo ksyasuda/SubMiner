@@ -229,6 +229,7 @@ SubMiner builds on the work of these open-source projects:
 
 | Project                                                                                     | Role                                                                    |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [ani-skip](https://github.com/synacktraa/ani-skip)                                          | AniSkip API client for anime intro/outro skip timestamps                |
 | [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                     |
 | [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing |
 | [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                 |
