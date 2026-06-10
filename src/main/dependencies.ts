@@ -149,6 +149,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     setSocketPath: CliCommandDepsRuntimeOptions['mpv']['setSocketPath'];
     getClient: CliCommandDepsRuntimeOptions['mpv']['getClient'];
     showOsd: CliCommandDepsRuntimeOptions['mpv']['showOsd'];
+    showPlaybackFeedback?: CliCommandDepsRuntimeOptions['mpv']['showPlaybackFeedback'];
   };
   texthooker: {
     service: CliCommandDepsRuntimeOptions['texthooker']['service'];
@@ -342,6 +343,7 @@ export function createCliCommandRuntimeServiceDeps(
       setSocketPath: params.mpv.setSocketPath,
       getClient: params.mpv.getClient,
       showOsd: params.mpv.showOsd,
+      showPlaybackFeedback: params.mpv.showPlaybackFeedback,
     },
     texthooker: {
       service: params.texthooker.service,

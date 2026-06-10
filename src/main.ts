@@ -5748,6 +5748,7 @@ const aniSkipRuntime = createAniSkipRuntime({
   showMpvOsd: (text, durationMs) => {
     appState.mpvClient?.send({ command: ['show-text', text, durationMs] });
   },
+  showPlaybackFeedback: (text) => showConfiguredPlaybackFeedback(text),
   logInfo: (message) => logger.info(message),
   logWarn: (message, error) => logger.warn(message, error),
   logDebug: (message) => logger.debug(message),
@@ -7366,6 +7367,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     logBrowserOpenError: (url: string, error: unknown) =>
       logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
     showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),

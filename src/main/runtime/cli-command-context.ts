@@ -12,6 +12,7 @@ export type CliCommandContextFactoryDeps = {
   setSocketPath: (socketPath: string) => void;
   getMpvClient: () => MpvClientLike;
   showOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
   texthookerService: CliCommandRuntimeServiceContextHandlers['texthookerService'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
@@ -72,6 +73,7 @@ export function createCliCommandContext(
     setSocketPath: deps.setSocketPath,
     getClient: deps.getMpvClient,
     showOsd: deps.showOsd,
+    showPlaybackFeedback: deps.showPlaybackFeedback,
     texthookerService: deps.texthookerService,
     getTexthookerPort: deps.getTexthookerPort,
     setTexthookerPort: deps.setTexthookerPort,

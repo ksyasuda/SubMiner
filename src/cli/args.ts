@@ -43,6 +43,7 @@ export interface CliArgs {
   playNextSubtitle: boolean;
   shiftSubDelayPrevLine: boolean;
   shiftSubDelayNextLine: boolean;
+  playbackFeedback?: string;
   cycleRuntimeOptionId?: string;
   cycleRuntimeOptionDirection?: 1 | -1;
   sessionAction?: SessionActionDispatchRequest;
@@ -150,6 +151,7 @@ export function parseArgs(argv: string[]): CliArgs {
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,
     shiftSubDelayNextLine: false,
+    playbackFeedback: undefined,
     anilistStatus: false,
     anilistLogout: false,
     anilistSetup: false,
@@ -296,7 +298,13 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
     else if (arg === '--shift-sub-delay-prev-line') args.shiftSubDelayPrevLine = true;
     else if (arg === '--shift-sub-delay-next-line') args.shiftSubDelayNextLine = true;
-    else if (arg.startsWith('--cycle-runtime-option=')) {
+    else if (arg.startsWith('--playback-feedback=')) {
+      const value = arg.slice('--playback-feedback='.length).trim();
+      if (value) args.playbackFeedback = value;
+    } else if (arg === '--playback-feedback') {
+      const value = readValue(argv[i + 1])?.trim();
+      if (value) args.playbackFeedback = value;
+    } else if (arg.startsWith('--cycle-runtime-option=')) {
       const parsed = parseCycleRuntimeOption(arg.split('=', 2)[1]);
       if (parsed) {
         args.cycleRuntimeOptionId = parsed.id;
@@ -556,6 +564,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||
@@ -631,6 +640,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.playNextSubtitle &&
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
+    args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
     args.copySubtitleCount === undefined &&
@@ -697,6 +707,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||
@@ -757,6 +768,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.playNextSubtitle &&
     !args.shiftSubDelayPrevLine &&
     !args.shiftSubDelayNextLine &&
+    args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
     args.copySubtitleCount === undefined &&
@@ -822,6 +834,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.playNextSubtitle ||
     args.shiftSubDelayPrevLine ||
     args.shiftSubDelayNextLine ||
+    args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
     args.copySubtitleCount !== undefined ||

@@ -22,6 +22,7 @@ export interface AniSkipRuntimeDeps {
   isMpvConnected: () => boolean;
   getCurrentTimePos: () => number;
   showMpvOsd: (text: string, durationMs: number) => void;
+  showPlaybackFeedback?: (text: string) => void;
   logInfo: (message: string) => void;
   logWarn: (message: string, error?: unknown) => void;
   logDebug: (message: string) => void;
@@ -51,6 +52,14 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function resolveButtonKey(): string {
     const key = deps.getAniSkipConfig().aniskipButtonKey.trim();
     return key || DEFAULT_ANISKIP_BUTTON_KEY;
+  }
+
+  function showPlaybackFeedback(text: string, durationMs = PROMPT_OSD_DURATION_MS): void {
+    if (deps.showPlaybackFeedback) {
+      deps.showPlaybackFeedback(text);
+      return;
+    }
+    deps.showMpvOsd(text, durationMs);
   }
 
   function bindSkipKeys(): void {
@@ -204,23 +213,23 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
   function skipIntroNow(): void {
     if (!deps.getAniSkipConfig().aniskipEnabled) return;
     if (!introWindow) {
-      deps.showMpvOsd('Intro skip unavailable', PROMPT_OSD_DURATION_MS);
+      showPlaybackFeedback('Intro skip unavailable');
       return;
     }
     const now = deps.getCurrentTimePos();
     if (!Number.isFinite(now)) {
-      deps.showMpvOsd('Skip unavailable', PROMPT_OSD_DURATION_MS);
+      showPlaybackFeedback('Skip unavailable');
       return;
     }
     if (
       now < introWindow.start - SKIP_WINDOW_EPSILON_SECONDS ||
       now > introWindow.end + SKIP_WINDOW_EPSILON_SECONDS
     ) {
-      deps.showMpvOsd('Skip intro only during intro', PROMPT_OSD_DURATION_MS);
+      showPlaybackFeedback('Skip intro only during intro');
       return;
     }
     deps.sendMpvCommand(['set_property', 'time-pos', introWindow.end]);
-    deps.showMpvOsd('Skipped intro', PROMPT_OSD_DURATION_MS);
+    showPlaybackFeedback('Skipped intro');
   }
 
   function handleTimePosChange({ time }: { time: number }): void {
@@ -229,7 +238,7 @@ export function createAniSkipRuntime(deps: AniSkipRuntimeDeps) {
     const promptWindowEnd = Math.min(introWindow.start + PROMPT_WINDOW_SECONDS, introWindow.end);
     if (time >= introWindow.start && time < promptWindowEnd) {
       promptShown = true;
-      deps.showMpvOsd(`You can skip by pressing ${resolveButtonKey()}`, PROMPT_OSD_DURATION_MS);
+      showPlaybackFeedback(`You can skip by pressing ${resolveButtonKey()}`);
     }
   }
 

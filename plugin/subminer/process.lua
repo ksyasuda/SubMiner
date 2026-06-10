@@ -428,6 +428,9 @@ function M.create(ctx)
 				table.insert(args, "--texthooker")
 			end
 		end
+		if action == "playback-feedback" and type(overrides.message) == "string" and overrides.message ~= "" then
+			table.insert(args, overrides.message)
+		end
 
 		return args
 	end
@@ -511,6 +514,27 @@ function M.create(ctx)
 			end
 			if callback then
 				callback(ok, result, error)
+			end
+		end)
+	end
+
+	local function notify_playback_feedback(message, fallback)
+		if type(message) ~= "string" or message == "" then
+			return
+		end
+		if resolve_osd_messages_enabled() then
+			show_osd(message)
+			return
+		end
+		if not binary.ensure_binary_available() then
+			if fallback then
+				fallback()
+			end
+			return
+		end
+		run_control_command_async("playback-feedback", { message = message }, function(ok)
+			if not ok and fallback then
+				fallback()
 			end
 		end)
 	end
@@ -934,6 +958,7 @@ function M.create(ctx)
 		describe_mpv_ipc_socket_match = describe_mpv_ipc_socket_match,
 		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
+		notify_playback_feedback = notify_playback_feedback,
 		record_visible_overlay_visibility = record_visible_overlay_visibility,
 		run_binary_command_async = run_binary_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,

@@ -51,6 +51,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     playNextSubtitle: false,
     shiftSubDelayPrevLine: false,
     shiftSubDelayNextLine: false,
+    playbackFeedback: undefined,
     cycleRuntimeOptionId: undefined,
     cycleRuntimeOptionDirection: undefined,
     anilistStatus: false,
@@ -251,6 +252,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     getMultiCopyTimeoutMs: () => 2500,
     showMpvOsd: (text) => {
       osd.push(text);
+    },
+    showPlaybackFeedback: (text) => {
+      calls.push(`feedback:${text}`);
     },
     log: (message) => {
       calls.push(`log:${message}`);
@@ -491,6 +495,15 @@ test('handleCliCommand reports async mine errors to OSD', async () => {
 
   assert.ok(calls.some((value) => value.startsWith('error:mineSentenceCard failed:')));
   assert.ok(osd.some((value) => value.includes('Mine sentence failed: boom')));
+});
+
+test('handleCliCommand routes playback feedback through configured feedback surface', () => {
+  const { deps, calls, osd } = createDeps();
+
+  handleCliCommand(makeArgs({ playbackFeedback: 'You can skip by pressing TAB' }), 'initial', deps);
+
+  assert.deepEqual(calls, ['initializeOverlayRuntime', 'feedback:You can skip by pressing TAB']);
+  assert.deepEqual(osd, []);
 });
 
 test('handleCliCommand applies socket path and connects on start', () => {

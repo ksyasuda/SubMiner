@@ -22,19 +22,21 @@ function createHarness(options?: {
   buttonKey?: string;
   metadata?: AniSkipMetadata | (() => Promise<AniSkipMetadata>);
   chapterList?: unknown;
+  playbackFeedback?: boolean;
 }) {
   const state = {
     enabled: options?.enabled ?? true,
     buttonKey: options?.buttonKey ?? 'TAB',
     commands: [] as unknown[][],
     osd: [] as string[],
+    feedback: [] as string[],
     resolveCalls: [] as string[],
     connected: true,
     timePos: 0,
     chapterList: options?.chapterList ?? [],
   };
 
-  const deps: AniSkipRuntimeDeps = {
+  const deps = {
     getAniSkipConfig: () => ({
       aniskipEnabled: state.enabled,
       aniskipButtonKey: state.buttonKey,
@@ -57,10 +59,17 @@ function createHarness(options?: {
     showMpvOsd: (text) => {
       state.osd.push(text);
     },
+    ...(options?.playbackFeedback
+      ? {
+          showPlaybackFeedback: (text: string) => {
+            state.feedback.push(text);
+          },
+        }
+      : {}),
     logInfo: () => {},
     logWarn: () => {},
     logDebug: () => {},
-  };
+  } satisfies AniSkipRuntimeDeps & { showPlaybackFeedback?: (text: string) => void };
 
   return { runtime: createAniSkipRuntime(deps), state };
 }
@@ -150,6 +159,19 @@ test('time-pos prompt shows once near intro start', async () => {
   runtime.handleTimePosChange({ time: 10.5 });
   runtime.handleTimePosChange({ time: 11 });
   assert.deepEqual(state.osd, ['You can skip by pressing TAB']);
+});
+
+test('prompt and skip messages use playback feedback when configured', async () => {
+  const { runtime, state } = createHarness({ buttonKey: 'TAB', playbackFeedback: true });
+  runtime.handleMediaPathChange({ path: '/media/show.mkv' });
+  await flushAsync();
+
+  runtime.handleTimePosChange({ time: 10.5 });
+  state.timePos = 30;
+  runtime.handleClientMessage({ args: ['subminer-skip-intro'] });
+
+  assert.deepEqual(state.feedback, ['You can skip by pressing TAB', 'Skipped intro']);
+  assert.deepEqual(state.osd, []);
 });
 
 test('connection change binds skip key and legacy fallback for custom keys', () => {

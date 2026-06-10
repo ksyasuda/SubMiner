@@ -25,6 +25,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
   openExternal: (url: string) => Promise<unknown>;
   logBrowserOpenError: (url: string, error: unknown) => void;
   showMpvOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
 
   initializeOverlayRuntime: () => void;
   toggleVisibleOverlay: () => void;
@@ -83,6 +84,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     },
     getMpvClient: () => deps.appState.mpvClient,
     showOsd: (text: string) => deps.showMpvOsd(text),
+    showPlaybackFeedback: deps.showPlaybackFeedback,
     texthookerService: deps.texthookerService,
     getTexthookerPort: () => deps.appState.texthookerPort,
     setTexthookerPort: (port: number) => {

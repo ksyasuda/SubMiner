@@ -11,6 +11,7 @@ export interface CliCommandRuntimeServiceContext {
   setSocketPath: (socketPath: string) => void;
   getClient: CliCommandRuntimeServiceDepsParams['mpv']['getClient'];
   showOsd: CliCommandRuntimeServiceDepsParams['mpv']['showOsd'];
+  showPlaybackFeedback?: CliCommandRuntimeServiceDepsParams['mpv']['showPlaybackFeedback'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
   getTexthookerWebsocketUrl: () => string | undefined;
@@ -74,6 +75,7 @@ function createCliCommandDepsFromContext(
       setSocketPath: context.setSocketPath,
       getClient: context.getClient,
       showOsd: context.showOsd,
+      showPlaybackFeedback: context.showPlaybackFeedback,
     },
     texthooker: {
       service: context.texthookerService,
