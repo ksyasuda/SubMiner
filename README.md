@@ -121,6 +121,7 @@ Only **mpv** and Anki+AnkiConnect are required. Everything else is optional but 
 | yt-dlp               | Optional    | YouTube playback                         |
 | fzf / rofi           | Optional    | Video picker in the launcher             |
 | alass / ffsubsync    | Optional    | Subtitle sync                            |
+| guessit              | Optional    | Better anime title and episode detection |
 
 <details>
 <summary><b>Platform-specific install commands</b></summary>

@@ -42,7 +42,7 @@ Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "
 | `v`              | Toggle primary subtitle bar visibility |
 | `TAB` (default)  | Skip intro (AniSkip)                   |
 
-The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it.
+The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it. See [AniSkip Integration](/aniskip-integration) for setup and details.
 
 The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
 
@@ -135,7 +135,7 @@ script-message subminer-status
 script-message subminer-autoplay-ready
 ```
 
-The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) still exist, but they are handled by the SubMiner app over the IPC socket rather than by the plugin - see [AniSkip Intro Skip](#aniskip-intro-skip).
+The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) still exist, but they are handled by the SubMiner app over the IPC socket rather than by the plugin - see [AniSkip Integration](/aniskip-integration#triggering-from-mpv).
 
 The `subminer-start` message accepts overrides:
 
@@ -145,16 +145,6 @@ script-message subminer-start backend=hyprland socket=/custom/path texthooker=no
 
 `log-level` here controls only logging verbosity passed to SubMiner.
 `--debug` is a separate app/dev-mode flag in the main CLI and should not be used here for logging.
-
-## AniSkip Intro Skip
-
-AniSkip runs in the SubMiner app, not in the plugin. The app drives mpv over the IPC socket, so intro skip is available whenever the SubMiner overlay is connected to mpv:
-
-- On each local file load, the app infers title/season/episode from the filename and path (install `guessit` for best detection quality: `python3 -m pip install --user guessit`), resolves the MAL id, and fetches the AniSkip `skip-times` payload. Remote URLs are skipped.
-- If an OP interval exists, the app adds `AniSkip Intro Start` and `AniSkip Intro End` chapters and binds the skip key (`mpv.aniskipButtonKey`, default `TAB`).
-- At intro start, an OSD hint shows for the first 3 seconds (`You can skip by pressing TAB`; the key reflects `mpv.aniskipButtonKey`).
-- Results are cached per file for the app session; send `script-message subminer-aniskip-refresh` from mpv to force a fresh lookup for the current media, or `script-message subminer-skip-intro` to trigger the skip action.
-- Both `mpv.aniskipEnabled` and `mpv.aniskipButtonKey` hot-reload without restarting playback.
 
 ## Lifecycle
 
