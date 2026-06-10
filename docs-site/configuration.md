@@ -236,6 +236,8 @@ Every overlay notification shown during a session is also recorded in a notifica
 
 Startup tokenization, subtitle annotation, and character dictionary status follow the configured notification surface. When the surface is `"overlay"` or `"both"`, SubMiner queues those startup notifications until the overlay renderer is ready instead of falling back to mpv OSD. If loading and ready states both finish before the overlay can paint, the loading card is delivered first and then updates to ready shortly after. With `"both"`, character dictionary checking/building/importing/ready status also goes to system notifications; building and importing are only emitted when that work is actually needed. The bundled mpv plugin only shows its startup OSD messages when `ankiConnect.behavior.notificationType` is set to `"osd"` or `"osd-system"` in `config.jsonc`; AniSkip prompts and skip result messages are playback feedback and still route to overlay notifications when configured.
 
+The equivalent direct CLI command is `--playback-feedback <text>` (`playbackFeedback` internally). It sends that one non-empty feedback string through the same route controlled by `ankiConnect.behavior.notificationType`; it does not change the saved config.
+
 ### Auto-Start Overlay
 
 Control whether the overlay automatically becomes visible when it connects to mpv:
