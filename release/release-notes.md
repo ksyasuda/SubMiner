@@ -55,6 +55,17 @@
 
 </details>
 
+## What's Changed
+
+- feat(notifications): add overlay notifications with position config by @ksyasuda in #110
+- feat(stats): speed up session maintenance and improve stats UI by @ksyasuda in #111
+- [codex] Restart Jellyfin remote session after setup login by @bee-san in #112
+- docs(changelog): require reconciled fragments, not just new ones by @ksyasuda in #113
+- feat(release): add contributor attribution to release notes by @ksyasuda in #114
+- fix(anilist): mark entry completed when final episode is reached by @ksyasuda in #115
+- feat(aniskip): move intro detection from mpv plugin to app runtime by @ksyasuda in #117
+- fix(anki): write sentence card audio only to sentence audio field by @ksyasuda in #118
+
 ## Installation
 
 See the README and docs/installation guide for full setup steps.
@@ -67,14 +78,3 @@ See the README and docs/installation guide for full setup steps.
 - Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher
 
 Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
-
-## What’s Changed
-
-- feat(notifications): add overlay notifications with position config by @ksyasuda in #110
-- feat(stats): speed up session maintenance and improve stats UI by @ksyasuda in #111
-- [codex] Restart Jellyfin remote session after setup login by @bee-san in #112
-- docs(changelog): require reconciled fragments, not just new ones by @ksyasuda in #113
-- feat(release): add contributor attribution to release notes by @ksyasuda in #114
-- fix(anilist): mark entry completed when final episode is reached by @ksyasuda in #115
-- feat(aniskip): move intro detection from mpv plugin to app runtime by @ksyasuda in #117
-- fix(anki): write sentence card audio only to sentence audio field by @ksyasuda in #118

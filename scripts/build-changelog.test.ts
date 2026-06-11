@@ -1122,13 +1122,22 @@ test('writeChangelogArtifacts appends contributor attribution and a new-contribu
       path.join(projectRoot, 'release', 'release-notes.md'),
       'utf8',
     );
-    assert.match(releaseNotes, /## What’s Changed\n\n/);
+    assert.match(releaseNotes, /## What's Changed\n\n/);
     assert.match(releaseNotes, /- feat\(overlay\): add a feature by @ksyasuda in #110\n/);
     assert.match(releaseNotes, /- fix\(jellyfin\): restart remote session by @bee-san in #112\n/);
     assert.match(
       releaseNotes,
       /## New Contributors\n\n- @bee-san made their first contribution in #112/,
     );
+    assert.ok(
+      releaseNotes.indexOf("## What's Changed") > releaseNotes.indexOf('## Highlights'),
+      "What's Changed should follow Highlights",
+    );
+    assert.ok(
+      releaseNotes.indexOf('## New Contributors') < releaseNotes.indexOf('## Installation'),
+      'contributor attribution should appear before Installation',
+    );
+    assert.doesNotMatch(releaseNotes, /## What’s Changed/);
     assert.doesNotMatch(
       releaseNotes,
       /ksyasuda made their first contribution/,
@@ -1137,8 +1146,91 @@ test('writeChangelogArtifacts appends contributor attribution and a new-contribu
 
     // Attribution is a release-notes concern only; the CHANGELOG stays clean.
     const changelog = fs.readFileSync(path.join(projectRoot, 'CHANGELOG.md'), 'utf8');
-    assert.doesNotMatch(changelog, /What’s Changed/);
+    assert.doesNotMatch(changelog, /What's Changed|What’s Changed/);
     assert.doesNotMatch(changelog, /New Contributors/);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writeReleaseNotesForVersion preserves committed contributor attribution before installation', async () => {
+  const { writeReleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('release-notes-preserve-attribution');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingChangelog = [
+    '# Changelog',
+    '',
+    '## v0.8.0 (2026-04-17)',
+    '### Added',
+    '- Polished: released feature.',
+    '',
+    '<details>',
+    '<summary>Internal changes</summary>',
+    '',
+    '### Internal',
+    '- Polished: internal release note.',
+    '',
+    '</details>',
+    '',
+  ].join('\n');
+  const committedReleaseNotes = [
+    '## Highlights',
+    '### Added',
+    '- Old generated body.',
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+    '## Assets',
+    '',
+    '- Linux: `SubMiner.AppImage`',
+    '',
+    '## What’s Changed',
+    '',
+    '- feat(release): add contributor attribution by @ksyasuda in #114',
+    '',
+    '## New Contributors',
+    '',
+    '- @bee-san made their first contribution in #112',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), existingChangelog, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'release', 'release-notes.md'),
+    committedReleaseNotes,
+    'utf8',
+  );
+
+  try {
+    const outputPath = writeReleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.8.0',
+    });
+    const releaseNotes = fs.readFileSync(outputPath, 'utf8');
+
+    assert.match(releaseNotes, /## Highlights\n### Added\n- Polished: released feature\./);
+    assert.doesNotMatch(releaseNotes, /<details>/);
+    assert.doesNotMatch(releaseNotes, /### Internal/);
+    assert.match(
+      releaseNotes,
+      /## What's Changed\n\n- feat\(release\): add contributor attribution by @ksyasuda in #114/,
+    );
+    assert.match(
+      releaseNotes,
+      /## New Contributors\n\n- @bee-san made their first contribution in #112/,
+    );
+    assert.ok(
+      releaseNotes.indexOf("## What's Changed") > releaseNotes.indexOf('## Highlights'),
+      "What's Changed should follow Highlights",
+    );
+    assert.ok(
+      releaseNotes.indexOf('## New Contributors') < releaseNotes.indexOf('## Installation'),
+      'New Contributors should appear before Installation',
+    );
+    assert.doesNotMatch(releaseNotes, /## What’s Changed/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

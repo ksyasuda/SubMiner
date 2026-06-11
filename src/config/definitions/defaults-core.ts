@@ -128,7 +128,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   updates: {
     enabled: true,
     checkIntervalHours: 24,
-    notificationType: 'both',
+    notificationType: 'overlay',
     channel: 'stable',
   },
   notifications: {

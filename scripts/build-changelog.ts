@@ -433,12 +433,45 @@ function resolveContributionsForFragments(
   );
 }
 
+function isWhatsChangedHeading(line: string): boolean {
+  return line === "## What's Changed" || line === '## What’s Changed';
+}
+
+function extractContributorSections(releaseNotes: string): string[] {
+  const lines = releaseNotes.split(/\r?\n/);
+  const start = lines.findIndex(isWhatsChangedHeading);
+  if (start === -1) {
+    return [];
+  }
+
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    if (line.startsWith('## ') && !isWhatsChangedHeading(line) && line !== '## New Contributors') {
+      end = index;
+      break;
+    }
+  }
+
+  const block = lines.slice(start, end);
+  while (block.length > 0 && block[block.length - 1] === '') {
+    block.pop();
+  }
+  if (block.length === 0) {
+    return [];
+  }
+
+  block[0] = "## What's Changed";
+  block.push('');
+  return block;
+}
+
 function renderContributorsSections(contributions: Contribution[]): string[] {
   if (contributions.length === 0) {
     return [];
   }
 
-  const lines: string[] = ['## What’s Changed', ''];
+  const lines: string[] = ["## What's Changed", ''];
   for (const contribution of contributions) {
     lines.push(`- ${contribution.title} by @${contribution.login} in #${contribution.prNumber}`);
   }
@@ -635,14 +668,18 @@ function renderReleaseNotes(
   options?: {
     disclaimer?: string;
     contributions?: Contribution[];
+    contributorSections?: string[];
   },
 ): string {
   const prefix = options?.disclaimer ? [options.disclaimer, ''] : [];
+  const contributorSections =
+    options?.contributorSections ?? renderContributorsSections(options?.contributions ?? []);
   return [
     ...prefix,
     '## Highlights',
     changes,
     '',
+    ...contributorSections,
     '## Installation',
     '',
     'See the README and docs/installation guide for full setup steps.',
@@ -656,7 +693,6 @@ function renderReleaseNotes(
     '',
     'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',
     '',
-    ...renderContributorsSections(options?.contributions ?? []),
   ].join('\n');
 }
 
@@ -668,6 +704,7 @@ function writeReleaseNotesFile(
     disclaimer?: string;
     outputPath?: string;
     contributions?: Contribution[];
+    contributorSections?: string[];
   },
 ): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
@@ -960,6 +997,7 @@ export function generateDocsChangelog(options?: Pick<ChangelogOptions, 'cwd' | '
 
 export function writeReleaseNotesForVersion(options?: ChangelogOptions): string {
   const cwd = options?.cwd ?? process.cwd();
+  const existsSync = options?.deps?.existsSync ?? fs.existsSync;
   const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
   const version = resolveVersion(options ?? {});
   const changelogPath = path.join(cwd, 'CHANGELOG.md');
@@ -970,7 +1008,14 @@ export function writeReleaseNotesForVersion(options?: ChangelogOptions): string 
     throw new Error(`Missing CHANGELOG section for v${version}.`);
   }
 
-  return writeReleaseNotesFile(cwd, stripDetailsBlocks(changes), options?.deps);
+  const releaseNotesPath = path.join(cwd, RELEASE_NOTES_PATH);
+  const contributorSections = existsSync(releaseNotesPath)
+    ? extractContributorSections(readFileSync(releaseNotesPath, 'utf8'))
+    : [];
+
+  return writeReleaseNotesFile(cwd, stripDetailsBlocks(changes), options?.deps, {
+    contributorSections,
+  });
 }
 
 export function writePrereleaseNotesForVersion(options?: ChangelogOptions): string {

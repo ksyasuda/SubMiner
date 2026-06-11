@@ -24,7 +24,7 @@
 - **Stats Browsing**: Remembers library card size; retries stored cover art without extra AniList lookups; preserves PNG/WebP MIME types; honors custom AnkiConnect URLs for Browse; shows progress during session deletes.
 - **Startup Notifications**: Tokenization, subtitle annotation, and character dictionary status now route through queued overlay notifications in `overlay`/`both` mode instead of falling back to mpv OSD while the overlay loads.
 - **Notification Deduplication**: Cycling subtitle modes updates the active overlay card in place rather than stacking duplicates; repeated progress updates (e.g. subsync) tick in place without flickering.
-- **Update Notification Default**: New installs default `notificationType` to `both` so update alerts appear in both overlay and system notifications.
+- **Update Notification Default**: New installs default `notificationType` to `overlay`, while `both` remains available for overlay + system notifications.
 
 **Fixed**
 

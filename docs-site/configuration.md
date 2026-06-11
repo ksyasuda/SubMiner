@@ -197,7 +197,7 @@ Configure automatic update checks and update notifications:
   "updates": {
     "enabled": true,
     "checkIntervalHours": 24,
-    "notificationType": "both",
+    "notificationType": "overlay",
     "channel": "stable"
   }
 }
@@ -207,7 +207,7 @@ Configure automatic update checks and update notifications:
 | -------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `updates.enabled`    | `true`, `false`                                   | Enable automatic background update checks. Manual tray and `subminer -u` checks are always allowed. |
 | `checkIntervalHours` | number                                            | Minimum hours between automatic update checks. Default `24`.                                        |
-| `notificationType`   | `"overlay"` \| `"system"` \| `"both"` \| `"none"` | How SubMiner announces available updates. Default `"both"`, which means overlay + system.           |
+| `notificationType`   | `"overlay"` \| `"system"` \| `"both"` \| `"none"` | How SubMiner announces available updates. Default `"overlay"`. `"both"` means overlay + system.     |
 | `channel`            | `"stable"` \| `"prerelease"`                      | Release channel used for update checks. Use `"prerelease"` to test beta/RC releases.                |
 
 When `notificationType` is `"overlay"` or `"both"`, update-available overlay notifications include an **Update** button that starts the app update flow.
