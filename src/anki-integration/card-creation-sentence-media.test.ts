@@ -1,0 +1,130 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { CardCreationService } from './card-creation';
+import type { AnkiConnectConfig } from '../types/anki';
+
+type CardCreationDeps = ConstructorParameters<typeof CardCreationService>[0];
+
+test('sentence card writes generated audio only to sentence audio field', async () => {
+  const addedFields: Record<string, string>[] = [];
+  const updatedFields: Record<string, string>[] = [];
+  const storedMedia: string[] = [];
+
+  const deps: CardCreationDeps = {
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Sentence',
+          audio: 'ExpressionAudio',
+          translation: 'SelectionText',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: false,
+          maxMediaDuration: 30,
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getAiConfig: () => ({}),
+    getTimingTracker: () => ({}) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentSubText: '字幕',
+        currentSubStart: 12,
+        currentSubEnd: 14,
+        currentTimePos: 13,
+        currentAudioStreamIndex: 0,
+      }) as never,
+    client: {
+      addNote: async (_deck, _modelName, fields) => {
+        addedFields.push(fields);
+        return 42;
+      },
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '字幕' },
+            Sentence: { value: '字幕' },
+            SelectionText: { value: 'Subtitle' },
+            ExpressionAudio: { value: '' },
+            SentenceAudio: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async (filename) => {
+        storedMedia.push(filename);
+      },
+      findNotes: async () => [],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async () => Buffer.from('audio'),
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+    showOsdNotification: () => undefined,
+    showUpdateResult: () => undefined,
+    showStatusNotification: () => undefined,
+    showNotification: async () => undefined,
+    beginUpdateProgress: () => undefined,
+    endUpdateProgress: () => undefined,
+    withUpdateProgress: async (_message, action) => action(),
+    resolveConfiguredFieldName: (noteInfo, ...preferredNames) => {
+      for (const preferredName of preferredNames) {
+        if (preferredName && preferredName in noteInfo.fields) return preferredName;
+      }
+      return null;
+    },
+    resolveNoteFieldName: (noteInfo, preferredName) =>
+      preferredName && preferredName in noteInfo.fields ? preferredName : null,
+    getAnimatedImageLeadInSeconds: async () => 0,
+    extractFields: () => ({}),
+    processSentence: (sentence) => sentence,
+    setCardTypeFields: () => undefined,
+    mergeFieldValue: (_existing, newValue) => newValue,
+    formatMiscInfoPattern: () => '',
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: true,
+      kikuEnabled: false,
+      kikuFieldGrouping: 'disabled',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    getFallbackDurationSeconds: () => 10,
+    appendKnownWordsFromNoteInfo: () => undefined,
+    isUpdateInProgress: () => false,
+    setUpdateInProgress: () => undefined,
+    trackLastAddedNoteId: () => undefined,
+  };
+
+  const created = await new CardCreationService(deps).createSentenceCard(
+    '字幕',
+    12,
+    14,
+    'Subtitle',
+  );
+
+  assert.equal(created, true);
+  assert.deepEqual(addedFields[0], {
+    Sentence: '字幕',
+    SelectionText: 'Subtitle',
+    IsSentenceCard: 'x',
+    Expression: '字幕',
+  });
+  assert.equal(storedMedia.length, 1);
+  const mediaUpdate = updatedFields.find((fields) => 'SentenceAudio' in fields);
+  assert.equal(mediaUpdate?.SentenceAudio, `[sound:${storedMedia[0]}]`);
+  assert.equal('ExpressionAudio' in mediaUpdate!, false);
+});
