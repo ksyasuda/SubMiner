@@ -19,6 +19,16 @@ local function has_arg(args, target)
 	return false
 end
 
+local function count_feedback(recorded, target)
+	local count = 0
+	for _, message in ipairs(recorded.feedback) do
+		if message == target then
+			count = count + 1
+		end
+	end
+	return count
+end
+
 local function create_restart_runtime(config)
 	config = config or {}
 	local recorded = {
@@ -59,10 +69,18 @@ local function create_restart_runtime(config)
 			callback(status == 0, { status = status, stdout = "", stderr = "" }, nil)
 			return
 		end
+		if has_arg(args, "--show-visible-overlay") and not has_arg(args, "--start") then
+			local status = config.show_visible_overlay_status or 0
+			callback(status == 0, { status = status, stdout = "", stderr = "" }, nil)
+			return
+		end
 		callback(true, { status = 0, stdout = "", stderr = "" }, nil)
 	end
 
 	function mp.add_timeout(_, callback)
+		if config.run_timeouts_immediately and callback then
+			callback()
+		end
 		return {
 			killed = false,
 			kill = function(self)
@@ -164,6 +182,48 @@ do
 	assert_true(
 		runtime.recorded.periodic_timers[1].killed ~= true,
 		"restart should keep the loading OSD alive until the overlay reports ready"
+	)
+end
+
+do
+	local runtime = create_restart_runtime({
+		osd_messages = false,
+		show_visible_overlay_status = 1,
+	})
+
+	runtime.process.restart_overlay()
+
+	assert_true(
+		count_feedback(runtime.recorded, "Restarted successfully") == 0,
+		"restart should not show success feedback when show-visible-overlay fails after ready ping"
+	)
+	assert_true(
+		runtime.recorded.feedback[#runtime.recorded.feedback] == "Restart failed",
+		"restart should show failure feedback when show-visible-overlay fails after ready ping"
+	)
+end
+
+do
+	local statuses = { 1 }
+	for _ = 1, 20 do
+		statuses[#statuses + 1] = 1
+	end
+	local runtime = create_restart_runtime({
+		app_ping_statuses = statuses,
+		osd_messages = false,
+		run_timeouts_immediately = true,
+		show_visible_overlay_status = 1,
+	})
+
+	runtime.process.restart_overlay()
+
+	assert_true(
+		count_feedback(runtime.recorded, "Restarted successfully") == 0,
+		"restart should not show success feedback when fallback show-visible-overlay fails after ping timeout"
+	)
+	assert_true(
+		runtime.recorded.feedback[#runtime.recorded.feedback] == "Restart failed",
+		"restart should show failure feedback when fallback show-visible-overlay fails after ping timeout"
 	)
 end
 

@@ -929,12 +929,20 @@ function M.create(ctx)
 						show_restart_feedback("Restart failed")
 					else
 						wait_for_app_ping_state(true, "own the single-instance lock", function()
-							run_control_command_async("show-visible-overlay", nil, function()
-								show_restart_feedback("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function(ok)
+								if ok then
+									show_restart_feedback("Restarted successfully")
+								else
+									show_restart_feedback("Restart failed")
+								end
 							end)
 						end, function()
-							run_control_command_async("show-visible-overlay", nil, function()
-								show_restart_feedback("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function(ok)
+								if ok then
+									show_restart_feedback("Restarted successfully")
+								else
+									show_restart_feedback("Restart failed")
+								end
 							end)
 						end)
 					end
