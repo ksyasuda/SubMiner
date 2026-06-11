@@ -528,7 +528,6 @@ export class CardCreationService {
         const translationField = this.deps.getConfig().fields?.translation || 'SelectionText';
         let resolvedMiscInfoField: string | null = null;
         let resolvedSentenceAudioField: string = audioFieldName;
-        let resolvedExpressionAudioField: string | null = null;
 
         fields[sentenceField] = sentence;
 
@@ -626,10 +625,6 @@ export class CardCreationService {
             this.deps.appendKnownWordsFromNoteInfo(createdNoteInfo);
             resolvedSentenceAudioField =
               this.deps.resolveNoteFieldName(createdNoteInfo, audioFieldName) || audioFieldName;
-            resolvedExpressionAudioField = this.deps.resolveConfiguredFieldName(
-              createdNoteInfo,
-              this.deps.getConfig().fields?.audio || 'ExpressionAudio',
-            );
             resolvedMiscInfoField = this.deps.resolveConfiguredFieldName(
               createdNoteInfo,
               this.deps.getConfig().fields?.miscInfo,
@@ -662,12 +657,6 @@ export class CardCreationService {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
             const audioValue = `[sound:${audioFilename}]`;
             mediaFields[resolvedSentenceAudioField] = audioValue;
-            if (
-              resolvedExpressionAudioField &&
-              resolvedExpressionAudioField !== resolvedSentenceAudioField
-            ) {
-              mediaFields[resolvedExpressionAudioField] = audioValue;
-            }
             miscInfoFilename = audioFilename;
           }
         } catch (error) {
