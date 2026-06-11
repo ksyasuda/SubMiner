@@ -18,8 +18,12 @@ type RegisterSubminerProtocolClientMainDeps = Parameters<
 
 export function createBuildNotifyAnilistSetupMainDepsHandler(deps: NotifyAnilistSetupMainDeps) {
   return (): NotifyAnilistSetupMainDeps => ({
+    getNotificationType: deps.getNotificationType ? () => deps.getNotificationType?.() : undefined,
     hasMpvClient: () => deps.hasMpvClient(),
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
+    showOverlayNotification: deps.showOverlayNotification
+      ? (payload) => deps.showOverlayNotification?.(payload)
+      : undefined,
     showDesktopNotification: (title: string, options: { body: string }) =>
       deps.showDesktopNotification(title, options),
     logInfo: (message: string) => deps.logInfo(message),

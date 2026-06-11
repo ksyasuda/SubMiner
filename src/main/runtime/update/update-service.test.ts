@@ -96,6 +96,28 @@ test('manual update check falls back to GitHub release when app metadata is unav
   assert.deepEqual(calls, ['available-dialog:0.15.0']);
 });
 
+test('manual update install request skips available dialog and updates app', async () => {
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+    showUpdateAvailableDialog: async () => {
+      throw new Error('unexpected update confirmation');
+    },
+    updateLauncher: async (_launcherPath, channel) => {
+      calls.push(`launcher:${channel}`);
+      return { status: 'skipped' };
+    },
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({
+    source: 'manual',
+    installWhenAvailable: true,
+  });
+
+  assert.equal(result.status, 'updated');
+  assert.deepEqual(calls, ['download', 'launcher:stable', 'restart-dialog']);
+});
+
 test('manual update check reports available when no update asset was applied', async () => {
   const { deps, calls } = createDeps({
     checkAppUpdate: async () => ({ available: false, version: '0.14.0', canUpdate: false }),
@@ -269,6 +291,28 @@ test('concurrent update checks share one in-flight check', async () => {
   await Promise.all([first, second]);
 
   assert.equal(checkCount, 1);
+});
+
+test('manual install request does not reuse in-flight manual check', async () => {
+  let checkCount = 0;
+  const resolveChecks: Array<(value: { available: boolean; version: string }) => void> = [];
+  const { deps } = createDeps({
+    checkAppUpdate: () =>
+      new Promise((resolve) => {
+        checkCount += 1;
+        resolveChecks.push(resolve);
+      }),
+  });
+  const service = createUpdateService(deps);
+  const manualCheck = service.checkForUpdates({ source: 'manual' });
+  const manualInstall = service.checkForUpdates({ source: 'manual', installWhenAvailable: true });
+
+  await Promise.resolve();
+  assert.equal(checkCount, 2);
+  for (const resolve of resolveChecks) {
+    resolve({ available: false, version: '0.14.0' });
+  }
+  await Promise.all([manualCheck, manualInstall]);
 });
 
 test('manual update check does not reuse in-flight automatic check', async () => {

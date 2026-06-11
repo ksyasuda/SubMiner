@@ -15,6 +15,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'subsync'
   | 'startupWarmups'
   | 'updates'
+  | 'notifications'
   | 'auto_start_overlay'
 > = {
   subtitlePosition: { yPercent: 10 },
@@ -101,6 +102,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',
     toggleSubtitleSidebar: 'Backslash',
+    toggleNotificationHistory: 'CommandOrControl+N',
   },
   secondarySub: {
     secondarySubLanguages: [],
@@ -126,8 +128,11 @@ export const CORE_DEFAULT_CONFIG: Pick<
   updates: {
     enabled: true,
     checkIntervalHours: 24,
-    notificationType: 'system',
+    notificationType: 'both',
     channel: 'stable',
+  },
+  notifications: {
+    overlayPosition: 'top-right',
   },
   auto_start_overlay: true,
 };

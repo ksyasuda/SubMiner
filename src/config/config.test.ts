@@ -98,6 +98,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.shortcuts.markAudioCard, 'CommandOrControl+Shift+A');
   assert.equal(config.shortcuts.openCharacterDictionaryManager, 'CommandOrControl+D');
   assert.equal(config.shortcuts.toggleSubtitleSidebar, 'Backslash');
+  assert.equal(config.shortcuts.toggleNotificationHistory, 'CommandOrControl+N');
   assert.equal(config.discordPresence.enabled, true);
   assert.equal(config.discordPresence.updateIntervalMs, 3_000);
   assert.equal(config.subtitleStyle.backgroundColor, 'transparent');
@@ -152,7 +153,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.stats.autoOpenBrowser, false);
   assert.equal(config.updates.enabled, true);
   assert.equal(config.updates.checkIntervalHours, 24);
-  assert.equal(config.updates.notificationType, 'system');
+  assert.equal(config.updates.notificationType, 'both');
   assert.equal(config.updates.channel, 'stable');
   assert.equal(config.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
   assert.equal(config.mpv.backend, 'auto');
@@ -172,7 +173,7 @@ test('parses updates config and warns on invalid values', () => {
       "updates": {
         "enabled": false,
         "checkIntervalHours": 6,
-        "notificationType": "both",
+        "notificationType": "osd-system",
         "channel": "prerelease"
       }
     }`,
@@ -182,7 +183,7 @@ test('parses updates config and warns on invalid values', () => {
   const validService = new ConfigService(validDir);
   assert.equal(validService.getConfig().updates.enabled, false);
   assert.equal(validService.getConfig().updates.checkIntervalHours, 6);
-  assert.equal(validService.getConfig().updates.notificationType, 'both');
+  assert.equal(validService.getConfig().updates.notificationType, 'osd-system');
   assert.equal(validService.getConfig().updates.channel, 'prerelease');
 
   const invalidDir = makeTempDir();
@@ -210,6 +211,69 @@ test('parses updates config and warns on invalid values', () => {
   assert.ok(warnings.some((warning) => warning.path === 'updates.checkIntervalHours'));
   assert.ok(warnings.some((warning) => warning.path === 'updates.notificationType'));
   assert.ok(warnings.some((warning) => warning.path === 'updates.channel'));
+});
+
+test('accepts overlay notification config values', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "updates": {
+        "notificationType": "overlay"
+      },
+      "ankiConnect": {
+        "behavior": {
+          "notificationType": "osd-system"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+
+  assert.equal(service.getConfig().updates.notificationType, 'overlay');
+  assert.equal(service.getConfig().ankiConnect.behavior.notificationType, 'osd-system');
+  assert.deepEqual(service.getWarnings(), []);
+});
+
+test('parses overlay notification position config and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "notifications": {
+        "overlayPosition": "top-left"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().notifications.overlayPosition, 'top-left');
+  assert.deepEqual(validService.getWarnings(), []);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "notifications": {
+        "overlayPosition": "bottom-right"
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().notifications.overlayPosition,
+    DEFAULT_CONFIG.notifications.overlayPosition,
+  );
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'notifications.overlayPosition'),
+  );
 });
 
 test('throws actionable startup parse error for malformed config at construction time', () => {
@@ -2750,7 +2814,7 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"notificationType": "system",? \/\/ How SubMiner announces available updates\. Values: system \| osd \| both \| none/,
+    /"notificationType": "both",? \/\/ How SubMiner announces available updates\..*Values: overlay \| system \| both \| none \| osd \| osd-system/,
   );
   assert.match(
     output,

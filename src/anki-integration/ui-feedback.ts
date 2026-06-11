@@ -1,4 +1,5 @@
-import { NotificationOptions } from '../types/anki';
+import type { NotificationOptions } from '../types/anki';
+import type { NotificationType, OverlayNotificationPayload } from '../types/notification';
 
 export interface UiFeedbackState {
   progressDepth: number;
@@ -13,8 +14,9 @@ export interface UiFeedbackResult {
 }
 
 export interface UiFeedbackNotificationContext {
-  getNotificationType: () => string | undefined;
+  getNotificationType: () => NotificationType | undefined;
   showOsd: (text: string) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   showSystemNotification: (title: string, options: NotificationOptions) => void;
 }
 
@@ -36,13 +38,29 @@ export function showStatusNotification(
   message: string,
   context: UiFeedbackNotificationContext,
 ): void {
-  const type = context.getNotificationType() || 'osd';
+  const type = context.getNotificationType() ?? 'osd';
 
-  if (type === 'osd' || type === 'both') {
+  if (type === 'none') {
+    return;
+  }
+
+  if (type === 'overlay' || type === 'both') {
+    if (context.showOverlayNotification) {
+      context.showOverlayNotification({
+        title: 'SubMiner',
+        body: message,
+        variant: 'info',
+      });
+    } else if (type === 'overlay') {
+      context.showSystemNotification('SubMiner', { body: message });
+    }
+  }
+
+  if (type === 'osd' || type === 'osd-system') {
     context.showOsd(message);
   }
 
-  if (type === 'system' || type === 'both') {
+  if (type === 'system' || type === 'both' || type === 'osd-system') {
     context.showSystemNotification('SubMiner', { body: message });
   }
 }

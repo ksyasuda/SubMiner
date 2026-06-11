@@ -30,6 +30,7 @@ export interface OverlayVisibilityRuntimeDeps {
   isMacOSPlatform: () => boolean;
   isWindowsPlatform: () => boolean;
   showOverlayLoadingOsd: (message: string) => void;
+  dismissOverlayLoadingOsd?: () => void;
   resolveFallbackBounds: () => WindowGeometry;
   hideNonNativeOverlayWhenTargetUnfocused?: () => boolean;
 }
@@ -80,6 +81,7 @@ export function createOverlayVisibilityRuntimeService(
         isMacOSPlatform: deps.isMacOSPlatform(),
         isWindowsPlatform: deps.isWindowsPlatform(),
         showOverlayLoadingOsd: (message: string) => deps.showOverlayLoadingOsd(message),
+        dismissOverlayLoadingOsd: () => deps.dismissOverlayLoadingOsd?.(),
         shouldShowOverlayLoadingOsd: () =>
           lastOverlayLoadingOsdAtMs === null ||
           Date.now() - lastOverlayLoadingOsdAtMs >= OVERLAY_LOADING_OSD_COOLDOWN_MS,

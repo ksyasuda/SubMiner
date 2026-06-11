@@ -64,6 +64,12 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'updates',
   },
   {
+    title: 'Notifications',
+    description: ['Overlay notification display behavior.'],
+    notes: ['Hot-reload: position changes apply to the next overlay notification.'],
+    key: 'notifications',
+  },
+  {
     title: 'Keyboard Shortcuts',
     description: ['Overlay keyboard shortcuts. Set a shortcut to null to disable.'],
     notes: ['Hot-reload: shortcut changes apply live and update the session help modal on reopen.'],

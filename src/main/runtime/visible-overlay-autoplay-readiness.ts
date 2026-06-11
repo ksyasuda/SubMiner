@@ -31,12 +31,16 @@ export function isVisibleOverlayAutoplayTargetReady(
   }
 
   const subtitleText = signal.payload.text.trim();
-  if (!subtitleText || subtitleText === '__warm__') {
+  if (!subtitleText) {
     return false;
   }
 
   if (!deps.isOverlayWindowReady()) {
     return false;
+  }
+
+  if (subtitleText === '__warm__') {
+    return true;
   }
 
   const measurement = deps.getLatestVisibleMeasurement();

@@ -269,7 +269,7 @@ test('runAppReadyRuntime loads Yomitan before headless overlay fallback initiali
   ]);
 });
 
-test('runAppReadyRuntime loads Yomitan before auto-initializing overlay runtime', async () => {
+test('runAppReadyRuntime auto-initializes overlay runtime before warmups and Yomitan', async () => {
   const calls: string[] = [];
 
   await runAppReadyRuntime({
@@ -354,9 +354,10 @@ test('runAppReadyRuntime loads Yomitan before auto-initializing overlay runtime'
     shouldSkipHeavyStartup: () => false,
   });
 
-  assert.ok(calls.indexOf('load-yomitan') !== -1);
   assert.ok(calls.indexOf('init-overlay') !== -1);
-  assert.ok(calls.indexOf('load-yomitan') < calls.indexOf('init-overlay'));
+  assert.ok(calls.indexOf('warmups') !== -1);
+  assert.ok(calls.indexOf('init-overlay') < calls.indexOf('warmups'));
+  assert.equal(calls.includes('load-yomitan'), false);
 });
 
 test('runAppReadyRuntime reuses guarded Yomitan loader after scheduling startup warmups', async () => {

@@ -905,6 +905,31 @@ do
 		process_list = "",
 		option_overrides = {
 			binary_path = binary_path,
+			auto_start = "no",
+			auto_start_visible_overlay = "yes",
+			overlay_loading_osd = "yes",
+			osd_messages = false,
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for explicit early overlay loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"explicit overlay loading OSD option should show spinner even when plugin auto-start is disabled"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
 			auto_start_pause_until_ready = "no",
@@ -1546,6 +1571,91 @@ do
 			binary_path = binary_path,
 			auto_start = "yes",
 			auto_start_visible_overlay = "yes",
+			osd_messages = false,
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for early overlay loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"auto-start visible overlay should force overlay loading OSD spinner on start-file"
+	)
+	assert_true(
+		#recorded.periodic_timers == 1,
+		"auto-start visible overlay should refresh the early overlay loading OSD"
+	)
+	local overlay_loading_timer = recorded.periodic_timers[1]
+	recorded.periodic_timers[1].callback()
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading /"),
+		"auto-start visible overlay should advance the early overlay loading OSD spinner"
+	)
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		overlay_loading_timer.killed ~= true,
+		"autoplay gate should keep forced overlay loading OSD alive while normal plugin OSD messages are disabled"
+	)
+	assert_true(
+		#recorded.periodic_timers == 1,
+		"autoplay gate should not replace forced overlay loading OSD with a suppressed tokenization OSD timer"
+	)
+	recorded.script_messages["subminer-autoplay-ready"]()
+	assert_true(
+		overlay_loading_timer.killed ~= true,
+		"autoplay readiness should not stop forced overlay loading OSD before overlay content is ready"
+	)
+	overlay_loading_timer.callback()
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay loading -"),
+		"forced overlay loading OSD should keep spinning during the overlay startup gap"
+	)
+	assert_true(
+		recorded.script_messages["subminer-overlay-loading-ready"] ~= nil,
+		"overlay loading ready script message should be registered"
+	)
+	recorded.script_messages["subminer-overlay-loading-ready"]()
+	assert_true(
+		recorded.periodic_timers[1].killed == true,
+		"overlay loading ready should stop the early overlay loading OSD refresher"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "no",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for hidden overlay loading OSD scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	assert_true(
+		not has_osd_message(recorded.osd, "SubMiner: Overlay loading |"),
+		"auto-start hidden visible overlay should not show early overlay loading OSD"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
 			socket_path = "/tmp/subminer-socket",
 		},
 		input_ipc_server = "/tmp/subminer-socket",
@@ -1756,6 +1866,32 @@ do
 	assert_true(
 		has_property_set(recorded.property_sets, "pause", false),
 		"launcher-owned initial pause should resume when autoplay-ready arrives"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			auto_start_pause_until_ready_owns_initial_pause = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		paused = true,
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for default pause timeout scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		has_timeout(recorded.timeouts, 30),
+		"pause-until-ready default timeout should give cold app startup 30 seconds"
 	)
 end
 

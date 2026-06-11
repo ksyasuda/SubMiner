@@ -125,6 +125,11 @@ test('parseLauncherMpvConfig ignores invalid launch mode values', () => {
 test('parsePluginRuntimeConfigFromMainConfig maps config.jsonc values over plugin defaults', () => {
   const parsed = parsePluginRuntimeConfigFromMainConfig({
     auto_start_overlay: false,
+    ankiConnect: {
+      behavior: {
+        notificationType: 'osd-system',
+      },
+    },
     texthooker: {
       launchAtStartup: false,
     },
@@ -142,8 +147,21 @@ test('parsePluginRuntimeConfigFromMainConfig maps config.jsonc values over plugi
   assert.equal(parsed.autoStart, true);
   assert.equal(parsed.autoStartVisibleOverlay, false);
   assert.equal(parsed.autoStartPauseUntilReady, true);
+  assert.equal(parsed.osdMessages, true);
   assert.equal(parsed.binaryPath, '/opt/SubMiner/SubMiner.AppImage');
   assert.equal(parsed.texthookerEnabled, false);
+});
+
+test('parsePluginRuntimeConfigFromMainConfig disables plugin osd messages for overlay notification routing', () => {
+  const parsed = parsePluginRuntimeConfigFromMainConfig({
+    ankiConnect: {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+  });
+
+  assert.equal(parsed.osdMessages, false);
 });
 
 test('parsePluginRuntimeConfigFromMainConfig defaults to background-only managed startup', () => {
@@ -152,6 +170,7 @@ test('parsePluginRuntimeConfigFromMainConfig defaults to background-only managed
   assert.equal(parsed.autoStart, true);
   assert.equal(parsed.autoStartVisibleOverlay, false);
   assert.equal(parsed.autoStartPauseUntilReady, true);
+  assert.equal(parsed.osdMessages, false);
   assert.equal(parsed.texthookerEnabled, false);
 });
 
@@ -165,6 +184,7 @@ test('buildPluginRuntimeScriptOptParts emits config values that override plugin 
         autoStart: true,
         autoStartVisibleOverlay: false,
         autoStartPauseUntilReady: true,
+        osdMessages: true,
         texthookerEnabled: false,
       },
       '/fallback/SubMiner.AppImage',
@@ -175,7 +195,10 @@ test('buildPluginRuntimeScriptOptParts emits config values that override plugin 
       'subminer-backend=x11',
       'subminer-auto_start=yes',
       'subminer-auto_start_visible_overlay=no',
+      'subminer-overlay_loading_osd=no',
       'subminer-auto_start_pause_until_ready=yes',
+      'subminer-auto_start_pause_until_ready_timeout_seconds=30',
+      'subminer-osd_messages=yes',
       'subminer-texthooker_enabled=no',
     ],
   );
@@ -191,6 +214,7 @@ test('buildPluginRuntimeScriptOptParts strips script-option delimiters from stri
         autoStart: true,
         autoStartVisibleOverlay: false,
         autoStartPauseUntilReady: true,
+        osdMessages: false,
         texthookerEnabled: false,
       },
       '/fallback/SubMiner.AppImage',
@@ -201,7 +225,10 @@ test('buildPluginRuntimeScriptOptParts strips script-option delimiters from stri
       'subminer-backend=x11',
       'subminer-auto_start=yes',
       'subminer-auto_start_visible_overlay=no',
+      'subminer-overlay_loading_osd=no',
       'subminer-auto_start_pause_until_ready=yes',
+      'subminer-auto_start_pause_until_ready_timeout_seconds=30',
+      'subminer-osd_messages=no',
       'subminer-texthooker_enabled=no',
     ],
   );

@@ -104,6 +104,14 @@ function M.create(ctx)
 		return options_helper.coerce_bool(raw_visible_overlay, false)
 	end
 
+	local function resolve_overlay_loading_osd_enabled()
+		local raw_overlay_loading_osd = opts.overlay_loading_osd
+		if raw_overlay_loading_osd == nil then
+			raw_overlay_loading_osd = opts["overlay-loading-osd"]
+		end
+		return options_helper.coerce_bool(raw_overlay_loading_osd, false)
+	end
+
 	local function next_auto_start_retry_generation()
 		state.auto_start_retry_generation = (state.auto_start_retry_generation or 0) + 1
 		return state.auto_start_retry_generation
@@ -143,6 +151,14 @@ function M.create(ctx)
 			and not (state.overlay_running and state.auto_play_ready_signal_seen == true)
 	end
 
+	local function should_show_overlay_loading_osd()
+		return (
+				resolve_overlay_loading_osd_enabled()
+				or (resolve_auto_start_enabled() and resolve_auto_start_visible_overlay_enabled())
+			)
+			and not state.suppress_ready_overlay_restore
+	end
+
 	local function start_overlay_when_socket_ready(generation, media_identity, same_media_loaded, attempt)
 		if generation ~= state.auto_start_retry_generation then
 			return
@@ -169,6 +185,7 @@ function M.create(ctx)
 					.. process.describe_mpv_ipc_socket_match(opts.socket_path)
 					.. ")"
 			)
+			process.stop_overlay_loading_osd()
 			return
 		end
 
@@ -180,6 +197,9 @@ function M.create(ctx)
 	end
 
 	local function on_start_file()
+		if should_show_overlay_loading_osd() then
+			process.start_overlay_loading_osd()
+		end
 		if state.pending_reload_media_identity ~= nil then
 			local media_identity = resolve_media_identity()
 			if media_identity ~= nil and media_identity ~= state.pending_reload_media_identity then
@@ -233,6 +253,7 @@ function M.create(ctx)
 		end
 
 		if same_media_reload then
+			process.stop_overlay_loading_osd()
 			subminer_log("debug", "lifecycle", "Skipping startup lifecycle for same-media mpv reload")
 			if state.app_managed_playback_active then
 				return
@@ -260,6 +281,7 @@ function M.create(ctx)
 		end
 
 		if state.app_managed_playback_active then
+			process.stop_overlay_loading_osd()
 			subminer_log("debug", "lifecycle", "Skipping plugin auto-start for app-managed subtitle preload")
 			return
 		end
@@ -276,6 +298,7 @@ function M.create(ctx)
 		next_auto_start_retry_generation()
 		hover.clear_hover_overlay()
 		process.disarm_auto_play_ready_gate()
+		process.stop_overlay_loading_osd()
 		clear_pending_visible_overlay_hide()
 		state.auto_play_ready_signal_seen = false
 		state.current_media_identity = nil
@@ -295,6 +318,7 @@ function M.create(ctx)
 			hover.clear_hover_overlay()
 		end)
 		mp.register_event("end-file", function(event)
+			process.stop_overlay_loading_osd()
 			process.disarm_auto_play_ready_gate()
 			hover.clear_hover_overlay()
 			local reason = type(event) == "table" and event.reason or nil

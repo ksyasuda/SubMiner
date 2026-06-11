@@ -158,6 +158,7 @@ export interface AppReadyRuntimeDeps {
   shouldRunHeadlessInitialCommand?: () => boolean;
   shouldUseMinimalStartup?: () => boolean;
   shouldSkipHeavyStartup?: () => boolean;
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup?: () => boolean;
 }
 
 const REQUIRED_ANKI_FIELD_MAPPING_KEYS = [
@@ -229,6 +230,31 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   const startupStartedAtMs = now();
   const ensureYomitanExtensionReady =
     deps.ensureYomitanExtensionLoaded ?? deps.loadYomitanExtension;
+  let firstRunSetupHandled = false;
+  let initialArgsHandled = false;
+  let backgroundWarmupsHandled = false;
+  const handleFirstRunSetupOnce = async (): Promise<void> => {
+    if (firstRunSetupHandled) {
+      return;
+    }
+    firstRunSetupHandled = true;
+    await deps.handleFirstRunSetup();
+  };
+  const handleInitialArgsOnce = (): void => {
+    if (initialArgsHandled) {
+      return;
+    }
+    initialArgsHandled = true;
+    deps.handleInitialArgs();
+  };
+  const startBackgroundWarmupsOnce = (): void => {
+    if (backgroundWarmupsHandled) {
+      return;
+    }
+    backgroundWarmupsHandled = true;
+    deps.startBackgroundWarmups();
+  };
+
   deps.ensureDefaultConfigBootstrap();
   if (deps.shouldRunHeadlessInitialCommand?.()) {
     deps.reloadConfig();
@@ -247,7 +273,7 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.shouldUseMinimalStartup?.()) {
     deps.reloadConfig();
-    deps.handleInitialArgs();
+    handleInitialArgsOnce();
     return;
   }
 
@@ -256,8 +282,8 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   if (deps.shouldSkipHeavyStartup?.()) {
     await ensureYomitanExtensionReady();
     deps.reloadConfig();
-    await deps.handleFirstRunSetup();
-    deps.handleInitialArgs();
+    await handleFirstRunSetupOnce();
+    handleInitialArgsOnce();
     deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
     return;
   }
@@ -279,8 +305,6 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
   for (const warning of deps.getConfigWarnings()) {
     deps.logConfigWarning(warning);
   }
-  deps.startBackgroundWarmups();
-
   deps.loadSubtitlePosition();
   deps.resolveKeybindings();
   deps.createMpvClient();
@@ -326,16 +350,24 @@ export async function runAppReadyRuntime(deps: AppReadyRuntimeDeps): Promise<voi
 
   if (deps.texthookerOnlyMode) {
     deps.log('Texthooker-only mode enabled; skipping overlay window.');
+    startBackgroundWarmupsOnce();
   } else if (deps.shouldAutoInitializeOverlayRuntimeFromConfig()) {
-    await ensureYomitanExtensionReady();
     deps.setVisibleOverlayVisible(true);
     deps.initializeOverlayRuntime();
+    startBackgroundWarmupsOnce();
   } else {
     deps.log('Overlay runtime deferred: waiting for explicit overlay command.');
-    await ensureYomitanExtensionReady();
+    if (deps.shouldHandleInitialArgsBeforeDeferredOverlayWarmup?.()) {
+      await handleFirstRunSetupOnce();
+      handleInitialArgsOnce();
+      startBackgroundWarmupsOnce();
+    } else {
+      startBackgroundWarmupsOnce();
+      await ensureYomitanExtensionReady();
+    }
   }
 
-  await deps.handleFirstRunSetup();
-  deps.handleInitialArgs();
+  await handleFirstRunSetupOnce();
+  handleInitialArgsOnce();
   deps.logDebug?.(`App-ready critical path finished in ${now() - startupStartedAtMs}ms.`);
 }

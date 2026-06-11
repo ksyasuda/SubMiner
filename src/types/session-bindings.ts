@@ -13,6 +13,7 @@ export type SessionActionId =
   | 'mineSentenceMultiple'
   | 'toggleSecondarySub'
   | 'toggleSubtitleSidebar'
+  | 'toggleNotificationHistory'
   | 'markAudioCard'
   | 'openRuntimeOptions'
   | 'openSessionHelp'

@@ -131,6 +131,15 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(shouldStartApp(args), true);
 });
 
+test('parseArgs captures internal playback feedback command', () => {
+  const args = parseArgs(['--playback-feedback', 'You can skip by pressing TAB']);
+
+  assert.equal(args.playbackFeedback, 'You can skip by pressing TAB');
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+  assert.equal(commandNeedsOverlayRuntime(args), true);
+});
+
 test('parseArgs ignores non-positive numeric session action counts', () => {
   const args = parseArgs(['--copy-subtitle-count=0', '--mine-sentence-count', '-1']);
 

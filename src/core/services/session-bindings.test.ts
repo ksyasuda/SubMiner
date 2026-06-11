@@ -26,6 +26,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openControllerSelect: null,
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
+    toggleNotificationHistory: null,
     ...overrides,
   };
 }
@@ -195,7 +196,10 @@ test('compileSessionBindings keeps mouse buttons scoped to keybindings', () => {
     platform: 'win32',
   });
 
-  assert.deepEqual(result.bindings.map((binding) => binding.sourcePath), ['keybindings[0].key']);
+  assert.deepEqual(
+    result.bindings.map((binding) => binding.sourcePath),
+    ['keybindings[0].key'],
+  );
   assert.deepEqual(
     result.warnings.map((warning) => `${warning.kind}:${warning.path}`),
     ['unsupported:shortcuts.openJimaku'],

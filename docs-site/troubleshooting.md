@@ -126,7 +126,7 @@ The detected launcher is installed in a protected path such as `/usr/local/bin/s
 
 **OSD update notification did not appear**
 
-`updates.notificationType: "osd"` uses the existing mpv/overlay notification path. If mpv is disconnected, SubMiner logs the update and does not force-start the overlay. Use `"system"` or `"both"` if you want OS notifications outside playback.
+`updates.notificationType: "osd"` uses the legacy mpv OSD path. If mpv is disconnected, SubMiner logs the update and does not force-start the overlay. Use `"system"` for OS notifications, `"both"` for overlay + OS notifications, or `"osd-system"` in `config.jsonc` if you want the legacy OSD + OS combination.
 
 ## AnkiConnect
 

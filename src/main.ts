@@ -64,6 +64,7 @@ import {
   type ForegroundSuppressionGraceState,
   mapOverlayMeasurementForPointerInteraction,
   resolveForegroundSuppressionWithGrace,
+  shouldPrimeLinuxOverlayInteractionFromMeasurement,
   tickLinuxOverlayPointerInteraction,
 } from './main/runtime/linux-overlay-pointer-interaction';
 import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
@@ -140,9 +141,13 @@ import type {
   SubtitleData,
   SubtitleMiningContext,
   SubtitlePosition,
+  OverlayNotificationPayload,
+  OverlayNotificationEventPayload,
+  NotificationType,
   UpdateChannel,
   WindowGeometry,
 } from './types';
+import { OPEN_ANKI_CARD_ACTION_ID } from './types';
 import { AnkiIntegration } from './anki-integration';
 import { SubtitleTimingTracker } from './subtitle-timing-tracker';
 import { RuntimeOptionsManager } from './runtime-options';
@@ -189,6 +194,7 @@ import {
 import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
   shouldStartAutomaticUpdateChecks,
 } from './main/runtime/startup-mode-flags';
@@ -601,7 +607,21 @@ import {
 } from './main/runtime/update/release-assets';
 import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
 import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
-import { notifyUpdateAvailable } from './main/runtime/update/update-notifications';
+import {
+  INSTALL_UPDATE_ACTION_ID,
+  notifyUpdateAvailable,
+  UPDATE_AVAILABLE_NOTIFICATION_ID,
+} from './main/runtime/update/update-notifications';
+import { createOverlayLoadingOsdController } from './main/runtime/overlay-loading-osd';
+import { createMaybeStartOverlayLoadingOsdHandler } from './main/runtime/overlay-loading-osd-start';
+import { withConfiguredOverlayNotificationPosition } from './main/runtime/overlay-notification-position';
+import { createOverlayNotificationDelivery } from './main/runtime/overlay-notification-delivery';
+import {
+  getPlaybackFeedbackNotificationOptions,
+  notifyConfiguredStatus,
+  type ConfiguredStatusNotificationOptions,
+} from './main/runtime/configured-status-notification';
+import { resolveOverlayReadinessNotificationType } from './main/runtime/notification-routing';
 import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
 import {
   runUpdateCliCommand,
@@ -1234,7 +1254,7 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       mainWindow.webContents.focus();
     }
   },
-  showMpvOsd: (text: string) => showMpvOsd(text),
+  showMpvOsd: (text: string) => showYoutubeFlowStatusNotification(text),
   reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
   notifyPrimarySubtitleLoaded: () =>
     youtubePrimarySubtitleNotificationRuntime.markCurrentMediaPrimarySubtitleLoaded(),
@@ -1297,7 +1317,6 @@ const autoplayReadyGate = createAutoplayReadyGate({
     broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
   },
   isSignalTargetReady: (signal) =>
-    isTokenizationWarmupReady() &&
     isVisibleOverlayAutoplayTargetReady(
       {
         getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
@@ -1469,6 +1488,9 @@ function getMpvPluginRuntimeConfig() {
     autoStart: config.mpv.autoStartSubMiner,
     autoStartVisibleOverlay: config.auto_start_overlay,
     autoStartPauseUntilReady: config.mpv.pauseUntilOverlayReady,
+    osdMessages:
+      config.ankiConnect.behavior.notificationType === 'osd' ||
+      config.ankiConnect.behavior.notificationType === 'osd-system',
     texthookerEnabled: config.texthooker.launchAtStartup,
   };
 }
@@ -1714,7 +1736,7 @@ const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMain
   setSubsyncInProgress: (inProgress) => {
     appState.subsyncInProgress = inProgress;
   },
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showSubsyncStatusNotification(text),
   openManualPicker: (payload) => {
     openOverlayHostedModalWithOsd(
       (deps) => openSubsyncManualModalRuntime(deps, payload),
@@ -1736,7 +1758,10 @@ const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntim
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
 const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
+  getNotificationType: () => getConfiguredStatusNotificationType(),
   showOsd: (message) => showMpvOsd(message),
+  showOverlayNotification,
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
 const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
   getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
@@ -1767,11 +1792,21 @@ function isYoutubePlaybackActiveNow(): boolean {
 }
 
 function reportYoutubeSubtitleFailure(message: string): void {
-  const type = getResolvedConfig().ankiConnect.behavior.notificationType;
-  if (type === 'osd' || type === 'both') {
+  const type = getConfiguredStatusNotificationType();
+  if (type === 'none') {
+    return;
+  }
+  if (type === 'overlay' || type === 'both') {
+    showOverlayNotification({
+      title: 'SubMiner',
+      body: message,
+      variant: 'warning',
+    });
+  }
+  if (type === 'osd' || type === 'osd-system') {
     showMpvOsd(message);
   }
-  if (type === 'system' || type === 'both') {
+  if (type === 'system' || type === 'both' || type === 'osd-system') {
     try {
       showDesktopNotification('SubMiner', { body: message });
     } catch {
@@ -1782,13 +1817,22 @@ function reportYoutubeSubtitleFailure(message: string): void {
 
 async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
   if (youtubeFlowRuntime.hasActiveSession()) {
-    showMpvOsd('YouTube subtitle flow already in progress.');
+    showConfiguredStatusNotification('YouTube subtitle flow already in progress.', {
+      title: 'YouTube subtitles',
+      variant: 'warning',
+    });
     return;
   }
   const currentMediaPath =
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
   if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
-    showMpvOsd('YouTube subtitle picker is only available during YouTube playback.');
+    showConfiguredStatusNotification(
+      'YouTube subtitle picker is only available during YouTube playback.',
+      {
+        title: 'YouTube subtitles',
+        variant: 'warning',
+      },
+    );
     return;
   }
   await youtubeFlowRuntime.openManualPicker({
@@ -1861,10 +1905,16 @@ async function resolveSentenceSearchHeadwords(term: string): Promise<string[]> {
 function signalCurrentSubtitleAutoplayReady(): void {
   autoplayReadyGate.flushPendingAutoplayReadySignal();
   const payload = getCurrentAutoplaySubtitlePayload();
-  if (!payload) {
+  if (payload) {
+    autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
     return;
   }
-  autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+  if (!appState.currentSubText.trim()) {
+    autoplayReadyGate.maybeSignalPluginAutoplayReady(
+      { text: '__warm__', tokens: null },
+      { forceWhilePaused: true },
+    );
+  }
 }
 const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
@@ -1897,6 +1947,8 @@ let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
 const AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS = 2;
 let autoplaySubtitlePrimedMediaPath: string | null = null;
+let visibleOverlaySubtitleRefreshAfterFirstPaintTimer: ReturnType<typeof setTimeout> | null = null;
+const VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS = 100;
 
 function getCurrentAutoplayMediaPath(): string | null {
   return appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
@@ -1971,6 +2023,7 @@ async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
       subtitlePrefetchService?.onSeek(lastObservedTimePos);
       subtitleProcessingController.refreshCurrentSubtitle(text);
     },
+    deferUncachedRefresh: true,
     emitSubtitle: (payload) => emitSubtitlePayload(payload),
     setCurrentSecondarySubText: (text) => {
       if (appState.mpvClient) {
@@ -1984,6 +2037,38 @@ async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
       logger.debug(message);
     },
   });
+}
+
+function cancelVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
+  if (!visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
+    return;
+  }
+  clearTimeout(visibleOverlaySubtitleRefreshAfterFirstPaintTimer);
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
+}
+
+function scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
+  if (visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
+    return;
+  }
+  if (!overlayManager.getVisibleOverlayVisible() || !appState.currentSubText.trim()) {
+    return;
+  }
+
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = setTimeout(() => {
+    visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
+    if (!overlayManager.getVisibleOverlayVisible()) {
+      return;
+    }
+    const text = appState.currentSubText;
+    if (!text.trim()) {
+      return;
+    }
+    subtitlePrefetchService?.pause();
+    subtitlePrefetchService?.onSeek(lastObservedTimePos);
+    subtitleProcessingController.refreshCurrentSubtitle(text);
+  }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
+  visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();
 }
 
 async function primeAutoplaySubtitleFromParsedCues(
@@ -2134,7 +2219,7 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
 
       return windowTracker.isTargetWindowFocused();
     },
-    showMpvOsd: (text: string) => showMpvOsd(text),
+    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
     },
@@ -2177,7 +2262,9 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
 
 const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler(
   {
+    getNotificationType: () => getConfiguredStatusNotificationType(),
     showMpvOsd: (message) => showMpvOsd(message),
+    showOverlayNotification,
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   },
 );
@@ -2536,8 +2623,9 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   logWarn: (message) => logger.warn(message),
   onSyncStatus: (event) => {
     notifyCharacterDictionaryAutoSyncStatus(event, {
-      getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+      getNotificationType: () => getConfiguredStatusNotificationType(),
       showOsd: (message) => showMpvOsd(message),
+      showOverlayNotification,
       showDesktopNotification: (title, options) => showDesktopNotification(title, options),
       startupOsdSequencer,
     });
@@ -2614,7 +2702,10 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     isMacOSPlatform: () => process.platform === 'darwin',
     isWindowsPlatform: () => process.platform === 'win32',
     showOverlayLoadingOsd: (message: string) => {
-      showMpvOsd(message);
+      showOverlayLoadingStatusNotification(message);
+    },
+    dismissOverlayLoadingOsd: () => {
+      dismissOverlayLoadingStatusNotification();
     },
     hideNonNativeOverlayWhenTargetUnfocused: () =>
       shouldRunLinuxOverlayZOrderKeepAlive() &&
@@ -2643,6 +2734,7 @@ const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
 // subtitle pointer interaction. Right after playback starts the overlay can briefly become the
 // X11 active window, which would otherwise leave subtitles inert for a poll cycle (~1s).
 const LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS = 500;
+const LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS = 1_500;
 const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
 let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
 let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
@@ -2657,6 +2749,8 @@ const linuxPointerForegroundSuppressionGrace: ForegroundSuppressionGraceState = 
 };
 let visibleOverlayInteractionActive = false;
 let linuxOverlayInputShapeActive = false;
+let linuxVisibleOverlayStartupInputPrimed = false;
+let linuxVisibleOverlayStartupInputGraceUntilMs = 0;
 // Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
 // region is interactive, so the cursor poll keeps the overlay interactive even when the cursor
 // moves off measured subtitle/sidebar rects onto the popup.
@@ -2679,6 +2773,7 @@ const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHa
 function resetVisibleOverlayInputState(): void {
   visibleOverlayInteractionActive = false;
   linuxOverlayInputShapeActive = false;
+  resetLinuxVisibleOverlayStartupInputPrimer();
   linuxOverlayInteractiveHint = false;
   overlayContentMeasurementStore.clear('visible');
   const mainWindow = overlayManager.getMainWindow();
@@ -3151,6 +3246,23 @@ function shouldUseLinuxOverlayInputShape(): boolean {
   return false;
 }
 
+function hasLinuxVisibleOverlayStartupInputGrace(): boolean {
+  return (
+    process.platform === 'linux' &&
+    linuxVisibleOverlayStartupInputGraceUntilMs > 0 &&
+    Date.now() < linuxVisibleOverlayStartupInputGraceUntilMs
+  );
+}
+
+function clearLinuxVisibleOverlayStartupInputGrace(): void {
+  linuxVisibleOverlayStartupInputGraceUntilMs = 0;
+}
+
+function resetLinuxVisibleOverlayStartupInputPrimer(): void {
+  linuxVisibleOverlayStartupInputPrimed = false;
+  clearLinuxVisibleOverlayStartupInputGrace();
+}
+
 function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
   if (!shouldUseLinuxOverlayInputShape()) {
     linuxOverlayInputShapeActive = false;
@@ -3187,6 +3299,28 @@ function updateLinuxOverlayPointerInteractionActive(active: boolean): void {
   }
 
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+}
+
+function primeLinuxOverlayPointerInteractionAfterFirstMeasurement(): void {
+  if (process.platform !== 'linux') return;
+  if (linuxVisibleOverlayStartupInputPrimed) return;
+  if (shouldUseLinuxOverlayInputShape()) return;
+  if (
+    !shouldPrimeLinuxOverlayInteractionFromMeasurement({
+      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+      getMainWindow: () => overlayManager.getMainWindow(),
+      getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
+      shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
+      shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
+    })
+  ) {
+    return;
+  }
+
+  linuxVisibleOverlayStartupInputPrimed = true;
+  linuxVisibleOverlayStartupInputGraceUntilMs =
+    Date.now() + LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS;
+  updateLinuxOverlayPointerInteractionActive(true);
 }
 
 const linuxOverlayZOrderKeepAliveDeps = {
@@ -3249,7 +3383,8 @@ const linuxOverlayPointerInteractionDeps = {
   getCursorScreenPoint: () =>
     linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
   getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
-  getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
+  getRendererInteractiveHint: () =>
+    linuxOverlayInteractiveHint || hasLinuxVisibleOverlayStartupInputGrace(),
   shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
   shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
   shouldUseInputShape: shouldUseLinuxOverlayInputShape,
@@ -3295,6 +3430,177 @@ syncOverlayVisibilityForModal = () => {
 function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
+
+function isVisibleOverlayContentReady(): boolean {
+  const overlayWindow = overlayManager.getMainWindow();
+  return Boolean(
+    overlayManager.getVisibleOverlayVisible() &&
+    overlayWindow &&
+    isOverlayWindowReadyForNotification(overlayWindow),
+  );
+}
+
+function getConfiguredStatusNotificationType(): NotificationType {
+  const configuredType = getResolvedConfig().ankiConnect.behavior.notificationType;
+  return resolveOverlayReadinessNotificationType(configuredType, isVisibleOverlayContentReady());
+}
+
+function isOverlayWindowReadyForNotification(window: BrowserWindow): boolean {
+  if (window.isDestroyed() || !isOverlayWindowContentReady(window)) {
+    return false;
+  }
+  if (window.webContents.isLoading()) {
+    return false;
+  }
+  const currentURL = window.webContents.getURL();
+  return currentURL !== '' && currentURL !== 'about:blank';
+}
+
+const overlayNotificationDelivery = createOverlayNotificationDelivery({
+  hasReadyOverlayWindow: () => isVisibleOverlayContentReady(),
+  send: (payload) => {
+    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
+  },
+  scheduleFlushRetry: (callback, delayMs) => setTimeout(callback, delayMs),
+  clearFlushRetry: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+});
+let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null = null;
+
+function flushQueuedOverlayNotifications(): void {
+  overlayNotificationDelivery.flush();
+}
+
+function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
+  overlayNotificationDelivery.send(payload);
+}
+
+function showOverlayNotification(payload: OverlayNotificationPayload): void {
+  sendOverlayNotificationEvent(
+    withConfiguredOverlayNotificationPosition(payload, getResolvedConfig()),
+  );
+}
+
+function dismissOverlayNotification(id: string): void {
+  sendOverlayNotificationEvent({ id, dismiss: true });
+}
+
+async function openAnkiCardFromNotification(noteId: number): Promise<void> {
+  const activeIntegrationOpen = appState.ankiIntegration?.openNoteInAnki(noteId);
+  if (activeIntegrationOpen) {
+    await activeIntegrationOpen;
+    return;
+  }
+
+  const resolvedConfig = getResolvedConfig();
+  const effectiveAnkiConfig =
+    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
+    resolvedConfig.ankiConnect;
+  const fallbackClient = new AnkiConnectClient(
+    effectiveAnkiConfig.url || DEFAULT_CONFIG.ankiConnect.url,
+  );
+  await fallbackClient.openNoteInBrowser(noteId);
+}
+
+function toggleNotificationHistoryPanel(): void {
+  broadcastToOverlayWindows(IPC_CHANNELS.event.notificationHistoryToggle);
+}
+
+function showConfiguredStatusNotification(
+  message: string,
+  options: ConfiguredStatusNotificationOptions = {},
+): void {
+  notifyConfiguredStatus(
+    message,
+    {
+      getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+      isOverlayReady: () => isVisibleOverlayContentReady(),
+      showOsd: (text) => showMpvOsd(text),
+      showOverlayNotification,
+      showDesktopNotification: (title, notificationOptions) =>
+        showDesktopNotification(title, notificationOptions),
+    },
+    options,
+  );
+}
+
+function showConfiguredPlaybackFeedback(
+  message: string,
+  options: ConfiguredStatusNotificationOptions = {},
+): void {
+  showConfiguredStatusNotification(message, {
+    ...getPlaybackFeedbackNotificationOptions(message),
+    ...options,
+    delivery: 'feedback',
+  });
+}
+
+function showSubsyncStatusNotification(message: string): void {
+  const syncing = message.startsWith('Subsync: syncing');
+  const failed = message.toLowerCase().includes('failed');
+  showConfiguredStatusNotification(message, {
+    id: 'subsync-status',
+    title: 'Subsync',
+    variant: failed ? 'error' : syncing ? 'progress' : 'info',
+    persistent: syncing,
+    desktop: !syncing,
+  });
+}
+
+function showYoutubeFlowStatusNotification(message: string): void {
+  const progress =
+    message.startsWith('Downloading subtitles') ||
+    message.startsWith('Loading subtitles') ||
+    message.startsWith('Getting subtitles') ||
+    message === 'Opening YouTube video';
+  showConfiguredStatusNotification(message, {
+    id: 'youtube-subtitles-status',
+    title: 'YouTube subtitles',
+    variant: progress ? 'progress' : 'info',
+    persistent: progress,
+    desktop: !progress,
+  });
+}
+
+function getOverlayLoadingOsdController(): ReturnType<typeof createOverlayLoadingOsdController> {
+  if (!overlayLoadingOsdController) {
+    overlayLoadingOsdController = createOverlayLoadingOsdController({
+      showOsd: (message) => {
+        showMpvOsd(message);
+      },
+      clearOsd: () => {
+        sendMpvCommandRuntime(appState.mpvClient, ['show-text', '', '1']);
+      },
+      setInterval: (callback, delayMs) => {
+        const timer = setInterval(callback, delayMs);
+        timer.unref?.();
+        return timer;
+      },
+      clearInterval: (timer) => {
+        clearInterval(timer as ReturnType<typeof setInterval>);
+      },
+    });
+  }
+  return overlayLoadingOsdController;
+}
+
+function showOverlayLoadingStatusNotification(message: string): void {
+  void message;
+  getOverlayLoadingOsdController().start();
+}
+
+function dismissOverlayLoadingStatusNotification(): void {
+  getOverlayLoadingOsdController().stop();
+  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-overlay-loading-ready']);
+  dismissOverlayNotification('overlay-loading-status');
+}
+
+const maybeStartOverlayLoadingOsd = createMaybeStartOverlayLoadingOsdHandler({
+  getVisibleOverlayRequested: () => overlayManager.getVisibleOverlayVisible(),
+  isOverlayContentReady: () => isVisibleOverlayContentReady(),
+  startOverlayLoadingOsd: () => {
+    showOverlayLoadingStatusNotification('Overlay loading...');
+  },
+});
 
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
@@ -3386,12 +3692,12 @@ function openOverlayHostedModalWithOsd(
   void openModal(createOverlayHostedModalOpenDeps())
     .then((opened) => {
       if (!opened) {
-        showMpvOsd(unavailableMessage);
+        showConfiguredStatusNotification(unavailableMessage, { variant: 'warning' });
       }
     })
     .catch((error) => {
       logger.error(failureLogMessage, error);
-      showMpvOsd(unavailableMessage);
+      showConfiguredStatusNotification(unavailableMessage, { variant: 'error' });
     });
 }
 
@@ -3422,7 +3728,7 @@ function openSessionHelpOverlay(): void {
 function openCharacterDictionaryManagerOverlay(): void {
   openCharacterDictionaryManagerWithConfigGate({
     isCharacterDictionaryEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
-    getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
+    getNotificationType: () => getConfiguredStatusNotificationType(),
     openManager: () => {
       openOverlayHostedModalWithOsd(
         openCharacterDictionaryManagerModalRuntime,
@@ -3431,6 +3737,7 @@ function openCharacterDictionaryManagerOverlay(): void {
       );
     },
     showOsd: (message) => showMpvOsd(message),
+    showOverlayNotification,
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     logWarn: (message, error) => logger.warn(message, error),
   });
@@ -3454,7 +3761,10 @@ function openControllerDebugOverlay(): void {
 
 function openPlaylistBrowser(): void {
   if (!appState.mpvClient?.connected) {
-    showMpvOsd('Playlist browser requires active playback.');
+    showConfiguredStatusNotification('Playlist browser requires active playback.', {
+      title: 'Playlist browser',
+      variant: 'warning',
+    });
     return;
   }
   openOverlayHostedModalWithOsd(
@@ -3636,7 +3946,7 @@ const {
       void appState.jellyfinRemoteSession?.reportPlaying(payload);
     },
     showMpvOsd: (text) => {
-      showMpvOsd(text);
+      showConfiguredStatusNotification(text, { title: 'Jellyfin' });
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -3770,7 +4080,7 @@ const {
       }),
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) => showMpvOsd(message),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
     clearSetupWindow: () => {
       appState.jellyfinSetupWindow = null;
     },
@@ -3938,8 +4248,10 @@ const {
   registerSubminerProtocolClient,
 } = composeAnilistSetupHandlers({
   notifyDeps: {
+    getNotificationType: () => getConfiguredStatusNotificationType(),
     hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) => showMpvOsd(message),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
+    showOverlayNotification,
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     logInfo: (message) => logger.info(message),
   },
@@ -4266,7 +4578,7 @@ const {
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);
     },
-    showMpvOsd: (message) => showMpvOsd(message),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
@@ -4939,6 +5251,8 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     shouldUseMinimalStartup: () =>
       getStartupModeFlags(appState.initialArgs).shouldUseMinimalStartup,
     shouldSkipHeavyStartup: () => getStartupModeFlags(appState.initialArgs).shouldSkipHeavyStartup,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () =>
+      shouldHandleInitialArgsBeforeDeferredOverlayWarmup(appState.initialArgs),
     createImmersionTracker: () => {
       ensureImmersionTrackerStarted();
     },
@@ -5017,7 +5331,7 @@ let signalAutoplayReadyFromWarmTokenization: ((path: string | null | undefined) 
 const {
   createMpvClientRuntimeService: createMpvClientRuntimeServiceHandler,
   updateMpvSubtitleRenderMetrics: updateMpvSubtitleRenderMetricsHandler,
-  tokenizeSubtitle,
+  tokenizeSubtitle: tokenizeSubtitleRuntime,
   createMecabTokenizerAndCheck,
   prewarmSubtitleDictionaries,
   startBackgroundWarmups,
@@ -5040,6 +5354,7 @@ const {
       void reportJellyfinRemoteStopped();
     },
     onMpvConnected: () => {
+      maybeStartOverlayLoadingOsd();
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -5077,6 +5392,7 @@ const {
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : null,
     updateCurrentMediaPath: (path) => {
       const normalizedPath = path.trim();
+      maybeStartOverlayLoadingOsd(normalizedPath);
       const previousPath = appState.currentMediaPath?.trim() || null;
       const preserveParsedSubtitleCues = isSameYoutubeMediaPath(
         normalizedPath,
@@ -5332,13 +5648,13 @@ const {
       ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
       ensureFrequencyDictionaryLookup: () =>
         frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
-      showMpvOsd: (message: string) => showMpvOsd(message),
+      showMpvOsd: (message: string) => showConfiguredStatusNotification(message),
       showLoadingOsd: (message: string) => startupOsdSequencer.showAnnotationLoading(message),
       showLoadedOsd: (message: string) =>
         startupOsdSequencer.markAnnotationLoadingComplete(message),
       shouldShowOsdNotification: () => {
-        const type = getResolvedConfig().ankiConnect.behavior.notificationType;
-        return type === 'osd' || type === 'both';
+        const type = getConfiguredStatusNotificationType();
+        return type === 'osd' || type === 'osd-system';
       },
     },
   },
@@ -5391,6 +5707,14 @@ const {
     },
   },
 });
+
+async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
+  if (!isTokenizationWarmupReady()) {
+    startupOsdSequencer.showTokenizationLoading('Loading subtitle tokenization...');
+  }
+  return await tokenizeSubtitleRuntime(text);
+}
+
 signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease({
   isTokenizationWarmupReady: () => isTokenizationWarmupReady(),
   startTokenizationWarmups: async () => {
@@ -5424,6 +5748,7 @@ const aniSkipRuntime = createAniSkipRuntime({
   showMpvOsd: (text, durationMs) => {
     appState.mpvClient?.send({ command: ['show-text', text, durationMs] });
   },
+  showPlaybackFeedback: (text) => showConfiguredPlaybackFeedback(text),
   logInfo: (message) => logger.info(message),
   logWarn: (message, error) => logger.warn(message, error),
   logDebug: (message) => logger.debug(message),
@@ -5891,8 +6216,7 @@ function openYomitanSettings(): boolean {
     logger.warn(
       'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
     );
-    showDesktopNotification('SubMiner', { body: message });
-    showMpvOsd(message);
+    showConfiguredStatusNotification(message, { variant: 'warning' });
     return false;
   }
   openYomitanSettingsHandler();
@@ -5979,7 +6303,7 @@ const {
   },
   numericShortcutRuntimeMainDeps: {
     globalShortcut,
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredStatusNotification(text),
     setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
     clearTimer: (timer) => clearTimeout(timer),
   },
@@ -6214,6 +6538,7 @@ function getUpdateService() {
         { notificationType: getResolvedConfig().updates.notificationType, version },
         {
           showSystemNotification: (title, body) => showDesktopNotification(title, { body }),
+          showOverlayNotification,
           showOsdNotification: (message) => {
             showMpvOsd(message);
           },
@@ -6238,7 +6563,7 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
     broadcastToOverlayWindows: (channel, mode) => {
       broadcastToOverlayWindows(channel, mode);
     },
-    showMpvOsd: (text: string) => showMpvOsd(text),
+    showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
   },
   cycleSecondarySubMode: (deps) => cycleSecondarySubModeCore(deps),
 });
@@ -6275,7 +6600,7 @@ const buildUpdateLastCardFromClipboardMainDepsHandler =
   createBuildUpdateLastCardFromClipboardMainDepsHandler({
     getAnkiIntegration: () => appState.ankiIntegration,
     readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredStatusNotification(text),
     updateLastCardFromClipboardCore,
   });
 const updateLastCardFromClipboardMainDeps = buildUpdateLastCardFromClipboardMainDepsHandler();
@@ -6294,7 +6619,7 @@ const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler(
 
 const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGroupingMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showConfiguredStatusNotification(text),
   triggerFieldGroupingCore,
 });
 const triggerFieldGroupingMainDeps = buildTriggerFieldGroupingMainDepsHandler();
@@ -6303,7 +6628,7 @@ const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler(triggerFie
 const buildMarkLastCardAsAudioCardMainDepsHandler =
   createBuildMarkLastCardAsAudioCardMainDepsHandler({
     getAnkiIntegration: () => appState.ankiIntegration,
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredStatusNotification(text),
     markLastCardAsAudioCardCore,
   });
 const markLastCardAsAudioCardMainDeps = buildMarkLastCardAsAudioCardMainDepsHandler();
@@ -6314,7 +6639,7 @@ const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
 const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showConfiguredStatusNotification(text),
   mineSentenceCardCore,
   recordCardsMined: (count, noteIds) => {
     ensureImmersionTrackerStarted();
@@ -6328,7 +6653,7 @@ const mineSentenceCardHandler = createMineSentenceCardHandler(
 const buildHandleMultiCopyDigitMainDepsHandler = createBuildHandleMultiCopyDigitMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
   handleMultiCopyDigitCore,
 });
 const handleMultiCopyDigitMainDeps = buildHandleMultiCopyDigitMainDepsHandler();
@@ -6337,7 +6662,7 @@ const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler(handleMult
 const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showConfiguredStatusNotification(text),
   copyCurrentSubtitleCore,
 });
 const copyCurrentSubtitleMainDeps = buildCopyCurrentSubtitleMainDepsHandler();
@@ -6348,7 +6673,7 @@ const buildHandleMineSentenceDigitMainDepsHandler =
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getAnkiIntegration: () => appState.ankiIntegration,
     getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredStatusNotification(text),
     logError: (message, err) => {
       logger.error(message, err);
     },
@@ -6391,7 +6716,7 @@ const buildAppendClipboardVideoToQueueMainDepsHandler =
     appendClipboardVideoToQueueRuntime,
     getMpvClient: () => appState.mpvClient,
     readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredStatusNotification(text),
     sendMpvCommand: (command) => {
       sendMpvCommandRuntime(appState.mpvClient, command);
     },
@@ -6530,7 +6855,7 @@ const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacen
       logger.warn('Failed to save Jellyfin subtitle delay.');
     }
   },
-  showMpvOsd: (text) => showMpvOsd(text),
+  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
 });
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
@@ -6556,6 +6881,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     mineSentenceCount: (count) => handleMineSentenceDigit(count),
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
     toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
+    toggleNotificationHistory: () => toggleNotificationHistoryPanel(),
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     markActiveVideoWatched: async () => {
       ensureImmersionTrackerStarted();
@@ -6587,12 +6913,12 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
       }
       return applyRuntimeOptionResultRuntime(
         appState.runtimeOptionsManager.cycleOption(id, direction),
-        (text) => showMpvOsd(text),
+        (text) => showConfiguredPlaybackFeedback(text),
       );
     },
     playNextPlaylistItem: () =>
       sendMpvCommandRuntime(appState.mpvClient, ['playlist-next', 'force']),
-    showMpvOsd: (text) => showMpvOsd(text),
+    showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
   });
 }
 
@@ -6614,10 +6940,11 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       }
       return applyRuntimeOptionResultRuntime(
         appState.runtimeOptionsManager.cycleOption(id, direction),
-        (text) => showMpvOsd(text),
+        (text) => showConfiguredPlaybackFeedback(text),
       );
     },
-    showMpvOsd: (text: string) => showMpvOsd(text),
+    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     shiftSubDelayToAdjacentSubtitle: (direction) =>
@@ -6633,7 +6960,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   registration: {
     runtimeOptions: {
       getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
-      showMpvOsd: (text: string) => showMpvOsd(text),
+      showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
     },
     mainDeps: {
       getMainWindow: () => overlayManager.getMainWindow(),
@@ -6703,6 +7030,30 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         linuxOverlayInteractiveHint = interactive;
         applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
+      handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
+        if (
+          notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
+          actionId === INSTALL_UPDATE_ACTION_ID
+        ) {
+          void getUpdateService()
+            .checkForUpdates({
+              source: 'manual',
+              installWhenAvailable: true,
+            })
+            .catch((error) => {
+              logger.warn('Failed to install update from overlay notification action:', error);
+            });
+        }
+        if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
+          void openAnkiCardFromNotification(noteId).catch((error) => {
+            logger.warn('Failed to open Anki card from overlay notification action:', error);
+            showConfiguredStatusNotification('Failed to open Anki card in Anki.', {
+              id: 'open-anki-card-failed',
+              variant: 'error',
+            });
+          });
+        }
+      },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
       recordSubtitleMiningContext: (context) => recordSubtitleMiningContext(context),
@@ -6714,9 +7065,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           currentSubText: appState.currentSubText,
           currentSubtitleData: appState.currentSubtitleData,
           withCurrentSubtitleTiming: (payload) => withCurrentSubtitleTiming(payload),
+          tokenizeUncached: false,
           tokenizeSubtitle: tokenizeSubtitleForCurrent
             ? (text) => tokenizeSubtitleForCurrent(text)
             : undefined,
+          onResolvedSubtitle: (payload) => {
+            appState.currentSubtitleData = payload;
+            autoplayReadyGate.maybeSignalPluginAutoplayReady(payload, { forceWhilePaused: true });
+          },
         });
       },
       getCurrentSubtitleRaw: () => appState.currentSubText,
@@ -6840,6 +7196,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
       getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
+      getOverlayNotificationPosition: () => getResolvedConfig().notifications.overlayPosition,
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
@@ -6862,7 +7219,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       reportOverlayContentBounds: (payload: unknown) => {
         if (overlayContentMeasurementStore.report(payload)) {
           tickLinuxOverlayPointerInteractionNow();
+          primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
           autoplayReadyGate.flushPendingAutoplayReadySignal();
+          scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
         }
       },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
@@ -6970,6 +7329,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       showDesktopNotification,
+      showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
       getFieldGroupingResolver: () => getFieldGroupingResolver(),
@@ -7006,7 +7366,8 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openExternal: (url: string) => shell.openExternal(url),
     logBrowserOpenError: (url: string, error: unknown) =>
       logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
-    showMpvOsd: (text: string) => showMpvOsd(text),
+    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
     togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),
@@ -7231,11 +7592,14 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         linuxVisibleOverlayWindowMode === 'fullscreen-override',
       onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
       onVisibleWindowFocused: () => requestLinuxOverlayZOrderFollow(),
+      onWindowDidFinishLoad: () => {
+        flushQueuedOverlayNotifications();
+      },
       onWindowContentReady: () => {
+        dismissOverlayLoadingStatusNotification();
+        flushQueuedOverlayNotifications();
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-        if (appState.currentSubText.trim()) {
-          subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-        }
+        primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
         autoplayReadyGate.flushPendingAutoplayReadySignal();
       },
       onWindowClosed: (windowKind, window) => {
@@ -7274,7 +7638,8 @@ function getJellyfinTrayDiscoveryDeps() {
     startRemoteSession: (options: { explicit: true }) => startJellyfinRemoteSession(options),
     refreshTrayMenu: () => refreshTrayMenuIfPresent(),
     logger,
-    showMpvOsd: (message: string) => showMpvOsd(message),
+    showMpvOsd: (message: string) =>
+      showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
   };
 }
 
@@ -7421,6 +7786,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       getOverlayWindows: () => getOverlayWindows(),
       getResolvedConfig: () => getResolvedConfig(),
       showDesktopNotification,
+      showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       shouldStartAnkiIntegration: () =>
@@ -7512,11 +7878,15 @@ function notifyMpvPluginVisibleOverlayVisibility(visible: boolean): void {
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
+    dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     resetVisibleOverlayInputState();
   }
   if (visible) {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -7530,10 +7900,14 @@ function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   const nextVisible = !overlayManager.getVisibleOverlayVisible();
   if (!nextVisible) {
+    dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
     resetVisibleOverlayInputState();
   } else {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -7544,11 +7918,15 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
+    dismissOverlayLoadingStatusNotification();
+    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     resetVisibleOverlayInputState();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
+    maybeStartOverlayLoadingOsd();
+    resetLinuxVisibleOverlayStartupInputPrimer();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();

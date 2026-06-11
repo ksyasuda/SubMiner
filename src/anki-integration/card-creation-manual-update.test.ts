@@ -271,3 +271,28 @@ test('manual clipboard subtitle update uses resolved mpv stream URLs for remote 
   assert.equal(updatedFields[0]?.Sentence, '一行目 二行目');
   assert.match(updatedFields[0]?.Picture ?? '', /^<img src="image_\d+\.jpg">$/);
 });
+
+test('createSentenceCard relies on Anki progress notification without standalone status toast', async () => {
+  const statusMessages: string[] = [];
+  const progressMessages: string[] = [];
+  const { service } = createManualUpdateService({
+    showOsdNotification: (message) => {
+      statusMessages.push(message);
+    },
+    withUpdateProgress: async (message, action) => {
+      progressMessages.push(message);
+      return await action();
+    },
+    mediaGenerator: {
+      generateAudio: async () => null,
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+  });
+
+  const created = await service.createSentenceCard('テスト', 0, 1);
+
+  assert.equal(created, true);
+  assert.deepEqual(progressMessages, ['Creating sentence card']);
+  assert.deepEqual(statusMessages, []);
+});

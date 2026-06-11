@@ -7,6 +7,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   setSocketPath: (socketPath: string) => void;
   getMpvClient: CliCommandContextFactoryDeps['getMpvClient'];
   showOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
   texthookerService: CliCommandContextFactoryDeps['texthookerService'];
   getTexthookerPort: () => number;
   setTexthookerPort: (port: number) => void;
@@ -63,6 +64,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     setSocketPath: deps.setSocketPath,
     getMpvClient: deps.getMpvClient,
     showOsd: deps.showOsd,
+    showPlaybackFeedback: deps.showPlaybackFeedback,
     texthookerService: deps.texthookerService,
     getTexthookerPort: deps.getTexthookerPort,
     setTexthookerPort: deps.setTexthookerPort,

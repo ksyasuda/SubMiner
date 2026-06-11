@@ -12,6 +12,7 @@ test('autoplay release keeps the short retry budget for normal playback signals'
 });
 
 test('autoplay release uses the full startup timeout window while paused', () => {
+  assert.equal(STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS, 30_000);
   assert.equal(
     resolveAutoplayReadyMaxReleaseAttempts({ forceWhilePaused: true }),
     Math.ceil(STARTUP_AUTOPLAY_RELEASE_TIMEOUT_MS / DEFAULT_AUTOPLAY_RELEASE_RETRY_DELAY_MS),

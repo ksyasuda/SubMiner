@@ -4,6 +4,7 @@ import {
   notifyCharacterDictionaryAutoSyncStatus,
   type CharacterDictionaryAutoSyncNotificationEvent,
 } from './character-dictionary-auto-sync-notifications';
+import { createStartupOsdSequencer } from './startup-osd-sequencer';
 
 function makeEvent(
   phase: CharacterDictionaryAutoSyncNotificationEvent['phase'],
@@ -70,7 +71,7 @@ test('auto sync notifications send osd updates for progress phases', () => {
   ]);
 });
 
-test('auto sync notifications never send desktop notifications', () => {
+test('auto sync notifications send overlay and desktop delivery for both', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
@@ -80,14 +81,10 @@ test('auto sync notifications never send desktop notifications', () => {
     },
     showDesktopNotification: (title, options) =>
       calls.push(`desktop:${title}:${options.body ?? ''}`),
-  });
-  notifyCharacterDictionaryAutoSyncStatus(makeEvent('importing', 'importing'), {
-    getNotificationType: () => 'both',
-    showOsd: (message) => {
-      calls.push(`osd:${message}`);
-    },
-    showDesktopNotification: (title, options) =>
-      calls.push(`desktop:${title}:${options.body ?? ''}`),
+    showOverlayNotification: (payload) =>
+      calls.push(
+        `overlay:${payload.id}:${payload.historyId}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
+      ),
   });
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('ready', 'ready'), {
     getNotificationType: () => 'both',
@@ -96,9 +93,25 @@ test('auto sync notifications never send desktop notifications', () => {
     },
     showDesktopNotification: (title, options) =>
       calls.push(`desktop:${title}:${options.body ?? ''}`),
+    showOverlayNotification: (payload) =>
+      calls.push(
+        `overlay:${payload.id}:${payload.historyId}:${payload.title}:${payload.body}:${payload.persistent ? 'pin' : 'auto'}`,
+      ),
   });
-  notifyCharacterDictionaryAutoSyncStatus(makeEvent('failed', 'failed'), {
-    getNotificationType: () => 'both',
+
+  assert.deepEqual(calls, [
+    'overlay:character-dictionary-auto-sync:character-dictionary-auto-sync-101291-syncing:Character dictionary:syncing:pin',
+    'desktop:SubMiner:syncing',
+    'overlay:character-dictionary-auto-sync:character-dictionary-auto-sync-101291-ready:Character dictionary:ready:auto',
+    'desktop:SubMiner:ready',
+  ]);
+});
+
+test('auto sync notifications fall back to desktop when overlay routing is unavailable', () => {
+  const calls: string[] = [];
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('building', 'building'), {
+    getNotificationType: () => undefined,
     showOsd: (message) => {
       calls.push(`osd:${message}`);
     },
@@ -106,14 +119,30 @@ test('auto sync notifications never send desktop notifications', () => {
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['osd:syncing', 'osd:importing', 'osd:ready', 'osd:failed']);
+  assert.deepEqual(calls, ['desktop:SubMiner:building']);
 });
 
-test('auto sync notifications fall back to desktop for long progress when osd is unavailable', () => {
+test('auto sync notifications keep osd-system on legacy surfaces', () => {
+  const calls: string[] = [];
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('syncing', 'syncing'), {
+    getNotificationType: () => 'osd-system',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showDesktopNotification: (title, options) =>
+      calls.push(`desktop:${title}:${options.body ?? ''}`),
+    showOverlayNotification: (payload) => calls.push(`overlay:${payload.body}`),
+  });
+
+  assert.deepEqual(calls, ['osd:syncing', 'desktop:SubMiner:syncing']);
+});
+
+test('auto sync notifications keep osd-system desktop delivery even when osd is unavailable', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('generating', 'generating'), {
-    getNotificationType: () => 'both',
+    getNotificationType: () => 'osd-system',
     showOsd: (message) => {
       calls.push(`osd:${message}`);
       return false;
@@ -122,7 +151,7 @@ test('auto sync notifications fall back to desktop for long progress when osd is
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('ready', 'ready'), {
-    getNotificationType: () => 'both',
+    getNotificationType: () => 'osd-system',
     showOsd: (message) => {
       calls.push(`osd:${message}`);
       return false;
@@ -131,14 +160,19 @@ test('auto sync notifications fall back to desktop for long progress when osd is
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['osd:generating', 'desktop:SubMiner:generating', 'osd:ready']);
+  assert.deepEqual(calls, [
+    'osd:generating',
+    'desktop:SubMiner:generating',
+    'osd:ready',
+    'desktop:SubMiner:ready',
+  ]);
 });
 
-test('auto sync notifications fall back to desktop when startup sequencer cannot show osd', () => {
+test('auto sync notifications send osd-system desktop updates with startup sequencer', () => {
   const calls: string[] = [];
 
   notifyCharacterDictionaryAutoSyncStatus(makeEvent('importing', 'importing'), {
-    getNotificationType: () => 'both',
+    getNotificationType: () => 'osd-system',
     showOsd: (message) => {
       calls.push(`osd:${message}`);
     },
@@ -153,4 +187,30 @@ test('auto sync notifications fall back to desktop when startup sequencer cannot
   });
 
   assert.deepEqual(calls, ['sequencer:importing:importing', 'desktop:SubMiner:importing']);
+});
+
+test('auto sync notifications let startup sequencer own osd-system desktop delivery', () => {
+  const calls: string[] = [];
+  const startupOsdSequencer = createStartupOsdSequencer({
+    getNotificationType: () => 'osd-system',
+    showOsd: (message) => {
+      calls.push(`osd:${message}`);
+    },
+    showDesktopNotification: (title, options) => {
+      calls.push(`desktop:${title}:${options.body ?? ''}`);
+    },
+  });
+  startupOsdSequencer.markTokenizationReady();
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('importing', 'importing'), {
+    getNotificationType: () => 'osd-system',
+    showOsd: (message) => {
+      calls.push(`direct-osd:${message}`);
+    },
+    showDesktopNotification: (title, options) =>
+      calls.push(`direct-desktop:${title}:${options.body ?? ''}`),
+    startupOsdSequencer,
+  });
+
+  assert.deepEqual(calls, ['osd:importing', 'desktop:SubMiner:importing']);
 });

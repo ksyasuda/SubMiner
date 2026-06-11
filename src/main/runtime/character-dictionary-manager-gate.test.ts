@@ -18,6 +18,8 @@ function makeDeps(options: {
       getNotificationType: () => options.notificationType ?? 'osd',
       openManager: () => calls.push('open'),
       showOsd: (message: string) => calls.push(`osd:${message}`),
+      showOverlayNotification: (payload: { title: string; body?: string }) =>
+        calls.push(`overlay:${payload.title}:${payload.body ?? ''}`),
       showDesktopNotification: (title: string, opts: { body: string }) =>
         calls.push(`system:${title}:${opts.body}`),
       logWarn: (message: string) => calls.push(`warn:${message}`),
@@ -39,6 +41,13 @@ test('routes disabled manager notification to configured surfaces', () => {
     ['system', [`system:SubMiner:${CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE}`]],
     [
       'both',
+      [
+        `overlay:SubMiner:${CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE}`,
+        `system:SubMiner:${CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE}`,
+      ],
+    ],
+    [
+      'osd-system',
       [
         `osd:${CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE}`,
         `system:SubMiner:${CHARACTER_DICTIONARY_MANAGER_DISABLED_MESSAGE}`,

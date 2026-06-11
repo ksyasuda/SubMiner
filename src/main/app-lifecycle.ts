@@ -63,6 +63,7 @@ export interface AppReadyRuntimeDepsFactoryInput {
   shouldRunHeadlessInitialCommand?: AppReadyRuntimeDeps['shouldRunHeadlessInitialCommand'];
   shouldUseMinimalStartup?: AppReadyRuntimeDeps['shouldUseMinimalStartup'];
   shouldSkipHeavyStartup?: AppReadyRuntimeDeps['shouldSkipHeavyStartup'];
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup?: AppReadyRuntimeDeps['shouldHandleInitialArgsBeforeDeferredOverlayWarmup'];
 }
 
 export function createAppLifecycleRuntimeDeps(
@@ -133,6 +134,8 @@ export function createAppReadyRuntimeDeps(
     shouldRunHeadlessInitialCommand: params.shouldRunHeadlessInitialCommand,
     shouldUseMinimalStartup: params.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: params.shouldSkipHeavyStartup,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup:
+      params.shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   };
 }
 

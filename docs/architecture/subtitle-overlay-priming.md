@@ -64,6 +64,25 @@ prefetch work and re-centers prefetch around the live playback time.
 - If secondary `requestProperty` fails, the primary flow stays complete and only a debug line is
   written.
 
+## Startup Ready Release
+
+- `mpv.pauseUntilOverlayReady` waits for tokenization warmup plus visible-overlay readiness before
+  releasing the mpv startup gate.
+- Visible-overlay startup creates the tray and visible overlay shell before tokenization and
+  annotation warmups continue. Cold `--start --background --managed-playback` launches still handle
+  initial args before the deferred Yomitan wait.
+- Overlay-routed startup notifications are queued in the main process until an overlay window has
+  finished loading. Progress notifications with the same id are upserted so spinner ticks do not
+  flood a cold-start overlay, while events with distinct history ids are retained for phase-level
+  history such as character dictionary checking/building/importing.
+- The mpv plugin has a 30-second fallback for cold starts; app-side retry/release budgets match that
+  window so readiness can still arrive before fallback resumes playback.
+- If mpv is already on a subtitle, SubMiner still prefers the resolved current subtitle payload and
+  waits for a fresh measured subtitle rectangle before signaling readiness.
+- If mpv is before the first subtitle, SubMiner sends a synthetic warm readiness payload after
+  tokenization warmup and visible overlay content-ready. This releases playback without waiting for
+  a later subtitle event that cannot happen while mpv is paused.
+
 ## Linux/X11 Window Shape
 
 - `restoreLinuxOverlayWindowShape()` reads `BrowserWindow.getBounds()` and calls `setShape()` with

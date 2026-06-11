@@ -16,7 +16,10 @@ export interface ConfiguredWindowsMpvLaunch {
 }
 
 export function buildWindowsMpvPluginRuntimeConfig(
-  config: Pick<ResolvedConfig, 'auto_start_overlay' | 'logging' | 'mpv' | 'texthooker'>,
+  config: Pick<
+    ResolvedConfig,
+    'ankiConnect' | 'auto_start_overlay' | 'logging' | 'mpv' | 'texthooker'
+  >,
 ): SubminerPluginRuntimeScriptOptConfig {
   return {
     socketPath: config.mpv.socketPath,
@@ -27,6 +30,9 @@ export function buildWindowsMpvPluginRuntimeConfig(
     autoStart: config.mpv.autoStartSubMiner,
     autoStartVisibleOverlay: config.auto_start_overlay,
     autoStartPauseUntilReady: config.mpv.pauseUntilOverlayReady,
+    osdMessages:
+      config.ankiConnect.behavior.notificationType === 'osd' ||
+      config.ankiConnect.behavior.notificationType === 'osd-system',
     texthookerEnabled: config.texthooker.launchAtStartup,
   };
 }

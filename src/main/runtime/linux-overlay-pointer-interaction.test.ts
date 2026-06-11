@@ -10,6 +10,7 @@ import {
   resolveDesiredOverlayInteractive,
   resolveForegroundSuppressionWithGrace,
   shouldSuppressPointerInteractionForForegroundWindow,
+  shouldPrimeLinuxOverlayInteractionFromMeasurement,
   tickLinuxOverlayPointerInteraction,
 } from './linux-overlay-pointer-interaction';
 
@@ -133,6 +134,59 @@ test('resolveDesiredOverlayInteractive: hit-tests separate subtitle bars without
       }).deps,
     ),
     true,
+  );
+});
+
+test('shouldPrimeLinuxOverlayInteractionFromMeasurement primes input from first measured rect', () => {
+  assert.equal(
+    shouldPrimeLinuxOverlayInteractionFromMeasurement({
+      getVisibleOverlayVisible: () => true,
+      getMainWindow: () => ({
+        isDestroyed: () => false,
+        isVisible: () => true,
+        getBounds: () => BOUNDS,
+      }),
+      getSubtitleMeasurement: () => ({
+        ...MEASUREMENT,
+        interactiveRects: [{ x: 900, y: 900, width: 320, height: 80 }],
+      }),
+      shouldSuspend: () => false,
+      shouldSuppressInteraction: () => false,
+    }),
+    true,
+  );
+});
+
+test('shouldPrimeLinuxOverlayInteractionFromMeasurement skips hidden or empty startup surfaces', () => {
+  assert.equal(
+    shouldPrimeLinuxOverlayInteractionFromMeasurement({
+      getVisibleOverlayVisible: () => true,
+      getMainWindow: () => ({
+        isDestroyed: () => false,
+        isVisible: () => false,
+        getBounds: () => BOUNDS,
+      }),
+      getSubtitleMeasurement: () => MEASUREMENT,
+      shouldSuspend: () => false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPrimeLinuxOverlayInteractionFromMeasurement({
+      getVisibleOverlayVisible: () => true,
+      getMainWindow: () => ({
+        isDestroyed: () => false,
+        isVisible: () => true,
+        getBounds: () => BOUNDS,
+      }),
+      getSubtitleMeasurement: () => ({
+        viewport: MEASUREMENT.viewport,
+        contentRect: null,
+        interactiveRects: [],
+      }),
+      shouldSuspend: () => false,
+    }),
+    false,
   );
 });
 

@@ -7,6 +7,14 @@ import { AnkiIntegration } from './anki-integration';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
 import { AnkiConnectConfig } from './types';
 
+type TestOverlayNotificationPayload = {
+  title: string;
+  body?: string;
+  image?: string;
+  variant?: string;
+  actions?: Array<{ id: string; label: string; noteId?: number }>;
+};
+
 interface IntegrationTestContext {
   integration: AnkiIntegration;
   calls: {
@@ -404,6 +412,188 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   ).showNotification(42, 'taberu', 'image failed');
 
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
+});
+
+test('AnkiIntegration embeds generated notification image on overlay mined-card notifications', async () => {
+  const desktopNotifications: Array<{ title: string; body?: string; icon?: string }> = [];
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const generatedFrom: Array<{ videoPath: string; timestamp: number }> = [];
+  const cleanupPaths: string[] = [];
+  const notificationIconPath = path.join(os.tmpdir(), 'subminer-notification-icon.png');
+
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+    {} as never,
+    {
+      currentVideoPath: '/tmp/show.mkv',
+      currentTimePos: 123.45,
+    } as never,
+    undefined,
+    (title, options) => {
+      desktopNotifications.push({ title, body: options.body, icon: options.icon });
+    },
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  (
+    integration as unknown as {
+      mediaGenerator: {
+        generateNotificationIcon: (videoPath: string, timestamp: number) => Promise<Buffer>;
+        writeNotificationIconToFile: (iconBuffer: Buffer, noteId: number) => string;
+        scheduleNotificationIconCleanup: (filePath: string) => void;
+      };
+    }
+  ).mediaGenerator = {
+    generateNotificationIcon: async (videoPath, timestamp) => {
+      generatedFrom.push({ videoPath, timestamp });
+      return Buffer.from('png');
+    },
+    writeNotificationIconToFile: (iconBuffer, noteId) => {
+      assert.equal(iconBuffer.toString(), 'png');
+      assert.equal(noteId, 42);
+      return notificationIconPath;
+    },
+    scheduleNotificationIconCleanup: (filePath) => {
+      cleanupPaths.push(filePath);
+    },
+  };
+
+  await (
+    integration as unknown as {
+      showNotification: (noteId: number, label: string | number) => Promise<void>;
+    }
+  ).showNotification(42, '食べる');
+
+  assert.deepEqual(generatedFrom, [{ videoPath: '/tmp/show.mkv', timestamp: 123.45 }]);
+  assert.equal(overlayNotifications.length, 1);
+  assert.equal(overlayNotifications[0]?.title, 'Anki Card Updated');
+  assert.equal(overlayNotifications[0]?.body, 'Updated card: 食べる');
+  assert.equal(
+    overlayNotifications[0]?.image,
+    `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+  );
+  assert.deepEqual(overlayNotifications[0]?.actions, [
+    { id: 'open-anki-card', label: 'Open in Anki', noteId: 42 },
+  ]);
+  assert.deepEqual(desktopNotifications, [
+    {
+      title: 'Anki Card Updated',
+      body: 'Updated card: 食べる',
+      icon: notificationIconPath,
+    },
+  ]);
+  assert.deepEqual(cleanupPaths, [notificationIconPath]);
+});
+
+test('AnkiIntegration keeps overlay notification image when temp icon write fails', async () => {
+  const desktopNotifications: Array<{ title: string; body?: string; icon?: string }> = [];
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const cleanupPaths: string[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+    {} as never,
+    {
+      currentVideoPath: '/tmp/show.mkv',
+      currentTimePos: 123.45,
+    } as never,
+    undefined,
+    (title, options) => {
+      desktopNotifications.push({ title, body: options.body, icon: options.icon });
+    },
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  (
+    integration as unknown as {
+      mediaGenerator: {
+        generateNotificationIcon: () => Promise<Buffer>;
+        writeNotificationIconToFile: () => string;
+        scheduleNotificationIconCleanup: (filePath: string) => void;
+      };
+    }
+  ).mediaGenerator = {
+    generateNotificationIcon: async () => Buffer.from('png'),
+    writeNotificationIconToFile: () => {
+      throw new Error('disk full');
+    },
+    scheduleNotificationIconCleanup: (filePath) => {
+      cleanupPaths.push(filePath);
+    },
+  };
+
+  await (
+    integration as unknown as {
+      showNotification: (noteId: number, label: string | number) => Promise<void>;
+    }
+  ).showNotification(42, '食べる');
+
+  assert.equal(
+    overlayNotifications[0]?.image,
+    `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+  );
+  assert.deepEqual(desktopNotifications, [
+    {
+      title: 'Anki Card Updated',
+      body: 'Updated card: 食べる',
+      icon: undefined,
+    },
+  ]);
+  assert.deepEqual(cleanupPaths, []);
+});
+
+test('AnkiIntegration routes workflow status notifications through configured surfaces', async () => {
+  const osdMessages: string[] = [];
+  const desktopMessages: string[] = [];
+  const overlayMessages: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'both',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+    (title, options) => {
+      desktopMessages.push(`${title}:${options.body ?? ''}`);
+    },
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayMessages.push(`${payload.title}:${payload.body ?? ''}:${payload.variant ?? ''}`);
+    },
+  );
+
+  assert.equal(await integration.createSentenceCard('食べる', 0, 1), false);
+
+  assert.deepEqual(osdMessages, []);
+  assert.deepEqual(overlayMessages, ['SubMiner:No video loaded:info']);
+  assert.deepEqual(desktopMessages, ['SubMiner:No video loaded']);
 });
 
 test('FieldGroupingMergeCollaborator keeps SentenceAudio grouped without overwriting ExpressionAudio', async () => {

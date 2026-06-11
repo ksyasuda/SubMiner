@@ -10,24 +10,34 @@ export async function resolveCurrentSubtitleForRenderer(deps: {
   currentSubtitleData: SubtitleData | null;
   withCurrentSubtitleTiming: (payload: SubtitleData) => SubtitleData;
   tokenizeSubtitle?: (text: string) => Promise<SubtitleData | null>;
+  tokenizeUncached?: boolean;
+  onResolvedSubtitle?: (payload: SubtitleData) => void;
 }): Promise<SubtitleData> {
+  const resolve = (payload: SubtitleData): SubtitleData => {
+    const timedPayload = deps.withCurrentSubtitleTiming(payload);
+    deps.onResolvedSubtitle?.(timedPayload);
+    return timedPayload;
+  };
+
   if (deps.currentSubtitleData?.text === deps.currentSubText) {
-    return deps.withCurrentSubtitleTiming(deps.currentSubtitleData);
+    return resolve(deps.currentSubtitleData);
   }
 
   if (!deps.currentSubText.trim()) {
-    return deps.withCurrentSubtitleTiming({
+    return resolve({
       text: deps.currentSubText,
       tokens: null,
     });
   }
 
-  const tokenized = await deps.tokenizeSubtitle?.(deps.currentSubText);
-  if (tokenized) {
-    return deps.withCurrentSubtitleTiming(tokenized);
+  if (deps.tokenizeUncached !== false) {
+    const tokenized = await deps.tokenizeSubtitle?.(deps.currentSubText);
+    if (tokenized) {
+      return resolve(tokenized);
+    }
   }
 
-  return deps.withCurrentSubtitleTiming({
+  return resolve({
     text: deps.currentSubText,
     tokens: null,
   });
@@ -41,6 +51,7 @@ export async function primeVisibleOverlaySubtitleFromMpv(deps: {
   onSubtitleChange: (text: string) => void;
   refreshCurrentSubtitle: (text: string) => void;
   emitSubtitle: (payload: SubtitleData) => void;
+  deferUncachedRefresh?: boolean;
   setCurrentSecondarySubText?: (text: string) => void;
   emitSecondarySubtitle?: (text: string) => void;
   logDebug?: (message: string) => void;
@@ -103,6 +114,11 @@ export async function primeVisibleOverlaySubtitleFromMpv(deps: {
   if (cachedPayload) {
     deps.onSubtitleChange(text);
     deps.emitSubtitle(cachedPayload);
+    await primeSecondarySubtitle();
+    return;
+  }
+
+  if (deps.deferUncachedRefresh === true) {
     await primeSecondarySubtitle();
     return;
   }

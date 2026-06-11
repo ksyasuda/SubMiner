@@ -194,8 +194,11 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         return;
       }
 
-      await deps.processNextAnilistRetryUpdate();
+      const retryResult = await deps.processNextAnilistRetryUpdate();
       if (deps.hasAttemptedUpdateKey(attemptKey)) {
+        if (retryResult.ok) {
+          deps.showMpvOsd(retryResult.message);
+        }
         return;
       }
 

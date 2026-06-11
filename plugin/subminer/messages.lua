@@ -2,6 +2,7 @@ local M = {}
 
 function M.create(ctx)
 	local mp = ctx.mp
+	local opts = ctx.opts
 	local process = ctx.process
 	local hover = ctx.hover
 	local ui = ctx.ui
@@ -42,6 +43,9 @@ function M.create(ctx)
 		mp.register_script_message("subminer-autoplay-ready", function()
 			process.notify_auto_play_ready()
 		end)
+		mp.register_script_message("subminer-overlay-loading-ready", function()
+			process.stop_overlay_loading_osd()
+		end)
 		mp.register_script_message(hover.HOVER_MESSAGE_NAME, function(payload_json)
 			hover.handle_hover_message(payload_json)
 		end)
@@ -49,7 +53,9 @@ function M.create(ctx)
 			hover.handle_hover_message(payload_json)
 		end)
 		mp.register_script_message("subminer-stats-toggle", function()
-			mp.osd_message("Stats: press ` (backtick) in overlay", 3)
+			if opts.osd_messages then
+				mp.osd_message("Stats: press ` (backtick) in overlay", 3)
+			end
 		end)
 		mp.register_script_message("subminer-reload-session-bindings", function()
 			ctx.session_bindings.reload_bindings()

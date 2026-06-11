@@ -1,4 +1,5 @@
 import type { AiFeatureConfig } from './integrations';
+import type { NotificationType } from './notification';
 import type { NPlusOneMatchMode } from './subtitle';
 
 export interface NotificationOptions {
@@ -94,7 +95,7 @@ export interface AnkiConnectConfig {
     overwriteImage?: boolean;
     mediaInsertMode?: 'append' | 'prepend';
     highlightWord?: boolean;
-    notificationType?: 'osd' | 'system' | 'both' | 'none';
+    notificationType?: NotificationType;
     autoUpdateNewCards?: boolean;
   };
   metadata?: {

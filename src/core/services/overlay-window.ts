@@ -116,6 +116,7 @@ export function createOverlayWindow(
     linuxX11FullscreenOverlay?: boolean;
     onVisibleWindowBlurred?: () => void;
     onVisibleWindowFocused?: () => void;
+    onWindowDidFinishLoad?: () => void;
     onWindowContentReady?: () => void;
     onWindowClosed: (kind: OverlayWindowKind, window: BrowserWindow) => void;
     yomitanSession?: Session | null;
@@ -139,6 +140,7 @@ export function createOverlayWindow(
   window.webContents.on('did-finish-load', () => {
     window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
     options.onRuntimeOptionsChanged();
+    options.onWindowDidFinishLoad?.();
   });
 
   window.webContents.on('page-title-updated', (event) => {

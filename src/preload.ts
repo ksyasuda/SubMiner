@@ -59,6 +59,8 @@ import type {
   YoutubePickerOpenPayload,
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
+  OverlayNotificationEventPayload,
+  OverlayNotificationPosition,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -206,6 +208,14 @@ const onSubtitleSetEvent = createLatestValueIpcListenerWithPayload<SubtitleData>
 const onOverlayPointerRecoveryRequestEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.overlayPointerRecoveryRequest,
 );
+const onOverlayNotificationEvent =
+  createQueuedIpcListenerWithPayload<OverlayNotificationEventPayload>(
+    IPC_CHANNELS.event.overlayNotification,
+    (payload) => payload as OverlayNotificationEventPayload,
+  );
+const onNotificationHistoryToggleEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.notificationHistoryToggle,
+);
 const onSubtitleVisibilityEvent = createLatestValueIpcListenerWithPayload<boolean>(
   IPC_CHANNELS.event.subtitleVisibility,
   (payload) => payload === true,
@@ -229,6 +239,19 @@ const electronAPI: ElectronAPI = {
     onSubtitleSetEvent(callback);
   },
   onOverlayPointerRecoveryRequested: onOverlayPointerRecoveryRequestEvent,
+  onOverlayNotification: onOverlayNotificationEvent,
+  sendOverlayNotificationAction: (
+    notificationId: string,
+    actionId: string,
+    options?: { noteId?: number },
+  ) => {
+    ipcRenderer.send(IPC_CHANNELS.command.overlayNotificationAction, {
+      notificationId,
+      actionId,
+      ...(options?.noteId !== undefined ? { noteId: options.noteId } : {}),
+    });
+  },
+  onNotificationHistoryToggle: onNotificationHistoryToggleEvent,
 
   onVisibility: (callback: (visible: boolean) => void) => {
     onSubtitleVisibilityEvent(callback);
@@ -302,6 +325,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.command.dispatchSessionAction, { actionId, payload }),
   getStatsToggleKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
+  getOverlayNotificationPosition: (): Promise<OverlayNotificationPosition> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getOverlayNotificationPosition),
   getMarkWatchedKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getMarkWatchedKey),
   markActiveVideoWatched: (): Promise<boolean> =>

@@ -232,6 +232,14 @@ export async function runPlaybackCommandWithDeps(
     ? { ...pluginRuntimeConfig, autoStart: false }
     : pluginRuntimeConfig;
 
+  const shouldShowOverlayLoadingOsd =
+    !isAppOwnedYoutubeFlow &&
+    (pluginRuntimeConfig.autoStartVisibleOverlay || args.startOverlay || args.autoStartOverlay) &&
+    (pluginRuntimeConfig.autoStart ||
+      args.startOverlay ||
+      args.autoStartOverlay ||
+      shouldLauncherAttachRunningApp);
+
   const shouldPauseUntilOverlayReady =
     pluginRuntimeConfig.autoStart &&
     pluginRuntimeConfig.autoStartVisibleOverlay &&
@@ -266,6 +274,7 @@ export async function runPlaybackCommandWithDeps(
             }
           : {}),
         backend: args.backend,
+        overlayLoadingOsd: shouldShowOverlayLoadingOsd,
         texthookerEnabled: args.useTexthooker && effectivePluginRuntimeConfig.texthookerEnabled,
       },
     },

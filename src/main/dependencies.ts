@@ -1,4 +1,5 @@
 import { RuntimeOptionId, RuntimeOptionValue, SubsyncManualPayload } from '../types';
+import type { OverlayNotificationPayload } from '../types/notification';
 import { SubsyncResolvedConfig } from '../subsync/utils';
 import type { SubsyncRuntimeDeps } from '../core/services/subsync-runner';
 import type { IpcDepsRuntimeOptions } from '../core/services/ipc';
@@ -59,6 +60,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   onOverlayModalOpened?: IpcDepsRuntimeOptions['onOverlayModalOpened'];
   onOverlayMouseInteractionChanged?: IpcDepsRuntimeOptions['onOverlayMouseInteractionChanged'];
   onOverlayInteractiveHint?: IpcDepsRuntimeOptions['onOverlayInteractiveHint'];
+  handleOverlayNotificationAction?: IpcDepsRuntimeOptions['handleOverlayNotificationAction'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
@@ -82,6 +84,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   dispatchSessionAction: IpcDepsRuntimeOptions['dispatchSessionAction'];
   getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
   getMarkWatchedKey: IpcDepsRuntimeOptions['getMarkWatchedKey'];
+  getOverlayNotificationPosition: IpcDepsRuntimeOptions['getOverlayNotificationPosition'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
@@ -124,6 +127,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   setAnkiIntegration: AnkiJimakuIpcRuntimeOptions['setAnkiIntegration'];
   getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
   broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
   getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
@@ -145,6 +149,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     setSocketPath: CliCommandDepsRuntimeOptions['mpv']['setSocketPath'];
     getClient: CliCommandDepsRuntimeOptions['mpv']['getClient'];
     showOsd: CliCommandDepsRuntimeOptions['mpv']['showOsd'];
+    showPlaybackFeedback?: CliCommandDepsRuntimeOptions['mpv']['showPlaybackFeedback'];
   };
   texthooker: {
     service: CliCommandDepsRuntimeOptions['texthooker']['service'];
@@ -221,6 +226,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
+  showPlaybackFeedback?: HandleMpvCommandFromIpcOptions['showPlaybackFeedback'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
   shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
@@ -240,6 +246,7 @@ export function createMainIpcRuntimeServiceDeps(
     onOverlayModalOpened: params.onOverlayModalOpened,
     onOverlayMouseInteractionChanged: params.onOverlayMouseInteractionChanged,
     onOverlayInteractiveHint: params.onOverlayInteractiveHint,
+    handleOverlayNotificationAction: params.handleOverlayNotificationAction,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
@@ -261,6 +268,7 @@ export function createMainIpcRuntimeServiceDeps(
     dispatchSessionAction: params.dispatchSessionAction,
     getStatsToggleKey: params.getStatsToggleKey,
     getMarkWatchedKey: params.getMarkWatchedKey,
+    getOverlayNotificationPosition: params.getOverlayNotificationPosition,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,
@@ -309,6 +317,7 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     setAnkiIntegration: params.setAnkiIntegration,
     getKnownWordCacheStatePath: params.getKnownWordCacheStatePath,
     showDesktopNotification: params.showDesktopNotification,
+    showOverlayNotification: params.showOverlayNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,
     broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,
     getFieldGroupingResolver: params.getFieldGroupingResolver,
@@ -334,6 +343,7 @@ export function createCliCommandRuntimeServiceDeps(
       setSocketPath: params.mpv.setSocketPath,
       getClient: params.mpv.getClient,
       showOsd: params.mpv.showOsd,
+      showPlaybackFeedback: params.mpv.showPlaybackFeedback,
     },
     texthooker: {
       service: params.texthooker.service,
@@ -414,6 +424,7 @@ export function createMpvCommandRuntimeServiceDeps(
     openPlaylistBrowser: params.openPlaylistBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
+    showPlaybackFeedback: params.showPlaybackFeedback,
     mpvReplaySubtitle: params.mpvReplaySubtitle,
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
     shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,

@@ -27,6 +27,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openControllerSelect: null,
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
+    toggleNotificationHistory: null,
     ...overrides,
   };
 }

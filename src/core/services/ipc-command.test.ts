@@ -6,6 +6,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
   const calls: string[] = [];
   const sentCommands: (string | number)[][] = [];
   const osd: string[] = [];
+  const playbackFeedback: string[] = [];
   const options: Parameters<typeof handleMpvCommandFromIpc>[1] = {
     specialCommands: {
       SUBSYNC_TRIGGER: '__subsync-trigger',
@@ -38,6 +39,9 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     showMpvOsd: (text) => {
       osd.push(text);
     },
+    showPlaybackFeedback: (text) => {
+      playbackFeedback.push(text);
+    },
     mpvReplaySubtitle: () => {
       calls.push('replay');
     },
@@ -55,7 +59,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     hasRuntimeOptionsManager: () => true,
     ...overrides,
   };
-  return { options, calls, sentCommands, osd };
+  return { options, calls, sentCommands, osd, playbackFeedback };
 }
 
 test('handleMpvCommandFromIpc forwards regular mpv commands', () => {
@@ -65,41 +69,53 @@ test('handleMpvCommandFromIpc forwards regular mpv commands', () => {
   assert.deepEqual(osd, []);
 });
 
-test('handleMpvCommandFromIpc emits osd for subtitle position keybinding proxies', async () => {
-  const { options, sentCommands, osd } = createOptions();
+test('handleMpvCommandFromIpc routes show-text through playback feedback', () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions();
+  handleMpvCommandFromIpc(['show-text', 'Primary subtitle: hover', '1500'], options);
+  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(osd, []);
+  assert.deepEqual(playbackFeedback, ['Primary subtitle: hover']);
+});
+
+test('handleMpvCommandFromIpc emits feedback for subtitle position keybinding proxies', async () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions();
   handleMpvCommandFromIpc(['add', 'sub-pos', 1], options);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['add', 'sub-pos', 1]]);
-  assert.deepEqual(osd, ['Subtitle position: ${sub-pos}']);
+  assert.deepEqual(osd, []);
+  assert.deepEqual(playbackFeedback, ['Subtitle position: ${sub-pos}']);
 });
 
-test('handleMpvCommandFromIpc emits resolved osd for primary subtitle track keybinding proxies', async () => {
-  const { options, sentCommands, osd } = createOptions({
+test('handleMpvCommandFromIpc emits resolved feedback for primary subtitle track keybinding proxies', async () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions({
     resolveProxyCommandOsd: async () => 'Subtitle track: Internal #3 - Japanese (active)',
   });
   handleMpvCommandFromIpc(['cycle', 'sid'], options);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['cycle', 'sid']]);
-  assert.deepEqual(osd, ['Subtitle track: Internal #3 - Japanese (active)']);
+  assert.deepEqual(osd, []);
+  assert.deepEqual(playbackFeedback, ['Subtitle track: Internal #3 - Japanese (active)']);
 });
 
-test('handleMpvCommandFromIpc emits resolved osd for secondary subtitle track keybinding proxies', async () => {
-  const { options, sentCommands, osd } = createOptions({
+test('handleMpvCommandFromIpc emits resolved feedback for secondary subtitle track keybinding proxies', async () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions({
     resolveProxyCommandOsd: async () =>
       'Secondary subtitle track: External #8 - English Commentary',
   });
   handleMpvCommandFromIpc(['set_property', 'secondary-sid', 'auto'], options);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['set_property', 'secondary-sid', 'auto']]);
-  assert.deepEqual(osd, ['Secondary subtitle track: External #8 - English Commentary']);
+  assert.deepEqual(osd, []);
+  assert.deepEqual(playbackFeedback, ['Secondary subtitle track: External #8 - English Commentary']);
 });
 
-test('handleMpvCommandFromIpc emits osd for subtitle delay keybinding proxies', async () => {
-  const { options, sentCommands, osd } = createOptions();
+test('handleMpvCommandFromIpc emits feedback for subtitle delay keybinding proxies', async () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions();
   handleMpvCommandFromIpc(['add', 'sub-delay', 0.1], options);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['add', 'sub-delay', 0.1]]);
-  assert.deepEqual(osd, ['Subtitle delay: ${sub-delay}']);
+  assert.deepEqual(osd, []);
+  assert.deepEqual(playbackFeedback, ['Subtitle delay: ${sub-delay}']);
 });
 
 test('handleMpvCommandFromIpc dispatches special subtitle-delay shift command', () => {

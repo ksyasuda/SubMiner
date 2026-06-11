@@ -330,7 +330,7 @@ test('createMaybeRunAnilistPostWatchUpdateHandler skips youtube playback entirel
   assert.deepEqual(calls, []);
 });
 
-test('createMaybeRunAnilistPostWatchUpdateHandler does not live-update after retry already handled current attempt key', async () => {
+test('createMaybeRunAnilistPostWatchUpdateHandler notifies when retry already handled current attempt key', async () => {
   const calls: string[] = [];
   const attemptedKeys = new Set<string>();
   const mediaKey = '/tmp/video.mkv';
@@ -378,5 +378,5 @@ test('createMaybeRunAnilistPostWatchUpdateHandler does not live-update after ret
   assert.equal(calls.includes('update'), false);
   assert.equal(calls.includes('enqueue'), false);
   assert.equal(calls.includes('mark-failure'), false);
-  assert.deepEqual(calls, ['inflight:true', 'process-retry', 'inflight:false']);
+  assert.deepEqual(calls, ['inflight:true', 'process-retry', 'osd:retry ok', 'inflight:false']);
 });

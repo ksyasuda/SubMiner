@@ -45,6 +45,12 @@ import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js'
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
+import {
+  createOverlayNotificationRenderer,
+  handleOverlayNotificationEvent,
+  overlayNotificationPositionClass,
+} from './overlay-notifications.js';
+import { createOverlayNotificationHistoryPanel } from './overlay-notification-history.js';
 import { createRendererState } from './state.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
@@ -112,6 +118,16 @@ function syncSettingsModalSubtitleSuppression(): void {
 
 const subtitleRenderer = createSubtitleRenderer(ctx);
 const measurementReporter = createOverlayContentMeasurementReporter(ctx);
+const notificationHistory = createOverlayNotificationHistoryPanel(ctx, {
+  onChanged: () => measurementReporter.schedule(),
+});
+const overlayNotifications = createOverlayNotificationRenderer(ctx, {
+  onChanged: () => {
+    notificationHistory.syncSide();
+    measurementReporter.schedule();
+  },
+  onShow: (entry) => notificationHistory.record(entry),
+});
 const positioning = createPositioningController(ctx);
 const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
   modalStateReader: { isAnyModalOpen },
@@ -425,12 +441,30 @@ function restoreOverlayInteractionAfterError(): void {
   }
 }
 
+const OVERLAY_TOAST_POSITION_CLASSES = [
+  'position-top-left',
+  'position-top',
+  'position-top-right',
+] as const;
+
+// Mirror the notification stack's current position onto a toast so error/status toasts honor the
+// configured `notifications.overlayPosition` instead of always pinning to the top-right corner.
+function applyConfiguredToastPosition(toast: HTMLElement): void {
+  const stackClasses = ctx.dom.overlayNotificationStack.classList;
+  const active =
+    OVERLAY_TOAST_POSITION_CLASSES.find((cls) => stackClasses.contains(cls)) ??
+    'position-top-right';
+  toast.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
+  toast.classList.add(active);
+}
+
 function showOverlayErrorToast(message: string): void {
   if (overlayErrorToastTimeout) {
     clearTimeout(overlayErrorToastTimeout);
     overlayErrorToastTimeout = null;
   }
   ctx.dom.overlayErrorToast.textContent = message;
+  applyConfiguredToastPosition(ctx.dom.overlayErrorToast);
   ctx.dom.overlayErrorToast.classList.remove('hidden');
   overlayErrorToastTimeout = setTimeout(() => {
     ctx.dom.overlayErrorToast.classList.add('hidden');
@@ -601,6 +635,19 @@ async function init(): Promise<void> {
     syncOverlayMouseIgnoreState(ctx);
   }
 
+  // Seed the notification stack position from config before subscribing to history toggles, so the
+  // closed history panel starts on the same side it will slide in from.
+  try {
+    const overlayNotificationPosition = await window.electronAPI.getOverlayNotificationPosition();
+    ctx.dom.overlayNotificationStack.classList.remove(...OVERLAY_TOAST_POSITION_CLASSES);
+    ctx.dom.overlayNotificationStack.classList.add(
+      overlayNotificationPositionClass(overlayNotificationPosition),
+    );
+    notificationHistory.syncSide();
+  } catch {
+    // Non-fatal: keep the default position class from index.html.
+  }
+
   window.electronAPI.onOverlayPointerRecoveryRequested(() => {
     runGuarded('overlay:pointer-recovery', () => {
       if (!ctx.platform.isMacOSPlatform || !ctx.platform.shouldToggleMouseIgnore) {
@@ -610,6 +657,16 @@ async function init(): Promise<void> {
         return;
       }
       mouseHandlers.restorePointerInteractionState();
+    });
+  });
+  window.electronAPI.onOverlayNotification((payload) => {
+    runGuarded('overlay:notification', () => {
+      handleOverlayNotificationEvent(overlayNotifications, payload);
+    });
+  });
+  window.electronAPI.onNotificationHistoryToggle(() => {
+    runGuarded('notification-history:toggle', () => {
+      notificationHistory.toggle();
     });
   });
 
@@ -623,6 +680,22 @@ async function init(): Promise<void> {
     'startup',
   );
   measurementReporter.schedule();
+
+  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
+  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseenter',
+    mouseHandlers.handleSecondaryMouseEnter,
+  );
+  ctx.dom.secondarySubContainer.addEventListener(
+    'mouseleave',
+    mouseHandlers.handleSecondaryMouseLeave,
+  );
+
+  mouseHandlers.setupResizeHandler();
+  mouseHandlers.setupPointerTracking();
+  mouseHandlers.setupSelectionObserver();
+  mouseHandlers.setupYomitanObserver();
 
   window.electronAPI.onSubtitlePosition((position: SubtitlePosition | null) => {
     runGuarded('subtitle-position:update', () => {
@@ -678,21 +751,6 @@ async function init(): Promise<void> {
   subtitleRenderer.renderSecondarySub(await window.electronAPI.getCurrentSecondarySub());
   measurementReporter.schedule();
 
-  ctx.dom.subtitleContainer.addEventListener('mouseenter', mouseHandlers.handlePrimaryMouseEnter);
-  ctx.dom.subtitleContainer.addEventListener('mouseleave', mouseHandlers.handlePrimaryMouseLeave);
-  ctx.dom.secondarySubContainer.addEventListener(
-    'mouseenter',
-    mouseHandlers.handleSecondaryMouseEnter,
-  );
-  ctx.dom.secondarySubContainer.addEventListener(
-    'mouseleave',
-    mouseHandlers.handleSecondaryMouseLeave,
-  );
-
-  mouseHandlers.setupResizeHandler();
-  mouseHandlers.setupPointerTracking();
-  mouseHandlers.setupSelectionObserver();
-  mouseHandlers.setupYomitanObserver();
   setupDragDropToMpvQueue();
   window.addEventListener('resize', () => {
     measurementReporter.schedule();

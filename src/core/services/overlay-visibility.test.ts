@@ -154,7 +154,127 @@ test('macOS keeps visible overlay hidden while tracker is not ready and emits on
   assert.ok(!calls.includes('show'));
 });
 
-test('tracked non-macOS overlay stays hidden while tracker is not ready', () => {
+test('macOS dismisses overlay loading OSD when tracker recovers', () => {
+  const { window, calls } = createMainWindowRecorder();
+  let trackerWarning = false;
+  const osdMessages: string[] = [];
+  const dismissedOsds: string[] = [];
+  let tracking = false;
+  let geometry: WindowTrackerStub['getGeometry'] extends () => infer T ? T : never = null;
+  const tracker: WindowTrackerStub = {
+    isTracking: () => tracking,
+    getGeometry: () => geometry,
+    isTargetWindowFocused: () => tracking,
+  };
+
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: trackerWarning,
+      setTrackerNotReadyWarningShown: (shown: boolean) => {
+        trackerWarning = shown;
+      },
+      updateVisibleOverlayBounds: () => {
+        calls.push('update-bounds');
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: true,
+      showOverlayLoadingOsd: (message: string) => {
+        osdMessages.push(message);
+      },
+      dismissOverlayLoadingOsd: () => {
+        dismissedOsds.push('dismiss');
+      },
+    } as never);
+
+  run();
+  tracking = true;
+  geometry = { x: 0, y: 0, width: 1280, height: 720 };
+  run();
+
+  assert.deepEqual(osdMessages, ['Overlay loading...']);
+  assert.deepEqual(dismissedOsds, ['dismiss']);
+  assert.equal(trackerWarning, false);
+  assert.ok(calls.includes('show-inactive'));
+});
+
+test('tracked non-native overlay shows loading OSD until renderer content is visible', () => {
+  const { window, calls, setContentReady } = createMainWindowRecorder();
+  let loadingShown = false;
+  const osdMessages: string[] = [];
+  const dismissedOsds: string[] = [];
+  const tracker: WindowTrackerStub = {
+    isTracking: () => true,
+    getGeometry: () => ({ x: 0, y: 0, width: 1280, height: 720 }),
+    isTargetWindowFocused: () => true,
+  };
+
+  const run = () =>
+    updateVisibleOverlayVisibility({
+      visibleOverlayVisible: true,
+      mainWindow: window as never,
+      windowTracker: tracker as never,
+      trackerNotReadyWarningShown: loadingShown,
+      setTrackerNotReadyWarningShown: (shown: boolean) => {
+        loadingShown = shown;
+      },
+      updateVisibleOverlayBounds: () => {
+        calls.push('update-bounds');
+      },
+      ensureOverlayWindowLevel: () => {
+        calls.push('ensure-level');
+      },
+      syncPrimaryOverlayWindowLayer: () => {
+        calls.push('sync-layer');
+      },
+      enforceOverlayLayerOrder: () => {
+        calls.push('enforce-order');
+      },
+      syncOverlayShortcuts: () => {
+        calls.push('sync-shortcuts');
+      },
+      isMacOSPlatform: false,
+      isWindowsPlatform: false,
+      showOverlayLoadingOsd: (message: string) => {
+        osdMessages.push(message);
+      },
+      dismissOverlayLoadingOsd: () => {
+        dismissedOsds.push('dismiss');
+      },
+    } as never);
+
+  setContentReady(false);
+  run();
+  run();
+
+  assert.equal(loadingShown, true);
+  assert.deepEqual(osdMessages, ['Overlay loading...']);
+  assert.deepEqual(dismissedOsds, []);
+  assert.ok(!calls.includes('show'));
+  assert.ok(!calls.includes('show-inactive'));
+
+  setContentReady(true);
+  run();
+
+  assert.equal(loadingShown, false);
+  assert.deepEqual(dismissedOsds, ['dismiss']);
+  assert.ok(calls.includes('show-inactive'));
+});
+
+test('tracked non-macOS overlay stays hidden and emits loading OSD while tracker is not ready', () => {
   const { window, calls } = createMainWindowRecorder();
   let trackerWarning = false;
   const tracker: WindowTrackerStub = {
@@ -197,7 +317,7 @@ test('tracked non-macOS overlay stays hidden while tracker is not ready', () => 
   assert.ok(!calls.includes('update-bounds'));
   assert.ok(!calls.includes('show'));
   assert.ok(!calls.includes('focus'));
-  assert.ok(!calls.includes('osd'));
+  assert.ok(calls.includes('osd'));
 });
 
 test('non-native passive overlay stays click-through after subsequent visibility updates', () => {

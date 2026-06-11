@@ -1,5 +1,6 @@
 import { ResolveContext } from './context';
 import { applyControllerConfig } from './controller';
+import { isNotificationType, isOverlayNotificationPosition } from '../../types/notification';
 import { asBoolean, asNumber, asString, isObject } from './shared';
 
 export function applyCoreDomainConfig(context: ResolveContext): void {
@@ -194,19 +195,14 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     }
 
     const notificationType = asString(src.updates.notificationType);
-    if (
-      notificationType === 'system' ||
-      notificationType === 'osd' ||
-      notificationType === 'both' ||
-      notificationType === 'none'
-    ) {
+    if (isNotificationType(notificationType)) {
       resolved.updates.notificationType = notificationType;
     } else if (src.updates.notificationType !== undefined) {
       warn(
         'updates.notificationType',
         src.updates.notificationType,
         resolved.updates.notificationType,
-        'Expected system, osd, both, or none.',
+        'Expected overlay, system, both, none, osd, or osd-system.',
       );
     }
 
@@ -240,6 +236,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
+      'toggleNotificationHistory',
     ] as const;
 
     for (const key of shortcutKeys) {
@@ -321,6 +318,20 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
     const y = asNumber(src.subtitlePosition.yPercent);
     if (y !== undefined) {
       resolved.subtitlePosition.yPercent = y;
+    }
+  }
+
+  if (isObject(src.notifications)) {
+    const overlayPosition = asString(src.notifications.overlayPosition);
+    if (isOverlayNotificationPosition(overlayPosition)) {
+      resolved.notifications.overlayPosition = overlayPosition;
+    } else if (src.notifications.overlayPosition !== undefined) {
+      warn(
+        'notifications.overlayPosition',
+        src.notifications.overlayPosition,
+        resolved.notifications.overlayPosition,
+        'Expected top-left, top, or top-right.',
+      );
     }
   }
 }

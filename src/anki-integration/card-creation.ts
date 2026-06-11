@@ -511,7 +511,6 @@ export class CardCreationService {
       endTime = startTime + maxMediaDuration;
     }
 
-    this.deps.showOsdNotification('Creating sentence card...');
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
         const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'video');

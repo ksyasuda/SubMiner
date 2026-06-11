@@ -106,6 +106,7 @@ export interface CliCommandServiceDeps {
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
   showMpvOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
   log: (message: string) => void;
   logDebug: (message: string) => void;
   warn: (message: string) => void;
@@ -128,6 +129,7 @@ interface MpvCliRuntime {
   setSocketPath: (socketPath: string) => void;
   getClient: () => MpvClientLike | null;
   showOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
 }
 
 interface TexthookerCliRuntime {
@@ -295,6 +297,7 @@ export function createCliCommandDepsRuntime(
     hasMainWindow: options.app.hasMainWindow,
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
     showMpvOsd: options.mpv.showOsd,
+    showPlaybackFeedback: options.mpv.showPlaybackFeedback,
     log: options.log,
     logDebug: options.logDebug,
     warn: options.warn,
@@ -546,6 +549,9 @@ export function handleCliCommand(
       'shiftSubDelayNextLine',
       'Shift subtitle delay failed',
     );
+  } else if (args.playbackFeedback) {
+    const showFeedback = deps.showPlaybackFeedback ?? deps.showMpvOsd;
+    showFeedback(args.playbackFeedback);
   } else if (args.cycleRuntimeOptionId !== undefined) {
     dispatchCliSessionAction(
       {

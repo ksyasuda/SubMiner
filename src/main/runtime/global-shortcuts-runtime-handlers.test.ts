@@ -23,6 +23,7 @@ function createShortcuts(): ConfiguredShortcuts {
     openControllerSelect: null,
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
+    toggleNotificationHistory: null,
   };
 }
 

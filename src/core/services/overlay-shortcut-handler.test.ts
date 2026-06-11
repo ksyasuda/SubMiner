@@ -32,6 +32,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     openControllerSelect: null,
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
+    toggleNotificationHistory: null,
     ...overrides,
   };
 }

@@ -87,6 +87,25 @@ test('AnkiConnectClient lists decks and note type fields', async () => {
   );
 });
 
+test('AnkiConnectClient opens a note in the Anki browser', async () => {
+  const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
+    client: { post: (url: string, body: { action: string; params: unknown }) => Promise<unknown> };
+  };
+  const calls: Array<{ action: string; params: unknown }> = [];
+  client.client = {
+    post: async (_url, body) => {
+      calls.push({ action: body.action, params: body.params });
+      return { data: { result: [], error: null } };
+    },
+  };
+
+  await (
+    client as unknown as { openNoteInBrowser: (noteId: number) => Promise<void> }
+  ).openNoteInBrowser(12345);
+
+  assert.deepEqual(calls, [{ action: 'guiBrowse', params: { query: 'nid:12345' } }]);
+});
+
 test('AnkiConnectClient derives field names from sampled notes in a deck', async () => {
   const client = new AnkiConnectClient('http://127.0.0.1:8765') as unknown as {
     client: { post: (url: string, body: { action: string; params: unknown }) => Promise<unknown> };

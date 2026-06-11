@@ -62,7 +62,41 @@ test('visible overlay autoplay target falls back when interactive rects have no 
   assert.equal(ready, true);
 });
 
-test('visible overlay autoplay target rejects synthetic warmup readiness', () => {
+test('visible overlay autoplay target accepts synthetic warmup readiness after content-ready', () => {
+  const ready = isVisibleOverlayAutoplayTargetReady(
+    {
+      getVisibleOverlayVisible: () => true,
+      isOverlayWindowReady: () => true,
+      getLatestVisibleMeasurement: () => null,
+    },
+    {
+      mediaPath: '/media/video.mkv',
+      payload: { text: '__warm__', tokens: null },
+      requestedAtMs: 1_000,
+    },
+  );
+
+  assert.equal(ready, true);
+});
+
+test('visible overlay autoplay target waits for content-ready before synthetic warmup readiness', () => {
+  const ready = isVisibleOverlayAutoplayTargetReady(
+    {
+      getVisibleOverlayVisible: () => true,
+      isOverlayWindowReady: () => false,
+      getLatestVisibleMeasurement: () => visibleMeasurement(2_000),
+    },
+    {
+      mediaPath: '/media/video.mkv',
+      payload: { text: '__warm__', tokens: null },
+      requestedAtMs: 1_000,
+    },
+  );
+
+  assert.equal(ready, false);
+});
+
+test('visible overlay autoplay target rejects empty readiness payloads', () => {
   const ready = isVisibleOverlayAutoplayTargetReady(
     {
       getVisibleOverlayVisible: () => true,
@@ -71,7 +105,7 @@ test('visible overlay autoplay target rejects synthetic warmup readiness', () =>
     },
     {
       mediaPath: '/media/video.mkv',
-      payload: { text: '__warm__', tokens: null },
+      payload: { text: '', tokens: null },
       requestedAtMs: 1_000,
     },
   );

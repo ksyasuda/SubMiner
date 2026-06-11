@@ -82,6 +82,7 @@ function createContext(): LauncherCommandContext {
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
     appPath: '/tmp/SubMiner.AppImage',
@@ -207,6 +208,7 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
     autoStart: true,
     autoStartVisibleOverlay: false,
     autoStartPauseUntilReady: false,
+    osdMessages: false,
     texthookerEnabled: false,
   };
   const appPath = context.appPath ?? '';
@@ -268,6 +270,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   const calls: string[] = [];
@@ -335,10 +338,12 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   let availabilityConfigDir: string | undefined;
   let overlayConfigDir: string | undefined;
+  let overlayLoadingOsd: boolean | undefined;
 
   try {
     process.env.XDG_CONFIG_HOME = xdgConfigHome;
@@ -349,7 +354,19 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
       chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
       checkDependencies: () => {},
       registerCleanup: () => {},
-      startMpv: async () => {},
+      startMpv: async (
+        _target,
+        _targetKind,
+        _args,
+        _socketPath,
+        _appPath,
+        _preloadedSubtitles,
+        options,
+      ) => {
+        overlayLoadingOsd = (
+          options?.runtimePluginConfig as { overlayLoadingOsd?: boolean } | undefined
+        )?.overlayLoadingOsd;
+      },
       waitForUnixSocketReady: async () => true,
       startOverlay: async (_appPath, _args, _socketPath, _extraAppArgs = [], configDir) => {
         overlayConfigDir = configDir;
@@ -366,6 +383,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
 
     assert.equal(availabilityConfigDir, expectedConfigDir);
     assert.equal(overlayConfigDir, expectedConfigDir);
+    assert.equal(overlayLoadingOsd, true);
   } finally {
     if (originalXdgConfigHome === undefined) {
       delete process.env.XDG_CONFIG_HOME;
@@ -395,6 +413,7 @@ test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is
     autoStart: true,
     autoStartVisibleOverlay: true,
     autoStartPauseUntilReady: true,
+    osdMessages: false,
     texthookerEnabled: true,
   };
   const calls: string[] = [];

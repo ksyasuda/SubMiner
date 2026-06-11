@@ -74,9 +74,13 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
   flushPlaybackPositionOnMediaPathClear?: (mediaPath: string) => void;
   refreshDiscordPresence: () => void;
 }) {
+  let lastCharacterDictionarySyncMediaPath: string | null = null;
+
   return ({ path }: { path: string | null }): void => {
     const normalizedPath = typeof path === 'string' ? path : '';
-    if (!normalizedPath) {
+    const trimmedPath = normalizedPath.trim();
+    if (!trimmedPath) {
+      lastCharacterDictionarySyncMediaPath = null;
       deps.flushPlaybackPositionOnMediaPathClear?.(normalizedPath);
     }
     deps.updateCurrentMediaPath(normalizedPath);
@@ -92,9 +96,12 @@ export function createHandleMpvMediaPathChangeHandler(deps: {
       deps.ensureAnilistMediaGuess(mediaKey);
     }
     deps.syncImmersionMediaState();
-    if (normalizedPath.trim().length > 0) {
+    if (trimmedPath.length > 0) {
       deps.markJellyfinRemotePlaybackLoaded?.(normalizedPath);
-      deps.scheduleCharacterDictionarySync?.();
+      if (trimmedPath !== lastCharacterDictionarySyncMediaPath) {
+        lastCharacterDictionarySyncMediaPath = trimmedPath;
+        deps.scheduleCharacterDictionarySync?.();
+      }
       deps.signalAutoplayReadyIfWarm?.(normalizedPath);
     }
     deps.refreshDiscordPresence();

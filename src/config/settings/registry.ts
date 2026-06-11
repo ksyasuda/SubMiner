@@ -151,6 +151,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Startup warmups',
     'Logging',
     'Updates',
+    'Notifications',
     'Immersion tracking',
   ].map((section, index) => [section, index]),
 );
@@ -411,6 +412,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   ) {
     return { category: 'behavior', section: 'Playback Behavior' };
   }
+  if (path.startsWith('notifications.')) {
+    return { category: 'behavior', section: 'Notifications' };
+  }
   if (path === 'mpv.aniskipButtonKey') {
     return { category: 'input', section: 'Overlay Shortcuts' };
   }
@@ -478,6 +482,7 @@ function topSection(path: string): string {
     mpv: 'mpv Playback',
     stats: 'Stats dashboard',
     startupWarmups: 'Startup warmups',
+    notifications: 'Notifications',
     subsync: 'Subtitle Sync',
     texthooker: 'Texthooker',
     updates: 'Updates',
@@ -577,6 +582,7 @@ function subsectionForPath(path: string): string | undefined {
     if (
       leaf === 'toggleVisibleOverlayGlobal' ||
       leaf === 'toggleSubtitleSidebar' ||
+      leaf === 'toggleNotificationHistory' ||
       leaf === 'toggleSecondarySub' ||
       leaf === 'toggleStatsOverlay' ||
       leaf === 'markWatched'
@@ -687,6 +693,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'logging.level' ||
     path === 'logging.rotation' ||
     pathStartsWith(path, 'logging.files') ||
+    pathStartsWith(path, 'notifications') ||
     path === 'youtube.primarySubLanguages' ||
     pathStartsWith(path, 'jimaku') ||
     pathStartsWith(path, 'subsync')
@@ -710,7 +717,9 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
     ...(subsectionForPath(leaf.path) ? { subsection: subsectionForPath(leaf.path) } : {}),
     control: controlForPath(leaf.path, leaf.value),
     defaultValue: leaf.value,
-    ...(option?.enumValues ? { enumValues: option.enumValues } : {}),
+    ...(option?.settingsEnumValues || option?.enumValues
+      ? { enumValues: option.settingsEnumValues ?? option.enumValues }
+      : {}),
     restartBehavior: restartBehaviorForPath(leaf.path),
     advanced:
       leaf.path.startsWith('controller.') ||

@@ -158,6 +158,8 @@ The three collapsible sections can be configured to start open or closed:
 
 When `subtitleStyle.nameMatchEnabled` is `true`, SubMiner runs an auto-sync routine whenever the active media changes.
 
+These phases are emitted through the configured notification surface. Some phases are skipped when unnecessary: `generating` only appears on a cache miss, `building` only appears when the merged ZIP must be rebuilt, and `importing` only appears when Yomitan needs a new dictionary import.
+
 **Phases:**
 
 1. **checking** - Is there already a cached snapshot for this media ID?

@@ -45,5 +45,7 @@ export function createBuildAppReadyRuntimeMainDepsHandler(deps: AppReadyRuntimeD
     shouldRunHeadlessInitialCommand: deps.shouldRunHeadlessInitialCommand,
     shouldUseMinimalStartup: deps.shouldUseMinimalStartup,
     shouldSkipHeavyStartup: deps.shouldSkipHeavyStartup,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup:
+      deps.shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   });
 }

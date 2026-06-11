@@ -4,9 +4,12 @@ local OVERLAY_START_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_START_MAX_ATTEMPTS = 6
 local OVERLAY_RESTART_PING_RETRY_DELAY_SECONDS = 0.2
 local OVERLAY_RESTART_PING_MAX_ATTEMPTS = 20
+local OVERLAY_LOADING_OSD_PREFIX = "Overlay loading "
+local OVERLAY_LOADING_OSD_FRAMES = { "|", "/", "-", "\\" }
+local OVERLAY_LOADING_OSD_REFRESH_SECONDS = 0.18
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
-local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 15
+local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 30
 local DUPLICATE_VISIBLE_OVERLAY_TOGGLE_SECONDS = 0.25
 
 function M.create(ctx)
@@ -51,6 +54,14 @@ function M.create(ctx)
 			raw_pause_until_ready = opts["auto-start-pause-until-ready"]
 		end
 		return options_helper.coerce_bool(raw_pause_until_ready, false)
+	end
+
+	local function resolve_osd_messages_enabled()
+		local raw_osd_messages = opts.osd_messages
+		if raw_osd_messages == nil then
+			raw_osd_messages = opts["osd-messages"]
+		end
+		return options_helper.coerce_bool(raw_osd_messages, false)
 	end
 
 	local function resolve_pause_until_ready_owns_initial_pause()
@@ -246,6 +257,42 @@ function M.create(ctx)
 		state.auto_play_ready_osd_timer = nil
 	end
 
+	local function clear_overlay_loading_osd_timer()
+		local timer = state.overlay_loading_osd_timer
+		if timer and timer.kill then
+			timer:kill()
+		end
+		state.overlay_loading_osd_timer = nil
+	end
+
+	local function stop_overlay_loading_osd()
+		state.overlay_loading_osd_active = false
+		state.overlay_loading_osd_frame = 1
+		clear_overlay_loading_osd_timer()
+	end
+
+	local function start_overlay_loading_osd()
+		if state.overlay_loading_osd_active then
+			return
+		end
+		state.overlay_loading_osd_active = true
+		state.overlay_loading_osd_frame = 1
+		local function show_next_overlay_loading_frame()
+			local frame_index = state.overlay_loading_osd_frame or 1
+			local frame = OVERLAY_LOADING_OSD_FRAMES[frame_index] or OVERLAY_LOADING_OSD_FRAMES[1]
+			show_osd(OVERLAY_LOADING_OSD_PREFIX .. frame, { force = true })
+			state.overlay_loading_osd_frame = (frame_index % #OVERLAY_LOADING_OSD_FRAMES) + 1
+		end
+		show_next_overlay_loading_frame()
+		if type(mp.add_periodic_timer) == "function" then
+			state.overlay_loading_osd_timer = mp.add_periodic_timer(OVERLAY_LOADING_OSD_REFRESH_SECONDS, function()
+				if state.overlay_loading_osd_active then
+					show_next_overlay_loading_frame()
+				end
+			end)
+		end
+	end
+
 	local function disarm_auto_play_ready_gate(options)
 		local should_resume = options == nil or options.resume_playback ~= false
 		local was_armed = state.auto_play_ready_gate_armed
@@ -264,8 +311,11 @@ function M.create(ctx)
 			return false
 		end
 		local should_resume_playback = state.auto_play_ready_should_resume_playback == true
+		if resolve_osd_messages_enabled() then
+			stop_overlay_loading_osd()
+			show_osd(AUTO_PLAY_READY_READY_OSD)
+		end
 		disarm_auto_play_ready_gate({ resume_playback = false })
-		show_osd(AUTO_PLAY_READY_READY_OSD)
 		if should_resume_playback then
 			mp.set_property_native("pause", false)
 			subminer_log("info", "process", "Resuming playback after startup gate: " .. tostring(reason or "ready"))
@@ -287,8 +337,11 @@ function M.create(ctx)
 		end
 		state.auto_play_ready_gate_armed = true
 		mp.set_property_native("pause", true)
-		show_osd(AUTO_PLAY_READY_LOADING_OSD)
-		if type(mp.add_periodic_timer) == "function" then
+		if resolve_osd_messages_enabled() then
+			stop_overlay_loading_osd()
+			show_osd(AUTO_PLAY_READY_LOADING_OSD)
+		end
+		if resolve_osd_messages_enabled() and type(mp.add_periodic_timer) == "function" then
 			state.auto_play_ready_osd_timer = mp.add_periodic_timer(2.5, function()
 				if state.auto_play_ready_gate_armed then
 					show_osd(AUTO_PLAY_READY_LOADING_OSD)
@@ -374,6 +427,9 @@ function M.create(ctx)
 			if texthooker_enabled then
 				table.insert(args, "--texthooker")
 			end
+		end
+		if action == "playback-feedback" and type(overrides.message) == "string" and overrides.message ~= "" then
+			table.insert(args, overrides.message)
 		end
 
 		return args
@@ -462,6 +518,27 @@ function M.create(ctx)
 		end)
 	end
 
+	local function notify_playback_feedback(message, fallback)
+		if type(message) ~= "string" or message == "" then
+			return
+		end
+		if resolve_osd_messages_enabled() then
+			show_osd(message)
+			return
+		end
+		if not binary.ensure_binary_available() then
+			if fallback then
+				fallback()
+			end
+			return
+		end
+		run_control_command_async("playback-feedback", { message = message }, function(ok)
+			if not ok and fallback then
+				fallback()
+			end
+		end)
+	end
+
 	local function wait_for_app_ping_state(expected_running, label, on_ready, on_timeout, attempt)
 		attempt = attempt or 1
 		run_control_command_async("app-ping", nil, function(_ok, result)
@@ -543,6 +620,7 @@ function M.create(ctx)
 
 		if not binary.ensure_binary_available() then
 			subminer_log("error", "binary", "SubMiner binary not found")
+			stop_overlay_loading_osd()
 			show_osd("Error: binary not found")
 			return
 		end
@@ -627,6 +705,7 @@ function M.create(ctx)
 					state.overlay_running = false
 					state.auto_play_ready_signal_seen = false
 					subminer_log("error", "process", "Overlay start failed after retries: " .. reason)
+					stop_overlay_loading_osd()
 					show_osd("Overlay start failed")
 					release_auto_play_ready_gate("overlay-start-failed")
 					return
@@ -679,6 +758,7 @@ function M.create(ctx)
 		state.overlay_running = false
 		state.texthooker_running = false
 		state.auto_play_ready_signal_seen = false
+		stop_overlay_loading_osd()
 		disarm_auto_play_ready_gate()
 		show_osd("Stopped")
 	end
@@ -690,6 +770,7 @@ function M.create(ctx)
 			return
 		end
 		state.suppress_ready_overlay_restore = true
+		stop_overlay_loading_osd()
 
 		run_control_command_async("hide-visible-overlay", nil, function(ok, result)
 			if ok then
@@ -794,14 +875,22 @@ function M.create(ctx)
 			return
 		end
 
+		local function show_restart_feedback(message)
+			notify_playback_feedback(message, function()
+				show_osd(message)
+			end)
+		end
+
+		start_overlay_loading_osd()
 		subminer_log("info", "process", "Restarting overlay...")
-		show_osd("Restarting...")
+		show_restart_feedback("Restarting...")
 
 		run_control_command_async("stop", nil, function(ok, result)
 			if not ok then
 				local reason = result and result.stderr or "unknown error"
 				subminer_log("warn", "process", "Restart stop command failed: " .. reason)
-				show_osd("Restart failed")
+				stop_overlay_loading_osd()
+				show_restart_feedback("Restart failed")
 				return
 			end
 
@@ -836,14 +925,25 @@ function M.create(ctx)
 							"process",
 							"Overlay start failed: " .. (error or (result and result.stderr) or "unknown error")
 						)
-						show_osd("Restart failed")
+						stop_overlay_loading_osd()
+						show_restart_feedback("Restart failed")
 					else
 						wait_for_app_ping_state(true, "own the single-instance lock", function()
-							run_control_command_async("show-visible-overlay")
-							show_osd("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function(ok)
+								if ok then
+									show_restart_feedback("Restarted successfully")
+								else
+									show_restart_feedback("Restart failed")
+								end
+							end)
 						end, function()
-							run_control_command_async("show-visible-overlay")
-							show_osd("Restarted successfully")
+							run_control_command_async("show-visible-overlay", nil, function(ok)
+								if ok then
+									show_restart_feedback("Restarted successfully")
+								else
+									show_restart_feedback("Restart failed")
+								end
+							end)
 						end)
 					end
 				end)
@@ -852,7 +952,8 @@ function M.create(ctx)
 					ensure_texthooker_running(function() end)
 				end
 			end, function()
-				show_osd("Restart failed")
+				stop_overlay_loading_osd()
+				show_restart_feedback("Restart failed")
 			end)
 		end)
 	end
@@ -877,6 +978,7 @@ function M.create(ctx)
 		describe_mpv_ipc_socket_match = describe_mpv_ipc_socket_match,
 		has_matching_mpv_ipc_socket = has_matching_mpv_ipc_socket,
 		run_control_command_async = run_control_command_async,
+		notify_playback_feedback = notify_playback_feedback,
 		record_visible_overlay_visibility = record_visible_overlay_visibility,
 		run_binary_command_async = run_binary_command_async,
 		parse_start_script_message_overrides = parse_start_script_message_overrides,
@@ -893,6 +995,8 @@ function M.create(ctx)
 		check_binary_available = check_binary_available,
 		notify_auto_play_ready = notify_auto_play_ready,
 		disarm_auto_play_ready_gate = disarm_auto_play_ready_gate,
+		start_overlay_loading_osd = start_overlay_loading_osd,
+		stop_overlay_loading_osd = stop_overlay_loading_osd,
 	}
 end
 

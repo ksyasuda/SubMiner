@@ -88,6 +88,7 @@ export function updateVisibleOverlayVisibility(args: {
   isMacOSPlatform?: boolean;
   isWindowsPlatform?: boolean;
   showOverlayLoadingOsd?: (message: string) => void;
+  dismissOverlayLoadingOsd?: () => void;
   shouldShowOverlayLoadingOsd?: () => boolean;
   markOverlayLoadingOsdShown?: () => void;
   resetOverlayLoadingOsdSuppression?: () => void;
@@ -310,8 +311,18 @@ export function updateVisibleOverlayVisibility(args: {
     !args.isWindowsPlatform &&
     (!args.forceMousePassthrough || args.isMacOSPlatform === true);
 
+  const isWaitingForOverlayContentReady = (): boolean => {
+    const hasWebContents =
+      typeof (mainWindow as unknown as { webContents?: unknown }).webContents === 'object';
+    return (
+      !mainWindow.isVisible() &&
+      hasWebContents &&
+      !isOverlayWindowContentReady(mainWindow as unknown as import('electron').BrowserWindow)
+    );
+  };
+
   const maybeShowOverlayLoadingOsd = (): void => {
-    if (!args.isMacOSPlatform || !args.showOverlayLoadingOsd) {
+    if (!args.showOverlayLoadingOsd) {
       return;
     }
     if (args.shouldShowOverlayLoadingOsd && !args.shouldShowOverlayLoadingOsd()) {
@@ -319,6 +330,9 @@ export function updateVisibleOverlayVisibility(args: {
     }
     args.showOverlayLoadingOsd('Overlay loading...');
     args.markOverlayLoadingOsdShown?.();
+  };
+  const maybeDismissOverlayLoadingOsd = (): void => {
+    args.dismissOverlayLoadingOsd?.();
   };
 
   const refreshNonNativeOverlayBoundsAfterFirstShow = (geometry: WindowGeometry | null): void => {
@@ -350,6 +364,7 @@ export function updateVisibleOverlayVisibility(args: {
   if (!args.visibleOverlayVisible) {
     args.setTrackerNotReadyWarningShown(false);
     args.resetOverlayLoadingOsdSuppression?.();
+    maybeDismissOverlayLoadingOsd();
     if (args.isWindowsPlatform) {
       clearPendingWindowsOverlayReveal(mainWindow);
       setOverlayWindowOpacity(mainWindow, 0);
@@ -371,7 +386,15 @@ export function updateVisibleOverlayVisibility(args: {
       args.syncOverlayShortcuts();
       return;
     }
-    args.setTrackerNotReadyWarningShown(false);
+    if (isWaitingForOverlayContentReady()) {
+      if (!args.trackerNotReadyWarningShown) {
+        args.setTrackerNotReadyWarningShown(true);
+        maybeShowOverlayLoadingOsd();
+      }
+    } else {
+      args.setTrackerNotReadyWarningShown(false);
+      maybeDismissOverlayLoadingOsd();
+    }
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);
@@ -432,6 +455,7 @@ export function updateVisibleOverlayVisibility(args: {
     (mainWindow.isVisible() || hasRetainedTrackedGeometry)
   ) {
     args.setTrackerNotReadyWarningShown(false);
+    maybeDismissOverlayLoadingOsd();
     const geometry = args.windowTracker.getGeometry();
     if (geometry) {
       args.updateVisibleOverlayBounds(geometry);

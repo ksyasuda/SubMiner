@@ -14,6 +14,7 @@ export interface SessionActionExecutorDeps {
   mineSentenceCount: (count: number) => void;
   toggleSecondarySub: () => void;
   toggleSubtitleSidebar: () => void;
+  toggleNotificationHistory: () => void;
   markLastCardAsAudioCard: () => Promise<void>;
   markActiveVideoWatched: () => Promise<boolean>;
   openRuntimeOptionsPalette: () => void;
@@ -78,6 +79,9 @@ export async function dispatchSessionAction(
       return;
     case 'toggleSubtitleSidebar':
       deps.toggleSubtitleSidebar();
+      return;
+    case 'toggleNotificationHistory':
+      deps.toggleNotificationHistory();
       return;
     case 'markAudioCard':
       await deps.markLastCardAsAudioCard();

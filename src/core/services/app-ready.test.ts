@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AppReadyRuntimeDeps, runAppReadyRuntime } from './startup';
 
+function waitTurn(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function makeDeps(overrides: Partial<AppReadyRuntimeDeps> = {}) {
   const calls: string[] = [];
   const deps = {
@@ -277,20 +281,80 @@ test('runAppReadyRuntime does not await background warmups', async () => {
   releaseWarmup();
 });
 
-test('runAppReadyRuntime starts background warmups before core runtime services', async () => {
+test('runAppReadyRuntime handles managed background initial args before deferred Yomitan wait', async () => {
   const calls: string[] = [];
-  const { deps } = makeDeps({
-    startBackgroundWarmups: () => {
-      calls.push('startBackgroundWarmups');
-    },
-    loadSubtitlePosition: () => calls.push('loadSubtitlePosition'),
-    createMpvClient: () => calls.push('createMpvClient'),
+  let releaseYomitan!: () => void;
+  const yomitanGate = new Promise<void>((resolve) => {
+    releaseYomitan = resolve;
   });
+  const { deps } = makeDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () => true,
+    loadYomitanExtension: async () => {
+      calls.push('loadYomitanExtension:start');
+      await yomitanGate;
+      calls.push('loadYomitanExtension:done');
+    },
+    handleFirstRunSetup: async () => {
+      calls.push('handleFirstRunSetup');
+    },
+    handleInitialArgs: () => {
+      calls.push('handleInitialArgs');
+    },
+  } as Partial<AppReadyRuntimeDeps>);
+
+  const readyPromise = runAppReadyRuntime(deps);
+  await waitTurn();
+
+  try {
+    assert.ok(calls.includes('handleFirstRunSetup'));
+    assert.ok(calls.includes('handleInitialArgs'));
+    assert.equal(calls.includes('loadYomitanExtension:done'), false);
+  } finally {
+    releaseYomitan();
+    await readyPromise;
+  }
+});
+
+test('runAppReadyRuntime keeps non-managed deferred overlay startup behind Yomitan readiness', async () => {
+  const calls: string[] = [];
+  let releaseYomitan!: () => void;
+  const yomitanGate = new Promise<void>((resolve) => {
+    releaseYomitan = resolve;
+  });
+  const { deps } = makeDeps({
+    shouldAutoInitializeOverlayRuntimeFromConfig: () => false,
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup: () => false,
+    loadYomitanExtension: async () => {
+      calls.push('loadYomitanExtension:start');
+      await yomitanGate;
+      calls.push('loadYomitanExtension:done');
+    },
+    handleInitialArgs: () => {
+      calls.push('handleInitialArgs');
+    },
+  } as Partial<AppReadyRuntimeDeps>);
+
+  const readyPromise = runAppReadyRuntime(deps);
+  await waitTurn();
+
+  assert.equal(calls.includes('handleInitialArgs'), false);
+
+  releaseYomitan();
+  await readyPromise;
+
+  assert.ok(calls.indexOf('loadYomitanExtension:done') < calls.indexOf('handleInitialArgs'));
+});
+
+test('runAppReadyRuntime starts background warmups after overlay startup', async () => {
+  const { deps, calls } = makeDeps();
 
   await runAppReadyRuntime(deps);
 
-  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('loadSubtitlePosition'));
-  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('createMpvClient'));
+  assert.ok(calls.indexOf('loadSubtitlePosition') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('createMpvClient') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('initializeOverlayRuntime') < calls.indexOf('startBackgroundWarmups'));
+  assert.ok(calls.indexOf('startBackgroundWarmups') < calls.indexOf('handleInitialArgs'));
 });
 
 test('runAppReadyRuntime exits before service init when critical anki mappings are invalid', async () => {

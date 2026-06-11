@@ -1,3 +1,5 @@
+import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
+
 export type ConsumeAnilistSetupTokenDeps = {
   consumeAnilistSetupCallbackUrl: (input: {
     rawUrl: string;
@@ -30,12 +32,35 @@ export function createConsumeAnilistSetupTokenFromUrlHandler(deps: ConsumeAnilis
 }
 
 export function createNotifyAnilistSetupHandler(deps: {
+  getNotificationType?: () => NotificationType | undefined;
   hasMpvClient: () => boolean;
   showMpvOsd: (message: string) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   showDesktopNotification: (title: string, options: { body: string }) => void;
   logInfo: (message: string) => void;
 }) {
   return (message: string): void => {
+    const type = deps.getNotificationType?.();
+    if (type) {
+      if (type === 'none') {
+        return;
+      }
+      if (type === 'overlay' || type === 'both') {
+        deps.showOverlayNotification?.({
+          title: 'SubMiner AniList',
+          body: message,
+          variant: 'success',
+        });
+      }
+      if ((type === 'osd' || type === 'osd-system') && deps.hasMpvClient()) {
+        deps.showMpvOsd(message);
+      }
+      if (type === 'system' || type === 'both' || type === 'osd-system') {
+        deps.showDesktopNotification('SubMiner AniList', { body: message });
+      }
+      return;
+    }
+
     if (deps.hasMpvClient()) {
       deps.showMpvOsd(message);
       return;

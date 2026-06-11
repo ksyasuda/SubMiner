@@ -325,6 +325,7 @@ test('readConfiguredWindowsMpvLaunch includes defaults for runtime plugin script
       autoStart: DEFAULT_CONFIG.mpv.autoStartSubMiner,
       autoStartVisibleOverlay: DEFAULT_CONFIG.auto_start_overlay,
       autoStartPauseUntilReady: DEFAULT_CONFIG.mpv.pauseUntilOverlayReady,
+      osdMessages: false,
       texthookerEnabled: DEFAULT_CONFIG.texthooker.launchAtStartup,
     });
   } finally {
@@ -377,6 +378,7 @@ test('readConfiguredWindowsMpvLaunch preserves configured runtime plugin script 
       autoStart: false,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
+      osdMessages: false,
       texthookerEnabled: true,
     });
   } finally {

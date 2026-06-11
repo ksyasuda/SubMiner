@@ -41,6 +41,11 @@ import type {
   RuntimeOptionState,
   RuntimeOptionValue,
 } from './runtime-options';
+import type {
+  OverlayNotificationAction,
+  OverlayNotificationEventPayload,
+  OverlayNotificationPosition,
+} from './notification';
 
 export interface WindowGeometry {
   x: number;
@@ -405,6 +410,13 @@ export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'modal' | null;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onOverlayPointerRecoveryRequested: (callback: () => void) => void;
+  onOverlayNotification: (callback: (payload: OverlayNotificationEventPayload) => void) => void;
+  sendOverlayNotificationAction?: (
+    notificationId: string,
+    actionId: string,
+    options?: Pick<OverlayNotificationAction, 'noteId'>,
+  ) => void;
+  onNotificationHistoryToggle: (callback: () => void) => void;
   onVisibility: (callback: (visible: boolean) => void) => void;
   onSubtitlePosition: (callback: (position: SubtitlePosition | null) => void) => void;
   getOverlayVisibility: () => Promise<boolean>;
@@ -433,6 +445,7 @@ export interface ElectronAPI {
   ) => Promise<void>;
   getStatsToggleKey: () => Promise<string>;
   getMarkWatchedKey: () => Promise<string>;
+  getOverlayNotificationPosition: () => Promise<OverlayNotificationPosition>;
   markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;

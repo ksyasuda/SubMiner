@@ -31,9 +31,10 @@ function M.load(options_lib, default_socket_path)
 		backend = "auto",
 		auto_start = false,
 		auto_start_visible_overlay = false,
+		overlay_loading_osd = false,
 		auto_start_pause_until_ready = true,
 		auto_start_pause_until_ready_owns_initial_pause = false,
-		auto_start_pause_until_ready_timeout_seconds = 15,
+		auto_start_pause_until_ready_timeout_seconds = 30,
 		osd_messages = true,
 		log_level = "info",
 	}

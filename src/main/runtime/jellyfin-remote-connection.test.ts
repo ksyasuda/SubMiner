@@ -78,6 +78,7 @@ test('createLaunchMpvIdleForJellyfinPlaybackHandler forwards runtime plugin conf
       autoStart: true,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
+      osdMessages: false,
       texthookerEnabled: false,
     }),
     getDefaultMpvLogPath: () => '/tmp/mp.log',

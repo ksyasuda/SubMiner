@@ -67,7 +67,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       overwriteImage: true,
       mediaInsertMode: 'append',
       highlightWord: true,
-      notificationType: 'osd',
+      notificationType: 'overlay',
       autoUpdateNewCards: true,
     },
     nPlusOne: {

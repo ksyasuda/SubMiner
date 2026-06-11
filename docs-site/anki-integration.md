@@ -216,10 +216,14 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
     "overwriteImage": true,         // replace existing image, or append
     "mediaInsertMode": "append",    // "append" or "prepend" to field content
     "autoUpdateNewCards": true,     // auto-update when new card detected
-    "notificationType": "osd"       // "osd", "system", "both", or "none"
+    "notificationType": "overlay"   // "overlay", "system", "both", or "none"
   }
 }
 ```
+
+`both` now means overlay + system notification. `osd` and `osd-system` are legacy config-file-only values; set `notificationType` to `"osd-system"` in `config.jsonc` if you previously used `both` and want to keep mpv OSD + system notifications. The Settings window shows `osd` or `osd-system` when already configured, but only offers `overlay`, `system`, `both`, and `none` as normal choices.
+
+When media is available, mined-card overlay and system notifications include the same current-frame thumbnail.
 
 `overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated sentence audio, while leaving the word audio field unchanged.
 
@@ -351,7 +355,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "overwriteImage": true,
       "mediaInsertMode": "append",
       "autoUpdateNewCards": true,
-      "notificationType": "osd",
+      "notificationType": "overlay",
     },
     "ai": {
       "enabled": false,

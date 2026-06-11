@@ -216,7 +216,15 @@ export function renderControl(
 
   if (field.control === 'select') {
     const select = createElement('select', 'config-input') as HTMLSelectElement;
-    for (const enumValue of field.enumValues ?? []) {
+    const enumValues = field.enumValues ?? [];
+    if (typeof value === 'string' && value.length > 0 && !enumValues.includes(value)) {
+      const option = createElement('option') as HTMLOptionElement;
+      option.value = value;
+      option.textContent = `${value} (config file only)`;
+      option.selected = true;
+      select.append(option);
+    }
+    for (const enumValue of enumValues) {
       const option = createElement('option') as HTMLOptionElement;
       option.value = enumValue;
       option.textContent = enumValue;

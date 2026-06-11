@@ -3,6 +3,7 @@ import test from 'node:test';
 import { parseArgs } from '../../cli/args';
 import {
   getStartupModeFlags,
+  shouldHandleInitialArgsBeforeDeferredOverlayWarmup,
   shouldRefreshAnilistOnConfigReload,
   shouldStartAutomaticUpdateChecks,
 } from './startup-mode-flags';
@@ -24,4 +25,15 @@ test('normal startup still allows background integrations', () => {
   assert.equal(flags.shouldSkipHeavyStartup, false);
   assert.equal(shouldRefreshAnilistOnConfigReload(null), true);
   assert.equal(shouldStartAutomaticUpdateChecks(null), true);
+});
+
+test('managed background playback handles initial args before deferred overlay warmup', () => {
+  const args = parseArgs(['--start', '--background', '--managed-playback']);
+
+  assert.equal(shouldHandleInitialArgsBeforeDeferredOverlayWarmup(args), true);
+  assert.equal(
+    shouldHandleInitialArgsBeforeDeferredOverlayWarmup(parseArgs(['--start', '--background'])),
+    false,
+  );
+  assert.equal(shouldHandleInitialArgsBeforeDeferredOverlayWarmup(null), false);
 });

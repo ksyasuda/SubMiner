@@ -16,6 +16,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
       linuxX11FullscreenOverlay?: boolean;
       onVisibleWindowBlurred?: () => void;
       onVisibleWindowFocused?: () => void;
+      onWindowDidFinishLoad?: () => void;
       onWindowContentReady?: () => void;
       onWindowClosed: (windowKind: OverlayWindowKind, window: TWindow) => void;
       yomitanSession?: Session | null;
@@ -31,6 +32,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
   getLinuxX11FullscreenOverlay?: () => boolean;
   onVisibleWindowBlurred?: () => void;
   onVisibleWindowFocused?: () => void;
+  onWindowDidFinishLoad?: () => void;
   onWindowContentReady?: () => void;
   onWindowClosed: (windowKind: OverlayWindowKind, window: TWindow) => void;
   getYomitanSession?: () => Session | null;
@@ -48,6 +50,7 @@ export function createCreateOverlayWindowHandler<TWindow>(deps: {
         kind === 'visible' ? deps.getLinuxX11FullscreenOverlay?.() : undefined,
       onVisibleWindowBlurred: deps.onVisibleWindowBlurred,
       onVisibleWindowFocused: deps.onVisibleWindowFocused,
+      onWindowDidFinishLoad: deps.onWindowDidFinishLoad,
       onWindowContentReady: deps.onWindowContentReady,
       onWindowClosed: deps.onWindowClosed,
       yomitanSession: deps.getYomitanSession?.() ?? null,

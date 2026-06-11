@@ -6,6 +6,7 @@ import {
   AnkiConnectConfig,
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
+  OverlayNotificationPayload,
   WindowGeometry,
 } from '../../types';
 
@@ -19,6 +20,7 @@ type CreateAnkiIntegrationArgs = {
   subtitleTimingTracker: unknown;
   mpvClient: { send?: (payload: { command: string[] }) => void };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -61,6 +63,8 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     args.createFieldGroupingCallback(),
     args.knownWordCacheStatePath,
     args.aiConfig,
+    undefined,
+    args.showOverlayNotification,
   );
 }
 
@@ -123,6 +127,7 @@ export function initializeOverlayRuntime(
     getAnkiIntegration?: () => unknown | null;
     setAnkiIntegration: (integration: unknown | null) => void;
     showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+    showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
     createFieldGroupingCallback: () => (
       data: KikuFieldGroupingRequestData,
     ) => Promise<KikuFieldGroupingChoice>;
@@ -156,6 +161,7 @@ export function initializeOverlayAnkiIntegration(options: {
   getAnkiIntegration?: () => unknown | null;
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
+  showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -191,6 +197,7 @@ export function initializeOverlayAnkiIntegration(options: {
     subtitleTimingTracker,
     mpvClient,
     showDesktopNotification: options.showDesktopNotification,
+    showOverlayNotification: options.showOverlayNotification,
     createFieldGroupingCallback: options.createFieldGroupingCallback,
     knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
   });

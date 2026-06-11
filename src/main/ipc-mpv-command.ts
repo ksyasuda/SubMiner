@@ -17,6 +17,7 @@ export interface MpvCommandFromIpcRuntimeDeps {
   openPlaylistBrowser: () => void | Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
+  showPlaybackFeedback?: (text: string) => void;
   replayCurrentSubtitle: () => void;
   playNextSubtitle: () => void;
   shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
@@ -41,6 +42,7 @@ export function handleMpvCommandFromIpcRuntime(
       openPlaylistBrowser: deps.openPlaylistBrowser,
       runtimeOptionsCycle: deps.cycleRuntimeOption,
       showMpvOsd: deps.showMpvOsd,
+      showPlaybackFeedback: deps.showPlaybackFeedback,
       mpvReplaySubtitle: deps.replayCurrentSubtitle,
       mpvPlayNextSubtitle: deps.playNextSubtitle,
       shiftSubDelayToAdjacentSubtitle: (direction) =>

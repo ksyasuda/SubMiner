@@ -132,6 +132,7 @@ SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle 
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
+SubMiner.AppImage --playback-feedback "your feedback"   # Route playback feedback through the configured feedback surface
 SubMiner.AppImage --yomitan               # Open Yomitan settings
 SubMiner.AppImage --settings              # Open SubMiner settings window
 SubMiner.AppImage --jellyfin              # Open Jellyfin setup window
@@ -163,6 +164,7 @@ Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for sta
   Launcher pass-through commands also support `--password-store=<backend>` and forward it to the app when present.
   Override with e.g. `--password-store=basic_text`.
 - Use both when needed, for example `SubMiner.AppImage --start --dev --log-level debug` (or `SubMiner.exe --start --dev --log-level debug` on Windows).
+- `--playback-feedback <text>` (also `--playback-feedback=<text>`) sends a non-empty text string through the playback-feedback route used for recording/playback prompts. For example: `SubMiner.AppImage --playback-feedback "your feedback"`.
 
 ### Windows mpv Shortcut
 

@@ -210,6 +210,7 @@ test('buildWindowsMpvLaunchArgs uses runtime plugin config script opts', () => {
       autoStart: true,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: false,
+      osdMessages: false,
       texthookerEnabled: false,
     },
   );
@@ -238,6 +239,7 @@ test('buildWindowsMpvLaunchArgs keeps Windows ipc default unless explicitly over
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
   );
@@ -286,6 +288,7 @@ test('launchWindowsMpv attaches a launched video to a running app and disables p
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: true,
     },
   );
@@ -348,6 +351,7 @@ test('launchWindowsMpv leaves plugin auto-start enabled when no running app cont
       autoStart: true,
       autoStartVisibleOverlay: true,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
   );
@@ -436,6 +440,7 @@ test('launchWindowsMpv forwards runtime logging config to mpv and plugin', async
       autoStart: true,
       autoStartVisibleOverlay: false,
       autoStartPauseUntilReady: true,
+      osdMessages: false,
       texthookerEnabled: false,
     },
   );

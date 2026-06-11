@@ -1,6 +1,11 @@
 import { DEFAULT_CONFIG } from '../definitions';
 import type { ResolveContext } from './context';
+import { isNotificationType, type NotificationType } from '../../types/notification';
 import { asBoolean, asColor, asNumber, asString, isObject } from './shared';
+
+function asNotificationType(value: unknown): NotificationType | undefined {
+  return isNotificationType(value) ? value : undefined;
+}
 
 export function applyAnkiConnectResolution(context: ResolveContext): void {
   if (!isObject(context.src.ankiConnect)) {
@@ -42,6 +47,8 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     'notificationType',
     'autoUpdateNewCards',
   ]);
+  const hasOwn = (obj: Record<string, unknown>, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(obj, key);
 
   const {
     knownWords: _knownWordsConfigFromAnkiConnect,
@@ -98,6 +105,22 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
         : {}),
     },
   };
+
+  if (hasOwn(behavior, 'notificationType')) {
+    const parsed = asNotificationType(behavior.notificationType);
+    if (parsed === undefined) {
+      context.resolved.ankiConnect.behavior.notificationType =
+        DEFAULT_CONFIG.ankiConnect.behavior.notificationType;
+      context.warn(
+        'ankiConnect.behavior.notificationType',
+        behavior.notificationType,
+        context.resolved.ankiConnect.behavior.notificationType,
+        "Expected 'overlay', 'system', 'both', 'none', 'osd', or 'osd-system'.",
+      );
+    } else {
+      context.resolved.ankiConnect.behavior.notificationType = parsed;
+    }
+  }
 
   if (isObject(ac.isLapis)) {
     const lapisEnabled = asBoolean(ac.isLapis.enabled);
@@ -289,8 +312,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   }
 
   const legacy = ac as Record<string, unknown>;
-  const hasOwn = (obj: Record<string, unknown>, key: string): boolean =>
-    Object.prototype.hasOwnProperty.call(obj, key);
   const asIntegerInRange = (value: unknown, min: number, max: number): number | undefined => {
     const parsed = asNumber(value);
     if (parsed === undefined || !Number.isInteger(parsed) || parsed < min || parsed > max) {
@@ -327,11 +348,6 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   };
   const asMediaInsertMode = (value: unknown): 'append' | 'prepend' | undefined => {
     return value === 'append' || value === 'prepend' ? value : undefined;
-  };
-  const asNotificationType = (value: unknown): 'osd' | 'system' | 'both' | 'none' | undefined => {
-    return value === 'osd' || value === 'system' || value === 'both' || value === 'none'
-      ? value
-      : undefined;
   };
   const mapLegacy = <T>(
     key: string,
@@ -633,7 +649,7 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
         context.resolved.ankiConnect.behavior.notificationType = value;
       },
       context.resolved.ankiConnect.behavior.notificationType,
-      "Expected 'osd', 'system', 'both', or 'none'.",
+      "Expected 'overlay', 'system', 'both', 'none', 'osd', or 'osd-system'.",
     );
   }
   if (!hasOwn(behavior, 'autoUpdateNewCards')) {
