@@ -18,6 +18,7 @@ breaking: true
 - Added Open in Anki buttons to mined-card overlay notifications and their history entries, with a direct AnkiConnect fallback when the live integration is unavailable.
 - Fixed those Open in Anki buttons so their fallback honors runtime AnkiConnect URL overrides and the default AnkiConnect endpoint.
 - Added an Update button to overlay update-available notifications so users can start the app update flow from the notification.
+- Changed the new-user default for update notifications to `both`, so update alerts appear in both the overlay and system notifications unless configured otherwise.
 - Fixed sentence-card mining so the Ctrl+S flow shows only the Anki update progress notification instead of also stacking a generic SubMiner toast.
 - Fixed overlay notification layering so notification close/actions stay clickable above subtitle bars on Linux overlays.
 - Fixed character dictionary sync so duplicate MPV media-path events do not repeat check/ready notifications for the same opened video.

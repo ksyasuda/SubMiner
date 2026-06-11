@@ -172,7 +172,7 @@
   "updates": {
     "enabled": true, // Run automatic update checks in the background. Values: true | false
     "checkIntervalHours": 24, // Minimum hours between automatic update checks.
-    "notificationType": "system", // How SubMiner announces available updates. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values. Values: overlay | system | both | none | osd | osd-system
+    "notificationType": "both", // How SubMiner announces available updates. overlay shows notifications on the overlay, system uses OS notifications, both uses overlay and system. osd and osd-system are legacy config-file-only values. Values: overlay | system | both | none | osd | osd-system
     "channel": "stable" // Release channel used for update checks. Values: stable | prerelease
   }, // Automatic update check behavior.
 

@@ -153,7 +153,7 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.stats.autoOpenBrowser, false);
   assert.equal(config.updates.enabled, true);
   assert.equal(config.updates.checkIntervalHours, 24);
-  assert.equal(config.updates.notificationType, 'system');
+  assert.equal(config.updates.notificationType, 'both');
   assert.equal(config.updates.channel, 'stable');
   assert.equal(config.mpv.socketPath, DEFAULT_CONFIG.mpv.socketPath);
   assert.equal(config.mpv.backend, 'auto');
@@ -2814,7 +2814,7 @@ test('template generator includes known keys', () => {
   );
   assert.match(
     output,
-    /"notificationType": "system",? \/\/ How SubMiner announces available updates\..*Values: overlay \| system \| both \| none \| osd \| osd-system/,
+    /"notificationType": "both",? \/\/ How SubMiner announces available updates\..*Values: overlay \| system \| both \| none \| osd \| osd-system/,
   );
   assert.match(
     output,
