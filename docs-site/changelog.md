@@ -1,6 +1,59 @@
 # Changelog
 
-## v0.15.2 (2026-06-02)
+## v0.16.0 (2026-06-10)
+
+**Breaking Changes**
+
+- **Notification Mode `both`**: `notificationType: "both"` now routes to overlay + system notifications. Users who previously used `"both"` for mpv OSD + system notifications should set `notificationType` to `"osd-system"` in `config.jsonc`. The `osd` and `osd-system` values remain valid as config-file entries but no longer appear in Settings.
+
+**Added**
+
+- **Overlay Notifications**: New overlay notification stack (Catppuccin Macchiato theme) with configurable screen position (`notifications.overlayPosition`: top-left, top-center, top-right), 3-second transient dismissals, and persistent cards for long-running jobs like character dictionary sync.
+- **Notification History Panel**: `Ctrl/Cmd+N` (configurable via `shortcuts.toggleNotificationHistory`) opens a session log of all notifications. Works whether the overlay or mpv has focus; slides in from the notification edge; entries can be individually removed or cleared.
+- **Mined-Card Notification Actions**: Mined-card overlay notifications show generated card thumbnails and include an Open in Anki button in both live cards and history entries.
+- **Update Notification Action**: Update-available overlay notifications include an Update button to start the app update flow directly from the notification.
+- **Stats Search**: New Search tab in Stats for realtime subtitle sentence search with media context, headword matching, and mining actions for source-backed sentence cards or exact-match word/audio cards.
+
+**Changed**
+
+- **AniSkip**: Moved intro detection from the mpv plugin to the SubMiner app. Lookups now cover every file loaded during a session including playlist advances, and `mpv.aniskipEnabled`/`mpv.aniskipButtonKey` hot-reload without restarting playback. The bundled plugin no longer makes network calls. Note: AniSkip now requires the SubMiner app to be connected; plugin-only mpv sessions will not fetch skip windows.
+- **Stats Library**: Entries are now split by detected season (season folder first, filename parsing as fallback). Existing combined-series rows are automatically migrated to per-season entries on startup. Cover art and anime details refresh immediately after a manual AniList entry change.
+- **Stats Vocabulary**: Remembers Hide Known/Hide Kana filters across sessions, applies Hide Kana filtering cross-title, collapses duplicate token variants in exclusions, and matches Related Seen Words by shared readings or kanji.
+- **Stats Trends**: Reorganized into Activity, Cumulative Totals, Efficiency, Patterns, and Library sections; disambiguated per-period vs. cumulative charts; added Words/Min and Cards/Hour efficiency charts.
+- **Stats Mining**: Sentence cards are created before slow media generation finishes; stored/requested secondary subtitles are preserved before falling back to sidecar or alass-retimed English subtitles; empty `ankiConnect.deck` falls back to Yomitan's mining deck; partial media failures are surfaced.
+- **Stats Browsing**: Remembers library card size; retries stored cover art without extra AniList lookups; preserves PNG/WebP MIME types; honors custom AnkiConnect URLs for Browse; shows progress during session deletes.
+- **Startup Notifications**: Tokenization, subtitle annotation, and character dictionary status now route through queued overlay notifications in `overlay`/`both` mode instead of falling back to mpv OSD while the overlay loads.
+- **Notification Deduplication**: Cycling subtitle modes updates the active overlay card in place rather than stacking duplicates; repeated progress updates (e.g. subsync) tick in place without flickering.
+- **Update Notification Default**: New installs default `notificationType` to `both` so update alerts appear in both overlay and system notifications.
+
+**Fixed**
+
+- **AniList Completion**: Entries are now marked completed when a post-watch update reaches the final known episode of the season.
+- **AniSkip Markers**: Fixed intro markers disappearing after same-media mpv reloads; fixed metadata detection for intros that start at 0 seconds and common release-group filenames.
+- **Jellyfin Session**: Remote session now restarts after setup login so the websocket reconnects with fresh credentials, and stops cleanly on logout.
+- **Sentence Card Audio**: Mining a sentence card no longer fills the expression audio field; generated audio goes only to the configured sentence audio field.
+- **Stats Mining Fields**: Sentence clips update `SentenceAudio` correctly; word audio uses configured Yomitan sources; English subtitle text is not written to word cards; secondary subtitle auto-selection prefers regular English tracks over Signs/Songs tracks.
+- **Overlay Hover Readiness**: Subtitle bars are hoverable and clickable from the first subtitle line on visible overlay startup or resume, without waiting for the next subtitle event.
+- **Startup Autoplay**: Playback is released after tokenization and overlay content are ready even when playback begins before the first subtitle line appears.
+- **Overlay Startup Feedback**: Restored mpv OSD loading spinner that starts on connect, media open, or overlay request, and clears once the overlay is content-ready and visible.
+- **Linux Overlay Input**: Notification close and action buttons remain clickable above subtitle bars on Linux.
+
+<details>
+<summary>Internal changes</summary>
+
+**Internal**
+- **Build**: `make deps` now initializes git submodules before installing dependencies on a fresh source checkout.
+- **Release Tooling**: Release notes now credit contributors and first-time authors resolved from changelog fragments via git and the GitHub API.
+- **Changelog Guidance**: PR fragment guidance updated to preserve separate-outcome fragments while directing contributors to consolidate same-PR follow-up notes before adding churn.
+
+</details>
+
+## Previous Versions
+
+<details>
+<summary>v0.15.x</summary>
+
+<h2>v0.15.2 (2026-06-02)</h2>
 
 **Changed**
 - Yomitan: Updated the bundled Yomitan build to the latest vendored revision.
@@ -11,7 +64,7 @@
 - Overlay (macOS): Subtitle bars are now interactive immediately after autoplay starts with "wait for overlay to be ready" enabled, without requiring a manual click.
 - Overlay (macOS): Fixed overlay, subtitles, and subtitle sidebar staying hidden after a modal closes until the user clicked the mpv window; focus is now restored to mpv when the last modal closes, so playback shortcuts and the overlay reappear correctly - including in native fullscreen.
 
-## v0.15.1 (2026-05-31)
+<h2>v0.15.1 (2026-05-31)</h2>
 
 **Fixed**
 
@@ -27,7 +80,7 @@
 
 - **Troubleshooting**: Updated Hyprland overlay docs with current Lua (`hl.window_rule`) and legacy config syntax; added troubleshooting for KDE/Wayland and other non-Hyprland/Sway Wayland sessions; added a Character Dictionary troubleshooting section; added a "See Also" index linking each feature's troubleshooting page.
 
-## v0.15.0 (2026-05-29)
+<h2>v0.15.0 (2026-05-29)</h2>
 
 **Breaking Changes**
 
@@ -179,7 +232,7 @@
 
 </details>
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.14.x</summary>

@@ -845,10 +845,22 @@ test('getTrendsDashboard redacts legacy Jellyfin stream titles', () => {
     ];
 
     assert.deepEqual([...new Set(titles)], ['Jellyfin Video']);
-    assert.equal(titles.some((title) => title.includes('api_key=')), false);
-    assert.equal(titles.some((title) => title.includes('api key')), false);
-    assert.equal(titles.some((title) => title.includes('secret-token')), false);
-    assert.equal(titles.some((title) => title.includes('stream?')), false);
+    assert.equal(
+      titles.some((title) => title.includes('api_key=')),
+      false,
+    );
+    assert.equal(
+      titles.some((title) => title.includes('api key')),
+      false,
+    );
+    assert.equal(
+      titles.some((title) => title.includes('secret-token')),
+      false,
+    );
+    assert.equal(
+      titles.some((title) => title.includes('stream?')),
+      false,
+    );
   } finally {
     db.close();
     cleanupDbPath(dbPath);

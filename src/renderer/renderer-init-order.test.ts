@@ -93,7 +93,9 @@ test('renderer restores subtitle sidebar open state only on visible overlay laye
   const sidebarRestoreIndex = indexOfRequired(
     "ctx.platform.overlayLayer === 'visible' && (await window.electronAPI.getSubtitleSidebarOpen())",
   );
-  const sidebarModalIndex = indexOfRequired('const subtitleSidebarModal = createSubtitleSidebarModal');
+  const sidebarModalIndex = indexOfRequired(
+    'const subtitleSidebarModal = createSubtitleSidebarModal',
+  );
 
   assert.ok(sidebarModalIndex < sidebarRestoreIndex);
 });

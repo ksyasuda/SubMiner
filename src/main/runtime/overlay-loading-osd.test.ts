@@ -37,7 +37,11 @@ test('overlay loading OSD shows spinner ticks and clears when stopped', () => {
   controller.stop();
   controller.stop();
 
-  assert.deepEqual(messages, ['Overlay loading |', 'Overlay loading /', 'Overlay loading -', 'clear']);
+  assert.deepEqual(messages, [
+    'Overlay loading |',
+    'Overlay loading /',
+    'Overlay loading -',
+    'clear',
+  ]);
   assert.deepEqual(clearedTimers, ['timer']);
 });
-

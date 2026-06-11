@@ -106,7 +106,9 @@ test('handleMpvCommandFromIpc emits resolved feedback for secondary subtitle tra
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['set_property', 'secondary-sid', 'auto']]);
   assert.deepEqual(osd, []);
-  assert.deepEqual(playbackFeedback, ['Secondary subtitle track: External #8 - English Commentary']);
+  assert.deepEqual(playbackFeedback, [
+    'Secondary subtitle track: External #8 - English Commentary',
+  ]);
 });
 
 test('handleMpvCommandFromIpc emits feedback for subtitle delay keybinding proxies', async () => {
