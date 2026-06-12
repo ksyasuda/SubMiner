@@ -5200,26 +5200,6 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
-const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
-  getMpvClient: () => appState.mpvClient,
-  loadSubtitleSourceText,
-  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-  onSubtitleDelayShifted: (delaySeconds) => {
-    const key = activeJellyfinSubtitleDelayKey;
-    if (!key) return;
-    const saved = saveJellyfinSubtitleDelay({
-      filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-      itemId: key.itemId,
-      streamIndex: key.streamIndex,
-      delaySeconds,
-    });
-    if (!saved) {
-      logger.warn('Failed to save Jellyfin subtitle delay.');
-    }
-  },
-  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
-});
-
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
     toggleStatsOverlay: () =>
