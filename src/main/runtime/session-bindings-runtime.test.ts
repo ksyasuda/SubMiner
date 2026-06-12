@@ -35,3 +35,38 @@ test('persistSessionBindings logs and does not publish bindings when artifact wr
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('persistSessionBindings keeps saved bindings when mpv reload notification fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-session-bindings-runtime-'));
+  const calls: string[] = [];
+  const runtime = createSessionBindingsRuntime({
+    configDir: root,
+    getKeybindings: () => [],
+    getConfiguredShortcuts: () => ({ multiCopyTimeoutMs: 1500 }) as never,
+    getResolvedConfig: () =>
+      ({
+        stats: { toggleKey: 's', markWatchedKey: 'w' },
+      }) as ResolvedConfig,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        send: () => {
+          throw new Error('mpv unavailable');
+        },
+      }) as never,
+    setSessionBindings: () => calls.push('setSessionBindings'),
+    setSessionBindingsInitialized: () => calls.push('setSessionBindingsInitialized'),
+    logWarn: (message) => calls.push(`warn:${message}`),
+  });
+
+  try {
+    assert.doesNotThrow(() => runtime.persistSessionBindings([] as CompiledSessionBinding[]));
+    assert.deepEqual(calls, [
+      'setSessionBindings',
+      'setSessionBindingsInitialized',
+      'warn:[session-bindings] Failed to notify mpv to reload session bindings',
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

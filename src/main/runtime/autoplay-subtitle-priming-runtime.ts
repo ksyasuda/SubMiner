@@ -253,7 +253,13 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     clearScheduledSubtitlePrefetchRefresh();
     subtitlePrefetchRefreshTimer = setTimeout(() => {
       subtitlePrefetchRefreshTimer = null;
-      void deps.refreshSubtitlePrefetchFromActiveTrack();
+      void deps.refreshSubtitlePrefetchFromActiveTrack().catch((error) => {
+        deps.logDebug(
+          `[autoplay-subtitle-prime] subtitle prefetch refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
     }, delayMs);
   }
 

@@ -9,10 +9,11 @@ import { createLogger } from '../../logger';
 import type { ResolvedConfig } from '../../types/config';
 import type { AppState } from '../state';
 import {
-  isBackgroundStatsServerProcessAlive,
-  readBackgroundStatsServerState,
-  removeBackgroundStatsServerState,
+  isBackgroundStatsServerProcessAlive as defaultIsBackgroundStatsServerProcessAlive,
+  readBackgroundStatsServerState as defaultReadBackgroundStatsServerState,
+  removeBackgroundStatsServerState as defaultRemoveBackgroundStatsServerState,
   resolveBackgroundStatsServerUrl,
+  verifyBackgroundStatsServerIdentity as defaultVerifyBackgroundStatsServerIdentity,
   writeBackgroundStatsServerState,
 } from './stats-daemon';
 import { createEnsureStatsServerUrlHandler } from './stats-server-routing';
@@ -56,6 +57,11 @@ export interface StatsServerRuntimeDeps {
   resolveSentenceSearchHeadwords: (term: string) => Promise<string[]>;
   ensureImmersionTrackerStarted: () => void;
   setStatsStartupInProgress: (inProgress: boolean) => void;
+  readBackgroundStatsServerState?: typeof defaultReadBackgroundStatsServerState;
+  removeBackgroundStatsServerState?: typeof defaultRemoveBackgroundStatsServerState;
+  isBackgroundStatsServerProcessAlive?: typeof defaultIsBackgroundStatsServerProcessAlive;
+  verifyBackgroundStatsServerIdentity?: typeof defaultVerifyBackgroundStatsServerIdentity;
+  killProcess?: (pid: number, signal: NodeJS.Signals) => void;
 }
 
 export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
@@ -69,32 +75,46 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
 } {
   let statsServer: ReturnType<typeof startStatsServer> | null = null;
   const statsDaemonStatePath = path.join(deps.userDataPath, 'stats-daemon.json');
+  const readDaemonState =
+    deps.readBackgroundStatsServerState ??
+    ((statePath: string) => defaultReadBackgroundStatsServerState(statePath));
+  const removeDaemonState =
+    deps.removeBackgroundStatsServerState ??
+    ((statePath: string) => defaultRemoveBackgroundStatsServerState(statePath));
+  const isDaemonAlive =
+    deps.isBackgroundStatsServerProcessAlive ??
+    ((pid: number) => defaultIsBackgroundStatsServerProcessAlive(pid));
+  const verifyDaemonIdentity =
+    deps.verifyBackgroundStatsServerIdentity ??
+    ((pid: number, startedAtMs: number) =>
+      defaultVerifyBackgroundStatsServerIdentity(pid, startedAtMs));
+  const killProcess = deps.killProcess ?? ((pid, signal) => process.kill(pid, signal));
 
   function readLiveBackgroundStatsDaemonState(): {
     pid: number;
     port: number;
     startedAtMs: number;
   } | null {
-    const state = readBackgroundStatsServerState(statsDaemonStatePath);
+    const state = readDaemonState(statsDaemonStatePath);
     if (!state) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
       return null;
     }
     if (state.pid === process.pid && !statsServer) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
       return null;
     }
-    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+    if (!isDaemonAlive(state.pid)) {
+      removeDaemonState(statsDaemonStatePath);
       return null;
     }
     return state;
   }
 
   function clearOwnedBackgroundStatsDaemonState(): void {
-    const state = readBackgroundStatsServerState(statsDaemonStatePath);
+    const state = readDaemonState(statsDaemonStatePath);
     if (state?.pid === process.pid) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
     }
   }
 
@@ -168,11 +188,11 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
 
   const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
     currentPid: process.pid,
-    readBackgroundState: () => readBackgroundStatsServerState(statsDaemonStatePath),
+    readBackgroundState: () => readDaemonState(statsDaemonStatePath),
     removeBackgroundState: () => {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
     },
-    isProcessAlive: (pid) => isBackgroundStatsServerProcessAlive(pid),
+    isProcessAlive: (pid) => isDaemonAlive(pid),
     hasLocalStatsServer: () => statsServer !== null,
     startLocalStatsServer,
     getConfiguredPort: () => deps.getResolvedConfig().stats.serverPort,
@@ -210,25 +230,29 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
   };
 
   const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
-    const state = readBackgroundStatsServerState(statsDaemonStatePath);
+    const state = readDaemonState(statsDaemonStatePath);
     if (!state) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
       return { ok: true, stale: true };
     }
     if (isSelfOwnedBackgroundStatsDaemonState(state)) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+      removeDaemonState(statsDaemonStatePath);
       return { ok: true, stale: true };
     }
-    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
+    if (!isDaemonAlive(state.pid)) {
+      removeDaemonState(statsDaemonStatePath);
+      return { ok: true, stale: true };
+    }
+    if (!verifyDaemonIdentity(state.pid, state.startedAtMs)) {
+      removeDaemonState(statsDaemonStatePath);
       return { ok: true, stale: true };
     }
 
     try {
-      process.kill(state.pid, 'SIGTERM');
+      killProcess(state.pid, 'SIGTERM');
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') {
-        removeBackgroundStatsServerState(statsDaemonStatePath);
+        removeDaemonState(statsDaemonStatePath);
         return { ok: true, stale: true };
       }
       if ((error as NodeJS.ErrnoException)?.code === 'EPERM') {
@@ -241,8 +265,8 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
 
     const deadline = Date.now() + 2_000;
     while (Date.now() < deadline) {
-      if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-        removeBackgroundStatsServerState(statsDaemonStatePath);
+      if (!isDaemonAlive(state.pid)) {
+        removeDaemonState(statsDaemonStatePath);
         return { ok: true, stale: false };
       }
       await new Promise((resolve) => setTimeout(resolve, 50));

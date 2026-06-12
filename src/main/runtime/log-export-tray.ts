@@ -1,5 +1,6 @@
 import { app, dialog, shell } from 'electron';
 import * as os from 'os';
+import { showLogExportErrorDialog, showLogExportSuccessDialog } from './log-export-dialogs';
 import { exportLogsArchive } from './log-export';
 
 export interface LogExportTrayRuntimeDeps {
@@ -31,29 +32,19 @@ export function createLogExportTrayRuntime(deps: LogExportTrayRuntimeDeps): {
       deps.logInfo(
         `Exported ${result.exportedFiles.length} sanitized log file(s) to ${result.zipPath}`,
       );
-      void dialog
-        .showMessageBox({
-          type: 'info',
-          title: 'SubMiner logs exported',
-          message: 'SubMiner log export created.',
-          detail: result.zipPath,
-          buttons: ['OK', 'Show in Folder'],
-          defaultId: 0,
-          cancelId: 0,
-        })
-        .then((response) => {
-          if (response.response === 1) {
-            shell.showItemInFolder(result.zipPath);
-          }
-        });
+      await showLogExportSuccessDialog({
+        zipPath: result.zipPath,
+        showMessageBox: (options) => dialog.showMessageBox(options),
+        showItemInFolder: (zipPath) => shell.showItemInFolder(zipPath),
+        logWarn: deps.logWarn,
+      });
     } catch (error) {
       const message = describeUnknownError(error);
       deps.logWarn('Failed to export logs from tray.', error);
-      void dialog.showMessageBox({
-        type: 'error',
-        title: 'SubMiner log export failed',
-        message: 'Could not export SubMiner logs.',
-        detail: message,
+      await showLogExportErrorDialog({
+        message,
+        showMessageBox: (options) => dialog.showMessageBox(options),
+        logWarn: deps.logWarn,
       });
     }
   }

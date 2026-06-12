@@ -11,8 +11,9 @@ export function getPasswordStoreArg(argv: string[]): string | null {
 
     if (arg === PASSWORD_STORE_ARG) {
       const value = argv[i + 1];
-      if (value && !value.startsWith('--')) {
-        resolved = value.trim();
+      const trimmed = value?.trim();
+      if (trimmed && !trimmed.startsWith('--')) {
+        resolved = trimmed;
         i += 1;
       }
       continue;

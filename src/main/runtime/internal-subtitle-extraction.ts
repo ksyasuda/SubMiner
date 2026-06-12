@@ -35,13 +35,15 @@ export type MpvSubtitleTrackLike = {
   'external-filename'?: unknown;
 };
 
+const DEFAULT_EXTRACTION_TIMEOUT_MS = 30_000;
+
 export function parseTrackId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
     return value;
   }
   if (typeof value === 'string') {
     const parsed = Number(value.trim());
-    return Number.isInteger(parsed) ? parsed : null;
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
   }
   return null;
 }
@@ -77,6 +79,7 @@ export async function extractInternalSubtitleTrackToTempFile(
   ffmpegPath: string,
   videoPath: string,
   track: MpvSubtitleTrackLike,
+  options: { extractionTimeoutMs?: number } = {},
 ): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
   const ffIndex = parseTrackId(track['ff-index']);
   const codec = typeof track.codec === 'string' ? track.codec : null;
@@ -90,23 +93,43 @@ export async function extractInternalSubtitleTrackToTempFile(
 
   try {
     await new Promise<void>((resolve, reject) => {
+      let settled = false;
       const child = spawn(
         ffmpegPath,
         buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
       );
+      const extractionTimeoutMs = options.extractionTimeoutMs ?? DEFAULT_EXTRACTION_TIMEOUT_MS;
+      const timeoutId = setTimeout(() => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        child.kill('SIGKILL');
+        reject(new Error(`ffmpeg extraction timed out after ${extractionTimeoutMs}ms`));
+      }, extractionTimeoutMs);
+      const settle = (callback: () => void): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        callback();
+      };
       let stderr = '';
       child.stderr.on('data', (chunk: Buffer) => {
         stderr += chunk.toString();
       });
       child.on('error', (error) => {
-        reject(error);
+        settle(() => reject(error));
       });
       child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
+        settle(() => {
+          if (code === 0) {
+            resolve();
+            return;
+          }
+          reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
+        });
       });
     });
   } catch (error) {

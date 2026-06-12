@@ -15,7 +15,7 @@ export interface SessionBindingsRuntimeDeps {
   getMpvClient: () => MpvRuntimeClientLike | null;
   setSessionBindings: (bindings: CompiledSessionBinding[]) => void;
   setSessionBindingsInitialized: (initialized: boolean) => void;
-  logWarn: (message: string) => void;
+  logWarn: (message: string, details?: unknown) => void;
 }
 
 export function createSessionBindingsRuntime(deps: SessionBindingsRuntimeDeps): {
@@ -64,7 +64,11 @@ export function createSessionBindingsRuntime(deps: SessionBindingsRuntimeDeps): 
     deps.setSessionBindingsInitialized(true);
     const mpvClient = deps.getMpvClient();
     if (mpvClient?.connected) {
-      sendMpvCommandRuntime(mpvClient, ['script-message', 'subminer-reload-session-bindings']);
+      try {
+        sendMpvCommandRuntime(mpvClient, ['script-message', 'subminer-reload-session-bindings']);
+      } catch (error) {
+        deps.logWarn('[session-bindings] Failed to notify mpv to reload session bindings', error);
+      }
     }
   }
 

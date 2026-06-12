@@ -123,6 +123,10 @@ test('stats daemon control stops live daemon and treats stale state as success',
       calls.push(`isProcessAlive:${pid}:${aliveChecks}`);
       return aliveChecks === 1;
     },
+    verifyProcessIdentity: (pid, startedAtMs) => {
+      calls.push(`verifyProcessIdentity:${pid}:${startedAtMs}`);
+      return true;
+    },
     resolveUrl: (state) => `http://127.0.0.1:${state.port}`,
     spawnDaemon: async () => 1,
     waitForDaemonResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
@@ -147,6 +151,7 @@ test('stats daemon control stops live daemon and treats stale state as success',
   assert.equal(exitCode, 0);
   assert.deepEqual(calls, [
     'isProcessAlive:4242:1',
+    'verifyProcessIdentity:4242:1',
     'killProcess:4242:SIGTERM',
     'isProcessAlive:4242:2',
     'removeState',
@@ -157,4 +162,48 @@ test('stats daemon control stops live daemon and treats stale state as success',
       payload: { ok: true },
     },
   ]);
+});
+
+test('stats daemon control clears stale state when daemon identity mismatches', async () => {
+  const calls: string[] = [];
+  const responses: Array<{ path: string; payload: { ok: boolean; url?: string; error?: string } }> =
+    [];
+  const handler = createRunStatsDaemonControlHandler({
+    statePath: '/tmp/stats-daemon.json',
+    readState: () => ({ pid: 4242, port: 5175, startedAtMs: 1 }),
+    removeState: () => {
+      calls.push('removeState');
+    },
+    isProcessAlive: (pid) => {
+      calls.push(`isProcessAlive:${pid}`);
+      return true;
+    },
+    verifyProcessIdentity: (pid, startedAtMs) => {
+      calls.push(`verifyProcessIdentity:${pid}:${startedAtMs}`);
+      return false;
+    },
+    resolveUrl: (state) => `http://127.0.0.1:${state.port}`,
+    spawnDaemon: async () => 1,
+    waitForDaemonResponse: async () => ({ ok: true, url: 'http://127.0.0.1:5175' }),
+    openExternal: async () => {},
+    writeResponse: (responsePath, payload) => {
+      responses.push({ path: responsePath, payload });
+    },
+    killProcess: () => {
+      calls.push('killProcess');
+    },
+    sleep: async () => {},
+  });
+
+  const exitCode = await handler({
+    action: 'stop',
+    responsePath: '/tmp/response.json',
+    openBrowser: false,
+    daemonScriptPath: '/tmp/stats-daemon-runner.js',
+    userDataPath: '/tmp/SubMiner',
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(calls, ['isProcessAlive:4242', 'verifyProcessIdentity:4242:1', 'removeState']);
+  assert.deepEqual(responses, [{ path: '/tmp/response.json', payload: { ok: true } }]);
 });

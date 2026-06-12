@@ -1,4 +1,5 @@
 import type { BackgroundStatsServerState } from './main/runtime/stats-daemon';
+import { verifyBackgroundStatsServerIdentity } from './main/runtime/stats-daemon';
 import type { StatsCliCommandResponse } from './main/runtime/stats-cli-command';
 
 export type StatsDaemonControlAction = 'start' | 'stop';
@@ -22,6 +23,7 @@ export function createRunStatsDaemonControlHandler(deps: {
   readState: () => BackgroundStatsServerState | null;
   removeState: () => void;
   isProcessAlive: (pid: number) => boolean;
+  verifyProcessIdentity?: (pid: number, startedAtMs: number) => boolean;
   resolveUrl: (state: Pick<BackgroundStatsServerState, 'port'>) => string;
   spawnDaemon: (options: SpawnStatsDaemonOptions) => Promise<number> | number;
   waitForDaemonResponse: (responsePath: string) => Promise<StatsCliCommandResponse>;
@@ -77,6 +79,12 @@ export function createRunStatsDaemonControlHandler(deps: {
     }
 
     if (!deps.isProcessAlive(state.pid)) {
+      deps.removeState();
+      writeResponseSafe(args.responsePath, { ok: true });
+      return 0;
+    }
+    const verifyProcessIdentity = deps.verifyProcessIdentity ?? verifyBackgroundStatsServerIdentity;
+    if (!verifyProcessIdentity(state.pid, state.startedAtMs)) {
       deps.removeState();
       writeResponseSafe(args.responsePath, { ok: true });
       return 0;
