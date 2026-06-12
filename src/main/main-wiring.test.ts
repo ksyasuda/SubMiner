@@ -95,15 +95,15 @@ test('mpv startup signals start overlay loading OSD before readiness work', () =
 });
 
 test('overlay loading dismiss notifies mpv plugin to stop early loading OSD', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
   const dismissBlock = source.match(
-    /function dismissOverlayLoadingStatusNotification\(\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function dismissOverlayLoadingStatusNotification\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(dismissBlock);
   assert.match(
     dismissBlock,
-    /sendMpvCommandRuntime\(appState\.mpvClient, \['script-message', 'subminer-overlay-loading-ready'\]\);/,
+    /sendMpvCommandRuntime\(deps\.getMpvClient\(\), \[\s*'script-message',\s*'subminer-overlay-loading-ready',\s*\]\);/,
   );
 });
 
@@ -168,6 +168,7 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
 
 test('update overlay notification action triggers install flow', () => {
   const source = readMainSource();
+  const runtimeSource = readSource('src/main/runtime/overlay-notifications-runtime.ts');
 
   assert.match(
     source,
@@ -177,13 +178,16 @@ test('update overlay notification action triggers install flow', () => {
   assert.match(source, /actionId === INSTALL_UPDATE_ACTION_ID/);
   assert.match(source, /installWhenAvailable:\s*true/);
   assert.match(source, /actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined/);
-  assert.match(source, /appState\.ankiIntegration\?\.openNoteInAnki\(noteId\)/);
-  assert.match(source, /appState\.runtimeOptionsManager\?\.getEffectiveAnkiConnectConfig/);
+  assert.match(runtimeSource, /deps\.getAnkiIntegration\(\)\?\.openNoteInAnki\(noteId\)/);
   assert.match(
-    source,
+    runtimeSource,
+    /deps\.getRuntimeOptionsManager\(\)\?\.getEffectiveAnkiConnectConfig/,
+  );
+  assert.match(
+    runtimeSource,
     /new AnkiConnectClient\(\s*effectiveAnkiConfig\.url \|\| DEFAULT_CONFIG\.ankiConnect\.url/,
   );
-  assert.match(source, /fallbackClient\.openNoteInBrowser\(noteId\)/);
+  assert.match(runtimeSource, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
 test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
@@ -463,17 +467,17 @@ test('manual visible overlay hide dismisses loading OSD', () => {
 });
 
 test('configured overlay notifications require visible ready overlay window', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
   const readinessBlock = source.match(
-    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n\}/,
+    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
   const statusBlock = source.match(
-    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(readinessBlock);
   assert.ok(statusBlock);
-  assert.match(readinessBlock, /overlayManager\.getVisibleOverlayVisible\(\)/);
+  assert.match(readinessBlock, /deps\.getVisibleOverlayVisible\(\)/);
   assert.match(readinessBlock, /isOverlayWindowReadyForNotification\(overlayWindow\)/);
   assert.doesNotMatch(readinessBlock, /isOverlayWindowContentReady\(overlayWindow\)/);
   assert.match(statusBlock, /isOverlayReady: \(\) => isVisibleOverlayContentReady\(\)/);

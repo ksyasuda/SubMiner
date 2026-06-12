@@ -109,7 +109,6 @@ import type {
   SubtitleMiningContext,
   SubtitlePosition,
   OverlayNotificationPayload,
-  OverlayNotificationEventPayload,
   NotificationType,
   WindowGeometry,
 } from './types';
@@ -545,16 +544,8 @@ import {
   INSTALL_UPDATE_ACTION_ID,
   UPDATE_AVAILABLE_NOTIFICATION_ID,
 } from './main/runtime/update/update-notifications';
-import { createOverlayLoadingOsdController } from './main/runtime/overlay-loading-osd';
-import { createMaybeStartOverlayLoadingOsdHandler } from './main/runtime/overlay-loading-osd-start';
-import { withConfiguredOverlayNotificationPosition } from './main/runtime/overlay-notification-position';
-import { createOverlayNotificationDelivery } from './main/runtime/overlay-notification-delivery';
-import {
-  getPlaybackFeedbackNotificationOptions,
-  notifyConfiguredStatus,
-  type ConfiguredStatusNotificationOptions,
-} from './main/runtime/configured-status-notification';
-import { resolveOverlayReadinessNotificationType } from './main/runtime/notification-routing';
+import { createOverlayNotificationsRuntime } from './main/runtime/overlay-notifications-runtime';
+import { type ConfiguredStatusNotificationOptions } from './main/runtime/configured-status-notification';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
@@ -3291,176 +3282,57 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
 
-function isVisibleOverlayContentReady(): boolean {
-  const overlayWindow = overlayManager.getMainWindow();
-  return Boolean(
-    overlayManager.getVisibleOverlayVisible() &&
-    overlayWindow &&
-    isOverlayWindowReadyForNotification(overlayWindow),
-  );
-}
-
-function getConfiguredStatusNotificationType(): NotificationType {
-  const configuredType = getResolvedConfig().ankiConnect.behavior.notificationType;
-  return resolveOverlayReadinessNotificationType(configuredType, isVisibleOverlayContentReady());
-}
-
-function isOverlayWindowReadyForNotification(window: BrowserWindow): boolean {
-  if (window.isDestroyed() || !isOverlayWindowContentReady(window)) {
-    return false;
-  }
-  if (window.webContents.isLoading()) {
-    return false;
-  }
-  const currentURL = window.webContents.getURL();
-  return currentURL !== '' && currentURL !== 'about:blank';
-}
-
-const overlayNotificationDelivery = createOverlayNotificationDelivery({
-  hasReadyOverlayWindow: () => isVisibleOverlayContentReady(),
-  send: (payload) => {
-    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
-  },
-  scheduleFlushRetry: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearFlushRetry: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
+  getResolvedConfig: () => getResolvedConfig(),
+  getMainOverlayWindow: () => overlayManager.getMainWindow(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+  showMpvOsd: (message) => showMpvOsd(message),
+  getMpvClient: () => appState.mpvClient,
+  getAnkiIntegration: () => appState.ankiIntegration,
+  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
 });
-let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null = null;
+const {
+  flushQueuedOverlayNotifications,
+  openAnkiCardFromNotification,
+  toggleNotificationHistoryPanel,
+  showConfiguredPlaybackFeedback,
+  maybeStartOverlayLoadingOsd,
+} = overlayNotificationsRuntime;
 
-function flushQueuedOverlayNotifications(): void {
-  overlayNotificationDelivery.flush();
-}
-
-function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
-  overlayNotificationDelivery.send(payload);
+// Hoisted wrappers: these names are referenced (directly or via deps object
+// literals) during module initialization before this point, so they must stay
+// hoisted function declarations that delegate to the runtime lazily.
+function getConfiguredStatusNotificationType(): NotificationType {
+  return overlayNotificationsRuntime.getConfiguredStatusNotificationType();
 }
 
 function showOverlayNotification(payload: OverlayNotificationPayload): void {
-  sendOverlayNotificationEvent(
-    withConfiguredOverlayNotificationPosition(payload, getResolvedConfig()),
-  );
-}
-
-function dismissOverlayNotification(id: string): void {
-  sendOverlayNotificationEvent({ id, dismiss: true });
-}
-
-async function openAnkiCardFromNotification(noteId: number): Promise<void> {
-  const activeIntegrationOpen = appState.ankiIntegration?.openNoteInAnki(noteId);
-  if (activeIntegrationOpen) {
-    await activeIntegrationOpen;
-    return;
-  }
-
-  const resolvedConfig = getResolvedConfig();
-  const effectiveAnkiConfig =
-    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
-    resolvedConfig.ankiConnect;
-  const fallbackClient = new AnkiConnectClient(
-    effectiveAnkiConfig.url || DEFAULT_CONFIG.ankiConnect.url,
-  );
-  await fallbackClient.openNoteInBrowser(noteId);
-}
-
-function toggleNotificationHistoryPanel(): void {
-  broadcastToOverlayWindows(IPC_CHANNELS.event.notificationHistoryToggle);
+  overlayNotificationsRuntime.showOverlayNotification(payload);
 }
 
 function showConfiguredStatusNotification(
   message: string,
   options: ConfiguredStatusNotificationOptions = {},
 ): void {
-  notifyConfiguredStatus(
-    message,
-    {
-      getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
-      isOverlayReady: () => isVisibleOverlayContentReady(),
-      showOsd: (text) => showMpvOsd(text),
-      showOverlayNotification,
-      showDesktopNotification: (title, notificationOptions) =>
-        showDesktopNotification(title, notificationOptions),
-    },
-    options,
-  );
-}
-
-function showConfiguredPlaybackFeedback(
-  message: string,
-  options: ConfiguredStatusNotificationOptions = {},
-): void {
-  showConfiguredStatusNotification(message, {
-    ...getPlaybackFeedbackNotificationOptions(message),
-    ...options,
-    delivery: 'feedback',
-  });
+  overlayNotificationsRuntime.showConfiguredStatusNotification(message, options);
 }
 
 function showSubsyncStatusNotification(message: string): void {
-  const syncing = message.startsWith('Subsync: syncing');
-  const failed = message.toLowerCase().includes('failed');
-  showConfiguredStatusNotification(message, {
-    id: 'subsync-status',
-    title: 'Subsync',
-    variant: failed ? 'error' : syncing ? 'progress' : 'info',
-    persistent: syncing,
-    desktop: !syncing,
-  });
+  overlayNotificationsRuntime.showSubsyncStatusNotification(message);
 }
 
 function showYoutubeFlowStatusNotification(message: string): void {
-  const progress =
-    message.startsWith('Downloading subtitles') ||
-    message.startsWith('Loading subtitles') ||
-    message.startsWith('Getting subtitles') ||
-    message === 'Opening YouTube video';
-  showConfiguredStatusNotification(message, {
-    id: 'youtube-subtitles-status',
-    title: 'YouTube subtitles',
-    variant: progress ? 'progress' : 'info',
-    persistent: progress,
-    desktop: !progress,
-  });
-}
-
-function getOverlayLoadingOsdController(): ReturnType<typeof createOverlayLoadingOsdController> {
-  if (!overlayLoadingOsdController) {
-    overlayLoadingOsdController = createOverlayLoadingOsdController({
-      showOsd: (message) => {
-        showMpvOsd(message);
-      },
-      clearOsd: () => {
-        sendMpvCommandRuntime(appState.mpvClient, ['show-text', '', '1']);
-      },
-      setInterval: (callback, delayMs) => {
-        const timer = setInterval(callback, delayMs);
-        timer.unref?.();
-        return timer;
-      },
-      clearInterval: (timer) => {
-        clearInterval(timer as ReturnType<typeof setInterval>);
-      },
-    });
-  }
-  return overlayLoadingOsdController;
+  overlayNotificationsRuntime.showYoutubeFlowStatusNotification(message);
 }
 
 function showOverlayLoadingStatusNotification(message: string): void {
-  void message;
-  getOverlayLoadingOsdController().start();
+  overlayNotificationsRuntime.showOverlayLoadingStatusNotification(message);
 }
 
 function dismissOverlayLoadingStatusNotification(): void {
-  getOverlayLoadingOsdController().stop();
-  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-overlay-loading-ready']);
-  dismissOverlayNotification('overlay-loading-status');
+  overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
 }
-
-const maybeStartOverlayLoadingOsd = createMaybeStartOverlayLoadingOsdHandler({
-  getVisibleOverlayRequested: () => overlayManager.getVisibleOverlayVisible(),
-  isOverlayContentReady: () => isVisibleOverlayContentReady(),
-  startOverlayLoadingOsd: () => {
-    showOverlayLoadingStatusNotification('Overlay loading...');
-  },
-});
 
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
