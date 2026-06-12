@@ -35,8 +35,13 @@ export function AnilistSelector({
   useEffect(() => {
     inputRef.current?.focus();
     const normalizedInitialQuery = normalizeAnilistSearchQuery(initialQuery);
+    setQuery(normalizedInitialQuery);
+    setResults([]);
+    setLoading(false);
+    setLinking(null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (normalizedInitialQuery) doSearch(normalizedInitialQuery);
-  }, []);
+  }, [initialQuery, animeId]);
 
   const doSearch = async (q: string) => {
     const searchQuery = normalizeAnilistSearchQuery(q);

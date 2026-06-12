@@ -12,6 +12,11 @@ test('normalizeAnilistSearchQuery removes bracketed season scope without droppin
   assert.equal(normalizeAnilistSearchQuery('KonoSuba - Season 2'), 'KonoSuba');
 });
 
+test('normalizeAnilistSearchQuery removes colon-delimited season scope from anime titles', () => {
+  assert.equal(normalizeAnilistSearchQuery('My Hero Academia: Season 3'), 'My Hero Academia');
+  assert.equal(normalizeAnilistSearchQuery('Title: Season 01'), 'Title');
+});
+
 test('normalizeAnilistSearchQuery keeps inputs when stripping season scope would erase title', () => {
   assert.equal(normalizeAnilistSearchQuery('Season 1'), 'Season 1');
 });
