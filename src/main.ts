@@ -351,10 +351,8 @@ import {
   runStartupBootstrapRuntime,
   saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
-  addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
   getYomitanCurrentAnkiDeckName as getYomitanCurrentAnkiDeckNameCore,
-  syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
@@ -375,7 +373,6 @@ import { hasHyprlandWindowPlacementBoundsMismatch } from './core/services/hyprla
 import { normalizeOverlayWindowBoundsForPlatform } from './core/services/overlay-window-bounds';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
-import { startStatsServer } from './core/services/stats-server';
 import {
   destroyStatsWindow,
   promoteStatsOverlayAbovePlayback,
@@ -453,14 +450,7 @@ import {
   createRunStatsCliCommandHandler,
   writeStatsCliCommandResponse,
 } from './main/runtime/stats-cli-command';
-import {
-  isBackgroundStatsServerProcessAlive,
-  readBackgroundStatsServerState,
-  removeBackgroundStatsServerState,
-  resolveBackgroundStatsServerUrl,
-  writeBackgroundStatsServerState,
-} from './main/runtime/stats-daemon';
-import { createEnsureStatsServerUrlHandler } from './main/runtime/stats-server-routing';
+import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -594,7 +584,6 @@ import {
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
-import { shouldForceOverrideYomitanAnkiServer } from './main/runtime/yomitan-anki-server';
 import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
 import {
   type AnilistMediaGuessRuntimeState,
@@ -1010,45 +999,49 @@ const reportFatalError = createFatalErrorReporter({
 });
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
-let statsServer: ReturnType<typeof startStatsServer> | null = null;
-const statsDaemonStatePath = path.join(USER_DATA_PATH, 'stats-daemon.json');
-
-function readLiveBackgroundStatsDaemonState(): {
-  pid: number;
-  port: number;
-  startedAtMs: number;
-} | null {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (!state) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  if (state.pid === process.pid && !statsServer) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  return state;
-}
-
-function clearOwnedBackgroundStatsDaemonState(): void {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (state?.pid === process.pid) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-  }
-}
-
-function stopStatsServer(): void {
-  if (!statsServer) {
-    return;
-  }
-  statsServer.close();
-  statsServer = null;
-  clearOwnedBackgroundStatsDaemonState();
-}
+const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
+const statsServerRuntime = createStatsServerRuntime({
+  userDataPath: USER_DATA_PATH,
+  statsDistPath,
+  getResolvedConfig: () => getResolvedConfig(),
+  getImmersionTracker: () => appState.immersionTracker,
+  setAppStateStatsServer: (server) => {
+    appState.statsServer = server;
+  },
+  getMpvSocketPath: () => appState.mpvSocketPath,
+  getYomitanExt: () => appState.yomitanExt,
+  getYomitanSession: () => appState.yomitanSession,
+  getYomitanParserWindow: () => appState.yomitanParserWindow,
+  setYomitanParserWindow: (w) => {
+    appState.yomitanParserWindow = w;
+  },
+  getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+  setYomitanParserReadyPromise: (p) => {
+    appState.yomitanParserReadyPromise = p;
+  },
+  getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+  setYomitanParserInitPromise: (p) => {
+    appState.yomitanParserInitPromise = p;
+  },
+  getYomitanAnkiDeckName: () => getCurrentYomitanAnkiDeckNameForRuntime(),
+  getAnilistRateLimiter: () => anilistRateLimiter,
+  resolveAnkiNoteId: (noteId) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
+  trackDuplicateNoteIdsForNote: (noteId, duplicateNoteIds) => {
+    appState.ankiIntegration?.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
+  },
+  resolveSentenceSearchHeadwords: (term) => resolveSentenceSearchHeadwords(term),
+  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  setStatsStartupInProgress: (inProgress) => {
+    appState.statsStartupInProgress = inProgress;
+  },
+});
+const {
+  stopStatsServer,
+  ensureStatsServerStarted,
+  ensureBackgroundStatsServerStarted,
+  stopBackgroundStatsServer,
+} = statsServerRuntime;
 
 function requestAppQuit(): void {
   destroyYomitanSettingsWindow(appState.yomitanSettingsWindow);
@@ -4617,149 +4610,6 @@ const {
   },
 });
 registerProtocolUrlHandlersHandler();
-
-const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
-const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
-
-const startLocalStatsServer = (): void => {
-  const tracker = appState.immersionTracker;
-  if (!tracker) {
-    throw new Error('Immersion tracker failed to initialize.');
-  }
-  if (!statsServer) {
-    const yomitanDeps = {
-      getYomitanExt: () => appState.yomitanExt,
-      getYomitanSession: () => appState.yomitanSession,
-      getYomitanParserWindow: () => appState.yomitanParserWindow,
-      setYomitanParserWindow: (w: BrowserWindow | null) => {
-        appState.yomitanParserWindow = w;
-      },
-      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-      setYomitanParserReadyPromise: (p: Promise<void> | null) => {
-        appState.yomitanParserReadyPromise = p;
-      },
-      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-      setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
-        appState.yomitanParserInitPromise = p;
-      },
-    };
-    const yomitanLogger = createLogger('main:yomitan-stats');
-    statsServer = startStatsServer({
-      port: getResolvedConfig().stats.serverPort,
-      staticDir: statsDistPath,
-      tracker,
-      knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
-      mpvSocketPath: appState.mpvSocketPath,
-      getAnkiConnectConfig: () => getResolvedConfig().ankiConnect,
-      getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
-      getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
-      getStatsMiningAlassPath: () => getResolvedConfig().subsync.alass_path,
-      anilistRateLimiter,
-      resolveAnkiNoteId: (noteId: number) =>
-        appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
-      resolveSentenceSearchHeadwords,
-      addYomitanNote: async (word: string) => {
-        const ankiConnectConfig = getResolvedConfig().ankiConnect;
-        const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
-        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
-          forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
-          deck: ankiConnectConfig.deck,
-        });
-        const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
-        if (result.noteId && result.duplicateNoteIds.length > 0) {
-          appState.ankiIntegration?.trackDuplicateNoteIdsForNote(
-            result.noteId,
-            result.duplicateNoteIds,
-          );
-        }
-        return result.noteId;
-      },
-    });
-    appState.statsServer = statsServer;
-  }
-  appState.statsServer = statsServer;
-};
-
-const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
-  currentPid: process.pid,
-  readBackgroundState: () => readBackgroundStatsServerState(statsDaemonStatePath),
-  removeBackgroundState: () => {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-  },
-  isProcessAlive: (pid) => isBackgroundStatsServerProcessAlive(pid),
-  hasLocalStatsServer: () => statsServer !== null,
-  startLocalStatsServer,
-  getConfiguredPort: () => getResolvedConfig().stats.serverPort,
-});
-
-const ensureBackgroundStatsServerStarted = (): {
-  url: string;
-  runningInCurrentProcess: boolean;
-} => {
-  const liveDaemon = readLiveBackgroundStatsDaemonState();
-  if (liveDaemon && liveDaemon.pid !== process.pid) {
-    return {
-      url: resolveBackgroundStatsServerUrl(liveDaemon),
-      runningInCurrentProcess: false,
-    };
-  }
-
-  appState.statsStartupInProgress = true;
-  try {
-    ensureImmersionTrackerStarted();
-  } finally {
-    appState.statsStartupInProgress = false;
-  }
-
-  const port = getResolvedConfig().stats.serverPort;
-  const result = ensureStatsServerStarted();
-  if (result.source === 'local') {
-    writeBackgroundStatsServerState(statsDaemonStatePath, {
-      pid: process.pid,
-      port,
-      startedAtMs: Date.now(),
-    });
-  }
-  return { url: result.url, runningInCurrentProcess: result.source === 'local' };
-};
-
-const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (!state) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return { ok: true, stale: true };
-  }
-  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return { ok: true, stale: true };
-  }
-
-  try {
-    process.kill(state.pid, 'SIGTERM');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
-      return { ok: true, stale: true };
-    }
-    if ((error as NodeJS.ErrnoException)?.code === 'EPERM') {
-      throw new Error(
-        `Insufficient permissions to stop background stats server (pid ${state.pid}).`,
-      );
-    }
-    throw error;
-  }
-
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline) {
-    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
-      return { ok: true, stale: false };
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-
-  throw new Error('Timed out stopping background stats server.');
-};
 
 const resolveLegacyVocabularyPos = async (row: {
   headword: string;

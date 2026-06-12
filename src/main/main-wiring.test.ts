@@ -7,6 +7,10 @@ function readMainSource(): string {
   return fs.readFileSync(path.join(process.cwd(), 'src/main.ts'), 'utf8');
 }
 
+function readSource(relPath: string): string {
+  return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
+}
+
 test('manual watched session action starts immersion tracker before marking watched', () => {
   const source = readMainSource();
   const actionBlock = source.match(
@@ -346,18 +350,18 @@ test('warm tokenization release can signal readiness before the first subtitle a
 });
 
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/stats-server-runtime.ts');
   const startStatsServerBlock = source.match(
-    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n    \}\);/,
+    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n      \}\);/,
   )?.groups?.body;
   const addYomitanNoteBlock = startStatsServerBlock?.match(
-    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
+    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n        \},/,
   )?.groups?.body;
 
   assert.ok(addYomitanNoteBlock);
   assert.match(
     addYomitanNoteBlock,
-    /const ankiConnectConfig = getResolvedConfig\(\)\.ankiConnect;/,
+    /const ankiConnectConfig = deps\.getResolvedConfig\(\)\.ankiConnect;/,
   );
   assert.match(addYomitanNoteBlock, /shouldForceOverrideYomitanAnkiServer\(ankiConnectConfig\)/);
   assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
