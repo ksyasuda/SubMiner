@@ -101,8 +101,6 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
     args.playNextSubtitle ||
-    args.shiftSubDelayPrevLine ||
-    args.shiftSubDelayNextLine ||
     args.cycleRuntimeOptionId !== undefined ||
     args.anilistStatus ||
     args.anilistLogout ||

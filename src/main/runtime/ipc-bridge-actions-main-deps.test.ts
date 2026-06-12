@@ -20,7 +20,6 @@ test('ipc bridge action main deps builders map callbacks', async () => {
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},
       playNextSubtitle: () => {},
-      shiftSubDelayToAdjacentSubtitle: async () => {},
       sendMpvCommand: () => {},
       getMpvClient: () => null,
       isMpvConnected: () => true,

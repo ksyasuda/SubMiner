@@ -980,8 +980,6 @@ test('popup-visible mpv keybindings still fire for bound keys', async () => {
 test('default keybindings dispatch through overlay keyboard handling', async () => {
   const { handlers, testGlobals } = createKeyboardHandlerHarness();
   const specialActionIds: Record<string, string> = {
-    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START]: 'shiftSubDelayPrevLine',
-    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START]: 'shiftSubDelayNextLine',
     [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',
     [SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN]: 'openPlaylistBrowser',
     [SPECIAL_COMMANDS.REPLAY_SUBTITLE]: 'replayCurrentSubtitle',

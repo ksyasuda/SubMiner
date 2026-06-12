@@ -348,7 +348,6 @@ import {
   copyCurrentSubtitle as copyCurrentSubtitleCore,
   createConfigHotReloadRuntime,
   createDiscordPresenceService,
-  createShiftSubtitleDelayToAdjacentCueHandler,
   createFieldGroupingOverlayRuntime,
   createOverlayContentMeasurementStore,
   createOverlayManager,
@@ -6838,26 +6837,6 @@ async function extractInternalSubtitleTrackToTempFile(
   };
 }
 
-const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
-  getMpvClient: () => appState.mpvClient,
-  loadSubtitleSourceText,
-  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-  onSubtitleDelayShifted: (delaySeconds) => {
-    const key = activeJellyfinSubtitleDelayKey;
-    if (!key) return;
-    const saved = saveJellyfinSubtitleDelay({
-      filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-      itemId: key.itemId,
-      streamIndex: key.streamIndex,
-      delaySeconds,
-    });
-    if (!saved) {
-      logger.warn('Failed to save Jellyfin subtitle delay.');
-    }
-  },
-  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
-});
-
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
     toggleStatsOverlay: () =>
@@ -6905,8 +6884,6 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openPlaylistBrowser: () => openPlaylistBrowser(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
-    shiftSubDelayToAdjacentSubtitle: (direction) =>
-      shiftSubtitleDelayToAdjacentCueHandler(direction),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -6944,11 +6921,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       );
     },
     showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showRawMpvOsd: (text: string) => showMpvOsd(text),
     showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
-    shiftSubDelayToAdjacentSubtitle: (direction) =>
-      shiftSubtitleDelayToAdjacentCueHandler(direction),
     sendMpvCommand: (rawCommand: (string | number)[]) =>
       sendMpvCommandRuntime(appState.mpvClient, rawCommand),
     getMpvClient: () => appState.mpvClient,

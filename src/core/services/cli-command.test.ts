@@ -49,8 +49,6 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     togglePrimarySubtitleBar: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
-    shiftSubDelayPrevLine: false,
-    shiftSubDelayNextLine: false,
     playbackFeedback: undefined,
     cycleRuntimeOptionId: undefined,
     cycleRuntimeOptionDirection: undefined,

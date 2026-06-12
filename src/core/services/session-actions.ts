@@ -27,7 +27,6 @@ export interface SessionActionExecutorDeps {
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
   replayCurrentSubtitle: () => void;
   playNextSubtitle: () => void;
-  shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   playNextPlaylistItem: () => void;
   showMpvOsd: (text: string) => void;
@@ -123,12 +122,6 @@ export async function dispatchSessionAction(
       return;
     case 'playNextSubtitle':
       deps.playNextSubtitle();
-      return;
-    case 'shiftSubDelayPrevLine':
-      await deps.shiftSubDelayToAdjacentSubtitle('previous');
-      return;
-    case 'shiftSubDelayNextLine':
-      await deps.shiftSubDelayToAdjacentSubtitle('next');
       return;
     case 'cycleRuntimeOption': {
       const runtimeOptionId = request.payload?.runtimeOptionId as RuntimeOptionId | undefined;

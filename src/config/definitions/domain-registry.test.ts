@@ -234,3 +234,16 @@ test('default keybindings include replay and next subtitle controls', () => {
   assert.deepEqual(keybindingMap.get('Ctrl+Shift+KeyH'), ['__replay-subtitle']);
   assert.deepEqual(keybindingMap.get('Ctrl+Shift+KeyL'), ['__play-next-subtitle']);
 });
+
+test('default keybindings mirror mpv subtitle delay and sub-step keys', () => {
+  const keybindingMap = new Map(
+    DEFAULT_KEYBINDINGS.map((binding) => [binding.key, binding.command]),
+  );
+  assert.deepEqual(keybindingMap.get('KeyZ'), ['add', 'sub-delay', -0.1]);
+  assert.deepEqual(keybindingMap.get('Shift+KeyZ'), ['add', 'sub-delay', 0.1]);
+  assert.deepEqual(keybindingMap.get('KeyX'), ['add', 'sub-delay', 0.1]);
+  assert.deepEqual(keybindingMap.get('Ctrl+Shift+ArrowLeft'), ['sub-step', -1]);
+  assert.deepEqual(keybindingMap.get('Ctrl+Shift+ArrowRight'), ['sub-step', 1]);
+  assert.equal(keybindingMap.has('Shift+BracketLeft'), false);
+  assert.equal(keybindingMap.has('Shift+BracketRight'), false);
+});

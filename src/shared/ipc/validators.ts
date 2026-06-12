@@ -43,8 +43,6 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openPlaylistBrowser',
   'replayCurrentSubtitle',
   'playNextSubtitle',
-  'shiftSubDelayPrevLine',
-  'shiftSubDelayNextLine',
   'cycleRuntimeOption',
 ];
 

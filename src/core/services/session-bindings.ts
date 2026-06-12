@@ -319,14 +319,6 @@ function resolveCommandBinding(
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'playNextSubtitle' };
   }
-  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START) {
-    if (command.length !== 1) return null;
-    return { actionType: 'session-action', actionId: 'shiftSubDelayPrevLine' };
-  }
-  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START) {
-    if (command.length !== 1) return null;
-    return { actionType: 'session-action', actionId: 'shiftSubDelayNextLine' };
-  }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     if (command.length !== 1) {
       return null;

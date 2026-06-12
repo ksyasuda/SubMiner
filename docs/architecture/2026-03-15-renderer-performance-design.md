@@ -61,7 +61,7 @@ External subtitle files only (SRT, VTT, ASS). Embedded subtitle tracks are out o
 
 #### Subtitle File Parsing
 
-A new cue parser that extracts both timing and text content from subtitle files. The existing `parseSrtOrVttStartTimes` in `subtitle-delay-shift.ts` only extracts timing; this needs a companion that also extracts the dialogue text.
+A cue parser extracts both timing and text content from subtitle files for prefetching.
 
 **Parsed cue structure:**
 ```typescript

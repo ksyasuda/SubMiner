@@ -13,8 +13,6 @@ export interface HandleMpvCommandFromIpcOptions {
     RUNTIME_OPTION_CYCLE_PREFIX: string;
     REPLAY_SUBTITLE: string;
     PLAY_NEXT_SUBTITLE: string;
-    SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: string;
-    SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: string;
     YOUTUBE_PICKER_OPEN: string;
     PLAYLIST_BROWSER_OPEN: string;
   };
@@ -25,10 +23,10 @@ export interface HandleMpvCommandFromIpcOptions {
   openPlaylistBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
+  showRawMpvOsd?: (text: string) => void;
   showPlaybackFeedback?: (text: string) => void;
   mpvReplaySubtitle: () => void;
   mpvPlayNextSubtitle: () => void;
-  shiftSubDelayToAdjacentSubtitle: (direction: 'next' | 'previous') => Promise<void>;
   mpvSendCommand: (command: (string | number)[]) => void;
   resolveProxyCommandOsd?: (command: (string | number)[]) => Promise<string | null>;
   isMpvConnected: () => boolean;
@@ -44,21 +42,30 @@ const MPV_PROPERTY_COMMANDS = new Set([
   'multiply',
 ]);
 
-function resolveProxyCommandOsdTemplate(command: (string | number)[]): string | null {
+interface ProxyCommandFeedback {
+  template: string;
+  rawMpvOsd: boolean;
+}
+
+function resolveProxyCommandOsdTemplate(command: (string | number)[]): ProxyCommandFeedback | null {
   const operation = typeof command[0] === 'string' ? command[0] : '';
+  if (operation === 'sub-step') {
+    return { template: 'Subtitle delay: ${sub-delay}', rawMpvOsd: true };
+  }
+
   const property = typeof command[1] === 'string' ? command[1] : '';
   if (!MPV_PROPERTY_COMMANDS.has(operation)) return null;
   if (property === 'sub-pos') {
-    return 'Subtitle position: ${sub-pos}';
+    return { template: 'Subtitle position: ${sub-pos}', rawMpvOsd: false };
   }
   if (property === 'sid') {
-    return 'Subtitle track: ${sid}';
+    return { template: 'Subtitle track: ${sid}', rawMpvOsd: false };
   }
   if (property === 'secondary-sid') {
-    return 'Secondary subtitle track: ${secondary-sid}';
+    return { template: 'Secondary subtitle track: ${secondary-sid}', rawMpvOsd: false };
   }
   if (property === 'sub-delay') {
-    return 'Subtitle delay: ${sub-delay}';
+    return { template: 'Subtitle delay: ${sub-delay}', rawMpvOsd: true };
   }
   return null;
 }
@@ -67,16 +74,18 @@ function showResolvedProxyCommandOsd(
   command: (string | number)[],
   options: HandleMpvCommandFromIpcOptions,
 ): void {
-  const template = resolveProxyCommandOsdTemplate(command);
-  if (!template) return;
-  const showFeedback = options.showPlaybackFeedback ?? options.showMpvOsd;
+  const feedback = resolveProxyCommandOsdTemplate(command);
+  if (!feedback) return;
+  const showFeedback = feedback.rawMpvOsd
+    ? (options.showRawMpvOsd ?? options.showMpvOsd)
+    : (options.showPlaybackFeedback ?? options.showMpvOsd);
 
   const emit = async () => {
     try {
       const resolved = await options.resolveProxyCommandOsd?.(command);
-      showFeedback(resolved || template);
+      showFeedback(resolved || feedback.template);
     } catch {
-      showFeedback(template);
+      showFeedback(feedback.template);
     }
   };
 
@@ -115,20 +124,6 @@ export function handleMpvCommandFromIpc(
         const message = error instanceof Error ? error.message : String(error);
         options.showMpvOsd(`Playlist browser failed: ${message}`);
       });
-    return;
-  }
-
-  if (
-    first === options.specialCommands.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START ||
-    first === options.specialCommands.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START
-  ) {
-    const direction =
-      first === options.specialCommands.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START
-        ? 'next'
-        : 'previous';
-    options.shiftSubDelayToAdjacentSubtitle(direction).catch((error) => {
-      options.showMpvOsd(`Subtitle delay shift failed: ${(error as Error).message}`);
-    });
     return;
   }
 

@@ -16,12 +16,10 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     },
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
+    showRawMpvOsd: (text) => calls.push(`raw-osd:${text}`),
     showPlaybackFeedback: (text) => calls.push(`feedback:${text}`),
     replayCurrentSubtitle: () => calls.push('replay'),
     playNextSubtitle: () => calls.push('next'),
-    shiftSubDelayToAdjacentSubtitle: async (direction) => {
-      calls.push(`shift:${direction}`);
-    },
     sendMpvCommand: (command) => calls.push(`cmd:${command.join(':')}`),
     getMpvClient: () => ({ connected: true, requestProperty: async () => null }),
     isMpvConnected: () => true,
@@ -35,10 +33,10 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   void deps.openPlaylistBrowser();
   assert.deepEqual(deps.cycleRuntimeOption('anki.nPlusOneMatchMode', 1), { ok: false, error: 'x' });
   deps.showMpvOsd('hello');
+  deps.showRawMpvOsd?.('delay');
   deps.showPlaybackFeedback?.('primary');
   deps.replayCurrentSubtitle();
   deps.playNextSubtitle();
-  void deps.shiftSubDelayToAdjacentSubtitle('next');
   deps.sendMpvCommand(['show-text', 'ok']);
   assert.equal(typeof deps.getMpvClient()?.requestProperty, 'function');
   assert.equal(deps.isMpvConnected(), true);
@@ -50,10 +48,10 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     'youtube-picker',
     'playlist-browser',
     'osd:hello',
+    'raw-osd:delay',
     'feedback:primary',
     'replay',
     'next',
-    'shift:next',
     'cmd:show-text:ok',
   ]);
 });

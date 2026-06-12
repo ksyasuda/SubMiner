@@ -96,18 +96,17 @@ function describeCommand(command: (string | number)[]): string {
     if (command[1] < 0) return 'Jump to previous subtitle';
     return 'Reload current subtitle timing';
   }
+  if (first === 'sub-step' && typeof command[1] === 'number') {
+    if (command[1] > 0) return 'Shift subtitle delay to next cue';
+    if (command[1] < 0) return 'Shift subtitle delay to previous cue';
+    return 'Reload current subtitle timing';
+  }
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return 'Open subtitle sync controls';
   if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) return 'Open runtime options';
   if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) return 'Open jimaku';
   if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) return 'Open playlist browser';
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return 'Replay current subtitle';
   if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return 'Play next subtitle';
-  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START) {
-    return 'Shift subtitle delay to next cue';
-  }
-  if (first === SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START) {
-    return 'Shift subtitle delay to previous cue';
-  }
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     const [, rawId, rawDirection] = first.split(':');
     return `Cycle runtime option ${rawId || 'option'} ${
@@ -131,6 +130,7 @@ function sectionForCommand(command: (string | number)[]): string {
     first === 'cycle' ||
     first === 'seek' ||
     first === 'sub-seek' ||
+    first === 'sub-step' ||
     first === SPECIAL_COMMANDS.REPLAY_SUBTITLE ||
     first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE
   ) {
@@ -227,10 +227,6 @@ function describeSessionAction(
       return 'Replay current subtitle';
     case 'playNextSubtitle':
       return 'Play next subtitle';
-    case 'shiftSubDelayPrevLine':
-      return 'Shift subtitle delay to previous cue';
-    case 'shiftSubDelayNextLine':
-      return 'Shift subtitle delay to next cue';
     case 'cycleRuntimeOption':
       return `Cycle runtime option ${payload?.runtimeOptionId ?? 'option'} ${
         payload?.direction === -1 ? 'previous' : 'next'
@@ -271,8 +267,6 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
       return 'Modals and tools';
     case 'replayCurrentSubtitle':
     case 'playNextSubtitle':
-    case 'shiftSubDelayPrevLine':
-    case 'shiftSubDelayNextLine':
       return 'Playback and navigation';
     case 'cycleRuntimeOption':
       return 'Runtime settings';

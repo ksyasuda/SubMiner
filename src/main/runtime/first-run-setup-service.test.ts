@@ -58,8 +58,6 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     openPlaylistBrowser: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
-    shiftSubDelayPrevLine: false,
-    shiftSubDelayNextLine: false,
     cycleRuntimeOptionId: undefined,
     cycleRuntimeOptionDirection: undefined,
     anilistStatus: false,
