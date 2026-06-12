@@ -79,7 +79,7 @@ export async function extractInternalSubtitleTrackToTempFile(
   ffmpegPath: string,
   videoPath: string,
   track: MpvSubtitleTrackLike,
-  options: { extractionTimeoutMs?: number } = {},
+  options: { extractionTimeoutMs?: number; spawnArgsOverride?: string[] } = {},
 ): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
   const ffIndex = parseTrackId(track['ff-index']);
   const codec = typeof track.codec === 'string' ? track.codec : null;
@@ -96,7 +96,8 @@ export async function extractInternalSubtitleTrackToTempFile(
       let settled = false;
       const child = spawn(
         ffmpegPath,
-        buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
+        options.spawnArgsOverride ??
+          buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
       );
       const extractionTimeoutMs = options.extractionTimeoutMs ?? DEFAULT_EXTRACTION_TIMEOUT_MS;
       const timeoutId = setTimeout(() => {

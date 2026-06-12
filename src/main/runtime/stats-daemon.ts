@@ -98,7 +98,7 @@ export function verifyBackgroundStatsServerIdentity(pid: number, startedAtMs: nu
   if (processStartedAtMs === null) {
     return false;
   }
-  const earliestAllowedStateWriteMs = processStartedAtMs - 1_000;
+  const earliestAllowedStateWriteMs = processStartedAtMs;
   const latestAllowedStateWriteMs = processStartedAtMs + 60_000;
   return startedAtMs >= earliestAllowedStateWriteMs && startedAtMs <= latestAllowedStateWriteMs;
 }
