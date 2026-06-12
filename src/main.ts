@@ -672,8 +672,12 @@ import {
   resolveSubtitleSourcePath,
 } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
+import {
+  loadSubtitleSourceText,
+  extractInternalSubtitleTrackToTempFile,
+} from './main/runtime/internal-subtitle-extraction';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
-import { codecToExtension, getSubsyncConfig } from './subsync/utils';
+import { getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -6566,117 +6570,25 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
-async function loadSubtitleSourceText(source: string): Promise<string> {
-  if (/^https?:\/\//i.test(source)) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-    try {
-      const response = await fetch(source, { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`Failed to download subtitle source (${response.status})`);
-      }
-      return await response.text();
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  const filePath = resolveSubtitleSourcePath(source);
-  return fs.promises.readFile(filePath, 'utf8');
-}
-
-type MpvSubtitleTrackLike = {
-  type?: unknown;
-  id?: unknown;
-  selected?: unknown;
-  external?: unknown;
-  codec?: unknown;
-  'ff-index'?: unknown;
-  'external-filename'?: unknown;
-};
-
-function parseTrackId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number(value.trim());
-    return Number.isInteger(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function buildFfmpegSubtitleExtractionArgs(
-  videoPath: string,
-  ffIndex: number,
-  outputPath: string,
-): string[] {
-  return [
-    '-hide_banner',
-    '-nostdin',
-    '-y',
-    '-loglevel',
-    'error',
-    '-an',
-    '-vn',
-    '-i',
-    videoPath,
-    '-map',
-    `0:${ffIndex}`,
-    '-f',
-    path.extname(outputPath).slice(1),
-    outputPath,
-  ];
-}
-
-async function extractInternalSubtitleTrackToTempFile(
-  ffmpegPath: string,
-  videoPath: string,
-  track: MpvSubtitleTrackLike,
-): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
-  const ffIndex = parseTrackId(track['ff-index']);
-  const codec = typeof track.codec === 'string' ? track.codec : null;
-  const extension = codecToExtension(codec ?? undefined);
-  if (ffIndex === null || extension === null) {
-    return null;
-  }
-
-  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-sidebar-'));
-  const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        ffmpegPath,
-        buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
-      );
-      let stderr = '';
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (error) => {
-        reject(error);
-      });
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
-      });
+const shiftSubtitleDelayToAdjacentCueHandler = createShiftSubtitleDelayToAdjacentCueHandler({
+  getMpvClient: () => appState.mpvClient,
+  loadSubtitleSourceText,
+  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  onSubtitleDelayShifted: (delaySeconds) => {
+    const key = activeJellyfinSubtitleDelayKey;
+    if (!key) return;
+    const saved = saveJellyfinSubtitleDelay({
+      filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
+      itemId: key.itemId,
+      streamIndex: key.streamIndex,
+      delaySeconds,
     });
-  } catch (error) {
-    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
-    throw error;
-  }
-
-  return {
-    path: outputPath,
-    cleanup: async () => {
-      await fs.promises.rm(tempDir, { recursive: true, force: true });
-    },
-  };
-}
+    if (!saved) {
+      logger.warn('Failed to save Jellyfin subtitle delay.');
+    }
+  },
+  showMpvOsd: (text) => showConfiguredPlaybackFeedback(text),
+});
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
