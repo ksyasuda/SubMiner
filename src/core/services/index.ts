@@ -10,7 +10,6 @@ export {
   unregisterOverlayShortcutsRuntime,
 } from './overlay-shortcut';
 export { createOverlayShortcutRuntimeHandlers } from './overlay-shortcut-handler';
-export { createShiftSubtitleDelayToAdjacentCueHandler } from './subtitle-delay-shift';
 export { createCliCommandDepsRuntime, handleCliCommand } from './cli-command';
 export {
   copyCurrentSubtitle,

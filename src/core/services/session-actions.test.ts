@@ -47,9 +47,6 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     },
     replayCurrentSubtitle: () => calls.push('replay'),
     playNextSubtitle: () => calls.push('play-next'),
-    shiftSubDelayToAdjacentSubtitle: async (direction) => {
-      calls.push(`shift:${direction}`);
-    },
     cycleRuntimeOption: () => ({ ok: true }),
     playNextPlaylistItem: () => calls.push('playlist-next'),
     showMpvOsd: (text) => calls.push(`osd:${text}`),

@@ -15,8 +15,6 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
       REPLAY_SUBTITLE: '__replay-subtitle',
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
-      SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START: '__sub-delay-next-line',
-      SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START: '__sub-delay-prev-line',
       YOUTUBE_PICKER_OPEN: '__youtube-picker-open',
       PLAYLIST_BROWSER_OPEN: '__playlist-browser-open',
     },
@@ -47,9 +45,6 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     },
     mpvPlayNextSubtitle: () => {
       calls.push('next');
-    },
-    shiftSubDelayToAdjacentSubtitle: async (direction) => {
-      calls.push(`shift:${direction}`);
     },
     mpvSendCommand: (command) => {
       sentCommands.push(command);
@@ -111,20 +106,29 @@ test('handleMpvCommandFromIpc emits resolved feedback for secondary subtitle tra
   ]);
 });
 
-test('handleMpvCommandFromIpc emits feedback for subtitle delay keybinding proxies', async () => {
+test('handleMpvCommandFromIpc emits mpv OSD for subtitle delay keybinding proxies', async () => {
   const { options, sentCommands, osd, playbackFeedback } = createOptions();
   handleMpvCommandFromIpc(['add', 'sub-delay', 0.1], options);
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(sentCommands, [['add', 'sub-delay', 0.1]]);
-  assert.deepEqual(osd, []);
-  assert.deepEqual(playbackFeedback, ['Subtitle delay: ${sub-delay}']);
+  assert.deepEqual(osd, ['Subtitle delay: ${sub-delay}']);
+  assert.deepEqual(playbackFeedback, []);
 });
 
-test('handleMpvCommandFromIpc dispatches special subtitle-delay shift command', () => {
+test('handleMpvCommandFromIpc emits mpv OSD for subtitle step keybinding proxies', async () => {
+  const { options, sentCommands, osd, playbackFeedback } = createOptions();
+  handleMpvCommandFromIpc(['sub-step', 1], options);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(sentCommands, [['sub-step', 1]]);
+  assert.deepEqual(osd, ['Subtitle delay: ${sub-delay}']);
+  assert.deepEqual(playbackFeedback, []);
+});
+
+test('handleMpvCommandFromIpc does not dispatch retired subtitle-delay shift tokens', () => {
   const { options, calls, sentCommands, osd } = createOptions();
   handleMpvCommandFromIpc(['__sub-delay-next-line'], options);
-  assert.deepEqual(calls, ['shift:next']);
-  assert.deepEqual(sentCommands, []);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(sentCommands, [['__sub-delay-next-line']]);
   assert.deepEqual(osd, []);
 });
 

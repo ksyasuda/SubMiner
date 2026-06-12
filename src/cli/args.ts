@@ -41,8 +41,6 @@ export interface CliArgs {
   openPlaylistBrowser: boolean;
   replayCurrentSubtitle: boolean;
   playNextSubtitle: boolean;
-  shiftSubDelayPrevLine: boolean;
-  shiftSubDelayNextLine: boolean;
   playbackFeedback?: string;
   cycleRuntimeOptionId?: string;
   cycleRuntimeOptionDirection?: 1 | -1;
@@ -149,8 +147,6 @@ export function parseArgs(argv: string[]): CliArgs {
     openPlaylistBrowser: false,
     replayCurrentSubtitle: false,
     playNextSubtitle: false,
-    shiftSubDelayPrevLine: false,
-    shiftSubDelayNextLine: false,
     playbackFeedback: undefined,
     anilistStatus: false,
     anilistLogout: false,
@@ -296,8 +292,6 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--open-playlist-browser') args.openPlaylistBrowser = true;
     else if (arg === '--replay-current-subtitle') args.replayCurrentSubtitle = true;
     else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
-    else if (arg === '--shift-sub-delay-prev-line') args.shiftSubDelayPrevLine = true;
-    else if (arg === '--shift-sub-delay-next-line') args.shiftSubDelayNextLine = true;
     else if (arg.startsWith('--playback-feedback=')) {
       const value = arg.slice('--playback-feedback='.length).trim();
       if (value) args.playbackFeedback = value;
@@ -562,8 +556,6 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
     args.playNextSubtitle ||
-    args.shiftSubDelayPrevLine ||
-    args.shiftSubDelayNextLine ||
     args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
@@ -638,8 +630,6 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.openPlaylistBrowser &&
     !args.replayCurrentSubtitle &&
     !args.playNextSubtitle &&
-    !args.shiftSubDelayPrevLine &&
-    !args.shiftSubDelayNextLine &&
     args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
@@ -705,8 +695,6 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
     args.playNextSubtitle ||
-    args.shiftSubDelayPrevLine ||
-    args.shiftSubDelayNextLine ||
     args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||
@@ -766,8 +754,6 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.openPlaylistBrowser &&
     !args.replayCurrentSubtitle &&
     !args.playNextSubtitle &&
-    !args.shiftSubDelayPrevLine &&
-    !args.shiftSubDelayNextLine &&
     args.playbackFeedback === undefined &&
     args.cycleRuntimeOptionId === undefined &&
     args.sessionAction === undefined &&
@@ -832,8 +818,6 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
     args.playNextSubtitle ||
-    args.shiftSubDelayPrevLine ||
-    args.shiftSubDelayNextLine ||
     args.playbackFeedback !== undefined ||
     args.cycleRuntimeOptionId !== undefined ||
     args.sessionAction !== undefined ||

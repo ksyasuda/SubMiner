@@ -25,8 +25,6 @@ export type SessionActionId =
   | 'openPlaylistBrowser'
   | 'replayCurrentSubtitle'
   | 'playNextSubtitle'
-  | 'shiftSubDelayPrevLine'
-  | 'shiftSubDelayNextLine'
   | 'cycleRuntimeOption';
 
 export interface SessionKeySpec {

@@ -287,8 +287,6 @@ test('compileSessionBindings keeps only the character dictionary manager bound b
 
 test('compileSessionBindings wires every default keybinding to an overlay or mpv action', () => {
   const expectedSpecialActions: Record<string, string> = {
-    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START]: 'shiftSubDelayPrevLine',
-    [SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START]: 'shiftSubDelayNextLine',
     [SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN]: 'openYoutubePicker',
     [SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN]: 'openPlaylistBrowser',
     [SPECIAL_COMMANDS.REPLAY_SUBTITLE]: 'replayCurrentSubtitle',
@@ -318,6 +316,29 @@ test('compileSessionBindings wires every default keybinding to an overlay or mpv
     assert.equal(compiled.actionType, 'mpv-command');
     assert.deepEqual(compiled.command, defaultBinding.command);
   }
+});
+
+test('compileSessionBindings leaves retired subtitle-delay shift tokens as mpv commands', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [
+      createKeybinding('Shift+BracketLeft', ['__sub-delay-prev-line']),
+      createKeybinding('Shift+BracketRight', ['__sub-delay-next-line']),
+    ],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(
+    result.bindings.map((binding) => ({
+      actionType: binding.actionType,
+      command: binding.actionType === 'mpv-command' ? binding.command : undefined,
+    })),
+    [
+      { actionType: 'mpv-command', command: ['__sub-delay-prev-line'] },
+      { actionType: 'mpv-command', command: ['__sub-delay-next-line'] },
+    ],
+  );
 });
 
 test('compileSessionBindings omits disabled bindings', () => {

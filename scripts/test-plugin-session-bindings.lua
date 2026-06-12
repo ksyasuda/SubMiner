@@ -167,6 +167,46 @@ local ctx = {
 					},
 					{
 						key = {
+							code = "ArrowLeft",
+							modifiers = { "ctrl", "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "sub-step", -1 },
+					},
+					{
+						key = {
+							code = "ArrowRight",
+							modifiers = { "ctrl", "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "sub-step", 1 },
+					},
+					{
+						key = {
+							code = "KeyZ",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "add", "sub-delay", -0.1 },
+					},
+					{
+						key = {
+							code = "KeyZ",
+							modifiers = { "shift" },
+						},
+						actionType = "mpv-command",
+						command = { "add", "sub-delay", 0.1 },
+					},
+					{
+						key = {
+							code = "KeyX",
+							modifiers = {},
+						},
+						actionType = "mpv-command",
+						command = { "add", "sub-delay", 0.1 },
+					},
+					{
+						key = {
 							code = "BracketRight",
 							modifiers = { "shift" },
 						},
@@ -323,6 +363,11 @@ local expected_mpv_bindings = {
 	{ keys = "DOWN", command = { "seek", -60 } },
 	{ keys = "H", command = { "sub-seek", -1 } },
 	{ keys = "L", command = { "sub-seek", 1 } },
+	{ keys = "Ctrl+Shift+LEFT", command = { "sub-step", -1 } },
+	{ keys = "Ctrl+Shift+RIGHT", command = { "sub-step", 1 } },
+	{ keys = "z", command = { "add", "sub-delay", -0.1 } },
+	{ keys = "Z", command = { "add", "sub-delay", 0.1 } },
+	{ keys = "x", command = { "add", "sub-delay", 0.1 } },
 	{ keys = "q", command = { "quit" } },
 	{ keys = "Ctrl+w", command = { "quit" } },
 	{ keys = "MBTN_BACK", command = { "sub-seek", -1 } },
@@ -340,10 +385,6 @@ for _, expected in ipairs(expected_mpv_bindings) do
 end
 
 local expected_cli_bindings = {
-	{ keys = "Shift+]", flag = "--shift-sub-delay-next-line" },
-	{ keys = "}", flag = "--shift-sub-delay-next-line" },
-	{ keys = "Shift+[", flag = "--shift-sub-delay-prev-line" },
-	{ keys = "{", flag = "--shift-sub-delay-prev-line" },
 	{ keys = "Ctrl+Alt+c", flag = "--open-youtube-picker" },
 	{ keys = "Ctrl+Alt+p", flag = "--open-playlist-browser" },
 	{ keys = "Ctrl+H", flag = "--replay-current-subtitle" },
@@ -364,6 +405,9 @@ for _, expected in ipairs(expected_cli_bindings) do
 	assert_true(cli_call ~= nil, "default session action should invoke CLI " .. expected.keys)
 	assert_true(cli_call[2] == expected.flag, "default session action should pass " .. expected.flag)
 end
+
+assert_true(find_binding("Shift+]") == nil, "retired subtitle delay action should not register Shift+]")
+assert_true(find_binding("Shift+[") == nil, "retired subtitle delay action should not register Shift+[")
 
 local play_next = find_binding("Ctrl+L")
 assert_true(play_next ~= nil, "play-next subtitle binding should use mpv shifted-letter form")

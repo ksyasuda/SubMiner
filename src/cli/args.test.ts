@@ -101,8 +101,6 @@ test('parseArgs captures session action forwarding flags', () => {
     '--toggle-primary-subtitle-bar',
     '--replay-current-subtitle',
     '--play-next-subtitle',
-    '--shift-sub-delay-prev-line',
-    '--shift-sub-delay-next-line',
     '--cycle-runtime-option',
     'anki.autoUpdateNewCards:prev',
     '--session-action',
@@ -120,8 +118,6 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.togglePrimarySubtitleBar, true);
   assert.equal(args.replayCurrentSubtitle, true);
   assert.equal(args.playNextSubtitle, true);
-  assert.equal(args.shiftSubDelayPrevLine, true);
-  assert.equal(args.shiftSubDelayNextLine, true);
   assert.equal(args.cycleRuntimeOptionId, 'anki.autoUpdateNewCards');
   assert.equal(args.cycleRuntimeOptionDirection, -1);
   assert.deepEqual(args.sessionAction, { actionId: 'openCharacterDictionaryManager' });
@@ -129,6 +125,13 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.mineSentenceCount, 2);
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
+});
+
+test('parseArgs ignores retired subtitle delay shift flags', () => {
+  const args = parseArgs(['--shift-sub-delay-prev-line', '--shift-sub-delay-next-line']);
+
+  assert.equal(hasExplicitCommand(args), false);
+  assert.equal(shouldStartApp(args), false);
 });
 
 test('parseArgs captures internal playback feedback command', () => {

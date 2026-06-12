@@ -226,10 +226,10 @@ export interface MpvCommandRuntimeServiceDepsParams {
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
+  showRawMpvOsd?: HandleMpvCommandFromIpcOptions['showRawMpvOsd'];
   showPlaybackFeedback?: HandleMpvCommandFromIpcOptions['showPlaybackFeedback'];
   mpvReplaySubtitle: HandleMpvCommandFromIpcOptions['mpvReplaySubtitle'];
   mpvPlayNextSubtitle: HandleMpvCommandFromIpcOptions['mpvPlayNextSubtitle'];
-  shiftSubDelayToAdjacentSubtitle: HandleMpvCommandFromIpcOptions['shiftSubDelayToAdjacentSubtitle'];
   mpvSendCommand: HandleMpvCommandFromIpcOptions['mpvSendCommand'];
   resolveProxyCommandOsd?: HandleMpvCommandFromIpcOptions['resolveProxyCommandOsd'];
   isMpvConnected: HandleMpvCommandFromIpcOptions['isMpvConnected'];
@@ -424,10 +424,10 @@ export function createMpvCommandRuntimeServiceDeps(
     openPlaylistBrowser: params.openPlaylistBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
+    showRawMpvOsd: params.showRawMpvOsd,
     showPlaybackFeedback: params.showPlaybackFeedback,
     mpvReplaySubtitle: params.mpvReplaySubtitle,
     mpvPlayNextSubtitle: params.mpvPlayNextSubtitle,
-    shiftSubDelayToAdjacentSubtitle: params.shiftSubDelayToAdjacentSubtitle,
     mpvSendCommand: params.mpvSendCommand,
     resolveProxyCommandOsd: params.resolveProxyCommandOsd,
     isMpvConnected: params.isMpvConnected,

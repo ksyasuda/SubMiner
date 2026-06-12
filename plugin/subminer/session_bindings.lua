@@ -270,10 +270,6 @@ function M.create(ctx)
 			return { "--replay-current-subtitle" }
 		elseif action_id == "playNextSubtitle" then
 			return { "--play-next-subtitle" }
-		elseif action_id == "shiftSubDelayPrevLine" then
-			return { "--shift-sub-delay-prev-line" }
-		elseif action_id == "shiftSubDelayNextLine" then
-			return { "--shift-sub-delay-next-line" }
 		elseif action_id == "cycleRuntimeOption" then
 			local runtime_option_id = payload and payload.runtimeOptionId or nil
 			if type(runtime_option_id) ~= "string" or runtime_option_id == "" then
@@ -350,6 +346,16 @@ function M.create(ctx)
 		invoke_cli_action(binding.actionId, binding.payload, binding.cliArgs)
 	end
 
+	local function is_supported_binding(binding)
+		if binding.actionType == "mpv-command" then
+			return type(binding.command) == "table" and binding.command[1] ~= nil
+		end
+		if binding.actionType == "session-action" then
+			return build_cli_args(binding.actionId, binding.payload, binding.cliArgs) ~= nil
+		end
+		return false
+	end
+
 	local function load_artifact()
 		local artifact_path = environment.resolve_session_bindings_artifact_path()
 		local raw = read_file(artifact_path)
@@ -385,26 +391,34 @@ function M.create(ctx)
 		local generation = state.session_binding_generation
 
 		for index, binding in ipairs(artifact.bindings) do
-			local key_names = key_spec_to_mpv_bindings(binding.key)
-			if key_names then
-				for key_index, key_name in ipairs(key_names) do
-					local name = "subminer-session-binding-"
-						.. tostring(generation)
-						.. "-"
-						.. tostring(index)
-						.. "-"
-						.. tostring(key_index)
-					next_binding_names[#next_binding_names + 1] = name
-					mp.add_forced_key_binding(key_name, name, function()
-						handle_binding(binding)
-					end)
-				end
-			else
+			if not is_supported_binding(binding) then
 				subminer_log(
 					"warn",
 					"session-bindings",
-					"Skipped unsupported key code from artifact: " .. tostring(binding.key and binding.key.code or "unknown")
+					"Skipped unsupported session binding from artifact"
 				)
+			else
+				local key_names = key_spec_to_mpv_bindings(binding.key)
+				if key_names then
+					for key_index, key_name in ipairs(key_names) do
+						local name = "subminer-session-binding-"
+							.. tostring(generation)
+							.. "-"
+							.. tostring(index)
+							.. "-"
+							.. tostring(key_index)
+						next_binding_names[#next_binding_names + 1] = name
+						mp.add_forced_key_binding(key_name, name, function()
+							handle_binding(binding)
+						end)
+					end
+				else
+					subminer_log(
+						"warn",
+						"session-bindings",
+						"Skipped unsupported key code from artifact: " .. tostring(binding.key and binding.key.code or "unknown")
+					)
+				end
 			end
 		end
 

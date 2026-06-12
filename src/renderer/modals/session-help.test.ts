@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
 import { createRendererState } from '../state.js';
 import {
   buildSessionHelpSections,
@@ -17,13 +16,10 @@ test('session help describes sub-seek commands as subtitle-line navigation', () 
   assert.equal(describeSessionHelpCommand(['sub-seek', -1]), 'Jump to previous subtitle');
 });
 
-test('session help describes subtitle-delay shift special commands separately from sub-seek', () => {
+test('session help describes native subtitle-delay step commands separately from sub-seek', () => {
+  assert.equal(describeSessionHelpCommand(['sub-step', 1]), 'Shift subtitle delay to next cue');
   assert.equal(
-    describeSessionHelpCommand([SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_NEXT_SUBTITLE_START]),
-    'Shift subtitle delay to next cue',
-  );
-  assert.equal(
-    describeSessionHelpCommand([SPECIAL_COMMANDS.SHIFT_SUB_DELAY_TO_PREVIOUS_SUBTITLE_START]),
+    describeSessionHelpCommand(['sub-step', -1]),
     'Shift subtitle delay to previous cue',
   );
 });

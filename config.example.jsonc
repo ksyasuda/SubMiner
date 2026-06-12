@@ -290,15 +290,41 @@
       ] // Command setting.
     },
     {
-      "key": "Shift+BracketRight", // Key setting.
+      "key": "Ctrl+Shift+ArrowLeft", // Key setting.
       "command": [
-        "__sub-delay-next-line"
+        "sub-step",
+        -1
       ] // Command setting.
     },
     {
-      "key": "Shift+BracketLeft", // Key setting.
+      "key": "Ctrl+Shift+ArrowRight", // Key setting.
       "command": [
-        "__sub-delay-prev-line"
+        "sub-step",
+        1
+      ] // Command setting.
+    },
+    {
+      "key": "KeyZ", // Key setting.
+      "command": [
+        "add",
+        "sub-delay",
+        -0.1
+      ] // Command setting.
+    },
+    {
+      "key": "Shift+KeyZ", // Key setting.
+      "command": [
+        "add",
+        "sub-delay",
+        0.1
+      ] // Command setting.
+    },
+    {
+      "key": "KeyX", // Key setting.
+      "command": [
+        "add",
+        "sub-delay",
+        0.1
       ] // Command setting.
     },
     {

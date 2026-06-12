@@ -5,6 +5,7 @@ export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
 ) {
   return (): MpvCommandFromIpcRuntimeDeps => {
     const showPlaybackFeedback = deps.showPlaybackFeedback;
+    const showRawMpvOsd = deps.showRawMpvOsd;
     return {
       triggerSubsyncFromConfig: () => deps.triggerSubsyncFromConfig(),
       openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
@@ -13,13 +14,12 @@ export function createBuildMpvCommandFromIpcRuntimeMainDepsHandler(
       openPlaylistBrowser: () => deps.openPlaylistBrowser(),
       cycleRuntimeOption: (id, direction) => deps.cycleRuntimeOption(id, direction),
       showMpvOsd: (text: string) => deps.showMpvOsd(text),
+      ...(showRawMpvOsd ? { showRawMpvOsd: (text: string) => showRawMpvOsd(text) } : {}),
       ...(showPlaybackFeedback
         ? { showPlaybackFeedback: (text: string) => showPlaybackFeedback(text) }
         : {}),
       replayCurrentSubtitle: () => deps.replayCurrentSubtitle(),
       playNextSubtitle: () => deps.playNextSubtitle(),
-      shiftSubDelayToAdjacentSubtitle: (direction) =>
-        deps.shiftSubDelayToAdjacentSubtitle(direction),
       sendMpvCommand: (command: (string | number)[]) => deps.sendMpvCommand(command),
       getMpvClient: () => deps.getMpvClient(),
       isMpvConnected: () => deps.isMpvConnected(),

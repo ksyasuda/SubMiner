@@ -537,18 +537,6 @@ export function handleCliCommand(
       'playNextSubtitle',
       'Play next subtitle failed',
     );
-  } else if (args.shiftSubDelayPrevLine) {
-    dispatchCliSessionAction(
-      { actionId: 'shiftSubDelayPrevLine' },
-      'shiftSubDelayPrevLine',
-      'Shift subtitle delay failed',
-    );
-  } else if (args.shiftSubDelayNextLine) {
-    dispatchCliSessionAction(
-      { actionId: 'shiftSubDelayNextLine' },
-      'shiftSubDelayNextLine',
-      'Shift subtitle delay failed',
-    );
   } else if (args.playbackFeedback) {
     const showFeedback = deps.showPlaybackFeedback ?? deps.showMpvOsd;
     showFeedback(args.playbackFeedback);
