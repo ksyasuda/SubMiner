@@ -72,43 +72,11 @@ import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-foc
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
-
-function getPasswordStoreArg(argv: string[]): string | null {
-  let resolved: string | null = null;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg?.startsWith('--password-store')) {
-      continue;
-    }
-
-    if (arg === '--password-store') {
-      const value = argv[i + 1];
-      if (value && !value.startsWith('--')) {
-        resolved = value.trim();
-        i += 1;
-      }
-      continue;
-    }
-
-    const [prefix, value] = arg.split('=', 2);
-    if (prefix === '--password-store' && value && value.trim().length > 0) {
-      resolved = value.trim();
-    }
-  }
-  return resolved;
-}
-
-function normalizePasswordStoreArg(value: string): string {
-  const normalized = value.trim();
-  if (normalized.toLowerCase() === 'gnome') {
-    return 'gnome-libsecret';
-  }
-  return normalized;
-}
-
-function getDefaultPasswordStore(): string {
-  return 'gnome-libsecret';
-}
+import {
+  getDefaultPasswordStore,
+  getPasswordStoreArg,
+  normalizePasswordStoreArg,
+} from './main/password-store-args';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -129,7 +97,6 @@ import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
-  CompiledSessionBinding,
   JimakuApiResponse,
   KikuFieldGroupingChoice,
   MpvSubtitleRenderMetrics,
@@ -445,8 +412,8 @@ import {
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
   removeLegacyMpvPluginCandidates,
-  resolvePackagedRuntimePluginPath,
 } from './main/runtime/first-run-setup-plugin';
+import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
 import {
   applyWindowsMpvShortcuts,
   detectWindowsMpvShortcuts,
@@ -479,7 +446,7 @@ import {
   shouldQuitOnMpvShutdownForTrayState,
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
-import { exportLogsArchive } from './main/runtime/log-export';
+import { createLogExportTrayRuntime } from './main/runtime/log-export-tray';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
@@ -505,10 +472,6 @@ import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
-import {
-  buildPluginSessionBindingsArtifact,
-  compileSessionBindings,
-} from './core/services/session-bindings';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
@@ -554,7 +517,7 @@ import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerMo
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
-import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
+import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -631,10 +594,8 @@ import {
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
-import {
-  getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
-  shouldForceOverrideYomitanAnkiServer,
-} from './main/runtime/yomitan-anki-server';
+import { shouldForceOverrideYomitanAnkiServer } from './main/runtime/yomitan-anki-server';
+import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
 import {
   type AnilistMediaGuessRuntimeState,
   type StartupState,
@@ -1322,87 +1283,15 @@ const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelection
   clearScheduled: (timer) => clearTimeout(timer),
 });
 
-function resolveBundledMpvRuntimePluginEntrypoint(): string | undefined {
-  return (
-    resolvePackagedRuntimePluginPath({
-      dirname: __dirname,
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-    }) ?? undefined
-  );
-}
-
-function detectWindowsInstalledMpvPlugin(mpvExecutablePath: string) {
-  return detectInstalledMpvPlugin({
-    platform: 'win32',
-    homeDir: os.homedir(),
-    appDataDir: app.getPath('appData'),
-    mpvExecutablePath,
-  });
-}
-
-function logInstalledMpvPluginDetected(detection: { path: string | null; version: string | null }) {
-  if (!detection.path) return;
-  logger.warn(
-    `SubMiner detected an installed mpv plugin at ${detection.path}. This mpv session will use the installed plugin. Remove it to use the bundled runtime plugin automatically. Detected plugin version: ${detection.version ?? 'unknown or legacy'}.`,
-  );
-}
-
-async function promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(
-  mpvPath: string,
-  detection: { path: string | null; version: string | null },
-): Promise<'removed' | 'continue' | 'cancel'> {
-  const response = await dialog.showMessageBox({
-    type: 'warning',
-    title: 'SubMiner mpv plugin detected',
-    message: [
-      'SubMiner detected an installed mpv plugin at:',
-      detection.path ?? 'unknown path',
-      '',
-      "This mpv session will use the installed plugin unless it is removed. Remove it now to use SubMiner's bundled runtime plugin automatically.",
-      `Detected plugin version: ${detection.version ?? 'unknown or legacy'}`,
-    ].join('\n'),
-    detail:
-      'Remove the legacy SubMiner mpv plugin files from mpv before launching this video? This moves the files to the OS trash.',
-    buttons: ['Remove legacy plugin', 'Continue with installed plugin', 'Cancel'],
-    defaultId: 0,
-    cancelId: 2,
-  });
-
-  if (response.response === 2) {
-    return 'cancel';
-  }
-  if (response.response === 1) {
-    return 'continue';
-  }
-
-  const result = await removeLegacyMpvPluginCandidates({
-    candidates: detectInstalledFirstRunPluginCandidates({
-      platform: 'win32',
-      homeDir: os.homedir(),
-      appDataDir: app.getPath('appData'),
-      mpvExecutablePath: mpvPath,
-    }),
-    trashItem: (candidatePath) => shell.trashItem(candidatePath),
-  });
-  if (result.ok) {
-    await dialog.showMessageBox({
-      type: 'info',
-      title: 'Legacy mpv plugin removed',
-      message:
-        'Legacy mpv plugin removed. SubMiner-managed playback will use the bundled runtime plugin.',
-    });
-    return 'removed';
-  }
-
-  await dialog.showMessageBox({
-    type: 'error',
-    title: 'Could not remove legacy mpv plugin',
-    message: 'Some legacy SubMiner mpv plugin files could not be moved to the trash.',
-    detail: result.failedPaths.map((failure) => `${failure.path}: ${failure.message}`).join('\n'),
-  });
-  return 'cancel';
-}
+const {
+  resolveBundledMpvRuntimePluginEntrypoint,
+  detectWindowsInstalledMpvPlugin,
+  logInstalledMpvPluginDetected,
+  promptForLegacyMpvPluginRemovalBeforeWindowsLaunch,
+} = createWindowsMpvPluginDetectionRuntime({
+  mainDirname: __dirname,
+  logWarn: (message) => logger.warn(message),
+});
 
 const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   platform: process.platform,
@@ -6008,11 +5897,17 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return extension;
 }
 
-let lastSyncedYomitanAnkiSettingsKey: string | null = null;
-
-function getPreferredYomitanAnkiServerUrl(): string {
-  return getPreferredYomitanAnkiServerUrlRuntime(getResolvedConfig().ankiConnect);
-}
+const { syncYomitanDefaultProfileAnkiServer } = createYomitanAnkiServerSyncRuntime({
+  isExternalReadOnlyMode: () => yomitanProfilePolicy.isExternalReadOnlyMode(),
+  getResolvedConfig: () => getResolvedConfig(),
+  getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
+  logError: (message, ...args) => {
+    logger.error(message, ...args);
+  },
+  logInfo: (message, ...args) => {
+    logger.info(message, ...args);
+  },
+});
 
 function getYomitanParserRuntimeDeps() {
   return {
@@ -6031,43 +5926,6 @@ function getYomitanParserRuntimeDeps() {
       appState.yomitanParserInitPromise = promise;
     },
   };
-}
-
-async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
-  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-    return;
-  }
-
-  const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
-  const ankiConnectConfig = getResolvedConfig().ankiConnect;
-  const targetDeck = ankiConnectConfig?.deck?.trim() ?? '';
-  const targetSettingsKey = `${targetUrl}\n${targetDeck}`;
-  if (!targetUrl || targetSettingsKey === lastSyncedYomitanAnkiSettingsKey) {
-    return;
-  }
-
-  const synced = await syncYomitanDefaultAnkiServerCore(
-    targetUrl,
-    getYomitanParserRuntimeDeps(),
-    {
-      error: (message, ...args) => {
-        logger.error(message, ...args);
-      },
-      info: (message, ...args) => {
-        logger.info(message, ...args);
-      },
-    },
-    {
-      forceOverride: ankiConnectConfig
-        ? shouldForceOverrideYomitanAnkiServer(ankiConnectConfig)
-        : false,
-      deck: targetDeck,
-    },
-  );
-
-  if (synced) {
-    lastSyncedYomitanAnkiSettingsKey = targetSettingsKey;
-  }
 }
 
 function createModalWindow(): BrowserWindow {
@@ -6201,52 +6059,11 @@ function openYomitanSettings(): boolean {
   return true;
 }
 
-function describeUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function exportLogsFromTray(): Promise<void> {
-  try {
-    await flushMpvLog();
-  } catch (error) {
-    logger.warn('Failed to flush mpv log before exporting logs from tray.', error);
-  }
-
-  try {
-    const result = exportLogsArchive({
-      platform: process.platform,
-      homeDir: os.homedir(),
-      appDataDir: app.getPath('appData'),
-    });
-    logger.info(
-      `Exported ${result.exportedFiles.length} sanitized log file(s) to ${result.zipPath}`,
-    );
-    void dialog
-      .showMessageBox({
-        type: 'info',
-        title: 'SubMiner logs exported',
-        message: 'SubMiner log export created.',
-        detail: result.zipPath,
-        buttons: ['OK', 'Show in Folder'],
-        defaultId: 0,
-        cancelId: 0,
-      })
-      .then((response) => {
-        if (response.response === 1) {
-          shell.showItemInFolder(result.zipPath);
-        }
-      });
-  } catch (error) {
-    const message = describeUnknownError(error);
-    logger.warn('Failed to export logs from tray.', error);
-    void dialog.showMessageBox({
-      type: 'error',
-      title: 'SubMiner log export failed',
-      message: 'Could not export SubMiner logs.',
-      detail: message,
-    });
-  }
-}
+const { exportLogsFromTray } = createLogExportTrayRuntime({
+  flushMpvLog: () => flushMpvLog(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, details) => logger.warn(message, details),
+});
 
 const {
   getConfiguredShortcuts,
@@ -6308,53 +6125,20 @@ const {
   },
 });
 
-function resolveSessionBindingPlatform(): 'darwin' | 'win32' | 'linux' {
-  if (process.platform === 'darwin') return 'darwin';
-  if (process.platform === 'win32') return 'win32';
-  return 'linux';
-}
-
-function compileCurrentSessionBindings(): {
-  bindings: CompiledSessionBinding[];
-  warnings: ReturnType<typeof compileSessionBindings>['warnings'];
-} {
-  return compileSessionBindings({
-    keybindings: appState.keybindings,
-    shortcuts: getConfiguredShortcuts(),
-    statsToggleKey: getResolvedConfig().stats.toggleKey,
-    statsMarkWatchedKey: getResolvedConfig().stats.markWatchedKey,
-    platform: resolveSessionBindingPlatform(),
-    rawConfig: getResolvedConfig(),
-  });
-}
-
-function persistSessionBindings(
-  bindings: CompiledSessionBinding[],
-  warnings: ReturnType<typeof compileSessionBindings>['warnings'] = [],
-): void {
-  const artifact = buildPluginSessionBindingsArtifact({
-    bindings,
-    warnings,
-    numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
-  });
-  writeSessionBindingsArtifact(CONFIG_DIR, artifact);
-  appState.sessionBindings = bindings;
-  appState.sessionBindingsInitialized = true;
-  if (appState.mpvClient?.connected) {
-    sendMpvCommandRuntime(appState.mpvClient, [
-      'script-message',
-      'subminer-reload-session-bindings',
-    ]);
-  }
-}
-
-function refreshCurrentSessionBindings(): void {
-  const compiled = compileCurrentSessionBindings();
-  for (const warning of compiled.warnings) {
-    logger.warn(`[session-bindings] ${warning.message}`);
-  }
-  persistSessionBindings(compiled.bindings, compiled.warnings);
-}
+const { persistSessionBindings, refreshCurrentSessionBindings } = createSessionBindingsRuntime({
+  configDir: CONFIG_DIR,
+  getKeybindings: () => appState.keybindings,
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  getResolvedConfig: () => getResolvedConfig(),
+  getMpvClient: () => appState.mpvClient,
+  setSessionBindings: (bindings) => {
+    appState.sessionBindings = bindings;
+  },
+  setSessionBindingsInitialized: (initialized) => {
+    appState.sessionBindingsInitialized = initialized;
+  },
+  logWarn: (message) => logger.warn(message),
+});
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
