@@ -16,3 +16,13 @@ test('setMpvCurrentSecondarySubText uses client setter when available', () => {
   assert.deepEqual(calls, ['secondary']);
   assert.equal(client.currentSecondarySubText, '');
 });
+
+test('setMpvCurrentSecondarySubText updates client property when setter is unavailable', () => {
+  const client = {
+    currentSecondarySubText: '',
+  };
+
+  setMpvCurrentSecondarySubText(client, 'secondary');
+
+  assert.equal(client.currentSecondarySubText, 'secondary');
+});

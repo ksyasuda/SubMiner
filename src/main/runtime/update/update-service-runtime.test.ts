@@ -18,3 +18,26 @@ test('runSupportAssetUpdatesForLauncherResult logs support-asset errors and pres
   assert.equal(result, launcherResult);
   assert.deepEqual(warnings, ['Support asset update failed after launcher update:archive failed']);
 });
+
+test('runSupportAssetUpdatesForLauncherResult uses support asset description in skip warnings', async () => {
+  const warnings: string[] = [];
+  const launcherResult = { status: 'updated' } as const;
+
+  const result = await runSupportAssetUpdatesForLauncherResult({
+    launcherResult,
+    assetDescription: 'Support asset update',
+    updateSupportAssets: async () => [
+      { status: 'protected', command: 'install-theme' },
+      { status: 'hash-mismatch', message: 'checksum failed' },
+    ],
+    logWarn: (message) => {
+      warnings.push(message);
+    },
+  });
+
+  assert.equal(result, launcherResult);
+  assert.deepEqual(warnings, [
+    'Support asset update requires manual command: install-theme',
+    'Support asset update skipped: checksum failed',
+  ]);
+});

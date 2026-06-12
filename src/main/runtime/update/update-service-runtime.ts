@@ -82,6 +82,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
     });
     return runSupportAssetUpdatesForLauncherResult({
       launcherResult,
+      assetDescription: 'Support asset update',
       updateSupportAssets: () =>
         updateSupportAssetsFromRelease({
           release,

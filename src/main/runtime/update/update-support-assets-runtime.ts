@@ -3,16 +3,18 @@ export async function runSupportAssetUpdatesForLauncherResult<
   TSupportResult extends { status: string; command?: string; message?: string },
 >(options: {
   launcherResult: TLauncherResult;
+  assetDescription?: string;
   updateSupportAssets: () => Promise<TSupportResult[]>;
   logWarn: (message: string, details?: unknown) => void;
 }): Promise<TLauncherResult> {
+  const assetDescription = options.assetDescription ?? 'Support asset update';
   try {
     const supportResults = await options.updateSupportAssets();
     for (const result of supportResults) {
       if (result.status === 'protected' && result.command) {
-        options.logWarn(`Rofi theme update requires manual command: ${result.command}`);
+        options.logWarn(`${assetDescription} requires manual command: ${result.command}`);
       } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-        options.logWarn(`Rofi theme update skipped: ${result.message ?? result.status}`);
+        options.logWarn(`${assetDescription} skipped: ${result.message ?? result.status}`);
       }
     }
   } catch (error) {

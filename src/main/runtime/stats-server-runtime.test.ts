@@ -5,7 +5,7 @@ import {
   shouldClearAppStateStatsServerOnStop,
 } from './stats-server-runtime';
 
-test('background stats daemon state owned by the current process is stale for stop flow', () => {
+test('detects self-owned background stats daemon state', () => {
   assert.equal(
     isSelfOwnedBackgroundStatsDaemonState({ pid: process.pid, port: 6969, startedAtMs: 1 }),
     true,
