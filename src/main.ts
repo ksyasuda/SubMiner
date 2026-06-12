@@ -144,7 +144,6 @@ import type {
   OverlayNotificationPayload,
   OverlayNotificationEventPayload,
   NotificationType,
-  UpdateChannel,
   WindowGeometry,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
@@ -590,25 +589,7 @@ import { restoreLinuxOverlayWindowShape } from './main/runtime/linux-overlay-win
 import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
-  createElectronAppUpdater,
-  isNativeUpdaterSupported,
-} from './main/runtime/update/app-updater';
-import { createCurlFetch, createGlobalFetch } from './main/runtime/update/fetch-adapter';
-import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
-import { createFetchHttpExecutor } from './main/runtime/update/fetch-http-executor';
-import {
-  fetchLatestStableRelease,
-  fetchReleaseAssetBuffer,
-  fetchReleaseAssetText,
-  findReleaseAsset,
-  parseSha256Sums,
-  type GitHubRelease,
-} from './main/runtime/update/release-assets';
-import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
-import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
-import {
   INSTALL_UPDATE_ACTION_ID,
-  notifyUpdateAvailable,
   UPDATE_AVAILABLE_NOTIFICATION_ID,
 } from './main/runtime/update/update-notifications';
 import { createOverlayLoadingOsdController } from './main/runtime/overlay-loading-osd';
@@ -621,16 +602,11 @@ import {
   type ConfiguredStatusNotificationOptions,
 } from './main/runtime/configured-status-notification';
 import { resolveOverlayReadinessNotificationType } from './main/runtime/notification-routing';
-import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
 } from './main/runtime/update/update-cli-command';
-import {
-  createFileUpdateStateStore,
-  createUpdateService,
-} from './main/runtime/update/update-service';
-import { updateSupportAssetsFromRelease } from './main/runtime/update/support-assets';
+import { createUpdateServiceRuntime } from './main/runtime/update/update-service-runtime';
 import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
   createResolveActiveSubtitleSidebarSourceHandler,
@@ -743,7 +719,6 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
-const SUBMINER_BUNDLE_ID = 'com.sudacode.SubMiner';
 const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
@@ -6401,153 +6376,19 @@ flushPendingMpvLogWrites = () => {
   void flushMpvLog();
 };
 
-const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
-let updateService: ReturnType<typeof createUpdateService> | null = null;
-const globalFetchForUpdater = createGlobalFetch();
-const curlFetch = createCurlFetch();
-
-function createNativeUpdaterHttpExecutor() {
-  if (process.platform === 'win32') {
-    return createFetchHttpExecutor();
-  }
-  return createCurlHttpExecutor();
-}
-
-function getFetchForUpdater() {
-  if (process.platform === 'win32') return globalFetchForUpdater;
-  return curlFetch;
-}
-
-async function updateLauncherFromSelectedRelease(
-  launcherPath?: string,
-  channel: UpdateChannel = getResolvedConfig().updates.channel,
-  release: GitHubRelease | null = null,
-) {
-  const fetchForUpdater = getFetchForUpdater();
-  if (!release) {
-    return { status: 'missing-asset', message: `No ${channel} GitHub release found.` };
-  }
-  const sumsAsset = findReleaseAsset(release, 'SHA256SUMS.txt');
-  if (!sumsAsset) {
-    return { status: 'missing-asset', message: 'Release has no SHA256SUMS.txt asset.' };
-  }
-  const sums = parseSha256Sums(
-    await fetchReleaseAssetText(fetchForUpdater, sumsAsset.browser_download_url),
-  );
-  const launcherResult = await updateLauncherFromRelease({
-    release,
-    sha256Sums: sums,
-    launcherPath,
-    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
-  });
-  const supportResults = await updateSupportAssetsFromRelease({
-    release,
-    sha256Sums: sums,
-    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
-  });
-  for (const result of supportResults) {
-    if (result.status === 'protected' && result.command) {
-      logger.warn(`Rofi theme update requires manual command: ${result.command}`);
-    } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-      logger.warn(`Rofi theme update skipped: ${result.message ?? result.status}`);
-    }
-  }
-  return launcherResult;
-}
-
-function getUpdateService() {
-  if (updateService) return updateService;
-  const appUpdater = createElectronAppUpdater({
-    currentVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
-    log: (message) => logger.info(message),
-    getChannel: () => getResolvedConfig().updates.channel,
-    configureHttpExecutor: createNativeUpdaterHttpExecutor,
-    disableDifferentialDownload: true,
-    isNativeUpdaterSupported: () =>
-      isNativeUpdaterSupported({
-        platform: process.platform,
-        isPackaged: app.isPackaged,
-        execPath: process.execPath,
-        env: process.env,
-        log: (message) => logger.warn(message),
-      }),
-  });
-  const updateDialogPresenter = createUpdateDialogPresenter({
-    platform: process.platform,
-    focusApp: async () => {
-      if (process.platform !== 'darwin') {
-        app.focus({ steal: true });
-        return;
-      }
-      try {
-        await app.dock?.show();
-      } catch (error) {
-        logger.warn('Failed to show macOS dock before update dialog', error);
-      }
-      // app.focus({ steal: true }) alone does not reliably activate the process
-      // when SubMiner was reached via `subminer -u` (single-instance forwarding
-      // from a CLI-spawned child). osascript's `activate` uses LaunchServices,
-      // which is the only path that reliably brings the running app forward.
-      await new Promise<void>((resolve) => {
-        execFile(
-          '/usr/bin/osascript',
-          ['-e', `tell application id "${SUBMINER_BUNDLE_ID}" to activate`],
-          { timeout: 2000 },
-          (error) => {
-            if (error) {
-              logger.warn(
-                `Failed to activate SubMiner via osascript: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-            resolve();
-          },
-        );
-      });
-      app.focus({ steal: true });
-    },
-    withStatsWindowLayerSuspended: (showDialog) =>
-      withStatsWindowLayerSuspendedForNativeDialog(showDialog),
-    showMessageBox: (options) => dialog.showMessageBox(options),
-  });
-  updateService = createUpdateService({
-    getConfig: () => getResolvedConfig().updates,
-    getCurrentVersion: () => app.getVersion(),
-    now: () => Date.now(),
-    readState: () => updateStateStore.readState(),
-    writeState: (state) => updateStateStore.writeState(state),
-    checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
-    shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
-      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate, request),
-    fetchLatestStableRelease: (channel) =>
-      fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
-    updateLauncher: (launcherPath, channel, release) =>
-      updateLauncherFromSelectedRelease(launcherPath, channel, release),
-    showNoUpdateDialog: (version) => updateDialogPresenter.showNoUpdateDialog(version),
-    showUpdateAvailableDialog: (version) =>
-      updateDialogPresenter.showUpdateAvailableDialog(version),
-    showUpdateFailedDialog: (message) => updateDialogPresenter.showUpdateFailedDialog(message),
-    showManualUpdateRequiredDialog: (version) =>
-      updateDialogPresenter.showManualUpdateRequiredDialog(version),
-    downloadAppUpdate: () => appUpdater.downloadUpdate(),
-    showRestartDialog: () => updateDialogPresenter.showRestartDialog(),
-    quitAndInstall: () => appUpdater.quitAndInstall(),
-    notifyUpdateAvailable: (version) =>
-      notifyUpdateAvailable(
-        { notificationType: getResolvedConfig().updates.notificationType, version },
-        {
-          showSystemNotification: (title, body) => showDesktopNotification(title, { body }),
-          showOverlayNotification,
-          showOsdNotification: (message) => {
-            showMpvOsd(message);
-          },
-          log: (message) => logger.warn(message),
-        },
-      ),
-    log: (message) => logger.warn(message),
-  });
-  return updateService;
-}
+const { getUpdateService } = createUpdateServiceRuntime({
+  userDataPath: USER_DATA_PATH,
+  getUpdatesConfig: () => getResolvedConfig().updates,
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, details) => logger.warn(message, details),
+  showOverlayNotification,
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  showMpvOsd: (message) => {
+    showMpvOsd(message);
+  },
+  withStatsWindowLayerSuspendedForNativeDialog: (showDialog) =>
+    withStatsWindowLayerSuspendedForNativeDialog(showDialog),
+});
 
 const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {
