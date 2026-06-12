@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '../../lib/api-client';
+import { normalizeAnilistSearchQuery } from '../../lib/anilist-search-query';
 
 interface AnilistMedia {
   id: number;
@@ -24,7 +25,7 @@ export function AnilistSelector({
   onClose,
   onLinked,
 }: AnilistSelectorProps) {
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(() => normalizeAnilistSearchQuery(initialQuery));
   const [results, setResults] = useState<AnilistMedia[]>([]);
   const [loading, setLoading] = useState(false);
   const [linking, setLinking] = useState<number | null>(null);
@@ -33,17 +34,19 @@ export function AnilistSelector({
 
   useEffect(() => {
     inputRef.current?.focus();
-    if (initialQuery) doSearch(initialQuery);
+    const normalizedInitialQuery = normalizeAnilistSearchQuery(initialQuery);
+    if (normalizedInitialQuery) doSearch(normalizedInitialQuery);
   }, []);
 
   const doSearch = async (q: string) => {
-    if (!q.trim()) {
+    const searchQuery = normalizeAnilistSearchQuery(q);
+    if (!searchQuery) {
       setResults([]);
       return;
     }
     setLoading(true);
     try {
-      const data = await apiClient.searchAnilist(q.trim());
+      const data = await apiClient.searchAnilist(searchQuery);
       setResults(data);
     } catch {
       setResults([]);
