@@ -180,10 +180,19 @@ export function detectInstalledFirstRunPluginCandidates(options: {
   return candidates;
 }
 
-export function filterLegacyMpvPluginFileCandidates(
-  candidates: InstalledFirstRunPluginCandidate[],
-): InstalledFirstRunPluginCandidate[] {
-  return candidates.filter((candidate) => candidate.kind === 'file');
+export function detectWindowsMpvPluginRemovalCandidates(options: {
+  homeDir: string;
+  appDataDir: string;
+  mpvExecutablePath: string;
+  existsSync?: (candidate: string) => boolean;
+}): InstalledFirstRunPluginCandidate[] {
+  return detectInstalledFirstRunPluginCandidates({
+    platform: 'win32',
+    homeDir: options.homeDir,
+    appDataDir: options.appDataDir,
+    mpvExecutablePath: options.mpvExecutablePath,
+    existsSync: options.existsSync,
+  });
 }
 
 function parseInstalledPluginVersion(content: string): string | null {

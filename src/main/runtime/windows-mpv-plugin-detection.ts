@@ -1,9 +1,8 @@
 import { app, dialog, shell } from 'electron';
 import * as os from 'os';
 import {
-  detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
-  filterLegacyMpvPluginFileCandidates,
+  detectWindowsMpvPluginRemovalCandidates,
   removeLegacyMpvPluginCandidates,
   resolvePackagedRuntimePluginPath,
 } from './first-run-setup-plugin';
@@ -87,14 +86,11 @@ export function createWindowsMpvPluginDetectionRuntime(
     }
 
     const result = await removeLegacyMpvPluginCandidates({
-      candidates: filterLegacyMpvPluginFileCandidates(
-        detectInstalledFirstRunPluginCandidates({
-          platform: 'win32',
-          homeDir: os.homedir(),
-          appDataDir: app.getPath('appData'),
-          mpvExecutablePath: mpvPath,
-        }),
-      ),
+      candidates: detectWindowsMpvPluginRemovalCandidates({
+        homeDir: os.homedir(),
+        appDataDir: app.getPath('appData'),
+        mpvExecutablePath: mpvPath,
+      }),
       trashItem: (candidatePath) => shell.trashItem(candidatePath),
     });
     if (result.ok) {
