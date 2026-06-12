@@ -150,9 +150,9 @@ test('all visible overlay hide paths clear stale overlay input state', () => {
 });
 
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
-    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n\}/,
+    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -161,8 +161,8 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
     /const nextMediaPath = mediaPath\?\.trim\(\) \|\| getCurrentAutoplayMediaPath\(\);/,
   );
   assert.ok(
-    actionBlock.indexOf('subtitlePrefetchInitController.initSubtitlePrefetch') <
-      actionBlock.indexOf('appState.activeParsedSubtitleMediaPath = nextMediaPath;'),
+    actionBlock.indexOf('deps.initSubtitlePrefetch(') <
+      actionBlock.indexOf('deps.setActiveParsedSubtitleMediaPath(nextMediaPath);'),
   );
 });
 
@@ -211,9 +211,9 @@ test('subtitle change re-prioritizes prefetch around live playback before tokeni
 });
 
 test('autoplay subtitle prime emits cached annotations and avoids raw fallback overlay flashes', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
-    /function emitAutoplayPrimedSubtitle\([\s\S]*?\): boolean \{(?<body>[\s\S]*?)\n\}/,
+    /function emitAutoplayPrimedSubtitle\([\s\S]*?\): boolean \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
