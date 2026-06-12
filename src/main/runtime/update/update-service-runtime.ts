@@ -21,6 +21,7 @@ import { notifyUpdateAvailable } from './update-notifications';
 import { createUpdateDialogPresenter } from './update-dialogs';
 import { createFileUpdateStateStore, createUpdateService } from './update-service';
 import { updateSupportAssetsFromRelease } from './support-assets';
+import { runSupportAssetUpdatesForLauncherResult } from './update-support-assets-runtime';
 
 const SUBMINER_BUNDLE_ID = 'com.sudacode.SubMiner';
 
@@ -79,19 +80,16 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
       launcherPath,
       downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
     });
-    const supportResults = await updateSupportAssetsFromRelease({
-      release,
-      sha256Sums: sums,
-      downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+    return runSupportAssetUpdatesForLauncherResult({
+      launcherResult,
+      updateSupportAssets: () =>
+        updateSupportAssetsFromRelease({
+          release,
+          sha256Sums: sums,
+          downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+        }),
+      logWarn: (message, details) => deps.logWarn(message, details),
     });
-    for (const result of supportResults) {
-      if (result.status === 'protected' && result.command) {
-        deps.logWarn(`Rofi theme update requires manual command: ${result.command}`);
-      } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-        deps.logWarn(`Rofi theme update skipped: ${result.message ?? result.status}`);
-      }
-    }
-    return launcherResult;
   }
 
   function getUpdateService() {

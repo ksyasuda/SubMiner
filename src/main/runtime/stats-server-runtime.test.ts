@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  isSelfOwnedBackgroundStatsDaemonState,
+  shouldClearAppStateStatsServerOnStop,
+} from './stats-server-runtime';
+
+test('background stats daemon state owned by the current process is stale for stop flow', () => {
+  assert.equal(
+    isSelfOwnedBackgroundStatsDaemonState({ pid: process.pid, port: 6969, startedAtMs: 1 }),
+    true,
+  );
+});
+
+test('stats server app-state reference should be cleared after private server stop', () => {
+  assert.equal(shouldClearAppStateStatsServerOnStop({ hadStatsServer: true }), true);
+});

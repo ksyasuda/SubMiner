@@ -12,6 +12,7 @@ type AutoplaySubtitlePrimingMpvClient = {
   currentVideoPath?: string;
   currentTimePos?: number;
   currentSecondarySubText?: string;
+  setCurrentSecondarySubText?: (text: string) => void;
 };
 
 type AutoplaySubtitlePrimingPrefetchService = {
@@ -43,6 +44,20 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
   ) => Promise<void>;
   refreshSubtitlePrefetchFromActiveTrack: () => Promise<void>;
   logDebug: (message: string) => void;
+}
+
+export function setMpvCurrentSecondarySubText(
+  client: Pick<
+    AutoplaySubtitlePrimingMpvClient,
+    'currentSecondarySubText' | 'setCurrentSecondarySubText'
+  >,
+  text: string,
+): void {
+  if (typeof client.setCurrentSecondarySubText === 'function') {
+    client.setCurrentSecondarySubText(text);
+    return;
+  }
+  client.currentSecondarySubText = text;
 }
 
 export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimingRuntimeDeps) {
@@ -137,7 +152,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       setCurrentSecondarySubText: (text) => {
         const client = deps.getMpvClient();
         if (client) {
-          client.currentSecondarySubText = text;
+          setMpvCurrentSecondarySubText(client, text);
         }
       },
       emitSecondarySubtitle: (text) => {

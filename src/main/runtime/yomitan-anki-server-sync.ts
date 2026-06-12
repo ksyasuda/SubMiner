@@ -13,6 +13,14 @@ export interface YomitanAnkiServerSyncRuntimeDeps {
   logInfo: (message: string, ...args: unknown[]) => void;
 }
 
+export function buildYomitanAnkiSettingsKey(options: {
+  targetUrl: string;
+  targetDeck: string;
+  forceOverride: boolean;
+}): string {
+  return `${options.targetUrl}\n${options.targetDeck}\nforceOverride:${options.forceOverride}`;
+}
+
 export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRuntimeDeps): {
   syncYomitanDefaultProfileAnkiServer: () => Promise<void>;
 } {
@@ -30,7 +38,14 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
     const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
     const ankiConnectConfig = deps.getResolvedConfig().ankiConnect;
     const targetDeck = ankiConnectConfig?.deck?.trim() ?? '';
-    const targetSettingsKey = `${targetUrl}\n${targetDeck}`;
+    const forceOverride = ankiConnectConfig
+      ? shouldForceOverrideYomitanAnkiServer(ankiConnectConfig)
+      : false;
+    const targetSettingsKey = buildYomitanAnkiSettingsKey({
+      targetUrl,
+      targetDeck,
+      forceOverride,
+    });
     if (!targetUrl || targetSettingsKey === lastSyncedYomitanAnkiSettingsKey) {
       return;
     }
@@ -47,9 +62,7 @@ export function createYomitanAnkiServerSyncRuntime(deps: YomitanAnkiServerSyncRu
         },
       },
       {
-        forceOverride: ankiConnectConfig
-          ? shouldForceOverrideYomitanAnkiServer(ankiConnectConfig)
-          : false,
+        forceOverride,
         deck: targetDeck,
       },
     );

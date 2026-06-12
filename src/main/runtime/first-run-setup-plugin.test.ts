@@ -7,6 +7,7 @@ import {
   detectInstalledFirstRunPlugin,
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
+  filterLegacyMpvPluginFileCandidates,
   removeLegacyMpvPluginCandidates,
   resolvePackagedFirstRunPluginAssets,
   resolvePackagedRuntimePluginPath,
@@ -218,6 +219,20 @@ test('detectInstalledMpvPlugin detects Linux legacy single-file plugin without v
     assert.equal(detection.version, null);
     assert.equal(detection.source, 'legacy-file');
   });
+});
+
+test('filterLegacyMpvPluginFileCandidates keeps only legacy file candidates', () => {
+  assert.deepEqual(
+    filterLegacyMpvPluginFileCandidates([
+      { path: '/tmp/mpv/scripts/subminer', kind: 'directory' },
+      { path: '/tmp/mpv/scripts/subminer.lua', kind: 'file' },
+      { path: '/tmp/mpv/scripts/subminer-loader.lua', kind: 'file' },
+    ]),
+    [
+      { path: '/tmp/mpv/scripts/subminer.lua', kind: 'file' },
+      { path: '/tmp/mpv/scripts/subminer-loader.lua', kind: 'file' },
+    ],
+  );
 });
 
 test('removeLegacyMpvPluginCandidates trashes candidates and reports partial failures', async () => {

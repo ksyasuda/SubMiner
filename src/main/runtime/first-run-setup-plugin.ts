@@ -180,6 +180,12 @@ export function detectInstalledFirstRunPluginCandidates(options: {
   return candidates;
 }
 
+export function filterLegacyMpvPluginFileCandidates(
+  candidates: InstalledFirstRunPluginCandidate[],
+): InstalledFirstRunPluginCandidate[] {
+  return candidates.filter((candidate) => candidate.kind === 'file');
+}
+
 function parseInstalledPluginVersion(content: string): string | null {
   const match = content.match(/\bversion\s*=\s*["']([^"']+)["']/);
   return match?.[1] ?? null;

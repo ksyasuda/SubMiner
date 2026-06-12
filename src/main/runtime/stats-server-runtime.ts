@@ -18,6 +18,20 @@ import {
 import { createEnsureStatsServerUrlHandler } from './stats-server-routing';
 import { shouldForceOverrideYomitanAnkiServer } from './yomitan-anki-server';
 
+export function isSelfOwnedBackgroundStatsDaemonState(state: {
+  pid: number;
+  port?: number;
+  startedAtMs?: number;
+}): boolean {
+  return state.pid === process.pid;
+}
+
+export function shouldClearAppStateStatsServerOnStop(options: {
+  hadStatsServer: boolean;
+}): boolean {
+  return options.hadStatsServer;
+}
+
 export interface StatsServerRuntimeDeps {
   userDataPath: string;
   statsDistPath: string;
@@ -90,6 +104,9 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
     }
     statsServer.close();
     statsServer = null;
+    if (shouldClearAppStateStatsServerOnStop({ hadStatsServer: true })) {
+      deps.setAppStateStatsServer(null);
+    }
     clearOwnedBackgroundStatsDaemonState();
   }
 
@@ -195,6 +212,10 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
   const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
     const state = readBackgroundStatsServerState(statsDaemonStatePath);
     if (!state) {
+      removeBackgroundStatsServerState(statsDaemonStatePath);
+      return { ok: true, stale: true };
+    }
+    if (isSelfOwnedBackgroundStatsDaemonState(state)) {
       removeBackgroundStatsServerState(statsDaemonStatePath);
       return { ok: true, stale: true };
     }

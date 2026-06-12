@@ -45,6 +45,7 @@ export interface MpvRuntimeClientLike {
   playNextSubtitle?: () => void;
   setSubVisibility?: (visible: boolean) => void;
   setSecondarySubVisibility?: (visible: boolean) => void;
+  setCurrentSecondarySubText?: (text: string) => void;
 }
 
 export function showMpvOsdRuntime(

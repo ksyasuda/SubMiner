@@ -54,7 +54,12 @@ export function createSessionBindingsRuntime(deps: SessionBindingsRuntimeDeps): 
       warnings,
       numericSelectionTimeoutMs: deps.getConfiguredShortcuts().multiCopyTimeoutMs,
     });
-    writeSessionBindingsArtifact(deps.configDir, artifact);
+    try {
+      writeSessionBindingsArtifact(deps.configDir, artifact);
+    } catch (error) {
+      deps.logWarn('[session-bindings] Failed to write session bindings artifact');
+      throw error;
+    }
     deps.setSessionBindings(bindings);
     deps.setSessionBindingsInitialized(true);
     const mpvClient = deps.getMpvClient();

@@ -3,6 +3,7 @@ import * as os from 'os';
 import {
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
+  filterLegacyMpvPluginFileCandidates,
   removeLegacyMpvPluginCandidates,
   resolvePackagedRuntimePluginPath,
 } from './first-run-setup-plugin';
@@ -86,12 +87,14 @@ export function createWindowsMpvPluginDetectionRuntime(
     }
 
     const result = await removeLegacyMpvPluginCandidates({
-      candidates: detectInstalledFirstRunPluginCandidates({
-        platform: 'win32',
-        homeDir: os.homedir(),
-        appDataDir: app.getPath('appData'),
-        mpvExecutablePath: mpvPath,
-      }),
+      candidates: filterLegacyMpvPluginFileCandidates(
+        detectInstalledFirstRunPluginCandidates({
+          platform: 'win32',
+          homeDir: os.homedir(),
+          appDataDir: app.getPath('appData'),
+          mpvExecutablePath: mpvPath,
+        }),
+      ),
       trashItem: (candidatePath) => shell.trashItem(candidatePath),
     });
     if (result.ok) {

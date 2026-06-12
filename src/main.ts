@@ -2616,8 +2616,8 @@ function showYoutubeFlowStatusNotification(message: string): void {
   overlayNotificationsRuntime.showYoutubeFlowStatusNotification(message);
 }
 
-function showOverlayLoadingStatusNotification(message: string): void {
-  overlayNotificationsRuntime.showOverlayLoadingStatusNotification(message);
+function showOverlayLoadingStatusNotification(_message: string): void {
+  overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
 }
 
 function dismissOverlayLoadingStatusNotification(): void {

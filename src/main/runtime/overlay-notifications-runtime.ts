@@ -56,7 +56,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
   ) => void;
   showSubsyncStatusNotification: (message: string) => void;
   showYoutubeFlowStatusNotification: (message: string) => void;
-  showOverlayLoadingStatusNotification: (message: string) => void;
+  showOverlayLoadingStatusNotification: () => void;
   dismissOverlayLoadingStatusNotification: () => void;
   maybeStartOverlayLoadingOsd: (mediaPath?: string | null) => void;
 } {
@@ -213,8 +213,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
     return overlayLoadingOsdController;
   }
 
-  function showOverlayLoadingStatusNotification(message: string): void {
-    void message;
+  function showOverlayLoadingStatusNotification(): void {
     getOverlayLoadingOsdController().start();
   }
 
@@ -231,7 +230,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
     getVisibleOverlayRequested: () => deps.getVisibleOverlayVisible(),
     isOverlayContentReady: () => isVisibleOverlayContentReady(),
     startOverlayLoadingOsd: () => {
-      showOverlayLoadingStatusNotification('Overlay loading...');
+      showOverlayLoadingStatusNotification();
     },
   });
 

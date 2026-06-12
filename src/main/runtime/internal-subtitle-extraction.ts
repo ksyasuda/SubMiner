@@ -51,6 +51,10 @@ export function buildFfmpegSubtitleExtractionArgs(
   ffIndex: number,
   outputPath: string,
 ): string[] {
+  const outputFormat = path.extname(outputPath).slice(1);
+  if (!outputFormat) {
+    throw new Error(`outputPath must include a file extension for ffmpeg format: ${outputPath}`);
+  }
   return [
     '-hide_banner',
     '-nostdin',
@@ -64,7 +68,7 @@ export function buildFfmpegSubtitleExtractionArgs(
     '-map',
     `0:${ffIndex}`,
     '-f',
-    path.extname(outputPath).slice(1),
+    outputFormat,
     outputPath,
   ];
 }
