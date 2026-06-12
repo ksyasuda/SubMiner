@@ -373,11 +373,12 @@ test('stats server Yomitan note creation honors configured Anki server override 
 
 test('Linux visible overlay recreation clears stale input state before creating replacement window', () => {
   const source = readMainSource();
+  const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
   const actionBlock = source.match(
     /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
-  const resetBlock = source.match(
-    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  const resetBlock = runtimeSource.match(
+    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -506,8 +507,9 @@ test('manual visible overlay show primes current subtitle from mpv before relyin
 
 test('Linux visible overlay show/reset does not leave an empty X11 window shape', () => {
   const source = readMainSource();
-  const resetBlock = source.match(
-    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
+  const resetBlock = runtimeSource.match(
+    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
   const setBlock = source.match(
     /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
@@ -517,6 +519,7 @@ test('Linux visible overlay show/reset does not leave an empty X11 window shape'
   assert.ok(setBlock);
   assert.match(resetBlock, /restoreLinuxOverlayWindowShape\(mainWindow\);/);
   assert.doesNotMatch(source, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
+  assert.doesNotMatch(runtimeSource, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
   assert.match(
     setBlock,
     /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
