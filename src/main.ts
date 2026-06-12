@@ -49,7 +49,6 @@ import {
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
 import {
   resolveLinuxVisibleOverlayWindowModeAction,
-  shouldExitFullscreenOverrideForTrackedGeometry,
   type LinuxVisibleOverlayWindowMode,
 } from './main/runtime/linux-visible-overlay-window-mode';
 import {
@@ -218,9 +217,6 @@ import {
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
   createBuildSendToActiveOverlayWindowMainDepsHandler,
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
-  createBuildEnforceOverlayLayerOrderMainDepsHandler,
-  createBuildEnsureOverlayWindowLevelMainDepsHandler,
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createBroadcastRuntimeOptionsChangedHandler,
@@ -231,10 +227,6 @@ import {
   createRestorePreviousSecondarySubVisibilityHandler,
   createSendToActiveOverlayWindowHandler,
   createSetOverlayDebugVisualizationEnabledHandler,
-  createEnforceOverlayLayerOrderHandler,
-  createEnsureOverlayWindowLevelHandler,
-  createUpdateVisibleOverlayBoundsHandler,
-  hasLiveOverlayWindowBoundsMismatch,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -322,8 +314,6 @@ import {
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   deleteYomitanDictionaryByTitle,
   destroyYomitanSettingsWindow,
-  enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
-  ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
   getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
@@ -355,7 +345,6 @@ import {
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
-  syncOverlayWindowLayer,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   showMpvOsdRuntime,
   startOverlayWindowTracker as startOverlayWindowTrackerCore,
@@ -368,13 +357,10 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
-import { hasHyprlandWindowPlacementBoundsMismatch } from './core/services/hyprland-window-placement';
-import { normalizeOverlayWindowBoundsForPlatform } from './core/services/overlay-window-bounds';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
   destroyStatsWindow,
-  promoteStatsOverlayAbovePlayback,
   registerStatsOverlayToggle,
   toggleStatsOverlay as toggleStatsOverlayWindow,
   withStatsWindowLayerSuspendedForNativeDialog,
@@ -538,6 +524,7 @@ import {
   resolveCurrentSubtitleForRenderer,
 } from './main/runtime/current-subtitle-snapshot';
 import { restoreLinuxOverlayWindowShape } from './main/runtime/linux-overlay-window-shape';
+import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
 import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
@@ -1157,7 +1144,10 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
     while (Date.now() < deadline) {
       const tracker = appState.windowTracker;
       const trackerGeometry = tracker?.getGeometry() ?? null;
-      if (trackerGeometry && geometryMatches(lastOverlayWindowGeometry, trackerGeometry)) {
+      if (
+        trackerGeometry &&
+        geometryMatches(overlayGeometryRuntime.getLastOverlayWindowGeometry(), trackerGeometry)
+      ) {
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -2580,7 +2570,6 @@ const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] a
 const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
 const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
 const LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 1_500;
-const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
 // Ignore transient "neither mpv nor overlay is the active window" blips before suppressing
 // subtitle pointer interaction. Right after playback starts the overlay can briefly become the
 // X11 active window, which would otherwise leave subtitles inert for a poll cycle (~1s).
@@ -2877,7 +2866,7 @@ function retargetOverlayWindowTrackerForMpvSocket(
   releaseVisibleOverlayOwner();
   appState.windowTracker = null;
   appState.trackerNotReadyWarningShown = false;
-  lastOverlayWindowGeometry = null;
+  overlayGeometryRuntime.resetLastOverlayWindowGeometry();
   startOverlayWindowTrackerForCurrentSocket();
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
   overlayShortcutsRuntime.syncOverlayShortcuts();
@@ -5372,236 +5361,68 @@ function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>
   updateMpvSubtitleRenderMetricsHandler(patch);
 }
 
-let lastOverlayWindowGeometry: WindowGeometry | null = null;
-
-function getOverlayGeometryFallback(): WindowGeometry {
-  const cursorPoint = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursorPoint);
-  const bounds = display.workArea;
-  return {
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-  };
-}
+const overlayGeometryRuntime = createOverlayGeometryRuntime({
+  overlayManager: {
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getModalWindow: () => overlayManager.getModalWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    setOverlayWindowBounds: (geometry) => overlayManager.setOverlayWindowBounds(geometry),
+    setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
+  },
+  getTrackedWindowGeometry: () => appState.windowTracker?.getGeometry() ?? null,
+  getTrackedWindowMediaSourceId: () => appState.windowTracker?.getTargetWindowMediaSourceId?.(),
+  getTrackedWindowNativeId: () => appState.windowTracker?.getTargetWindowNativeId?.(),
+  getStatsOverlayVisible: () => appState.statsOverlayVisible,
+  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
+  getLinuxVisibleOverlayWindowMode: () => linuxVisibleOverlayWindowMode,
+  getLinuxTrackedMpvFullscreen: () => linuxTrackedMpvFullscreen,
+  getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxTrackedMpvFullscreenChangedAtMs,
+  syncLinuxVisibleOverlayMpvFullscreenMode: (fullscreen) =>
+    syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen),
+  getLinuxVisibleOverlayOwnerBindingKey: () => linuxVisibleOverlayOwnerBindingKey,
+  setLinuxVisibleOverlayOwnerBindingKey: (key) => {
+    linuxVisibleOverlayOwnerBindingKey = key;
+  },
+  clearVisibleOverlayX11OwnerBinding: (window) => clearVisibleOverlayX11OwnerBinding(window),
+  getNativeWindowHandleDecimal: (window) => getNativeWindowHandleDecimal(window),
+  enqueueVisibleOverlayX11OwnerBindingOperation: (window, args, onError) =>
+    enqueueVisibleOverlayX11OwnerBindingOperation(window, args, onError),
+  scheduleWindowsVisibleOverlayZOrderSyncBurst: () =>
+    scheduleWindowsVisibleOverlayZOrderSyncBurst(),
+  logDebug: (message, ...args) => logger.debug(message, ...args),
+});
 
 function getCurrentOverlayGeometry(): WindowGeometry {
-  if (lastOverlayWindowGeometry) return lastOverlayWindowGeometry;
-  const trackerGeometry = appState.windowTracker?.getGeometry();
-  if (trackerGeometry) return trackerGeometry;
-  return getOverlayGeometryFallback();
+  return overlayGeometryRuntime.getCurrentOverlayGeometry();
 }
 
 function getCurrentTrackedOverlayGeometry(): WindowGeometry | null {
-  return appState.windowTracker?.getGeometry() ?? null;
+  return overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
 }
 
 function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): boolean {
-  if (!a || !b) return false;
-  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+  return overlayGeometryRuntime.geometryMatches(a, b);
 }
-
-function applyOverlayRegions(geometry: WindowGeometry): void {
-  lastOverlayWindowGeometry = geometry;
-  maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry);
-  overlayManager.setOverlayWindowBounds(geometry);
-  overlayManager.setModalWindowBounds(geometry);
-}
-
-function shouldExitLinuxFullscreenOverrideForGeometry(geometry: WindowGeometry): boolean {
-  if (!shouldRunLinuxOverlayZOrderKeepAlive()) {
-    return false;
-  }
-  if (
-    linuxTrackedMpvFullscreenChangedAtMs > 0 &&
-    Date.now() - linuxTrackedMpvFullscreenChangedAtMs <
-      LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS
-  ) {
-    return false;
-  }
-
-  const displayBounds = screen.getDisplayMatching(geometry).bounds;
-  return shouldExitFullscreenOverrideForTrackedGeometry({
-    currentMode: linuxVisibleOverlayWindowMode,
-    trackedFullscreen: linuxTrackedMpvFullscreen,
-    geometry,
-    displayBounds,
-  });
-}
-
-function maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry: WindowGeometry): void {
-  if (!shouldExitLinuxFullscreenOverrideForGeometry(geometry)) {
-    return;
-  }
-
-  logger.debug(
-    'Tracked mpv geometry no longer covers its display; exiting Linux fullscreen overlay override',
-  );
-  syncLinuxVisibleOverlayMpvFullscreenMode(false);
-}
-
-function hasHyprlandOverlayWindowPlacementMismatch(geometry: WindowGeometry): boolean {
-  if (process.platform !== 'linux') {
-    return false;
-  }
-
-  return [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some((window) => {
-    if (!window || window.isDestroyed()) {
-      return false;
-    }
-    return hasHyprlandWindowPlacementBoundsMismatch({
-      title: window.getTitle(),
-      bounds: normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen, window),
-    });
-  });
-}
-
-const buildUpdateVisibleOverlayBoundsMainDepsHandler =
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
-    getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
-    shouldRefreshUnchangedGeometry: (geometry) =>
-      shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
-      (process.platform === 'linux' &&
-        (hasLiveOverlayWindowBoundsMismatch(
-          [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
-          geometry,
-        ) ||
-          hasHyprlandOverlayWindowPlacementMismatch(geometry))),
-    setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
-    afterSetOverlayWindowBounds: () => {
-      if (!overlayManager.getVisibleOverlayVisible()) {
-        return;
-      }
-      if (process.platform === 'win32') {
-        scheduleWindowsVisibleOverlayZOrderSyncBurst();
-        return;
-      }
-      const mainWindow = overlayManager.getMainWindow();
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return;
-      }
-      if (process.platform === 'linux') {
-        restoreLinuxOverlayWindowShape(mainWindow);
-      }
-      ensureOverlayWindowLevel(mainWindow);
-    },
-  });
-const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
-const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
-  updateVisibleOverlayBoundsMainDeps,
-);
-
-const buildEnsureOverlayWindowLevelMainDepsHandler =
-  createBuildEnsureOverlayWindowLevelMainDepsHandler({
-    shouldSuppressOverlayWindowLevel: (window) => {
-      const mainWindow = overlayManager.getMainWindow();
-      return (
-        (appState.statsOverlayVisible && window === mainWindow) ||
-        shouldSuppressVisibleOverlayRaiseForSeparateWindow({
-          window,
-          mainWindow,
-          separateWindows: getOverlayForegroundSeparateWindows(),
-        })
-      );
-    },
-    ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
-    afterEnsureOverlayWindowLevel: () => {
-      const mainWindow = overlayManager.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
-      }
-      promoteStatsOverlayAbovePlayback();
-    },
-  });
-const ensureOverlayWindowLevelMainDeps = buildEnsureOverlayWindowLevelMainDepsHandler();
-const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
-  ensureOverlayWindowLevelMainDeps,
-);
 
 function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
-  const mainWindow = overlayManager.getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  syncOverlayWindowLayer(mainWindow, layer);
-}
-
-function moveVisibleOverlayAboveTrackedPlaybackWindow(window: BrowserWindow): void {
-  if (process.platform !== 'linux') return;
-  if (window !== overlayManager.getMainWindow()) return;
-
-  bindVisibleOverlayToTrackedX11Window(window);
-
-  const mediaSourceId = appState.windowTracker?.getTargetWindowMediaSourceId?.();
-  if (!mediaSourceId) return;
-
-  try {
-    window.moveAbove(mediaSourceId);
-  } catch (error) {
-    logger.debug(
-      'Failed to move visible overlay above tracked playback window:',
-      error instanceof Error ? error.message : String(error),
-    );
-  }
+  overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
 }
 
 function bindVisibleOverlayToTrackedX11Window(window: BrowserWindow): void {
-  const targetWindowId = appState.windowTracker?.getTargetWindowNativeId?.();
-  if (!targetWindowId) {
-    if (linuxVisibleOverlayOwnerBindingKey !== null) {
-      clearVisibleOverlayX11OwnerBinding(window);
-    }
-    linuxVisibleOverlayOwnerBindingKey = null;
-    return;
-  }
-
-  const overlayWindowId = getNativeWindowHandleDecimal(window);
-  const bindingKey = `${overlayWindowId}:${targetWindowId}`;
-  if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
-    return;
-  }
-  linuxVisibleOverlayOwnerBindingKey = bindingKey;
-
-  enqueueVisibleOverlayX11OwnerBindingOperation(
-    window,
-    [
-      '-id',
-      overlayWindowId,
-      '-f',
-      'WM_TRANSIENT_FOR',
-      '32x',
-      '-set',
-      'WM_TRANSIENT_FOR',
-      targetWindowId,
-    ],
-    (error) => {
-      if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
-        linuxVisibleOverlayOwnerBindingKey = null;
-      }
-      logger.debug(
-        'Failed to bind visible overlay as transient for tracked X11 playback window:',
-        error instanceof Error ? error.message : String(error),
-      );
-    },
-  );
+  overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window);
 }
 
-const buildEnforceOverlayLayerOrderMainDepsHandler =
-  createBuildEnforceOverlayLayerOrderMainDepsHandler({
-    enforceOverlayLayerOrderCore: (params) =>
-      enforceOverlayLayerOrderCore({
-        visibleOverlayVisible: params.visibleOverlayVisible,
-        mainWindow: params.mainWindow as BrowserWindow | null,
-        ensureOverlayWindowLevel: (window) =>
-          params.ensureOverlayWindowLevel(window as BrowserWindow),
-      }),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getMainWindow: () => overlayManager.getMainWindow(),
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
-  });
-const enforceOverlayLayerOrderMainDeps = buildEnforceOverlayLayerOrderMainDepsHandler();
-const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
-  enforceOverlayLayerOrderMainDeps,
-);
+function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayGeometryRuntime.updateVisibleOverlayBounds(geometry);
+}
+
+function ensureOverlayWindowLevel(window: unknown): void {
+  overlayGeometryRuntime.ensureOverlayWindowLevel(window);
+}
+
+function enforceOverlayLayerOrder(): void {
+  overlayGeometryRuntime.enforceOverlayLayerOrder();
+}
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.loadYomitanExtension();

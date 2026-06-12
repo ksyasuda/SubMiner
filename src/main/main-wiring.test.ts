@@ -524,9 +524,9 @@ test('Linux visible overlay show/reset does not leave an empty X11 window shape'
 });
 
 test('Linux visible overlay bounds refresh restores X11 shape after applying mpv geometry', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-geometry-runtime.ts');
   const afterBoundsBlock = source.match(
-    /afterSetOverlayWindowBounds:\s*\(\) => \{(?<body>[\s\S]*?)\n    \},/,
+    /afterSetOverlayWindowBounds:\s*\(\) => \{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
 
   assert.ok(afterBoundsBlock);
