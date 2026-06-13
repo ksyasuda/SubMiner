@@ -49,66 +49,18 @@ import {
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
 import {
   resolveLinuxVisibleOverlayWindowModeAction,
-  shouldExitFullscreenOverrideForTrackedGeometry,
   type LinuxVisibleOverlayWindowMode,
 } from './main/runtime/linux-visible-overlay-window-mode';
-import {
-  ensureLinuxOverlayZOrderKeepAliveLoop,
-  shouldRunLinuxOverlayZOrderKeepAlive,
-  tickLinuxOverlayZOrderKeepAlive,
-} from './main/runtime/linux-overlay-zorder-keepalive';
-import {
-  applyLinuxOverlayInputShape,
-  applyLinuxOverlayPointerInteractionMousePassthrough,
-  ensureLinuxOverlayPointerInteractionLoop,
-  type ForegroundSuppressionGraceState,
-  mapOverlayMeasurementForPointerInteraction,
-  resolveForegroundSuppressionWithGrace,
-  shouldPrimeLinuxOverlayInteractionFromMeasurement,
-  tickLinuxOverlayPointerInteraction,
-} from './main/runtime/linux-overlay-pointer-interaction';
-import { createLinuxX11CursorPointReader } from './main/runtime/linux-x11-cursor-point';
+import { shouldRunLinuxOverlayZOrderKeepAlive } from './main/runtime/linux-overlay-zorder-keepalive';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
-
-function getPasswordStoreArg(argv: string[]): string | null {
-  let resolved: string | null = null;
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg?.startsWith('--password-store')) {
-      continue;
-    }
-
-    if (arg === '--password-store') {
-      const value = argv[i + 1];
-      if (value && !value.startsWith('--')) {
-        resolved = value.trim();
-        i += 1;
-      }
-      continue;
-    }
-
-    const [prefix, value] = arg.split('=', 2);
-    if (prefix === '--password-store' && value && value.trim().length > 0) {
-      resolved = value.trim();
-    }
-  }
-  return resolved;
-}
-
-function normalizePasswordStoreArg(value: string): string {
-  const normalized = value.trim();
-  if (normalized.toLowerCase() === 'gnome') {
-    return 'gnome-libsecret';
-  }
-  return normalized;
-}
-
-function getDefaultPasswordStore(): string {
-  return 'gnome-libsecret';
-}
+import {
+  getDefaultPasswordStore,
+  getPasswordStoreArg,
+  normalizePasswordStoreArg,
+} from './main/password-store-args';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -124,12 +76,11 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 import * as fs from 'fs';
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
 import type {
-  CompiledSessionBinding,
   JimakuApiResponse,
   KikuFieldGroupingChoice,
   MpvSubtitleRenderMetrics,
@@ -137,14 +88,11 @@ import type {
   RuntimeOptionState,
   SessionActionDispatchRequest,
   SecondarySubMode,
-  SubtitleCue,
   SubtitleData,
   SubtitleMiningContext,
   SubtitlePosition,
   OverlayNotificationPayload,
-  OverlayNotificationEventPayload,
   NotificationType,
-  UpdateChannel,
   WindowGeometry,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
@@ -165,15 +113,7 @@ import {
   resolveDefaultLogFilePath,
 } from './shared/log-files';
 import { createFatalErrorReporter } from './main/fatal-error';
-import { createWindowTracker as createWindowTrackerCore } from './window-trackers';
-import {
-  bindWindowsOverlayAboveMpv,
-  clearWindowsOverlayOwner,
-  ensureWindowsOverlayTransparency,
-  findWindowsMpvTargetWindowHandle,
-  getWindowsForegroundProcessName,
-  setWindowsOverlayOwner,
-} from './window-trackers/windows-helper';
+import { ensureWindowsOverlayTransparency } from './window-trackers/windows-helper';
 import {
   commandNeedsOverlayStartupPrereqs,
   commandNeedsOverlayRuntime,
@@ -253,9 +193,6 @@ import {
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler,
   createBuildSendToActiveOverlayWindowMainDepsHandler,
   createBuildSetOverlayDebugVisualizationEnabledMainDepsHandler,
-  createBuildEnforceOverlayLayerOrderMainDepsHandler,
-  createBuildEnsureOverlayWindowLevelMainDepsHandler,
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler,
   createTrayRuntimeHandlers,
   createOverlayVisibilityRuntime,
   createBroadcastRuntimeOptionsChangedHandler,
@@ -266,10 +203,6 @@ import {
   createRestorePreviousSecondarySubVisibilityHandler,
   createSendToActiveOverlayWindowHandler,
   createSetOverlayDebugVisualizationEnabledHandler,
-  createEnforceOverlayLayerOrderHandler,
-  createEnsureOverlayWindowLevelHandler,
-  createUpdateVisibleOverlayBoundsHandler,
-  hasLiveOverlayWindowBoundsMismatch,
   createLoadSubtitlePositionHandler,
   createSaveSubtitlePositionHandler,
   createAppendClipboardVideoToQueueHandler,
@@ -357,8 +290,6 @@ import {
   cycleSecondarySubMode as cycleSecondarySubModeCore,
   deleteYomitanDictionaryByTitle,
   destroyYomitanSettingsWindow,
-  enforceOverlayLayerOrder as enforceOverlayLayerOrderCore,
-  ensureOverlayWindowLevel as ensureOverlayWindowLevelCore,
   getYomitanDictionaryInfo,
   handleMineSentenceDigit as handleMineSentenceDigitCore,
   handleMultiCopyDigit as handleMultiCopyDigitCore,
@@ -385,17 +316,13 @@ import {
   runStartupBootstrapRuntime,
   saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
-  addYomitanNoteViaSearch,
   clearYomitanParserCachesForWindow,
   getYomitanCurrentAnkiDeckName as getYomitanCurrentAnkiDeckNameCore,
-  syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
   sendMpvCommandRuntime,
   setMpvSubVisibilityRuntime,
   setOverlayDebugVisualizationEnabledRuntime,
-  syncOverlayWindowLayer,
   setVisibleOverlayVisible as setVisibleOverlayVisibleCore,
   showMpvOsdRuntime,
-  startOverlayWindowTracker as startOverlayWindowTrackerCore,
   tokenizeSubtitle as tokenizeSubtitleCore,
   triggerFieldGrouping as triggerFieldGroupingCore,
   upsertYomitanDictionarySettings,
@@ -405,14 +332,10 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
-import { hasHyprlandWindowPlacementBoundsMismatch } from './core/services/hyprland-window-placement';
-import { normalizeOverlayWindowBoundsForPlatform } from './core/services/overlay-window-bounds';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
-import { startStatsServer } from './core/services/stats-server';
 import {
   destroyStatsWindow,
-  promoteStatsOverlayAbovePlayback,
   registerStatsOverlayToggle,
   toggleStatsOverlay as toggleStatsOverlayWindow,
   withStatsWindowLayerSuspendedForNativeDialog,
@@ -430,7 +353,7 @@ import {
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
 import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
-import { selectAutoplayStartupCue } from './main/runtime/autoplay-subtitle-primer';
+import { createAutoplaySubtitlePrimingRuntime } from './main/runtime/autoplay-subtitle-priming-runtime';
 import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
 import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
 import { createManagedLocalSubtitleSelectionRuntime } from './main/runtime/local-subtitle-selection';
@@ -446,8 +369,8 @@ import {
   detectInstalledFirstRunPluginCandidates,
   detectInstalledMpvPlugin,
   removeLegacyMpvPluginCandidates,
-  resolvePackagedRuntimePluginPath,
 } from './main/runtime/first-run-setup-plugin';
+import { createWindowsMpvPluginDetectionRuntime } from './main/runtime/windows-mpv-plugin-detection';
 import {
   applyWindowsMpvShortcuts,
   detectWindowsMpvShortcuts,
@@ -480,21 +403,14 @@ import {
   shouldQuitOnMpvShutdownForTrayState,
   shouldQuitOnWindowAllClosedForTrayState,
 } from './main/runtime/startup-tray-policy';
-import { exportLogsArchive } from './main/runtime/log-export';
+import { createLogExportTrayRuntime } from './main/runtime/log-export-tray';
 import { createImmersionTrackerStartupHandler } from './main/runtime/immersion-startup';
 import { createBuildImmersionTrackerStartupMainDepsHandler } from './main/runtime/immersion-startup-main-deps';
 import {
   createRunStatsCliCommandHandler,
   writeStatsCliCommandResponse,
 } from './main/runtime/stats-cli-command';
-import {
-  isBackgroundStatsServerProcessAlive,
-  readBackgroundStatsServerState,
-  removeBackgroundStatsServerState,
-  resolveBackgroundStatsServerUrl,
-  writeBackgroundStatsServerState,
-} from './main/runtime/stats-daemon';
-import { createEnsureStatsServerUrlHandler } from './main/runtime/stats-server-routing';
+import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -506,10 +422,6 @@ import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
-import {
-  buildPluginSessionBindingsArtifact,
-  compileSessionBindings,
-} from './core/services/session-bindings';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
 import { createMainRuntimeRegistry } from './main/runtime/registry';
@@ -555,7 +467,7 @@ import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerMo
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
 import { createPlaylistBrowserIpcRuntime } from './main/runtime/playlist-browser-ipc';
-import { writeSessionBindingsArtifact } from './main/runtime/session-bindings-artifact';
+import { createSessionBindingsRuntime } from './main/runtime/session-bindings-runtime';
 import { createOverlayShortcutsRuntimeService } from './main/overlay-shortcuts-runtime';
 import {
   createFrequencyDictionaryRuntimeService,
@@ -567,7 +479,6 @@ import {
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
-import { createStatsOverlayVisibilityChangeHandler } from './main/runtime/stats-overlay-visibility';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
@@ -582,55 +493,22 @@ import { handleCharacterDictionaryAutoSyncComplete } from './main/runtime/charac
 import { notifyCharacterDictionaryAutoSyncStatus } from './main/runtime/character-dictionary-auto-sync-notifications';
 import { openCharacterDictionaryManagerWithConfigGate } from './main/runtime/character-dictionary-manager-gate';
 import { createCurrentMediaTokenizationGate } from './main/runtime/current-media-tokenization-gate';
-import {
-  primeVisibleOverlaySubtitleFromMpv,
-  resolveCurrentSubtitleForRenderer,
-} from './main/runtime/current-subtitle-snapshot';
-import { restoreLinuxOverlayWindowShape } from './main/runtime/linux-overlay-window-shape';
+import { resolveCurrentSubtitleForRenderer } from './main/runtime/current-subtitle-snapshot';
+import { createOverlayGeometryRuntime } from './main/runtime/overlay-geometry-runtime';
+import { createVisibleOverlayInteractionRuntime } from './main/runtime/visible-overlay-interaction-runtime';
 import { createJellyfinSubtitleCacheIo } from './main/runtime/jellyfin-subtitle-cache-io';
 import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer';
 import {
-  createElectronAppUpdater,
-  isNativeUpdaterSupported,
-} from './main/runtime/update/app-updater';
-import { createCurlFetch, createGlobalFetch } from './main/runtime/update/fetch-adapter';
-import { createCurlHttpExecutor } from './main/runtime/update/curl-http-executor';
-import { createFetchHttpExecutor } from './main/runtime/update/fetch-http-executor';
-import {
-  fetchLatestStableRelease,
-  fetchReleaseAssetBuffer,
-  fetchReleaseAssetText,
-  findReleaseAsset,
-  parseSha256Sums,
-  type GitHubRelease,
-} from './main/runtime/update/release-assets';
-import { shouldFetchReleaseMetadataForPlatform } from './main/runtime/update/release-metadata-policy';
-import { updateLauncherFromRelease } from './main/runtime/update/launcher-updater';
-import {
   INSTALL_UPDATE_ACTION_ID,
-  notifyUpdateAvailable,
   UPDATE_AVAILABLE_NOTIFICATION_ID,
 } from './main/runtime/update/update-notifications';
-import { createOverlayLoadingOsdController } from './main/runtime/overlay-loading-osd';
-import { createMaybeStartOverlayLoadingOsdHandler } from './main/runtime/overlay-loading-osd-start';
-import { withConfiguredOverlayNotificationPosition } from './main/runtime/overlay-notification-position';
-import { createOverlayNotificationDelivery } from './main/runtime/overlay-notification-delivery';
-import {
-  getPlaybackFeedbackNotificationOptions,
-  notifyConfiguredStatus,
-  type ConfiguredStatusNotificationOptions,
-} from './main/runtime/configured-status-notification';
-import { resolveOverlayReadinessNotificationType } from './main/runtime/notification-routing';
-import { createUpdateDialogPresenter } from './main/runtime/update/update-dialogs';
+import { createOverlayNotificationsRuntime } from './main/runtime/overlay-notifications-runtime';
+import { type ConfiguredStatusNotificationOptions } from './main/runtime/configured-status-notification';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
 } from './main/runtime/update/update-cli-command';
-import {
-  createFileUpdateStateStore,
-  createUpdateService,
-} from './main/runtime/update/update-service';
-import { updateSupportAssetsFromRelease } from './main/runtime/update/support-assets';
+import { createUpdateServiceRuntime } from './main/runtime/update/update-service-runtime';
 import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
   createResolveActiveSubtitleSidebarSourceHandler,
@@ -642,10 +520,7 @@ import {
   createCreateJellyfinSetupWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
-import {
-  hasLiveSeparateWindow,
-  shouldSuppressVisibleOverlayRaiseForSeparateWindow,
-} from './main/runtime/settings-window-z-order';
+import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
@@ -655,10 +530,7 @@ import {
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
 import { reloadOverlayWindowsForYomitanContentScripts } from './main/runtime/yomitan-extension-overlay-reload';
 import { formatSkippedYomitanWriteAction } from './main/runtime/yomitan-read-only-log';
-import {
-  getPreferredYomitanAnkiServerUrl as getPreferredYomitanAnkiServerUrlRuntime,
-  shouldForceOverrideYomitanAnkiServer,
-} from './main/runtime/yomitan-anki-server';
+import { createYomitanAnkiServerSyncRuntime } from './main/runtime/yomitan-anki-server-sync';
 import {
   type AnilistMediaGuessRuntimeState,
   type StartupState,
@@ -691,13 +563,14 @@ import {
   createSubtitlePrefetchService,
   type SubtitlePrefetchService,
 } from './core/services/subtitle-prefetch';
-import {
-  buildSubtitleSidebarSourceKey,
-  resolveSubtitleSourcePath,
-} from './main/runtime/subtitle-prefetch-source';
+import { buildSubtitleSidebarSourceKey } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
+import {
+  loadSubtitleSourceText,
+  extractInternalSubtitleTrackToTempFile,
+} from './main/runtime/internal-subtitle-extraction';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
-import { codecToExtension, getSubsyncConfig } from './subsync/utils';
+import { getSubsyncConfig } from './subsync/utils';
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal');
@@ -743,7 +616,6 @@ const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
 const TRAY_TOOLTIP = 'SubMiner';
-const SUBMINER_BUNDLE_ID = 'com.sudacode.SubMiner';
 const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
@@ -1070,45 +942,49 @@ const reportFatalError = createFatalErrorReporter({
 });
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
-let statsServer: ReturnType<typeof startStatsServer> | null = null;
-const statsDaemonStatePath = path.join(USER_DATA_PATH, 'stats-daemon.json');
-
-function readLiveBackgroundStatsDaemonState(): {
-  pid: number;
-  port: number;
-  startedAtMs: number;
-} | null {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (!state) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  if (state.pid === process.pid && !statsServer) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return null;
-  }
-  return state;
-}
-
-function clearOwnedBackgroundStatsDaemonState(): void {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (state?.pid === process.pid) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-  }
-}
-
-function stopStatsServer(): void {
-  if (!statsServer) {
-    return;
-  }
-  statsServer.close();
-  statsServer = null;
-  clearOwnedBackgroundStatsDaemonState();
-}
+const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
+const statsServerRuntime = createStatsServerRuntime({
+  userDataPath: USER_DATA_PATH,
+  statsDistPath,
+  getResolvedConfig: () => getResolvedConfig(),
+  getImmersionTracker: () => appState.immersionTracker,
+  setAppStateStatsServer: (server) => {
+    appState.statsServer = server;
+  },
+  getMpvSocketPath: () => appState.mpvSocketPath,
+  getYomitanExt: () => appState.yomitanExt,
+  getYomitanSession: () => appState.yomitanSession,
+  getYomitanParserWindow: () => appState.yomitanParserWindow,
+  setYomitanParserWindow: (w) => {
+    appState.yomitanParserWindow = w;
+  },
+  getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
+  setYomitanParserReadyPromise: (p) => {
+    appState.yomitanParserReadyPromise = p;
+  },
+  getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
+  setYomitanParserInitPromise: (p) => {
+    appState.yomitanParserInitPromise = p;
+  },
+  getYomitanAnkiDeckName: () => getCurrentYomitanAnkiDeckNameForRuntime(),
+  getAnilistRateLimiter: () => anilistRateLimiter,
+  resolveAnkiNoteId: (noteId) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
+  trackDuplicateNoteIdsForNote: (noteId, duplicateNoteIds) => {
+    appState.ankiIntegration?.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
+  },
+  resolveSentenceSearchHeadwords: (term) => resolveSentenceSearchHeadwords(term),
+  ensureImmersionTrackerStarted: () => ensureImmersionTrackerStarted(),
+  setStatsStartupInProgress: (inProgress) => {
+    appState.statsStartupInProgress = inProgress;
+  },
+});
+const {
+  stopStatsServer,
+  ensureStatsServerStarted,
+  ensureBackgroundStatsServerStarted,
+  stopBackgroundStatsServer,
+} = statsServerRuntime;
 
 function requestAppQuit(): void {
   destroyYomitanSettingsWindow(appState.yomitanSettingsWindow);
@@ -1233,7 +1109,10 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
     while (Date.now() < deadline) {
       const tracker = appState.windowTracker;
       const trackerGeometry = tracker?.getGeometry() ?? null;
-      if (trackerGeometry && geometryMatches(lastOverlayWindowGeometry, trackerGeometry)) {
+      if (
+        trackerGeometry &&
+        geometryMatches(overlayGeometryRuntime.getLastOverlayWindowGeometry(), trackerGeometry)
+      ) {
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1343,87 +1222,15 @@ const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelection
   clearScheduled: (timer) => clearTimeout(timer),
 });
 
-function resolveBundledMpvRuntimePluginEntrypoint(): string | undefined {
-  return (
-    resolvePackagedRuntimePluginPath({
-      dirname: __dirname,
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-    }) ?? undefined
-  );
-}
-
-function detectWindowsInstalledMpvPlugin(mpvExecutablePath: string) {
-  return detectInstalledMpvPlugin({
-    platform: 'win32',
-    homeDir: os.homedir(),
-    appDataDir: app.getPath('appData'),
-    mpvExecutablePath,
-  });
-}
-
-function logInstalledMpvPluginDetected(detection: { path: string | null; version: string | null }) {
-  if (!detection.path) return;
-  logger.warn(
-    `SubMiner detected an installed mpv plugin at ${detection.path}. This mpv session will use the installed plugin. Remove it to use the bundled runtime plugin automatically. Detected plugin version: ${detection.version ?? 'unknown or legacy'}.`,
-  );
-}
-
-async function promptForLegacyMpvPluginRemovalBeforeWindowsLaunch(
-  mpvPath: string,
-  detection: { path: string | null; version: string | null },
-): Promise<'removed' | 'continue' | 'cancel'> {
-  const response = await dialog.showMessageBox({
-    type: 'warning',
-    title: 'SubMiner mpv plugin detected',
-    message: [
-      'SubMiner detected an installed mpv plugin at:',
-      detection.path ?? 'unknown path',
-      '',
-      "This mpv session will use the installed plugin unless it is removed. Remove it now to use SubMiner's bundled runtime plugin automatically.",
-      `Detected plugin version: ${detection.version ?? 'unknown or legacy'}`,
-    ].join('\n'),
-    detail:
-      'Remove the legacy SubMiner mpv plugin files from mpv before launching this video? This moves the files to the OS trash.',
-    buttons: ['Remove legacy plugin', 'Continue with installed plugin', 'Cancel'],
-    defaultId: 0,
-    cancelId: 2,
-  });
-
-  if (response.response === 2) {
-    return 'cancel';
-  }
-  if (response.response === 1) {
-    return 'continue';
-  }
-
-  const result = await removeLegacyMpvPluginCandidates({
-    candidates: detectInstalledFirstRunPluginCandidates({
-      platform: 'win32',
-      homeDir: os.homedir(),
-      appDataDir: app.getPath('appData'),
-      mpvExecutablePath: mpvPath,
-    }),
-    trashItem: (candidatePath) => shell.trashItem(candidatePath),
-  });
-  if (result.ok) {
-    await dialog.showMessageBox({
-      type: 'info',
-      title: 'Legacy mpv plugin removed',
-      message:
-        'Legacy mpv plugin removed. SubMiner-managed playback will use the bundled runtime plugin.',
-    });
-    return 'removed';
-  }
-
-  await dialog.showMessageBox({
-    type: 'error',
-    title: 'Could not remove legacy mpv plugin',
-    message: 'Some legacy SubMiner mpv plugin files could not be moved to the trash.',
-    detail: result.failedPaths.map((failure) => `${failure.path}: ${failure.message}`).join('\n'),
-  });
-  return 'cancel';
-}
+const {
+  resolveBundledMpvRuntimePluginEntrypoint,
+  detectWindowsInstalledMpvPlugin,
+  logInstalledMpvPluginDetected,
+  promptForLegacyMpvPluginRemovalBeforeWindowsLaunch,
+} = createWindowsMpvPluginDetectionRuntime({
+  mainDirname: __dirname,
+  logWarn: (message) => logger.warn(message),
+});
 
 const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   platform: process.platform,
@@ -1931,7 +1738,6 @@ const subtitleProcessingController = createSubtitleProcessingController(
 );
 
 let subtitlePrefetchService: SubtitlePrefetchService | null = null;
-let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let lastObservedTimePos = 0;
 let lastObservedPrimarySubtitleTrackId: number | null = null;
 let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
@@ -1940,170 +1746,51 @@ let linuxVisibleOverlayWindowMode: LinuxVisibleOverlayWindowMode = 'managed';
 let linuxTrackedMpvFullscreen = false;
 let linuxTrackedMpvFullscreenChangedAtMs = 0;
 let linuxVisibleOverlayOwnerBindingKey: string | null = null;
-const linuxVisibleOverlayOwnerBindingQueues = new WeakMap<BrowserWindow, Promise<void>>();
 let linuxVisibleOverlayWindowModeSwitchToken = 0;
 let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
-const AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS = 2;
-let autoplaySubtitlePrimedMediaPath: string | null = null;
-let visibleOverlaySubtitleRefreshAfterFirstPaintTimer: ReturnType<typeof setTimeout> | null = null;
-const VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS = 100;
 
-function getCurrentAutoplayMediaPath(): string | null {
-  return appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
-}
+const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getMpvClient: () => appState.mpvClient,
+  setCurrentSubText: (text) => {
+    appState.currentSubText = text;
+  },
+  getCurrentSubText: () => appState.currentSubText,
+  getCurrentSubtitleData: () => appState.currentSubtitleData,
+  setActiveParsedSubtitleMediaPath: (mediaPath) => {
+    appState.activeParsedSubtitleMediaPath = mediaPath;
+  },
+  subtitleProcessingController,
+  emitSubtitlePayload: (payload) => emitSubtitlePayload(payload),
+  getSubtitlePrefetchService: () => subtitlePrefetchService,
+  getLastObservedTimePos: () => lastObservedTimePos,
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  emitSecondarySubtitle: (text) => {
+    broadcastToOverlayWindows('secondary-subtitle:set', text);
+  },
+  initSubtitlePrefetch: (sourcePath, currentTimePos, sourceKey) =>
+    subtitlePrefetchInitController.initSubtitlePrefetch(sourcePath, currentTimePos, sourceKey),
+  refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
+  logDebug: (message) => {
+    logger.debug(message);
+  },
+});
 
-function isCurrentAutoplayMediaPath(mediaPath: string): boolean {
-  return getCurrentAutoplayMediaPath() === mediaPath;
-}
-
-function markAutoplaySubtitlePrimeConsumed(mediaPath: string): boolean {
-  if (autoplaySubtitlePrimedMediaPath === mediaPath) {
-    return false;
-  }
-  autoplaySubtitlePrimedMediaPath = mediaPath;
-  return true;
-}
-
-function emitAutoplayPrimedSubtitle(mediaPath: string, text: string): boolean {
-  if (!text.trim() || !isCurrentAutoplayMediaPath(mediaPath)) {
-    return false;
-  }
-  if (!markAutoplaySubtitlePrimeConsumed(mediaPath)) {
-    return false;
-  }
-
-  appState.currentSubText = text;
-  subtitlePrefetchService?.pause();
-  const cachedPayload = subtitleProcessingController.consumeCachedSubtitle(text);
-  if (cachedPayload) {
-    subtitleProcessingController.onSubtitleChange(text);
-    emitSubtitlePayload(cachedPayload);
-    return true;
-  }
-
-  subtitleProcessingController.onSubtitleChange(text);
-  return true;
-}
-
-async function primeCurrentSubtitleForAutoplay(mediaPath: string): Promise<void> {
-  const client = appState.mpvClient;
-  if (!client?.connected || !isCurrentAutoplayMediaPath(mediaPath)) {
-    return;
-  }
-
-  const subTextRaw = await client.requestProperty('sub-text').catch((error) => {
-    logger.debug(
-      `[autoplay-subtitle-prime] failed to read sub-text: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return null;
-  });
-  const text = typeof subTextRaw === 'string' ? subTextRaw : '';
-  emitAutoplayPrimedSubtitle(mediaPath, text);
-}
-
-async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
-  await primeVisibleOverlaySubtitleFromMpv({
-    getMpvClient: () => appState.mpvClient,
-    setCurrentSubText: (text) => {
-      appState.currentSubText = text;
-    },
-    getCurrentSubtitleData: () => appState.currentSubtitleData,
-    consumeCachedSubtitle: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
-    onSubtitleChange: (text) => {
-      subtitlePrefetchService?.pause();
-      subtitlePrefetchService?.onSeek(lastObservedTimePos);
-      subtitleProcessingController.onSubtitleChange(text);
-    },
-    refreshCurrentSubtitle: (text) => {
-      subtitlePrefetchService?.pause();
-      subtitlePrefetchService?.onSeek(lastObservedTimePos);
-      subtitleProcessingController.refreshCurrentSubtitle(text);
-    },
-    deferUncachedRefresh: true,
-    emitSubtitle: (payload) => emitSubtitlePayload(payload),
-    setCurrentSecondarySubText: (text) => {
-      if (appState.mpvClient) {
-        appState.mpvClient.currentSecondarySubText = text;
-      }
-    },
-    emitSecondarySubtitle: (text) => {
-      broadcastToOverlayWindows('secondary-subtitle:set', text);
-    },
-    logDebug: (message) => {
-      logger.debug(message);
-    },
-  });
+function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
+  return autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
 }
 
 function cancelVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
-  if (!visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
-    return;
-  }
-  clearTimeout(visibleOverlaySubtitleRefreshAfterFirstPaintTimer);
-  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
+  autoplaySubtitlePrimingRuntime.cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
 }
 
 function scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
-  if (visibleOverlaySubtitleRefreshAfterFirstPaintTimer) {
-    return;
-  }
-  if (!overlayManager.getVisibleOverlayVisible() || !appState.currentSubText.trim()) {
-    return;
-  }
-
-  visibleOverlaySubtitleRefreshAfterFirstPaintTimer = setTimeout(() => {
-    visibleOverlaySubtitleRefreshAfterFirstPaintTimer = null;
-    if (!overlayManager.getVisibleOverlayVisible()) {
-      return;
-    }
-    const text = appState.currentSubText;
-    if (!text.trim()) {
-      return;
-    }
-    subtitlePrefetchService?.pause();
-    subtitlePrefetchService?.onSeek(lastObservedTimePos);
-    subtitleProcessingController.refreshCurrentSubtitle(text);
-  }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
-  visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();
+  autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
 }
 
-async function primeAutoplaySubtitleFromParsedCues(
-  mediaPath: string,
-  cues: SubtitleCue[],
-): Promise<void> {
-  if (
-    cues.length === 0 ||
-    autoplaySubtitlePrimedMediaPath === mediaPath ||
-    !isCurrentAutoplayMediaPath(mediaPath)
-  ) {
-    return;
-  }
-
-  const client = appState.mpvClient;
-  const timePosRaw = await client?.requestProperty('time-pos').catch(() => null);
-  const currentTimeSeconds = Number(
-    timePosRaw ?? client?.currentTimePos ?? lastObservedTimePos ?? 0,
-  );
-  const cue = selectAutoplayStartupCue(
-    cues,
-    Number.isFinite(currentTimeSeconds) ? currentTimeSeconds : 0,
-    AUTOPLAY_SUBTITLE_PRIME_LOOKAHEAD_SECONDS,
-  );
-  if (!cue) {
-    return;
-  }
-
-  emitAutoplayPrimedSubtitle(mediaPath, cue.text);
-}
-
-function clearScheduledSubtitlePrefetchRefresh(): void {
-  if (subtitlePrefetchRefreshTimer) {
-    clearTimeout(subtitlePrefetchRefreshTimer);
-    subtitlePrefetchRefreshTimer = null;
-  }
+function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
+  autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh(delayMs);
 }
 
 function cancelPendingLinuxMpvFullscreenOverlayRefreshBurst(): void {
@@ -2134,15 +1821,17 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     if (!cues?.length) {
       appState.activeParsedSubtitleMediaPath = null;
     }
-    const mediaPath = getCurrentAutoplayMediaPath();
+    const mediaPath = autoplaySubtitlePrimingRuntime.getCurrentAutoplayMediaPath();
     if (mediaPath && cues?.length) {
-      void primeAutoplaySubtitleFromParsedCues(mediaPath, cues).catch((error) => {
-        logger.debug(
-          `[autoplay-subtitle-prime] failed to prime from parsed cues: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+      void autoplaySubtitlePrimingRuntime
+        .primeAutoplaySubtitleFromParsedCues(mediaPath, cues)
+        .catch((error) => {
+          logger.debug(
+            `[autoplay-subtitle-prime] failed to prime from parsed cues: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
     }
   },
 });
@@ -2152,22 +1841,6 @@ const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSid
     extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
 });
 
-async function refreshSubtitleSidebarFromSource(
-  sourcePath: string,
-  mediaPath?: string,
-): Promise<void> {
-  const normalizedSourcePath = resolveSubtitleSourcePath(sourcePath.trim());
-  if (!normalizedSourcePath) {
-    return;
-  }
-  const nextMediaPath = mediaPath?.trim() || getCurrentAutoplayMediaPath();
-  await subtitlePrefetchInitController.initSubtitlePrefetch(
-    normalizedSourcePath,
-    lastObservedTimePos,
-    normalizedSourcePath,
-  );
-  appState.activeParsedSubtitleMediaPath = nextMediaPath;
-}
 const refreshSubtitlePrefetchFromActiveTrackHandler =
   createRefreshSubtitlePrefetchFromActiveTrackHandler({
     getMpvClient: () => appState.mpvClient,
@@ -2177,21 +1850,16 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
   });
 
-function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
-  clearScheduledSubtitlePrefetchRefresh();
-  subtitlePrefetchRefreshTimer = setTimeout(() => {
-    subtitlePrefetchRefreshTimer = null;
-    void refreshSubtitlePrefetchFromActiveTrackHandler();
-  }, delayMs);
-}
 const subtitlePrefetchRuntime = {
   cancelPendingInit: () => subtitlePrefetchInitController.cancelPendingInit(),
   initSubtitlePrefetch: subtitlePrefetchInitController.initSubtitlePrefetch,
   refreshSubtitleSidebarFromSource: (sourcePath: string, mediaPath?: string) =>
-    refreshSubtitleSidebarFromSource(sourcePath, mediaPath),
+    autoplaySubtitlePrimingRuntime.refreshSubtitleSidebarFromSource(sourcePath, mediaPath),
   refreshSubtitlePrefetchFromActiveTrack: () => refreshSubtitlePrefetchFromActiveTrackHandler(),
-  scheduleSubtitlePrefetchRefresh: (delayMs?: number) => scheduleSubtitlePrefetchRefresh(delayMs),
-  clearScheduledSubtitlePrefetchRefresh: () => clearScheduledSubtitlePrefetchRefresh(),
+  scheduleSubtitlePrefetchRefresh: (delayMs?: number) =>
+    autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh(delayMs),
+  clearScheduledSubtitlePrefetchRefresh: () =>
+    autoplaySubtitlePrimingRuntime.clearScheduledSubtitlePrefetchRefresh(),
 } as const;
 
 const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
@@ -2670,14 +2338,18 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     getForceMousePassthrough: () => appState.statsOverlayVisible,
     getNonNativeInputRegionActive: () =>
-      process.platform === 'linux' && linuxOverlayInputShapeActive,
+      process.platform === 'linux' &&
+      visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
     getSuspendVisibleOverlay: () => appState.statsOverlayVisible,
-    getOverlayInteractionActive: () => visibleOverlayInteractionActive,
+    getOverlayInteractionActive: () =>
+      visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive(),
     getWindowTracker: () => appState.windowTracker,
-    getLastKnownWindowsForegroundProcessName: () => lastWindowsVisibleOverlayForegroundProcessName,
+    getLastKnownWindowsForegroundProcessName: () =>
+      visibleOverlayInteractionRuntime.getLastWindowsVisibleOverlayForegroundProcessName(),
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
     getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
-    getMacOSForegroundProbeActive: () => macOSVisibleOverlayForegroundProbeActive,
+    getMacOSForegroundProbeActive: () =>
+      visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
@@ -2723,142 +2395,73 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   })(),
 );
 
-const VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS = [0, 25, 100, 250] as const;
-const WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS = [0, 48, 120, 240, 480] as const;
-const WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS = 75;
-const WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 200;
-const LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS = 1_500;
-const LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS = 1_200;
-// Ignore transient "neither mpv nor overlay is the active window" blips before suppressing
-// subtitle pointer interaction. Right after playback starts the overlay can briefly become the
-// X11 active window, which would otherwise leave subtitles inert for a poll cycle (~1s).
-const LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS = 500;
-const LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS = 1_500;
-const MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS = 1_200;
-let visibleOverlayBlurRefreshTimeouts: Array<ReturnType<typeof setTimeout>> = [];
-let windowsVisibleOverlayZOrderRetryTimeouts: Array<ReturnType<typeof setTimeout>> = [];
-let windowsVisibleOverlayZOrderSyncInFlight = false;
-let windowsVisibleOverlayZOrderSyncQueued = false;
-let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
-let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
-let lastWindowsVisibleOverlayBlurredAtMs = 0;
-let lastLinuxVisibleOverlayFollowedMpvAtMs = 0;
-const linuxPointerForegroundSuppressionGrace: ForegroundSuppressionGraceState = {
-  lossSinceMs: null,
-};
-let visibleOverlayInteractionActive = false;
-let linuxOverlayInputShapeActive = false;
-let linuxVisibleOverlayStartupInputPrimed = false;
-let linuxVisibleOverlayStartupInputGraceUntilMs = 0;
-// Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
-// region is interactive, so the cursor poll keeps the overlay interactive even when the cursor
-// moves off measured subtitle/sidebar rects onto the popup.
-let linuxOverlayInteractiveHint = false;
-let macOSVisibleOverlayForegroundProbeActive = false;
-let macOSVisibleOverlayForegroundProbeToken = 0;
-let macOSVisibleOverlayForegroundProbeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-const handleStatsOverlayVisibilityChanged = createStatsOverlayVisibilityChangeHandler({
-  setStatsOverlayVisibleState: (visible) => {
+const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime({
+  overlayManager: {
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  },
+  overlayContentMeasurementStore: {
+    clear: (layer) => overlayContentMeasurementStore.clear(layer),
+    getLatestByLayer: (layer) => overlayContentMeasurementStore.getLatestByLayer(layer),
+  },
+  logger: {
+    info: (message, ...args) => logger.info(message, ...args),
+    warn: (message, ...args) => logger.warn(message, ...args),
+    debug: (message, ...args) => logger.debug(message, ...args),
+  },
+  updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+  getModalInputExclusive: () => overlayModalInputState.getModalInputExclusive(),
+  getStatsOverlayVisible: () => appState.statsOverlayVisible,
+  setStatsOverlayVisible: (visible) => {
     appState.statsOverlayVisible = visible;
   },
-  resetVisibleOverlayInteraction: () => {
-    visibleOverlayInteractionActive = false;
+  getWindowTracker: () => appState.windowTracker,
+  setWindowTracker: (tracker) => {
+    appState.windowTracker = tracker;
   },
-  getMainWindow: () => overlayManager.getMainWindow(),
-  updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
+  setTrackerNotReadyWarningShown: (shown) => {
+    appState.trackerNotReadyWarningShown = shown;
+  },
+  getMpvSocketPath: () => appState.mpvSocketPath,
+  getBackendOverride: () => appState.backendOverride,
+  getInitialArgs: () => appState.initialArgs,
+  getOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
+  getLinuxVisibleOverlayWindowMode: () => linuxVisibleOverlayWindowMode,
+  setLinuxVisibleOverlayOwnerBindingKey: (key) => {
+    linuxVisibleOverlayOwnerBindingKey = key;
+  },
+  bindVisibleOverlayToTrackedX11Window: (window) => bindVisibleOverlayToTrackedX11Window(window),
+  updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
+  refreshCurrentSubtitle: () => {
+    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+  },
+  getOverlayWindows: () => getOverlayWindows(),
+  syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
+  resetLastOverlayWindowGeometry: () => overlayGeometryRuntime.resetLastOverlayWindowGeometry(),
+  enforceOverlayLayerOrder: () => {
+    enforceOverlayLayerOrder();
+  },
+  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
 });
 
+function handleStatsOverlayVisibilityChanged(visible: boolean): void {
+  visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
+}
+
 function resetVisibleOverlayInputState(): void {
-  visibleOverlayInteractionActive = false;
-  linuxOverlayInputShapeActive = false;
-  resetLinuxVisibleOverlayStartupInputPrimer();
-  linuxOverlayInteractiveHint = false;
-  overlayContentMeasurementStore.clear('visible');
-  const mainWindow = overlayManager.getMainWindow();
-  if (process.platform === 'linux' && mainWindow && !mainWindow.isDestroyed()) {
-    restoreLinuxOverlayWindowShape(mainWindow);
-  }
+  visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
 }
 
 function restoreVisibleOverlayWindowShapeForShow(): void {
-  if (process.platform !== 'linux') {
-    return;
-  }
-  restoreLinuxOverlayWindowShape(overlayManager.getMainWindow());
-}
-
-function clearVisibleOverlayBlurRefreshTimeouts(): void {
-  for (const timeout of visibleOverlayBlurRefreshTimeouts) {
-    clearTimeout(timeout);
-  }
-  visibleOverlayBlurRefreshTimeouts = [];
-}
-
-function clearWindowsVisibleOverlayZOrderRetryTimeouts(): void {
-  for (const timeout of windowsVisibleOverlayZOrderRetryTimeouts) {
-    clearTimeout(timeout);
-  }
-  windowsVisibleOverlayZOrderRetryTimeouts = [];
-}
-
-function finishMacOSVisibleOverlayForegroundProbe(token: number): void {
-  if (token !== macOSVisibleOverlayForegroundProbeToken) {
-    return;
-  }
-  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
-    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
-    macOSVisibleOverlayForegroundProbeTimeout = null;
-  }
-  if (!macOSVisibleOverlayForegroundProbeActive) {
-    return;
-  }
-  macOSVisibleOverlayForegroundProbeActive = false;
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-}
-
-function startMacOSVisibleOverlayForegroundProbe(): void {
-  if (process.platform !== 'darwin') {
-    return;
-  }
-  const tracker = appState.windowTracker;
-  if (!tracker) {
-    return;
-  }
-
-  macOSVisibleOverlayForegroundProbeActive = true;
-  const token = ++macOSVisibleOverlayForegroundProbeToken;
-  if (macOSVisibleOverlayForegroundProbeTimeout !== null) {
-    clearTimeout(macOSVisibleOverlayForegroundProbeTimeout);
-  }
-  macOSVisibleOverlayForegroundProbeTimeout = setTimeout(() => {
-    finishMacOSVisibleOverlayForegroundProbe(token);
-  }, MACOS_VISIBLE_OVERLAY_FOREGROUND_PROBE_TIMEOUT_MS);
-
-  void tracker
-    .refreshNow()
-    .catch((error) => {
-      logger.warn('Failed to refresh macOS frontmost app after overlay blur', error);
-    })
-    .finally(() => {
-      finishMacOSVisibleOverlayForegroundProbe(token);
-    });
+  visibleOverlayInteractionRuntime.restoreVisibleOverlayWindowShapeForShow();
 }
 
 function getNativeWindowHandleDecimal(window: BrowserWindow): string {
-  const handle = window.getNativeWindowHandle();
-  return handle.length >= 8
-    ? handle.readBigUInt64LE(0).toString()
-    : BigInt(handle.readUInt32LE(0)).toString();
-}
-
-function getWindowsNativeWindowHandle(window: BrowserWindow): string {
-  return getNativeWindowHandleDecimal(window);
+  return visibleOverlayInteractionRuntime.getNativeWindowHandleDecimal(window);
 }
 
 function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
-  const handle = window.getNativeWindowHandle();
-  return handle.length >= 8 ? Number(handle.readBigUInt64LE(0)) : handle.readUInt32LE(0);
+  return visibleOverlayInteractionRuntime.getWindowsNativeWindowHandleNumber(window);
 }
 
 function enqueueVisibleOverlayX11OwnerBindingOperation(
@@ -2866,539 +2469,78 @@ function enqueueVisibleOverlayX11OwnerBindingOperation(
   args: string[],
   onError?: (error: Error) => void,
 ): void {
-  const previous = linuxVisibleOverlayOwnerBindingQueues.get(window) ?? Promise.resolve();
-  const operation = previous
-    .catch(() => {})
-    .then(
-      () =>
-        new Promise<void>((resolve) => {
-          if (window.isDestroyed()) {
-            resolve();
-            return;
-          }
-          execFile('xprop', args, { timeout: 1500 }, (error) => {
-            if (error) {
-              onError?.(error);
-            }
-            resolve();
-          });
-        }),
-    );
-  const queued = operation.finally(() => {
-    if (linuxVisibleOverlayOwnerBindingQueues.get(window) === queued) {
-      linuxVisibleOverlayOwnerBindingQueues.delete(window);
-    }
-  });
-  linuxVisibleOverlayOwnerBindingQueues.set(window, queued);
+  visibleOverlayInteractionRuntime.enqueueVisibleOverlayX11OwnerBindingOperation(
+    window,
+    args,
+    onError,
+  );
 }
 
 function clearVisibleOverlayX11OwnerBinding(window: BrowserWindow): void {
-  if (window.isDestroyed()) return;
-  enqueueVisibleOverlayX11OwnerBindingOperation(window, [
-    '-id',
-    getNativeWindowHandleDecimal(window),
-    '-remove',
-    'WM_TRANSIENT_FOR',
-  ]);
-}
-
-function resolveWindowsOverlayBindTargetHandle(targetMpvSocketPath?: string | null): number | null {
-  if (process.platform !== 'win32') {
-    return null;
-  }
-
-  try {
-    if (targetMpvSocketPath) {
-      const windowTracker = appState.windowTracker as {
-        getTargetWindowHandle?: () => number | null;
-      } | null;
-      const trackedHandle = windowTracker?.getTargetWindowHandle?.();
-      if (typeof trackedHandle === 'number' && Number.isFinite(trackedHandle)) {
-        return trackedHandle;
-      }
-      return null;
-    }
-    return findWindowsMpvTargetWindowHandle();
-  } catch {
-    return null;
-  }
+  visibleOverlayInteractionRuntime.clearVisibleOverlayX11OwnerBinding(window);
 }
 
 function createOverlayWindowTracker(override?: string | null, targetMpvSocketPath?: string | null) {
-  if (appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)) {
-    return null;
-  }
-  return createWindowTrackerCore(override, targetMpvSocketPath);
+  return visibleOverlayInteractionRuntime.createOverlayWindowTracker(override, targetMpvSocketPath);
 }
 
 function bindVisibleOverlayOwner(): void {
-  const mainWindow = overlayManager.getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (process.platform === 'linux') {
-    bindVisibleOverlayToTrackedX11Window(mainWindow);
-    return;
-  }
-  if (process.platform !== 'win32') return;
-  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-  const targetSocketPath = appState.mpvSocketPath;
-  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(targetSocketPath);
-  if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
-    return;
-  }
-  if (targetSocketPath) {
-    return;
-  }
-  const tracker = appState.windowTracker;
-  const mpvResult = tracker
-    ? (() => {
-        try {
-          const win32 =
-            require('./window-trackers/win32') as typeof import('./window-trackers/win32');
-          const poll = win32.findMpvWindows();
-          const focused = poll.matches.find((m) => m.isForeground);
-          return focused ?? [...poll.matches].sort((a, b) => b.area - a.area)[0] ?? null;
-        } catch {
-          return null;
-        }
-      })()
-    : null;
-  if (!mpvResult) return;
-  if (!setWindowsOverlayOwner(overlayHwnd, mpvResult.hwnd)) {
-    logger.warn('Failed to set overlay owner via koffi');
-  }
+  visibleOverlayInteractionRuntime.bindVisibleOverlayOwner();
 }
 
 function releaseVisibleOverlayOwner(): void {
-  const mainWindow = overlayManager.getMainWindow();
-  if (process.platform === 'linux') {
-    linuxVisibleOverlayOwnerBindingKey = null;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      clearVisibleOverlayX11OwnerBinding(mainWindow);
-    }
-    return;
-  }
-  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
-  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-  if (!clearWindowsOverlayOwner(overlayHwnd)) {
-    logger.warn('Failed to clear overlay owner via koffi');
-  }
-}
-
-function startOverlayWindowTrackerForCurrentSocket(): void {
-  startOverlayWindowTrackerCore({
-    backendOverride: appState.backendOverride,
-    getMpvSocketPath: () => appState.mpvSocketPath,
-    createWindowTracker: createOverlayWindowTracker,
-    setWindowTracker: (tracker) => {
-      appState.windowTracker = tracker;
-    },
-    updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
-    isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    updateVisibleOverlayVisibility: () => overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-    refreshCurrentSubtitle: () => {
-      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-    },
-    getOverlayWindows: () => getOverlayWindows(),
-    syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
-    bindOverlayOwner: () => bindVisibleOverlayOwner(),
-    releaseOverlayOwner: () => releaseVisibleOverlayOwner(),
-  });
+  visibleOverlayInteractionRuntime.releaseVisibleOverlayOwner();
 }
 
 function retargetOverlayWindowTrackerForMpvSocket(
   nextSocketPath: string,
   previousSocketPath: string,
 ): void {
-  if (nextSocketPath === previousSocketPath || !appState.overlayRuntimeInitialized) {
-    return;
-  }
-
-  const previousTracker = appState.windowTracker;
-  if (previousTracker) {
-    try {
-      previousTracker.stop();
-    } catch (error) {
-      logger.warn('Failed to stop previous overlay window tracker before retargeting', error);
-    }
-  }
-
-  releaseVisibleOverlayOwner();
-  appState.windowTracker = null;
-  appState.trackerNotReadyWarningShown = false;
-  lastOverlayWindowGeometry = null;
-  startOverlayWindowTrackerForCurrentSocket();
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-  overlayShortcutsRuntime.syncOverlayShortcuts();
-  logger.info(
-    `Retargeted overlay window tracker for MPV socket: ${previousSocketPath} -> ${nextSocketPath}`,
+  visibleOverlayInteractionRuntime.retargetOverlayWindowTrackerForMpvSocket(
+    nextSocketPath,
+    previousSocketPath,
   );
-}
-
-async function syncWindowsVisibleOverlayToMpvZOrder(): Promise<boolean> {
-  if (process.platform !== 'win32') {
-    return false;
-  }
-
-  const mainWindow = overlayManager.getMainWindow();
-  if (
-    !mainWindow ||
-    mainWindow.isDestroyed() ||
-    !mainWindow.isVisible() ||
-    !overlayManager.getVisibleOverlayVisible()
-  ) {
-    return false;
-  }
-
-  const windowTracker = appState.windowTracker;
-  if (!windowTracker) {
-    return false;
-  }
-
-  if (
-    typeof windowTracker.isTargetWindowMinimized === 'function' &&
-    windowTracker.isTargetWindowMinimized()
-  ) {
-    return false;
-  }
-
-  if (!windowTracker.isTracking() && windowTracker.getGeometry() === null) {
-    return false;
-  }
-
-  const overlayHwnd = getWindowsNativeWindowHandleNumber(mainWindow);
-  const targetWindowHwnd = resolveWindowsOverlayBindTargetHandle(appState.mpvSocketPath);
-  if (targetWindowHwnd !== null && bindWindowsOverlayAboveMpv(overlayHwnd, targetWindowHwnd)) {
-    (mainWindow as BrowserWindow & { setOpacity?: (opacity: number) => void }).setOpacity?.(1);
-    return true;
-  }
-  return false;
 }
 
 function requestWindowsVisibleOverlayZOrderSync(): void {
-  if (process.platform !== 'win32') {
-    return;
-  }
-
-  if (windowsVisibleOverlayZOrderSyncInFlight) {
-    windowsVisibleOverlayZOrderSyncQueued = true;
-    return;
-  }
-
-  windowsVisibleOverlayZOrderSyncInFlight = true;
-  void syncWindowsVisibleOverlayToMpvZOrder()
-    .catch((error) => {
-      logger.warn('Failed to bind Windows overlay z-order to mpv', error);
-    })
-    .finally(() => {
-      windowsVisibleOverlayZOrderSyncInFlight = false;
-      if (!windowsVisibleOverlayZOrderSyncQueued) {
-        return;
-      }
-
-      windowsVisibleOverlayZOrderSyncQueued = false;
-      requestWindowsVisibleOverlayZOrderSync();
-    });
+  visibleOverlayInteractionRuntime.requestWindowsVisibleOverlayZOrderSync();
 }
 
 function scheduleWindowsVisibleOverlayZOrderSyncBurst(): void {
-  if (process.platform !== 'win32') {
-    return;
-  }
-
-  clearWindowsVisibleOverlayZOrderRetryTimeouts();
-  for (const delayMs of WINDOWS_VISIBLE_OVERLAY_Z_ORDER_RETRY_DELAYS_MS) {
-    const retryTimeout = setTimeout(() => {
-      windowsVisibleOverlayZOrderRetryTimeouts = windowsVisibleOverlayZOrderRetryTimeouts.filter(
-        (timeout) => timeout !== retryTimeout,
-      );
-      requestWindowsVisibleOverlayZOrderSync();
-    }, delayMs);
-    windowsVisibleOverlayZOrderRetryTimeouts.push(retryTimeout);
-  }
+  visibleOverlayInteractionRuntime.scheduleWindowsVisibleOverlayZOrderSyncBurst();
 }
 
 function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
-  return (
-    process.platform === 'win32' &&
-    lastWindowsVisibleOverlayBlurredAtMs > 0 &&
-    Date.now() - lastWindowsVisibleOverlayBlurredAtMs <=
-      WINDOWS_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
-  );
-}
-
-function shouldPollWindowsVisibleOverlayForegroundProcess(): boolean {
-  if (process.platform !== 'win32' || !overlayManager.getVisibleOverlayVisible()) {
-    return false;
-  }
-
-  const mainWindow = overlayManager.getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  const windowTracker = appState.windowTracker;
-  if (!windowTracker) {
-    return false;
-  }
-
-  if (
-    typeof windowTracker.isTargetWindowMinimized === 'function' &&
-    windowTracker.isTargetWindowMinimized()
-  ) {
-    return false;
-  }
-
-  const overlayFocused = mainWindow.isFocused();
-  const trackerFocused = windowTracker.isTargetWindowFocused?.() ?? false;
-  return !overlayFocused && !trackerFocused;
-}
-
-function maybePollWindowsVisibleOverlayForegroundProcess(): void {
-  if (!shouldPollWindowsVisibleOverlayForegroundProcess()) {
-    lastWindowsVisibleOverlayForegroundProcessName = null;
-    return;
-  }
-
-  const processName = getWindowsForegroundProcessName();
-  const normalizedProcessName = processName?.trim().toLowerCase() ?? null;
-  const previousProcessName = lastWindowsVisibleOverlayForegroundProcessName;
-  lastWindowsVisibleOverlayForegroundProcessName = normalizedProcessName;
-
-  if (normalizedProcessName !== previousProcessName) {
-    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-  }
-  if (normalizedProcessName === 'mpv' && previousProcessName !== 'mpv') {
-    requestWindowsVisibleOverlayZOrderSync();
-  }
-}
-
-function ensureWindowsVisibleOverlayForegroundPollLoop(): void {
-  if (process.platform !== 'win32' || windowsVisibleOverlayForegroundPollInterval !== null) {
-    return;
-  }
-
-  windowsVisibleOverlayForegroundPollInterval = setInterval(() => {
-    maybePollWindowsVisibleOverlayForegroundProcess();
-  }, WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS);
+  return visibleOverlayInteractionRuntime.hasWindowsVisibleOverlayFocusHandoffGrace();
 }
 
 function clearWindowsVisibleOverlayForegroundPollLoop(): void {
-  if (windowsVisibleOverlayForegroundPollInterval === null) {
-    return;
-  }
-
-  clearInterval(windowsVisibleOverlayForegroundPollInterval);
-  windowsVisibleOverlayForegroundPollInterval = null;
+  visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop();
 }
 
 function scheduleVisibleOverlayBlurRefresh(): void {
-  if (process.platform !== 'win32' && process.platform !== 'darwin') {
-    return;
-  }
-
-  if (process.platform === 'win32') {
-    lastWindowsVisibleOverlayBlurredAtMs = Date.now();
-  }
-  startMacOSVisibleOverlayForegroundProbe();
-  clearVisibleOverlayBlurRefreshTimeouts();
-  for (const delayMs of VISIBLE_OVERLAY_BLUR_REFRESH_DELAYS_MS) {
-    const refreshTimeout = setTimeout(() => {
-      visibleOverlayBlurRefreshTimeouts = visibleOverlayBlurRefreshTimeouts.filter(
-        (timeout) => timeout !== refreshTimeout,
-      );
-      overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-    }, delayMs);
-    visibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
-  }
-}
-
-ensureWindowsVisibleOverlayForegroundPollLoop();
-
-const linuxX11CursorPointReader = createLinuxX11CursorPointReader();
-
-function getLinuxOverlayPointerMeasurement() {
-  const measurement = overlayContentMeasurementStore.getLatestByLayer('visible');
-  return mapOverlayMeasurementForPointerInteraction(measurement);
-}
-
-function shouldSuspendLinuxOverlayPointerInteraction(): boolean {
-  return overlayModalInputState.getModalInputExclusive() || appState.statsOverlayVisible;
-}
-
-function shouldSuppressLinuxOverlayPointerInteraction(): boolean {
-  return resolveForegroundSuppressionWithGrace({
-    hasForegroundSeparateWindow: hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()),
-    isTrackingMpvWindow: Boolean(appState.windowTracker?.isTracking()),
-    isMpvWindowFocused: appState.windowTracker?.isTargetWindowFocused?.() !== false,
-    isOverlayWindowFocused: overlayManager.getMainWindow()?.isFocused() === true,
-    nowMs: Date.now(),
-    graceMs: LINUX_POINTER_FOREGROUND_SUPPRESS_GRACE_MS,
-    state: linuxPointerForegroundSuppressionGrace,
-  });
-}
-
-function shouldUseLinuxOverlayInputShape(): boolean {
-  // Electron's setShape is a *bounding* shape: outside the given rects no pixels are drawn, so
-  // it clips the visible subtitle (and makes a dragged subtitle vanish behind the shaped
-  // region). There is no input-only region API on Linux, so selective hit-testing is handled by
-  // the main-process cursor poll instead. Keep this off to avoid clipping the overlay.
-  return false;
-}
-
-function hasLinuxVisibleOverlayStartupInputGrace(): boolean {
-  return (
-    process.platform === 'linux' &&
-    linuxVisibleOverlayStartupInputGraceUntilMs > 0 &&
-    Date.now() < linuxVisibleOverlayStartupInputGraceUntilMs
-  );
-}
-
-function clearLinuxVisibleOverlayStartupInputGrace(): void {
-  linuxVisibleOverlayStartupInputGraceUntilMs = 0;
+  visibleOverlayInteractionRuntime.scheduleVisibleOverlayBlurRefresh();
 }
 
 function resetLinuxVisibleOverlayStartupInputPrimer(): void {
-  linuxVisibleOverlayStartupInputPrimed = false;
-  clearLinuxVisibleOverlayStartupInputGrace();
+  visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
 }
 
 function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
-  if (!shouldUseLinuxOverlayInputShape()) {
-    linuxOverlayInputShapeActive = false;
-    return false;
-  }
-
-  const result = applyLinuxOverlayInputShape({
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getMainWindow: () => overlayManager.getMainWindow(),
-    getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
-    getRendererInteractiveHint: () => linuxOverlayInteractiveHint,
-    shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
-    shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
-  });
-  linuxOverlayInputShapeActive = result.active;
-  return result.handled;
-}
-
-function updateLinuxOverlayPointerInteractionActive(active: boolean): void {
-  visibleOverlayInteractionActive = active;
-  if (
-    process.platform === 'linux' &&
-    applyLinuxOverlayPointerInteractionMousePassthrough({
-      active,
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
-      shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
-      updateVisibleOverlayVisibility: () =>
-        overlayVisibilityRuntime.updateVisibleOverlayVisibility(),
-    })
-  ) {
-    return;
-  }
-
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+  return visibleOverlayInteractionRuntime.applyLinuxOverlayInputShapeFromLatestMeasurement();
 }
 
 function primeLinuxOverlayPointerInteractionAfterFirstMeasurement(): void {
-  if (process.platform !== 'linux') return;
-  if (linuxVisibleOverlayStartupInputPrimed) return;
-  if (shouldUseLinuxOverlayInputShape()) return;
-  if (
-    !shouldPrimeLinuxOverlayInteractionFromMeasurement({
-      getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-      getMainWindow: () => overlayManager.getMainWindow(),
-      getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
-      shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
-      shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
-    })
-  ) {
-    return;
-  }
-
-  linuxVisibleOverlayStartupInputPrimed = true;
-  linuxVisibleOverlayStartupInputGraceUntilMs =
-    Date.now() + LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS;
-  updateLinuxOverlayPointerInteractionActive(true);
+  visibleOverlayInteractionRuntime.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
 }
-
-const linuxOverlayZOrderKeepAliveDeps = {
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getMainWindow: () => overlayManager.getMainWindow(),
-  isTrackingMpvWindow: () => Boolean(appState.windowTracker?.isTracking()),
-  isMpvWindowFocused: () => appState.windowTracker?.isTargetWindowFocused?.() !== false,
-  isOverlayWindowFocused: () => overlayManager.getMainWindow()?.isFocused() === true,
-  shouldSuppressReassert: () =>
-    overlayModalInputState.getModalInputExclusive() ||
-    appState.statsOverlayVisible ||
-    hasLiveSeparateWindow(getOverlayForegroundSeparateWindows()) ||
-    (visibleOverlayInteractionActive && overlayManager.getMainWindow()?.isFocused() !== true),
-  raiseMpvWindow: () => {
-    if (
-      lastLinuxVisibleOverlayFollowedMpvAtMs > 0 &&
-      Date.now() - lastLinuxVisibleOverlayFollowedMpvAtMs <=
-        LINUX_VISIBLE_OVERLAY_FOCUS_HANDOFF_GRACE_MS
-    ) {
-      return Promise.resolve(false);
-    }
-    lastLinuxVisibleOverlayFollowedMpvAtMs = Date.now();
-    return appState.windowTracker?.raiseTargetWindow?.() ?? Promise.resolve(false);
-  },
-  releaseOverlayLayerOrder: () => {
-    const mainWindow = overlayManager.getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    mainWindow.setAlwaysOnTop(false);
-    mainWindow.setFullScreen?.(false);
-    mainWindow.setVisibleOnAllWorkspaces?.(false, { visibleOnFullScreen: false });
-    if (linuxVisibleOverlayWindowMode === 'fullscreen-override' && mainWindow.isVisible()) {
-      mainWindow.hide();
-    }
-  },
-  enforceOverlayLayerOrder: () => {
-    enforceOverlayLayerOrder();
-  },
-  focusOverlayWindow: () => {
-    const mainWindow = overlayManager.getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isFocused()) return;
-    mainWindow.focus();
-  },
-};
 
 function requestLinuxOverlayZOrderFollow(): void {
-  if (!shouldRunLinuxOverlayZOrderKeepAlive()) return;
-  void tickLinuxOverlayZOrderKeepAlive(linuxOverlayZOrderKeepAliveDeps).catch((error) => {
-    logger.debug(
-      'Failed to follow tracked mpv behind focused overlay:',
-      error instanceof Error ? error.message : String(error),
-    );
-  });
+  visibleOverlayInteractionRuntime.requestLinuxOverlayZOrderFollow();
 }
-
-ensureLinuxOverlayZOrderKeepAliveLoop(linuxOverlayZOrderKeepAliveDeps);
-
-const linuxOverlayPointerInteractionDeps = {
-  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  getMainWindow: () => overlayManager.getMainWindow(),
-  getCursorScreenPoint: () =>
-    linuxX11CursorPointReader.getCursorScreenPoint(screen.getCursorScreenPoint()),
-  getSubtitleMeasurement: getLinuxOverlayPointerMeasurement,
-  getRendererInteractiveHint: () =>
-    linuxOverlayInteractiveHint || hasLinuxVisibleOverlayStartupInputGrace(),
-  shouldSuspend: shouldSuspendLinuxOverlayPointerInteraction,
-  shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
-  shouldUseInputShape: shouldUseLinuxOverlayInputShape,
-  getInteractionActive: () => visibleOverlayInteractionActive,
-  setInteractionActive: updateLinuxOverlayPointerInteractionActive,
-};
 
 function tickLinuxOverlayPointerInteractionNow(): void {
-  if (applyLinuxOverlayInputShapeFromLatestMeasurement()) {
-    return;
-  }
-  tickLinuxOverlayPointerInteraction(linuxOverlayPointerInteractionDeps);
+  visibleOverlayInteractionRuntime.tickLinuxOverlayPointerInteractionNow();
 }
-
-ensureLinuxOverlayPointerInteractionLoop(linuxOverlayPointerInteractionDeps);
 
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
   {
@@ -3430,176 +2572,57 @@ function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
   overlayManager.broadcastToOverlayWindows(channel, ...args);
 }
 
-function isVisibleOverlayContentReady(): boolean {
-  const overlayWindow = overlayManager.getMainWindow();
-  return Boolean(
-    overlayManager.getVisibleOverlayVisible() &&
-    overlayWindow &&
-    isOverlayWindowReadyForNotification(overlayWindow),
-  );
-}
-
-function getConfiguredStatusNotificationType(): NotificationType {
-  const configuredType = getResolvedConfig().ankiConnect.behavior.notificationType;
-  return resolveOverlayReadinessNotificationType(configuredType, isVisibleOverlayContentReady());
-}
-
-function isOverlayWindowReadyForNotification(window: BrowserWindow): boolean {
-  if (window.isDestroyed() || !isOverlayWindowContentReady(window)) {
-    return false;
-  }
-  if (window.webContents.isLoading()) {
-    return false;
-  }
-  const currentURL = window.webContents.getURL();
-  return currentURL !== '' && currentURL !== 'about:blank';
-}
-
-const overlayNotificationDelivery = createOverlayNotificationDelivery({
-  hasReadyOverlayWindow: () => isVisibleOverlayContentReady(),
-  send: (payload) => {
-    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayNotification, payload);
-  },
-  scheduleFlushRetry: (callback, delayMs) => setTimeout(callback, delayMs),
-  clearFlushRetry: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
+  getResolvedConfig: () => getResolvedConfig(),
+  getMainOverlayWindow: () => overlayManager.getMainWindow(),
+  getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+  broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+  showMpvOsd: (message) => showMpvOsd(message),
+  getMpvClient: () => appState.mpvClient,
+  getAnkiIntegration: () => appState.ankiIntegration,
+  getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
 });
-let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null = null;
+const {
+  flushQueuedOverlayNotifications,
+  openAnkiCardFromNotification,
+  toggleNotificationHistoryPanel,
+  showConfiguredPlaybackFeedback,
+  maybeStartOverlayLoadingOsd,
+} = overlayNotificationsRuntime;
 
-function flushQueuedOverlayNotifications(): void {
-  overlayNotificationDelivery.flush();
-}
-
-function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
-  overlayNotificationDelivery.send(payload);
+// Hoisted wrappers: these names are referenced (directly or via deps object
+// literals) during module initialization before this point, so they must stay
+// hoisted function declarations that delegate to the runtime lazily.
+function getConfiguredStatusNotificationType(): NotificationType {
+  return overlayNotificationsRuntime.getConfiguredStatusNotificationType();
 }
 
 function showOverlayNotification(payload: OverlayNotificationPayload): void {
-  sendOverlayNotificationEvent(
-    withConfiguredOverlayNotificationPosition(payload, getResolvedConfig()),
-  );
-}
-
-function dismissOverlayNotification(id: string): void {
-  sendOverlayNotificationEvent({ id, dismiss: true });
-}
-
-async function openAnkiCardFromNotification(noteId: number): Promise<void> {
-  const activeIntegrationOpen = appState.ankiIntegration?.openNoteInAnki(noteId);
-  if (activeIntegrationOpen) {
-    await activeIntegrationOpen;
-    return;
-  }
-
-  const resolvedConfig = getResolvedConfig();
-  const effectiveAnkiConfig =
-    appState.runtimeOptionsManager?.getEffectiveAnkiConnectConfig(resolvedConfig.ankiConnect) ??
-    resolvedConfig.ankiConnect;
-  const fallbackClient = new AnkiConnectClient(
-    effectiveAnkiConfig.url || DEFAULT_CONFIG.ankiConnect.url,
-  );
-  await fallbackClient.openNoteInBrowser(noteId);
-}
-
-function toggleNotificationHistoryPanel(): void {
-  broadcastToOverlayWindows(IPC_CHANNELS.event.notificationHistoryToggle);
+  overlayNotificationsRuntime.showOverlayNotification(payload);
 }
 
 function showConfiguredStatusNotification(
   message: string,
   options: ConfiguredStatusNotificationOptions = {},
 ): void {
-  notifyConfiguredStatus(
-    message,
-    {
-      getNotificationType: () => getResolvedConfig().ankiConnect.behavior.notificationType,
-      isOverlayReady: () => isVisibleOverlayContentReady(),
-      showOsd: (text) => showMpvOsd(text),
-      showOverlayNotification,
-      showDesktopNotification: (title, notificationOptions) =>
-        showDesktopNotification(title, notificationOptions),
-    },
-    options,
-  );
-}
-
-function showConfiguredPlaybackFeedback(
-  message: string,
-  options: ConfiguredStatusNotificationOptions = {},
-): void {
-  showConfiguredStatusNotification(message, {
-    ...getPlaybackFeedbackNotificationOptions(message),
-    ...options,
-    delivery: 'feedback',
-  });
+  overlayNotificationsRuntime.showConfiguredStatusNotification(message, options);
 }
 
 function showSubsyncStatusNotification(message: string): void {
-  const syncing = message.startsWith('Subsync: syncing');
-  const failed = message.toLowerCase().includes('failed');
-  showConfiguredStatusNotification(message, {
-    id: 'subsync-status',
-    title: 'Subsync',
-    variant: failed ? 'error' : syncing ? 'progress' : 'info',
-    persistent: syncing,
-    desktop: !syncing,
-  });
+  overlayNotificationsRuntime.showSubsyncStatusNotification(message);
 }
 
 function showYoutubeFlowStatusNotification(message: string): void {
-  const progress =
-    message.startsWith('Downloading subtitles') ||
-    message.startsWith('Loading subtitles') ||
-    message.startsWith('Getting subtitles') ||
-    message === 'Opening YouTube video';
-  showConfiguredStatusNotification(message, {
-    id: 'youtube-subtitles-status',
-    title: 'YouTube subtitles',
-    variant: progress ? 'progress' : 'info',
-    persistent: progress,
-    desktop: !progress,
-  });
+  overlayNotificationsRuntime.showYoutubeFlowStatusNotification(message);
 }
 
-function getOverlayLoadingOsdController(): ReturnType<typeof createOverlayLoadingOsdController> {
-  if (!overlayLoadingOsdController) {
-    overlayLoadingOsdController = createOverlayLoadingOsdController({
-      showOsd: (message) => {
-        showMpvOsd(message);
-      },
-      clearOsd: () => {
-        sendMpvCommandRuntime(appState.mpvClient, ['show-text', '', '1']);
-      },
-      setInterval: (callback, delayMs) => {
-        const timer = setInterval(callback, delayMs);
-        timer.unref?.();
-        return timer;
-      },
-      clearInterval: (timer) => {
-        clearInterval(timer as ReturnType<typeof setInterval>);
-      },
-    });
-  }
-  return overlayLoadingOsdController;
-}
-
-function showOverlayLoadingStatusNotification(message: string): void {
-  void message;
-  getOverlayLoadingOsdController().start();
+function showOverlayLoadingStatusNotification(_message: string): void {
+  overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
 }
 
 function dismissOverlayLoadingStatusNotification(): void {
-  getOverlayLoadingOsdController().stop();
-  sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-overlay-loading-ready']);
-  dismissOverlayNotification('overlay-loading-status');
+  overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
 }
-
-const maybeStartOverlayLoadingOsd = createMaybeStartOverlayLoadingOsdHandler({
-  getVisibleOverlayRequested: () => overlayManager.getVisibleOverlayVisible(),
-  isOverlayContentReady: () => isVisibleOverlayContentReady(),
-  startOverlayLoadingOsd: () => {
-    showOverlayLoadingStatusNotification('Overlay loading...');
-  },
-});
 
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
@@ -4750,149 +3773,6 @@ const {
 });
 registerProtocolUrlHandlersHandler();
 
-const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
-const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
-
-const startLocalStatsServer = (): void => {
-  const tracker = appState.immersionTracker;
-  if (!tracker) {
-    throw new Error('Immersion tracker failed to initialize.');
-  }
-  if (!statsServer) {
-    const yomitanDeps = {
-      getYomitanExt: () => appState.yomitanExt,
-      getYomitanSession: () => appState.yomitanSession,
-      getYomitanParserWindow: () => appState.yomitanParserWindow,
-      setYomitanParserWindow: (w: BrowserWindow | null) => {
-        appState.yomitanParserWindow = w;
-      },
-      getYomitanParserReadyPromise: () => appState.yomitanParserReadyPromise,
-      setYomitanParserReadyPromise: (p: Promise<void> | null) => {
-        appState.yomitanParserReadyPromise = p;
-      },
-      getYomitanParserInitPromise: () => appState.yomitanParserInitPromise,
-      setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
-        appState.yomitanParserInitPromise = p;
-      },
-    };
-    const yomitanLogger = createLogger('main:yomitan-stats');
-    statsServer = startStatsServer({
-      port: getResolvedConfig().stats.serverPort,
-      staticDir: statsDistPath,
-      tracker,
-      knownWordCachePath: path.join(USER_DATA_PATH, 'known-words-cache.json'),
-      mpvSocketPath: appState.mpvSocketPath,
-      getAnkiConnectConfig: () => getResolvedConfig().ankiConnect,
-      getYomitanAnkiDeckName: getCurrentYomitanAnkiDeckNameForRuntime,
-      getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
-      getStatsMiningAlassPath: () => getResolvedConfig().subsync.alass_path,
-      anilistRateLimiter,
-      resolveAnkiNoteId: (noteId: number) =>
-        appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
-      resolveSentenceSearchHeadwords,
-      addYomitanNote: async (word: string) => {
-        const ankiConnectConfig = getResolvedConfig().ankiConnect;
-        const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
-        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
-          forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
-          deck: ankiConnectConfig.deck,
-        });
-        const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
-        if (result.noteId && result.duplicateNoteIds.length > 0) {
-          appState.ankiIntegration?.trackDuplicateNoteIdsForNote(
-            result.noteId,
-            result.duplicateNoteIds,
-          );
-        }
-        return result.noteId;
-      },
-    });
-    appState.statsServer = statsServer;
-  }
-  appState.statsServer = statsServer;
-};
-
-const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
-  currentPid: process.pid,
-  readBackgroundState: () => readBackgroundStatsServerState(statsDaemonStatePath),
-  removeBackgroundState: () => {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-  },
-  isProcessAlive: (pid) => isBackgroundStatsServerProcessAlive(pid),
-  hasLocalStatsServer: () => statsServer !== null,
-  startLocalStatsServer,
-  getConfiguredPort: () => getResolvedConfig().stats.serverPort,
-});
-
-const ensureBackgroundStatsServerStarted = (): {
-  url: string;
-  runningInCurrentProcess: boolean;
-} => {
-  const liveDaemon = readLiveBackgroundStatsDaemonState();
-  if (liveDaemon && liveDaemon.pid !== process.pid) {
-    return {
-      url: resolveBackgroundStatsServerUrl(liveDaemon),
-      runningInCurrentProcess: false,
-    };
-  }
-
-  appState.statsStartupInProgress = true;
-  try {
-    ensureImmersionTrackerStarted();
-  } finally {
-    appState.statsStartupInProgress = false;
-  }
-
-  const port = getResolvedConfig().stats.serverPort;
-  const result = ensureStatsServerStarted();
-  if (result.source === 'local') {
-    writeBackgroundStatsServerState(statsDaemonStatePath, {
-      pid: process.pid,
-      port,
-      startedAtMs: Date.now(),
-    });
-  }
-  return { url: result.url, runningInCurrentProcess: result.source === 'local' };
-};
-
-const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
-  const state = readBackgroundStatsServerState(statsDaemonStatePath);
-  if (!state) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return { ok: true, stale: true };
-  }
-  if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-    removeBackgroundStatsServerState(statsDaemonStatePath);
-    return { ok: true, stale: true };
-  }
-
-  try {
-    process.kill(state.pid, 'SIGTERM');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ESRCH') {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
-      return { ok: true, stale: true };
-    }
-    if ((error as NodeJS.ErrnoException)?.code === 'EPERM') {
-      throw new Error(
-        `Insufficient permissions to stop background stats server (pid ${state.pid}).`,
-      );
-    }
-    throw error;
-  }
-
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline) {
-    if (!isBackgroundStatsServerProcessAlive(state.pid)) {
-      removeBackgroundStatsServerState(statsDaemonStatePath);
-      return { ok: true, stale: false };
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-
-  throw new Error('Timed out stopping background stats server.');
-};
-
 const resolveLegacyVocabularyPos = async (row: {
   headword: string;
   word: string;
@@ -5405,7 +4285,7 @@ const {
           topX: frequencyDictionary.topX,
           mode: frequencyDictionary.mode,
         };
-        autoplaySubtitlePrimedMediaPath = null;
+        autoplaySubtitlePrimingRuntime.resetAutoplaySubtitlePrime();
         lastObservedTimePos = 0;
         appState.currentSubText = '';
         appState.currentSubAssText = '';
@@ -5498,7 +4378,8 @@ const {
           syncVisibleOverlayMpvFullscreenMode: (nextFullscreen) =>
             syncLinuxVisibleOverlayMpvFullscreenMode(nextFullscreen),
           getOverlayInteractionActive: () =>
-            visibleOverlayInteractionActive || linuxOverlayInputShapeActive,
+            visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive() ||
+            visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
           ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
         },
         cancelLinuxMpvFullscreenOverlayRefreshBurst,
@@ -5721,7 +4602,8 @@ signalAutoplayReadyFromWarmTokenization = createAutoplayTokenizationWarmRelease(
   },
   getCurrentMediaPath: () =>
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
-  primeCurrentSubtitle: (mediaPath) => primeCurrentSubtitleForAutoplay(mediaPath),
+  primeCurrentSubtitle: (mediaPath) =>
+    autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForAutoplay(mediaPath),
   signalAutoplayReady: () => signalCurrentSubtitleAutoplayReady(),
   warn: (message, error) => logger.warn(message, error),
 });
@@ -5782,236 +4664,68 @@ function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>
   updateMpvSubtitleRenderMetricsHandler(patch);
 }
 
-let lastOverlayWindowGeometry: WindowGeometry | null = null;
-
-function getOverlayGeometryFallback(): WindowGeometry {
-  const cursorPoint = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursorPoint);
-  const bounds = display.workArea;
-  return {
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-  };
-}
+const overlayGeometryRuntime = createOverlayGeometryRuntime({
+  overlayManager: {
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getModalWindow: () => overlayManager.getModalWindow(),
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    setOverlayWindowBounds: (geometry) => overlayManager.setOverlayWindowBounds(geometry),
+    setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
+  },
+  getTrackedWindowGeometry: () => appState.windowTracker?.getGeometry() ?? null,
+  getTrackedWindowMediaSourceId: () => appState.windowTracker?.getTargetWindowMediaSourceId?.(),
+  getTrackedWindowNativeId: () => appState.windowTracker?.getTargetWindowNativeId?.(),
+  getStatsOverlayVisible: () => appState.statsOverlayVisible,
+  getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
+  getLinuxVisibleOverlayWindowMode: () => linuxVisibleOverlayWindowMode,
+  getLinuxTrackedMpvFullscreen: () => linuxTrackedMpvFullscreen,
+  getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxTrackedMpvFullscreenChangedAtMs,
+  syncLinuxVisibleOverlayMpvFullscreenMode: (fullscreen) =>
+    syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen),
+  getLinuxVisibleOverlayOwnerBindingKey: () => linuxVisibleOverlayOwnerBindingKey,
+  setLinuxVisibleOverlayOwnerBindingKey: (key) => {
+    linuxVisibleOverlayOwnerBindingKey = key;
+  },
+  clearVisibleOverlayX11OwnerBinding: (window) => clearVisibleOverlayX11OwnerBinding(window),
+  getNativeWindowHandleDecimal: (window) => getNativeWindowHandleDecimal(window),
+  enqueueVisibleOverlayX11OwnerBindingOperation: (window, args, onError) =>
+    enqueueVisibleOverlayX11OwnerBindingOperation(window, args, onError),
+  scheduleWindowsVisibleOverlayZOrderSyncBurst: () =>
+    scheduleWindowsVisibleOverlayZOrderSyncBurst(),
+  logDebug: (message, ...args) => logger.debug(message, ...args),
+});
 
 function getCurrentOverlayGeometry(): WindowGeometry {
-  if (lastOverlayWindowGeometry) return lastOverlayWindowGeometry;
-  const trackerGeometry = appState.windowTracker?.getGeometry();
-  if (trackerGeometry) return trackerGeometry;
-  return getOverlayGeometryFallback();
+  return overlayGeometryRuntime.getCurrentOverlayGeometry();
 }
 
 function getCurrentTrackedOverlayGeometry(): WindowGeometry | null {
-  return appState.windowTracker?.getGeometry() ?? null;
+  return overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
 }
 
 function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): boolean {
-  if (!a || !b) return false;
-  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+  return overlayGeometryRuntime.geometryMatches(a, b);
 }
-
-function applyOverlayRegions(geometry: WindowGeometry): void {
-  lastOverlayWindowGeometry = geometry;
-  maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry);
-  overlayManager.setOverlayWindowBounds(geometry);
-  overlayManager.setModalWindowBounds(geometry);
-}
-
-function shouldExitLinuxFullscreenOverrideForGeometry(geometry: WindowGeometry): boolean {
-  if (!shouldRunLinuxOverlayZOrderKeepAlive()) {
-    return false;
-  }
-  if (
-    linuxTrackedMpvFullscreenChangedAtMs > 0 &&
-    Date.now() - linuxTrackedMpvFullscreenChangedAtMs <
-      LINUX_VISIBLE_OVERLAY_FULLSCREEN_GEOMETRY_GRACE_MS
-  ) {
-    return false;
-  }
-
-  const displayBounds = screen.getDisplayMatching(geometry).bounds;
-  return shouldExitFullscreenOverrideForTrackedGeometry({
-    currentMode: linuxVisibleOverlayWindowMode,
-    trackedFullscreen: linuxTrackedMpvFullscreen,
-    geometry,
-    displayBounds,
-  });
-}
-
-function maybeExitLinuxFullscreenOverrideForTrackedGeometry(geometry: WindowGeometry): void {
-  if (!shouldExitLinuxFullscreenOverrideForGeometry(geometry)) {
-    return;
-  }
-
-  logger.debug(
-    'Tracked mpv geometry no longer covers its display; exiting Linux fullscreen overlay override',
-  );
-  syncLinuxVisibleOverlayMpvFullscreenMode(false);
-}
-
-function hasHyprlandOverlayWindowPlacementMismatch(geometry: WindowGeometry): boolean {
-  if (process.platform !== 'linux') {
-    return false;
-  }
-
-  return [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some((window) => {
-    if (!window || window.isDestroyed()) {
-      return false;
-    }
-    return hasHyprlandWindowPlacementBoundsMismatch({
-      title: window.getTitle(),
-      bounds: normalizeOverlayWindowBoundsForPlatform(geometry, process.platform, screen, window),
-    });
-  });
-}
-
-const buildUpdateVisibleOverlayBoundsMainDepsHandler =
-  createBuildUpdateVisibleOverlayBoundsMainDepsHandler({
-    getCurrentOverlayWindowBounds: () => lastOverlayWindowGeometry,
-    shouldRefreshUnchangedGeometry: (geometry) =>
-      shouldExitLinuxFullscreenOverrideForGeometry(geometry) ||
-      (process.platform === 'linux' &&
-        (hasLiveOverlayWindowBoundsMismatch(
-          [overlayManager.getMainWindow(), overlayManager.getModalWindow()],
-          geometry,
-        ) ||
-          hasHyprlandOverlayWindowPlacementMismatch(geometry))),
-    setOverlayWindowBounds: (geometry) => applyOverlayRegions(geometry),
-    afterSetOverlayWindowBounds: () => {
-      if (!overlayManager.getVisibleOverlayVisible()) {
-        return;
-      }
-      if (process.platform === 'win32') {
-        scheduleWindowsVisibleOverlayZOrderSyncBurst();
-        return;
-      }
-      const mainWindow = overlayManager.getMainWindow();
-      if (!mainWindow || mainWindow.isDestroyed()) {
-        return;
-      }
-      if (process.platform === 'linux') {
-        restoreLinuxOverlayWindowShape(mainWindow);
-      }
-      ensureOverlayWindowLevel(mainWindow);
-    },
-  });
-const updateVisibleOverlayBoundsMainDeps = buildUpdateVisibleOverlayBoundsMainDepsHandler();
-const updateVisibleOverlayBounds = createUpdateVisibleOverlayBoundsHandler(
-  updateVisibleOverlayBoundsMainDeps,
-);
-
-const buildEnsureOverlayWindowLevelMainDepsHandler =
-  createBuildEnsureOverlayWindowLevelMainDepsHandler({
-    shouldSuppressOverlayWindowLevel: (window) => {
-      const mainWindow = overlayManager.getMainWindow();
-      return (
-        (appState.statsOverlayVisible && window === mainWindow) ||
-        shouldSuppressVisibleOverlayRaiseForSeparateWindow({
-          window,
-          mainWindow,
-          separateWindows: getOverlayForegroundSeparateWindows(),
-        })
-      );
-    },
-    ensureOverlayWindowLevelCore: (window) => ensureOverlayWindowLevelCore(window as BrowserWindow),
-    afterEnsureOverlayWindowLevel: () => {
-      const mainWindow = overlayManager.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        moveVisibleOverlayAboveTrackedPlaybackWindow(mainWindow);
-      }
-      promoteStatsOverlayAbovePlayback();
-    },
-  });
-const ensureOverlayWindowLevelMainDeps = buildEnsureOverlayWindowLevelMainDepsHandler();
-const ensureOverlayWindowLevel = createEnsureOverlayWindowLevelHandler(
-  ensureOverlayWindowLevelMainDeps,
-);
 
 function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
-  const mainWindow = overlayManager.getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  syncOverlayWindowLayer(mainWindow, layer);
-}
-
-function moveVisibleOverlayAboveTrackedPlaybackWindow(window: BrowserWindow): void {
-  if (process.platform !== 'linux') return;
-  if (window !== overlayManager.getMainWindow()) return;
-
-  bindVisibleOverlayToTrackedX11Window(window);
-
-  const mediaSourceId = appState.windowTracker?.getTargetWindowMediaSourceId?.();
-  if (!mediaSourceId) return;
-
-  try {
-    window.moveAbove(mediaSourceId);
-  } catch (error) {
-    logger.debug(
-      'Failed to move visible overlay above tracked playback window:',
-      error instanceof Error ? error.message : String(error),
-    );
-  }
+  overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
 }
 
 function bindVisibleOverlayToTrackedX11Window(window: BrowserWindow): void {
-  const targetWindowId = appState.windowTracker?.getTargetWindowNativeId?.();
-  if (!targetWindowId) {
-    if (linuxVisibleOverlayOwnerBindingKey !== null) {
-      clearVisibleOverlayX11OwnerBinding(window);
-    }
-    linuxVisibleOverlayOwnerBindingKey = null;
-    return;
-  }
-
-  const overlayWindowId = getNativeWindowHandleDecimal(window);
-  const bindingKey = `${overlayWindowId}:${targetWindowId}`;
-  if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
-    return;
-  }
-  linuxVisibleOverlayOwnerBindingKey = bindingKey;
-
-  enqueueVisibleOverlayX11OwnerBindingOperation(
-    window,
-    [
-      '-id',
-      overlayWindowId,
-      '-f',
-      'WM_TRANSIENT_FOR',
-      '32x',
-      '-set',
-      'WM_TRANSIENT_FOR',
-      targetWindowId,
-    ],
-    (error) => {
-      if (linuxVisibleOverlayOwnerBindingKey === bindingKey) {
-        linuxVisibleOverlayOwnerBindingKey = null;
-      }
-      logger.debug(
-        'Failed to bind visible overlay as transient for tracked X11 playback window:',
-        error instanceof Error ? error.message : String(error),
-      );
-    },
-  );
+  overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window);
 }
 
-const buildEnforceOverlayLayerOrderMainDepsHandler =
-  createBuildEnforceOverlayLayerOrderMainDepsHandler({
-    enforceOverlayLayerOrderCore: (params) =>
-      enforceOverlayLayerOrderCore({
-        visibleOverlayVisible: params.visibleOverlayVisible,
-        mainWindow: params.mainWindow as BrowserWindow | null,
-        ensureOverlayWindowLevel: (window) =>
-          params.ensureOverlayWindowLevel(window as BrowserWindow),
-      }),
-    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-    getMainWindow: () => overlayManager.getMainWindow(),
-    ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window as BrowserWindow),
-  });
-const enforceOverlayLayerOrderMainDeps = buildEnforceOverlayLayerOrderMainDepsHandler();
-const enforceOverlayLayerOrder = createEnforceOverlayLayerOrderHandler(
-  enforceOverlayLayerOrderMainDeps,
-);
+function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
+  overlayGeometryRuntime.updateVisibleOverlayBounds(geometry);
+}
+
+function ensureOverlayWindowLevel(window: unknown): void {
+  overlayGeometryRuntime.ensureOverlayWindowLevel(window);
+}
+
+function enforceOverlayLayerOrder(): void {
+  overlayGeometryRuntime.enforceOverlayLayerOrder();
+}
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.loadYomitanExtension();
@@ -6029,11 +4743,17 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
   return extension;
 }
 
-let lastSyncedYomitanAnkiSettingsKey: string | null = null;
-
-function getPreferredYomitanAnkiServerUrl(): string {
-  return getPreferredYomitanAnkiServerUrlRuntime(getResolvedConfig().ankiConnect);
-}
+const { syncYomitanDefaultProfileAnkiServer } = createYomitanAnkiServerSyncRuntime({
+  isExternalReadOnlyMode: () => yomitanProfilePolicy.isExternalReadOnlyMode(),
+  getResolvedConfig: () => getResolvedConfig(),
+  getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
+  logError: (message, ...args) => {
+    logger.error(message, ...args);
+  },
+  logInfo: (message, ...args) => {
+    logger.info(message, ...args);
+  },
+});
 
 function getYomitanParserRuntimeDeps() {
   return {
@@ -6052,43 +4772,6 @@ function getYomitanParserRuntimeDeps() {
       appState.yomitanParserInitPromise = promise;
     },
   };
-}
-
-async function syncYomitanDefaultProfileAnkiServer(): Promise<void> {
-  if (yomitanProfilePolicy.isExternalReadOnlyMode()) {
-    return;
-  }
-
-  const targetUrl = getPreferredYomitanAnkiServerUrl().trim();
-  const ankiConnectConfig = getResolvedConfig().ankiConnect;
-  const targetDeck = ankiConnectConfig?.deck?.trim() ?? '';
-  const targetSettingsKey = `${targetUrl}\n${targetDeck}`;
-  if (!targetUrl || targetSettingsKey === lastSyncedYomitanAnkiSettingsKey) {
-    return;
-  }
-
-  const synced = await syncYomitanDefaultAnkiServerCore(
-    targetUrl,
-    getYomitanParserRuntimeDeps(),
-    {
-      error: (message, ...args) => {
-        logger.error(message, ...args);
-      },
-      info: (message, ...args) => {
-        logger.info(message, ...args);
-      },
-    },
-    {
-      forceOverride: ankiConnectConfig
-        ? shouldForceOverrideYomitanAnkiServer(ankiConnectConfig)
-        : false,
-      deck: targetDeck,
-    },
-  );
-
-  if (synced) {
-    lastSyncedYomitanAnkiSettingsKey = targetSettingsKey;
-  }
 }
 
 function createModalWindow(): BrowserWindow {
@@ -6222,52 +4905,11 @@ function openYomitanSettings(): boolean {
   return true;
 }
 
-function describeUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function exportLogsFromTray(): Promise<void> {
-  try {
-    await flushMpvLog();
-  } catch (error) {
-    logger.warn('Failed to flush mpv log before exporting logs from tray.', error);
-  }
-
-  try {
-    const result = exportLogsArchive({
-      platform: process.platform,
-      homeDir: os.homedir(),
-      appDataDir: app.getPath('appData'),
-    });
-    logger.info(
-      `Exported ${result.exportedFiles.length} sanitized log file(s) to ${result.zipPath}`,
-    );
-    void dialog
-      .showMessageBox({
-        type: 'info',
-        title: 'SubMiner logs exported',
-        message: 'SubMiner log export created.',
-        detail: result.zipPath,
-        buttons: ['OK', 'Show in Folder'],
-        defaultId: 0,
-        cancelId: 0,
-      })
-      .then((response) => {
-        if (response.response === 1) {
-          shell.showItemInFolder(result.zipPath);
-        }
-      });
-  } catch (error) {
-    const message = describeUnknownError(error);
-    logger.warn('Failed to export logs from tray.', error);
-    void dialog.showMessageBox({
-      type: 'error',
-      title: 'SubMiner log export failed',
-      message: 'Could not export SubMiner logs.',
-      detail: message,
-    });
-  }
-}
+const { exportLogsFromTray } = createLogExportTrayRuntime({
+  flushMpvLog: () => flushMpvLog(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, details) => logger.warn(message, details),
+});
 
 const {
   getConfiguredShortcuts,
@@ -6329,53 +4971,20 @@ const {
   },
 });
 
-function resolveSessionBindingPlatform(): 'darwin' | 'win32' | 'linux' {
-  if (process.platform === 'darwin') return 'darwin';
-  if (process.platform === 'win32') return 'win32';
-  return 'linux';
-}
-
-function compileCurrentSessionBindings(): {
-  bindings: CompiledSessionBinding[];
-  warnings: ReturnType<typeof compileSessionBindings>['warnings'];
-} {
-  return compileSessionBindings({
-    keybindings: appState.keybindings,
-    shortcuts: getConfiguredShortcuts(),
-    statsToggleKey: getResolvedConfig().stats.toggleKey,
-    statsMarkWatchedKey: getResolvedConfig().stats.markWatchedKey,
-    platform: resolveSessionBindingPlatform(),
-    rawConfig: getResolvedConfig(),
-  });
-}
-
-function persistSessionBindings(
-  bindings: CompiledSessionBinding[],
-  warnings: ReturnType<typeof compileSessionBindings>['warnings'] = [],
-): void {
-  const artifact = buildPluginSessionBindingsArtifact({
-    bindings,
-    warnings,
-    numericSelectionTimeoutMs: getConfiguredShortcuts().multiCopyTimeoutMs,
-  });
-  writeSessionBindingsArtifact(CONFIG_DIR, artifact);
-  appState.sessionBindings = bindings;
-  appState.sessionBindingsInitialized = true;
-  if (appState.mpvClient?.connected) {
-    sendMpvCommandRuntime(appState.mpvClient, [
-      'script-message',
-      'subminer-reload-session-bindings',
-    ]);
-  }
-}
-
-function refreshCurrentSessionBindings(): void {
-  const compiled = compileCurrentSessionBindings();
-  for (const warning of compiled.warnings) {
-    logger.warn(`[session-bindings] ${warning.message}`);
-  }
-  persistSessionBindings(compiled.bindings, compiled.warnings);
-}
+const { persistSessionBindings, refreshCurrentSessionBindings } = createSessionBindingsRuntime({
+  configDir: CONFIG_DIR,
+  getKeybindings: () => appState.keybindings,
+  getConfiguredShortcuts: () => getConfiguredShortcuts(),
+  getResolvedConfig: () => getResolvedConfig(),
+  getMpvClient: () => appState.mpvClient,
+  setSessionBindings: (bindings) => {
+    appState.sessionBindings = bindings;
+  },
+  setSessionBindingsInitialized: (initialized) => {
+    appState.sessionBindingsInitialized = initialized;
+  },
+  logWarn: (message) => logger.warn(message),
+});
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
@@ -6401,153 +5010,19 @@ flushPendingMpvLogWrites = () => {
   void flushMpvLog();
 };
 
-const updateStateStore = createFileUpdateStateStore(path.join(USER_DATA_PATH, 'update-state.json'));
-let updateService: ReturnType<typeof createUpdateService> | null = null;
-const globalFetchForUpdater = createGlobalFetch();
-const curlFetch = createCurlFetch();
-
-function createNativeUpdaterHttpExecutor() {
-  if (process.platform === 'win32') {
-    return createFetchHttpExecutor();
-  }
-  return createCurlHttpExecutor();
-}
-
-function getFetchForUpdater() {
-  if (process.platform === 'win32') return globalFetchForUpdater;
-  return curlFetch;
-}
-
-async function updateLauncherFromSelectedRelease(
-  launcherPath?: string,
-  channel: UpdateChannel = getResolvedConfig().updates.channel,
-  release: GitHubRelease | null = null,
-) {
-  const fetchForUpdater = getFetchForUpdater();
-  if (!release) {
-    return { status: 'missing-asset', message: `No ${channel} GitHub release found.` };
-  }
-  const sumsAsset = findReleaseAsset(release, 'SHA256SUMS.txt');
-  if (!sumsAsset) {
-    return { status: 'missing-asset', message: 'Release has no SHA256SUMS.txt asset.' };
-  }
-  const sums = parseSha256Sums(
-    await fetchReleaseAssetText(fetchForUpdater, sumsAsset.browser_download_url),
-  );
-  const launcherResult = await updateLauncherFromRelease({
-    release,
-    sha256Sums: sums,
-    launcherPath,
-    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
-  });
-  const supportResults = await updateSupportAssetsFromRelease({
-    release,
-    sha256Sums: sums,
-    downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
-  });
-  for (const result of supportResults) {
-    if (result.status === 'protected' && result.command) {
-      logger.warn(`Rofi theme update requires manual command: ${result.command}`);
-    } else if (result.status === 'hash-mismatch' || result.status === 'missing-asset') {
-      logger.warn(`Rofi theme update skipped: ${result.message ?? result.status}`);
-    }
-  }
-  return launcherResult;
-}
-
-function getUpdateService() {
-  if (updateService) return updateService;
-  const appUpdater = createElectronAppUpdater({
-    currentVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
-    log: (message) => logger.info(message),
-    getChannel: () => getResolvedConfig().updates.channel,
-    configureHttpExecutor: createNativeUpdaterHttpExecutor,
-    disableDifferentialDownload: true,
-    isNativeUpdaterSupported: () =>
-      isNativeUpdaterSupported({
-        platform: process.platform,
-        isPackaged: app.isPackaged,
-        execPath: process.execPath,
-        env: process.env,
-        log: (message) => logger.warn(message),
-      }),
-  });
-  const updateDialogPresenter = createUpdateDialogPresenter({
-    platform: process.platform,
-    focusApp: async () => {
-      if (process.platform !== 'darwin') {
-        app.focus({ steal: true });
-        return;
-      }
-      try {
-        await app.dock?.show();
-      } catch (error) {
-        logger.warn('Failed to show macOS dock before update dialog', error);
-      }
-      // app.focus({ steal: true }) alone does not reliably activate the process
-      // when SubMiner was reached via `subminer -u` (single-instance forwarding
-      // from a CLI-spawned child). osascript's `activate` uses LaunchServices,
-      // which is the only path that reliably brings the running app forward.
-      await new Promise<void>((resolve) => {
-        execFile(
-          '/usr/bin/osascript',
-          ['-e', `tell application id "${SUBMINER_BUNDLE_ID}" to activate`],
-          { timeout: 2000 },
-          (error) => {
-            if (error) {
-              logger.warn(
-                `Failed to activate SubMiner via osascript: ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-            resolve();
-          },
-        );
-      });
-      app.focus({ steal: true });
-    },
-    withStatsWindowLayerSuspended: (showDialog) =>
-      withStatsWindowLayerSuspendedForNativeDialog(showDialog),
-    showMessageBox: (options) => dialog.showMessageBox(options),
-  });
-  updateService = createUpdateService({
-    getConfig: () => getResolvedConfig().updates,
-    getCurrentVersion: () => app.getVersion(),
-    now: () => Date.now(),
-    readState: () => updateStateStore.readState(),
-    writeState: (state) => updateStateStore.writeState(state),
-    checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
-    shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
-      shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate, request),
-    fetchLatestStableRelease: (channel) =>
-      fetchLatestStableRelease({ fetch: getFetchForUpdater(), channel }),
-    updateLauncher: (launcherPath, channel, release) =>
-      updateLauncherFromSelectedRelease(launcherPath, channel, release),
-    showNoUpdateDialog: (version) => updateDialogPresenter.showNoUpdateDialog(version),
-    showUpdateAvailableDialog: (version) =>
-      updateDialogPresenter.showUpdateAvailableDialog(version),
-    showUpdateFailedDialog: (message) => updateDialogPresenter.showUpdateFailedDialog(message),
-    showManualUpdateRequiredDialog: (version) =>
-      updateDialogPresenter.showManualUpdateRequiredDialog(version),
-    downloadAppUpdate: () => appUpdater.downloadUpdate(),
-    showRestartDialog: () => updateDialogPresenter.showRestartDialog(),
-    quitAndInstall: () => appUpdater.quitAndInstall(),
-    notifyUpdateAvailable: (version) =>
-      notifyUpdateAvailable(
-        { notificationType: getResolvedConfig().updates.notificationType, version },
-        {
-          showSystemNotification: (title, body) => showDesktopNotification(title, { body }),
-          showOverlayNotification,
-          showOsdNotification: (message) => {
-            showMpvOsd(message);
-          },
-          log: (message) => logger.warn(message),
-        },
-      ),
-    log: (message) => logger.warn(message),
-  });
-  return updateService;
-}
+const { getUpdateService } = createUpdateServiceRuntime({
+  userDataPath: USER_DATA_PATH,
+  getUpdatesConfig: () => getResolvedConfig().updates,
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, details) => logger.warn(message, details),
+  showOverlayNotification,
+  showDesktopNotification: (title, options) => showDesktopNotification(title, options),
+  showMpvOsd: (message) => {
+    showMpvOsd(message);
+  },
+  withStatsWindowLayerSuspendedForNativeDialog: (showDialog) =>
+    withStatsWindowLayerSuspendedForNativeDialog(showDialog),
+});
 
 const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
   cycleSecondarySubModeMainDeps: {
@@ -6725,118 +5200,6 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
   appendClipboardVideoToQueueMainDeps,
 );
 
-async function loadSubtitleSourceText(source: string): Promise<string> {
-  if (/^https?:\/\//i.test(source)) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-    try {
-      const response = await fetch(source, { signal: controller.signal });
-      if (!response.ok) {
-        throw new Error(`Failed to download subtitle source (${response.status})`);
-      }
-      return await response.text();
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  const filePath = resolveSubtitleSourcePath(source);
-  return fs.promises.readFile(filePath, 'utf8');
-}
-
-type MpvSubtitleTrackLike = {
-  type?: unknown;
-  id?: unknown;
-  selected?: unknown;
-  external?: unknown;
-  codec?: unknown;
-  'ff-index'?: unknown;
-  'external-filename'?: unknown;
-};
-
-function parseTrackId(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isInteger(value)) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number(value.trim());
-    return Number.isInteger(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function buildFfmpegSubtitleExtractionArgs(
-  videoPath: string,
-  ffIndex: number,
-  outputPath: string,
-): string[] {
-  return [
-    '-hide_banner',
-    '-nostdin',
-    '-y',
-    '-loglevel',
-    'error',
-    '-an',
-    '-vn',
-    '-i',
-    videoPath,
-    '-map',
-    `0:${ffIndex}`,
-    '-f',
-    path.extname(outputPath).slice(1),
-    outputPath,
-  ];
-}
-
-async function extractInternalSubtitleTrackToTempFile(
-  ffmpegPath: string,
-  videoPath: string,
-  track: MpvSubtitleTrackLike,
-): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
-  const ffIndex = parseTrackId(track['ff-index']);
-  const codec = typeof track.codec === 'string' ? track.codec : null;
-  const extension = codecToExtension(codec ?? undefined);
-  if (ffIndex === null || extension === null) {
-    return null;
-  }
-
-  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'subminer-sidebar-'));
-  const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        ffmpegPath,
-        buildFfmpegSubtitleExtractionArgs(videoPath, ffIndex, outputPath),
-      );
-      let stderr = '';
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-      child.on('error', (error) => {
-        reject(error);
-      });
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(new Error(stderr.trim() || `ffmpeg exited with code ${code ?? 'unknown'}`));
-      });
-    });
-  } catch (error) {
-    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
-    throw error;
-  }
-
-  return {
-    path: outputPath,
-    cleanup: async () => {
-      await fs.promises.rm(tempDir, { recursive: true, force: true });
-    },
-  };
-}
-
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
     toggleStatsOverlay: () =>
@@ -6989,13 +5352,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (!mainWindow || senderWindow !== mainWindow) {
           return;
         }
-        if (visibleOverlayInteractionActive === active) {
+        if (visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive() === active) {
           if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
             overlayVisibilityRuntime.updateVisibleOverlayVisibility();
           }
           return;
         }
-        visibleOverlayInteractionActive = active;
+        visibleOverlayInteractionRuntime.setVisibleOverlayInteractionActive(active);
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
       },
       onOverlayInteractiveHint: (interactive, senderWindow) => {
@@ -7003,7 +5366,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (!mainWindow || senderWindow !== mainWindow) {
           return;
         }
-        linuxOverlayInteractiveHint = interactive;
+        visibleOverlayInteractionRuntime.setLinuxOverlayInteractiveHint(interactive);
         applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
       handleOverlayNotificationAction: (notificationId, actionId, noteId) => {

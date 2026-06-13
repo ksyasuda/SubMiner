@@ -7,6 +7,10 @@ function readMainSource(): string {
   return fs.readFileSync(path.join(process.cwd(), 'src/main.ts'), 'utf8');
 }
 
+function readSource(relPath: string): string {
+  return fs.readFileSync(path.join(process.cwd(), relPath), 'utf8');
+}
+
 test('manual watched session action starts immersion tracker before marking watched', () => {
   const source = readMainSource();
   const actionBlock = source.match(
@@ -91,15 +95,15 @@ test('mpv startup signals start overlay loading OSD before readiness work', () =
 });
 
 test('overlay loading dismiss notifies mpv plugin to stop early loading OSD', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
   const dismissBlock = source.match(
-    /function dismissOverlayLoadingStatusNotification\(\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function dismissOverlayLoadingStatusNotification\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(dismissBlock);
   assert.match(
     dismissBlock,
-    /sendMpvCommandRuntime\(appState\.mpvClient, \['script-message', 'subminer-overlay-loading-ready'\]\);/,
+    /sendMpvCommandRuntime\(deps\.getMpvClient\(\), \[\s*'script-message',\s*'subminer-overlay-loading-ready',\s*\]\);/,
   );
 });
 
@@ -146,9 +150,9 @@ test('all visible overlay hide paths clear stale overlay input state', () => {
 });
 
 test('subtitle sidebar media path tag is assigned after prefetch succeeds', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
-    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n\}/,
+    /async function refreshSubtitleSidebarFromSource\([\s\S]*?\): Promise<void> \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -157,13 +161,14 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
     /const nextMediaPath = mediaPath\?\.trim\(\) \|\| getCurrentAutoplayMediaPath\(\);/,
   );
   assert.ok(
-    actionBlock.indexOf('subtitlePrefetchInitController.initSubtitlePrefetch') <
-      actionBlock.indexOf('appState.activeParsedSubtitleMediaPath = nextMediaPath;'),
+    actionBlock.indexOf('deps.initSubtitlePrefetch(') <
+      actionBlock.indexOf('deps.setActiveParsedSubtitleMediaPath(nextMediaPath);'),
   );
 });
 
 test('update overlay notification action triggers install flow', () => {
   const source = readMainSource();
+  const runtimeSource = readSource('src/main/runtime/overlay-notifications-runtime.ts');
 
   assert.match(
     source,
@@ -173,13 +178,16 @@ test('update overlay notification action triggers install flow', () => {
   assert.match(source, /actionId === INSTALL_UPDATE_ACTION_ID/);
   assert.match(source, /installWhenAvailable:\s*true/);
   assert.match(source, /actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined/);
-  assert.match(source, /appState\.ankiIntegration\?\.openNoteInAnki\(noteId\)/);
-  assert.match(source, /appState\.runtimeOptionsManager\?\.getEffectiveAnkiConnectConfig/);
+  assert.match(runtimeSource, /deps\.getAnkiIntegration\(\)\?\.openNoteInAnki\(noteId\)/);
   assert.match(
-    source,
+    runtimeSource,
+    /deps\.getRuntimeOptionsManager\(\)\?\.getEffectiveAnkiConnectConfig/,
+  );
+  assert.match(
+    runtimeSource,
     /new AnkiConnectClient\(\s*effectiveAnkiConfig\.url \|\| DEFAULT_CONFIG\.ankiConnect\.url/,
   );
-  assert.match(source, /fallbackClient\.openNoteInBrowser\(noteId\)/);
+  assert.match(runtimeSource, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
 test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
@@ -203,9 +211,9 @@ test('subtitle change re-prioritizes prefetch around live playback before tokeni
 });
 
 test('autoplay subtitle prime emits cached annotations and avoids raw fallback overlay flashes', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/autoplay-subtitle-priming-runtime.ts');
   const actionBlock = source.match(
-    /function emitAutoplayPrimedSubtitle\([\s\S]*?\): boolean \{(?<body>[\s\S]*?)\n\}/,
+    /function emitAutoplayPrimedSubtitle\([\s\S]*?\): boolean \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -346,18 +354,18 @@ test('warm tokenization release can signal readiness before the first subtitle a
 });
 
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/stats-server-runtime.ts');
   const startStatsServerBlock = source.match(
-    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n    \}\);/,
+    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n      \}\);/,
   )?.groups?.body;
   const addYomitanNoteBlock = startStatsServerBlock?.match(
-    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
+    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n        \},/,
   )?.groups?.body;
 
   assert.ok(addYomitanNoteBlock);
   assert.match(
     addYomitanNoteBlock,
-    /const ankiConnectConfig = getResolvedConfig\(\)\.ankiConnect;/,
+    /const ankiConnectConfig = deps\.getResolvedConfig\(\)\.ankiConnect;/,
   );
   assert.match(addYomitanNoteBlock, /shouldForceOverrideYomitanAnkiServer\(ankiConnectConfig\)/);
   assert.doesNotMatch(addYomitanNoteBlock, /forceOverride:\s*true/);
@@ -365,11 +373,12 @@ test('stats server Yomitan note creation honors configured Anki server override 
 
 test('Linux visible overlay recreation clears stale input state before creating replacement window', () => {
   const source = readMainSource();
+  const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
   const actionBlock = source.match(
     /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
-  const resetBlock = source.match(
-    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  const resetBlock = runtimeSource.match(
+    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -459,17 +468,17 @@ test('manual visible overlay hide dismisses loading OSD', () => {
 });
 
 test('configured overlay notifications require visible ready overlay window', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-notifications-runtime.ts');
   const readinessBlock = source.match(
-    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n\}/,
+    /function isVisibleOverlayContentReady\(\): boolean \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
   const statusBlock = source.match(
-    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function showConfiguredStatusNotification\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
 
   assert.ok(readinessBlock);
   assert.ok(statusBlock);
-  assert.match(readinessBlock, /overlayManager\.getVisibleOverlayVisible\(\)/);
+  assert.match(readinessBlock, /deps\.getVisibleOverlayVisible\(\)/);
   assert.match(readinessBlock, /isOverlayWindowReadyForNotification\(overlayWindow\)/);
   assert.doesNotMatch(readinessBlock, /isOverlayWindowContentReady\(overlayWindow\)/);
   assert.match(statusBlock, /isOverlayReady: \(\) => isVisibleOverlayContentReady\(\)/);
@@ -498,8 +507,9 @@ test('manual visible overlay show primes current subtitle from mpv before relyin
 
 test('Linux visible overlay show/reset does not leave an empty X11 window shape', () => {
   const source = readMainSource();
-  const resetBlock = source.match(
-    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n\}/,
+  const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
+  const resetBlock = runtimeSource.match(
+    /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
   )?.groups?.body;
   const setBlock = source.match(
     /function setVisibleOverlayVisible\(visible: boolean\): void \{(?<body>[\s\S]*?)\n\}/,
@@ -509,6 +519,7 @@ test('Linux visible overlay show/reset does not leave an empty X11 window shape'
   assert.ok(setBlock);
   assert.match(resetBlock, /restoreLinuxOverlayWindowShape\(mainWindow\);/);
   assert.doesNotMatch(source, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
+  assert.doesNotMatch(runtimeSource, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
   assert.match(
     setBlock,
     /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
@@ -516,9 +527,9 @@ test('Linux visible overlay show/reset does not leave an empty X11 window shape'
 });
 
 test('Linux visible overlay bounds refresh restores X11 shape after applying mpv geometry', () => {
-  const source = readMainSource();
+  const source = readSource('src/main/runtime/overlay-geometry-runtime.ts');
   const afterBoundsBlock = source.match(
-    /afterSetOverlayWindowBounds:\s*\(\) => \{(?<body>[\s\S]*?)\n    \},/,
+    /afterSetOverlayWindowBounds:\s*\(\) => \{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
 
   assert.ok(afterBoundsBlock);

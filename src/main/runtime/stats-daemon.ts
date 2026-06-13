@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 export type BackgroundStatsServerState = {
@@ -63,6 +64,43 @@ export function isBackgroundStatsServerProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function readProcessStartedAtMs(pid: number): number | null {
+  try {
+    if (process.platform === 'win32') {
+      const output = execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CreationDate.ToUniversalTime().ToString("o")`,
+        ],
+        { encoding: 'utf8', timeout: 1000 },
+      ).trim();
+      const parsed = Date.parse(output);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    const output = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+      encoding: 'utf8',
+      timeout: 1000,
+    }).trim();
+    const parsed = Date.parse(output);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyBackgroundStatsServerIdentity(pid: number, startedAtMs: number): boolean {
+  const processStartedAtMs = readProcessStartedAtMs(pid);
+  if (processStartedAtMs === null) {
+    return false;
+  }
+  const earliestAllowedStateWriteMs = processStartedAtMs;
+  const latestAllowedStateWriteMs = processStartedAtMs + 60_000;
+  return startedAtMs >= earliestAllowedStateWriteMs && startedAtMs <= latestAllowedStateWriteMs;
 }
 
 export function resolveBackgroundStatsServerUrl(
