@@ -69,6 +69,12 @@ local function run_plugin_scenario(config)
 			if name == "osd-height" then
 				return config.osd_height or 720
 			end
+			if name == "playlist-count" then
+				return config.playlist_count
+			end
+			if name == "playlist-pos" then
+				return config.playlist_pos
+			end
 			return nil
 		end
 
@@ -624,6 +630,46 @@ do
 	assert_true(
 		count_start_calls(recorded.async_calls) == 1,
 		"warm playlist visibility reuse should not issue another --start command"
+	)
+end
+
+do
+	local scenario = {
+		process_list = "",
+		defer_timeouts = true,
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			auto_start_pause_until_ready = "yes",
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		path = "/media/slow-episode-01.mkv",
+		media_title = "Slow Episode 1",
+		playlist_count = 2,
+		playlist_pos = 0,
+		files = {
+			[binary_path] = true,
+		},
+	}
+	local recorded, err = run_plugin_scenario(scenario)
+	assert_true(recorded ~= nil, "plugin failed to load for slow warm playlist visibility scenario: " .. tostring(err))
+	fire_event(recorded, "file-loaded")
+	recorded.script_messages["subminer-autoplay-ready"]()
+	fire_event(recorded, "end-file", { reason = "eof" })
+	fire_pending_timeouts(recorded)
+	scenario.path = "/media/slow-episode-02.mkv"
+	scenario.media_title = "Slow Episode 2"
+	scenario.playlist_pos = 1
+	fire_event(recorded, "file-loaded")
+	assert_true(
+		count_control_calls(recorded.async_calls, "--hide-visible-overlay") == 0,
+		"slow playlist advance should preserve visible overlay state while the next episode is pending"
+	)
+	assert_true(
+		count_start_calls(recorded.async_calls) == 1,
+		"slow playlist visibility reuse should not issue another --start command"
 	)
 end
 
