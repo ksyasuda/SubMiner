@@ -842,7 +842,12 @@ test('nested popup close reasserts interactive state and focus when another popu
   }
 });
 
-test('window blur reclaims overlay focus while a yomitan popup remains visible on Windows', async () => {
+function setupYomitanPopupFocusHarness(
+  options: {
+    isMacOSPlatform?: boolean;
+    visiblePopupHost?: boolean;
+  } = {},
+) {
   const ctx = createMouseTestContext();
   const previousWindow = (globalThis as { window?: unknown }).window;
   const previousDocument = (globalThis as { document?: unknown }).document;
@@ -855,6 +860,7 @@ test('window blur reclaims overlay focus while a yomitan popup remains visible o
   let overlayFocusCalls = 0;
 
   ctx.platform.shouldToggleMouseIgnore = true;
+  ctx.platform.isMacOSPlatform = options.isMacOSPlatform === true;
   (ctx.dom.overlay as { focus?: (options?: { preventScroll?: boolean }) => void }).focus = () => {
     overlayFocusCalls += 1;
   };
@@ -902,8 +908,8 @@ test('window blur reclaims overlay focus while a yomitan popup remains visible o
       querySelector: () => null,
       querySelectorAll: (selector: string) => {
         if (
-          selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR ||
-          selector === YOMITAN_POPUP_HOST_SELECTOR
+          (options.visiblePopupHost === true && selector === YOMITAN_POPUP_VISIBLE_HOST_SELECTOR) ||
+          (options.visiblePopupHost === true && selector === YOMITAN_POPUP_HOST_SELECTOR)
         ) {
           return [visiblePopupHost];
         }
@@ -927,46 +933,111 @@ test('window blur reclaims overlay focus while a yomitan popup remains visible o
     },
   });
 
+  const handlers = createMouseHandlers(ctx as never, {
+    modalStateReader: {
+      isAnySettingsModalOpen: () => false,
+      isAnyModalOpen: () => false,
+    },
+    applyYPercent: () => {},
+    getCurrentYPercent: () => 10,
+    persistSubtitlePositionPatch: () => {},
+    getSubtitleHoverAutoPauseEnabled: () => false,
+    getYomitanPopupAutoPauseEnabled: () => false,
+    getPlaybackPaused: async () => false,
+    sendMpvCommand: () => {},
+  });
+  handlers.setupYomitanObserver();
+
+  return {
+    ctx,
+    windowListeners,
+    ignoreCalls,
+    focusMainWindowCalls: () => focusMainWindowCalls,
+    windowFocusCalls: () => windowFocusCalls,
+    overlayFocusCalls: () => overlayFocusCalls,
+    restore: () => {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+      Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: previousDocument,
+      });
+      Object.defineProperty(globalThis, 'MutationObserver', {
+        configurable: true,
+        value: previousMutationObserver,
+      });
+      Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+    },
+  };
+}
+
+test('window blur reclaims overlay focus while a yomitan popup remains visible on Windows', async () => {
+  const harness = setupYomitanPopupFocusHarness({ visiblePopupHost: true });
   try {
-    const handlers = createMouseHandlers(ctx as never, {
-      modalStateReader: {
-        isAnySettingsModalOpen: () => false,
-        isAnyModalOpen: () => false,
-      },
-      applyYPercent: () => {},
-      getCurrentYPercent: () => 10,
-      persistSubtitlePositionPatch: () => {},
-      getSubtitleHoverAutoPauseEnabled: () => false,
-      getYomitanPopupAutoPauseEnabled: () => false,
-      getPlaybackPaused: async () => false,
-      sendMpvCommand: () => {},
-    });
+    assert.equal(harness.ctx.state.yomitanPopupVisible, true);
+    assert.equal(harness.ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(harness.ignoreCalls, [{ ignore: false, forward: undefined }]);
+    harness.ignoreCalls.length = 0;
 
-    handlers.setupYomitanObserver();
-    assert.equal(ctx.state.yomitanPopupVisible, true);
-    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
-    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
-    ignoreCalls.length = 0;
-
-    for (const listener of windowListeners.get('blur') ?? []) {
+    for (const listener of harness.windowListeners.get('blur') ?? []) {
       listener();
     }
     await Promise.resolve();
 
-    assert.equal(ctx.state.yomitanPopupVisible, true);
-    assert.equal(ctx.dom.overlay.classList.contains('interactive'), true);
-    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
-    assert.equal(focusMainWindowCalls, 1);
-    assert.equal(windowFocusCalls, 1);
-    assert.equal(overlayFocusCalls, 1);
+    assert.equal(harness.ctx.state.yomitanPopupVisible, true);
+    assert.equal(harness.ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(harness.ignoreCalls, [{ ignore: false, forward: undefined }]);
+    assert.equal(harness.focusMainWindowCalls(), 1);
+    assert.equal(harness.windowFocusCalls(), 1);
+    assert.equal(harness.overlayFocusCalls(), 1);
   } finally {
-    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
-    Object.defineProperty(globalThis, 'MutationObserver', {
-      configurable: true,
-      value: previousMutationObserver,
-    });
-    Object.defineProperty(globalThis, 'Node', { configurable: true, value: previousNode });
+    harness.restore();
+  }
+});
+
+test('window blur on macOS keeps yomitan popup interactive without stealing click-away focus', async () => {
+  const harness = setupYomitanPopupFocusHarness({
+    isMacOSPlatform: true,
+    visiblePopupHost: true,
+  });
+  try {
+    assert.equal(harness.ctx.state.yomitanPopupVisible, true);
+    assert.equal(harness.ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(harness.ignoreCalls, [{ ignore: false, forward: undefined }]);
+    harness.ignoreCalls.length = 0;
+
+    for (const listener of harness.windowListeners.get('blur') ?? []) {
+      listener();
+    }
+    await Promise.resolve();
+
+    assert.equal(harness.ctx.state.yomitanPopupVisible, true);
+    assert.equal(harness.ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(harness.ignoreCalls, [{ ignore: false, forward: undefined }]);
+    assert.equal(harness.focusMainWindowCalls(), 0);
+    assert.equal(harness.windowFocusCalls(), 0);
+    assert.equal(harness.overlayFocusCalls(), 0);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('popup shown reclaims overlay focus on macOS', () => {
+  const harness = setupYomitanPopupFocusHarness({ isMacOSPlatform: true });
+  try {
+    harness.ignoreCalls.length = 0;
+
+    for (const listener of harness.windowListeners.get(YOMITAN_POPUP_SHOWN_EVENT) ?? []) {
+      listener();
+    }
+
+    assert.equal(harness.ctx.state.yomitanPopupVisible, true);
+    assert.equal(harness.ctx.dom.overlay.classList.contains('interactive'), true);
+    assert.deepEqual(harness.ignoreCalls, [{ ignore: false, forward: undefined }]);
+    assert.equal(harness.focusMainWindowCalls(), 1);
+    assert.equal(harness.windowFocusCalls(), 1);
+    assert.equal(harness.overlayFocusCalls(), 1);
+  } finally {
+    harness.restore();
   }
 });
 

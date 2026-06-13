@@ -67,7 +67,7 @@ export function createMouseHandlers(
     if (!ctx.platform.shouldToggleMouseIgnore) {
       return;
     }
-    if (ctx.platform.isMacOSPlatform || ctx.platform.isLinuxPlatform) {
+    if (ctx.platform.isLinuxPlatform) {
       return;
     }
 
@@ -467,7 +467,11 @@ export function createMouseHandlers(
     reconcilePopupInteraction({ allowPause: true });
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
-      reconcilePopupInteraction({ assumeVisible: true, allowPause: true });
+      reconcilePopupInteraction({
+        assumeVisible: true,
+        allowPause: true,
+        reclaimFocus: ctx.platform.isMacOSPlatform,
+      });
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
@@ -491,7 +495,7 @@ export function createMouseHandlers(
         if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
           return;
         }
-        reconcilePopupInteraction({ reclaimFocus: true });
+        reconcilePopupInteraction({ reclaimFocus: !ctx.platform.isMacOSPlatform });
       });
     });
 
