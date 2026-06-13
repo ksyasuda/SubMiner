@@ -51,6 +51,15 @@ function M.create(ctx)
 		return reason == "reload" or reason == "redirect"
 	end
 
+	local function has_next_playlist_item()
+		local playlist_count = mp.get_property_number("playlist-count")
+		local playlist_pos = mp.get_property_number("playlist-pos")
+		if type(playlist_count) ~= "number" or type(playlist_pos) ~= "number" then
+			return false
+		end
+		return playlist_count > 0 and playlist_pos >= 0 and playlist_pos < playlist_count - 1
+	end
+
 	local function clear_pending_visible_overlay_hide()
 		local timer = state.pending_visible_overlay_hide_timer
 		if timer and timer.kill then
@@ -63,6 +72,9 @@ function M.create(ctx)
 	local resolve_auto_start_visible_overlay_enabled
 
 	local function hide_visible_overlay_after_end_file()
+		if has_next_playlist_item() then
+			return
+		end
 		if state.visible_overlay_requested == true and not resolve_auto_start_visible_overlay_enabled() then
 			return
 		end
