@@ -67,7 +67,7 @@ export function createMouseHandlers(
     if (!ctx.platform.shouldToggleMouseIgnore) {
       return;
     }
-    if (ctx.platform.isMacOSPlatform || ctx.platform.isLinuxPlatform) {
+    if (ctx.platform.isLinuxPlatform) {
       return;
     }
 
@@ -305,6 +305,7 @@ export function createMouseHandlers(
 
     yomitanPopupVisible = false;
     ctx.state.yomitanPopupVisible = false;
+    ctx.state.isOverYomitanPopup = false;
     syncPrimaryVisibleOnYomitanPopupClass(false);
     popupPauseRequestId += 1;
     maybeResumeYomitanPopupPause();
@@ -378,7 +379,10 @@ export function createMouseHandlers(
     }
     hoverPauseRequestId += 1;
     maybeResumeHoverPause();
-    if (yomitanPopupVisible) return;
+    if (yomitanPopupVisible) {
+      syncOverlayMouseIgnoreState(ctx);
+      return;
+    }
     disablePopupInteractionIfIdle();
   }
 
@@ -467,7 +471,11 @@ export function createMouseHandlers(
     reconcilePopupInteraction({ allowPause: true });
 
     window.addEventListener(YOMITAN_POPUP_SHOWN_EVENT, () => {
-      reconcilePopupInteraction({ assumeVisible: true, allowPause: true });
+      reconcilePopupInteraction({
+        assumeVisible: true,
+        allowPause: true,
+        reclaimFocus: ctx.platform.isMacOSPlatform,
+      });
     });
 
     window.addEventListener(YOMITAN_POPUP_HIDDEN_EVENT, () => {
@@ -475,10 +483,12 @@ export function createMouseHandlers(
     });
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_ENTER_EVENT, () => {
+      ctx.state.isOverYomitanPopup = true;
       reconcilePopupInteraction({ assumeVisible: true, reclaimFocus: true });
     });
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
+      ctx.state.isOverYomitanPopup = false;
       reconcilePopupInteraction({ assumeVisible: true });
     });
 
@@ -491,7 +501,7 @@ export function createMouseHandlers(
         if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
           return;
         }
-        reconcilePopupInteraction({ reclaimFocus: true });
+        reconcilePopupInteraction({ reclaimFocus: !ctx.platform.isMacOSPlatform });
       });
     });
 

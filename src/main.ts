@@ -5307,6 +5307,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       focusMainWindow: () => {
         const mainWindow = overlayManager.getMainWindow();
         if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (process.platform === 'darwin') {
+          focusMacOSOverlayWindow({
+            platform: process.platform,
+            getOverlayWindow: () => mainWindow,
+            stealAppFocus: () => app.focus({ steal: true }),
+            warn: (message, details) => logger.warn(message, details),
+          });
+          return;
+        }
         if (!mainWindow.isFocused()) {
           mainWindow.focus();
         }

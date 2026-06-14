@@ -176,6 +176,111 @@ test('visible yomitan popup host keeps overlay interactive even when cached popu
   }
 });
 
+test('visible yomitan popup host on macOS keeps overlay interactive so click-away reaches popup', () => {
+  const classList = createClassList();
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+
+  const restoreWindow = replaceGlobalProperty('window', {
+    electronAPI: {
+      setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+        ignoreCalls.push({ ignore, forward: options?.forward });
+      },
+    },
+    getComputedStyle: () => ({
+      visibility: 'visible',
+      display: 'block',
+      opacity: '1',
+    }),
+  });
+  const restoreDocument = replaceGlobalProperty('document', {
+    querySelectorAll: (selector: string) =>
+      selector ===
+      '[data-subminer-yomitan-popup-host="true"][data-subminer-yomitan-popup-visible="true"]'
+        ? [{ getAttribute: () => 'true' }]
+        : [],
+  });
+
+  try {
+    syncOverlayMouseIgnoreState({
+      dom: {
+        overlay: { classList },
+      },
+      platform: {
+        isMacOSPlatform: true,
+        shouldToggleMouseIgnore: true,
+      },
+      state: {
+        isOverSubtitle: false,
+        isOverSubtitleSidebar: false,
+        isOverYomitanPopup: false,
+        yomitanPopupVisible: false,
+        controllerSelectModalOpen: false,
+        controllerDebugModalOpen: false,
+        jimakuModalOpen: false,
+        youtubePickerModalOpen: false,
+        kikuModalOpen: false,
+        runtimeOptionsModalOpen: false,
+        subsyncModalOpen: false,
+        sessionHelpModalOpen: false,
+        subtitleSidebarModalOpen: false,
+        subtitleSidebarConfig: null,
+      },
+    } as never);
+
+    assert.equal(classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+  } finally {
+    restoreDocument();
+    restoreWindow();
+  }
+});
+
+test('macOS pointer over a visible yomitan popup keeps the overlay interactive', () => {
+  const classList = createClassList();
+  const ignoreCalls: Array<{ ignore: boolean; forward?: boolean }> = [];
+
+  const restoreWindow = replaceGlobalProperty('window', {
+    electronAPI: {
+      setIgnoreMouseEvents: (ignore: boolean, options?: { forward?: boolean }) => {
+        ignoreCalls.push({ ignore, forward: options?.forward });
+      },
+    },
+  });
+
+  try {
+    syncOverlayMouseIgnoreState({
+      dom: {
+        overlay: { classList },
+      },
+      platform: {
+        isMacOSPlatform: true,
+        shouldToggleMouseIgnore: true,
+      },
+      state: {
+        isOverSubtitle: false,
+        isOverSubtitleSidebar: false,
+        isOverYomitanPopup: true,
+        yomitanPopupVisible: true,
+        controllerSelectModalOpen: false,
+        controllerDebugModalOpen: false,
+        jimakuModalOpen: false,
+        youtubePickerModalOpen: false,
+        kikuModalOpen: false,
+        runtimeOptionsModalOpen: false,
+        subsyncModalOpen: false,
+        sessionHelpModalOpen: false,
+        subtitleSidebarModalOpen: false,
+        subtitleSidebarConfig: null,
+      },
+    } as never);
+
+    assert.equal(classList.contains('interactive'), true);
+    assert.deepEqual(ignoreCalls, [{ ignore: false, forward: undefined }]);
+  } finally {
+    restoreWindow();
+  }
+});
+
 test('Linux subtitle hover keeps root passive and does not report whole-window interactive hint', () => {
   const classList = createClassList();
   const interactiveHints: boolean[] = [];
