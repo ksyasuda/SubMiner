@@ -54,7 +54,7 @@ From there, subtitles render as interactive, hoverable word spans and you mine c
 | **SubMiner mpv shortcut** (Windows) | The recommended Windows entry point. Created during first-run setup, launches mpv with SubMiner's defaults.                            | Double-click, drag a file onto it, or run `SubMiner.exe --launch-mpv` |
 | **mpv plugin** (all platforms)      | Bundled and injected at runtime. Provides `y` chord keybindings for controlling the overlay from within mpv. No manual install needed. | Automatic when using the launcher or shortcut                         |
 
-The mpv plugin is always available - it's bundled with SubMiner and injected at runtime. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
+The mpv plugin is always available - it's bundled with SubMiner and injected at runtime. On Linux, normal `subminer` playback auto-installs the launcher-managed runtime plugin copy from the bundled app if that managed copy is missing, so no separate plugin install is needed for standard launcher usage. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
 
 ## Live Config Reload
 

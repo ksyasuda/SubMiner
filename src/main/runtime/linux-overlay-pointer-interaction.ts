@@ -53,6 +53,7 @@ export type LinuxOverlayPointerInteractionDeps = {
   shouldSuppressInteraction?: () => boolean;
   shouldUseInputShape?: () => boolean;
   getInteractionActive: () => boolean;
+  isInteractionStateApplied?: () => boolean;
   setInteractionActive: (active: boolean) => void;
 };
 
@@ -273,7 +274,9 @@ export function tickLinuxOverlayPointerInteraction(deps: LinuxOverlayPointerInte
   if (deps.shouldUseInputShape?.()) return;
   const desired = resolveDesiredOverlayInteractive(deps);
   if (desired === null) return;
-  if (deps.getInteractionActive() === desired) return;
+  if (deps.getInteractionActive() === desired && deps.isInteractionStateApplied?.() !== false) {
+    return;
+  }
   deps.setInteractionActive(desired);
 }
 

@@ -198,6 +198,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     stop: CliCommandDepsRuntimeOptions['app']['stop'];
     hasMainWindow: CliCommandDepsRuntimeOptions['app']['hasMainWindow'];
     runUpdateCommand: CliCommandDepsRuntimeOptions['app']['runUpdateCommand'];
+    runEnsureLinuxRuntimePluginAssetsCommand: CliCommandDepsRuntimeOptions['app']['runEnsureLinuxRuntimePluginAssetsCommand'];
     runYoutubePlaybackFlow: CliCommandDepsRuntimeOptions['app']['runYoutubePlaybackFlow'];
   };
   dispatchSessionAction: CliCommandDepsRuntimeOptions['dispatchSessionAction'];
@@ -392,6 +393,7 @@ export function createCliCommandRuntimeServiceDeps(
       stop: params.app.stop,
       hasMainWindow: params.app.hasMainWindow,
       runUpdateCommand: params.app.runUpdateCommand,
+      runEnsureLinuxRuntimePluginAssetsCommand: params.app.runEnsureLinuxRuntimePluginAssetsCommand,
       runYoutubePlaybackFlow: params.app.runYoutubePlaybackFlow,
     },
     dispatchSessionAction: params.dispatchSessionAction,

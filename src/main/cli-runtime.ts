@@ -45,6 +45,7 @@ export interface CliCommandRuntimeServiceContext {
   runStatsCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runStatsCommand'];
   runJellyfinCommand: CliCommandRuntimeServiceDepsParams['jellyfin']['runCommand'];
   runUpdateCommand: CliCommandRuntimeServiceDepsParams['app']['runUpdateCommand'];
+  runEnsureLinuxRuntimePluginAssetsCommand: CliCommandRuntimeServiceDepsParams['app']['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
@@ -124,6 +125,7 @@ function createCliCommandDepsFromContext(
       stop: context.stopApp,
       hasMainWindow: context.hasMainWindow,
       runUpdateCommand: context.runUpdateCommand,
+      runEnsureLinuxRuntimePluginAssetsCommand: context.runEnsureLinuxRuntimePluginAssetsCommand,
       runYoutubePlaybackFlow: context.runYoutubePlaybackFlow,
     },
     dispatchSessionAction: context.dispatchSessionAction,

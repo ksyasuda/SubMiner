@@ -43,6 +43,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   runStatsCommand: CliCommandContextFactoryDeps['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runUpdateCommand: CliCommandContextFactoryDeps['runUpdateCommand'];
+  runEnsureLinuxRuntimePluginAssetsCommand: CliCommandContextFactoryDeps['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
@@ -100,6 +101,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
     runUpdateCommand: deps.runUpdateCommand,
+    runEnsureLinuxRuntimePluginAssetsCommand: deps.runEnsureLinuxRuntimePluginAssetsCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,

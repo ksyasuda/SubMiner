@@ -5,9 +5,12 @@ import {
   resolveLauncherRuntimePluginPath,
 } from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
+import { ensureLinuxRuntimePluginAvailable } from '../runtime-plugin-preflight.js';
 
 interface MpvCommandDeps {
+  ensureRuntimePluginReady(context: LauncherCommandContext): Promise<void>;
   waitForUnixSocketReady(socketPath: string, timeoutMs: number): Promise<boolean>;
+  resolveRuntimePluginPath(context: LauncherCommandContext): string | null;
   launchMpvIdleDetached(
     socketPath: string,
     appPath: string,
@@ -18,7 +21,19 @@ interface MpvCommandDeps {
 }
 
 const defaultDeps: MpvCommandDeps = {
+  ensureRuntimePluginReady: async (context) => {
+    await ensureLinuxRuntimePluginAvailable({
+      appPath: context.appPath ?? undefined,
+      scriptPath: context.scriptPath,
+      logLevel: context.args.logLevel,
+    });
+  },
   waitForUnixSocketReady,
+  resolveRuntimePluginPath: (context) =>
+    resolveLauncherRuntimePluginPath({
+      appPath: context.appPath ?? '',
+      scriptPath: context.scriptPath,
+    }),
   launchMpvIdleDetached,
 };
 
@@ -58,11 +73,12 @@ export async function runMpvPostAppCommand(
     fail('SubMiner app binary not found. Install to ~/.local/bin/ or set SUBMINER_APPIMAGE_PATH.');
   }
 
+  await deps.ensureRuntimePluginReady(context);
   await deps.launchMpvIdleDetached(
     mpvSocketPath,
     appPath,
     args,
-    resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+    deps.resolveRuntimePluginPath(context),
     {
       ...pluginRuntimeConfig,
       backend: args.backend,

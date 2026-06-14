@@ -352,7 +352,10 @@ import {
   clearYoutubePrimarySubtitleNotificationTimer,
   createYoutubePrimarySubtitleNotificationRuntime,
 } from './main/runtime/youtube-primary-subtitle-notification';
-import { createAutoplayReadyGate } from './main/runtime/autoplay-ready-gate';
+import {
+  createAutoplayReadyGate,
+  type AutoplayReadySignal,
+} from './main/runtime/autoplay-ready-gate';
 import { createAutoplaySubtitlePrimingRuntime } from './main/runtime/autoplay-subtitle-priming-runtime';
 import { createAutoplayTokenizationWarmRelease } from './main/runtime/autoplay-tokenization-warm-release';
 import { isVisibleOverlayAutoplayTargetReady } from './main/runtime/visible-overlay-autoplay-readiness';
@@ -508,6 +511,11 @@ import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
 } from './main/runtime/update/update-cli-command';
+import {
+  runEnsureLinuxRuntimePluginAssetsCliCommand,
+  writeEnsureLinuxRuntimePluginAssetsCliCommandResponse,
+} from './main/runtime/linux-runtime-plugin-assets-cli-command';
+import { ensureLinuxRuntimePluginAssets } from './main/runtime/linux-runtime-plugin-assets';
 import { createUpdateServiceRuntime } from './main/runtime/update/update-service-runtime';
 import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
@@ -1169,6 +1177,27 @@ const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   now: () => Date.now(),
   sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 });
+const POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS = [0, 75, 200, 500, 1_000] as const;
+
+function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): void {
+  if (signal.payload.text.trim() !== '__warm__') {
+    return;
+  }
+
+  const mediaPath = signal.mediaPath;
+  for (const delayMs of POST_WARM_AUTOPLAY_SUBTITLE_PRIME_DELAYS_MS) {
+    const timer = setTimeout(() => {
+      const currentMediaPath =
+        appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null;
+      if (currentMediaPath !== mediaPath || !overlayManager.getVisibleOverlayVisible()) {
+        return;
+      }
+      void primeCurrentSubtitleForAutoplay(mediaPath);
+    }, delayMs);
+    timer.unref?.();
+  }
+}
+
 const autoplayReadyGate = createAutoplayReadyGate({
   isAppOwnedFlowInFlight: () => youtubePrimarySubtitleNotificationRuntime.isAppOwnedFlowInFlight(),
   getCurrentMediaPath: () => appState.currentMediaPath,
@@ -1193,6 +1222,9 @@ const autoplayReadyGate = createAutoplayReadyGate({
       warn: (message, details) => logger.warn(message, details),
     });
     broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
+  },
+  onAutoplayReadyReleased: (signal) => {
+    schedulePostWarmAutoplaySubtitlePrime(signal);
   },
   isSignalTargetReady: (signal) =>
     isVisibleOverlayAutoplayTargetReady(
@@ -1758,6 +1790,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   },
   getCurrentSubText: () => appState.currentSubText,
   getCurrentSubtitleData: () => appState.currentSubtitleData,
+  getActiveParsedSubtitleCues: () => appState.activeParsedSubtitleCues,
   setActiveParsedSubtitleMediaPath: (mediaPath) => {
     appState.activeParsedSubtitleMediaPath = mediaPath;
   },
@@ -1779,6 +1812,10 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
 
 function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
   return autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
+}
+
+function primeCurrentSubtitleForAutoplay(mediaPath: string): Promise<void> {
+  return autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForAutoplay(mediaPath);
 }
 
 function cancelVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
@@ -2524,6 +2561,10 @@ function scheduleVisibleOverlayBlurRefresh(): void {
 
 function resetLinuxVisibleOverlayStartupInputPrimer(): void {
   visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
+}
+
+function startLinuxVisibleOverlayStartupInputGrace(): void {
+  visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();
 }
 
 function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
@@ -5756,6 +5797,21 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
         logWarn: (message, error) => logger.warn(message, error),
       });
     },
+    runEnsureLinuxRuntimePluginAssetsCommand: async (
+      argsFromCommand: CliArgs,
+      source: CliCommandSource,
+    ) => {
+      await runEnsureLinuxRuntimePluginAssetsCliCommand(
+        argsFromCommand,
+        {
+          ensureLinuxRuntimePluginAssets: () => ensureLinuxRuntimePluginAssets(),
+          writeResponse: (responsePath, payload) =>
+            writeEnsureLinuxRuntimePluginAssetsCliCommandResponse(responsePath, payload),
+          logWarn: (message, error) => logger.warn(message, error),
+        },
+        source,
+      );
+    },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => openConfigSettingsWindow(),
@@ -6226,6 +6282,7 @@ function setVisibleOverlayVisible(visible: boolean): void {
   if (visible) {
     maybeStartOverlayLoadingOsd();
     resetLinuxVisibleOverlayStartupInputPrimer();
+    startLinuxVisibleOverlayStartupInputGrace();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -6247,6 +6304,7 @@ function toggleVisibleOverlay(): void {
   } else {
     maybeStartOverlayLoadingOsd();
     resetLinuxVisibleOverlayStartupInputPrimer();
+    startLinuxVisibleOverlayStartupInputGrace();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();
@@ -6266,6 +6324,7 @@ function setOverlayVisible(visible: boolean): void {
   if (visible) {
     maybeStartOverlayLoadingOsd();
     resetLinuxVisibleOverlayStartupInputPrimer();
+    startLinuxVisibleOverlayStartupInputGrace();
     restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
     void primeCurrentSubtitleForVisibleOverlay();

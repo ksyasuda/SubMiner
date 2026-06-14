@@ -14,6 +14,7 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
       (initialArgs && isStandaloneTexthookerCommand(initialArgs)) ||
       initialArgs?.settings ||
       initialArgs?.update ||
+      initialArgs?.ensureLinuxRuntimePluginAssets ||
       (initialArgs?.stats &&
         (initialArgs.statsCleanup || initialArgs.statsBackground || initialArgs.statsStop)),
     ),
@@ -24,6 +25,7 @@ export function getStartupModeFlags(initialArgs: CliArgs | null | undefined): {
         initialArgs.stats ||
         initialArgs.dictionary ||
         initialArgs.update ||
+        initialArgs.ensureLinuxRuntimePluginAssets ||
         initialArgs.setup),
     ),
   };

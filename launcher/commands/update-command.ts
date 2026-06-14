@@ -39,7 +39,12 @@ type DirectReleaseUpdateRequest = {
 type DirectReleaseUpdateResult = {
   appImage: { status: string; command?: string; message?: string };
   launcher: { status: string; command?: string; message?: string };
-  supportAssets: Array<{ status: string; command?: string; message?: string }>;
+  supportAssets: Array<{
+    status: string;
+    component?: 'theme' | 'plugin';
+    command?: string;
+    message?: string;
+  }>;
 };
 
 type UpdateCommandDeps = {
@@ -124,20 +129,29 @@ function readUpdateChannel(root: Record<string, unknown> | null): UpdateChannel 
 
 function logUpdateResult(
   label: string,
-  result: { status: string; command?: string; message?: string },
+  result: {
+    status: string;
+    component?: 'theme' | 'plugin';
+    command?: string;
+    message?: string;
+  },
   configuredLogLevel: NonNullable<LauncherCommandContext['args']['logLevel']>,
   deps: Pick<UpdateCommandDeps, 'log'>,
 ): void {
   const displayStatus = result.status === 'up-to-date' ? 'up to date' : result.status;
-  deps.log('info', configuredLogLevel, `${label} update: ${displayStatus}`);
+  const componentLabel = result.component ? ` (${result.component})` : '';
+  const detailSuffix = result.message ? ` - ${result.message}` : '';
+  deps.log(
+    'info',
+    configuredLogLevel,
+    `${label}${componentLabel} update: ${displayStatus}${detailSuffix}`,
+  );
   if (result.command) {
     deps.log(
       'warn',
       configuredLogLevel,
-      `${label} update requires manual command: ${result.command}`,
+      `${label}${componentLabel} update requires manual command: ${result.command}`,
     );
-  } else if (result.message) {
-    deps.log('warn', configuredLogLevel, `${label} update note: ${result.message}`);
   }
 }
 
@@ -187,7 +201,7 @@ export async function runUpdateCommand(
     logUpdateResult('AppImage', result.appImage, logLevel, resolvedDeps);
     logUpdateResult('Launcher', result.launcher, logLevel, resolvedDeps);
     for (const supportResult of result.supportAssets) {
-      logUpdateResult('Rofi theme', supportResult, logLevel, resolvedDeps);
+      logUpdateResult('Support assets', supportResult, logLevel, resolvedDeps);
     }
     return true;
   }

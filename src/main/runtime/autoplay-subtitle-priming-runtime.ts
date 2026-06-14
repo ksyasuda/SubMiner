@@ -26,6 +26,7 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
   setCurrentSubText: (text: string) => void;
   getCurrentSubText: () => string;
   getCurrentSubtitleData: () => SubtitleData | null;
+  getActiveParsedSubtitleCues: () => SubtitleCue[];
   setActiveParsedSubtitleMediaPath: (mediaPath: string | null) => void;
   subtitleProcessingController: {
     consumeCachedSubtitle: (text: string) => SubtitleData | null;
@@ -107,6 +108,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       return true;
     }
 
+    emitSubtitlePayload({ text, tokens: null });
     subtitleProcessingController.onSubtitleChange(text);
     return true;
   }
@@ -126,7 +128,20 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       return null;
     });
     const text = typeof subTextRaw === 'string' ? subTextRaw : '';
-    emitAutoplayPrimedSubtitle(mediaPath, text);
+    if (emitAutoplayPrimedSubtitle(mediaPath, text)) {
+      return;
+    }
+
+    if (!text.trim() && isCurrentAutoplayMediaPath(mediaPath)) {
+      await deps.refreshSubtitlePrefetchFromActiveTrack().catch((error) => {
+        deps.logDebug(
+          `[autoplay-subtitle-prime] active subtitle refresh failed after empty sub-text: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+      await primeAutoplaySubtitleFromParsedCues(mediaPath, deps.getActiveParsedSubtitleCues());
+    }
   }
 
   async function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {

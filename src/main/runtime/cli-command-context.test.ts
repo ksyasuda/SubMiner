@@ -54,6 +54,7 @@ function createDeps() {
       runStatsCommand: async () => {},
       runJellyfinCommand: async () => {},
       runUpdateCommand: async () => {},
+      runEnsureLinuxRuntimePluginAssetsCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},

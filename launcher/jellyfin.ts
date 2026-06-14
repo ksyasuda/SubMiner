@@ -30,8 +30,53 @@ import {
   resolveLauncherRuntimePluginPath,
   waitForUnixSocketReady,
 } from './mpv.js';
+import { ensureLinuxRuntimePluginAvailable } from './runtime-plugin-preflight.js';
 
 const ANSI_ESCAPE_PATTERN = /\u001b\[[0-9;]*m/g;
+
+type JellyfinPlayMenuDeps = {
+  loadLauncherJellyfinConfig: typeof loadLauncherJellyfinConfig;
+  findRofiTheme: typeof findRofiTheme;
+  resolveJellyfinSelection: typeof resolveJellyfinSelection;
+  hasStoredJellyfinSession: typeof hasStoredJellyfinSession;
+  requestJellyfinPreviewAuthFromApp: typeof requestJellyfinPreviewAuthFromApp;
+  resolveLauncherMainConfigPath: typeof resolveLauncherMainConfigPath;
+  resolveJellyfinSelectionViaApp: typeof resolveJellyfinSelectionViaApp;
+  pathExists: (candidate: string) => boolean;
+  ensureRuntimePluginReady: (options: {
+    appPath: string;
+    scriptPath: string;
+    logLevel: Args['logLevel'];
+  }) => Promise<void>;
+  waitForUnixSocketReady: typeof waitForUnixSocketReady;
+  launchMpvIdleDetached: typeof launchMpvIdleDetached;
+  resolveLauncherRuntimePluginPath: typeof resolveLauncherRuntimePluginPath;
+  runAppCommandWithInheritLogged: typeof runAppCommandWithInheritLogged;
+  log: typeof log;
+};
+
+const defaultJellyfinPlayMenuDeps: JellyfinPlayMenuDeps = {
+  loadLauncherJellyfinConfig,
+  findRofiTheme,
+  resolveJellyfinSelection,
+  hasStoredJellyfinSession,
+  requestJellyfinPreviewAuthFromApp,
+  resolveLauncherMainConfigPath,
+  resolveJellyfinSelectionViaApp,
+  pathExists: (candidate) => fs.existsSync(candidate),
+  ensureRuntimePluginReady: async ({ appPath, scriptPath, logLevel }) => {
+    await ensureLinuxRuntimePluginAvailable({
+      appPath,
+      scriptPath,
+      logLevel,
+    });
+  },
+  waitForUnixSocketReady,
+  launchMpvIdleDetached,
+  resolveLauncherRuntimePluginPath,
+  runAppCommandWithInheritLogged,
+  log,
+};
 
 export function sanitizeServerUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
@@ -974,7 +1019,17 @@ export async function runJellyfinPlayMenu(
   scriptPath: string,
   mpvSocketPath: string,
 ): Promise<never> {
-  const config = loadLauncherJellyfinConfig();
+  return runJellyfinPlayMenuWithDeps(appPath, args, scriptPath, mpvSocketPath);
+}
+
+export async function runJellyfinPlayMenuWithDeps(
+  appPath: string,
+  args: Args,
+  scriptPath: string,
+  mpvSocketPath: string,
+  deps: JellyfinPlayMenuDeps = defaultJellyfinPlayMenuDeps,
+): Promise<never> {
+  const config = deps.loadLauncherJellyfinConfig();
   const envAccessToken = (process.env.SUBMINER_JELLYFIN_ACCESS_TOKEN || '').trim();
   const envUserId = (process.env.SUBMINER_JELLYFIN_USER_ID || '').trim();
   const session: JellyfinSessionConfig = {
@@ -986,58 +1041,71 @@ export async function runJellyfinPlayMenu(
     iconCacheDir: config.iconCacheDir || '',
   };
 
-  const rofiTheme = args.useRofi ? findRofiTheme(scriptPath) : null;
+  const rofiTheme = args.useRofi ? deps.findRofiTheme(scriptPath) : null;
   if (args.useRofi && !rofiTheme) {
-    log('warn', args.logLevel, 'Rofi theme not found for Jellyfin picker; using rofi defaults.');
+    deps.log(
+      'warn',
+      args.logLevel,
+      'Rofi theme not found for Jellyfin picker; using rofi defaults.',
+    );
   }
 
   const hasDirectSession = Boolean(session.serverUrl && session.accessToken && session.userId);
   let itemId = '';
   if (hasDirectSession) {
-    itemId = await resolveJellyfinSelection(args, session, rofiTheme);
+    itemId = await deps.resolveJellyfinSelection(args, session, rofiTheme);
   } else {
-    const configPath = resolveLauncherMainConfigPath();
-    if (!hasStoredJellyfinSession(configPath)) {
+    const configPath = deps.resolveLauncherMainConfigPath();
+    if (!deps.hasStoredJellyfinSession(configPath)) {
       fail(
         'Missing Jellyfin session. Run `subminer jellyfin -l --server <url> --username <user> --password <pass>` first.',
       );
     }
-    const previewAuth = await requestJellyfinPreviewAuthFromApp(appPath, args);
+    const previewAuth = await deps.requestJellyfinPreviewAuthFromApp(appPath, args);
     if (previewAuth) {
       session.serverUrl = previewAuth.serverUrl || session.serverUrl;
       session.accessToken = previewAuth.accessToken;
       session.userId = previewAuth.userId || session.userId;
-      log('debug', args.logLevel, 'Jellyfin preview auth bridge ready for picker image previews.');
+      deps.log(
+        'debug',
+        args.logLevel,
+        'Jellyfin preview auth bridge ready for picker image previews.',
+      );
     } else {
-      log(
+      deps.log(
         'debug',
         args.logLevel,
         'Jellyfin preview auth bridge unavailable; picker image previews may be disabled.',
       );
     }
-    itemId = await resolveJellyfinSelectionViaApp(appPath, args, session, rofiTheme);
+    itemId = await deps.resolveJellyfinSelectionViaApp(appPath, args, session, rofiTheme);
   }
-  log('debug', args.logLevel, `Jellyfin selection resolved: itemId=${itemId}`);
-  log('debug', args.logLevel, `Ensuring MPV IPC socket is ready: ${mpvSocketPath}`);
+  deps.log('debug', args.logLevel, `Jellyfin selection resolved: itemId=${itemId}`);
+  deps.log('debug', args.logLevel, `Ensuring MPV IPC socket is ready: ${mpvSocketPath}`);
   let mpvReady = false;
-  if (fs.existsSync(mpvSocketPath)) {
-    mpvReady = await waitForUnixSocketReady(mpvSocketPath, 250);
+  if (deps.pathExists(mpvSocketPath)) {
+    mpvReady = await deps.waitForUnixSocketReady(mpvSocketPath, 250);
   }
   if (!mpvReady) {
-    await launchMpvIdleDetached(
+    await deps.ensureRuntimePluginReady({ appPath, scriptPath, logLevel: args.logLevel });
+    await deps.launchMpvIdleDetached(
       mpvSocketPath,
       appPath,
       args,
-      resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
+      deps.resolveLauncherRuntimePluginPath({ appPath, scriptPath }),
     );
-    mpvReady = await waitForUnixSocketReady(mpvSocketPath, 8000);
+    mpvReady = await deps.waitForUnixSocketReady(mpvSocketPath, 8000);
   }
-  log('debug', args.logLevel, `MPV socket ready check result: ${mpvReady ? 'ready' : 'not ready'}`);
+  deps.log(
+    'debug',
+    args.logLevel,
+    `MPV socket ready check result: ${mpvReady ? 'ready' : 'not ready'}`,
+  );
   if (!mpvReady) {
     fail(`MPV IPC socket not ready: ${mpvSocketPath}`);
   }
   const forwarded = ['--start', '--jellyfin-play', `--jellyfin-item-id=${itemId}`];
   if (shouldForwardLogLevel(args.logLevel)) forwarded.push('--log-level', args.logLevel);
   if (args.passwordStore) forwarded.push('--password-store', args.passwordStore);
-  runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
+  deps.runAppCommandWithInheritLogged(appPath, forwarded, args.logLevel, 'jellyfin-play');
 }

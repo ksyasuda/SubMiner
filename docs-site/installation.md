@@ -12,20 +12,20 @@ Three steps to get started:
 
 Only **mpv** is strictly required to run SubMiner. Everything else enhances the experience but is optional.
 
-| Dependency           | Status      | What it does                                                                                                    |
-| -------------------- | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| mpv                  | Required    | The video player SubMiner overlays on. Must support `--input-ipc-server`.                                       |
-| ffmpeg               | Recommended | Audio extraction and screenshots for Anki cards. Without it SubMiner still runs, but media fields will be empty. |
+| Dependency           | Status      | What it does                                                                                                                                                   |
+| -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mpv                  | Required    | The video player SubMiner overlays on. Must support `--input-ipc-server`.                                                                                      |
+| ffmpeg               | Recommended | Audio extraction and screenshots for Anki cards. Without it SubMiner still runs, but media fields will be empty.                                               |
 | MeCab + mecab-ipadic | Recommended | Part-of-speech filtering for more precise N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less accurate. |
-| yt-dlp               | Optional    | YouTube playback and subtitle extraction.                                                                       |
-| fzf                  | Optional    | Terminal-based video picker in the launcher.                                                                     |
-| rofi                 | Optional    | GUI-based video picker (Linux).                                                                                  |
-| chafa                | Optional    | Thumbnail previews in fzf.                                                                                       |
-| ffmpegthumbnailer    | Optional    | Video thumbnail generation for the picker.                                                                       |
-| guessit              | Optional    | Better AniSkip title/season/episode parsing.                                                                     |
-| alass                | Optional    | Subtitle sync engine (preferred). Disabled without alass or ffsubsync.                                           |
-| ffsubsync            | Optional    | Audio-based subtitle sync engine. Disabled without alass or ffsubsync.                                           |
-| fuse2                | Linux only  | Required to run the AppImage.                                                                                    |
+| yt-dlp               | Optional    | YouTube playback and subtitle extraction.                                                                                                                      |
+| fzf                  | Optional    | Terminal-based video picker in the launcher.                                                                                                                   |
+| rofi                 | Optional    | GUI-based video picker (Linux).                                                                                                                                |
+| chafa                | Optional    | Thumbnail previews in fzf.                                                                                                                                     |
+| ffmpegthumbnailer    | Optional    | Video thumbnail generation for the picker.                                                                                                                     |
+| guessit              | Optional    | Better AniSkip title/season/episode parsing.                                                                                                                   |
+| alass                | Optional    | Subtitle sync engine (preferred). Disabled without alass or ffsubsync.                                                                                         |
+| ffsubsync            | Optional    | Audio-based subtitle sync engine. Disabled without alass or ffsubsync.                                                                                         |
+| fuse2                | Linux only  | Required to run the AppImage.                                                                                                                                  |
 
 ### Linux
 
@@ -300,11 +300,11 @@ subminer -u
 subminer --update
 ```
 
-SubMiner verifies AppImage, launcher, and rofi theme downloads against `SHA256SUMS.txt`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
+SubMiner verifies AppImage, launcher, and Linux support-asset downloads against `SHA256SUMS.txt`. On Linux those support assets include the launcher-managed runtime plugin copy under `SubMiner/plugin/subminer` plus the rofi theme at `SubMiner/themes/subminer.rasi`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
 
-The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. On Linux it replaces the running `.AppImage` in place via `electron-updater`; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
+The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. On Linux it replaces the running `.AppImage` in place via `electron-updater` and refreshes the managed support assets from `subminer-assets.tar.gz`; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
 
-`subminer -u` also performs the AppImage update directly from the launcher process, which is useful when SubMiner is not currently running.
+`subminer -u` also performs the AppImage, launcher, and managed support-asset updates directly from the launcher process, which is useful when SubMiner is not currently running.
 
 ## How It All Fits Together
 
@@ -312,13 +312,14 @@ SubMiner is an overlay that sits on top of mpv. It connects to mpv through an IP
 
 The `subminer` launcher handles mpv IPC socket setup automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or `\\.\pipe\subminer-socket` on Windows) - without it the overlay starts but subtitles won't appear.
 
-The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
+The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. On Linux, the `subminer` launcher now checks for its managed runtime plugin copy before every mpv-managed launch and installs that copy from the bundled app automatically if it is missing. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
 
 ## Platform Notes
 
 ### macOS
 
 **MeCab paths (Homebrew):**
+
 - Apple Silicon (M1/M2): `/opt/homebrew/bin/mecab`
 - Intel: `/usr/local/bin/mecab`
 
@@ -361,17 +362,21 @@ sudo chmod +x /usr/local/bin/subminer
 
 ## Optional Extras
 
-### Rofi Theme (Linux Only)
+### Linux Support Assets
 
-SubMiner ships a custom rofi theme in the release assets:
+SubMiner ships the Linux rofi theme plus the launcher-managed runtime plugin copy in `subminer-assets.tar.gz`:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+mkdir -p ~/.local/share/SubMiner/plugin
+cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
 
-Override with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
+`subminer -u` and the tray updater keep those Linux support assets in sync automatically once the `SubMiner` data dir exists. Normal Linux launcher playback also auto-installs the managed runtime plugin copy from the bundled app if that plugin copy is missing, so manual extraction is mainly useful for pre-seeding or custom setups.
+
+Override the theme path with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 
 Next: [Usage](/usage) - learn about the `subminer` wrapper, keybindings, and YouTube playback.
