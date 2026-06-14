@@ -30,6 +30,7 @@ type EnsureLinuxRuntimePluginAvailableOptions = {
   appDataDir?: string;
   detectInstalledPlugin?: () => boolean;
   resolveRuntimePluginPath?: () => string | null;
+  isManagedThemeAvailable?: () => boolean;
   installManagedPluginAssets?: () => Promise<EnsureLinuxRuntimePluginAssetsResult>;
   log?: PreflightLog;
 };
@@ -149,9 +150,11 @@ export async function ensureLinuxRuntimePluginAvailable(
         xdgConfigHome: options.xdgConfigHome ?? process.env.XDG_CONFIG_HOME,
         appDataDir: options.appDataDir ?? process.env.APPDATA,
       }).installed);
-  if (detectInstalledPlugin()) {
-    return;
-  }
+  const installedPluginAvailable = detectInstalledPlugin();
+  const managedPaths = resolveManagedLinuxRuntimePluginPaths({
+    homeDir,
+    xdgDataHome: options.xdgDataHome ?? process.env.XDG_DATA_HOME,
+  });
 
   const resolveRuntimePluginPath =
     options.resolveRuntimePluginPath ??
@@ -165,14 +168,17 @@ export async function ensureLinuxRuntimePluginAvailable(
         env: process.env,
       });
     });
-  if (resolveRuntimePluginPath()) {
+  const isManagedThemeAvailable =
+    options.isManagedThemeAvailable ?? (() => fs.existsSync(managedPaths.themePath));
+  const runtimePluginAvailable = installedPluginAvailable || Boolean(resolveRuntimePluginPath());
+  if (runtimePluginAvailable && isManagedThemeAvailable()) {
     return;
   }
 
   log(
     'info',
     configuredLogLevel,
-    'Linux runtime plugin assets missing; installing managed plugin assets.',
+    'Linux runtime support assets missing; installing managed plugin/theme assets.',
   );
   const installManagedPluginAssets =
     options.installManagedPluginAssets ??
@@ -190,24 +196,24 @@ export async function ensureLinuxRuntimePluginAvailable(
   const installResult = await installManagedPluginAssets();
   if (!installResult.ok) {
     const message = installResult.error || 'Unknown Linux runtime plugin asset install failure.';
-    log('warn', configuredLogLevel, `Managed Linux runtime plugin install failed: ${message}`);
+    log(
+      'warn',
+      configuredLogLevel,
+      `Managed Linux runtime support asset install failed: ${message}`,
+    );
     throw new Error(message);
   }
 
   log(
     'info',
     configuredLogLevel,
-    `Managed Linux runtime plugin installed: ${installResult.path ?? 'unknown path'}`,
+    `Managed Linux runtime support assets installed: plugin=${installResult.path ?? 'unknown path'} theme=${managedPaths.themePath}`,
   );
   const runtimePluginPath = resolveRuntimePluginPath();
   if (runtimePluginPath) {
     return;
   }
 
-  const managedPaths = resolveManagedLinuxRuntimePluginPaths({
-    homeDir,
-    xdgDataHome: options.xdgDataHome ?? process.env.XDG_DATA_HOME,
-  });
   const message =
     `Linux managed runtime plugin assets could not be installed. ` +
     `Checked path: ${managedPaths.pluginEntrypointPath}. ` +

@@ -24,20 +24,25 @@ test('resolveManagedLinuxRuntimePluginPaths resolves XDG data target paths', () 
   });
 
   assert.deepEqual(resolved, {
+    dataDir: '/tmp/xdg-data/SubMiner',
     rootDir: '/tmp/xdg-data/SubMiner/plugin',
     pluginDir: '/tmp/xdg-data/SubMiner/plugin/subminer',
     pluginEntrypointPath: '/tmp/xdg-data/SubMiner/plugin/subminer/main.lua',
     pluginConfigPath: '/tmp/xdg-data/SubMiner/plugin/subminer.conf',
+    themePath: '/tmp/xdg-data/SubMiner/themes/subminer.rasi',
   });
 });
 
-test('ensureLinuxRuntimePluginAssets installs managed plugin dir and config when missing', async () => {
+test('ensureLinuxRuntimePluginAssets installs managed plugin dir, config, and rofi theme when missing', async () => {
   await withTempDir(async (tempDir) => {
     const sourceRoot = path.join(tempDir, 'source', 'plugin');
+    const themeSourcePath = path.join(tempDir, 'source', 'assets', 'themes', 'subminer.rasi');
     const targetRoot = path.join(tempDir, 'xdg-data', 'SubMiner', 'plugin');
     fs.mkdirSync(path.join(sourceRoot, 'subminer'), { recursive: true });
+    fs.mkdirSync(path.dirname(themeSourcePath), { recursive: true });
     fs.writeFileSync(path.join(sourceRoot, 'subminer', 'main.lua'), '-- plugin\n');
     fs.writeFileSync(path.join(sourceRoot, 'subminer.conf'), 'configured=true\n');
+    fs.writeFileSync(themeSourcePath, '/* theme */\n');
 
     const result = await ensureLinuxRuntimePluginAssets({
       platform: 'linux',
@@ -46,6 +51,7 @@ test('ensureLinuxRuntimePluginAssets installs managed plugin dir and config when
       resolveBundledAssets: () => ({
         pluginDirSource: path.join(sourceRoot, 'subminer'),
         pluginConfigSource: path.join(sourceRoot, 'subminer.conf'),
+        themeSourcePath,
       }),
     });
 
@@ -62,6 +68,59 @@ test('ensureLinuxRuntimePluginAssets installs managed plugin dir and config when
       fs.readFileSync(path.join(targetRoot, 'subminer.conf'), 'utf8'),
       'configured=true\n',
     );
+    assert.equal(
+      fs.readFileSync(
+        path.join(tempDir, 'xdg-data', 'SubMiner', 'themes', 'subminer.rasi'),
+        'utf8',
+      ),
+      '/* theme */\n',
+    );
+  });
+});
+
+test('ensureLinuxRuntimePluginAssets installs managed theme when plugin assets already exist', async () => {
+  await withTempDir(async (tempDir) => {
+    const sourceRoot = path.join(tempDir, 'source', 'plugin');
+    const themeSourcePath = path.join(tempDir, 'source', 'assets', 'themes', 'subminer.rasi');
+    const xdgDataHome = path.join(tempDir, 'xdg-data');
+    const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
+    fs.mkdirSync(path.join(sourceRoot, 'subminer'), { recursive: true });
+    fs.mkdirSync(path.dirname(themeSourcePath), { recursive: true });
+    fs.mkdirSync(path.join(targetRoot, 'subminer'), { recursive: true });
+    fs.writeFileSync(path.join(sourceRoot, 'subminer', 'main.lua'), '-- new plugin\n');
+    fs.writeFileSync(path.join(sourceRoot, 'subminer.conf'), 'new=true\n');
+    fs.writeFileSync(themeSourcePath, '/* theme */\n');
+    fs.writeFileSync(path.join(targetRoot, 'subminer', 'main.lua'), '-- existing plugin\n');
+    fs.writeFileSync(path.join(targetRoot, 'subminer.conf'), 'configured=true\n');
+
+    const result = await ensureLinuxRuntimePluginAssets({
+      platform: 'linux',
+      homeDir: path.join(tempDir, 'home'),
+      xdgDataHome,
+      resolveBundledAssets: () => ({
+        pluginDirSource: path.join(sourceRoot, 'subminer'),
+        pluginConfigSource: path.join(sourceRoot, 'subminer.conf'),
+        themeSourcePath,
+      }),
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: path.join(targetRoot, 'subminer', 'main.lua'),
+    });
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer', 'main.lua'), 'utf8'),
+      '-- existing plugin\n',
+    );
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer.conf'), 'utf8'),
+      'configured=true\n',
+    );
+    assert.equal(
+      fs.readFileSync(path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'), 'utf8'),
+      '/* theme */\n',
+    );
   });
 });
 
@@ -70,8 +129,13 @@ test('ensureLinuxRuntimePluginAssets returns already-present when managed assets
     const xdgDataHome = path.join(tempDir, 'xdg-data');
     const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
     fs.mkdirSync(path.join(targetRoot, 'subminer'), { recursive: true });
+    fs.mkdirSync(path.join(xdgDataHome, 'SubMiner', 'themes'), { recursive: true });
     fs.writeFileSync(path.join(targetRoot, 'subminer', 'main.lua'), '-- existing\n');
     fs.writeFileSync(path.join(targetRoot, 'subminer.conf'), 'configured=true\n');
+    fs.writeFileSync(
+      path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'),
+      '/* theme */\n',
+    );
 
     const result = await ensureLinuxRuntimePluginAssets({
       platform: 'linux',
@@ -108,11 +172,14 @@ test('ensureLinuxRuntimePluginAssets fails when bundled assets cannot be resolve
 test('ensureLinuxRuntimePluginAssets leaves no final target tree on failed install', async () => {
   await withTempDir(async (tempDir) => {
     const sourceRoot = path.join(tempDir, 'source', 'plugin');
+    const themeSourcePath = path.join(tempDir, 'source', 'assets', 'themes', 'subminer.rasi');
     const xdgDataHome = path.join(tempDir, 'xdg-data');
     const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
     fs.mkdirSync(path.join(sourceRoot, 'subminer'), { recursive: true });
+    fs.mkdirSync(path.dirname(themeSourcePath), { recursive: true });
     fs.writeFileSync(path.join(sourceRoot, 'subminer', 'main.lua'), '-- plugin\n');
     fs.writeFileSync(path.join(sourceRoot, 'subminer.conf'), 'configured=true\n');
+    fs.writeFileSync(themeSourcePath, '/* theme */\n');
 
     const result = await ensureLinuxRuntimePluginAssets({
       platform: 'linux',
@@ -121,6 +188,7 @@ test('ensureLinuxRuntimePluginAssets leaves no final target tree on failed insta
       resolveBundledAssets: () => ({
         pluginDirSource: path.join(sourceRoot, 'subminer'),
         pluginConfigSource: path.join(sourceRoot, 'subminer.conf'),
+        themeSourcePath,
       }),
       copyFile: async () => {
         throw new Error('copy failed');

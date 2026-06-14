@@ -31,7 +31,7 @@ test('ensureLinuxRuntimePluginAvailable is a no-op on non-Linux platforms', asyn
   assert.deepEqual(calls, []);
 });
 
-test('ensureLinuxRuntimePluginAvailable skips install when installed global plugin exists', async () => {
+test('ensureLinuxRuntimePluginAvailable skips install when installed global plugin and managed theme exist', async () => {
   const calls: string[] = [];
 
   await ensureLinuxRuntimePluginAvailable({
@@ -48,17 +48,22 @@ test('ensureLinuxRuntimePluginAvailable skips install when installed global plug
       calls.push('install');
       return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
     },
+    isManagedThemeAvailable: () => {
+      calls.push('theme');
+      return true;
+    },
     log: () => {},
   });
 
-  assert.deepEqual(calls, ['detect']);
+  assert.deepEqual(calls, ['detect', 'theme']);
 });
 
-test('ensureLinuxRuntimePluginAvailable skips install when managed runtime path already resolves', async () => {
+test('ensureLinuxRuntimePluginAvailable skips install when managed runtime path and theme already resolve', async () => {
   const calls: string[] = [];
 
   await ensureLinuxRuntimePluginAvailable({
     platform: 'linux',
+    xdgDataHome: '/tmp/xdg-data',
     detectInstalledPlugin: () => {
       calls.push('detect');
       return false;
@@ -71,10 +76,52 @@ test('ensureLinuxRuntimePluginAvailable skips install when managed runtime path 
       calls.push('install');
       return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
     },
+    isManagedThemeAvailable: () => {
+      calls.push('theme');
+      return true;
+    },
     log: () => {},
   });
 
-  assert.deepEqual(calls, ['detect', 'resolve']);
+  assert.deepEqual(calls, ['detect', 'resolve', 'theme']);
+});
+
+test('ensureLinuxRuntimePluginAvailable installs managed assets when rofi theme is missing', async () => {
+  const calls: string[] = [];
+
+  await ensureLinuxRuntimePluginAvailable({
+    platform: 'linux',
+    xdgDataHome: '/tmp/xdg-data',
+    detectInstalledPlugin: () => {
+      calls.push('detect');
+      return false;
+    },
+    resolveRuntimePluginPath: () => {
+      calls.push('resolve');
+      return '/tmp/plugin/main.lua';
+    },
+    isManagedThemeAvailable: () => {
+      calls.push('theme');
+      return false;
+    },
+    installManagedPluginAssets: async () => {
+      calls.push('install');
+      return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
+    },
+    log: (level, _configured, message) => {
+      calls.push(`${level}:${message}`);
+    },
+  });
+
+  assert.deepEqual(calls, [
+    'detect',
+    'resolve',
+    'theme',
+    'info:Linux runtime support assets missing; installing managed plugin/theme assets.',
+    'install',
+    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi',
+    'resolve',
+  ]);
 });
 
 test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves plugin path', async () => {
@@ -83,6 +130,7 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves 
 
   await ensureLinuxRuntimePluginAvailable({
     platform: 'linux',
+    xdgDataHome: '/tmp/xdg-data',
     detectInstalledPlugin: () => false,
     resolveRuntimePluginPath: () => {
       resolveCount += 1;
@@ -100,9 +148,9 @@ test('ensureLinuxRuntimePluginAvailable installs managed assets and re-resolves 
 
   assert.deepEqual(calls, [
     'resolve:1',
-    'info:Linux runtime plugin assets missing; installing managed plugin assets.',
+    'info:Linux runtime support assets missing; installing managed plugin/theme assets.',
     'install',
-    'info:Managed Linux runtime plugin installed: /tmp/plugin/main.lua',
+    'info:Managed Linux runtime support assets installed: plugin=/tmp/plugin/main.lua theme=/tmp/xdg-data/SubMiner/themes/subminer.rasi',
     'resolve:2',
   ]);
 });

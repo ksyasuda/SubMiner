@@ -312,7 +312,7 @@ SubMiner is an overlay that sits on top of mpv. It connects to mpv through an IP
 
 The `subminer` launcher handles mpv IPC socket setup automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or `\\.\pipe\subminer-socket` on Windows) - without it the overlay starts but subtitles won't appear.
 
-The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. On Linux, the `subminer` launcher now checks for its managed runtime plugin copy before every mpv-managed launch and installs that copy from the bundled app automatically if it is missing. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
+The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. On Linux, the `subminer` launcher now checks for its managed runtime plugin copy and rofi theme before every mpv-managed launch and installs those support assets from the bundled app automatically if either one is missing. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
 
 ## Platform Notes
 
@@ -375,7 +375,7 @@ mkdir -p ~/.local/share/SubMiner/plugin
 cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
 
-`subminer -u` and the tray updater keep those Linux support assets in sync automatically once the `SubMiner` data dir exists. Normal Linux launcher playback also auto-installs the managed runtime plugin copy from the bundled app if that plugin copy is missing, so manual extraction is mainly useful for pre-seeding or custom setups.
+`subminer -u` and the tray updater keep those Linux support assets in sync automatically once the `SubMiner` data dir exists. Normal Linux launcher playback also auto-installs the managed runtime plugin copy and rofi theme from the bundled app if either support asset is missing, so manual extraction is mainly useful for pre-seeding or custom setups.
 
 Override the theme path with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 

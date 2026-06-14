@@ -45,7 +45,7 @@ mkdir -p ~/.local/share/SubMiner/plugin
 cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
 
-Once the `SubMiner` data dir exists, `subminer -u` refreshes both assets automatically. Normal Linux launcher playback also checks for the managed runtime plugin copy before mpv launch and installs it from the bundled app automatically if it is missing.
+Once the `SubMiner` data dir exists, `subminer -u` refreshes both assets automatically. Normal Linux launcher playback also checks for the managed runtime plugin copy and rofi theme before mpv launch and installs them from the bundled app automatically if either one is missing.
 
 The theme is auto-detected from these paths (first match wins):
 

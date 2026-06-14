@@ -4,10 +4,12 @@ import path from 'node:path';
 import { resolvePackagedFirstRunPluginAssets } from './first-run-setup-plugin';
 
 export interface ManagedLinuxRuntimePluginPaths {
+  dataDir: string;
   rootDir: string;
   pluginDir: string;
   pluginEntrypointPath: string;
   pluginConfigPath: string;
+  themePath: string;
 }
 
 export interface EnsureLinuxRuntimePluginAssetsResult {
@@ -20,6 +22,7 @@ export interface EnsureLinuxRuntimePluginAssetsResult {
 interface RuntimePluginAssetSources {
   pluginDirSource: string;
   pluginConfigSource: string;
+  themeSourcePath: string;
 }
 
 interface RuntimePluginDirentLike {
@@ -57,13 +60,16 @@ export function resolveManagedLinuxRuntimePluginPaths(options: {
   const homeDir = options.homeDir ?? os.homedir();
   const xdgDataHome =
     options.xdgDataHome ?? process.env.XDG_DATA_HOME ?? pathModule.join(homeDir, '.local', 'share');
-  const rootDir = pathModule.join(xdgDataHome, 'SubMiner', 'plugin');
+  const dataDir = pathModule.join(xdgDataHome, 'SubMiner');
+  const rootDir = pathModule.join(dataDir, 'plugin');
   const pluginDir = pathModule.join(rootDir, 'subminer');
   return {
+    dataDir,
     rootDir,
     pluginDir,
     pluginEntrypointPath: pathModule.join(pluginDir, 'main.lua'),
     pluginConfigPath: pathModule.join(rootDir, 'subminer.conf'),
+    themePath: pathModule.join(dataDir, 'themes', 'subminer.rasi'),
   };
 }
 
@@ -87,15 +93,49 @@ async function copyDirectoryRecursive(
   }
 }
 
+function resolveBundledThemePath(options: {
+  dirname: string;
+  appPath: string;
+  resourcesPath: string;
+  existsSync: (candidate: string) => boolean;
+}): string | null {
+  const roots = [
+    path.join(options.resourcesPath, 'assets'),
+    path.join(options.resourcesPath, 'app.asar', 'assets'),
+    path.join(options.appPath, 'assets'),
+    path.join(options.dirname, '..', 'assets'),
+    path.join(options.dirname, '..', '..', 'assets'),
+    path.join(options.dirname, '..', '..', '..', 'assets'),
+  ];
+
+  for (const root of roots) {
+    const candidate = path.join(root, 'themes', 'subminer.rasi');
+    if (options.existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
 function resolveBundledAssetsDefault(
   existsSync: (candidate: string) => boolean,
 ): RuntimePluginAssetSources | null {
-  return resolvePackagedFirstRunPluginAssets({
+  const pluginAssets = resolvePackagedFirstRunPluginAssets({
     dirname: __dirname,
     appPath: process.execPath,
     resourcesPath: process.resourcesPath,
     existsSync,
   });
+  if (!pluginAssets) return null;
+
+  const themeSourcePath = resolveBundledThemePath({
+    dirname: __dirname,
+    appPath: process.execPath,
+    resourcesPath: process.resourcesPath,
+    existsSync,
+  });
+  if (!themeSourcePath) return null;
+
+  return { ...pluginAssets, themeSourcePath };
 }
 
 export async function ensureLinuxRuntimePluginAssets(
@@ -131,7 +171,10 @@ export async function ensureLinuxRuntimePluginAssets(
     xdgDataHome: options.xdgDataHome,
     pathModule,
   });
-  if (existsSync(managedPaths.pluginEntrypointPath) && existsSync(managedPaths.pluginConfigPath)) {
+  const pluginAssetsExist =
+    existsSync(managedPaths.pluginEntrypointPath) && existsSync(managedPaths.pluginConfigPath);
+  const themeExists = existsSync(managedPaths.themePath);
+  if (pluginAssetsExist && themeExists) {
     return {
       ok: true,
       status: 'already-present',
@@ -156,24 +199,44 @@ export async function ensureLinuxRuntimePluginAssets(
     managedPaths.rootDir,
     `.subminer.conf-stage-${stagingSuffix}`,
   );
+  const stagedThemePath = pathModule.join(
+    pathModule.dirname(managedPaths.themePath),
+    `.subminer.rasi-stage-${stagingSuffix}`,
+  );
+  const shouldInstallPluginAssets = !pluginAssetsExist;
+  const shouldInstallTheme = !themeExists;
   let pluginDirInstalled = false;
   let pluginConfigInstalled = false;
+  let themeInstalled = false;
 
   try {
-    await mkdir(managedPaths.rootDir, { recursive: true });
-    await copyDirectoryRecursive(bundledAssets.pluginDirSource, stagedPluginDir, {
-      mkdir,
-      readdir,
-      copyFile,
-      pathModule,
-    });
-    await copyFile(bundledAssets.pluginConfigSource, stagedPluginConfigPath);
-    await rm(managedPaths.pluginDir, { recursive: true, force: true });
-    await rm(managedPaths.pluginConfigPath, { force: true });
-    await rename(stagedPluginDir, managedPaths.pluginDir);
-    pluginDirInstalled = true;
-    await rename(stagedPluginConfigPath, managedPaths.pluginConfigPath);
-    pluginConfigInstalled = true;
+    if (shouldInstallPluginAssets) {
+      await mkdir(managedPaths.rootDir, { recursive: true });
+      await copyDirectoryRecursive(bundledAssets.pluginDirSource, stagedPluginDir, {
+        mkdir,
+        readdir,
+        copyFile,
+        pathModule,
+      });
+      await copyFile(bundledAssets.pluginConfigSource, stagedPluginConfigPath);
+    }
+    if (shouldInstallTheme) {
+      await mkdir(pathModule.dirname(managedPaths.themePath), { recursive: true });
+      await copyFile(bundledAssets.themeSourcePath, stagedThemePath);
+    }
+    if (shouldInstallPluginAssets) {
+      await rm(managedPaths.pluginDir, { recursive: true, force: true });
+      await rm(managedPaths.pluginConfigPath, { force: true });
+      await rename(stagedPluginDir, managedPaths.pluginDir);
+      pluginDirInstalled = true;
+      await rename(stagedPluginConfigPath, managedPaths.pluginConfigPath);
+      pluginConfigInstalled = true;
+    }
+    if (shouldInstallTheme) {
+      await rm(managedPaths.themePath, { force: true });
+      await rename(stagedThemePath, managedPaths.themePath);
+      themeInstalled = true;
+    }
 
     return {
       ok: true,
@@ -187,8 +250,12 @@ export async function ensureLinuxRuntimePluginAssets(
     if (pluginConfigInstalled && !pluginDirInstalled) {
       await rm(managedPaths.pluginConfigPath, { force: true }).catch(() => {});
     }
+    if (themeInstalled) {
+      await rm(managedPaths.themePath, { force: true }).catch(() => {});
+    }
     await rm(stagedPluginDir, { recursive: true, force: true }).catch(() => {});
     await rm(stagedPluginConfigPath, { force: true }).catch(() => {});
+    await rm(stagedThemePath, { force: true }).catch(() => {});
     return {
       ok: false,
       status: 'failed',
