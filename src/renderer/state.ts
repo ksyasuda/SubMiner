@@ -139,6 +139,7 @@ export type RendererState = {
   keyboardSelectionVisible: boolean;
   keyboardSelectedWordIndex: number | null;
   yomitanPopupVisible: boolean;
+  isOverYomitanPopup: boolean;
   primarySubtitleMode: PrimarySubMode;
 };
 
@@ -254,6 +255,7 @@ export function createRendererState(): RendererState {
     keyboardSelectionVisible: false,
     keyboardSelectedWordIndex: null,
     yomitanPopupVisible: false,
+    isOverYomitanPopup: false,
     primarySubtitleMode: 'visible',
   };
 }

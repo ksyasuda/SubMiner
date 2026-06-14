@@ -305,6 +305,7 @@ export function createMouseHandlers(
 
     yomitanPopupVisible = false;
     ctx.state.yomitanPopupVisible = false;
+    ctx.state.isOverYomitanPopup = false;
     syncPrimaryVisibleOnYomitanPopupClass(false);
     popupPauseRequestId += 1;
     maybeResumeYomitanPopupPause();
@@ -378,7 +379,10 @@ export function createMouseHandlers(
     }
     hoverPauseRequestId += 1;
     maybeResumeHoverPause();
-    if (yomitanPopupVisible) return;
+    if (yomitanPopupVisible) {
+      syncOverlayMouseIgnoreState(ctx);
+      return;
+    }
     disablePopupInteractionIfIdle();
   }
 
@@ -479,10 +483,12 @@ export function createMouseHandlers(
     });
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_ENTER_EVENT, () => {
+      ctx.state.isOverYomitanPopup = true;
       reconcilePopupInteraction({ assumeVisible: true, reclaimFocus: true });
     });
 
     window.addEventListener(YOMITAN_POPUP_MOUSE_LEAVE_EVENT, () => {
+      ctx.state.isOverYomitanPopup = false;
       reconcilePopupInteraction({ assumeVisible: true });
     });
 
