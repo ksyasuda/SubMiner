@@ -64,29 +64,51 @@ async function waitForInstallResponse(
   return null;
 }
 
-async function installManagedPluginAssetsViaApp(options: {
-  appPath: string;
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
-}): Promise<EnsureLinuxRuntimePluginAssetsResult> {
+type InstallManagedPluginAssetsViaAppDeps = {
+  runAppCommandCaptureOutput?: typeof runAppCommandCaptureOutput;
+  waitForInstallResponse?: typeof waitForInstallResponse;
+};
+
+export async function installManagedPluginAssetsViaApp(
+  options: {
+    appPath: string;
+    logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  },
+  deps: InstallManagedPluginAssetsViaAppDeps = {},
+): Promise<EnsureLinuxRuntimePluginAssetsResult> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-runtime-plugin-'));
   const responsePath = path.join(tempDir, 'response.json');
+  const runAppCommand = deps.runAppCommandCaptureOutput ?? runAppCommandCaptureOutput;
+  const waitForResponse = deps.waitForInstallResponse ?? waitForInstallResponse;
   try {
     const appArgs = [
       '--ensure-linux-runtime-plugin-assets',
       '--ensure-linux-runtime-plugin-assets-response-path',
       responsePath,
     ];
-    const result = runAppCommandCaptureOutput(options.appPath, appArgs);
-    const response = await waitForInstallResponse(responsePath);
-    if (response) {
-      return response;
-    }
+    const result = runAppCommand(options.appPath, appArgs);
     if (result.error) {
       return {
         ok: false,
         status: 'failed',
         error: result.error.message,
       };
+    }
+    if (result.status !== 0) {
+      const stderr = result.stderr.trim();
+      const stdout = result.stdout.trim();
+      return {
+        ok: false,
+        status: 'failed',
+        error:
+          stderr ||
+          stdout ||
+          `Linux runtime plugin asset install command exited with status ${result.status}.`,
+      };
+    }
+    const response = await waitForResponse(responsePath);
+    if (response) {
+      return response;
     }
     const stderr = result.stderr.trim();
     const stdout = result.stdout.trim();

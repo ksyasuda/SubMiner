@@ -69,12 +69,11 @@ async function readInstalledPluginVersion(pluginDir: string): Promise<string | n
 async function detectManagedSupportAssetDataDirs(dataDirs: string[]): Promise<string[]> {
   const managedDataDirs: string[] = [];
   for (const dataDir of dataDirs) {
-    const [hasRoot, hasTheme, hasPlugin] = await Promise.all([
-      pathExists(dataDir),
+    const [hasTheme, hasPlugin] = await Promise.all([
       pathExists(path.join(dataDir, THEME_RELATIVE_PATH)),
       pathExists(path.join(dataDir, PLUGIN_ENTRYPOINT_RELATIVE_PATH)),
     ]);
-    if (hasRoot || hasTheme || hasPlugin) {
+    if (hasTheme || hasPlugin) {
       managedDataDirs.push(dataDir);
     }
   }
@@ -82,9 +81,28 @@ async function detectManagedSupportAssetDataDirs(dataDirs: string[]): Promise<st
 }
 
 async function replacePluginDir(sourcePluginDir: string, targetPluginDir: string): Promise<void> {
-  await fs.promises.rm(targetPluginDir, { recursive: true, force: true });
-  await fs.promises.mkdir(path.dirname(targetPluginDir), { recursive: true });
-  await fs.promises.cp(sourcePluginDir, targetPluginDir, { recursive: true });
+  const parentDir = path.dirname(targetPluginDir);
+  const stagedDir = `${targetPluginDir}.next`;
+  const backupDir = `${targetPluginDir}.bak`;
+  const targetExists = await pathExists(targetPluginDir);
+
+  await fs.promises.rm(stagedDir, { recursive: true, force: true });
+  await fs.promises.rm(backupDir, { recursive: true, force: true });
+  await fs.promises.mkdir(parentDir, { recursive: true });
+  await fs.promises.cp(sourcePluginDir, stagedDir, { recursive: true });
+
+  if (targetExists) {
+    await fs.promises.rename(targetPluginDir, backupDir);
+  }
+  try {
+    await fs.promises.rename(stagedDir, targetPluginDir);
+  } catch (err) {
+    if (targetExists) {
+      await fs.promises.rename(backupDir, targetPluginDir).catch(() => {});
+    }
+    throw err;
+  }
+  await fs.promises.rm(backupDir, { recursive: true, force: true });
 }
 
 function makeSupportAssetResult(
@@ -124,6 +142,9 @@ export function detectSupportAssetDataDirs(options: {
 
 export function buildProtectedSupportAssetsCommand(assetUrl: string, dataDir: string): string {
   const quotedDir = shellQuote(dataDir);
+  const quotedPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer'));
+  const quotedStagedPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer.next'));
+  const quotedBackupPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer.bak'));
   return [
     'tmp=$(mktemp -d)',
     'trap \'rm -rf "$tmp"\' EXIT',
@@ -131,9 +152,12 @@ export function buildProtectedSupportAssetsCommand(assetUrl: string, dataDir: st
     'tar -xzf "$tmp/subminer-assets.tar.gz" -C "$tmp"',
     `sudo mkdir -p ${quotedDir}/themes`,
     `sudo cp "$tmp/assets/themes/subminer.rasi" ${quotedDir}/themes/subminer.rasi`,
-    `sudo rm -rf ${quotedDir}/plugin/subminer`,
     `sudo mkdir -p ${quotedDir}/plugin`,
-    `sudo cp -R "$tmp/plugin/subminer" ${quotedDir}/plugin/subminer`,
+    `sudo rm -rf ${quotedStagedPluginDir} ${quotedBackupPluginDir}`,
+    `sudo cp -R "$tmp/plugin/subminer" ${quotedStagedPluginDir}`,
+    `[ ! -e ${quotedPluginDir} ] || sudo mv ${quotedPluginDir} ${quotedBackupPluginDir}`,
+    `sudo mv ${quotedStagedPluginDir} ${quotedPluginDir}`,
+    `sudo rm -rf ${quotedBackupPluginDir}`,
   ].join(' && ');
 }
 
@@ -173,7 +197,12 @@ export async function updateSupportAssetsFromRelease(options: {
   for (const dataDir of managedDataDirs) {
     if (!fs.existsSync(dataDir) || !fs.statSync(dataDir).isDirectory()) {
       results.push(
-        makeSupportAssetResult('skipped', 'theme', dataDir, 'Support asset path is not a directory.'),
+        makeSupportAssetResult(
+          'skipped',
+          'theme',
+          dataDir,
+          'Support asset path is not a directory.',
+        ),
         makeSupportAssetResult(
           'skipped',
           'plugin',
@@ -232,19 +261,26 @@ export async function updateSupportAssetsFromRelease(options: {
 
     const themeSourcePath = path.join(tempDir, 'assets/themes/subminer.rasi');
     if (!(await pathExists(themeSourcePath))) {
-      return [{ status: 'missing-asset', message: 'Support asset archive is missing the rofi theme.' }];
+      return [
+        { status: 'missing-asset', message: 'Support asset archive is missing the rofi theme.' },
+      ];
     }
     const themeBytes = await fs.promises.readFile(themeSourcePath);
 
     const sourcePluginDir = path.join(tempDir, PLUGIN_DIR_RELATIVE_PATH);
     const sourcePluginEntrypoint = path.join(tempDir, PLUGIN_ENTRYPOINT_RELATIVE_PATH);
     if (!(await pathExists(sourcePluginEntrypoint))) {
-      return [{ status: 'missing-asset', message: 'Support asset archive is missing the runtime plugin.' }];
+      return [
+        {
+          status: 'missing-asset',
+          message: 'Support asset archive is missing the runtime plugin.',
+        },
+      ];
     }
     const sourcePluginVersion = parsePluginVersion(
-      await fs.promises.readFile(path.join(tempDir, PLUGIN_VERSION_RELATIVE_PATH), 'utf8').catch(
-        () => '',
-      ),
+      await fs.promises
+        .readFile(path.join(tempDir, PLUGIN_VERSION_RELATIVE_PATH), 'utf8')
+        .catch(() => ''),
     );
     if (!sourcePluginVersion) {
       return [

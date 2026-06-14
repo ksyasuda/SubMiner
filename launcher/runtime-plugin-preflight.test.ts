@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureLinuxRuntimePluginAvailable } from './runtime-plugin-preflight';
+import {
+  ensureLinuxRuntimePluginAvailable,
+  installManagedPluginAssetsViaApp,
+} from './runtime-plugin-preflight';
 
 test('ensureLinuxRuntimePluginAvailable is a no-op on non-Linux platforms', async () => {
   const calls: string[] = [];
@@ -137,4 +140,33 @@ test('ensureLinuxRuntimePluginAvailable fails when runtime path remains unresolv
       }),
     /managed runtime plugin assets could not be installed/i,
   );
+});
+
+test('installManagedPluginAssetsViaApp returns launch errors without waiting for a response file', async () => {
+  let waited = false;
+
+  const result = await installManagedPluginAssetsViaApp(
+    {
+      appPath: '/opt/SubMiner/subminer',
+    },
+    {
+      runAppCommandCaptureOutput: () => ({
+        status: 1,
+        stdout: '',
+        stderr: '',
+        error: new Error('spawn failed'),
+      }),
+      waitForInstallResponse: async () => {
+        waited = true;
+        return null;
+      },
+    },
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 'failed',
+    error: 'spawn failed',
+  });
+  assert.equal(waited, false);
 });
