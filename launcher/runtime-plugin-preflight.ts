@@ -121,7 +121,11 @@ export async function installManagedPluginAssetsViaApp(
         `Timed out waiting for Linux runtime plugin asset response after app exit status ${result.status}.`,
     };
   } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Avoid hiding the install failure or success result behind temp cleanup errors.
+    }
   }
 }
 

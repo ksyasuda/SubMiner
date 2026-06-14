@@ -8,6 +8,7 @@ test('default notification icon resolves packaged SubMiner asset when no per-not
     resourcesPath: '/opt/SubMiner/resources',
     appPath: '/opt/SubMiner/resources/app.asar',
     dirname: '/opt/SubMiner/resources/app.asar/dist/core/utils',
+    cwd: '/opt/SubMiner',
     joinPath: (...parts) => parts.join('/'),
     fileExists: (candidate) => candidate === '/opt/SubMiner/resources/assets/SubMiner.png',
   });
@@ -21,6 +22,7 @@ test('default notification icon prefers the square app icon when bundled images 
     resourcesPath: '/opt/SubMiner/resources',
     appPath: '/opt/SubMiner/resources/app.asar',
     dirname: '/opt/SubMiner/resources/app.asar/dist/core/utils',
+    cwd: '/opt/SubMiner',
     joinPath: (...parts) => parts.join('/'),
     fileExists: (candidate) =>
       candidate === '/opt/SubMiner/resources/assets/SubMiner.png' ||
@@ -37,6 +39,7 @@ test('default notification icon avoids macOS tray template assets', () => {
     resourcesPath: '/Applications/SubMiner.app/Contents/Resources',
     appPath: '/Applications/SubMiner.app/Contents/Resources/app.asar',
     dirname: '/Applications/SubMiner.app/Contents/Resources/app.asar/dist/core/utils',
+    cwd: '/Applications/SubMiner.app/Contents/Resources',
     joinPath: (...parts) => parts.join('/'),
     fileExists: (candidate) => {
       seen.push(candidate);
@@ -49,4 +52,18 @@ test('default notification icon avoids macOS tray template assets', () => {
     seen.some((candidate) => candidate.includes('SubMinerTemplate')),
     false,
   );
+});
+
+test('default notification icon resolves cwd fallback through injected deps', () => {
+  const resolvedPath = resolveDefaultNotificationIconPath({
+    platform: 'linux',
+    resourcesPath: '/missing/resources',
+    appPath: '/missing/app',
+    dirname: '/missing/dist/core/utils',
+    cwd: '/portable/SubMiner',
+    joinPath: (...parts) => parts.join('/'),
+    fileExists: (candidate) => candidate === '/portable/SubMiner/assets/SubMiner-square.png',
+  });
+
+  assert.equal(resolvedPath, '/portable/SubMiner/assets/SubMiner-square.png');
 });

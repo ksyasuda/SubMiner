@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   ensureLinuxRuntimePluginAvailable,
   installManagedPluginAssetsViaApp,
@@ -169,4 +170,42 @@ test('installManagedPluginAssetsViaApp returns launch errors without waiting for
     error: 'spawn failed',
   });
   assert.equal(waited, false);
+});
+
+test('installManagedPluginAssetsViaApp does not let temp cleanup errors mask install result', async () => {
+  const originalRmSync = fs.rmSync;
+  fs.rmSync = ((targetPath, options) => {
+    if (String(targetPath).includes('subminer-runtime-plugin-')) {
+      throw new Error('cleanup failed');
+    }
+    return originalRmSync(targetPath, options);
+  }) as typeof fs.rmSync;
+
+  try {
+    const result = await installManagedPluginAssetsViaApp(
+      {
+        appPath: '/opt/SubMiner/subminer',
+      },
+      {
+        runAppCommandCaptureOutput: () => ({
+          status: 0,
+          stdout: '',
+          stderr: '',
+        }),
+        waitForInstallResponse: async () => ({
+          ok: true,
+          status: 'installed',
+          path: '/tmp/plugin/main.lua',
+        }),
+      },
+    );
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: '/tmp/plugin/main.lua',
+    });
+  } finally {
+    fs.rmSync = originalRmSync;
+  }
 });

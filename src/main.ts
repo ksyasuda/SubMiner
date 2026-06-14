@@ -1192,7 +1192,13 @@ function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): voi
       if (currentMediaPath !== mediaPath || !overlayManager.getVisibleOverlayVisible()) {
         return;
       }
-      void primeCurrentSubtitleForAutoplay(mediaPath);
+      void primeCurrentSubtitleForAutoplay(mediaPath).catch((error) => {
+        logger.debug(
+          `[autoplay-subtitle-prime] failed to prime current subtitle after warm readiness: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
     }, delayMs);
     timer.unref?.();
   }

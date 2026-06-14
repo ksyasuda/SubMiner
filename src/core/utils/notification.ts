@@ -11,6 +11,7 @@ export function resolveDefaultNotificationIconPath(deps: {
   resourcesPath: string;
   appPath: string;
   dirname: string;
+  cwd: string;
   joinPath: (...parts: string[]) => string;
   fileExists: (path: string) => boolean;
 }): string | null {
@@ -24,7 +25,7 @@ export function resolveDefaultNotificationIconPath(deps: {
     deps.joinPath(deps.appPath, 'assets'),
     deps.joinPath(deps.dirname, '..', 'assets'),
     deps.joinPath(deps.dirname, '..', '..', 'assets'),
-    deps.joinPath(process.cwd(), 'assets'),
+    deps.joinPath(deps.cwd, 'assets'),
   ];
 
   for (const baseDir of baseDirs) {
@@ -45,6 +46,7 @@ function resolveRuntimeDefaultNotificationIconPath(): string | null {
     resourcesPath: process.resourcesPath,
     appPath: electron.app?.getAppPath?.() ?? process.cwd(),
     dirname: __dirname,
+    cwd: process.cwd(),
     joinPath: (...parts) => path.join(...parts),
     fileExists: (candidate) => fs.existsSync(candidate),
   });
