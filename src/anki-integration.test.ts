@@ -95,7 +95,7 @@ function createIntegrationTestContext(
     knownWordsScope: string;
     knownWordsLastRefreshedAtMs: number;
   };
-  privateState.knownWordsScope = 'is:note';
+  privateState.knownWordsScope = 'all';
   privateState.knownWordsLastRefreshedAtMs = Date.now();
 
   return {
@@ -322,6 +322,119 @@ test('AnkiIntegration resolves merged-away note ids to the kept note id', () => 
   } finally {
     cleanupIntegrationTestContext(ctx);
   }
+});
+
+function processSentenceWithConfig(
+  config: Partial<AnkiConnectConfig>,
+  mpvSentence: string,
+  noteFields: Record<string, string>,
+): string {
+  const integration = new AnkiIntegration(config as AnkiConnectConfig, {} as never, {} as never);
+  return (
+    integration as unknown as {
+      processSentence: (sentence: string, fields: Record<string, string>) => string;
+    }
+  ).processSentence(mpvSentence, noteFields);
+}
+
+function processSentenceFuriganaWithConfig(
+  config: Partial<AnkiConnectConfig>,
+  sentenceFurigana: string,
+  noteFields: Record<string, string>,
+): string {
+  const integration = new AnkiIntegration(config as AnkiConnectConfig, {} as never, {} as never);
+  return (
+    integration as unknown as {
+      processSentenceFurigana: (sentence: string, fields: Record<string, string>) => string;
+    }
+  ).processSentenceFurigana(sentenceFurigana, noteFields);
+}
+
+test('AnkiIntegration highlights mined word from expression field when sentence has no bold marker', () => {
+  const processed = processSentenceWithConfig(
+    {
+      fields: {
+        word: 'Expression',
+        sentence: 'Sentence',
+      },
+      behavior: {
+        highlightWord: true,
+      },
+    },
+    '先日 貴様らが潜入した キールダンジョンから―',
+    {
+      expression: '潜入',
+      sentence: '先日 貴様らが潜入した キールダンジョンから―',
+    },
+  );
+
+  assert.equal(processed, '先日 貴様らが<b>潜入</b>した キールダンジョンから―');
+});
+
+test('AnkiIntegration keeps existing Yomitan bold target when present', () => {
+  const processed = processSentenceWithConfig(
+    {
+      fields: {
+        word: 'Expression',
+        sentence: 'Sentence',
+      },
+      behavior: {
+        highlightWord: true,
+      },
+    },
+    '先日 貴様らが潜入した キールダンジョンから―',
+    {
+      expression: '潜入',
+      sentence: '<b>潜入した</b>',
+    },
+  );
+
+  assert.equal(processed, '先日 貴様らが<b>潜入した</b> キールダンジョンから―');
+});
+
+test('AnkiIntegration leaves sentence plain when word highlighting is disabled', () => {
+  const processed = processSentenceWithConfig(
+    {
+      fields: {
+        word: 'Expression',
+        sentence: 'Sentence',
+      },
+      behavior: {
+        highlightWord: false,
+      },
+    },
+    '先日 貴様らが潜入した キールダンジョンから―',
+    {
+      expression: '潜入',
+      sentence: '<b>潜入</b>',
+    },
+  );
+
+  assert.equal(processed, '先日 貴様らが潜入した キールダンジョンから―');
+});
+
+test('AnkiIntegration highlights mined word in sentence furigana field', () => {
+  const processed = processSentenceFuriganaWithConfig(
+    {
+      fields: {
+        word: 'Expression',
+        sentence: 'Sentence',
+      },
+      behavior: {
+        highlightWord: true,
+      },
+    },
+    '<span class="term"><ruby>不思議<rt>ふしぎ</rt></ruby></span><span class="term">な</span><span class="term"><ruby>特技<rt>とくぎ</rt></ruby></span><span class="term">を</span>',
+    {
+      expression: '特技',
+      sentence: '不思議な特技を',
+    },
+  );
+
+  assert.equal(
+    processed,
+    '<span class="term"><ruby>不思議<rt>ふしぎ</rt></ruby></span><span class="term">な</span><b><span class="term"><ruby>特技<rt>とくぎ</rt></ruby></span></b><span class="term">を</span>',
+  );
 });
 
 test('AnkiIntegration does not allocate proxy server when proxy transport is disabled', () => {

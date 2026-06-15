@@ -1,6 +1,7 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 import type { SubtitleMiningContext } from '../types/subtitle';
+import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -35,6 +36,7 @@ export interface NoteUpdateWorkflowDeps {
   getCurrentSubtitleStart: () => number | undefined;
   getEffectiveSentenceCardConfig: () => {
     sentenceField: string;
+    lapisEnabled: boolean;
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
   };
@@ -58,6 +60,15 @@ export interface NoteUpdateWorkflowDeps {
     expression: string,
   ) => Promise<boolean>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
+  processSentenceFurigana?: (
+    sentenceFurigana: string,
+    noteFields: Record<string, string>,
+  ) => string;
+  setCardTypeFields: (
+    updatedFields: Record<string, string>,
+    availableFieldNames: string[],
+    cardKind: 'word-and-sentence',
+  ) => void;
   resolveConfiguredFieldName: (
     noteInfo: NoteUpdateWorkflowNoteInfo,
     ...preferredNames: (string | undefined)[]
@@ -189,7 +200,31 @@ export class NoteUpdateWorkflow {
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
+        if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
+          this.deps.setCardTypeFields(
+            updatedFields,
+            Object.keys(noteInfo.fields),
+            'word-and-sentence',
+          );
+        }
         updatePerformed = true;
+      }
+      const sentenceFuriganaField = this.deps.resolveConfiguredFieldName(
+        noteInfo,
+        'SentenceFurigana',
+      );
+      const existingSentenceFurigana = sentenceFuriganaField
+        ? noteInfo.fields[sentenceFuriganaField]?.value || ''
+        : '';
+      if (sentenceFuriganaField && existingSentenceFurigana && this.deps.processSentenceFurigana) {
+        const processedSentenceFurigana = this.deps.processSentenceFurigana(
+          existingSentenceFurigana,
+          fields,
+        );
+        if (processedSentenceFurigana !== existingSentenceFurigana) {
+          updatedFields[sentenceFuriganaField] = processedSentenceFurigana;
+          updatePerformed = true;
+        }
       }
 
       if (config.media?.generateAudio) {

@@ -48,7 +48,7 @@ export function getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): stri
   }
 
   const configuredDeck = trimToNonEmptyString(config.deck);
-  return configuredDeck ? `deck:${configuredDeck}` : 'is:note';
+  return configuredDeck ? `deck:${configuredDeck}` : 'all';
 }
 
 export function getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
@@ -396,7 +396,7 @@ export class KnownWordCacheManager {
   private buildKnownWordsQuery(): string {
     const decks = this.getKnownWordDecks();
     if (decks.length === 0) {
-      return 'is:note';
+      return '';
     }
 
     if (decks.length === 1) {

@@ -77,14 +77,21 @@ export class MediaGenerator {
   constructor(tempDir?: string) {
     this.tempDir = tempDir || path.join(os.tmpdir(), 'subminer-media');
     this.notifyIconDir = path.join(os.tmpdir(), 'subminer-notify');
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
-    }
-    if (!fs.existsSync(this.notifyIconDir)) {
-      fs.mkdirSync(this.notifyIconDir, { recursive: true });
-    }
+    this.ensureDirectory(this.tempDir);
+    this.ensureDirectory(this.notifyIconDir);
     // Clean up old notification icons on startup (older than 1 hour)
     this.cleanupOldNotificationIcons();
+  }
+
+  private ensureDirectory(dir: string): void {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  private createTempOutputPath(prefix: string, extension: string): string {
+    this.ensureDirectory(this.tempDir);
+    return path.join(this.tempDir, `${prefix}_${Date.now()}.${extension}`);
   }
 
   /**
@@ -121,6 +128,7 @@ export class MediaGenerator {
    * compatibility with Linux/Wayland notification daemons.
    */
   writeNotificationIconToFile(iconBuffer: Buffer, noteId: number): string {
+    this.ensureDirectory(this.notifyIconDir);
     const filename = `icon_${noteId}_${Date.now()}.png`;
     const filePath = path.join(this.notifyIconDir, filename);
     fs.writeFileSync(filePath, iconBuffer);
@@ -184,7 +192,7 @@ export class MediaGenerator {
     const duration = endTime - start + safePadding;
 
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(this.tempDir, `audio_${Date.now()}.mp3`);
+      const outputPath = this.createTempOutputPath('audio', 'mp3');
       const args: string[] = ['-ss', start.toString(), '-t', duration.toString(), '-i', videoPath];
 
       if (
@@ -261,7 +269,7 @@ export class MediaGenerator {
     args.push('-y');
 
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(this.tempDir, `screenshot_${Date.now()}.${ext}`);
+      const outputPath = this.createTempOutputPath('screenshot', ext);
       args.push(outputPath);
 
       execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
@@ -288,7 +296,7 @@ export class MediaGenerator {
    */
   async generateNotificationIcon(videoPath: string, timestamp: number): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(this.tempDir, `notify_icon_${Date.now()}.png`);
+      const outputPath = this.createTempOutputPath('notify_icon', 'png');
 
       execFile(
         'ffmpeg',
@@ -355,7 +363,7 @@ export class MediaGenerator {
     }
 
     return new Promise((resolve, reject) => {
-      const outputPath = path.join(this.tempDir, `animation_${Date.now()}.avif`);
+      const outputPath = this.createTempOutputPath('animation', 'avif');
 
       const encoderArgs: string[] = ['-c:v', av1Encoder];
       if (av1Encoder === 'libaom-av1') {

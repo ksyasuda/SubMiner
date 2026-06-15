@@ -32,6 +32,7 @@ import { createLinuxX11CursorPointReader } from './linux-x11-cursor-point';
 import type { LinuxVisibleOverlayWindowMode } from './linux-visible-overlay-window-mode';
 import { createStatsOverlayVisibilityChangeHandler } from './stats-overlay-visibility';
 import { hasLiveSeparateWindow } from './settings-window-z-order';
+import { tickWindowsOverlayPointerInteraction } from './windows-overlay-pointer-interaction';
 
 export interface VisibleOverlayInteractionRuntimeDeps {
   overlayManager: {
@@ -89,6 +90,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   let windowsVisibleOverlayZOrderSyncInFlight = false;
   let windowsVisibleOverlayZOrderSyncQueued = false;
   let windowsVisibleOverlayForegroundPollInterval: ReturnType<typeof setInterval> | null = null;
+  let windowsOverlayPointerInteractionActive = false;
   let lastWindowsVisibleOverlayForegroundProcessName: string | null = null;
   let lastWindowsVisibleOverlayBlurredAtMs = 0;
   let lastLinuxVisibleOverlayFollowedMpvAtMs = 0;
@@ -122,6 +124,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
 
   function resetVisibleOverlayInputState(): void {
     visibleOverlayInteractionActive = false;
+    windowsOverlayPointerInteractionActive = false;
     linuxOverlayInputShapeActive = false;
     linuxOverlayPointerInteractionStateApplied = false;
     resetLinuxVisibleOverlayStartupInputPrimer();
@@ -538,6 +541,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
 
     windowsVisibleOverlayForegroundPollInterval = setInterval(() => {
       maybePollWindowsVisibleOverlayForegroundProcess();
+      tickWindowsOverlayPointerInteractionNow();
     }, WINDOWS_VISIBLE_OVERLAY_FOREGROUND_POLL_INTERVAL_MS);
   }
 
@@ -569,6 +573,56 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
       }, delayMs);
       visibleOverlayBlurRefreshTimeouts.push(refreshTimeout);
     }
+  }
+
+  function shouldSuspendWindowsOverlayPointerInteraction(): boolean {
+    return (
+      deps.getModalInputExclusive() ||
+      deps.getStatsOverlayVisible() ||
+      hasLiveSeparateWindow(deps.getOverlayForegroundSeparateWindows())
+    );
+  }
+
+  function updateWindowsOverlayPointerInteractionActive(active: boolean): void {
+    windowsOverlayPointerInteractionActive = active;
+    visibleOverlayInteractionActive = active;
+
+    const mainWindow = overlayManager.getMainWindow();
+    if (
+      process.platform !== 'win32' ||
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      !mainWindow.isVisible()
+    ) {
+      deps.updateVisibleOverlayVisibility();
+      return;
+    }
+
+    if (active) {
+      mainWindow.setIgnoreMouseEvents(false);
+    } else {
+      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  }
+
+  const windowsOverlayPointerInteractionDeps = {
+    getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
+    getMainWindow: () => overlayManager.getMainWindow(),
+    getCursorScreenPoint: () => screen.getCursorScreenPoint(),
+    getSubtitleMeasurement: () => overlayContentMeasurementStore.getLatestByLayer('visible'),
+    shouldSuspend: shouldSuspendWindowsOverlayPointerInteraction,
+    getInteractionActive: () => windowsOverlayPointerInteractionActive,
+    setInteractionActive: updateWindowsOverlayPointerInteractionActive,
+  };
+
+  function tickWindowsOverlayPointerInteractionNow(): void {
+    if (process.platform !== 'win32') {
+      return;
+    }
+    if (!windowsOverlayPointerInteractionActive && visibleOverlayInteractionActive) {
+      return;
+    }
+    tickWindowsOverlayPointerInteraction(windowsOverlayPointerInteractionDeps);
   }
 
   ensureWindowsVisibleOverlayForegroundPollLoop();
@@ -811,10 +865,12 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     updateLinuxOverlayPointerInteractionActive,
     primeLinuxOverlayPointerInteractionAfterFirstMeasurement,
     requestLinuxOverlayZOrderFollow,
+    tickWindowsOverlayPointerInteractionNow,
     tickLinuxOverlayPointerInteractionNow,
     getVisibleOverlayInteractionActive: () => visibleOverlayInteractionActive,
     setVisibleOverlayInteractionActive: (active: boolean) => {
       visibleOverlayInteractionActive = active;
+      windowsOverlayPointerInteractionActive = false;
     },
     getLinuxOverlayInputShapeActive: () => linuxOverlayInputShapeActive,
     getLastWindowsVisibleOverlayForegroundProcessName: () =>

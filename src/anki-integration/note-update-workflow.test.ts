@@ -7,6 +7,27 @@ import {
 } from './note-update-workflow';
 import type { SubtitleMiningContext } from '../types/subtitle';
 
+function setWordAndSentenceCardTypeFields(
+  updatedFields: Record<string, string>,
+  availableFieldNames: string[],
+  cardKind: 'word-and-sentence',
+): void {
+  assert.equal(cardKind, 'word-and-sentence');
+  const resolveFieldName = (preferredName: string): string | null =>
+    availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ?? null;
+
+  const wordAndSentenceFlag = resolveFieldName('IsWordAndSentenceCard');
+  if (!wordAndSentenceFlag) return;
+
+  updatedFields[wordAndSentenceFlag] = 'x';
+  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
+    const resolved = resolveFieldName(flagName);
+    if (resolved && resolved !== wordAndSentenceFlag) {
+      updatedFields[resolved] = '';
+    }
+  }
+}
+
 function createWorkflowHarness() {
   const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const notifications: Array<{ noteId: number; label: string | number }> = [];
@@ -40,6 +61,7 @@ function createWorkflowHarness() {
     getCurrentSubtitleStart: () => 12.3,
     getEffectiveSentenceCardConfig: () => ({
       sentenceField: 'Sentence',
+      lapisEnabled: false,
       kikuEnabled: false,
       kikuFieldGrouping: 'disabled' as const,
     }),
@@ -57,6 +79,7 @@ function createWorkflowHarness() {
     handleFieldGroupingManual: async (_originalNoteId, _newNoteId, _newNoteInfo, _expression) =>
       false,
     processSentence: (text: string, _noteFields: Record<string, string>) => text,
+    setCardTypeFields: setWordAndSentenceCardTypeFields,
     resolveConfiguredFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo, preferred?: string) => {
       if (!preferred) return null;
       const names = Object.keys(noteInfo.fields);
@@ -102,6 +125,118 @@ test('NoteUpdateWorkflow updates sentence field and emits notification', async (
   assert.equal(harness.notifications.length, 1);
 });
 
+test('NoteUpdateWorkflow updates sentence furigana when highlight processor changes it', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'tokugi' },
+          Sentence: { value: '' },
+          SentenceFurigana: { value: '<span class="term">tokugi</span>' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.processSentenceFurigana = (sentenceFurigana) =>
+    sentenceFurigana.replace('tokugi', '<b>tokugi</b>');
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+    SentenceFurigana: '<span class="term"><b>tokugi</b></span>',
+  });
+});
+
+test('NoteUpdateWorkflow marks enriched Kiku word cards as word-and-sentence cards', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: false,
+    kikuEnabled: true,
+    kikuFieldGrouping: 'manual',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          IsWordAndSentenceCard: { value: '' },
+          IsSentenceCard: { value: '' },
+          IsAudioCard: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+    IsWordAndSentenceCard: 'x',
+    IsSentenceCard: '',
+    IsAudioCard: '',
+  });
+});
+
+test('NoteUpdateWorkflow does not set Kiku card flags when Lapis and Kiku are disabled', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          IsWordAndSentenceCard: { value: '' },
+          IsSentenceCard: { value: '' },
+          IsAudioCard: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+  });
+});
+
+test('NoteUpdateWorkflow preserves explicit sentence card type during sentence enrichment', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: true,
+    kikuEnabled: false,
+    kikuFieldGrouping: 'disabled',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'sentence expression' },
+          Sentence: { value: '' },
+          IsWordAndSentenceCard: { value: '' },
+          IsSentenceCard: { value: 'x' },
+          IsAudioCard: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+  });
+});
+
 test('NoteUpdateWorkflow no-ops when note info is missing', async () => {
   const harness = createWorkflowHarness();
   harness.deps.client.notesInfo = async () => [];
@@ -119,6 +254,7 @@ test('NoteUpdateWorkflow updates note before auto field grouping merge', async (
   let notesInfoCallCount = 0;
   harness.deps.getEffectiveSentenceCardConfig = () => ({
     sentenceField: 'Sentence',
+    lapisEnabled: false,
     kikuEnabled: true,
     kikuFieldGrouping: 'auto',
   });

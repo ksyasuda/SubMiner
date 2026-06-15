@@ -70,12 +70,72 @@ interface NoteInfo {
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = 'sentence' | 'audio';
+type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 function trimToNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function stripRubyReadingText(value: string): string {
+  return value
+    .replace(/<rt\b[^>]*>[\s\S]*?<\/rt>/gi, '')
+    .replace(/<rp\b[^>]*>[\s\S]*?<\/rp>/gi, '');
+}
+
+function stripHtmlTags(value: string): string {
+  return value.replace(/<[^>]+>/g, '');
+}
+
+function getVisibleFuriganaText(value: string): string {
+  return stripHtmlTags(stripRubyReadingText(value));
+}
+
+function boldMatchingFuriganaTerms(sentenceFurigana: string, highlightedText: string): string {
+  if (!sentenceFurigana || !highlightedText || /<b\b/i.test(sentenceFurigana)) {
+    return sentenceFurigana;
+  }
+
+  const spanRegex = /<span\b[^>]*>[\s\S]*?<\/span>/gi;
+  const spans: Array<{ start: number; end: number; visibleStart: number; visibleEnd: number }> = [];
+  let visibleSentence = '';
+  let match: RegExpExecArray | null;
+  while ((match = spanRegex.exec(sentenceFurigana)) !== null) {
+    const visibleStart = visibleSentence.length;
+    visibleSentence += getVisibleFuriganaText(match[0] || '');
+    spans.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      visibleStart,
+      visibleEnd: visibleSentence.length,
+    });
+  }
+
+  if (spans.length === 0) {
+    return sentenceFurigana.replace(highlightedText, `<b>${highlightedText}</b>`);
+  }
+
+  const highlightStart = visibleSentence.indexOf(highlightedText);
+  if (highlightStart === -1) {
+    return sentenceFurigana;
+  }
+  const highlightEnd = highlightStart + highlightedText.length;
+  const matchingSpans = spans.filter(
+    (span) => span.visibleEnd > highlightStart && span.visibleStart < highlightEnd,
+  );
+  if (matchingSpans.length === 0) {
+    return sentenceFurigana;
+  }
+
+  let result = sentenceFurigana;
+  for (const span of [...matchingSpans].reverse()) {
+    result = `${result.slice(0, span.start)}<b>${result.slice(
+      span.start,
+      span.end,
+    )}</b>${result.slice(span.end)}`;
+  }
+  return result;
 }
 
 function decodeURIComponentSafe(value: string): string {
@@ -461,6 +521,10 @@ export class AnkiIntegration {
       handleFieldGroupingManual: (originalNoteId, newNoteId, newNoteInfo, expression) =>
         this.handleFieldGroupingManual(originalNoteId, newNoteId, newNoteInfo, expression),
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
+      processSentenceFurigana: (sentenceFurigana, noteFields) =>
+        this.processSentenceFurigana(sentenceFurigana, noteFields),
+      setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
+        this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       getResolvedSentenceAudioFieldName: (noteInfo) =>
@@ -677,20 +741,25 @@ export class AnkiIntegration {
     return result;
   }
 
+  private getSentenceHighlightText(noteFields: Record<string, string>): string {
+    const sentenceFieldName = this.config.fields?.sentence?.toLowerCase() || 'sentence';
+    const existingSentence = noteFields[sentenceFieldName] || '';
+    return (
+      existingSentence.match(/<b>(.*?)<\/b>/)?.[1] ||
+      getPreferredWordValueFromExtractedFields(noteFields, this.config).trim()
+    );
+  }
+
   private processSentence(mpvSentence: string, noteFields: Record<string, string>): string {
     if (this.config.behavior?.highlightWord === false) {
       return mpvSentence;
     }
 
-    const sentenceFieldName = this.config.fields?.sentence?.toLowerCase() || 'sentence';
-    const existingSentence = noteFields[sentenceFieldName] || '';
-
-    const highlightMatch = existingSentence.match(/<b>(.*?)<\/b>/);
-    if (!highlightMatch || !highlightMatch[1]) {
+    const highlightedText = this.getSentenceHighlightText(noteFields);
+    if (!highlightedText) {
       return mpvSentence;
     }
 
-    const highlightedText = highlightMatch[1];
     const index = mpvSentence.indexOf(highlightedText);
 
     if (index === -1) {
@@ -700,6 +769,20 @@ export class AnkiIntegration {
     const prefix = mpvSentence.substring(0, index);
     const suffix = mpvSentence.substring(index + highlightedText.length);
     return `${prefix}<b>${highlightedText}</b>${suffix}`;
+  }
+
+  private processSentenceFurigana(
+    sentenceFurigana: string,
+    noteFields: Record<string, string>,
+  ): string {
+    if (this.config.behavior?.highlightWord === false) {
+      return sentenceFurigana;
+    }
+
+    const highlightedText = this.getSentenceHighlightText(noteFields);
+    return highlightedText
+      ? boldMatchingFuriganaTerms(sentenceFurigana, highlightedText)
+      : sentenceFurigana;
   }
 
   private consumeSubtitleMiningContext(): SubtitleMiningContext | null {
@@ -1029,6 +1112,30 @@ export class AnkiIntegration {
     cardKind: CardKind,
   ): void {
     const audioFlagNames = ['IsAudioCard'];
+
+    if (cardKind === 'word-and-sentence') {
+      const wordAndSentenceFlag = this.resolveFieldName(
+        availableFieldNames,
+        'IsWordAndSentenceCard',
+      );
+      if (!wordAndSentenceFlag) {
+        return;
+      }
+      updatedFields[wordAndSentenceFlag] = 'x';
+
+      const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
+      if (sentenceFlag && sentenceFlag !== wordAndSentenceFlag) {
+        updatedFields[sentenceFlag] = '';
+      }
+
+      for (const audioFlagName of audioFlagNames) {
+        const resolved = this.resolveFieldName(availableFieldNames, audioFlagName);
+        if (resolved && resolved !== wordAndSentenceFlag) {
+          updatedFields[resolved] = '';
+        }
+      }
+      return;
+    }
 
     if (cardKind === 'sentence') {
       const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');

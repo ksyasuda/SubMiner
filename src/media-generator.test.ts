@@ -14,23 +14,31 @@ async function withStubbedFfmpeg(
   const tempDir = path.join(root, 'media');
   const argsPath = path.join(root, 'ffmpeg-args.txt');
   fs.mkdirSync(binDir, { recursive: true });
-  const ffmpegPath = path.join(binDir, 'ffmpeg');
+  const ffmpegStubPath = path.join(binDir, 'ffmpeg-stub.cjs');
+  const ffmpegPath = path.join(binDir, process.platform === 'win32' ? 'ffmpeg.cmd' : 'ffmpeg');
   fs.writeFileSync(
-    ffmpegPath,
+    ffmpegStubPath,
     [
-      '#!/bin/sh',
-      'if [ "$1" = "-hide_banner" ] && [ "$2" = "-encoders" ]; then',
-      '  echo " V..... libaom-av1"',
-      '  exit 0',
-      'fi',
-      'printf "%s\\n" "$@" > "$SUBMINER_TEST_FFMPEG_ARGS"',
-      'out=""',
-      'for arg in "$@"; do out="$arg"; done',
-      'printf avif > "$out"',
+      "const fs = require('node:fs');",
+      'const args = process.argv.slice(2);',
+      "if (args[0] === '-hide_banner' && args[1] === '-encoders') {",
+      "  console.log(' V..... libaom-av1');",
+      '  process.exit(0);',
+      '}',
+      "fs.writeFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, `${args.join('\\n')}\\n`, 'utf8');",
+      'const outputPath = args.at(-1);',
+      "fs.writeFileSync(outputPath, 'avif', 'utf8');",
     ].join('\n'),
     'utf8',
   );
-  fs.chmodSync(ffmpegPath, 0o755);
+  const ffmpegStub =
+    process.platform === 'win32'
+      ? ['@echo off', `"${process.execPath}" "${ffmpegStubPath}" %*`].join('\r\n')
+      : ['#!/bin/sh', `exec "${process.execPath}" "${ffmpegStubPath}" "$@"`].join('\n');
+  fs.writeFileSync(ffmpegPath, ffmpegStub, 'utf8');
+  if (process.platform !== 'win32') {
+    fs.chmodSync(ffmpegPath, 0o755);
+  }
 
   const originalPath = process.env.PATH;
   const originalArgsPath = process.env.SUBMINER_TEST_FFMPEG_ARGS;
@@ -158,5 +166,19 @@ test('generateAudio clips leading padding without adding it to trailing duration
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-ss') + 1], '0');
     assert.equal(args[args.indexOf('-t') + 1], '1.7');
+  });
+});
+
+test('generateAudio recreates missing temp directory before invoking ffmpeg', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    const tempDir = (generator as unknown as { tempDir: string }).tempDir;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+
+    await generator.generateAudio('/video.mp4', 10, 12);
+
+    const args = readFfmpegArgs(argsPath);
+    const outputPath = args.at(-1);
+    assert.equal(typeof outputPath, 'string');
+    assert.equal(fs.existsSync(path.dirname(outputPath!)), true);
   });
 });

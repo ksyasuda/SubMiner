@@ -2035,6 +2035,76 @@ Aligned English subtitle
     });
   });
 
+  it('POST /api/stats/mine-card marks Kiku word mining notes as word-and-sentence cards when enabled', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+
+      await withFakeAnkiConnect(
+        async (requests, url) => {
+          const app = createStatsApp(createMockTracker(), {
+            addYomitanNote: async () => 777,
+            createMediaGenerator: () => ({
+              generateAudio: async () => null,
+              generateScreenshot: async () => null,
+              generateAnimatedImage: async () => null,
+            }),
+            ankiConnectConfig: {
+              url,
+              deck: 'Mining',
+              fields: {
+                image: 'Picture',
+                sentence: 'Sentence',
+              },
+              media: {
+                generateAudio: false,
+                generateImage: false,
+              },
+              isKiku: {
+                enabled: true,
+                fieldGrouping: 'disabled',
+                deleteDuplicateInAuto: true,
+              },
+            },
+          });
+
+          const res = await app.request('/api/stats/mine-card?mode=word', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourcePath,
+              startMs: 1_000,
+              endMs: 2_000,
+              sentence: '猫を見た',
+              word: '猫',
+              videoTitle: 'Episode 1',
+            }),
+          });
+
+          const body = await res.json();
+          assert.equal(res.status, 200, JSON.stringify(body));
+
+          const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
+          const fields = updateRequest?.params?.note?.fields ?? {};
+          assert.equal(fields.Sentence, '<b>猫</b>を見た');
+          assert.equal(fields.IsWordAndSentenceCard, 'x');
+          assert.equal(fields.IsSentenceCard, '');
+          assert.equal(fields.IsAudioCard, '');
+        },
+        {
+          notesInfoFields: {
+            Expression: { value: '猫' },
+            Sentence: { value: '' },
+            Picture: { value: '' },
+            IsWordAndSentenceCard: { value: '' },
+            IsSentenceCard: { value: '' },
+            IsAudioCard: { value: '' },
+          },
+        },
+      );
+    });
+  });
+
   it('POST /api/stats/mine-card writes word mining sentence audio and image together', async () => {
     await withTempDir(async (dir) => {
       const sourcePath = path.join(dir, 'episode.mkv');

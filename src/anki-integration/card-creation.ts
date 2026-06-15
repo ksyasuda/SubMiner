@@ -10,6 +10,7 @@ import { AiConfig } from '../types/integrations';
 import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
 import { resolveMediaGenerationInputPath } from './media-source';
+import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 
 const log = createLogger('anki').child('integration.card-creation');
 
@@ -18,7 +19,7 @@ export interface CardCreationNoteInfo {
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = 'sentence' | 'audio';
+type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 interface CardCreationClient {
   addNote(
@@ -219,7 +220,8 @@ export class CardCreationService {
           this.deps.getConfig(),
         );
         const sentenceAudioField = this.getResolvedSentenceOnlyAudioFieldName(noteInfo);
-        const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
+        const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
+        const sentenceField = sentenceCardConfig.sentenceField;
 
         const sentence = blocks.join(' ');
         const updatedFields: Record<string, string> = {};
@@ -230,6 +232,13 @@ export class CardCreationService {
         if (sentenceField) {
           const processedSentence = this.deps.processSentence(sentence, fields);
           updatedFields[sentenceField] = processedSentence;
+          if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
+            this.deps.setCardTypeFields(
+              updatedFields,
+              Object.keys(noteInfo.fields),
+              'word-and-sentence',
+            );
+          }
           updatePerformed = true;
         }
 

@@ -76,6 +76,11 @@ function expandUserPath(input: string): string {
   return input;
 }
 
+function trimToNull(input: string | null | undefined): string | null {
+  const trimmed = typeof input === 'string' ? input.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function isVideoFile(filePath: string): boolean {
   return hasVideoExtension(path.extname(filePath));
 }
@@ -195,8 +200,9 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     return dictionaryTarget.length > 0
       ? resolveDictionaryGuessInputs(dictionaryTarget)
       : {
-          mediaPath: deps.getCurrentMediaPath(),
-          mediaTitle: deps.getCurrentMediaTitle(),
+          mediaPath:
+            trimToNull(deps.getCurrentMediaPath()) ?? trimToNull(deps.getCurrentVideoPath?.()),
+          mediaTitle: trimToNull(deps.getCurrentMediaTitle()),
         };
   };
 
