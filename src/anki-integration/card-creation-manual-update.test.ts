@@ -6,6 +6,27 @@ import type { AnkiConnectConfig } from '../types/anki';
 
 type CardCreationDeps = ConstructorParameters<typeof CardCreationService>[0];
 
+function setWordAndSentenceCardTypeFields(
+  updatedFields: Record<string, string>,
+  availableFieldNames: string[],
+  cardKind: 'sentence' | 'audio' | 'word-and-sentence',
+): void {
+  if (cardKind !== 'word-and-sentence') return;
+
+  const resolveFieldName = (preferredName: string): string | null =>
+    availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ?? null;
+  const wordAndSentenceFlag = resolveFieldName('IsWordAndSentenceCard');
+  if (!wordAndSentenceFlag) return;
+
+  updatedFields[wordAndSentenceFlag] = 'x';
+  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
+    const resolved = resolveFieldName(flagName);
+    if (resolved && resolved !== wordAndSentenceFlag) {
+      updatedFields[resolved] = '';
+    }
+  }
+}
+
 function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
   service: CardCreationService;
   updatedFields: Record<string, string>[];
@@ -140,6 +161,72 @@ test('manual clipboard subtitle update replaces sentence audio without touching 
     mergeCalls.map((call) => call.overwrite),
     [true],
   );
+});
+
+test('manual clipboard subtitle update marks Kiku word cards as word-and-sentence cards when enabled', async () => {
+  const { service, updatedFields } = createManualUpdateService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Sentence',
+          audio: 'ExpressionAudio',
+        },
+        media: {
+          generateAudio: false,
+          generateImage: false,
+          maxMediaDuration: 30,
+        },
+        behavior: {
+          overwriteAudio: false,
+          overwriteImage: false,
+        },
+        ai: false,
+      }) as AnkiConnectConfig,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '単語' },
+            Sentence: { value: '' },
+            IsWordAndSentenceCard: { value: '' },
+            IsSentenceCard: { value: '' },
+            IsAudioCard: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+    },
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: false,
+      kikuEnabled: true,
+      kikuFieldGrouping: 'disabled',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    setCardTypeFields: setWordAndSentenceCardTypeFields,
+  });
+
+  await service.updateLastAddedFromClipboard('字幕');
+
+  assert.equal(updatedFields.length, 1);
+  assert.deepEqual(updatedFields[0], {
+    Sentence: '字幕',
+    IsWordAndSentenceCard: 'x',
+    IsSentenceCard: '',
+    IsAudioCard: '',
+  });
 });
 
 test('manual clipboard subtitle update skips audio when sentence audio field is missing', async () => {

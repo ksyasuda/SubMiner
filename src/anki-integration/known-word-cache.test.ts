@@ -94,7 +94,7 @@ test('KnownWordCacheManager startLifecycle keeps fresh persisted cache without i
       JSON.stringify({
         version: 2,
         refreshedAtMs: 120_000,
-        scope: '{"refreshMinutes":60,"scope":"is:note","fieldsWord":""}',
+        scope: '{"refreshMinutes":60,"scope":"all","fieldsWord":""}',
         words: ['猫'],
         notes: {
           '1': ['猫'],
@@ -143,7 +143,7 @@ test('KnownWordCacheManager startLifecycle immediately refreshes stale persisted
       JSON.stringify({
         version: 2,
         refreshedAtMs: 59_000,
-        scope: '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}',
+        scope: '{"refreshMinutes":1,"scope":"all","fieldsWord":"Word"}',
         words: ['猫'],
         notes: {
           '1': ['猫'],
@@ -229,7 +229,7 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
       JSON.stringify({
         version: 2,
         refreshedAtMs: 1,
-        scope: '{"refreshMinutes":1440,"scope":"is:note","fieldsWord":"Word"}',
+        scope: '{"refreshMinutes":1440,"scope":"all","fieldsWord":"Word"}',
         words: ['猫', '犬'],
         notes: {
           '1': ['猫'],
@@ -271,6 +271,36 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
     assert.deepEqual(persisted.notes, {
       '1': ['鳥'],
     });
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager uses empty query when no known-word deck is configured', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesByQuery.set('', [1]);
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '猫' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('猫'), true);
   } finally {
     cleanup();
   }
@@ -364,7 +394,7 @@ test('KnownWordCacheManager preserves cache state key captured before refresh wo
       scope: string;
       words: string[];
     };
-    assert.equal(persisted.scope, '{"refreshMinutes":1,"scope":"is:note","fieldsWord":"Word"}');
+    assert.equal(persisted.scope, '{"refreshMinutes":1,"scope":"all","fieldsWord":"Word"}');
     assert.deepEqual(persisted.words, ['猫']);
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
@@ -568,7 +598,7 @@ test('KnownWordCacheManager reports immediate append cache clears as mutations',
       JSON.stringify({
         version: 2,
         refreshedAtMs: Date.now(),
-        scope: '{"refreshMinutes":60,"scope":"is:note","fieldsWord":"Expression"}',
+        scope: '{"refreshMinutes":60,"scope":"all","fieldsWord":"Expression"}',
         words: ['猫'],
         notes: {
           '1': ['猫'],

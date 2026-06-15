@@ -204,6 +204,29 @@ function getStatsWordMiningAudioFieldName(
   );
 }
 
+function shouldUseStatsLapisKikuCardFields(ankiConfig: AnkiConnectConfig): boolean {
+  return ankiConfig.isLapis?.enabled === true || ankiConfig.isKiku?.enabled === true;
+}
+
+function applyStatsWordAndSentenceCardFields(
+  fields: Record<string, string>,
+  noteInfo: StatsServerNoteInfo | null,
+  ankiConfig: AnkiConnectConfig,
+): void {
+  if (!shouldUseStatsLapisKikuCardFields(ankiConfig) || !noteInfo) return;
+
+  const wordAndSentenceFlag = resolveStatsNoteFieldName(noteInfo, 'IsWordAndSentenceCard');
+  if (!wordAndSentenceFlag) return;
+
+  fields[wordAndSentenceFlag] = 'x';
+  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
+    const resolved = resolveStatsNoteFieldName(noteInfo, flagName);
+    if (resolved && resolved !== wordAndSentenceFlag) {
+      fields[resolved] = '';
+    }
+  }
+}
+
 function getStatsDirectMiningAudioFieldNames(
   ankiConfig: AnkiConnectConfig,
   noteInfo: StatsServerNoteInfo | null,
@@ -1299,7 +1322,11 @@ export function createStatsApp(
 
       let imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
       let noteInfo: StatsServerNoteInfo | null = null;
-      if (audioBuffer || (syncAnimatedImageToWordAudio && generateImage)) {
+      if (
+        audioBuffer ||
+        (syncAnimatedImageToWordAudio && generateImage) ||
+        shouldUseStatsLapisKikuCardFields(ankiConfig)
+      ) {
         try {
           const noteInfoResult = (await client.notesInfo([noteId])) as StatsServerNoteInfo[];
           noteInfo = noteInfoResult[0] ?? null;
@@ -1339,6 +1366,7 @@ export function createStatsApp(
       const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
 
       mediaFields[sentenceFieldName] = highlightedSentence;
+      applyStatsWordAndSentenceCardFields(mediaFields, noteInfo, ankiConfig);
 
       if (audioBuffer) {
         const audioFilename = `subminer_audio_${timestamp}.mp3`;

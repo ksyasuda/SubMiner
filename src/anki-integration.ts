@@ -70,7 +70,7 @@ interface NoteInfo {
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = 'sentence' | 'audio';
+type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 function trimToNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -461,6 +461,8 @@ export class AnkiIntegration {
       handleFieldGroupingManual: (originalNoteId, newNoteId, newNoteInfo, expression) =>
         this.handleFieldGroupingManual(originalNoteId, newNoteId, newNoteInfo, expression),
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
+      setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
+        this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       getResolvedSentenceAudioFieldName: (noteInfo) =>
@@ -1029,6 +1031,30 @@ export class AnkiIntegration {
     cardKind: CardKind,
   ): void {
     const audioFlagNames = ['IsAudioCard'];
+
+    if (cardKind === 'word-and-sentence') {
+      const wordAndSentenceFlag = this.resolveFieldName(
+        availableFieldNames,
+        'IsWordAndSentenceCard',
+      );
+      if (!wordAndSentenceFlag) {
+        return;
+      }
+      updatedFields[wordAndSentenceFlag] = 'x';
+
+      const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
+      if (sentenceFlag && sentenceFlag !== wordAndSentenceFlag) {
+        updatedFields[sentenceFlag] = '';
+      }
+
+      for (const audioFlagName of audioFlagNames) {
+        const resolved = this.resolveFieldName(availableFieldNames, audioFlagName);
+        if (resolved && resolved !== wordAndSentenceFlag) {
+          updatedFields[resolved] = '';
+        }
+      }
+      return;
+    }
 
     if (cardKind === 'sentence') {
       const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');

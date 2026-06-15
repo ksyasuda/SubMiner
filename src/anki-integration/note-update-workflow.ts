@@ -35,6 +35,7 @@ export interface NoteUpdateWorkflowDeps {
   getCurrentSubtitleStart: () => number | undefined;
   getEffectiveSentenceCardConfig: () => {
     sentenceField: string;
+    lapisEnabled: boolean;
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
   };
@@ -58,6 +59,11 @@ export interface NoteUpdateWorkflowDeps {
     expression: string,
   ) => Promise<boolean>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
+  setCardTypeFields: (
+    updatedFields: Record<string, string>,
+    availableFieldNames: string[],
+    cardKind: 'word-and-sentence',
+  ) => void;
   resolveConfiguredFieldName: (
     noteInfo: NoteUpdateWorkflowNoteInfo,
     ...preferredNames: (string | undefined)[]
@@ -109,6 +115,40 @@ function subtitleContextMatchesSentence(contextText: string, noteSentence: strin
     normalizedContext === normalizedSentence ||
     normalizedContext.includes(normalizedSentence) ||
     normalizedSentence.includes(normalizedContext)
+  );
+}
+
+function getNoteFieldValue(
+  noteInfo: NoteUpdateWorkflowNoteInfo,
+  preferredName: string,
+): string | null {
+  const resolvedFieldName = Object.keys(noteInfo.fields).find(
+    (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
+  );
+  return resolvedFieldName ? (noteInfo.fields[resolvedFieldName]?.value ?? '') : null;
+}
+
+function hasNoteFieldValue(noteInfo: NoteUpdateWorkflowNoteInfo, preferredName: string): boolean {
+  return (getNoteFieldValue(noteInfo, preferredName) ?? '').trim().length > 0;
+}
+
+function shouldMarkWordAndSentenceCard(
+  noteInfo: NoteUpdateWorkflowNoteInfo,
+  sentenceCardConfig: { lapisEnabled: boolean; kikuEnabled: boolean },
+): boolean {
+  if (!sentenceCardConfig.lapisEnabled && !sentenceCardConfig.kikuEnabled) {
+    return false;
+  }
+
+  const wordAndSentenceValue = getNoteFieldValue(noteInfo, 'IsWordAndSentenceCard');
+  if (wordAndSentenceValue === null) {
+    return false;
+  }
+  if (wordAndSentenceValue.trim().length > 0) {
+    return true;
+  }
+  return (
+    !hasNoteFieldValue(noteInfo, 'IsSentenceCard') && !hasNoteFieldValue(noteInfo, 'IsAudioCard')
   );
 }
 
@@ -189,6 +229,13 @@ export class NoteUpdateWorkflow {
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
+        if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
+          this.deps.setCardTypeFields(
+            updatedFields,
+            Object.keys(noteInfo.fields),
+            'word-and-sentence',
+          );
+        }
         updatePerformed = true;
       }
 

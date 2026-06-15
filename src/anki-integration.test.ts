@@ -95,7 +95,7 @@ function createIntegrationTestContext(
     knownWordsScope: string;
     knownWordsLastRefreshedAtMs: number;
   };
-  privateState.knownWordsScope = 'is:note';
+  privateState.knownWordsScope = 'all';
   privateState.knownWordsLastRefreshedAtMs = Date.now();
 
   return {

@@ -2561,6 +2561,10 @@ function clearWindowsVisibleOverlayForegroundPollLoop(): void {
   visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop();
 }
 
+function tickWindowsOverlayPointerInteractionNow(): void {
+  visibleOverlayInteractionRuntime.tickWindowsOverlayPointerInteractionNow();
+}
+
 function scheduleVisibleOverlayBlurRefresh(): void {
   visibleOverlayInteractionRuntime.scheduleVisibleOverlayBlurRefresh();
 }
@@ -5408,13 +5412,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (!mainWindow || senderWindow !== mainWindow) {
           return;
         }
-        if (visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive() === active) {
+        const previousActive =
+          visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive();
+        visibleOverlayInteractionRuntime.setVisibleOverlayInteractionActive(active);
+        if (previousActive === active) {
           if (active && process.platform === 'darwin' && !mainWindow.isFocused()) {
             overlayVisibilityRuntime.updateVisibleOverlayVisibility();
           }
           return;
         }
-        visibleOverlayInteractionRuntime.setVisibleOverlayInteractionActive(active);
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
       },
       onOverlayInteractiveHint: (interactive, senderWindow) => {
@@ -5614,6 +5620,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       reportOverlayContentBounds: (payload: unknown) => {
         if (overlayContentMeasurementStore.report(payload)) {
           tickLinuxOverlayPointerInteractionNow();
+          tickWindowsOverlayPointerInteractionNow();
           primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
           autoplayReadyGate.flushPendingAutoplayReadySignal();
           scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();

@@ -308,7 +308,7 @@ test('visible overlay content-ready does not tokenize before first measurement',
   );
 });
 
-test('accepted visible overlay measurement immediately refreshes Linux pointer interaction', () => {
+test('accepted visible overlay measurement immediately refreshes pointer interaction', () => {
   const source = readMainSource();
   const measurementBlock = source.match(
     /reportOverlayContentBounds:\s*\(payload: unknown\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
@@ -317,6 +317,7 @@ test('accepted visible overlay measurement immediately refreshes Linux pointer i
   assert.ok(measurementBlock);
   assert.match(measurementBlock, /overlayContentMeasurementStore\.report\(payload\)/);
   assert.match(measurementBlock, /tickLinuxOverlayPointerInteractionNow\(\)/);
+  assert.match(measurementBlock, /tickWindowsOverlayPointerInteractionNow\(\)/);
   assert.match(measurementBlock, /primeLinuxOverlayPointerInteractionAfterFirstMeasurement\(\)/);
   assert.ok(
     measurementBlock.indexOf('overlayContentMeasurementStore.report(payload)') <
@@ -324,6 +325,10 @@ test('accepted visible overlay measurement immediately refreshes Linux pointer i
   );
   assert.ok(
     measurementBlock.indexOf('tickLinuxOverlayPointerInteractionNow();') <
+      measurementBlock.indexOf('tickWindowsOverlayPointerInteractionNow();'),
+  );
+  assert.ok(
+    measurementBlock.indexOf('tickWindowsOverlayPointerInteractionNow();') <
       measurementBlock.indexOf('primeLinuxOverlayPointerInteractionAfterFirstMeasurement();'),
   );
 });

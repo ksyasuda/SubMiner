@@ -18,7 +18,7 @@ export interface CardCreationNoteInfo {
   fields: Record<string, { value: string }>;
 }
 
-type CardKind = 'sentence' | 'audio';
+type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 interface CardCreationClient {
   addNote(
@@ -115,6 +115,37 @@ interface CardCreationDeps {
   trackLastAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
   findDuplicateNoteIds?: (expression: string, noteInfo: CardCreationNoteInfo) => Promise<number[]>;
   recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
+}
+
+function getNoteFieldValue(noteInfo: CardCreationNoteInfo, preferredName: string): string | null {
+  const resolvedFieldName = Object.keys(noteInfo.fields).find(
+    (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
+  );
+  return resolvedFieldName ? (noteInfo.fields[resolvedFieldName]?.value ?? '') : null;
+}
+
+function hasNoteFieldValue(noteInfo: CardCreationNoteInfo, preferredName: string): boolean {
+  return (getNoteFieldValue(noteInfo, preferredName) ?? '').trim().length > 0;
+}
+
+function shouldMarkWordAndSentenceCard(
+  noteInfo: CardCreationNoteInfo,
+  sentenceCardConfig: { lapisEnabled: boolean; kikuEnabled: boolean },
+): boolean {
+  if (!sentenceCardConfig.lapisEnabled && !sentenceCardConfig.kikuEnabled) {
+    return false;
+  }
+
+  const wordAndSentenceValue = getNoteFieldValue(noteInfo, 'IsWordAndSentenceCard');
+  if (wordAndSentenceValue === null) {
+    return false;
+  }
+  if (wordAndSentenceValue.trim().length > 0) {
+    return true;
+  }
+  return (
+    !hasNoteFieldValue(noteInfo, 'IsSentenceCard') && !hasNoteFieldValue(noteInfo, 'IsAudioCard')
+  );
 }
 
 export class CardCreationService {
@@ -219,7 +250,8 @@ export class CardCreationService {
           this.deps.getConfig(),
         );
         const sentenceAudioField = this.getResolvedSentenceOnlyAudioFieldName(noteInfo);
-        const sentenceField = this.deps.getEffectiveSentenceCardConfig().sentenceField;
+        const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
+        const sentenceField = sentenceCardConfig.sentenceField;
 
         const sentence = blocks.join(' ');
         const updatedFields: Record<string, string> = {};
@@ -230,6 +262,13 @@ export class CardCreationService {
         if (sentenceField) {
           const processedSentence = this.deps.processSentence(sentence, fields);
           updatedFields[sentenceField] = processedSentence;
+          if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
+            this.deps.setCardTypeFields(
+              updatedFields,
+              Object.keys(noteInfo.fields),
+              'word-and-sentence',
+            );
+          }
           updatePerformed = true;
         }
 
