@@ -137,6 +137,7 @@ export type CharacterDictionaryManualSelectionResult = {
 export interface CharacterDictionaryRuntimeDeps {
   userDataPath: string;
   getCurrentMediaPath: () => string | null;
+  getCurrentVideoPath?: () => string | null | undefined;
   getCurrentMediaTitle: () => string | null;
   resolveMediaPathForJimaku: (mediaPath: string | null) => string | null;
   guessAnilistMediaInfo: (

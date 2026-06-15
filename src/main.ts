@@ -2244,6 +2244,7 @@ const mediaRuntime = createMediaRuntimeService(
 const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   userDataPath: USER_DATA_PATH,
   getCurrentMediaPath: () => appState.currentMediaPath,
+  getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath,
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),

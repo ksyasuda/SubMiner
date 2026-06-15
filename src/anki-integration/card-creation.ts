@@ -10,6 +10,7 @@ import { AiConfig } from '../types/integrations';
 import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
 import { resolveMediaGenerationInputPath } from './media-source';
+import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 
 const log = createLogger('anki').child('integration.card-creation');
 
@@ -115,37 +116,6 @@ interface CardCreationDeps {
   trackLastAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
   findDuplicateNoteIds?: (expression: string, noteInfo: CardCreationNoteInfo) => Promise<number[]>;
   recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
-}
-
-function getNoteFieldValue(noteInfo: CardCreationNoteInfo, preferredName: string): string | null {
-  const resolvedFieldName = Object.keys(noteInfo.fields).find(
-    (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
-  );
-  return resolvedFieldName ? (noteInfo.fields[resolvedFieldName]?.value ?? '') : null;
-}
-
-function hasNoteFieldValue(noteInfo: CardCreationNoteInfo, preferredName: string): boolean {
-  return (getNoteFieldValue(noteInfo, preferredName) ?? '').trim().length > 0;
-}
-
-function shouldMarkWordAndSentenceCard(
-  noteInfo: CardCreationNoteInfo,
-  sentenceCardConfig: { lapisEnabled: boolean; kikuEnabled: boolean },
-): boolean {
-  if (!sentenceCardConfig.lapisEnabled && !sentenceCardConfig.kikuEnabled) {
-    return false;
-  }
-
-  const wordAndSentenceValue = getNoteFieldValue(noteInfo, 'IsWordAndSentenceCard');
-  if (wordAndSentenceValue === null) {
-    return false;
-  }
-  if (wordAndSentenceValue.trim().length > 0) {
-    return true;
-  }
-  return (
-    !hasNoteFieldValue(noteInfo, 'IsSentenceCard') && !hasNoteFieldValue(noteInfo, 'IsAudioCard')
-  );
 }
 
 export class CardCreationService {

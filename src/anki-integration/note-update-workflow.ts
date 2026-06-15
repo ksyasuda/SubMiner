@@ -1,6 +1,7 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 import type { SubtitleMiningContext } from '../types/subtitle';
+import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -115,40 +116,6 @@ function subtitleContextMatchesSentence(contextText: string, noteSentence: strin
     normalizedContext === normalizedSentence ||
     normalizedContext.includes(normalizedSentence) ||
     normalizedSentence.includes(normalizedContext)
-  );
-}
-
-function getNoteFieldValue(
-  noteInfo: NoteUpdateWorkflowNoteInfo,
-  preferredName: string,
-): string | null {
-  const resolvedFieldName = Object.keys(noteInfo.fields).find(
-    (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
-  );
-  return resolvedFieldName ? (noteInfo.fields[resolvedFieldName]?.value ?? '') : null;
-}
-
-function hasNoteFieldValue(noteInfo: NoteUpdateWorkflowNoteInfo, preferredName: string): boolean {
-  return (getNoteFieldValue(noteInfo, preferredName) ?? '').trim().length > 0;
-}
-
-function shouldMarkWordAndSentenceCard(
-  noteInfo: NoteUpdateWorkflowNoteInfo,
-  sentenceCardConfig: { lapisEnabled: boolean; kikuEnabled: boolean },
-): boolean {
-  if (!sentenceCardConfig.lapisEnabled && !sentenceCardConfig.kikuEnabled) {
-    return false;
-  }
-
-  const wordAndSentenceValue = getNoteFieldValue(noteInfo, 'IsWordAndSentenceCard');
-  if (wordAndSentenceValue === null) {
-    return false;
-  }
-  if (wordAndSentenceValue.trim().length > 0) {
-    return true;
-  }
-  return (
-    !hasNoteFieldValue(noteInfo, 'IsSentenceCard') && !hasNoteFieldValue(noteInfo, 'IsAudioCard')
   );
 }
 
