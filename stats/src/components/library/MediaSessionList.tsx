@@ -41,7 +41,9 @@ export function MediaSessionList({
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-ctp-text">{t('stats.mediaSessionList.sessionHistory')}</h3>
+      <h3 className="text-sm font-semibold text-ctp-text">
+        {t('stats.mediaSessionList.sessionHistory')}
+      </h3>
       {sessions.map((s) => (
         <div key={s.sessionId}>
           <SessionRow

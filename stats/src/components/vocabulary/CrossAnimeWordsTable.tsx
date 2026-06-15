@@ -142,7 +142,9 @@ export function CrossAnimeWordsTable({
           >
             {t('stats.crossAnime.hideKana')}
           </button>
-          <span className="text-xs text-ctp-overlay2">{t('stats.crossAnime.wordCount', { count: ranked.length })}</span>
+          <span className="text-xs text-ctp-overlay2">
+            {t('stats.crossAnime.wordCount', { count: ranked.length })}
+          </span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
@@ -160,9 +162,15 @@ export function CrossAnimeWordsTable({
               <thead>
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
                   <th className="text-left py-2 pr-3 font-medium">{t('stats.crossAnime.word')}</th>
-                  <th className="text-left py-2 pr-3 font-medium">{t('stats.crossAnime.reading')}</th>
-                  <th className="text-left py-2 pr-3 font-medium w-20">{t('stats.crossAnime.pos')}</th>
-                  <th className="text-right py-2 pr-3 font-medium w-16">{t('stats.crossAnime.titles')}</th>
+                  <th className="text-left py-2 pr-3 font-medium">
+                    {t('stats.crossAnime.reading')}
+                  </th>
+                  <th className="text-left py-2 pr-3 font-medium w-20">
+                    {t('stats.crossAnime.pos')}
+                  </th>
+                  <th className="text-right py-2 pr-3 font-medium w-16">
+                    {t('stats.crossAnime.titles')}
+                  </th>
                   <th className="text-right py-2 font-medium w-16">{t('stats.crossAnime.seen')}</th>
                 </tr>
               </thead>

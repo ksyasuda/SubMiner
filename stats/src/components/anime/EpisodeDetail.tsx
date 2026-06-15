@@ -96,7 +96,8 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
     onSessionDeleted?.();
   };
 
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-3">{t('stats.mediaDetail.loading')}</div>;
+  if (loading)
+    return <div className="text-ctp-overlay2 text-xs p-3">{t('stats.mediaDetail.loading')}</div>;
   if (!data)
     return (
       <div className="text-ctp-overlay2 text-xs p-3">

@@ -35,7 +35,9 @@ export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): ()
       confirmed = await opts.confirmFn(opts.title);
     } catch (err) {
       if (opts.isDeletingRef) opts.isDeletingRef.current = false;
-      opts.setDeleteError(err instanceof Error ? err.message : opts.t('stats.media.failedConfirmDelete'));
+      opts.setDeleteError(
+        err instanceof Error ? err.message : opts.t('stats.media.failedConfirmDelete'),
+      );
       return;
     }
     if (!confirmed) {
@@ -48,7 +50,9 @@ export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): ()
       await opts.apiClient.deleteVideo(opts.videoId);
       opts.onBack();
     } catch (err) {
-      opts.setDeleteError(err instanceof Error ? err.message : opts.t('stats.media.failedDeleteEpisode'));
+      opts.setDeleteError(
+        err instanceof Error ? err.message : opts.t('stats.media.failedDeleteEpisode'),
+      );
     } finally {
       if (opts.isDeletingRef) opts.isDeletingRef.current = false;
       opts.setIsDeleting?.(false);
@@ -100,8 +104,12 @@ export function MediaDetailView({
   }, [data?.sessions]);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.mediaDetail.loading')}</div>;
-  if (error) return <div className="text-ctp-red p-4">{t('stats.mediaDetail.error', { message: error })}</div>;
-  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">{t('stats.mediaDetail.notFound')}</div>;
+  if (error)
+    return (
+      <div className="text-ctp-red p-4">{t('stats.mediaDetail.error', { message: error })}</div>
+    );
+  if (!data?.detail)
+    return <div className="text-ctp-overlay2 p-4">{t('stats.mediaDetail.notFound')}</div>;
 
   const sessions = localSessions ?? data.sessions;
   const animeId = data.detail.animeId;
@@ -180,7 +188,10 @@ export function MediaDetailView({
             onClick={() => onNavigateToAnime(animeId)}
             className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
           >
-            {relatedCollectionLabel === 'channel' ? t('stats.media.viewChannel') : t('stats.media.viewAnime')} &rarr;
+            {relatedCollectionLabel === 'channel'
+              ? t('stats.media.viewChannel')
+              : t('stats.media.viewAnime')}{' '}
+            &rarr;
           </button>
         ) : null}
       </div>

@@ -211,7 +211,8 @@ export function SessionsTab({
   };
 
   if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.sessions')}</div>;
-  if (error) return <div className="text-ctp-red p-4">{t('stats.sessions.error', { message: error })}</div>;
+  if (error)
+    return <div className="text-ctp-red p-4">{t('stats.sessions.error', { message: error })}</div>;
 
   return (
     <div className="space-y-4">
@@ -265,7 +266,8 @@ export function SessionsTab({
 
                 const bucketBodyId = `session-bucket-${bucket.key}`;
                 const isExpanded = expandedBuckets.has(bucket.key);
-                const title = bucket.representativeSession.canonicalTitle ?? t('stats.sessions.unknownMedia');
+                const title =
+                  bucket.representativeSession.canonicalTitle ?? t('stats.sessions.unknownMedia');
                 const deleteDisabled = deletingBucketKey === bucket.key;
                 return (
                   <div key={bucket.key}>
@@ -300,8 +302,11 @@ export function SessionsTab({
                         type="button"
                         onClick={() => void handleDeleteBucket(bucket)}
                         disabled={deleteDisabled}
-                aria-label={t('stats.sessions.deleteBucketAria', { count: bucket.sessions.length, title })}
-                title={t('stats.sessions.deleteBucketTitle')}
+                        aria-label={t('stats.sessions.deleteBucketAria', {
+                          count: bucket.sessions.length,
+                          title,
+                        })}
+                        title={t('stats.sessions.deleteBucketTitle')}
                         className="shrink-0 w-8 rounded-lg border border-ctp-surface1 bg-ctp-surface0 text-ctp-overlay2 hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 focus:opacity-100"
                       >
                         {'\u2715'}

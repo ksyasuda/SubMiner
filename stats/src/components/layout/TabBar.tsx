@@ -28,10 +28,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  const tabs = useMemo<Tab[]>(
-    () => TAB_IDS.map((id) => ({ id, i18nKey: TAB_KEYS[id] })),
-    [],
-  );
+  const tabs = useMemo<Tab[]>(() => TAB_IDS.map((id) => ({ id, i18nKey: TAB_KEYS[id] })), []);
 
   const activateAtIndex = (index: number) => {
     const tab = tabs[index];

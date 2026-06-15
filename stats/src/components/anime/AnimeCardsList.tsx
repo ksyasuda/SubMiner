@@ -25,7 +25,10 @@ export function AnimeCardsList({ episodes, totalCards }: AnimeCardsListProps) {
   const withCards = episodes.filter((ep) => ep.totalCards > 0);
 
   return (
-    <CollapsibleSection title={t('stats.anime.cardsMined', { count: totalCards })} defaultOpen={false}>
+    <CollapsibleSection
+      title={t('stats.anime.cardsMined', { count: totalCards })}
+      defaultOpen={false}
+    >
       <table className="w-full text-sm">
         <thead>
           <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">

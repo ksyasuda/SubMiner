@@ -153,8 +153,14 @@ export function AnimeDetailView({
   }, [animeId]);
 
   if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.library')}</div>;
-  if (error) return <div className="text-ctp-red p-4">{t('stats.errorPrefix')}: {error}</div>;
-  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">{t('stats.anime.notFound')}</div>;
+  if (error)
+    return (
+      <div className="text-ctp-red p-4">
+        {t('stats.errorPrefix')}: {error}
+      </div>
+    );
+  if (!data?.detail)
+    return <div className="text-ctp-overlay2 p-4">{t('stats.anime.notFound')}</div>;
 
   const { detail, episodes, anilistEntries } = data;
   return (

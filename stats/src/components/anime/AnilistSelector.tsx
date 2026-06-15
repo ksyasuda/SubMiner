@@ -114,7 +114,9 @@ export function AnilistSelector({
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {loading && <div className="text-xs text-ctp-overlay2 p-3">{t('stats.anilist.searching')}</div>}
+          {loading && (
+            <div className="text-xs text-ctp-overlay2 p-3">{t('stats.anilist.searching')}</div>
+          )}
           {!loading && results.length === 0 && query.trim() && (
             <div className="text-xs text-ctp-overlay2 p-3">{t('stats.anilist.noResults')}</div>
           )}
@@ -150,7 +152,9 @@ export function AnilistSelector({
               {linking === media.id ? (
                 <span className="text-xs text-ctp-blue shrink-0">{t('stats.anilist.linking')}</span>
               ) : (
-                <span className="text-xs text-ctp-overlay2 shrink-0">{t('stats.anilist.select')}</span>
+                <span className="text-xs text-ctp-overlay2 shrink-0">
+                  {t('stats.anilist.select')}
+                </span>
               )}
             </button>
           ))}

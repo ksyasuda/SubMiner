@@ -73,11 +73,19 @@ export function EpisodeList({
               <th className="w-6 py-2 pr-1 font-medium" />
               <th className="text-left py-2 pr-3 font-medium">#</th>
               <th className="text-left py-2 pr-3 font-medium">{t('stats.episode.col.title')}</th>
-              <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.progress')}</th>
-              <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.watchTime')}</th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.progress')}
+              </th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.watchTime')}
+              </th>
               <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.cards')}</th>
-              <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.lookupRate')}</th>
-              <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.lastWatched')}</th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.lookupRate')}
+              </th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.lastWatched')}
+              </th>
               <th className="w-28 py-2 font-medium" />
             </tr>
           </thead>

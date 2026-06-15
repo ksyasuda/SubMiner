@@ -151,7 +151,11 @@ export function SearchTab() {
               {loading ? '...' : results.length}
             </div>
             <div className="mt-1 text-[11px] uppercase tracking-wide text-ctp-overlay1">
-              {loading ? t('stats.search.matches') : results.length === 1 ? t('stats.search.match') : t('stats.search.matches')}
+              {loading
+                ? t('stats.search.matches')
+                : results.length === 1
+                  ? t('stats.search.match')
+                  : t('stats.search.matches')}
             </div>
           </div>
         </div>
@@ -236,7 +240,7 @@ export function SearchTab() {
                     )}
                     <button
                       type="button"
-                        title={sentenceDisabledReason || t('stats.search.createSentenceCard')}
+                      title={sentenceDisabledReason || t('stats.search.createSentenceCard')}
                       className="rounded-md border border-ctp-green/50 px-3 py-1.5 text-xs font-medium text-ctp-green transition hover:bg-ctp-green/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
                       disabled={sentenceStatus?.loading || !availability.canMineSentence}
                       onClick={() => void handleMine(result, index, 'sentence')}
@@ -244,7 +248,7 @@ export function SearchTab() {
                       {buttonLabel(
                         'sentence',
                         sentenceStatus,
-                         availability.canMineSentence ? '' : t('stats.search.unavailable'),
+                        availability.canMineSentence ? '' : t('stats.search.unavailable'),
                       )}
                     </button>
                     {availability.exactMatch && (

@@ -27,9 +27,7 @@ export function DeleteProgressToast({ count }: DeleteProgressToastProps) {
         aria-hidden="true"
         className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ctp-surface2 border-t-ctp-red"
       />
-      <span className="text-sm text-ctp-text">
-        {t('stats.delete.deleting', { count })}
-      </span>
+      <span className="text-sm text-ctp-text">{t('stats.delete.deleting', { count })}</span>
     </div>
   );
 }

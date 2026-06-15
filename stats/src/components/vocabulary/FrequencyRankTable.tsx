@@ -89,9 +89,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
         <h3 className="text-sm font-semibold text-ctp-text mb-2">{t('stats.frequency.title')}</h3>
-        <div className="text-xs text-ctp-overlay2">
-          {t('stats.frequency.noFrequencyData')}
-        </div>
+        <div className="text-xs text-ctp-overlay2">{t('stats.frequency.noFrequencyData')}</div>
       </div>
     );
   }
@@ -112,7 +110,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           >
             {'\u25B6'}
           </span>
-          {hideKnown && hasKnownData ? t('stats.frequency.commonWordsNotYetMined') : t('stats.frequency.title')}
+          {hideKnown && hasKnownData
+            ? t('stats.frequency.commonWordsNotYetMined')
+            : t('stats.frequency.title')}
         </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {hasKnownData && (
@@ -151,7 +151,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           >
             {t('stats.frequency.hideKana')}
           </button>
-          <span className="text-xs text-ctp-overlay2">{t('stats.frequency.wordCount', { count: ranked.length })}</span>
+          <span className="text-xs text-ctp-overlay2">
+            {t('stats.frequency.wordCount', { count: ranked.length })}
+          </span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
@@ -168,9 +170,13 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
-                  <th className="text-left py-2 pr-3 font-medium w-16">{t('stats.frequency.rank')}</th>
+                  <th className="text-left py-2 pr-3 font-medium w-16">
+                    {t('stats.frequency.rank')}
+                  </th>
                   <th className="text-left py-2 pr-3 font-medium">{t('stats.frequency.word')}</th>
-                  <th className="text-left py-2 pr-3 font-medium w-20">{t('stats.frequency.pos')}</th>
+                  <th className="text-left py-2 pr-3 font-medium w-20">
+                    {t('stats.frequency.pos')}
+                  </th>
                   <th className="text-right py-2 font-medium w-20">{t('stats.frequency.seen')}</th>
                 </tr>
               </thead>

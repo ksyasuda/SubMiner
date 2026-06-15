@@ -125,9 +125,7 @@ export function MediaHeader({
                 {formatNumber(knownWordsSummary.knownWordCount)} /{' '}
                 {formatNumber(knownWordsSummary.totalUniqueWords)}
               </div>
-              <div className="text-xs text-ctp-overlay2">
-                {t('stats.media.knownUniqueWords')}
-              </div>
+              <div className="text-xs text-ctp-overlay2">{t('stats.media.knownUniqueWords')}</div>
             </div>
           ) : (
             <div>

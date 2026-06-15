@@ -261,8 +261,14 @@ export function SessionDetail({ session }: SessionDetailProps) {
     void getStatsClient().ankiBrowse(noteId);
   };
 
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">{t('stats.loading.timeline')}</div>;
-  if (error) return <div className="text-ctp-red text-xs p-2">{t('stats.errorPrefix')}: {error}</div>;
+  if (loading)
+    return <div className="text-ctp-overlay2 text-xs p-2">{t('stats.loading.timeline')}</div>;
+  if (error)
+    return (
+      <div className="text-ctp-red text-xs p-2">
+        {t('stats.errorPrefix')}: {error}
+      </div>
+    );
 
   if (hasKnownWords) {
     return (
@@ -284,7 +290,8 @@ export function SessionDetail({ session }: SessionDetailProps) {
         cardEventCount={cardEventCount}
         lookupRate={lookupRate}
         session={session}
-        t={t} />
+        t={t}
+      />
     );
   }
 
@@ -437,7 +444,8 @@ function RatioView({
                   const knownPct = d.totalWords === 0 ? 0 : (d.knownWords / d.totalWords) * 100;
                   return [`${d.knownWords.toLocaleString()} (${knownPct.toFixed(1)}%)`, name];
                 }
-                if (name === t('stats.sessions.unknownWords')) return [d.unknownWords.toLocaleString(), name];
+                if (name === t('stats.sessions.unknownWords'))
+                  return [d.unknownWords.toLocaleString(), name];
                 return [_value, name];
               }}
               itemSorter={() => -1}
@@ -529,7 +537,9 @@ function RatioView({
 
       {/* ── Bottom: Token accumulation sparkline ── */}
       <div className="flex items-center gap-2 border-t border-ctp-surface1 pt-1">
-        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">{t('stats.sessions.totalWords')}</span>
+        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">
+          {t('stats.sessions.totalWords')}
+        </span>
         <div className="flex-1 h-[28px]">
           <ResponsiveContainer width="100%" height={28}>
             <LineChart data={sparkData}>
@@ -659,7 +669,10 @@ function FallbackView({
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={formatTime}
-              formatter={(value: number) => [`${value.toLocaleString()}`, t('stats.sessions.totalWords')]}
+              formatter={(value: number) => [
+                `${value.toLocaleString()}`,
+                t('stats.sessions.totalWords'),
+              ]}
             />
 
             {pauseRegions.map((r, i) => (
@@ -794,7 +807,8 @@ function StatsBar({
       </span>
       {lookupRate && (
         <span className="text-ctp-overlay2">
-          {t('stats.sessions.lookupRate')}: <span className="text-ctp-sapphire">{lookupRate.shortValue}</span>{' '}
+          {t('stats.sessions.lookupRate')}:{' '}
+          <span className="text-ctp-sapphire">{lookupRate.shortValue}</span>{' '}
           <span className="text-ctp-subtext0">({lookupRate.longValue})</span>
         </span>
       )}

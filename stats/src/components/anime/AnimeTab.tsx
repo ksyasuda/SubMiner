@@ -104,7 +104,12 @@ export function AnimeTab({
   }
 
   if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.library')}</div>;
-  if (error) return <div className="text-ctp-red p-4">{t('stats.errorPrefix')}: {error}</div>;
+  if (error)
+    return (
+      <div className="text-ctp-red p-4">
+        {t('stats.errorPrefix')}: {error}
+      </div>
+    );
 
   return (
     <div className="space-y-4">
@@ -122,9 +127,9 @@ export function AnimeTab({
           className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
         >
           {SORT_OPTIONS.map((opt) => (
-              <option key={opt.key} value={opt.key}>
-                {t(`stats.anime.sort.${opt.key}`)}
-              </option>
+            <option key={opt.key} value={opt.key}>
+              {t(`stats.anime.sort.${opt.key}`)}
+            </option>
           ))}
         </select>
         <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1 shrink-0">
