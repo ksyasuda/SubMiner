@@ -96,6 +96,7 @@ test('detectSupportAssetDataDirs only returns Linux support-asset locations', ()
 test('buildProtectedSupportAssetsCommand installs both theme and plugin assets', () => {
   const command = buildProtectedSupportAssetsCommand(
     "https://example.test/subminer assets.tar.gz?sig='abc'",
+    'ABCDEF1234',
     "/usr/local/share/SubMiner's data",
   );
 
@@ -104,6 +105,10 @@ test('buildProtectedSupportAssetsCommand installs both theme and plugin assets',
   assert.match(
     command,
     /curl -fSL 'https:\/\/example\.test\/subminer assets\.tar\.gz\?sig='\\''abc'\\''' -o "\$tmp\/subminer-assets\.tar\.gz"/,
+  );
+  assert.match(
+    command,
+    /printf '%s  %s\\n' 'abcdef1234' "\$tmp\/subminer-assets\.tar\.gz" \| sha256sum -c -/,
   );
   assert.match(command, /sudo mkdir -p '\/usr\/local\/share\/SubMiner'\\''s data'\/themes/);
   assert.match(
@@ -278,6 +283,58 @@ test('updateSupportAssetsFromRelease preserves existing plugin when staged repla
       fs.readFileSync(path.join(pluginDir, 'version.lua'), 'utf8'),
       'return {\n\tversion = "0.11.0",\n}\n',
     );
+  } finally {
+    fs.rmSync(xdgDataHome, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('updateSupportAssetsFromRelease reports both activation and rollback failures', async () => {
+  const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-xdg-data-'));
+  const dataDir = path.posix.join(xdgDataHome, 'SubMiner');
+  const pluginDir = path.join(dataDir, 'plugin/subminer');
+  fs.mkdirSync(path.join(dataDir, 'themes'), { recursive: true });
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'same theme\n');
+  fs.writeFileSync(path.join(pluginDir, 'main.lua'), 'old plugin\n');
+  fs.writeFileSync(path.join(pluginDir, 'version.lua'), 'return {\n\tversion = "0.11.0",\n}\n');
+  const { archive, tempDir } = makeSupportAssetsArchive({
+    themeContent: 'same theme\n',
+    pluginVersion: '0.12.0',
+  });
+
+  try {
+    const originalRename = fs.promises.rename;
+    fs.promises.rename = async (...args: Parameters<typeof fs.promises.rename>) => {
+      const sourcePath = String(args[0]);
+      const targetPath = String(args[1]);
+      if (sourcePath.endsWith(`${path.sep}subminer.next`)) {
+        throw new Error('activate failed');
+      }
+      if (
+        sourcePath.endsWith(`${path.sep}subminer.bak`) &&
+        targetPath.endsWith(`${path.sep}subminer`)
+      ) {
+        throw new Error('rollback failed');
+      }
+      return originalRename(...args);
+    };
+    try {
+      await assert.rejects(
+        () =>
+          runLinuxSupportAssetUpdate({
+            archive,
+            xdgDataHome,
+          }),
+        (error) =>
+          error instanceof AggregateError &&
+          /failed to activate staged plugin/i.test(error.message) &&
+          error.errors.some((nested) => String(nested).includes('activate failed')) &&
+          error.errors.some((nested) => String(nested).includes('rollback failed')),
+      );
+    } finally {
+      fs.promises.rename = originalRename;
+    }
   } finally {
     fs.rmSync(xdgDataHome, { recursive: true, force: true });
     fs.rmSync(tempDir, { recursive: true, force: true });

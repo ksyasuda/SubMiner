@@ -98,7 +98,14 @@ async function replacePluginDir(sourcePluginDir: string, targetPluginDir: string
     await fs.promises.rename(stagedDir, targetPluginDir);
   } catch (err) {
     if (targetExists) {
-      await fs.promises.rename(backupDir, targetPluginDir).catch(() => {});
+      try {
+        await fs.promises.rename(backupDir, targetPluginDir);
+      } catch (rollbackErr) {
+        throw new AggregateError(
+          [err, rollbackErr],
+          'Failed to activate staged plugin and failed to restore previous plugin directory.',
+        );
+      }
     }
     throw err;
   }
@@ -140,15 +147,21 @@ export function detectSupportAssetDataDirs(options: {
   return [];
 }
 
-export function buildProtectedSupportAssetsCommand(assetUrl: string, dataDir: string): string {
+export function buildProtectedSupportAssetsCommand(
+  assetUrl: string,
+  expectedSha256: string,
+  dataDir: string,
+): string {
   const quotedDir = shellQuote(dataDir);
   const quotedPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer'));
   const quotedStagedPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer.next'));
   const quotedBackupPluginDir = shellQuote(path.posix.join(dataDir, 'plugin/subminer.bak'));
+  const quotedExpectedSha256 = shellQuote(expectedSha256.toLowerCase());
   return [
     'tmp=$(mktemp -d)',
     'trap \'rm -rf "$tmp"\' EXIT',
     `curl -fSL ${shellQuote(assetUrl)} -o "$tmp/subminer-assets.tar.gz"`,
+    `printf '%s  %s\\n' ${quotedExpectedSha256} "$tmp/subminer-assets.tar.gz" | sha256sum -c -`,
     'tar -xzf "$tmp/subminer-assets.tar.gz" -C "$tmp"',
     `sudo mkdir -p ${quotedDir}/themes`,
     `sudo cp "$tmp/assets/themes/subminer.rasi" ${quotedDir}/themes/subminer.rasi`,
@@ -218,7 +231,11 @@ export async function updateSupportAssetsFromRelease(options: {
       continue;
     }
 
-    const command = buildProtectedSupportAssetsCommand(asset.browser_download_url, dataDir);
+    const command = buildProtectedSupportAssetsCommand(
+      asset.browser_download_url,
+      expectedSha256,
+      dataDir,
+    );
     results.push(
       makeSupportAssetResult(
         'protected',

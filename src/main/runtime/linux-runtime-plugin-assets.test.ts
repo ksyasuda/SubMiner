@@ -17,6 +17,24 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T> | T): Promise<T> {
   }
 }
 
+async function withProcessResourcesPath<T>(
+  resourcesPath: string,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const processWithResources = process as NodeJS.Process & { resourcesPath?: string };
+  const previousResourcesPath = processWithResources.resourcesPath;
+  processWithResources.resourcesPath = resourcesPath;
+  try {
+    return await fn();
+  } finally {
+    if (previousResourcesPath === undefined) {
+      Reflect.deleteProperty(processWithResources, 'resourcesPath');
+    } else {
+      processWithResources.resourcesPath = previousResourcesPath;
+    }
+  }
+}
+
 test('resolveManagedLinuxRuntimePluginPaths resolves XDG data target paths', () => {
   const resolved = resolveManagedLinuxRuntimePluginPaths({
     homeDir: '/home/tester',
@@ -31,6 +49,30 @@ test('resolveManagedLinuxRuntimePluginPaths resolves XDG data target paths', () 
     pluginConfigPath: '/tmp/xdg-data/SubMiner/plugin/subminer.conf',
     themePath: '/tmp/xdg-data/SubMiner/themes/subminer.rasi',
   });
+});
+
+test('resolveManagedLinuxRuntimePluginPaths treats blank XDG data homes as unset', () => {
+  const previousXdgDataHome = process.env.XDG_DATA_HOME;
+  try {
+    delete process.env.XDG_DATA_HOME;
+    const emptyOption = resolveManagedLinuxRuntimePluginPaths({
+      homeDir: '/home/tester',
+      xdgDataHome: '',
+    });
+    assert.equal(emptyOption.dataDir, path.join('/home/tester', '.local', 'share', 'SubMiner'));
+
+    process.env.XDG_DATA_HOME = '   ';
+    const blankEnv = resolveManagedLinuxRuntimePluginPaths({
+      homeDir: '/home/tester',
+    });
+    assert.equal(blankEnv.dataDir, path.join('/home/tester', '.local', 'share', 'SubMiner'));
+  } finally {
+    if (previousXdgDataHome === undefined) {
+      delete process.env.XDG_DATA_HOME;
+    } else {
+      process.env.XDG_DATA_HOME = previousXdgDataHome;
+    }
+  }
 });
 
 test('ensureLinuxRuntimePluginAssets installs managed plugin dir, config, and rofi theme when missing', async () => {
@@ -124,6 +166,160 @@ test('ensureLinuxRuntimePluginAssets installs managed theme when plugin assets a
   });
 });
 
+test('ensureLinuxRuntimePluginAssets installs managed theme without resolving plugin sources when plugin assets already exist', async () => {
+  await withTempDir(async (tempDir) => {
+    const themeSourcePath = path.join(tempDir, 'source', 'assets', 'themes', 'subminer.rasi');
+    const xdgDataHome = path.join(tempDir, 'xdg-data');
+    const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
+    fs.mkdirSync(path.dirname(themeSourcePath), { recursive: true });
+    fs.mkdirSync(path.join(targetRoot, 'subminer'), { recursive: true });
+    fs.writeFileSync(themeSourcePath, '/* theme */\n');
+    fs.writeFileSync(path.join(targetRoot, 'subminer', 'main.lua'), '-- existing plugin\n');
+    fs.writeFileSync(path.join(targetRoot, 'subminer.conf'), 'configured=true\n');
+
+    const result = await ensureLinuxRuntimePluginAssets({
+      platform: 'linux',
+      homeDir: path.join(tempDir, 'home'),
+      xdgDataHome,
+      resolveBundledAssets: () => ({
+        themeSourcePath,
+      }),
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: path.join(targetRoot, 'subminer', 'main.lua'),
+    });
+    assert.equal(
+      fs.readFileSync(path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'), 'utf8'),
+      '/* theme */\n',
+    );
+  });
+});
+
+test('ensureLinuxRuntimePluginAssets default resolver can recover a missing theme when plugin sources are unavailable', async () => {
+  await withTempDir(async (tempDir) => {
+    const xdgDataHome = path.join(tempDir, 'xdg-data');
+    const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
+    fs.mkdirSync(path.join(targetRoot, 'subminer'), { recursive: true });
+    fs.writeFileSync(path.join(targetRoot, 'subminer', 'main.lua'), '-- existing plugin\n');
+    fs.writeFileSync(path.join(targetRoot, 'subminer.conf'), 'configured=true\n');
+
+    const result = await withProcessResourcesPath(process.cwd(), () =>
+      ensureLinuxRuntimePluginAssets({
+        platform: 'linux',
+        homeDir: path.join(tempDir, 'home'),
+        xdgDataHome,
+        existsSync: (candidate) => {
+          if (
+            !candidate.startsWith(tempDir) &&
+            (candidate.endsWith(path.join('plugin', 'subminer')) ||
+              candidate.endsWith(path.join('plugin', 'subminer.conf')) ||
+              candidate.endsWith(path.join('plugin', 'subminer', 'main.lua')))
+          ) {
+            return false;
+          }
+          return fs.existsSync(candidate);
+        },
+      }),
+    );
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: path.join(targetRoot, 'subminer', 'main.lua'),
+    });
+    assert.equal(
+      fs.readFileSync(path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'), 'utf8'),
+      fs.readFileSync(path.join(process.cwd(), 'assets', 'themes', 'subminer.rasi'), 'utf8'),
+    );
+  });
+});
+
+test('ensureLinuxRuntimePluginAssets installs managed plugin assets without resolving theme source when theme already exists', async () => {
+  await withTempDir(async (tempDir) => {
+    const sourceRoot = path.join(tempDir, 'source', 'plugin');
+    const xdgDataHome = path.join(tempDir, 'xdg-data');
+    const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
+    fs.mkdirSync(path.join(sourceRoot, 'subminer'), { recursive: true });
+    fs.mkdirSync(path.join(xdgDataHome, 'SubMiner', 'themes'), { recursive: true });
+    fs.writeFileSync(path.join(sourceRoot, 'subminer', 'main.lua'), '-- plugin\n');
+    fs.writeFileSync(path.join(sourceRoot, 'subminer.conf'), 'configured=true\n');
+    fs.writeFileSync(
+      path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'),
+      '/* existing theme */\n',
+    );
+
+    const result = await ensureLinuxRuntimePluginAssets({
+      platform: 'linux',
+      homeDir: path.join(tempDir, 'home'),
+      xdgDataHome,
+      resolveBundledAssets: () => ({
+        pluginDirSource: path.join(sourceRoot, 'subminer'),
+        pluginConfigSource: path.join(sourceRoot, 'subminer.conf'),
+      }),
+    });
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: path.join(targetRoot, 'subminer', 'main.lua'),
+    });
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer', 'main.lua'), 'utf8'),
+      '-- plugin\n',
+    );
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer.conf'), 'utf8'),
+      'configured=true\n',
+    );
+  });
+});
+
+test('ensureLinuxRuntimePluginAssets default resolver can recover missing plugin assets when theme source is unavailable', async () => {
+  await withTempDir(async (tempDir) => {
+    const xdgDataHome = path.join(tempDir, 'xdg-data');
+    const targetRoot = path.join(xdgDataHome, 'SubMiner', 'plugin');
+    fs.mkdirSync(path.join(xdgDataHome, 'SubMiner', 'themes'), { recursive: true });
+    fs.writeFileSync(
+      path.join(xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi'),
+      '/* existing theme */\n',
+    );
+
+    const result = await withProcessResourcesPath(process.cwd(), () =>
+      ensureLinuxRuntimePluginAssets({
+        platform: 'linux',
+        homeDir: path.join(tempDir, 'home'),
+        xdgDataHome,
+        existsSync: (candidate) => {
+          if (
+            !candidate.startsWith(tempDir) &&
+            candidate.endsWith(path.join('assets', 'themes', 'subminer.rasi'))
+          ) {
+            return false;
+          }
+          return fs.existsSync(candidate);
+        },
+      }),
+    );
+
+    assert.deepEqual(result, {
+      ok: true,
+      status: 'installed',
+      path: path.join(targetRoot, 'subminer', 'main.lua'),
+    });
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer', 'main.lua'), 'utf8'),
+      fs.readFileSync(path.join(process.cwd(), 'plugin', 'subminer', 'main.lua'), 'utf8'),
+    );
+    assert.equal(
+      fs.readFileSync(path.join(targetRoot, 'subminer.conf'), 'utf8'),
+      fs.readFileSync(path.join(process.cwd(), 'plugin', 'subminer.conf'), 'utf8'),
+    );
+  });
+});
+
 test('ensureLinuxRuntimePluginAssets returns already-present when managed assets already exist', async () => {
   await withTempDir(async (tempDir) => {
     const xdgDataHome = path.join(tempDir, 'xdg-data');
@@ -160,7 +356,7 @@ test('ensureLinuxRuntimePluginAssets fails when bundled assets cannot be resolve
       platform: 'linux',
       homeDir: path.join(tempDir, 'home'),
       xdgDataHome: path.join(tempDir, 'xdg-data'),
-      resolveBundledAssets: () => null,
+      resolveBundledAssets: () => ({}),
     });
 
     assert.equal(result.ok, false);

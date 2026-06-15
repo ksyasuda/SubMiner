@@ -554,6 +554,7 @@ test(
           typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
 
         assert.equal(result.status, unixSocketDenied ? 3 : 0);
+        assert.equal(appEntries.length > 0, true);
         assert.equal(
           appEntries.every((entry) =>
             (entry.argv as string[]).includes('--ensure-linux-runtime-plugin-assets'),

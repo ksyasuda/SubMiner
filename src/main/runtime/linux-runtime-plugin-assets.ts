@@ -20,9 +20,9 @@ export interface EnsureLinuxRuntimePluginAssetsResult {
 }
 
 interface RuntimePluginAssetSources {
-  pluginDirSource: string;
-  pluginConfigSource: string;
-  themeSourcePath: string;
+  pluginDirSource?: string;
+  pluginConfigSource?: string;
+  themeSourcePath?: string;
 }
 
 interface RuntimePluginDirentLike {
@@ -58,8 +58,10 @@ export function resolveManagedLinuxRuntimePluginPaths(options: {
 }): ManagedLinuxRuntimePluginPaths {
   const pathModule = options.pathModule ?? path;
   const homeDir = options.homeDir ?? os.homedir();
+  const explicitXdgDataHome = options.xdgDataHome?.trim();
+  const envXdgDataHome = process.env.XDG_DATA_HOME?.trim();
   const xdgDataHome =
-    options.xdgDataHome ?? process.env.XDG_DATA_HOME ?? pathModule.join(homeDir, '.local', 'share');
+    explicitXdgDataHome || envXdgDataHome || pathModule.join(homeDir, '.local', 'share');
   const dataDir = pathModule.join(xdgDataHome, 'SubMiner');
   const rootDir = pathModule.join(dataDir, 'plugin');
   const pluginDir = pathModule.join(rootDir, 'subminer');
@@ -118,24 +120,26 @@ function resolveBundledThemePath(options: {
 
 function resolveBundledAssetsDefault(
   existsSync: (candidate: string) => boolean,
-): RuntimePluginAssetSources | null {
+): RuntimePluginAssetSources {
+  const resourcesPath = process.resourcesPath ?? path.dirname(process.execPath);
   const pluginAssets = resolvePackagedFirstRunPluginAssets({
     dirname: __dirname,
     appPath: process.execPath,
-    resourcesPath: process.resourcesPath,
+    resourcesPath,
     existsSync,
   });
-  if (!pluginAssets) return null;
 
   const themeSourcePath = resolveBundledThemePath({
     dirname: __dirname,
     appPath: process.execPath,
-    resourcesPath: process.resourcesPath,
+    resourcesPath,
     existsSync,
   });
-  if (!themeSourcePath) return null;
 
-  return { ...pluginAssets, themeSourcePath };
+  return {
+    ...(pluginAssets ?? {}),
+    ...(themeSourcePath ? { themeSourcePath } : {}),
+  };
 }
 
 export async function ensureLinuxRuntimePluginAssets(
@@ -182,14 +186,28 @@ export async function ensureLinuxRuntimePluginAssets(
     };
   }
 
-  const bundledAssets = options.resolveBundledAssets
-    ? options.resolveBundledAssets()
-    : resolveBundledAssetsDefault(existsSync);
-  if (!bundledAssets) {
+  const bundledAssets =
+    (options.resolveBundledAssets
+      ? options.resolveBundledAssets()
+      : resolveBundledAssetsDefault(existsSync)) ?? {};
+
+  const shouldInstallPluginAssets = !pluginAssetsExist;
+  const shouldInstallTheme = !themeExists;
+  if (
+    shouldInstallPluginAssets &&
+    (!bundledAssets.pluginDirSource || !bundledAssets.pluginConfigSource)
+  ) {
     return {
       ok: false,
       status: 'failed',
       error: 'Bundled Linux runtime plugin assets were not found.',
+    };
+  }
+  if (shouldInstallTheme && !bundledAssets.themeSourcePath) {
+    return {
+      ok: false,
+      status: 'failed',
+      error: 'Bundled Linux runtime theme asset was not found.',
     };
   }
 
@@ -203,26 +221,33 @@ export async function ensureLinuxRuntimePluginAssets(
     pathModule.dirname(managedPaths.themePath),
     `.subminer.rasi-stage-${stagingSuffix}`,
   );
-  const shouldInstallPluginAssets = !pluginAssetsExist;
-  const shouldInstallTheme = !themeExists;
   let pluginDirInstalled = false;
   let pluginConfigInstalled = false;
   let themeInstalled = false;
 
   try {
     if (shouldInstallPluginAssets) {
+      const pluginDirSource = bundledAssets.pluginDirSource;
+      const pluginConfigSource = bundledAssets.pluginConfigSource;
+      if (!pluginDirSource || !pluginConfigSource) {
+        throw new Error('Bundled Linux runtime plugin assets were not found.');
+      }
       await mkdir(managedPaths.rootDir, { recursive: true });
-      await copyDirectoryRecursive(bundledAssets.pluginDirSource, stagedPluginDir, {
+      await copyDirectoryRecursive(pluginDirSource, stagedPluginDir, {
         mkdir,
         readdir,
         copyFile,
         pathModule,
       });
-      await copyFile(bundledAssets.pluginConfigSource, stagedPluginConfigPath);
+      await copyFile(pluginConfigSource, stagedPluginConfigPath);
     }
     if (shouldInstallTheme) {
+      const themeSourcePath = bundledAssets.themeSourcePath;
+      if (!themeSourcePath) {
+        throw new Error('Bundled Linux runtime theme asset was not found.');
+      }
       await mkdir(pathModule.dirname(managedPaths.themePath), { recursive: true });
-      await copyFile(bundledAssets.themeSourcePath, stagedThemePath);
+      await copyFile(themeSourcePath, stagedThemePath);
     }
     if (shouldInstallPluginAssets) {
       await rm(managedPaths.pluginDir, { recursive: true, force: true });
