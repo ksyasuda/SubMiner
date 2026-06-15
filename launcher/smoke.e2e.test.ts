@@ -554,13 +554,15 @@ test(
           typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
 
         assert.equal(result.status, unixSocketDenied ? 3 : 0);
-        assert.equal(appEntries.length > 0, true);
-        assert.equal(
-          appEntries.every((entry) =>
-            (entry.argv as string[]).includes('--ensure-linux-runtime-plugin-assets'),
-          ),
-          true,
-        );
+        if (process.platform === 'linux') {
+          assert.equal(appEntries.length > 0, true);
+          assert.equal(
+            appEntries.every((entry) =>
+              (entry.argv as string[]).includes('--ensure-linux-runtime-plugin-assets'),
+            ),
+            true,
+          );
+        }
         assert.equal(appStartEntries.length, 0);
         assert.equal(appStopEntries.length, 0);
         assert.equal(controlEntries.length, 1);
@@ -617,11 +619,13 @@ test(
         /subminer-auto_start_pause_until_ready_owns_initial_pause=yes/,
       );
       assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
-      assert.match(result.stdout, /managed plugin\/theme assets/i);
-      assert.equal(
-        fs.existsSync(path.join(smokeCase.xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi')),
-        true,
-      );
+      if (process.platform === 'linux') {
+        assert.match(result.stdout, /managed plugin\/theme assets/i);
+        assert.equal(
+          fs.existsSync(path.join(smokeCase.xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi')),
+          true,
+        );
+      }
     });
   },
 );
