@@ -97,6 +97,9 @@ test('cli command context main deps builder maps state and callbacks', async () 
     runUpdateCommand: async () => {
       calls.push('run-update');
     },
+    runEnsureLinuxRuntimePluginAssetsCommand: async () => {
+      calls.push('run-ensure-linux-runtime-plugin-assets');
+    },
     runYoutubePlaybackFlow: async () => {
       calls.push('run-youtube-playback');
     },

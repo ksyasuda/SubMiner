@@ -19,6 +19,7 @@ import type { Args } from '../types.js';
 import { nowMs } from '../time.js';
 import type { LauncherCommandContext } from './context.js';
 import { ensureLauncherSetupReady } from '../setup-gate.js';
+import { ensureLinuxRuntimePluginAvailable } from '../runtime-plugin-preflight.js';
 import {
   getDefaultConfigDir,
   getSetupStatePath,
@@ -144,6 +145,13 @@ async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promis
 export async function runPlaybackCommand(context: LauncherCommandContext): Promise<void> {
   return runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady,
+    ensureRuntimePluginReady: async (commandContext) => {
+      await ensureLinuxRuntimePluginAvailable({
+        appPath: commandContext.appPath ?? undefined,
+        scriptPath: commandContext.scriptPath,
+        logLevel: commandContext.args.logLevel,
+      });
+    },
     chooseTarget,
     checkDependencies,
     registerCleanup,
@@ -160,6 +168,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
 
 type PlaybackCommandDeps = {
   ensurePlaybackSetupReady: (context: LauncherCommandContext) => Promise<void>;
+  ensureRuntimePluginReady: (context: LauncherCommandContext) => Promise<void>;
   chooseTarget: (
     args: Args,
     scriptPath: string,
@@ -252,6 +261,8 @@ export async function runPlaybackCommandWithDeps(
       'Configured to pause mpv until overlay and tokenization are ready',
     );
   }
+
+  await deps.ensureRuntimePluginReady(context);
 
   await deps.startMpv(
     selectedTarget.target,

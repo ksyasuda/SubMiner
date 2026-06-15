@@ -10,6 +10,8 @@ The plugin ships as a modular Lua package under `plugin/subminer/` (entry point 
 
 Launch mpv through the SubMiner app, the `subminer` launcher, or the packaged Windows SubMiner mpv shortcut. These paths pass mpv a bundled plugin path for that playback session only, leaving regular mpv playback untouched.
 
+On Linux, the launcher-managed runtime plugin copy lives under the SubMiner data dir (`$XDG_DATA_HOME/SubMiner/plugin/subminer` by default, plus `/usr/local/share/SubMiner` or `/usr/share/SubMiner` for system installs). `subminer -u` and the tray updater keep that managed copy current. This is separate from mpv's global `scripts/` directory.
+
 If setup detects an older global SubMiner plugin in mpv's `scripts` directory, use **Remove legacy mpv plugin** in first-run setup. The global plugin is not needed once runtime loading is available.
 
 mpv must have IPC enabled for SubMiner to connect:

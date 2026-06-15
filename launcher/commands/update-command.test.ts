@@ -34,7 +34,10 @@ test('runUpdateCommand updates directly on Linux without launching Electron', as
       return {
         appImage: { status: 'updated' },
         launcher: { status: 'updated' },
-        supportAssets: [{ status: 'skipped' }],
+        supportAssets: [
+          { status: 'updated', component: 'theme', message: 'Installed theme.' },
+          { status: 'skipped', component: 'plugin', message: 'Plugin already up to date.' },
+        ],
       };
     },
     readMainConfig: () => ({ updates: { channel: 'prerelease' } }),
@@ -48,7 +51,8 @@ test('runUpdateCommand updates directly on Linux without launching Electron', as
     'direct:/home/kyle/.local/bin/SubMiner.AppImage:/home/kyle/.local/bin/subminer:prerelease',
     'info:AppImage update: updated',
     'info:Launcher update: updated',
-    'info:Rofi theme update: skipped',
+    'info:Support assets (theme) update: updated - Installed theme.',
+    'info:Support assets (plugin) update: skipped - Plugin already up to date.',
   ]);
 });
 
@@ -101,7 +105,7 @@ test('runUpdateCommand skips Linux asset replacement when release is not newer',
       'fetch:https://api.github.com/repos/ksyasuda/SubMiner/releases',
       'info:AppImage update: up to date',
       'info:Launcher update: up to date',
-      'info:Rofi theme update: up to date',
+      'info:Support assets update: up to date',
     ]);
   } finally {
     globalThis.fetch = originalFetch;

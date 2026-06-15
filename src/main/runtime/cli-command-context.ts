@@ -48,6 +48,7 @@ export type CliCommandContextFactoryDeps = {
   runStatsCommand: CliCommandRuntimeServiceContext['runStatsCommand'];
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runUpdateCommand: CliCommandRuntimeServiceContext['runUpdateCommand'];
+  runEnsureLinuxRuntimePluginAssetsCommand: CliCommandRuntimeServiceContext['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandRuntimeServiceContext['runYoutubePlaybackFlow'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
@@ -127,6 +128,7 @@ export function createCliCommandContext(
     runStatsCommand: deps.runStatsCommand,
     runJellyfinCommand: deps.runJellyfinCommand,
     runUpdateCommand: deps.runUpdateCommand,
+    runEnsureLinuxRuntimePluginAssetsCommand: deps.runEnsureLinuxRuntimePluginAssetsCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,

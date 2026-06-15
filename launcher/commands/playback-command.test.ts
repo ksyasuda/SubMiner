@@ -112,6 +112,7 @@ test('youtube playback launches overlay with app-owned youtube flow args', async
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {},
     chooseTarget: async (_args, _scriptPath) => ({ target: context.args.target, kind: 'url' }),
     checkDependencies: () => {},
     registerCleanup: () => {},
@@ -161,6 +162,7 @@ test('youtube app-owned playback disables mpv plugin auto-start', async () => {
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {},
     chooseTarget: async () => ({ target: context.args.target, kind: 'url' }),
     checkDependencies: () => {},
     registerCleanup: () => {},
@@ -227,6 +229,7 @@ test('plugin auto-start playback leaves app lifetime to managed-playback owner',
   try {
     await runPlaybackCommandWithDeps(context, {
       ensurePlaybackSetupReady: async () => {},
+      ensureRuntimePluginReady: async () => {},
       chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
       checkDependencies: () => {},
       registerCleanup: () => {},
@@ -278,6 +281,7 @@ test('plugin auto-start playback attaches a warm background app through the laun
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {},
     chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
     checkDependencies: () => {},
     registerCleanup: () => {},
@@ -351,6 +355,7 @@ test('plugin auto-start attach mode reuses launcher-resolved config dir for app 
 
     await runPlaybackCommandWithDeps(context, {
       ensurePlaybackSetupReady: async () => {},
+      ensureRuntimePluginReady: async () => {},
       chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
       checkDependencies: () => {},
       registerCleanup: () => {},
@@ -420,6 +425,7 @@ test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is
 
   await runPlaybackCommandWithDeps(context, {
     ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {},
     chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
     checkDependencies: () => {},
     registerCleanup: () => {},
@@ -440,4 +446,35 @@ test('plugin auto-start attach mode omits texthooker flag when CLI texthooker is
   });
 
   assert.deepEqual(calls, ['startMpv', 'startOverlay:--show-visible-overlay']);
+});
+
+test('playback command ensures Linux runtime plugin before mpv launch', async () => {
+  const context = createContext();
+  context.args = {
+    ...context.args,
+    target: '/tmp/movie.mkv',
+    targetKind: 'file',
+  };
+  const calls: string[] = [];
+
+  await runPlaybackCommandWithDeps(context, {
+    ensurePlaybackSetupReady: async () => {},
+    ensureRuntimePluginReady: async () => {
+      calls.push('plugin');
+    },
+    chooseTarget: async () => ({ target: context.args.target, kind: 'file' }),
+    checkDependencies: () => {},
+    registerCleanup: () => {},
+    startMpv: async () => {
+      calls.push('startMpv');
+    },
+    waitForUnixSocketReady: async () => true,
+    startOverlay: async () => {},
+    launchAppCommandDetached: () => {},
+    log: () => {},
+    cleanupPlaybackSession: async () => {},
+    getMpvProc: () => null,
+  });
+
+  assert.deepEqual(calls, ['plugin', 'startMpv']);
 });

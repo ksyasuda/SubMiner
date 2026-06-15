@@ -24,6 +24,7 @@ type SmokeCase = {
   artifactsDir: string;
   binDir: string;
   xdgConfigHome: string;
+  xdgDataHome: string;
   appDataDir: string;
   localAppDataDir: string;
   homeDir: string;
@@ -64,6 +65,7 @@ function createSmokeCase(name: string): SmokeCase {
   const artifactsDir = path.join(root, 'artifacts');
   const binDir = path.join(root, 'bin');
   const xdgConfigHome = path.join(root, 'xdg');
+  const xdgDataHome = path.join(root, 'xdg-data');
   const appDataDir = path.join(root, 'AppData', 'Roaming');
   const localAppDataDir = path.join(root, 'AppData', 'Local');
   const homeDir = path.join(root, 'home');
@@ -135,6 +137,7 @@ process.on('SIGTERM', closeAndExit);
     fakeAppBasePath,
     `#!/usr/bin/env bun
 const fs = require('node:fs');
+const path = require('node:path');
 
 const logPath = ${JSON.stringify(fakeAppLogPath)};
 const startPath = ${JSON.stringify(fakeAppStartLogPath)};
@@ -154,6 +157,25 @@ if (entry.argv.includes('--stop')) {
 if (entry.argv.includes('--app-ping')) {
   process.exit(process.env.SUBMINER_FAKE_APP_RUNNING === '1' ? 0 : 1);
 }
+if (entry.argv.includes('--ensure-linux-runtime-plugin-assets')) {
+  const responseFlagIndex = entry.argv.indexOf('--ensure-linux-runtime-plugin-assets-response-path');
+  const responsePath = responseFlagIndex >= 0 ? entry.argv[responseFlagIndex + 1] : '';
+  const xdgDataHome = process.env.XDG_DATA_HOME || path.join(process.env.HOME || '', '.local', 'share');
+  const dataDir = path.join(xdgDataHome, 'SubMiner');
+  const pluginDir = path.join(dataDir, 'plugin', 'subminer');
+  const pluginConfigPath = path.join(dataDir, 'plugin', 'subminer.conf');
+  const themePath = path.join(dataDir, 'themes', 'subminer.rasi');
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.mkdirSync(path.dirname(themePath), { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, 'main.lua'), '-- smoke plugin\\n');
+  fs.writeFileSync(pluginConfigPath, 'smoke=true\\n');
+  fs.writeFileSync(themePath, '/* smoke theme */\\n');
+  if (responsePath) {
+    fs.mkdirSync(path.dirname(responsePath), { recursive: true });
+    fs.writeFileSync(responsePath, JSON.stringify({ ok: true, status: 'installed', path: path.join(pluginDir, 'main.lua') }));
+  }
+  process.exit(0);
+}
 
 process.exit(0);
 `,
@@ -164,6 +186,7 @@ process.exit(0);
     artifactsDir,
     binDir,
     xdgConfigHome,
+    xdgDataHome,
     appDataDir,
     localAppDataDir,
     homeDir,
@@ -181,6 +204,7 @@ function makeTestEnv(smokeCase: SmokeCase): NodeJS.ProcessEnv {
     ...process.env,
     HOME: smokeCase.homeDir,
     XDG_CONFIG_HOME: smokeCase.xdgConfigHome,
+    XDG_DATA_HOME: smokeCase.xdgDataHome,
     APPDATA: smokeCase.appDataDir,
     LOCALAPPDATA: smokeCase.localAppDataDir,
     SUBMINER_APPIMAGE_PATH: smokeCase.fakeAppPath,
@@ -495,7 +519,7 @@ test(
 );
 
 test(
-  'launcher start-overlay attaches to a running background app without spawning another app command',
+  'launcher start-overlay attaches to a running background app without spawning another app start command',
   { timeout: LONG_SMOKE_TEST_TIMEOUT_MS },
   async () => {
     await withSmokeCase('overlay-borrow-background', async (smokeCase) => {
@@ -530,7 +554,13 @@ test(
           typeof mpvError === 'string' && /eperm|operation not permitted/i.test(mpvError);
 
         assert.equal(result.status, unixSocketDenied ? 3 : 0);
-        assert.equal(appEntries.length, 0);
+        assert.equal(appEntries.length > 0, true);
+        assert.equal(
+          appEntries.every((entry) =>
+            (entry.argv as string[]).includes('--ensure-linux-runtime-plugin-assets'),
+          ),
+          true,
+        );
         assert.equal(appStartEntries.length, 0);
         assert.equal(appStopEntries.length, 0);
         assert.equal(controlEntries.length, 1);
@@ -587,6 +617,11 @@ test(
         /subminer-auto_start_pause_until_ready_owns_initial_pause=yes/,
       );
       assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
+      assert.match(result.stdout, /managed plugin\/theme assets/i);
+      assert.equal(
+        fs.existsSync(path.join(smokeCase.xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi')),
+        true,
+      );
     });
   },
 );

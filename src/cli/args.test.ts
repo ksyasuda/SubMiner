@@ -69,6 +69,25 @@ test('parseArgs captures update command and internal launcher paths', () => {
   assert.equal(shouldRunYomitanOnlyStartup(args), false);
 });
 
+test('parseArgs captures hidden Linux runtime plugin asset ensure command', () => {
+  const args = parseArgs([
+    '--ensure-linux-runtime-plugin-assets',
+    '--ensure-linux-runtime-plugin-assets-response-path',
+    '/tmp/subminer-plugin-response.json',
+  ]);
+
+  assert.equal(args.ensureLinuxRuntimePluginAssets, true);
+  assert.equal(
+    args.ensureLinuxRuntimePluginAssetsResponsePath,
+    '/tmp/subminer-plugin-response.json',
+  );
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+  assert.equal(isHeadlessInitialCommand(args), true);
+  assert.equal(commandNeedsOverlayRuntime(args), false);
+  assert.equal(shouldRunYomitanOnlyStartup(args), false);
+});
+
 test('parseArgs captures launch-mpv targets and keeps it out of app startup', () => {
   const args = parseArgs(['--launch-mpv', 'C:\\a.mkv', 'C:\\b.mkv']);
   assert.equal(args.launchMpv, true);

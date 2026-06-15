@@ -80,6 +80,8 @@ export interface CliArgs {
   update?: boolean;
   updateLauncherPath?: string;
   updateResponsePath?: string;
+  ensureLinuxRuntimePluginAssets?: boolean;
+  ensureLinuxRuntimePluginAssetsResponsePath?: string;
   autoStartOverlay: boolean;
   generateConfig: boolean;
   configPath?: string;
@@ -178,6 +180,8 @@ export function parseArgs(argv: string[]): CliArgs {
     update: false,
     updateLauncherPath: undefined,
     updateResponsePath: undefined,
+    ensureLinuxRuntimePluginAssets: false,
+    ensureLinuxRuntimePluginAssetsResponsePath: undefined,
     autoStartOverlay: false,
     generateConfig: false,
     backupOverwrite: false,
@@ -379,7 +383,15 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--open-browser') args.texthookerOpenBrowser = true;
     else if (arg === '--app-ping') args.appPing = true;
     else if (arg === '--update') args.update = true;
-    else if (arg.startsWith('--update-launcher-path=')) {
+    else if (arg === '--ensure-linux-runtime-plugin-assets') {
+      args.ensureLinuxRuntimePluginAssets = true;
+    } else if (arg.startsWith('--ensure-linux-runtime-plugin-assets-response-path=')) {
+      const value = arg.split('=', 2)[1];
+      if (value) args.ensureLinuxRuntimePluginAssetsResponsePath = value;
+    } else if (arg === '--ensure-linux-runtime-plugin-assets-response-path') {
+      const value = readValue(argv[i + 1]);
+      if (value) args.ensureLinuxRuntimePluginAssetsResponsePath = value;
+    } else if (arg.startsWith('--update-launcher-path=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.updateLauncherPath = value;
     } else if (arg === '--update-launcher-path') {
@@ -581,13 +593,16 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.texthooker ||
     args.appPing ||
     args.update ||
+    args.ensureLinuxRuntimePluginAssets === true ||
     args.generateConfig ||
     args.help
   );
 }
 
 export function isHeadlessInitialCommand(args: CliArgs): boolean {
-  return args.refreshKnownWords || args.update === true;
+  return (
+    args.refreshKnownWords || args.update === true || args.ensureLinuxRuntimePluginAssets === true
+  );
 }
 
 export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
@@ -654,6 +669,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.jellyfinPreviewAuth &&
     !args.appPing &&
     !args.update &&
+    !args.ensureLinuxRuntimePluginAssets &&
     !args.help &&
     !args.autoStartOverlay &&
     !args.generateConfig
@@ -707,7 +723,8 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.jellyfin ||
     args.jellyfinPlay ||
     args.texthooker ||
-    args.update
+    args.update ||
+    args.ensureLinuxRuntimePluginAssets
   ) {
     if (args.launchMpv) {
       return false;
@@ -780,6 +797,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.texthooker &&
     !args.appPing &&
     !args.update &&
+    !args.ensureLinuxRuntimePluginAssets &&
     !args.help &&
     !args.autoStartOverlay &&
     !args.generateConfig &&

@@ -34,14 +34,18 @@ subminer -R -r -d ~/Anime              # rofi picker, recursive
 subminer -R /directory                 # rofi picker, directory shortcut
 ```
 
-rofi shows a GUI menu with icon thumbnails when available. SubMiner ships a custom rofi theme bundled in the release assets tarball:
+rofi shows a GUI menu with icon thumbnails when available. SubMiner ships the rofi theme plus the Linux launcher-managed runtime plugin copy in the release assets tarball:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+mkdir -p ~/.local/share/SubMiner/plugin
+cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
+
+Once the `SubMiner` data dir exists, `subminer -u` refreshes both assets automatically. Normal Linux launcher playback also checks for the managed runtime plugin copy and rofi theme before mpv launch and installs them from the bundled app automatically if either one is missing.
 
 The theme is auto-detected from these paths (first match wins):
 
@@ -113,7 +117,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                  |
 | `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)                          |
 
-On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, and rofi theme even when SubMiner is already running in the tray.
+On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, runtime plugin copy, and rofi theme even when SubMiner is already running in the tray.
 
 With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
 

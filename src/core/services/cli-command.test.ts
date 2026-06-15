@@ -243,6 +243,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     runUpdateCommand: async (args) => {
       calls.push(`runUpdateCommand:${args.updateLauncherPath ?? ''}`);
     },
+    runEnsureLinuxRuntimePluginAssetsCommand: async () => {
+      calls.push('runEnsureLinuxRuntimePluginAssetsCommand');
+    },
     printHelp: () => {
       calls.push('printHelp');
     },
@@ -624,6 +627,7 @@ test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exis
       stop: () => {},
       hasMainWindow: () => true,
       runUpdateCommand: async () => {},
+      runEnsureLinuxRuntimePluginAssetsCommand: async () => {},
       runYoutubePlaybackFlow: async () => {},
     },
     dispatchSessionAction: async () => {},

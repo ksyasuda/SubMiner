@@ -7,7 +7,7 @@ import { runConfigCommand } from './config-command.js';
 import { runDictionaryCommand } from './dictionary-command.js';
 import { runDoctorCommand } from './doctor-command.js';
 import { runLogsCommand } from './logs-command.js';
-import { runMpvPreAppCommand } from './mpv-command.js';
+import { runMpvPostAppCommand, runMpvPreAppCommand } from './mpv-command.js';
 import { runAppPassthroughCommand } from './app-command.js';
 import { runStatsCommand } from './stats-command.js';
 import { runUpdateCommand } from './update-command.js';
@@ -262,12 +262,40 @@ test('mpv pre-app command exits non-zero when socket is not ready', async () => 
   await assert.rejects(
     async () => {
       await runMpvPreAppCommand(context, {
+        ensureRuntimePluginReady: async () => {},
         waitForUnixSocketReady: async () => false,
+        resolveRuntimePluginPath: () => null,
         launchMpvIdleDetached: async () => {},
       });
     },
     (error: unknown) => error instanceof ExitSignal && error.code === 1,
   );
+});
+
+test('mpv idle command ensures Linux runtime plugin before detached launch', async () => {
+  const context = createContext();
+  context.args.mpvIdle = true;
+  const calls: string[] = [];
+
+  const handled = await runMpvPostAppCommand(context, {
+    ensureRuntimePluginReady: async () => {
+      calls.push('plugin');
+    },
+    waitForUnixSocketReady: async () => {
+      calls.push('wait');
+      return true;
+    },
+    launchMpvIdleDetached: async () => {
+      calls.push('launch');
+    },
+    resolveRuntimePluginPath: () => {
+      calls.push('resolve');
+      return '/tmp/plugin/main.lua';
+    },
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ['plugin', 'resolve', 'launch', 'wait']);
 });
 
 test('dictionary command forwards --dictionary and target path to app binary', () => {
@@ -361,7 +389,7 @@ test('update command runs direct Linux release update without launching Electron
     'direct:/tmp/subminer.app:/tmp/subminer:stable',
     'info:AppImage update: not-found',
     'info:Launcher update: updated',
-    'info:Rofi theme update: skipped',
+    'info:Support assets update: skipped',
   ]);
 });
 

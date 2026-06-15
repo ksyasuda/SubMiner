@@ -66,6 +66,9 @@ test('build cli command context deps maps handlers and values', () => {
     runUpdateCommand: async () => {
       calls.push('run-update');
     },
+    runEnsureLinuxRuntimePluginAssetsCommand: async () => {
+      calls.push('run-ensure-linux-runtime-plugin-assets');
+    },
     runYoutubePlaybackFlow: async () => {
       calls.push('run-youtube-playback');
     },

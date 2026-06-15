@@ -341,6 +341,21 @@ test('tick only writes interaction state on change', () => {
   assert.deepEqual(calls, [true]);
 });
 
+test('tick reapplies an unchanged inactive state when the window passthrough state is dirty', () => {
+  const calls: boolean[] = [];
+  const { deps, state } = makeDeps({
+    getCursorScreenPoint: () => ({ x: 200, y: 200 }),
+    isInteractionStateApplied: () => false,
+    setInteractionActive: (active) => {
+      calls.push(active);
+      state.active = active;
+    },
+  });
+
+  tickLinuxOverlayPointerInteraction(deps);
+  assert.deepEqual(calls, [false]);
+});
+
 test('tick does not flip state when suspended (returns null)', () => {
   const calls: boolean[] = [];
   const { deps } = makeDeps({

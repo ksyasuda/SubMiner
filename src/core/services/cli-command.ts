@@ -97,6 +97,10 @@ export interface CliCommandServiceDeps {
   runStatsCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
   runJellyfinCommand: (args: CliArgs) => Promise<void>;
   runUpdateCommand: (args: CliArgs, source: CliCommandSource) => Promise<void>;
+  runEnsureLinuxRuntimePluginAssetsCommand: (
+    args: CliArgs,
+    source: CliCommandSource,
+  ) => Promise<void>;
   runYoutubePlaybackFlow: (request: {
     url: string;
     mode: NonNullable<CliArgs['youtubeMode']>;
@@ -182,6 +186,7 @@ interface AppCliRuntime {
   stop: () => void;
   hasMainWindow: () => boolean;
   runUpdateCommand: CliCommandServiceDeps['runUpdateCommand'];
+  runEnsureLinuxRuntimePluginAssetsCommand: CliCommandServiceDeps['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandServiceDeps['runYoutubePlaybackFlow'];
 }
 
@@ -292,6 +297,7 @@ export function createCliCommandDepsRuntime(
     runStatsCommand: options.jellyfin.runStatsCommand,
     runJellyfinCommand: options.jellyfin.runCommand,
     runUpdateCommand: options.app.runUpdateCommand,
+    runEnsureLinuxRuntimePluginAssetsCommand: options.app.runEnsureLinuxRuntimePluginAssetsCommand,
     runYoutubePlaybackFlow: options.app.runYoutubePlaybackFlow,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
@@ -448,6 +454,19 @@ export function handleCliCommand(
       .catch((err) => {
         deps.error('runUpdateCommand failed:', err);
         deps.showMpvOsd(`Update failed: ${(err as Error).message}`);
+      })
+      .finally(() => {
+        if (shouldStopAfterRun) {
+          deps.stopApp();
+        }
+      });
+  } else if (args.ensureLinuxRuntimePluginAssets) {
+    const shouldStopAfterRun = source === 'initial' && !deps.hasMainWindow();
+    deps
+      .runEnsureLinuxRuntimePluginAssetsCommand(args, source)
+      .catch((err) => {
+        deps.error('runEnsureLinuxRuntimePluginAssetsCommand failed:', err);
+        deps.showMpvOsd(`Linux runtime plugin install failed: ${(err as Error).message}`);
       })
       .finally(() => {
         if (shouldStopAfterRun) {

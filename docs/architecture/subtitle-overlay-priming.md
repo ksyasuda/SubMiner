@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-06-01
+Last verified: 2026-06-14
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -79,9 +79,19 @@ prefetch work and re-centers prefetch around the live playback time.
   window so readiness can still arrive before fallback resumes playback.
 - If mpv is already on a subtitle, SubMiner still prefers the resolved current subtitle payload and
   waits for a fresh measured subtitle rectangle before signaling readiness.
+- If the startup subtitle has no cached annotations yet, autoplay priming emits a raw first-paint
+  subtitle payload before background tokenization. The tokenized payload replaces it when ready, but
+  the visible overlay can paint and measure the line before the mpv startup gate resumes playback.
+- If startup `sub-text` is temporarily empty, autoplay priming refreshes the active subtitle source
+  and then awaits cue-based priming before synthetic warm readiness can proceed. A parsed current or
+  imminent cue is treated as the startup subtitle so the visible overlay can paint and measure it
+  before playback resumes.
 - If mpv is before the first subtitle, SubMiner sends a synthetic warm readiness payload after
   tokenization warmup and visible overlay content-ready. This releases playback without waiting for
   a later subtitle event that cannot happen while mpv is paused.
+- After a synthetic warm readiness release, SubMiner briefly polls/refreshes the current subtitle
+  again. This covers Linux/mpv startup cases where `sub-text` is still empty while paused but becomes
+  available right after playback resumes, without waiting for the next subtitle property change.
 
 ## Linux/X11 Window Shape
 
@@ -95,6 +105,15 @@ prefetch work and re-centers prefetch around the live playback time.
   overlay window remained mapped above mpv.
 - Pointer pass-through should continue to use `setIgnoreMouseEvents(true, { forward: true })` and
   the Linux cursor-poll fallback, not bounding-shape clipping.
+- Visible-overlay show/reset marks Linux pointer passthrough state dirty even when the logical
+  interaction state is already inactive. The next cursor-poll tick must still reapply
+  `setIgnoreMouseEvents(true, { forward: true })`; otherwise a newly shown Electron overlay can keep
+  full-window input capture and block both mpv and overlay controls before the first subtitle
+  measurement.
+- Visible-overlay show also starts a short Linux input grace before the first content measurement.
+  Native Wayland surfaces can become inert while `setIgnoreMouseEvents(true)` is active; keeping the
+  overlay interactive during this startup gap lets notifications and overlay mouse bindings work
+  until subtitle/sidebar/notification rectangles are reported.
 
 ## Config And Migration
 

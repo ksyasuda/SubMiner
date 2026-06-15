@@ -97,6 +97,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   };
   let visibleOverlayInteractionActive = false;
   let linuxOverlayInputShapeActive = false;
+  let linuxOverlayPointerInteractionStateApplied = process.platform !== 'linux';
   let linuxVisibleOverlayStartupInputPrimed = false;
   let linuxVisibleOverlayStartupInputGraceUntilMs = 0;
   // Renderer-reported interactive hint (Linux only): true while a Yomitan popup/modal
@@ -122,6 +123,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   function resetVisibleOverlayInputState(): void {
     visibleOverlayInteractionActive = false;
     linuxOverlayInputShapeActive = false;
+    linuxOverlayPointerInteractionStateApplied = false;
     resetLinuxVisibleOverlayStartupInputPrimer();
     linuxOverlayInteractiveHint = false;
     overlayContentMeasurementStore.clear('visible');
@@ -616,9 +618,23 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     linuxVisibleOverlayStartupInputGraceUntilMs = 0;
   }
 
+  function startLinuxVisibleOverlayStartupInputGrace(): void {
+    if (process.platform !== 'linux') {
+      return;
+    }
+    linuxVisibleOverlayStartupInputGraceUntilMs =
+      Date.now() + LINUX_VISIBLE_OVERLAY_STARTUP_INPUT_GRACE_MS;
+    linuxOverlayPointerInteractionStateApplied = false;
+  }
+
   function resetLinuxVisibleOverlayStartupInputPrimer(): void {
     linuxVisibleOverlayStartupInputPrimed = false;
     clearLinuxVisibleOverlayStartupInputGrace();
+    if (process.platform === 'linux') {
+      visibleOverlayInteractionActive = false;
+      linuxOverlayInteractiveHint = false;
+      linuxOverlayPointerInteractionStateApplied = false;
+    }
   }
 
   function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
@@ -636,6 +652,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
       shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
     });
     linuxOverlayInputShapeActive = result.active;
+    linuxOverlayPointerInteractionStateApplied = result.handled;
     return result.handled;
   }
 
@@ -652,9 +669,11 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
         updateVisibleOverlayVisibility: () => deps.updateVisibleOverlayVisibility(),
       })
     ) {
+      linuxOverlayPointerInteractionStateApplied = true;
       return;
     }
 
+    linuxOverlayPointerInteractionStateApplied = true;
     deps.updateVisibleOverlayVisibility();
   }
 
@@ -749,6 +768,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     shouldSuppressInteraction: shouldSuppressLinuxOverlayPointerInteraction,
     shouldUseInputShape: shouldUseLinuxOverlayInputShape,
     getInteractionActive: () => visibleOverlayInteractionActive,
+    isInteractionStateApplied: () => linuxOverlayPointerInteractionStateApplied,
     setInteractionActive: updateLinuxOverlayPointerInteractionActive,
   };
 
@@ -785,6 +805,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     getLinuxOverlayPointerMeasurement,
     hasLinuxVisibleOverlayStartupInputGrace,
     clearLinuxVisibleOverlayStartupInputGrace,
+    startLinuxVisibleOverlayStartupInputGrace,
     resetLinuxVisibleOverlayStartupInputPrimer,
     applyLinuxOverlayInputShapeFromLatestMeasurement,
     updateLinuxOverlayPointerInteractionActive,
