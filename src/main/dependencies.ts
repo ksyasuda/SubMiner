@@ -85,6 +85,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getStatsToggleKey: IpcDepsRuntimeOptions['getStatsToggleKey'];
   getMarkWatchedKey: IpcDepsRuntimeOptions['getMarkWatchedKey'];
   getOverlayNotificationPosition: IpcDepsRuntimeOptions['getOverlayNotificationPosition'];
+  getUILanguage: IpcDepsRuntimeOptions['getUILanguage'];
   getControllerConfig: IpcDepsRuntimeOptions['getControllerConfig'];
   saveControllerConfig: IpcDepsRuntimeOptions['saveControllerConfig'];
   saveControllerPreference: IpcDepsRuntimeOptions['saveControllerPreference'];
@@ -270,6 +271,7 @@ export function createMainIpcRuntimeServiceDeps(
     getStatsToggleKey: params.getStatsToggleKey,
     getMarkWatchedKey: params.getMarkWatchedKey,
     getOverlayNotificationPosition: params.getOverlayNotificationPosition,
+    getUILanguage: params.getUILanguage,
     getControllerConfig: params.getControllerConfig,
     saveControllerConfig: params.saveControllerConfig,
     saveControllerPreference: params.saveControllerPreference,

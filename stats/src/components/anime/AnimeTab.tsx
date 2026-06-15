@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 import { useAnimeLibrary } from '../../hooks/useAnimeLibrary';
 import { formatDuration } from '../../lib/formatters';
 import {
@@ -102,15 +103,15 @@ export function AnimeTab({
     );
   }
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
+  if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.library')}</div>;
+  if (error) return <div className="text-ctp-red p-4">{t('stats.errorPrefix')}: {error}</div>;
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <input
           type="text"
-          placeholder="Search library..."
+          placeholder={t('stats.anime.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
@@ -121,9 +122,9 @@ export function AnimeTab({
           className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option key={opt.key} value={opt.key}>
-              {opt.label}
-            </option>
+              <option key={opt.key} value={opt.key}>
+                {t(`stats.anime.sort.${opt.key}`)}
+              </option>
           ))}
         </select>
         <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1 shrink-0">
@@ -142,12 +143,12 @@ export function AnimeTab({
           ))}
         </div>
         <div className="text-xs text-ctp-overlay2 shrink-0">
-          {filtered.length} titles · {formatDuration(totalMs)}
+          {t('stats.anime.titleCount', { count: filtered.length, time: formatDuration(totalMs) })}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-sm text-ctp-overlay2 p-4">No titles found</div>
+        <div className="text-sm text-ctp-overlay2 p-4">{t('stats.anime.noTitles')}</div>
       ) : (
         <div className={`grid ${GRID_CLASSES[cardSize]} gap-4`}>
           {filtered.map((item) => (

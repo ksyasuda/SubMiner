@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { i18n } from '../../i18n/index.js';
 import {
   createDefaultSetupState,
   getDefaultConfigFilePaths,
@@ -190,7 +191,7 @@ function createUnsupportedCommandLineLauncherSnapshot(): CommandLineLauncherSnap
       version: null,
       installMethod: null,
       installCommand: null,
-      message: 'Command-line launcher setup is unavailable in this runtime.',
+      message: i18n.t('setup.bun.unavailable'),
     },
     launcher: {
       status: 'not_installable',
@@ -198,7 +199,7 @@ function createUnsupportedCommandLineLauncherSnapshot(): CommandLineLauncherSnap
       installPath: null,
       pathDir: null,
       shadowedBy: null,
-      message: 'Command-line launcher setup is unavailable in this runtime.',
+      message: i18n.t('setup.bun.unavailable'),
     },
   };
 }
@@ -210,10 +211,10 @@ export function getFirstRunSetupCompletionMessage(snapshot: {
   pluginStatus: SetupStatusSnapshot['pluginStatus'];
 }): string | null {
   if (!snapshot.configReady) {
-    return 'Create or provide the config file before finishing setup.';
+    return i18n.t('setup.completion.configRequired');
   }
   if (!snapshot.externalYomitanConfigured && snapshot.dictionaryCount < 1) {
-    return 'Install at least one Yomitan dictionary before finishing setup.';
+    return i18n.t('setup.completion.dictionaryRequired');
   }
   return null;
 }
@@ -442,12 +443,12 @@ export function createFirstRunSetupService(deps: {
     removeLegacyMpvPlugin: async () => {
       const candidates = (await deps.detectLegacyMpvPluginCandidates?.()) ?? [];
       if (candidates.length === 0) {
-        return refreshWithState(readState(), 'No legacy mpv plugin files were found.');
+        return refreshWithState(readState(), i18n.t('setup.message.legacyNone'));
       }
       if (!deps.removeLegacyMpvPlugins) {
         return refreshWithState(
           readState(),
-          'Legacy mpv plugin removal is unavailable in this runtime.',
+          i18n.t('setup.message.legacyUnavailable'),
         );
       }
 
@@ -455,7 +456,7 @@ export function createFirstRunSetupService(deps: {
       if (result.ok) {
         return refreshWithState(
           readState(),
-          'Legacy mpv plugin removed. Regular mpv will no longer load SubMiner. SubMiner-managed playback will use the bundled runtime plugin.',
+          i18n.t('setup.message.legacyRemoved'),
         );
       }
 
@@ -464,9 +465,10 @@ export function createFirstRunSetupService(deps: {
       const failedText = result.failedPaths
         .map((failure) => `${failure.path} (${failure.message})`)
         .join(', ');
+      const partialKey = removedCount === 1 ? 'setup.message.legacyPartial' : 'setup.message.legacyPartialPlural';
       return refreshWithState(
         readState(),
-        `Removed ${removedText}, but failed to remove: ${failedText}. Delete the failed paths manually from mpv scripts.`,
+        i18n.t(partialKey, { count: removedCount, failed: failedText }),
       );
     },
     configureWindowsMpvShortcuts: async (preferences) => {
@@ -498,7 +500,7 @@ export function createFirstRunSetupService(deps: {
     },
     installBun: async () => {
       if (!deps.installBun) {
-        return refreshWithState(readState(), 'Bun installation is unavailable in this runtime.');
+        return refreshWithState(readState(), i18n.t('setup.message.bunUnavailable'));
       }
       const result = await deps.installBun();
       return refreshWithState(
@@ -513,7 +515,7 @@ export function createFirstRunSetupService(deps: {
       if (!deps.installCommandLineLauncher) {
         return refreshWithState(
           readState(),
-          'Command-line launcher installation is unavailable in this runtime.',
+          i18n.t('setup.message.launcherUnavailable'),
         );
       }
       const result = await deps.installCommandLineLauncher();

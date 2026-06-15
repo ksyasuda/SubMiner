@@ -15,6 +15,7 @@ import {
   SubsyncResolvedConfig,
 } from '../../subsync/utils';
 import { isRemoteMediaPath } from '../../jimaku/utils';
+import { i18n } from '../../i18n/index.js';
 
 interface FileExtractionResult {
   path: string;
@@ -391,13 +392,13 @@ export async function openSubsyncManualPicker(deps: TriggerSubsyncFromConfigDeps
 
 export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
   if (deps.isSubsyncInProgress()) {
-    deps.showMpvOsd('Subsync already running');
+    deps.showMpvOsd(i18n.t('osd.subsyncRunning'));
     return;
   }
 
   try {
     await openSubsyncManualPicker(deps);
-    deps.showMpvOsd('Subsync: choose engine and source');
+    deps.showMpvOsd(i18n.t('subsync.chooseEngine'));
   } catch (error) {
     deps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
   } finally {

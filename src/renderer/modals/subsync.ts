@@ -1,5 +1,6 @@
 import type { SubsyncManualPayload } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 export function createSubsyncModal(
   ctx: RendererContext,
@@ -62,12 +63,12 @@ export function createSubsyncModal(
 
     setSubsyncStatus(
       !ffsubsyncAvailable && hasSources
-        ? 'Choose alass source, then run.'
+        ? i18n.t('subsync.chooseAlass')
         : !ffsubsyncAvailable
-          ? 'No source subtitles available for alass.'
+          ? i18n.t('subsync.noSourceAlass')
           : hasSources
-            ? 'Choose engine and source, then run.'
-            : 'No source subtitles available for alass. Use ffsubsync.',
+            ? i18n.t('subsync.chooseEngineAndSource')
+            : i18n.t('subsync.noSourceFfsubsync'),
       false,
     );
 
@@ -110,7 +111,7 @@ export function createSubsyncModal(
     const useAlass = ctx.dom.subsyncEngineAlass.checked;
     const useFfsubsync = ctx.dom.subsyncEngineFfsubsync.checked;
     if (!useAlass && !useFfsubsync) {
-      setSubsyncStatus('No sync engine available for current media.', true);
+      setSubsyncStatus(i18n.t('subsync.noEngine'), true);
       return;
     }
 
@@ -121,7 +122,7 @@ export function createSubsyncModal(
         : null;
 
     if (engine === 'alass' && !Number.isFinite(sourceTrackId)) {
-      setSubsyncStatus('Select a source subtitle track for alass.', true);
+      setSubsyncStatus(i18n.t('subsync.selectSource'), true);
       return;
     }
 
@@ -142,7 +143,7 @@ export function createSubsyncModal(
         sourceTracksSnapshot,
         engine,
         sourceTrackId,
-        `Subsync failed: ${(error as Error).message}`,
+        i18n.t('subsync.failed', { message: (error as Error).message }),
       );
     } finally {
       ctx.state.subsyncSubmitting = false;

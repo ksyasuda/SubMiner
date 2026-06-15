@@ -98,6 +98,7 @@ export interface ConfigSettingsAPI {
     draftUrl?: string,
   ): Promise<ConfigSettingsAnkiListResult>;
   getYomitanAnkiDeckName(): Promise<ConfigSettingsAnkiDeckResult>;
+  getUILanguage(): Promise<string>;
 }
 
 export interface ConfigSettingsAnkiListResult {

@@ -1,5 +1,6 @@
 import { app, dialog, shell } from 'electron';
 import * as os from 'os';
+import { i18n } from '../../i18n/index.js';
 import {
   detectInstalledMpvPlugin,
   detectWindowsMpvPluginRemovalCandidates,
@@ -53,7 +54,10 @@ export function createWindowsMpvPluginDetectionRuntime(
   }) {
     if (!detection.path) return;
     deps.logWarn(
-      `SubMiner detected an installed mpv plugin at ${detection.path}. This mpv session will use the installed plugin. Remove it to use the bundled runtime plugin automatically. Detected plugin version: ${detection.version ?? 'unknown or legacy'}.`,
+      i18n.t('legacyPlugin.log.detected', {
+        path: detection.path,
+        version: detection.version ?? i18n.t('legacyPlugin.log.unknownOrLegacy'),
+      }),
     );
   }
 
@@ -63,17 +67,22 @@ export function createWindowsMpvPluginDetectionRuntime(
   ): Promise<'removed' | 'continue' | 'cancel'> {
     const response = await dialog.showMessageBox({
       type: 'warning',
-      title: 'SubMiner mpv plugin detected',
+      title: i18n.t('legacyPlugin.dialog.detected.title'),
       message: [
-        'SubMiner detected an installed mpv plugin at:',
-        detection.path ?? 'unknown path',
+        i18n.t('legacyPlugin.dialog.detected.line1'),
+        detection.path ?? i18n.t('legacyPlugin.dialog.detected.unknownPath'),
         '',
-        "This mpv session will use the installed plugin unless it is removed. Remove it now to use SubMiner's bundled runtime plugin automatically.",
-        `Detected plugin version: ${detection.version ?? 'unknown or legacy'}`,
+        i18n.t('legacyPlugin.dialog.detected.line2'),
+        i18n.t('legacyPlugin.dialog.detected.versionLabel', {
+          version: detection.version ?? i18n.t('legacyPlugin.log.unknownOrLegacy'),
+        }),
       ].join('\n'),
-      detail:
-        'Remove the legacy SubMiner mpv plugin files from mpv before launching this video? This moves the files to the OS trash.',
-      buttons: ['Remove legacy plugin', 'Continue with installed plugin', 'Cancel'],
+      detail: i18n.t('legacyPlugin.dialog.detected.detail'),
+      buttons: [
+        i18n.t('legacyPlugin.dialog.detected.removeBtn'),
+        i18n.t('legacyPlugin.dialog.detected.continueBtn'),
+        i18n.t('legacyPlugin.dialog.detected.cancelBtn'),
+      ],
       defaultId: 0,
       cancelId: 2,
     });
@@ -96,17 +105,16 @@ export function createWindowsMpvPluginDetectionRuntime(
     if (result.ok) {
       await dialog.showMessageBox({
         type: 'info',
-        title: 'Legacy mpv plugin removed',
-        message:
-          'Legacy mpv plugin removed. SubMiner-managed playback will use the bundled runtime plugin.',
+        title: i18n.t('legacyPlugin.dialog.removed.title'),
+        message: i18n.t('legacyPlugin.dialog.removed.message'),
       });
       return 'removed';
     }
 
     await dialog.showMessageBox({
       type: 'error',
-      title: 'Could not remove legacy mpv plugin',
-      message: 'Some legacy SubMiner mpv plugin files could not be moved to the trash.',
+      title: i18n.t('legacyPlugin.dialog.failed.title'),
+      message: i18n.t('legacyPlugin.dialog.failed.message'),
       detail: result.failedPaths.map((failure) => `${failure.path}: ${failure.message}`).join('\n'),
     });
     return 'cancel';

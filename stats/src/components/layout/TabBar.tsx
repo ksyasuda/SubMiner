@@ -1,20 +1,23 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, useMemo, type KeyboardEvent } from 'react';
+import { useTranslation } from '../../i18n';
 
 export type TabId = 'overview' | 'anime' | 'trends' | 'vocabulary' | 'search' | 'sessions';
 
 interface Tab {
   id: TabId;
-  label: string;
+  i18nKey: string;
 }
 
-const TABS: Tab[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'anime', label: 'Library' },
-  { id: 'trends', label: 'Trends' },
-  { id: 'vocabulary', label: 'Vocabulary' },
-  { id: 'search', label: 'Search' },
-  { id: 'sessions', label: 'Sessions' },
-];
+const TAB_KEYS: Record<TabId, string> = {
+  overview: 'stats.tab.overview',
+  anime: 'stats.tab.library',
+  trends: 'stats.tab.trends',
+  vocabulary: 'stats.tab.vocabulary',
+  search: 'stats.tab.search',
+  sessions: 'stats.tab.sessions',
+};
+
+const TAB_IDS = Object.keys(TAB_KEYS) as TabId[];
 
 interface TabBarProps {
   activeTab: TabId;
@@ -22,10 +25,16 @@ interface TabBarProps {
 }
 
 export function TabBar({ activeTab, onTabChange }: TabBarProps) {
+  const { t } = useTranslation();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
+  const tabs = useMemo<Tab[]>(
+    () => TAB_IDS.map((id) => ({ id, i18nKey: TAB_KEYS[id] })),
+    [],
+  );
+
   const activateAtIndex = (index: number) => {
-    const tab = TABS[index];
+    const tab = tabs[index];
     if (!tab) return;
     tabRefs.current[index]?.focus();
     onTabChange(tab.id);
@@ -34,12 +43,12 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      activateAtIndex((index + 1) % TABS.length);
+      activateAtIndex((index + 1) % tabs.length);
       return;
     }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      activateAtIndex((index - 1 + TABS.length) % TABS.length);
+      activateAtIndex((index - 1 + tabs.length) % tabs.length);
       return;
     }
     if (event.key === 'Home') {
@@ -49,7 +58,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     }
     if (event.key === 'End') {
       event.preventDefault();
-      activateAtIndex(TABS.length - 1);
+      activateAtIndex(tabs.length - 1);
     }
   };
 
@@ -57,10 +66,10 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
     <nav
       className="flex border-b border-ctp-surface1"
       role="tablist"
-      aria-label="Stats tabs"
+      aria-label={t('stats.tabsAria')}
       aria-orientation="horizontal"
     >
-      {TABS.map((tab, index) => (
+      {tabs.map((tab, index) => (
         <button
           key={tab.id}
           id={`tab-${tab.id}`}
@@ -81,7 +90,7 @@ export function TabBar({ activeTab, onTabChange }: TabBarProps) {
                 : 'text-ctp-subtext0 hover:text-ctp-subtext1'
             }`}
         >
-          {tab.label}
+          {t(tab.i18nKey)}
         </button>
       ))}
     </nav>

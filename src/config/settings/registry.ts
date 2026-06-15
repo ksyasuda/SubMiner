@@ -6,6 +6,7 @@ import type {
   ConfigSettingsRestartBehavior,
 } from '../../types/settings';
 import { CONFIG_OPTION_REGISTRY, DEFAULT_CONFIG } from '../definitions';
+import { i18n } from '../../i18n/index.js';
 import {
   getSubtitleCssManagedConfigPaths,
   getSubtitleCssScopeForPath,
@@ -301,9 +302,11 @@ function flattenConfigLeaves(value: unknown, prefix = ''): Leaf[] {
 
 function humanizePath(path: string): string {
   const override = LABEL_OVERRIDES[path];
-  if (override) {
-    return override;
-  }
+  const fallback = override ?? computeHumanizedLabel(path);
+  return i18n.t(`optLabel.${path}`, undefined, fallback);
+}
+
+function computeHumanizedLabel(path: string): string {
   const key = path.split('.').at(-1) ?? path;
   const spaced = key
     .replace(/_/g, ' ')

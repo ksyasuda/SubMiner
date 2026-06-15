@@ -1,4 +1,5 @@
 import type { SessionHelpItem, SessionHelpSection } from './session-help-sections';
+import { i18n } from '../../i18n/index.js';
 
 function createShortcutRow(row: SessionHelpItem, globalIndex: number): HTMLButtonElement {
   const button = document.createElement('button');
@@ -34,20 +35,20 @@ function createShortcutRow(row: SessionHelpItem, globalIndex: number): HTMLButto
 }
 
 const SECTION_ICON: Record<string, string> = {
-  'Playback and navigation': '▶',
-  'Visual feedback': '◉',
-  'Subtitle sync': '⟲',
-  'Mining and capture': '✦',
-  'Stats and progress': '◉',
-  'Overlay controls': '◈',
-  'Modals and tools': '▣',
-  'Runtime settings': '⚙',
-  'System actions': '◆',
-  'Other shortcuts': '…',
-  'Fixed overlay controls': '◇',
-  'Y chords': '⌘',
-  'Global shortcuts': '◆',
-  'Color legend': '◈',
+  [i18n.t('sessionHelp.sections.playback')]: '▶',
+  [i18n.t('sessionHelp.sections.visual')]: '◉',
+  [i18n.t('sessionHelp.sections.sync')]: '⟲',
+  [i18n.t('sessionHelp.section.mining')]: '✦',
+  [i18n.t('sessionHelp.section.stats')]: '◉',
+  [i18n.t('sessionHelp.section.overlayControls')]: '◈',
+  [i18n.t('sessionHelp.section.modals')]: '▣',
+  [i18n.t('sessionHelp.sections.runtime')]: '⚙',
+  [i18n.t('sessionHelp.sections.system')]: '◆',
+  [i18n.t('sessionHelp.sections.other')]: '…',
+  [i18n.t('sessionHelp.section.fixedOverlay')]: '◇',
+  [i18n.t('sessionHelp.section.yChords')]: '⌘',
+  [i18n.t('sessionHelp.section.globalShortcuts')]: '◆',
+  [i18n.t('sessionHelp.colorLegend')]: '◈',
 };
 
 export function createSessionHelpSectionNode(

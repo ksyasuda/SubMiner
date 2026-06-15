@@ -17,6 +17,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
   | 'updates'
   | 'notifications'
   | 'auto_start_overlay'
+  | 'uiLanguage'
 > = {
   subtitlePosition: { yPercent: 10 },
   keybindings: [],
@@ -135,4 +136,5 @@ export const CORE_DEFAULT_CONFIG: Pick<
     overlayPosition: 'top-right',
   },
   auto_start_overlay: true,
+  uiLanguage: 'system',
 };

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { useMediaDetail } from '../../hooks/useMediaDetail';
 import { apiClient } from '../../lib/api-client';
 import { confirmSessionDelete, confirmEpisodeDelete } from '../../lib/delete-confirm';
@@ -14,6 +15,7 @@ interface DeleteEpisodeHandlerOptions {
   confirmFn: (title: string) => boolean | Promise<boolean>;
   onBack: () => void;
   setDeleteError: (msg: string | null) => void;
+  t: (key: string) => string;
   /**
    * Ref used to guard against reentrant delete calls synchronously. When set,
    * a subsequent invocation while the previous request is still pending is
@@ -33,7 +35,7 @@ export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): ()
       confirmed = await opts.confirmFn(opts.title);
     } catch (err) {
       if (opts.isDeletingRef) opts.isDeletingRef.current = false;
-      opts.setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      opts.setDeleteError(err instanceof Error ? err.message : opts.t('stats.media.failedConfirmDelete'));
       return;
     }
     if (!confirmed) {
@@ -46,7 +48,7 @@ export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): ()
       await opts.apiClient.deleteVideo(opts.videoId);
       opts.onBack();
     } catch (err) {
-      opts.setDeleteError(err instanceof Error ? err.message : 'Failed to delete episode.');
+      opts.setDeleteError(err instanceof Error ? err.message : opts.t('stats.media.failedDeleteEpisode'));
     } finally {
       if (opts.isDeletingRef) opts.isDeletingRef.current = false;
       opts.setIsDeleting?.(false);
@@ -54,11 +56,17 @@ export function buildDeleteEpisodeHandler(opts: DeleteEpisodeHandlerOptions): ()
   };
 }
 
-export function getRelatedCollectionLabel(detail: MediaDetailData['detail']): string {
+export function getRelatedCollectionKind(detail: MediaDetailData['detail']): 'channel' | 'anime' {
   if (detail?.channelName?.trim()) {
-    return 'View Channel';
+    return 'channel';
   }
-  return 'View Anime';
+  return 'anime';
+}
+
+// Deprecated: use getRelatedCollectionKind for type-safe checks. Kept for backwards compatibility
+// with existing test imports; the rendered label is now produced by t() based on the kind.
+export function getRelatedCollectionLabel(detail: MediaDetailData['detail']): string {
+  return getRelatedCollectionKind(detail) === 'channel' ? 'View Channel' : 'View Anime';
 }
 
 interface MediaDetailViewProps {
@@ -78,6 +86,7 @@ export function MediaDetailView({
   backLabel = 'Back to Library',
   onNavigateToAnime,
 }: MediaDetailViewProps) {
+  const { t } = useTranslation();
   const { data, loading, error } = useMediaDetail(videoId);
   const [localSessions, setLocalSessions] = useState<SessionSummary[] | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -90,9 +99,9 @@ export function MediaDetailView({
     setLocalSessions(data?.sessions ?? null);
   }, [data?.sessions]);
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
-  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Media not found</div>;
+  if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.mediaDetail.loading')}</div>;
+  if (error) return <div className="text-ctp-red p-4">{t('stats.mediaDetail.error', { message: error })}</div>;
+  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">{t('stats.mediaDetail.notFound')}</div>;
 
   const sessions = localSessions ?? data.sessions;
   const animeId = data.detail.animeId;
@@ -110,7 +119,7 @@ export function MediaDetailView({
     totalLookupHits: sessions.reduce((sum, session) => sum + session.lookupHits, 0),
     totalYomitanLookupCount: sessions.reduce((sum, session) => sum + session.yomitanLookupCount, 0),
   };
-  const relatedCollectionLabel = getRelatedCollectionLabel(detail);
+  const relatedCollectionLabel = getRelatedCollectionKind(detail);
 
   const handleDeleteSession = async (session: SessionSummary) => {
     if (isDeletingSessionRef.current) return;
@@ -119,7 +128,7 @@ export function MediaDetailView({
     try {
       confirmed = await confirmSessionDelete();
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      setDeleteError(err instanceof Error ? err.message : t('stats.media.failedConfirmDelete'));
       isDeletingSessionRef.current = false;
       return;
     }
@@ -136,7 +145,7 @@ export function MediaDetailView({
         (prev ?? data.sessions).filter((item) => item.sessionId !== session.sessionId),
       );
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete session.');
+      setDeleteError(err instanceof Error ? err.message : t('stats.media.failedDeleteSession'));
     } finally {
       setDeletingSessionId(null);
       isDeletingSessionRef.current = false;
@@ -152,6 +161,7 @@ export function MediaDetailView({
     setDeleteError,
     isDeletingRef: isDeletingEpisodeRef,
     setIsDeleting: setIsDeletingEpisode,
+    t,
   });
 
   return (
@@ -170,7 +180,7 @@ export function MediaDetailView({
             onClick={() => onNavigateToAnime(animeId)}
             className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
           >
-            {relatedCollectionLabel} &rarr;
+            {relatedCollectionLabel === 'channel' ? t('stats.media.viewChannel') : t('stats.media.viewAnime')} &rarr;
           </button>
         ) : null}
       </div>

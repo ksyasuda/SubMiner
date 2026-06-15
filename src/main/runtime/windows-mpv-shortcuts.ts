@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { i18n } from '../../i18n/index.js';
 
 export const WINDOWS_MPV_SHORTCUT_NAME = 'SubMiner mpv.lnk';
 
@@ -108,13 +109,13 @@ export function applyWindowsMpvShortcuts(options: {
     return {
       ok: true,
       status: 'skipped',
-      message: 'Disabled Windows mpv shortcuts.',
+      message: i18n.t('setup.launcher.shortcutsDisabled'),
     };
   }
 
   return {
     ok: true,
     status: 'installed',
-    message: 'Updated Windows mpv shortcuts.',
+    message: i18n.t('setup.launcher.shortcutsUpdatedFull'),
   };
 }

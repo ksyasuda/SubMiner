@@ -1,19 +1,28 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 
 function formatAxes(values: number[]): string {
-  if (values.length === 0) return 'No controller axes available.';
-  return values.map((value, index) => `axis[${index}] = ${value.toFixed(3)}`).join('\n');
+  if (values.length === 0) return i18n.t('controller.noAxes');
+  return values
+    .map((value, index) =>
+      i18n.t('controller.debugAxis', { index: String(index), value: value.toFixed(3) }),
+    )
+    .join('\n');
 }
 
 function formatButtons(
   values: Array<{ value: number; pressed: boolean; touched?: boolean }>,
 ): string {
-  if (values.length === 0) return 'No controller buttons available.';
+  if (values.length === 0) return i18n.t('controller.noButtons');
   return values
-    .map(
-      (button, index) =>
-        `button[${index}] value=${button.value.toFixed(3)} pressed=${button.pressed} touched=${button.touched ?? false}`,
+    .map((button, index) =>
+      i18n.t('controller.debugButton', {
+        index: String(index),
+        value: button.value.toFixed(3),
+        pressed: String(button.pressed),
+        touched: String(button.touched ?? false),
+      }),
     )
     .join('\n');
 }
@@ -34,14 +43,14 @@ function formatButtonIndices(
   } | null,
 ): string {
   if (!value) {
-    return 'No controller config loaded.';
+    return i18n.t('controller.noConfig');
   }
-  return `"buttonIndices": ${JSON.stringify(value, null, 2)}`;
+  return i18n.t('controller.debugButtonIndices', { value: JSON.stringify(value, null, 2) });
 }
 
 async function writeTextToClipboard(text: string): Promise<void> {
   if (!navigator.clipboard?.writeText) {
-    throw new Error('Clipboard API unavailable.');
+    throw new Error(i18n.t('controller.clipboardUnavailable'));
   }
   await navigator.clipboard.writeText(text);
 }
@@ -98,8 +107,8 @@ export function createControllerDebugModal(
     setStatus(
       activeDevice?.id ??
         (ctx.state.connectedGamepads.length > 0
-          ? 'Controller connected.'
-          : 'No controller detected.'),
+          ? i18n.t('controller.connected')
+          : i18n.t('controller.noController')),
     );
     ctx.dom.controllerDebugSummary.textContent =
       ctx.state.connectedGamepads.length > 0
@@ -108,12 +117,14 @@ export function createControllerDebugModal(
               const tags = [
                 `#${device.index}`,
                 device.mapping,
-                device.id === ctx.state.activeGamepadId ? 'active' : null,
+                device.id === ctx.state.activeGamepadId
+                  ? i18n.t('controller.tag.active')
+                  : null,
               ].filter(Boolean);
-              return `${device.id || `Gamepad ${device.index}`} (${tags.join(', ')})`;
+              return `${device.id || i18n.t('controller.gamepadN', { index: device.index })} (${tags.join(', ')})`;
             })
             .join('\n')
-        : 'Connect a controller and press any button to populate raw input values.';
+        : i18n.t('controller.connectHint');
     ctx.dom.controllerDebugAxes.textContent = formatAxes(ctx.state.controllerRawAxes);
     ctx.dom.controllerDebugButtons.textContent = formatButtons(ctx.state.controllerRawButtons);
     const activeConfig = ctx.state.controllerConfig
@@ -126,18 +137,18 @@ export function createControllerDebugModal(
 
   async function copyButtonIndicesToClipboard(): Promise<void> {
     const text = ctx.dom.controllerDebugButtonIndices.textContent.trim();
-    if (text.length === 0 || text === 'No controller config loaded.') {
-      setStatus('No buttonIndices config available to copy.', true);
-      showToast('No buttonIndices config available to copy.', true);
+    if (text.length === 0 || text === i18n.t('controller.noConfig')) {
+      setStatus(i18n.t('controller.noButtonIndices'), true);
+      showToast(i18n.t('controller.noButtonIndices'), true);
       return;
     }
     try {
       await writeTextToClipboard(text);
-      setStatus('Copied controller buttonIndices config.');
-      showToast('Copied controller buttonIndices config.');
+      setStatus(i18n.t('controller.copiedConfig'));
+      showToast(i18n.t('controller.copiedConfig'));
     } catch {
-      setStatus('Failed to copy controller buttonIndices config.', true);
-      showToast('Failed to copy controller buttonIndices config.', true);
+      setStatus(i18n.t('controller.copyFailed'), true);
+      showToast(i18n.t('controller.copyFailed'), true);
     }
   }
 

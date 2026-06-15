@@ -6,6 +6,7 @@ import type {
   OverlayNotificationVariant,
 } from '../types';
 import type { RendererContext } from './context';
+import { i18n } from '../i18n/index.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
 
 export const DEFAULT_OVERLAY_NOTIFICATION_TIMEOUT_MS = 3000;
@@ -348,7 +349,7 @@ export function createOverlayNotificationRenderer(
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className = 'overlay-notification-close';
-    closeButton.setAttribute('aria-label', 'Dismiss notification');
+    closeButton.setAttribute('aria-label', i18n.t('notif.dismiss'));
     closeButton.textContent = '×';
     if (hasExplicitNotificationActions(entry)) {
       bindInteractiveControlHover(closeButton);

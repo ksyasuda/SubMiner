@@ -1,4 +1,5 @@
 import type { ControllerDeviceInfo } from '../types';
+import { i18n } from '../i18n/index.js';
 
 type ControllerSnapshot = {
   connectedGamepads: ControllerDeviceInfo[];
@@ -12,8 +13,8 @@ type ControllerStatusIndicatorOptions = {
 };
 
 function getDeviceLabel(device: ControllerDeviceInfo | undefined): string {
-  if (!device) return 'Controller';
-  return device.id || `Gamepad ${device.index}`;
+  if (!device) return i18n.t('controller.fallbackLabel');
+  return device.id || i18n.t('controller.gamepadN', { index: device.index });
 }
 
 export function createControllerStatusIndicator(
@@ -61,7 +62,7 @@ export function createControllerStatusIndicator(
         newDevices.find((device) => device.id === snapshot.activeGamepadId) ??
         newDevices[0] ??
         activeDevice;
-      show(`Controller detected: ${getDeviceLabel(announcedDevice)}`);
+      show(i18n.t('controller.detected', { name: getDeviceLabel(announcedDevice) }));
     }
 
     previousConnectedIds = new Set(snapshot.connectedGamepads.map((device) => device.id));

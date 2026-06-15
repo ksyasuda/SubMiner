@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
 import { epochDayToDate } from '../../lib/formatters';
+import { useTranslation } from '../../i18n';
 
 export interface PerAnimeDataPoint {
   epochDay: number;
@@ -70,6 +71,7 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
 }
 
 export function StackedTrendChart({ title, data, colorPalette }: StackedTrendChartProps) {
+  const { t } = useTranslation();
   const { points, seriesKeys } = buildLineData(data);
   const colors = colorPalette ?? DEFAULT_LINE_COLORS;
 
@@ -77,7 +79,7 @@ export function StackedTrendChart({ title, data, colorPalette }: StackedTrendCha
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
         <h3 className="text-xs font-semibold text-ctp-text mb-2">{title}</h3>
-        <div className="text-xs text-ctp-overlay2">No data</div>
+        <div className="text-xs text-ctp-overlay2">{t('stats.empty.noData')}</div>
       </div>
     );
   }

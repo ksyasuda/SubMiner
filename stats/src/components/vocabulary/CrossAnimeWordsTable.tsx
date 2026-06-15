@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { PosBadge } from './pos-helpers';
 import { isKanaOnlyTokenText } from '../../lib/kana-token';
 import { readBooleanPreference, writeBooleanPreference } from '../../lib/preference-storage';
@@ -71,6 +72,7 @@ export function CrossAnimeWordsTable({
   knownWords,
   onSelectWord,
 }: CrossAnimeWordsTableProps) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const [hideKnown, setHideKnown] = useState(true);
   const [hideKanaOnly, setHideKanaOnly] = useState(() =>
@@ -103,7 +105,7 @@ export function CrossAnimeWordsTable({
           >
             {'\u25B6'}
           </span>
-          Words Across Multiple Titles
+          {t('stats.crossAnime.title')}
         </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {hasKnownData && (
@@ -120,7 +122,7 @@ export function CrossAnimeWordsTable({
                   : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
               }`}
             >
-              Hide Known
+              {t('stats.crossAnime.hideKnown')}
             </button>
           )}
           <button
@@ -138,18 +140,18 @@ export function CrossAnimeWordsTable({
                 : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
             }`}
           >
-            Hide Kana
+            {t('stats.crossAnime.hideKana')}
           </button>
-          <span className="text-xs text-ctp-overlay2">{ranked.length} words</span>
+          <span className="text-xs text-ctp-overlay2">{t('stats.crossAnime.wordCount', { count: ranked.length })}</span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
         <div className="text-xs text-ctp-overlay2 mt-3">
           {hideKnown && hasKnownData && !hideKanaOnly
-            ? 'All words that span multiple titles are already known!'
+            ? t('stats.crossAnime.allAlreadyKnown')
             : (hideKnown && hasKnownData) || hideKanaOnly
-              ? 'No words across multiple titles match the active filters.'
-              : 'No words found across multiple titles.'}
+              ? t('stats.crossAnime.noFilterMatches')
+              : t('stats.crossAnime.noMultiAnimeWords')}
         </div>
       ) : (
         <>
@@ -157,11 +159,11 @@ export function CrossAnimeWordsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
-                  <th className="text-left py-2 pr-3 font-medium">Word</th>
-                  <th className="text-left py-2 pr-3 font-medium">Reading</th>
-                  <th className="text-left py-2 pr-3 font-medium w-20">POS</th>
-                  <th className="text-right py-2 pr-3 font-medium w-16">Titles</th>
-                  <th className="text-right py-2 font-medium w-16">Seen</th>
+                  <th className="text-left py-2 pr-3 font-medium">{t('stats.crossAnime.word')}</th>
+                  <th className="text-left py-2 pr-3 font-medium">{t('stats.crossAnime.reading')}</th>
+                  <th className="text-left py-2 pr-3 font-medium w-20">{t('stats.crossAnime.pos')}</th>
+                  <th className="text-right py-2 pr-3 font-medium w-16">{t('stats.crossAnime.titles')}</th>
+                  <th className="text-right py-2 font-medium w-16">{t('stats.crossAnime.seen')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,7 +199,7 @@ export function CrossAnimeWordsTable({
                 onClick={() => setPage(page - 1)}
                 className="px-2 py-1 rounded bg-ctp-surface1 text-ctp-text disabled:opacity-30 hover:bg-ctp-surface2 transition-colors"
               >
-                Prev
+                {t('stats.crossAnime.prev')}
               </button>
               <span className="text-ctp-overlay2">
                 {page + 1} / {totalPages}
@@ -208,7 +210,7 @@ export function CrossAnimeWordsTable({
                 onClick={() => setPage(page + 1)}
                 className="px-2 py-1 rounded bg-ctp-surface1 text-ctp-text disabled:opacity-30 hover:bg-ctp-surface2 transition-colors"
               >
-                Next
+                {t('stats.crossAnime.next')}
               </button>
             </div>
           )}

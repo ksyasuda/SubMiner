@@ -5,6 +5,7 @@ import type {
   PlaylistBrowserSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import {
   renderPlaylistBrowserDirectoryRow,
   renderPlaylistBrowserPlaylistRow,
@@ -19,9 +20,18 @@ function buildDefaultStatus(snapshot: PlaylistBrowserSnapshot): string {
   const directoryCount = snapshot.directoryItems.length;
   const playlistCount = snapshot.playlistItems.length;
   if (!snapshot.directoryAvailable) {
-    return `${snapshot.directoryStatus} ${playlistCount > 0 ? `· ${playlistCount} queued` : ''}`.trim();
+    if (playlistCount > 0) {
+      return i18n.t('playlistBrowser.directoryStatusQueued', {
+        status: snapshot.directoryStatus,
+        count: playlistCount,
+      });
+    }
+    return snapshot.directoryStatus;
   }
-  return `${directoryCount} sibling videos · ${playlistCount} queued`;
+  return i18n.t('playlistBrowser.siblingQueued', {
+    directoryCount,
+    playlistCount,
+  });
 }
 
 function getDefaultDirectorySelectionIndex(snapshot: PlaylistBrowserSnapshot): number {
@@ -109,7 +119,7 @@ export function createPlaylistBrowserModal(
     ctx.state.playlistBrowserStatus = '';
     ctx.state.playlistBrowserSelectedDirectoryIndex = 0;
     ctx.state.playlistBrowserSelectedPlaylistIndex = 0;
-    ctx.dom.playlistBrowserTitle.textContent = 'Playlist Browser';
+    ctx.dom.playlistBrowserTitle.textContent = i18n.t('playlistBrowser.title');
     ctx.dom.playlistBrowserDirectoryList.replaceChildren();
     ctx.dom.playlistBrowserPlaylistList.replaceChildren();
     ctx.dom.playlistBrowserStatus.textContent = '';
@@ -146,7 +156,7 @@ export function createPlaylistBrowserModal(
       return;
     }
 
-    ctx.dom.playlistBrowserTitle.textContent = snapshot.directoryPath ?? 'Playlist Browser';
+    ctx.dom.playlistBrowserTitle.textContent = snapshot.directoryPath ?? i18n.t('playlistBrowser.title');
     ctx.dom.playlistBrowserStatus.textContent =
       ctx.state.playlistBrowserStatus || buildDefaultStatus(snapshot);
     ctx.dom.playlistBrowserDirectoryList.replaceChildren(
@@ -213,7 +223,7 @@ export function createPlaylistBrowserModal(
   }
 
   async function appendDirectoryItem(filePath: string): Promise<void> {
-    await handleMutation(window.electronAPI.appendPlaylistBrowserFile(filePath), 'Queued file');
+    await handleMutation(window.electronAPI.appendPlaylistBrowserFile(filePath), i18n.t('playlistBrowser.queued'));
   }
 
   async function playPlaylistItem(index: number): Promise<void> {
@@ -228,14 +238,14 @@ export function createPlaylistBrowserModal(
   async function removePlaylistItem(index: number): Promise<void> {
     await handleMutation(
       window.electronAPI.removePlaylistBrowserIndex(index),
-      'Removed queue item',
+      i18n.t('playlistBrowser.removed'),
     );
   }
 
   async function movePlaylistItem(index: number, direction: 1 | -1): Promise<void> {
     await handleMutation(
       window.electronAPI.movePlaylistBrowserIndex(index, direction),
-      'Moved queue item',
+      i18n.t('playlistBrowser.moved'),
     );
   }
 

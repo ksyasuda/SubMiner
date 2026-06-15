@@ -6,6 +6,7 @@ import type {
   ConfigSettingsSnapshot,
   ConfigSettingsSnapshotValue,
 } from '../types/settings';
+import { i18n, applyI18nToDOM } from '../i18n/index.js';
 import {
   configureSettingsControls,
   initializeSettingsControls,
@@ -38,6 +39,60 @@ const CATEGORY_LABELS: Record<ConfigSettingsCategory, string> = {
   'tracking-app': 'Tracking & App',
   advanced: 'Advanced',
 };
+
+const CATEGORY_LABELS_I18N: Record<ConfigSettingsCategory, string> = {
+  appearance: 'settingsCat.appearance',
+  behavior: 'settingsCat.behavior',
+  'mining-anki': 'settingsCat.mining',
+  input: 'settingsCat.input',
+  integrations: 'settingsCat.integrations',
+  'tracking-app': 'settingsCat.tracking',
+  advanced: 'settingsCat.advanced',
+};
+
+const SECTION_TITLE_I18N: Record<string, string> = {
+  'Visible Overlay Auto-Start': 'settingsSection.visibleOverlayAutoStart',
+  'UI Language': 'settingsSection.uiLanguage',
+  'Texthooker Server': 'settingsSection.texthooker',
+  'WebSocket Server': 'settingsSection.websocket',
+  'Annotation WebSocket': 'settingsSection.annotationWebsocket',
+  'Logging': 'settingsSection.logging',
+  'Controller Support': 'settingsSection.controller',
+  'Startup Warmups': 'settingsSection.startupWarmups',
+  'Updates': 'settingsSection.updates',
+  'Notifications': 'settingsSection.notifications',
+  'Keyboard Shortcuts': 'settingsSection.keyboardShortcuts',
+  'Keybindings (MPV Commands)': 'settingsSection.keybindings',
+  'Secondary Subtitles': 'settingsSection.secondarySub',
+  'Subtitle Sync': 'settingsSection.subsync',
+  'Subtitle Position': 'settingsSection.subtitlePosition',
+  'Subtitle Appearance': 'settingsSection.subtitleAppearance',
+  'Subtitle Sidebar': 'settingsSection.subtitleSidebar',
+  'Shared AI Provider': 'settingsSection.sharedAi',
+  'AnkiConnect Integration': 'settingsSection.ankiConnect',
+  'Jimaku': 'settingsSection.jimaku',
+  'YouTube Playback Settings': 'settingsSection.youtube',
+  'Anilist': 'settingsSection.anilist',
+  'Yomitan': 'settingsSection.yomitan',
+  'MPV Launcher': 'settingsSection.mpv',
+  'Jellyfin': 'settingsSection.jellyfin',
+  'Discord Rich Presence': 'settingsSection.discord',
+  'Immersion Tracking': 'settingsSection.immersionTracking',
+  'Stats Dashboard': 'settingsSection.stats',
+};
+
+function translateSectionTitle(title: string): string {
+  const key = SECTION_TITLE_I18N[title];
+  return key ? i18n.t(key) : title;
+}
+
+function fieldDescriptionKey(configPath: string): string {
+  return `opt.${configPath}`;
+}
+
+function fieldLabelKey(configPath: string): string {
+  return `optLabel.${configPath}`;
+}
 
 const CATEGORY_ORDER: ConfigSettingsCategory[] = [
   'appearance',
@@ -99,7 +154,7 @@ function getDirtyCount(): number {
 function syncSaveButton(): void {
   const dirtyCount = getDirtyCount();
   dom.saveButton.disabled = dirtyCount === 0 || state.inputErrors.size > 0;
-  dom.saveButton.textContent = dirtyCount > 0 ? `Save ${dirtyCount}` : 'Save';
+  dom.saveButton.textContent = dirtyCount > 0 ? i18n.t('settings.saveCount', { count: dirtyCount }) : i18n.t('settings.save');
 }
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
@@ -159,9 +214,9 @@ function renderWarnings(snapshot: ConfigSettingsSnapshot): void {
   }
 
   const title = createElement('div', 'warnings-title');
-  title.textContent = `${snapshot.warnings.length} validation warning${
-    snapshot.warnings.length === 1 ? '' : 's'
-  }`;
+  title.textContent = snapshot.warnings.length === 1
+    ? i18n.t('settings.validationWarning', { count: snapshot.warnings.length })
+    : i18n.t('settings.validationWarningPlural', { count: snapshot.warnings.length });
   dom.warningsPanel.append(title);
 
   for (const warning of snapshot.warnings.slice(0, 6)) {
@@ -187,7 +242,7 @@ function renderCategoryNav(snapshot: ConfigSettingsSnapshot): void {
     button.type = 'button';
     button.classList.toggle('active', state.category === category);
     const label = createElement('span');
-    label.textContent = CATEGORY_LABELS[category];
+    label.textContent = i18n.t(CATEGORY_LABELS_I18N[category]);
     const badge = createElement('strong');
     badge.textContent = String(count);
     button.append(label, badge);
@@ -205,7 +260,7 @@ function renderField(field: ConfigSettingsField): HTMLElement {
   const header = createElement('div', 'field-copy');
   const label = createElement('h3');
   const labelText = createElement('span', 'field-title-text');
-  labelText.textContent = field.label;
+  labelText.textContent = i18n.t(fieldLabelKey(field.configPath), undefined, field.label);
   label.append(labelText);
   for (const badge of getFieldTitleBadges(field)) {
     const badgeEl = createElement('span', badge.className);
@@ -213,7 +268,7 @@ function renderField(field: ConfigSettingsField): HTMLElement {
     label.append(badgeEl);
   }
   const description = createElement('p');
-  description.textContent = field.description;
+  description.textContent = i18n.t(fieldDescriptionKey(field.configPath), undefined, field.description);
   header.append(label, description);
 
   const controlWrap = createElement('div', 'field-control');
@@ -228,7 +283,7 @@ function renderField(field: ConfigSettingsField): HTMLElement {
   );
   const resetButton = createElement('button', 'reset-button') as HTMLButtonElement;
   resetButton.type = 'button';
-  resetButton.textContent = 'Reset';
+  resetButton.textContent = i18n.t('common.reset');
   resetButton.addEventListener('click', () => {
     if (!state.draft) return;
     resetDraftPath(state.draft, field.configPath, field.defaultValue);
@@ -256,20 +311,16 @@ function renderSettingsContent(snapshot: ConfigSettingsSnapshot): void {
 
   if (query) {
     const categoryCount = new Set(fields.map((field) => field.category)).size;
-    dom.categoryTitle.textContent = 'Search results';
-    dom.categoryMeta.textContent = `${fields.length} setting${fields.length === 1 ? '' : 's'}${
-      categoryCount > 0
-        ? ` across ${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`
-        : ''
-    }`;
+    dom.categoryTitle.textContent = i18n.t('settings.searchResults');
+    dom.categoryMeta.textContent = i18n.t(fields.length === 1 ? 'settings.settingCount' : 'settings.settingCountPlural', { count: fields.length });
   } else {
-    dom.categoryTitle.textContent = CATEGORY_LABELS[state.category];
-    dom.categoryMeta.textContent = `${fields.length} setting${fields.length === 1 ? '' : 's'}`;
+    dom.categoryTitle.textContent = i18n.t(CATEGORY_LABELS_I18N[state.category]);
+    dom.categoryMeta.textContent = i18n.t(fields.length === 1 ? 'settings.settingCount' : 'settings.settingCountPlural', { count: fields.length });
   }
 
   if (fields.length === 0) {
     const empty = createElement('div', 'empty-state');
-    empty.textContent = 'No matching settings';
+    empty.textContent = i18n.t('settings.noMatch');
     dom.settingsContent.append(empty);
     return;
   }
@@ -279,7 +330,9 @@ function renderSettingsContent(snapshot: ConfigSettingsSnapshot): void {
     { title: string; rawSection: string; fields: ConfigSettingsField[] }
   >();
   for (const field of fields) {
-    const title = query ? `${CATEGORY_LABELS[field.category]} / ${field.section}` : field.section;
+    const title = query
+      ? `${i18n.t(CATEGORY_LABELS_I18N[field.category])} / ${translateSectionTitle(field.section)}`
+      : translateSectionTitle(field.section);
     const section = sections.get(title) ?? { title, rawSection: field.section, fields: [] };
     section.fields.push(field);
     sections.set(title, section);
@@ -342,7 +395,7 @@ async function save(): Promise<void> {
   if (operations.length === 0) return;
 
   dom.saveButton.disabled = true;
-  setStatus('Saving...', 'info');
+  setStatus(i18n.t('settings.saving'), 'info');
   let result;
   try {
     result = await window.configSettingsAPI.savePatch({ operations });
@@ -383,6 +436,17 @@ dom.saveButton.addEventListener('click', () => {
   void save();
 });
 
-void loadSnapshot().catch((error) => {
-  setStatus(error instanceof Error ? error.message : 'Failed to load settings', 'error');
+// Initialize i18n from main process (resolves OS language correctly) before loading settings
+async function initI18n(): Promise<void> {
+  try {
+    const lang = await window.configSettingsAPI.getUILanguage();
+    i18n.setLanguage(lang as 'en' | 'zh-CN');
+  } catch {
+    i18n.setLanguage('en');
+  }
+  applyI18nToDOM();
+}
+
+void initI18n().then(() => loadSnapshot()).catch((error) => {
+  setStatus(error instanceof Error ? error.message : i18n.t('settings.loadFailed'), 'error');
 });

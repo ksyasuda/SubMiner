@@ -1,6 +1,7 @@
 import type { ConfigSettingsField, ConfigSettingsSnapshotValue } from '../types/settings';
 import type { SettingsControlContext } from './settings-control-context';
 import { addOption, createElement, uniqueSorted } from './settings-control-dom';
+import { i18n } from '../i18n/index.js';
 
 const state: {
   deckNames: string[] | null;
@@ -438,7 +439,7 @@ export function renderAnkiNoteTypeInput(
   const select = createElement('select', 'config-input') as HTMLSelectElement;
   const modelNames = uniqueSorted([...(state.modelNames ?? []), current]);
   if (state.modelNamesLoading && modelNames.length === 0) {
-    addOption(select, current, 'Loading Note Types...');
+    addOption(select, current, i18n.t('settings.loadingNoteTypes'));
   }
   for (const modelName of modelNames) {
     addOption(select, modelName);
@@ -478,7 +479,7 @@ export function renderAnkiDeckInput(
   }
 
   const select = createElement('select', 'config-input') as HTMLSelectElement;
-  addOption(select, '', state.deckNamesLoading ? 'Loading Decks...' : 'Select Deck');
+  addOption(select, '', state.deckNamesLoading ? i18n.t('settings.loadingDecks') : i18n.t('settings.selectDeck'));
   for (const deckName of uniqueSorted([...(state.deckNames ?? []), current])) {
     if (!deckName) continue;
     addOption(select, deckName);
@@ -555,17 +556,16 @@ export function renderNoteFieldModelPicker(context: SettingsControlContext): HTM
   const row = createElement('article', 'field-row helper-row');
   const copy = createElement('div', 'field-copy');
   const title = createElement('h3');
-  title.textContent = 'Note Type';
+  title.textContent = i18n.t('settings.noteType');
   const description = createElement('p');
-  description.textContent =
-    'Choose a note type from AnkiConnect to populate the field dropdowns below.';
+  description.textContent = i18n.t('settings.noteTypeHint');
   copy.append(title, description);
 
   const control = createElement('div', 'field-control');
   const select = createElement('select', 'config-input') as HTMLSelectElement;
   const modelNames = state.modelNames ?? [];
   if (state.modelNamesLoading && modelNames.length === 0) {
-    addOption(select, '', 'Loading Note Types...');
+    addOption(select, '', i18n.t('settings.loadingNoteTypes'));
   } else {
     for (const modelName of modelNames) {
       addOption(select, modelName);
@@ -596,8 +596,8 @@ export function renderKnownWordsDecksInput(
   if (entries.length === 0) {
     const empty = createElement('div', 'control-hint');
     empty.textContent = state.deckNamesLoading
-      ? 'Loading Anki decks...'
-      : 'No known-word decks configured.';
+      ? i18n.t('settings.loadingDecks')
+      : i18n.t('settings.noDecksConfigured');
     container.append(empty);
   }
 
@@ -647,7 +647,7 @@ export function renderKnownWordsDecksInput(
       'secondary-button compact-button',
     ) as HTMLButtonElement;
     selectAllButton.type = 'button';
-    selectAllButton.textContent = 'Select All';
+    selectAllButton.textContent = i18n.t('settings.selectAll');
     selectAllButton.disabled = fieldNames.length === 0;
     selectAllButton.addEventListener('click', () => {
       setSelectedFields(fieldNames);
@@ -659,7 +659,7 @@ export function renderKnownWordsDecksInput(
       'secondary-button compact-button',
     ) as HTMLButtonElement;
     clearButton.type = 'button';
-    clearButton.textContent = 'Clear';
+    clearButton.textContent = i18n.t('settings.clear');
     clearButton.disabled = selectedFields.length === 0;
     clearButton.addEventListener('click', () => {
       setSelectedFields([]);
@@ -670,11 +670,11 @@ export function renderKnownWordsDecksInput(
 
     if (state.deckFieldNamesLoading.has(deckName)) {
       const hint = createElement('div', 'control-hint');
-      hint.textContent = 'Loading Fields...';
+      hint.textContent = i18n.t('settings.loadingFields');
       checkboxList.append(hint);
     } else if (fieldNames.length === 0) {
       const hint = createElement('div', 'control-hint');
-      hint.textContent = deckName ? 'No fields found for this deck.' : 'Select A Deck First.';
+      hint.textContent = deckName ? i18n.t('settings.noFields') : i18n.t('settings.selectDeckFirst');
       checkboxList.append(hint);
     }
 
@@ -698,7 +698,7 @@ export function renderKnownWordsDecksInput(
 
     const removeButton = createElement('button', 'reset-button icon-button') as HTMLButtonElement;
     removeButton.type = 'button';
-    removeButton.textContent = 'Remove';
+    removeButton.textContent = i18n.t('settings.remove');
     removeButton.addEventListener('click', () => {
       const nextDecks = normalizeKnownWordsDecks(context.valueForField(field));
       delete nextDecks[deckName];
@@ -719,7 +719,7 @@ export function renderKnownWordsDecksInput(
 
   const addButton = createElement('button', 'secondary-button compact-button') as HTMLButtonElement;
   addButton.type = 'button';
-  addButton.textContent = 'Add Deck';
+  addButton.textContent = i18n.t('settings.addDeck');
   addButton.disabled = deckNames.length === 0;
   addButton.addEventListener('click', () => {
     const nextDecks = normalizeKnownWordsDecks(context.valueForField(field));

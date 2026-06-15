@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { PosBadge } from './pos-helpers';
 import { fullReading } from '../../lib/reading-utils';
 import { isKanaOnlyTokenText } from '../../lib/kana-token';
@@ -68,6 +69,7 @@ export function buildFrequencyRankRows(
 }
 
 export function FrequencyRankTable({ words, knownWords, onSelectWord }: FrequencyRankTableProps) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const [hideKnown, setHideKnown] = useState(() =>
     readBooleanPreference(HIDE_KNOWN_STORAGE_KEY, true),
@@ -86,10 +88,9 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
   if (words.every((w) => w.frequencyRank == null)) {
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
-        <h3 className="text-sm font-semibold text-ctp-text mb-2">Most Common Words Seen</h3>
+        <h3 className="text-sm font-semibold text-ctp-text mb-2">{t('stats.frequency.title')}</h3>
         <div className="text-xs text-ctp-overlay2">
-          No frequency rank data available. Run the frequency backfill script or install a frequency
-          dictionary.
+          {t('stats.frequency.noFrequencyData')}
         </div>
       </div>
     );
@@ -111,7 +112,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
           >
             {'\u25B6'}
           </span>
-          {hideKnown && hasKnownData ? 'Common Words Not Yet Mined' : 'Most Common Words Seen'}
+          {hideKnown && hasKnownData ? t('stats.frequency.commonWordsNotYetMined') : t('stats.frequency.title')}
         </button>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {hasKnownData && (
@@ -130,7 +131,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                   : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
               }`}
             >
-              Hide Known
+              {t('stats.frequency.hideKnown')}
             </button>
           )}
           <button
@@ -148,18 +149,18 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                 : 'bg-ctp-surface0 text-ctp-overlay2 border-ctp-surface1 hover:text-ctp-subtext0'
             }`}
           >
-            Hide Kana
+            {t('stats.frequency.hideKana')}
           </button>
-          <span className="text-xs text-ctp-overlay2">{ranked.length} words</span>
+          <span className="text-xs text-ctp-overlay2">{t('stats.frequency.wordCount', { count: ranked.length })}</span>
         </div>
       </div>
       {collapsed ? null : ranked.length === 0 ? (
         <div className="text-xs text-ctp-overlay2 mt-3">
           {hideKnown && hasKnownData && !hideKanaOnly
-            ? 'All ranked words are already in Anki!'
+            ? t('stats.frequency.allAlreadyKnown')
             : (hideKnown && hasKnownData) || hideKanaOnly
-              ? 'No ranked words match the active filters.'
-              : 'No words with frequency data.'}
+              ? t('stats.frequency.noFilterMatches')
+              : t('stats.frequency.noFrequencyData')}
         </div>
       ) : (
         <>
@@ -167,10 +168,10 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
-                  <th className="text-left py-2 pr-3 font-medium w-16">Rank</th>
-                  <th className="text-left py-2 pr-3 font-medium">Word</th>
-                  <th className="text-left py-2 pr-3 font-medium w-20">POS</th>
-                  <th className="text-right py-2 font-medium w-20">Seen</th>
+                  <th className="text-left py-2 pr-3 font-medium w-16">{t('stats.frequency.rank')}</th>
+                  <th className="text-left py-2 pr-3 font-medium">{t('stats.frequency.word')}</th>
+                  <th className="text-left py-2 pr-3 font-medium w-20">{t('stats.frequency.pos')}</th>
+                  <th className="text-right py-2 font-medium w-20">{t('stats.frequency.seen')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,7 +217,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                 onClick={() => setPage(page - 1)}
                 className="px-2 py-1 rounded bg-ctp-surface1 text-ctp-text disabled:opacity-30 hover:bg-ctp-surface2 transition-colors"
               >
-                Prev
+                {t('stats.frequency.prev')}
               </button>
               <span className="text-ctp-overlay2">
                 {page + 1} / {totalPages}
@@ -227,7 +228,7 @@ export function FrequencyRankTable({ words, knownWords, onSelectWord }: Frequenc
                 onClick={() => setPage(page + 1)}
                 className="px-2 py-1 rounded bg-ctp-surface1 text-ctp-text disabled:opacity-30 hover:bg-ctp-surface2 transition-colors"
               >
-                Next
+                {t('stats.frequency.next')}
               </button>
             </div>
           )}

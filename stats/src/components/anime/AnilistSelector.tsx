@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from '../../i18n';
 import { apiClient } from '../../lib/api-client';
 import { normalizeAnilistSearchQuery } from '../../lib/anilist-search-query';
 
@@ -25,6 +26,7 @@ export function AnilistSelector({
   onClose,
   onLinked,
 }: AnilistSelectorProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState(() => normalizeAnilistSearchQuery(initialQuery));
   const [results, setResults] = useState<AnilistMedia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,7 +94,7 @@ export function AnilistSelector({
       >
         <div className="p-4 border-b border-ctp-surface1">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-ctp-text">Select AniList Entry</h3>
+            <h3 className="text-sm font-semibold text-ctp-text">{t('stats.anilist.title')}</h3>
             <button
               type="button"
               onClick={onClose}
@@ -106,15 +108,15 @@ export function AnilistSelector({
             type="text"
             value={query}
             onChange={(e) => handleInput(e.target.value)}
-            placeholder="Search AniList..."
+            placeholder={t('stats.anilist.searchPlaceholder')}
             className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
           />
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {loading && <div className="text-xs text-ctp-overlay2 p-3">Searching...</div>}
+          {loading && <div className="text-xs text-ctp-overlay2 p-3">{t('stats.anilist.searching')}</div>}
           {!loading && results.length === 0 && query.trim() && (
-            <div className="text-xs text-ctp-overlay2 p-3">No results</div>
+            <div className="text-xs text-ctp-overlay2 p-3">{t('stats.anilist.noResults')}</div>
           )}
           {results.map((media) => (
             <button
@@ -135,7 +137,7 @@ export function AnilistSelector({
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-ctp-text truncate">
-                  {media.title?.romaji ?? media.title?.english ?? 'Unknown'}
+                  {media.title?.romaji ?? media.title?.english ?? t('stats.anilist.unknown')}
                 </div>
                 {media.title?.english && media.title.english !== media.title.romaji && (
                   <div className="text-xs text-ctp-subtext0 truncate">{media.title.english}</div>
@@ -146,9 +148,9 @@ export function AnilistSelector({
                 </div>
               </div>
               {linking === media.id ? (
-                <span className="text-xs text-ctp-blue shrink-0">Linking...</span>
+                <span className="text-xs text-ctp-blue shrink-0">{t('stats.anilist.linking')}</span>
               ) : (
-                <span className="text-xs text-ctp-overlay2 shrink-0">Select</span>
+                <span className="text-xs text-ctp-overlay2 shrink-0">{t('stats.anilist.select')}</span>
               )}
             </button>
           ))}

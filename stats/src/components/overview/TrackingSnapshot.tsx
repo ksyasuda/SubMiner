@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import type { OverviewSummary } from '../../lib/dashboard-data';
 import { formatNumber } from '../../lib/formatters';
 import { Tooltip } from '../layout/Tooltip';
@@ -18,6 +19,7 @@ export function TrackingSnapshot({
   showTrackedCardNote = false,
   knownWordsSummary,
 }: TrackingSnapshotProps) {
+  const { t } = useTranslation();
   const knownWordPercent =
     knownWordsSummary && knownWordsSummary.totalUniqueWords > 0
       ? Math.round((knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100)
@@ -25,9 +27,9 @@ export function TrackingSnapshot({
 
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
-      <h3 className="text-sm font-semibold text-ctp-text">Tracking Snapshot</h3>
+      <h3 className="text-sm font-semibold text-ctp-text">{t('stats.tracking.title')}</h3>
       <p className="mt-1 mb-3 text-xs text-ctp-overlay2">
-        Lifetime totals sourced from summary tables.
+        {t('stats.tracking.subtitle')}
       </p>
       {showTrackedCardNote && (
         <div className="mb-3 rounded-lg border border-ctp-surface2 bg-ctp-surface1/50 px-3 py-2 text-xs text-ctp-subtext0">
@@ -36,17 +38,17 @@ export function TrackingSnapshot({
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <Tooltip text="Total immersion sessions recorded across all time">
+        <Tooltip text={t('stats.tracking.sessionsTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Sessions</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.sessions')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-lavender">
               {formatNumber(summary.totalSessions)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total active watch time across all sessions">
+        <Tooltip text={t('stats.tracking.watchTimeTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Watch Time</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.watchTime')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-mauve">
               {summary.allTimeMinutes < 60
                 ? `${summary.allTimeMinutes}m`
@@ -54,83 +56,83 @@ export function TrackingSnapshot({
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Number of distinct days with at least one session">
+        <Tooltip text={t('stats.tracking.activeDaysTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Active Days</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.activeDays')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-peach">
               {formatNumber(summary.activeDays)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Average active watch time per session in minutes">
+        <Tooltip text={t('stats.tracking.avgSessionTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Avg Session</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.avgSession')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-yellow">
               {formatNumber(summary.averageSessionMinutes)}
               <span className="text-sm text-ctp-overlay2 ml-0.5">min</span>
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total unique videos watched across all titles in your library">
+        <Tooltip text={t('stats.tracking.episodesTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Episodes</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.episodes')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-blue">
               {formatNumber(summary.totalEpisodesWatched)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Number of titles fully completed">
+        <Tooltip text={t('stats.tracking.titlesTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Titles</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.titles')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sapphire">
               {formatNumber(summary.totalAnimeCompleted)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total Anki cards mined from subtitle lines across all sessions">
+        <Tooltip text={t('stats.tracking.cardsMinedTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Cards Mined</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.cardsMined')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-cards-mined">
               {formatNumber(summary.totalTrackedCards)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Lifetime Yomitan lookups normalized by total words seen">
+        <Tooltip text={t('stats.tracking.lookupRateTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Lookup Rate</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.lookupRate')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-flamingo">
               {summary.lookupRate?.shortValue ?? '—'}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Total word occurrences encountered in today's sessions">
+        <Tooltip text={t('stats.tracking.wordsTodayTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Words Today</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.wordsToday')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-sky">
               {formatNumber(summary.todayTokens)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Unique headwords seen for the first time today">
+        <Tooltip text={t('stats.tracking.newWordsTodayTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">New Words Today</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.newWordsToday')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-rosewater">
               {formatNumber(summary.newWordsToday)}
             </div>
           </div>
         </Tooltip>
-        <Tooltip text="Unique headwords seen for the first time this week">
+        <Tooltip text={t('stats.tracking.newWordsTooltip')}>
           <div className="rounded-lg bg-ctp-surface1/60 p-3">
-            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">New Words</div>
+            <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.newWords')}</div>
             <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-pink">
               {formatNumber(summary.newWordsThisWeek)}
             </div>
           </div>
         </Tooltip>
         {knownWordsSummary && knownWordsSummary.totalUniqueWords > 0 && (
-          <Tooltip text="Words matched against your known-words list out of all unique words seen">
+          <Tooltip text={t('stats.tracking.knownWordsTooltip')}>
             <div className="rounded-lg bg-ctp-surface1/60 p-3">
-              <div className="text-xs uppercase tracking-wide text-ctp-overlay2">Known Words</div>
+              <div className="text-xs uppercase tracking-wide text-ctp-overlay2">{t('stats.tracking.knownWords')}</div>
               <div className="mt-1 text-xl font-semibold font-mono tabular-nums text-ctp-green">
                 {formatNumber(knownWordsSummary.knownWordCount)}
                 <span className="text-sm text-ctp-overlay2 ml-1">

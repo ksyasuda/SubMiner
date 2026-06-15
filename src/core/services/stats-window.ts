@@ -16,6 +16,7 @@ import {
   STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
 import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement.js';
+import { i18n } from '../../i18n/index.js';
 import {
   createStatsWindowLayerSuspensionState,
   isStatsWindowLayerSuspended,
@@ -36,6 +37,8 @@ export interface StatsWindowOptions {
   preloadPath: string;
   /** Resolve the active stats API base URL */
   getApiBaseUrl?: () => string;
+  /** Resolve the resolved UI language */
+  getUILanguage?: () => string;
   /** Resolve the active stats toggle key from config */
   getToggleKey: () => string;
   /** Resolve the tracked overlay/mpv bounds */
@@ -150,7 +153,7 @@ export async function withStatsWindowLayerSuspendedForNativeDialog<T>(
 
 function confirmStatsNativeDialog(message: unknown): boolean {
   const dialogMessage =
-    typeof message === 'string' && message.trim().length > 0 ? message : 'Confirm deletion?';
+    typeof message === 'string' && message.trim().length > 0 ? message : i18n.t('stats.media.confirmDeletion');
 
   return showStatsNativeConfirmDialog(statsWindow, dialogMessage, {
     showWithParent: (parentWindow, options) => dialog.showMessageBoxSync(parentWindow, options),
@@ -194,7 +197,14 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
     });
 
     const indexPath = path.join(options.staticDir, 'index.html');
-    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.()));
+    const baseOptions = buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.());
+    statsWindow.loadFile(indexPath, {
+      ...baseOptions,
+      query: {
+        ...baseOptions.query,
+        lang: options.getUILanguage?.() ?? 'en',
+      },
+    });
 
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);

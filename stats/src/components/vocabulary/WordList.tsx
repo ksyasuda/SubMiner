@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import type { VocabularyEntry } from '../../types/stats';
 import { PosBadge } from './pos-helpers';
 
@@ -18,13 +19,14 @@ function toWordKey(word: VocabularyEntry): string {
 const PAGE_SIZE = 100;
 
 export function WordList({ words, selectedKey = null, onSelectWord, search = '' }: WordListProps) {
+  const { t } = useTranslation();
   const [sortBy, setSortBy] = useState<SortKey>('frequency');
   const [page, setPage] = useState(0);
 
   const titleBySort: Record<SortKey, string> = {
-    frequency: 'Most Seen Words',
-    lastSeen: 'Recently Seen Words',
-    firstSeen: 'First Seen Words',
+    frequency: t('stats.wordList.mostSeen'),
+    lastSeen: t('stats.wordList.recentlySeen'),
+    firstSeen: t('stats.wordList.firstSeen'),
   };
 
   const filtered = useMemo(() => {
@@ -74,9 +76,9 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
           }}
           className="text-xs bg-ctp-surface1 text-ctp-subtext0 border border-ctp-surface2 rounded px-2 py-1"
         >
-          <option value="frequency">Frequency</option>
-          <option value="lastSeen">Last Seen</option>
-          <option value="firstSeen">First Seen</option>
+          <option value="frequency">{t('stats.vocabulary.frequency')}</option>
+          <option value="lastSeen">{t('stats.vocabulary.lastSeen')}</option>
+          <option value="firstSeen">{t('stats.vocabulary.firstSeen')}</option>
         </select>
       </div>
       <div className="flex flex-wrap gap-1.5">

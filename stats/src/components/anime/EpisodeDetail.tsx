@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 import { getStatsClient } from '../../hooks/useStatsApi';
 import { apiClient } from '../../lib/api-client';
 import { confirmSessionDelete } from '../../lib/delete-confirm';
@@ -38,6 +39,7 @@ export function filterCardEvents(
 }
 
 export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<EpisodeDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteInfos, setNoteInfos] = useState<Map<number, NoteInfo>>(new Map());
@@ -94,9 +96,13 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
     onSessionDeleted?.();
   };
 
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-3">Loading...</div>;
+  if (loading) return <div className="text-ctp-overlay2 text-xs p-3">{t('stats.mediaDetail.loading')}</div>;
   if (!data)
-    return <div className="text-ctp-overlay2 text-xs p-3">Failed to load episode details.</div>;
+    return (
+      <div className="text-ctp-overlay2 text-xs p-3">
+        {t('stats.mediaDetail.episodeLoadFailed')}
+      </div>
+    );
 
   const { sessions, cardEvents } = data;
 
@@ -114,7 +120,9 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
     <div className="bg-ctp-mantle border border-ctp-surface1 rounded-lg">
       {sessions.length > 0 && (
         <div className="p-3 border-b border-ctp-surface1">
-          <h4 className="text-xs font-semibold text-ctp-subtext0 mb-2">Sessions</h4>
+          <h4 className="text-xs font-semibold text-ctp-subtext0 mb-2">
+            {t('stats.episode.sessions')}
+          </h4>
           <div className="space-y-1">
             {sessions.map((s) => (
               <div key={s.sessionId} className="flex items-center gap-3 text-xs group">
@@ -146,7 +154,9 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
 
       {filteredCardEvents.length > 0 && (
         <div className="p-3 border-b border-ctp-surface1">
-          <h4 className="text-xs font-semibold text-ctp-subtext0 mb-2">Cards Mined</h4>
+          <h4 className="text-xs font-semibold text-ctp-subtext0 mb-2">
+            {t('stats.episode.cardsMined')}
+          </h4>
           <div className="space-y-1.5">
             {filteredCardEvents.map((ev) => (
               <div key={ev.eventId} className="flex items-center gap-2 text-xs">
@@ -192,7 +202,7 @@ export function EpisodeDetail({ videoId, onSessionDeleted }: EpisodeDetailProps)
       )}
 
       {sessions.length === 0 && cardEvents.length === 0 && (
-        <div className="p-3 text-xs text-ctp-overlay2">No detailed data available.</div>
+        <div className="p-3 text-xs text-ctp-overlay2">{t('stats.empty.noDetails')}</div>
       )}
     </div>
   );

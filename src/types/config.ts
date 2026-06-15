@@ -144,6 +144,7 @@ export interface Config {
   subtitleStyle?: SubtitleStyleConfig;
   subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
+  uiLanguage?: string;
   jimaku?: JimakuConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;
@@ -294,6 +295,7 @@ export interface ResolvedConfig {
   };
   subtitleSidebar: ResolvedSubtitleSidebarConfig;
   auto_start_overlay: boolean;
+  uiLanguage: string;
   jimaku: JimakuConfig & {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;

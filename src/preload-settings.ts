@@ -49,6 +49,7 @@ const configSettingsAPI: ConfigSettingsAPI = {
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiModelFieldNames, modelName, draftUrl),
   getYomitanAnkiDeckName: (): Promise<ConfigSettingsAnkiDeckResult> =>
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getYomitanAnkiDeckName),
+  getUILanguage: (): Promise<string> => ipcRenderer.invoke('get-ui-language'),
 };
 
 contextBridge.exposeInMainWorld('configSettingsAPI', configSettingsAPI);

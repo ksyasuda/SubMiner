@@ -4,6 +4,7 @@ import type {
   KikuMergePreviewResponse,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 export function createKikuModal(
   ctx: RendererContext,
@@ -14,8 +15,8 @@ export function createKikuModal(
 ) {
   function formatMediaMeta(card: KikuDuplicateCardInfo): string {
     const parts: string[] = [];
-    parts.push(card.hasAudio ? 'Audio: Yes' : 'Audio: No');
-    parts.push(card.hasImage ? 'Image: Yes' : 'Image: No');
+    parts.push(i18n.t('kiku.mediaMeta.audio', { value: i18n.t(card.hasAudio ? 'kiku.mediaMeta.yes' : 'kiku.mediaMeta.no') }));
+    parts.push(i18n.t('kiku.mediaMeta.image', { value: i18n.t(card.hasImage ? 'kiku.mediaMeta.yes' : 'kiku.mediaMeta.no') }));
     return parts.join(' | ');
   }
 
@@ -30,8 +31,8 @@ export function createKikuModal(
     ctx.dom.kikuSelectionStep.classList.toggle('hidden', !isSelect);
     ctx.dom.kikuPreviewStep.classList.toggle('hidden', isSelect);
     ctx.dom.kikuHint.textContent = isSelect
-      ? 'Press 1 or 2 to select · Enter to continue · Esc to cancel'
-      : 'Enter to confirm merge · Backspace to go back · Esc to cancel';
+      ? i18n.t('kiku.hint.select')
+      : i18n.t('kiku.hint.preview');
   }
 
   function updateKikuPreviewToggle(): void {
@@ -74,11 +75,11 @@ export function createKikuModal(
     ctx.state.kikuSelectedCard = 1;
 
     ctx.dom.kikuCard1Expression.textContent = data.original.expression;
-    ctx.dom.kikuCard1Sentence.textContent = data.original.sentencePreview || '(no sentence)';
+    ctx.dom.kikuCard1Sentence.textContent = data.original.sentencePreview || i18n.t('kiku.noSentence');
     ctx.dom.kikuCard1Meta.textContent = formatMediaMeta(data.original);
 
     ctx.dom.kikuCard2Expression.textContent = data.duplicate.expression;
-    ctx.dom.kikuCard2Sentence.textContent = data.duplicate.sentencePreview || '(current subtitle)';
+    ctx.dom.kikuCard2Sentence.textContent = data.duplicate.sentencePreview || i18n.t('kiku.currentSubtitle');
     ctx.dom.kikuCard2Meta.textContent = formatMediaMeta(data.duplicate);
 
     ctx.dom.kikuDeleteDuplicateCheckbox.checked = true;
@@ -151,7 +152,7 @@ export function createKikuModal(
       });
 
       if (!preview.ok) {
-        setKikuPreviewError(preview.error || 'Failed to build merge preview');
+        setKikuPreviewError(preview.error || i18n.t('kiku.previewFailed'));
         return;
       }
 

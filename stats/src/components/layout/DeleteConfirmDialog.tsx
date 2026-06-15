@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { setDeleteConfirmPresenter } from '../../lib/delete-confirm';
 
 interface PendingDeleteConfirm {
@@ -7,6 +8,7 @@ interface PendingDeleteConfirm {
 }
 
 export function DeleteConfirmDialog() {
+  const { t } = useTranslation();
   const [pendingConfirm, setPendingConfirm] = useState<PendingDeleteConfirm | null>(null);
   const pendingRef = useRef<PendingDeleteConfirm | null>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -67,7 +69,7 @@ export function DeleteConfirmDialog() {
       >
         <div className="border-b border-ctp-surface1 px-4 py-3">
           <h2 id="delete-confirm-title" className="text-sm font-semibold text-ctp-text">
-            Delete?
+            {t('stats.delete.confirm')}
           </h2>
         </div>
         <div className="px-4 py-4 text-sm leading-6 text-ctp-subtext0">
@@ -80,14 +82,14 @@ export function DeleteConfirmDialog() {
             onClick={() => finish(false)}
             className="border-r border-ctp-surface1 px-4 py-3 text-sm text-ctp-subtext0 transition-colors hover:bg-ctp-surface0 hover:text-ctp-text focus:outline-none focus:bg-ctp-surface0 focus:text-ctp-text"
           >
-            Cancel
+            {t('stats.delete.cancel')}
           </button>
           <button
             type="button"
             onClick={() => finish(true)}
             className="px-4 py-3 text-sm font-semibold text-ctp-red transition-colors hover:bg-ctp-surface0 focus:outline-none focus:bg-ctp-surface0"
           >
-            Delete
+            {t('stats.delete.delete')}
           </button>
         </div>
       </div>

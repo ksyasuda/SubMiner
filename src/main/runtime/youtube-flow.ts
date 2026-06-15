@@ -18,6 +18,7 @@ import {
   acquireYoutubeSubtitleTracks,
 } from '../../core/services/youtube/generate';
 import { resolveSubtitleSourcePath } from './subtitle-prefetch-source';
+import { i18n } from '../../i18n/index.js';
 
 type YoutubeFlowOpenPicker = (payload: YoutubePickerOpenPayload) => Promise<boolean>;
 type YoutubeFlowMode = 'download' | 'generate';
@@ -422,7 +423,7 @@ async function injectDownloadedSubtitles(
     deps.refreshCurrentSubtitle(currentSubText);
   }
 
-  deps.showMpvOsd(secondaryTrack ? 'Primary and secondary subtitles loaded.' : 'Subtitles loaded.');
+  deps.showMpvOsd(secondaryTrack ? i18n.t('osd.subtitlesLoaded') : i18n.t('osd.subtitlesLoadedSingle'));
   return true;
 }
 
@@ -711,7 +712,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
         }
       }
 
-      deps.showMpvOsd('Loading subtitles...');
+      deps.showMpvOsd(i18n.t('osd.loadingSubtitles'));
       const refreshedActiveSubtitle = await injectDownloadedSubtitles(
         deps,
         {
@@ -817,7 +818,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     const secondaryTrack = getTrackById(probe.tracks, selected.secondaryTrackId);
 
     try {
-      deps.showMpvOsd('Getting subtitles...');
+      deps.showMpvOsd(i18n.t('osd.gettingSubtitles'));
       const loaded = await loadTracksIntoMpv({
         url: input.url,
         mode: input.mode ?? 'download',
@@ -846,7 +847,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     url: string;
     mode: YoutubeFlowMode;
   }): Promise<void> {
-    deps.showMpvOsd('Opening YouTube video');
+    deps.showMpvOsd(i18n.t('osd.openingYoutube'));
     const tokenizationWarmupPromise = deps.startTokenizationWarmups().catch((error) => {
       deps.warn(
         `Failed to warm subtitle tokenization prerequisites: ${
@@ -885,7 +886,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     }
 
     try {
-      deps.showMpvOsd('Getting subtitles...');
+      deps.showMpvOsd(i18n.t('osd.gettingSubtitles'));
       const loaded = await loadTracksIntoMpv({
         url: input.url,
         mode: input.mode,

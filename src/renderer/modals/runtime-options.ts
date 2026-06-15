@@ -1,5 +1,6 @@
 import type { RuntimeOptionApplyResult, RuntimeOptionState, RuntimeOptionValue } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 type RuntimeOptionsListLike = Pick<HTMLUListElement, 'querySelector'>;
 
@@ -22,12 +23,11 @@ export function createRuntimeOptionsModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
-  const DEFAULT_STATUS_MESSAGE =
-    'Use arrow keys. Click value to cycle. Enter or double-click to apply.';
+  const DEFAULT_STATUS_MESSAGE = i18n.t('runtimeOptions.hint');
 
   function formatRuntimeOptionValue(value: RuntimeOptionValue): string {
     if (typeof value === 'boolean') {
-      return value ? 'On' : 'Off';
+      return i18n.t(value ? 'runtimeOptions.on' : 'runtimeOptions.off');
     }
     return value;
   }
@@ -63,14 +63,16 @@ export function createRuntimeOptionsModal(
 
       const value = document.createElement('div');
       value.className = 'runtime-options-value';
-      value.textContent = `Value: ${formatRuntimeOptionValue(getRuntimeOptionDisplayValue(option))}`;
-      value.title = 'Click to cycle value, right-click to cycle backward';
+      value.textContent = i18n.t('runtimeOptions.valuePrefix', {
+        value: formatRuntimeOptionValue(getRuntimeOptionDisplayValue(option)),
+      });
+      value.title = i18n.t('runtimeOptions.cycleTooltip');
 
       const allowed = document.createElement('div');
       allowed.className = 'runtime-options-allowed';
-      allowed.textContent = `Allowed: ${option.allowedValues
-        .map((entry) => formatRuntimeOptionValue(entry))
-        .join(' | ')}`;
+      allowed.textContent = i18n.t('runtimeOptions.allowedPrefix', {
+        values: option.allowedValues.map((entry) => formatRuntimeOptionValue(entry)).join(' | '),
+      });
 
       li.appendChild(label);
       li.appendChild(value);
@@ -137,7 +139,12 @@ export function createRuntimeOptionsModal(
     if (nextValue === undefined) return;
     ctx.state.runtimeOptionDraftValues.set(option.id, nextValue);
     renderRuntimeOptionsList();
-    setRuntimeOptionsStatus(`Selected ${option.label}: ${formatRuntimeOptionValue(nextValue)}`);
+    setRuntimeOptionsStatus(
+      i18n.t('runtimeOptions.selectedValue', {
+        label: option.label,
+        value: formatRuntimeOptionValue(nextValue),
+      }),
+    );
   }
 
   async function applySelectedRuntimeOption(): Promise<void> {
@@ -150,7 +157,7 @@ export function createRuntimeOptionsModal(
       nextValue,
     );
     if (!result.ok) {
-      setRuntimeOptionsStatus(result.error || 'Failed to apply option', true);
+      setRuntimeOptionsStatus(result.error || i18n.t('runtimeOptions.failed'), true);
       return;
     }
 
@@ -160,7 +167,7 @@ export function createRuntimeOptionsModal(
 
     const latest = await window.electronAPI.getRuntimeOptions();
     updateRuntimeOptions(latest);
-    setRuntimeOptionsStatus(result.osdMessage || 'Option applied.');
+    setRuntimeOptionsStatus(result.osdMessage || i18n.t('runtimeOptions.applied'));
   }
 
   function closeRuntimeOptionsModal(): void {
@@ -194,18 +201,18 @@ export function createRuntimeOptionsModal(
     ctx.dom.runtimeOptionsModal.classList.remove('hidden');
     ctx.dom.runtimeOptionsModal.setAttribute('aria-hidden', 'false');
 
-    setRuntimeOptionsStatus('Loading runtime options...');
+    setRuntimeOptionsStatus(i18n.t('runtimeOptions.loading'));
   }
 
   function openRuntimeOptionsModal(): void {
     if (!ctx.state.runtimeOptionsModalOpen) {
       showRuntimeOptionsModalShell();
     } else {
-      setRuntimeOptionsStatus('Refreshing runtime options...');
+      setRuntimeOptionsStatus(i18n.t('runtimeOptions.refreshing'));
     }
 
     void refreshRuntimeOptions().catch(() => {
-      setRuntimeOptionsStatus('Failed to load runtime options', true);
+      setRuntimeOptionsStatus(i18n.t('runtimeOptions.loadFailed'), true);
     });
   }
 

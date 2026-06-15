@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseClipboardVideoPath } from '../../core/services/overlay-drop';
+import { i18n } from '../../i18n/index.js';
 
 type MpvClientLike = {
   connected: boolean;
@@ -25,14 +26,14 @@ export function appendClipboardVideoToQueueRuntime(deps: AppendClipboardVideoToQ
   const clipboardText = deps.readClipboardText();
   const parsedPath = parseClipboardVideoPath(clipboardText);
   if (!parsedPath) {
-    deps.showMpvOsd('Clipboard does not contain a supported video path.');
-    return { ok: false, message: 'Clipboard does not contain a supported video path.' };
+    deps.showMpvOsd(i18n.t('osd.clipboardNoVideo'));
+    return { ok: false, message: i18n.t('osd.clipboardNoVideo') };
   }
 
   const resolvedPath = path.resolve(parsedPath);
   if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-    deps.showMpvOsd('Clipboard path is not a readable file.');
-    return { ok: false, message: 'Clipboard path is not a readable file.' };
+    deps.showMpvOsd(i18n.t('osd.clipboardNotFile'));
+    return { ok: false, message: i18n.t('osd.clipboardNotFile') };
   }
 
   deps.sendMpvCommand(['loadfile', resolvedPath, 'append']);

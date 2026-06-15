@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import {
   buildSessionHelpSections,
   type SessionHelpSection,
@@ -21,9 +22,11 @@ type SessionHelpBindingInfo = {
 
 function formatBindingHint(info: SessionHelpBindingInfo): string {
   if (info.bindingKey === 'KeyK' && info.fallbackUsed) {
-    return info.fallbackUnavailable ? 'Y-K (fallback and conflict noted)' : 'Y-K (fallback)';
+    return info.fallbackUnavailable
+      ? i18n.t('sessionHelp.fallbackConflict')
+      : i18n.t('sessionHelp.fallback');
   }
-  return 'Y-H';
+  return i18n.t('sessionHelp.bindingKeyYH');
 }
 
 export function createSessionHelpModal(
@@ -152,8 +155,8 @@ export function createSessionHelpModal(
     if (getItems().length === 0) {
       ctx.dom.sessionHelpContent.classList.add('session-help-content-no-results');
       ctx.dom.sessionHelpContent.textContent = helpFilterValue
-        ? 'No matching shortcuts found.'
-        : 'No active shortcuts in this tab.';
+        ? i18n.t('sessionHelp.noMatch')
+        : i18n.t('sessionHelp.noActive');
       ctx.state.sessionHelpSelectedIndex = 0;
       return;
     }
@@ -239,8 +242,8 @@ export function createSessionHelpModal(
       applyFilterAndRender();
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to load session help data.';
-      showRenderError(`Session help failed to load: ${message}`);
+      const message = error instanceof Error ? error.message : i18n.t('sessionHelp.loadError');
+      showRenderError(i18n.t('sessionHelp.loadFailed', { message }));
       return false;
     }
   }
@@ -265,16 +268,17 @@ export function createSessionHelpModal(
       window.electronAPI.setIgnoreMouseEvents(false);
     }
 
-    ctx.dom.sessionHelpShortcut.textContent = `Session help opened with ${formatBindingHint(openBinding)}`;
+    ctx.dom.sessionHelpShortcut.textContent = i18n.t('sessionHelp.openedWith', {
+      binding: formatBindingHint(openBinding),
+    });
     if (openBinding.fallbackUnavailable) {
-      ctx.dom.sessionHelpWarning.textContent =
-        'Both Y-H and Y-K are bound; Y-K remains the fallback for this session.';
+      ctx.dom.sessionHelpWarning.textContent = i18n.t('sessionHelp.fallbackUnavailableWarning');
     } else if (openBinding.fallbackUsed) {
-      ctx.dom.sessionHelpWarning.textContent = 'Y-H is already bound; using Y-K as fallback.';
+      ctx.dom.sessionHelpWarning.textContent = i18n.t('sessionHelp.fallbackUsedWarning');
     } else {
       ctx.dom.sessionHelpWarning.textContent = '';
     }
-    ctx.dom.sessionHelpStatus.textContent = 'Loading session help data...';
+    ctx.dom.sessionHelpStatus.textContent = i18n.t('sessionHelp.loading');
 
     if (focusGuard === null) {
       focusGuard = (event: FocusEvent) => {
@@ -297,12 +301,12 @@ export function createSessionHelpModal(
       if (!ctx.state.sessionHelpModalOpen) return;
       if (dataLoaded) {
         ctx.dom.sessionHelpStatus.textContent =
-          'Use Arrow keys, J/K/H/L, mouse, click, or / then type to filter. Esc closes.';
+          i18n.t('sessionHelp.hint');
       } else {
         ctx.dom.sessionHelpStatus.textContent =
-          'Session help data is unavailable right now. Press Esc to close.';
+          i18n.t('sessionHelp.unavailable');
         ctx.dom.sessionHelpWarning.textContent =
-          'Unable to load latest shortcut settings from the runtime.';
+          i18n.t('sessionHelp.outdated');
       }
     });
   }

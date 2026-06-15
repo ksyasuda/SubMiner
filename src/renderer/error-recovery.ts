@@ -1,3 +1,5 @@
+import { i18n } from '../i18n/index.js';
+
 export type RendererErrorSource =
   | 'callback'
   | 'window.onerror'
@@ -47,12 +49,12 @@ type RendererRecoveryController = {
 
 type RendererRecoveryWindow = Pick<Window, 'addEventListener' | 'removeEventListener'>;
 
-const DEFAULT_TOAST_MESSAGE = 'Renderer error recovered. Overlay is still running.';
+const DEFAULT_TOAST_MESSAGE = i18n.t('errorRecovery.defaultToast');
 
 function normalizeRendererError(error: unknown): NormalizedRendererError {
   if (error instanceof Error) {
     return {
-      message: error.message || 'Unknown renderer error',
+      message: error.message || i18n.t('errorRecovery.unknownError'),
       stack: typeof error.stack === 'string' ? error.stack : null,
     };
   }

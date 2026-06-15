@@ -1,6 +1,7 @@
 import type { RuntimeOptionApplyResult, RuntimeOptionId } from '../../types';
 import type { SessionActionId } from '../../types/session-bindings';
 import type { SessionActionDispatchRequest } from '../../types/runtime';
+import { i18n } from '../../i18n/index.js';
 
 export interface SessionActionExecutorDeps {
   toggleStatsOverlay: () => void;
@@ -88,7 +89,7 @@ export async function dispatchSessionAction(
     case 'markWatched': {
       const marked = await deps.markActiveVideoWatched();
       if (marked) {
-        deps.showMpvOsd('Marked as watched');
+        deps.showMpvOsd(i18n.t('osd.markedWatched'));
         deps.playNextPlaylistItem();
       }
       return;
@@ -126,7 +127,7 @@ export async function dispatchSessionAction(
     case 'cycleRuntimeOption': {
       const runtimeOptionId = request.payload?.runtimeOptionId as RuntimeOptionId | undefined;
       if (!runtimeOptionId) {
-        deps.showMpvOsd('Runtime option id is required.');
+        deps.showMpvOsd(i18n.t('osd.runtimeOptionRequired'));
         return;
       }
       const direction = request.payload?.direction === -1 ? -1 : 1;

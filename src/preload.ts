@@ -327,6 +327,8 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getStatsToggleKey),
   getOverlayNotificationPosition: (): Promise<OverlayNotificationPosition> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getOverlayNotificationPosition),
+  getUILanguage: (): Promise<string> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getUILanguage),
   getMarkWatchedKey: (): Promise<string> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getMarkWatchedKey),
   markActiveVideoWatched: (): Promise<boolean> =>

@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { formatNumber, formatRelativeDate } from '../../lib/formatters';
 import { CollapsibleSection } from './CollapsibleSection';
 import { EpisodeDetail } from './EpisodeDetail';
@@ -10,12 +11,13 @@ interface AnimeCardsListProps {
 }
 
 export function AnimeCardsList({ episodes, totalCards }: AnimeCardsListProps) {
+  const { t } = useTranslation();
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
 
   if (totalCards === 0) {
     return (
-      <CollapsibleSection title="Cards Mined (0)" defaultOpen={false}>
-        <p className="text-sm text-ctp-overlay2">No cards mined from this anime yet.</p>
+      <CollapsibleSection title={t('stats.anime.cardsMined', { count: 0 })} defaultOpen={false}>
+        <p className="text-sm text-ctp-overlay2">{t('stats.anime.noCards')}</p>
       </CollapsibleSection>
     );
   }
@@ -23,14 +25,14 @@ export function AnimeCardsList({ episodes, totalCards }: AnimeCardsListProps) {
   const withCards = episodes.filter((ep) => ep.totalCards > 0);
 
   return (
-    <CollapsibleSection title={`Cards Mined (${formatNumber(totalCards)})`} defaultOpen={false}>
+    <CollapsibleSection title={t('stats.anime.cardsMined', { count: totalCards })} defaultOpen={false}>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
             <th className="w-6 py-2 pr-1 font-medium" />
-            <th className="text-left py-2 pr-3 font-medium">Episode</th>
-            <th className="text-right py-2 pr-3 font-medium">Cards</th>
-            <th className="text-right py-2 font-medium">Last Watched</th>
+            <th className="text-left py-2 pr-3 font-medium">{t('stats.anime.episode')}</th>
+            <th className="text-right py-2 pr-3 font-medium">{t('stats.anime.cards')}</th>
+            <th className="text-right py-2 font-medium">{t('stats.anime.lastWatched')}</th>
           </tr>
         </thead>
         <tbody>

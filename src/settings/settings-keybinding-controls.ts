@@ -11,6 +11,7 @@ import {
 } from './key-input';
 import type { SettingsControlContext } from './settings-control-context';
 import { createElement } from './settings-control-dom';
+import { i18n } from '../i18n/index.js';
 
 let activeKeyLearningStop: (() => void) | null = null;
 let requestRender = (): void => undefined;
@@ -38,7 +39,7 @@ function startKeyLearning(
 ): void {
   activeKeyLearningStop?.();
   const previousText = button.textContent ?? '';
-  button.textContent = 'Press Keys...';
+  button.textContent = i18n.t('settings.pressKeys');
   button.classList.add('learning');
   let onKeyDown: (event: KeyboardEvent) => void;
   let onBlur: () => void;
@@ -98,7 +99,7 @@ function renderKeyLearnButton(
 ): HTMLButtonElement {
   const button = createElement('button', 'key-learn-button') as HTMLButtonElement;
   button.type = 'button';
-  button.textContent = value || 'Unset';
+  button.textContent = value || i18n.t('settings.unset');
   button.addEventListener('click', () =>
     startKeyLearning(button, mode, (next) => {
       button.textContent = next;
@@ -149,7 +150,7 @@ export function renderMpvKeybindingsInput(
       const parsed = parseMpvCommandText(command.value);
       if (parsed === undefined) {
         command.classList.add('invalid');
-        context.setFieldError(field.configPath, 'Invalid MPV command JSON');
+        context.setFieldError(field.configPath, i18n.t('settings.invalidJson'));
         return;
       }
       command.classList.remove('invalid');
@@ -160,7 +161,7 @@ export function renderMpvKeybindingsInput(
     });
     const removeButton = createElement('button', 'reset-button icon-button') as HTMLButtonElement;
     removeButton.type = 'button';
-    removeButton.textContent = 'Remove';
+    removeButton.textContent = i18n.t('settings.remove');
     removeButton.addEventListener('click', () => {
       const nextRows = rows.filter((_, index) => index !== i);
       applyMpvRows(context, field, nextRows);
@@ -172,7 +173,7 @@ export function renderMpvKeybindingsInput(
 
   const addButton = createElement('button', 'secondary-button compact-button') as HTMLButtonElement;
   addButton.type = 'button';
-  addButton.textContent = 'Add Binding';
+  addButton.textContent = i18n.t('settings.addBinding');
   addButton.addEventListener('click', () => {
     rows.push({ defaultKey: '', key: '', command: null, commandText: '', isDefault: false });
     applyMpvRows(context, field, rows);

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { i18n } from '../../i18n/index.js';
 import {
   accessSyncOf,
   envOf,
@@ -149,7 +150,7 @@ export async function detectBun(options: CommonOptions = {}): Promise<BunSnapsho
     version: null,
     installMethod: installMethodForCommand(installCommand),
     installCommand,
-    message: failureMessage(result, 'bun --version failed'),
+    message: failureMessage(result, i18n.t('setup.launcher.bunVersionFailed')),
   };
 }
 
@@ -257,7 +258,7 @@ export async function resolveLauncherInstallTarget(
       installPath: null,
       pathDir: null,
       shadowedBy: null,
-      message: 'No writable directory was found on your command-line PATH.',
+      message: i18n.t('setup.launcher.noWritableDir'),
     };
   }
   const installPath = path.posix.join(selected, 'subminer');
@@ -290,7 +291,7 @@ export async function detectLauncher(
         ...target,
         status: 'not_installed',
         commandPath: null,
-        message: 'Installed launcher points at a previous SubMiner install; reinstall to refresh.',
+        message: i18n.t('setup.launcher.previousInstallStale'),
       };
     }
   }
@@ -310,7 +311,7 @@ export async function detectLauncher(
       ...target,
       status: 'not_on_path',
       commandPath: expectedPath,
-      message: 'Launcher exists but its directory is not on PATH.',
+      message: i18n.t('setup.launcher.directoryNotOnPath'),
     };
   }
 
@@ -320,7 +321,7 @@ export async function detectLauncher(
       ...target,
       status: 'installed_bun_missing',
       commandPath,
-      message: 'Launcher is installed, but Bun is missing. Install Bun, then open a new terminal.',
+      message: i18n.t('setup.launcher.bunMissing'),
     };
   }
 
@@ -333,7 +334,7 @@ export async function detectLauncher(
       ...target,
       status: 'failed',
       commandPath,
-      message: failureMessage(result, 'subminer --help failed'),
+      message: failureMessage(result, i18n.t('setup.launcher.subminerHelpFailed')),
     };
   }
   return { ...target, status: 'ready', commandPath, message: null };
@@ -397,7 +398,7 @@ export async function installBun(
           version: null,
           installMethod: null,
           installCommand: null,
-          message: 'Bun PATH repaired. Open a new terminal.',
+          message: i18n.t('setup.launcher.bunPathRepaired'),
         };
       } catch (error) {
         return {
@@ -420,7 +421,7 @@ export async function installBun(
       version: null,
       installMethod: null,
       installCommand: null,
-      message: 'No Bun install command is available for this platform.',
+      message: i18n.t('setup.launcher.bunNoCommand'),
     };
   }
 
@@ -437,21 +438,21 @@ export async function installBun(
       version: null,
       installMethod: installMethodForCommand(installCommand),
       installCommand,
-      message: failureMessage(result, 'Bun install failed'),
+      message: failureMessage(result, i18n.t('setup.launcher.bunInstallFailed')),
     };
   }
 
   const detected = await detectBun(options);
   if (detected.status === 'ready') {
-    return { ...detected, message: 'Bun installed. Open a new terminal.' };
+    return { ...detected, message: i18n.t('setup.launcher.bunInstalled') };
   }
   return {
     ...detected,
     status: 'missing',
     message:
       platform === 'win32'
-        ? 'Bun installed, but this process cannot see it on PATH yet. Open a new terminal.'
-        : 'Bun installed, but is not on PATH for this shell. Add ~/.bun/bin to PATH if needed.',
+        ? i18n.t('setup.launcher.bunInstalledNotOnPathWin')
+        : i18n.t('setup.launcher.bunInstalledNotOnPath'),
   };
 }
 
@@ -469,7 +470,7 @@ export async function detectCommandLineLauncher(
         version: null,
         installMethod: null,
         installCommand: null,
-        message: 'Command-line launcher setup is not supported on this platform.',
+        message: i18n.t('setup.launcher.platformUnsupported'),
       },
       launcher: {
         status: 'not_installable',
@@ -477,7 +478,7 @@ export async function detectCommandLineLauncher(
         installPath: null,
         pathDir: null,
         shadowedBy: null,
-        message: 'Command-line launcher setup is not supported on this platform.',
+        message: i18n.t('setup.launcher.platformUnsupported'),
       },
     };
   }

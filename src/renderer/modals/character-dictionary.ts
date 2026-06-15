@@ -5,6 +5,7 @@ import type {
   CharacterDictionarySelectionSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 type CharacterDictionaryView = 'override' | 'manage';
 
@@ -14,14 +15,21 @@ function clampIndex(index: number, length: number): number {
 }
 
 function formatCandidate(candidate: CharacterDictionaryCandidate | null): string {
-  if (!candidate) return 'None';
+  if (!candidate) return i18n.t('characterDict.none');
   const episodes = candidate.episodes === null ? '?' : String(candidate.episodes);
-  return `${candidate.id} - ${candidate.title} (${episodes} episodes)`;
+  return i18n.t('characterDict.candidate.label', {
+    id: String(candidate.id),
+    title: candidate.title,
+    episodes,
+  });
 }
 
 function buildSummary(snapshot: CharacterDictionarySelectionSnapshot): string {
-  const guess = snapshot.guessTitle ?? 'No active title';
-  return `Series key: ${snapshot.seriesKey} · Guess: ${guess}`;
+  const guess = snapshot.guessTitle ?? i18n.t('characterDict.noActiveTitle');
+  return i18n.t('characterDict.seriesKey', {
+    seriesKey: snapshot.seriesKey,
+    guess,
+  });
 }
 
 export function createCharacterDictionaryModal(
@@ -90,12 +98,15 @@ export function createCharacterDictionaryModal(
     const meta = document.createElement('div');
     meta.className = 'runtime-options-allowed';
     const episodeLabel = candidate.episodes === null ? '?' : String(candidate.episodes);
-    meta.textContent = `AniList ${candidate.id} · ${episodeLabel} episodes`;
+    meta.textContent = i18n.t('characterDict.animeMeta', {
+      id: String(candidate.id),
+      episodes: episodeLabel,
+    });
 
     const button = document.createElement('button');
     button.className = 'character-dictionary-use';
     button.type = 'button';
-    button.textContent = isOverride ? 'Selected' : 'Use';
+    button.textContent = isOverride ? i18n.t('characterDict.selected') : i18n.t('characterDict.use');
     button.disabled = isOverride;
     button.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -131,16 +142,17 @@ export function createCharacterDictionaryModal(
     }
 
     ctx.dom.characterDictionarySummary.textContent = buildSummary(snapshot);
-    ctx.dom.characterDictionaryCurrent.textContent = `Current: ${formatCandidate(
-      snapshot.current,
-    )} · Override: ${formatCandidate(snapshot.override)}`;
+    ctx.dom.characterDictionaryCurrent.textContent = i18n.t('characterDict.currentAndOverride', {
+      current: formatCandidate(snapshot.current),
+      override: formatCandidate(snapshot.override),
+    });
 
     if (snapshot.candidates.length === 0) {
       const empty = document.createElement('li');
       empty.className = 'character-dictionary-empty';
       empty.textContent = hasSearched
-        ? 'No AniList candidates found.'
-        : 'Search AniList to show candidates.';
+        ? i18n.t('characterDict.noCandidates')
+        : i18n.t('characterDict.searchHint');
       ctx.dom.characterDictionaryCandidates.append(empty);
       return;
     }
@@ -164,7 +176,10 @@ export function createCharacterDictionaryModal(
 
     const meta = document.createElement('div');
     meta.className = 'runtime-options-allowed';
-    meta.textContent = `AniList ${entry.mediaId}${entry.current ? ' · Current' : ''}`;
+    meta.textContent = i18n.t('characterDict.managerMeta', {
+      mediaId: String(entry.mediaId),
+      current: entry.current ? i18n.t('characterDict.currentSuffix') : '',
+    });
 
     const body = document.createElement('div');
     body.className = 'character-dictionary-candidate-body';
@@ -192,12 +207,22 @@ export function createCharacterDictionaryModal(
     };
 
     controls.append(
-      makeButton('Up', entry.current || index === 0, () => moveManagedEntry(entry.mediaId, -1)),
-      makeButton('Down', entry.current || index >= entryCount - 1, () =>
-        moveManagedEntry(entry.mediaId, 1),
+      makeButton(
+        i18n.t('characterDict.button.up'),
+        entry.current || index === 0,
+        () => moveManagedEntry(entry.mediaId, -1),
       ),
-      makeButton('Override', false, () => openManagedOverride(entry)),
-      makeButton('Remove', entry.current, () => removeManagedEntry(entry.mediaId)),
+      makeButton(
+        i18n.t('characterDict.button.down'),
+        entry.current || index >= entryCount - 1,
+        () => moveManagedEntry(entry.mediaId, 1),
+      ),
+      makeButton(i18n.t('characterDict.button.override'), false, () => openManagedOverride(entry)),
+      makeButton(
+        i18n.t('characterDict.button.remove'),
+        entry.current,
+        () => removeManagedEntry(entry.mediaId),
+      ),
     );
 
     item.append(body, controls);
@@ -211,14 +236,14 @@ export function createCharacterDictionaryModal(
 
     ctx.dom.characterDictionarySummary.textContent =
       entries.length > 0
-        ? `${entries.length} loaded character dictionaries. Order controls eviction priority; current dictionary stays loaded.`
-        : 'No loaded character dictionaries.';
+        ? i18n.t('characterDict.loadedSummary', { count: entries.length })
+        : i18n.t('characterDict.noLoaded');
     ctx.dom.characterDictionaryCurrent.textContent = '';
 
     if (entries.length === 0) {
       const empty = document.createElement('li');
       empty.className = 'character-dictionary-empty';
-      empty.textContent = 'No loaded character dictionaries.';
+      empty.textContent = i18n.t('characterDict.noLoaded');
       ctx.dom.characterDictionaryManagedEntries.append(empty);
       return;
     }
@@ -234,27 +259,27 @@ export function createCharacterDictionaryModal(
     setSelection(snapshot, searchTitle === '');
     setStatus(
       searchTitle === ''
-        ? 'Enter a title to search AniList.'
+        ? i18n.t('characterDict.enterTitle')
         : snapshot.override
-          ? `Override active: ${formatCandidate(snapshot.override)}`
-          : 'Select the correct AniList entry.',
+          ? i18n.t('characterDict.overrideActive', { candidate: formatCandidate(snapshot.override) })
+          : i18n.t('characterDict.selectAniListEntry'),
     );
   }
 
   async function refreshManager(): Promise<void> {
     managerSnapshot = await window.electronAPI.getCharacterDictionaryManagerSnapshot();
     renderManager();
-    setStatus('Loaded character dictionary entries.');
+    setStatus(i18n.t('characterDict.loaded'));
   }
 
   async function searchCandidates(): Promise<void> {
     const searchTitle = ctx.dom.characterDictionarySearchInput.value.trim();
     if (!searchTitle) {
-      setStatus('Enter a title to search AniList.', true);
+      setStatus(i18n.t('characterDict.enterTitle'), true);
       return;
     }
     ctx.dom.characterDictionarySearchButton.disabled = true;
-    setStatus(`Searching AniList for ${searchTitle}...`);
+    setStatus(i18n.t('characterDict.searchingAniList', { title: searchTitle }));
     try {
       await refreshSelection(searchTitle);
     } catch (error) {
@@ -270,7 +295,7 @@ export function createCharacterDictionaryModal(
     if (!candidate) return;
     if (candidate.id === snapshot?.override?.id) return;
 
-    setStatus(`Saving override for ${candidate.title}...`);
+    setStatus(i18n.t('characterDict.savingOverride', { title: candidate.title }));
     try {
       const result = await window.electronAPI.setCharacterDictionarySelection(
         candidate.id,
@@ -278,7 +303,7 @@ export function createCharacterDictionaryModal(
         pendingManagedOverride ? candidate.title : undefined,
       );
       if (!result.ok) {
-        setStatus('message' in result ? result.message : 'Failed to save override', true);
+        setStatus('message' in result ? result.message : i18n.t('characterDict.saveFailed'), true);
         return;
       }
       if (pendingManagedOverride) {
@@ -286,16 +311,21 @@ export function createCharacterDictionaryModal(
         pendingManagedOverride = null;
         await refreshManager();
         setActiveView('manage');
-        setStatus(`Managed entry replaced with ${replacedTitle}.`);
+        setStatus(i18n.t('characterDict.managedReplaced', { title: replacedTitle }));
         return;
       }
       await refreshSelection(ctx.dom.characterDictionarySearchInput.value.trim());
       if ('selected' in result) {
         const staleLabel =
           result.staleMediaIds.length > 0
-            ? ` Removed stale: ${result.staleMediaIds.join(', ')}.`
+            ? i18n.t('characterDict.removedStale', { ids: result.staleMediaIds.join(', ') })
             : '';
-        setStatus(`Override saved: ${formatCandidate(result.selected)}.${staleLabel}`);
+        setStatus(
+          i18n.t('characterDict.overrideSaved', {
+            candidate: formatCandidate(result.selected),
+            staleLabel,
+          }),
+        );
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
@@ -303,7 +333,7 @@ export function createCharacterDictionaryModal(
   }
 
   async function moveManagedEntry(mediaId: number, direction: 1 | -1): Promise<void> {
-    setStatus('Updating entry order...');
+    setStatus(i18n.t('characterDict.updatingOrder'));
     try {
       const result = await window.electronAPI.moveCharacterDictionaryManagedEntry(
         mediaId,
@@ -311,14 +341,14 @@ export function createCharacterDictionaryModal(
       );
       managerSnapshot = { entries: result.entries };
       renderManager();
-      setStatus(result.ok ? 'Entry order updated.' : result.message, !result.ok);
+      setStatus(result.ok ? i18n.t('characterDict.orderUpdated') : result.message, !result.ok);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
     }
   }
 
   async function removeManagedEntry(mediaId: number): Promise<void> {
-    setStatus('Removing entry...');
+    setStatus(i18n.t('characterDict.removingEntry'));
     try {
       const result = await window.electronAPI.removeCharacterDictionaryManagedEntry(mediaId);
       managerSnapshot = { entries: result.entries };
@@ -326,8 +356,8 @@ export function createCharacterDictionaryModal(
       setStatus(
         result.ok
           ? result.rebuildRequired
-            ? 'Entry removed. Merged dictionary will refresh shortly.'
-            : 'Entry removed.'
+            ? i18n.t('characterDict.entryRemovedRebuild')
+            : i18n.t('characterDict.entryRemoved')
           : result.message,
         !result.ok,
       );
@@ -343,7 +373,7 @@ export function createCharacterDictionaryModal(
     setActiveView('override');
     const searchTitle = entry.title || entry.label;
     ctx.dom.characterDictionarySearchInput.value = searchTitle;
-    setStatus(`Searching AniList for ${searchTitle}...`);
+    setStatus(i18n.t('characterDict.searchingAniList', { title: searchTitle }));
     try {
       await refreshSelection(searchTitle);
     } catch (error) {
@@ -358,7 +388,7 @@ export function createCharacterDictionaryModal(
     ctx.dom.characterDictionaryModal.classList.remove('hidden');
     ctx.dom.characterDictionaryModal.setAttribute('aria-hidden', 'false');
     window.electronAPI.notifyOverlayModalOpened('character-dictionary');
-    setStatus('Loading character dictionary selector...');
+    setStatus(i18n.t('characterDict.loading'));
   }
 
   async function openCharacterDictionaryModal(): Promise<void> {
@@ -368,7 +398,7 @@ export function createCharacterDictionaryModal(
       showShell();
     } else {
       window.electronAPI.notifyOverlayModalOpened('character-dictionary');
-      setStatus('Refreshing AniList candidates...');
+      setStatus(i18n.t('characterDict.refreshing'));
     }
     try {
       await refreshSelection('');
@@ -384,7 +414,7 @@ export function createCharacterDictionaryModal(
       showShell();
     } else {
       window.electronAPI.notifyOverlayModalOpened('character-dictionary');
-      setStatus('Refreshing character dictionary entries...');
+      setStatus(i18n.t('characterDict.refreshingEntries'));
     }
     try {
       await refreshManager();

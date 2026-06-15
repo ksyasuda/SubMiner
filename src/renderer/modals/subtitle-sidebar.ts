@@ -5,6 +5,7 @@ import type {
   SubtitleSidebarSnapshot,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
   YOMITAN_POPUP_HIDDEN_EVENT,
@@ -401,7 +402,7 @@ export function createSubtitleSidebarModal(
   }
 
   function getCueRowLabel(cue: SubtitleCue): string {
-    return `Jump to subtitle at ${formatCueTimestamp(cue.startTime)}`;
+    return i18n.t('subtitleSidebar.jumpToCue', { time: formatCueTimestamp(cue.startTime) });
   }
 
   function isYomitanPopupVisibleForSidebar(): boolean {
@@ -576,7 +577,7 @@ export function createSubtitleSidebarModal(
       ctx.dom.subtitleSidebarModal.setAttribute('aria-hidden', 'true');
       stopSnapshotPolling();
       updateActiveCue(null, snapshot.currentTimeSec ?? null);
-      setStatus('Subtitle sidebar disabled in config.');
+      setStatus(i18n.t('subtitleSidebar.disabledInConfig'));
       syncEmbeddedSidebarLayout();
       if (!ctx.state.isOverSubtitle && !options.modalStateReader.isAnyModalOpen()) {
         ctx.dom.overlay.classList.remove('interactive');
@@ -629,15 +630,15 @@ export function createSubtitleSidebarModal(
   async function openSubtitleSidebarModal(): Promise<void> {
     const snapshot = await refreshSnapshot();
     if (!snapshot.config.enabled) {
-      setStatus('Subtitle sidebar disabled in config.');
+      setStatus(i18n.t('subtitleSidebar.disabledInConfig'));
       return;
     }
 
     ctx.dom.subtitleSidebarList.innerHTML = '';
     if (snapshot.cues.length === 0) {
-      setStatus('No parsed subtitle cues available.');
+      setStatus(i18n.t('playlistBrowser.noSubtitles'));
     } else {
-      setStatus(`${snapshot.cues.length} parsed subtitle lines`);
+      setStatus(i18n.t('subtitleSidebar.parsedCueCount', { count: snapshot.cues.length }));
     }
 
     ctx.state.subtitleSidebarModalOpen = true;

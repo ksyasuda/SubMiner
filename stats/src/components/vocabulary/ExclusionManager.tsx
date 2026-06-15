@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import type { ExcludedWord } from '../../hooks/useExcludedWords';
 
 interface ExclusionManagerProps {
@@ -13,18 +14,19 @@ export function ExclusionManager({
   onClearAll,
   onClose,
 }: ExclusionManagerProps) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-50">
       <button
         type="button"
-        aria-label="Close exclusion manager"
+        aria-label={t('stats.excluded.closeManager')}
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div className="absolute inset-x-0 top-1/2 mx-auto max-w-lg -translate-y-1/2 rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
         <div className="flex items-center justify-between border-b border-ctp-surface1 px-5 py-4">
           <h2 className="text-sm font-semibold text-ctp-text">
-            Excluded Words
+            {t('stats.excluded.title')}
             <span className="ml-2 text-ctp-overlay1 font-normal">({excluded.length})</span>
           </h2>
           <div className="flex items-center gap-2">
@@ -34,7 +36,7 @@ export function ExclusionManager({
                 className="rounded-md border border-ctp-red/30 px-3 py-1.5 text-xs font-medium text-ctp-red transition hover:bg-ctp-red/10"
                 onClick={onClearAll}
               >
-                Clear All
+                {t('stats.excluded.clearAll')}
               </button>
             )}
             <button
@@ -42,15 +44,14 @@ export function ExclusionManager({
               className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
               onClick={onClose}
             >
-              Close
+              {t('stats.excluded.close')}
             </button>
           </div>
         </div>
         <div className="max-h-80 overflow-y-auto px-5 py-3">
           {excluded.length === 0 ? (
             <div className="py-6 text-center text-sm text-ctp-overlay2">
-              No excluded words yet. Use the Exclude button on a word's detail panel to hide it from
-              stats.
+              {t('stats.excluded.empty')}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -70,7 +71,7 @@ export function ExclusionManager({
                     className="shrink-0 rounded-md border border-ctp-surface2 px-2 py-1 text-xs text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
                     onClick={() => onRemove(w)}
                   >
-                    Restore
+                    {t('stats.excluded.restore')}
                   </button>
                 </div>
               ))}

@@ -18,6 +18,7 @@ import type {
   YoutubePickerResolveRequest,
   YoutubePickerResolveResult,
 } from '../../types';
+import { i18n } from '../../i18n/index.js';
 import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import {
   parseMpvCommand,
@@ -86,6 +87,7 @@ export interface IpcServiceDeps {
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
   getOverlayNotificationPosition: () => string;
+  getUILanguage?: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -293,6 +295,7 @@ export interface IpcDepsRuntimeOptions {
   getStatsToggleKey: () => string;
   getMarkWatchedKey: () => string;
   getOverlayNotificationPosition: () => string;
+  getUILanguage?: () => string;
   getControllerConfig: () => ResolvedControllerConfig;
   saveControllerConfig: (update: ControllerConfigUpdate) => void | Promise<void>;
   saveControllerPreference: (update: ControllerPreferenceUpdate) => void | Promise<void>;
@@ -382,6 +385,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     getStatsToggleKey: options.getStatsToggleKey,
     getMarkWatchedKey: options.getMarkWatchedKey,
     getOverlayNotificationPosition: options.getOverlayNotificationPosition,
+    getUILanguage: options.getUILanguage ?? (() => 'system'),
     getControllerConfig: options.getControllerConfig,
     saveControllerConfig: options.saveControllerConfig,
     saveControllerPreference: options.saveControllerPreference,
@@ -436,14 +440,14 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
       options.removeCharacterDictionaryManagedEntry ??
       (async () => ({
         ok: false,
-        message: 'Character dictionary manager unavailable.',
+        message: i18n.t('ipc.characterDictManagerUnavailable'),
         entries: [],
       })),
     moveCharacterDictionaryManagedEntry:
       options.moveCharacterDictionaryManagedEntry ??
       (async () => ({
         ok: false,
-        message: 'Character dictionary manager unavailable.',
+        message: i18n.t('ipc.characterDictManagerUnavailable'),
         entries: [],
       })),
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
@@ -528,7 +532,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     async (_event: unknown, request: unknown) => {
       const parsedRequest = parseYoutubePickerResolveRequest(request);
       if (!parsedRequest) {
-        return { ok: false, message: 'Invalid YouTube picker resolve payload' };
+        return { ok: false, message: i18n.t('ipc.invalidYoutubePickerPayload') };
       }
       return await deps.onYoutubePickerResolve(parsedRequest);
     },
@@ -595,7 +599,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getSubtitleSidebarSnapshot, async () => {
     if (!deps.getSubtitleSidebarSnapshot) {
-      throw new Error('Subtitle sidebar snapshot is unavailable.');
+      throw new Error(i18n.t('ipc.invalidSubtitleSidebarSnapshot'));
     }
     return await deps.getSubtitleSidebarSnapshot();
   });
@@ -627,7 +631,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     async (_event: unknown, update: unknown) => {
       const parsedUpdate = parseControllerPreferenceUpdate(update);
       if (!parsedUpdate) {
-        throw new Error('Invalid controller preference payload');
+        throw new Error(i18n.t('ipc.invalidControllerPreferencePayload'));
       }
       await deps.saveControllerPreference(parsedUpdate);
     },
@@ -638,7 +642,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     async (_event: unknown, update: unknown) => {
       const parsedUpdate = parseControllerConfigUpdate(update);
       if (!parsedUpdate) {
-        throw new Error('Invalid controller config payload');
+        throw new Error(i18n.t('ipc.invalidControllerConfigPayload'));
       }
       await deps.saveControllerConfig(parsedUpdate);
     },
@@ -664,7 +668,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     async (_event: unknown, request: unknown) => {
       const parsedRequest = parseSessionActionDispatchRequest(request);
       if (!parsedRequest) {
-        throw new Error('Invalid session action payload');
+        throw new Error(i18n.t('ipc.invalidSessionActionPayload'));
       }
       await deps.dispatchSessionAction?.(parsedRequest);
     },
@@ -694,6 +698,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     return deps.getOverlayNotificationPosition();
   });
 
+  ipc.handle(IPC_CHANNELS.request.getUILanguage, () => {
+    return deps.getUILanguage?.() ?? 'system';
+  });
+
   ipc.handle(IPC_CHANNELS.request.getControllerConfig, () => {
     return deps.getControllerConfig();
   });
@@ -717,7 +725,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.runSubsyncManual, async (_event, request: unknown) => {
     const parsedRequest = parseSubsyncManualRunRequest(request);
     if (!parsedRequest) {
-      return { ok: false, message: 'Invalid subsync manual request payload' };
+      return { ok: false, message: i18n.t('ipc.invalidSubsyncPayload') };
     }
     return await deps.runSubsyncManual(parsedRequest);
   });
@@ -733,11 +741,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.setRuntimeOption, (_event, id: unknown, value: unknown) => {
     const parsedId = parseRuntimeOptionId(id);
     if (!parsedId) {
-      return { ok: false, error: 'Invalid runtime option id' };
+      return { ok: false, error: i18n.t('ipc.invalidRuntimeOptionId') };
     }
     const parsedValue = parseRuntimeOptionValue(value);
     if (parsedValue === null) {
-      return { ok: false, error: 'Invalid runtime option value payload' };
+      return { ok: false, error: i18n.t('ipc.invalidRuntimeOptionValue') };
     }
     return deps.setRuntimeOption(parsedId, parsedValue);
   });
@@ -745,11 +753,11 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
   ipc.handle(IPC_CHANNELS.request.cycleRuntimeOption, (_event, id: unknown, direction: unknown) => {
     const parsedId = parseRuntimeOptionId(id);
     if (!parsedId) {
-      return { ok: false, error: 'Invalid runtime option id' };
+      return { ok: false, error: i18n.t('ipc.invalidRuntimeOptionId') };
     }
     const parsedDirection = parseRuntimeOptionDirection(direction);
     if (!parsedDirection) {
-      return { ok: false, error: 'Invalid runtime option cycle direction' };
+      return { ok: false, error: i18n.t('ipc.invalidRuntimeOptionDirection') };
     }
     return deps.cycleRuntimeOption(parsedId, parsedDirection);
   });
@@ -805,7 +813,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     IPC_CHANNELS.request.setCharacterDictionarySelection,
     async (_event, mediaId: unknown, replaceManagedMediaId: unknown, mediaTitle: unknown) => {
       if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
-        return { ok: false, message: 'Invalid AniList media ID.' };
+        return { ok: false, message: i18n.t('ipc.invalidAnilistMediaId') };
       }
       const normalizedReplaceManagedMediaId =
         Number.isSafeInteger(replaceManagedMediaId) && (replaceManagedMediaId as number) > 0
@@ -820,7 +828,7 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       ) ??
         Promise.resolve({
           ok: false,
-          message: 'Character dictionary selection unavailable.',
+          message: i18n.t('ipc.characterDictSelectionUnavailable'),
         }));
     },
   );
@@ -834,12 +842,12 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     IPC_CHANNELS.request.removeCharacterDictionaryManagedEntry,
     async (_event, mediaId: unknown) => {
       if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
-        return { ok: false, message: 'Invalid AniList media ID.', entries: [] };
+        return { ok: false, message: i18n.t('ipc.invalidAnilistMediaId'), entries: [] };
       }
       return await (deps.removeCharacterDictionaryManagedEntry?.(mediaId as number) ??
         Promise.resolve({
           ok: false,
-          message: 'Character dictionary manager unavailable.',
+          message: i18n.t('ipc.characterDictManagerUnavailable'),
           entries: [],
         }));
     },
@@ -849,15 +857,15 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     IPC_CHANNELS.request.moveCharacterDictionaryManagedEntry,
     async (_event, mediaId: unknown, direction: unknown) => {
       if (!Number.isSafeInteger(mediaId) || (mediaId as number) <= 0) {
-        return { ok: false, message: 'Invalid AniList media ID.', entries: [] };
+        return { ok: false, message: i18n.t('ipc.invalidAnilistMediaId'), entries: [] };
       }
       if (direction !== 1 && direction !== -1) {
-        return { ok: false, message: 'Invalid move direction.', entries: [] };
+        return { ok: false, message: i18n.t('ipc.invalidMoveDirection'), entries: [] };
       }
       return await (deps.moveCharacterDictionaryManagedEntry?.(mediaId as number, direction) ??
         Promise.resolve({
           ok: false,
-          message: 'Character dictionary manager unavailable.',
+          message: i18n.t('ipc.characterDictManagerUnavailable'),
           entries: [],
         }));
     },
@@ -873,21 +881,21 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.appendPlaylistBrowserFile, async (_event, filePath: unknown) => {
     if (typeof filePath !== 'string' || filePath.trim().length === 0) {
-      return { ok: false, message: 'Invalid playlist browser file path.' };
+      return { ok: false, message: i18n.t('ipc.invalidPlaylistFilePath') };
     }
     return await deps.appendPlaylistBrowserFile(filePath);
   });
 
   ipc.handle(IPC_CHANNELS.request.playPlaylistBrowserIndex, async (_event, index: unknown) => {
     if (!Number.isSafeInteger(index) || (index as number) < 0) {
-      return { ok: false, message: 'Invalid playlist browser index.' };
+      return { ok: false, message: i18n.t('ipc.invalidPlaylistIndex') };
     }
     return await deps.playPlaylistBrowserIndex(index as number);
   });
 
   ipc.handle(IPC_CHANNELS.request.removePlaylistBrowserIndex, async (_event, index: unknown) => {
     if (!Number.isSafeInteger(index) || (index as number) < 0) {
-      return { ok: false, message: 'Invalid playlist browser index.' };
+      return { ok: false, message: i18n.t('ipc.invalidPlaylistIndex') };
     }
     return await deps.removePlaylistBrowserIndex(index as number);
   });
@@ -896,10 +904,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
     IPC_CHANNELS.request.movePlaylistBrowserIndex,
     async (_event, index: unknown, direction: unknown) => {
       if (!Number.isSafeInteger(index) || (index as number) < 0) {
-        return { ok: false, message: 'Invalid playlist browser index.' };
+        return { ok: false, message: i18n.t('ipc.invalidPlaylistIndex') };
       }
       if (direction !== 1 && direction !== -1) {
-        return { ok: false, message: 'Invalid playlist browser move direction.' };
+        return { ok: false, message: i18n.t('ipc.invalidPlaylistMoveDirection') };
       }
       return await deps.movePlaylistBrowserIndex(index as number, direction as 1 | -1);
     },

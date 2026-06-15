@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { epochDayToDate } from '../../lib/formatters';
 import { CHART_DEFAULTS, CHART_THEME, TOOLTIP_CONTENT_STYLE } from '../../lib/chart-theme';
@@ -10,13 +11,14 @@ interface WatchTimeChartProps {
 
 type Range = 14 | 30 | 90;
 
-function formatActiveMinutes(value: number | string, _name?: string, _payload?: unknown) {
-  const minutes = Number(value);
-  return [`${Number.isFinite(minutes) ? minutes : 0} min`, 'Active Time'];
-}
-
 export function WatchTimeChart({ rollups }: WatchTimeChartProps) {
+  const { t } = useTranslation();
   const [range, setRange] = useState<Range>(14);
+
+  const formatActiveMinutes = (value: number | string, _name?: string, _payload?: unknown) => {
+    const minutes = Number(value);
+    return [`${Number.isFinite(minutes) ? minutes : 0} min`, t('stats.watchTime.activeTime')];
+  };
 
   const byDay = new Map<number, number>();
   for (const r of rollups) {
@@ -35,7 +37,7 @@ export function WatchTimeChart({ rollups }: WatchTimeChartProps) {
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Watch Time</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{t('stats.watchTime.title')}</h3>
         <div className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1">
           {ranges.map((r) => (
             <button

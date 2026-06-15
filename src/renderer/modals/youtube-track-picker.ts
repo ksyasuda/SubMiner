@@ -1,5 +1,6 @@
 import type { YoutubePickerOpenPayload } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import { YOMITAN_POPUP_COMMAND_EVENT } from '../yomitan-popup.js';
 
 function createOption(value: string, label: string): HTMLOptionElement {
@@ -43,10 +44,10 @@ export function createYoutubeTrackPickerModal(
     if (!payload || !payloadHasTracks(payload)) {
       const li = document.createElement('li');
       const left = document.createElement('span');
-      left.textContent = 'No subtitle tracks found';
+      left.textContent = i18n.t('youtube.noTracks');
       const right = document.createElement('span');
       right.className = 'youtube-picker-track-meta';
-      right.textContent = 'Continue without subtitles';
+      right.textContent = i18n.t('youtube.continueWithout');
       li.append(left, right);
       ctx.dom.youtubePickerTracks.appendChild(li);
       return;
@@ -75,7 +76,7 @@ export function createYoutubeTrackPickerModal(
     const payload = ctx.state.youtubePickerPayload;
     const primaryTrackId = ctx.dom.youtubePickerPrimarySelect.value || null;
     ctx.dom.youtubePickerSecondarySelect.replaceChildren();
-    ctx.dom.youtubePickerSecondarySelect.appendChild(createOption('', 'None'));
+    ctx.dom.youtubePickerSecondarySelect.appendChild(createOption('', i18n.t('youtube.none')));
     if (!payload) return;
 
     for (const track of payload.tracks) {
@@ -97,30 +98,30 @@ export function createYoutubeTrackPickerModal(
 
   function applyPayload(payload: YoutubePickerOpenPayload): void {
     ctx.state.youtubePickerPayload = payload;
-    ctx.dom.youtubePickerTitle.textContent = `Select YouTube subtitles for ${payload.url}`;
+    ctx.dom.youtubePickerTitle.textContent = i18n.t('youtube.titleFor', { url: payload.url });
     ctx.dom.youtubePickerPrimarySelect.replaceChildren();
     ctx.dom.youtubePickerSecondarySelect.replaceChildren();
 
     if (!payloadHasTracks(payload)) {
-      ctx.dom.youtubePickerPrimarySelect.appendChild(createOption('', 'No tracks available'));
+      ctx.dom.youtubePickerPrimarySelect.appendChild(createOption('', i18n.t('youtube.noTracksAvailable')));
       ctx.dom.youtubePickerPrimarySelect.disabled = true;
       ctx.dom.youtubePickerSecondarySelect.disabled = true;
-      ctx.dom.youtubePickerContinueButton.textContent = 'Continue without subtitles';
+      ctx.dom.youtubePickerContinueButton.textContent = i18n.t('youtube.continueWithout');
       setSelection(null, null);
-      setStatus('No subtitle tracks were found. Playback will continue without subtitles.');
+      setStatus(i18n.t('youtube.noTracksFound'));
       renderTrackList();
       return;
     }
 
     ctx.dom.youtubePickerPrimarySelect.disabled = false;
     ctx.dom.youtubePickerSecondarySelect.disabled = false;
-    ctx.dom.youtubePickerContinueButton.textContent = 'Use selected subtitles';
+    ctx.dom.youtubePickerContinueButton.textContent = i18n.t('youtube.useSelected');
     for (const track of payload.tracks) {
       ctx.dom.youtubePickerPrimarySelect.appendChild(createOption(track.id, track.label));
     }
     setSelection(payload.defaultPrimaryTrackId, payload.defaultSecondaryTrackId);
     renderTrackList();
-    setStatus('Select the subtitle tracks to download.');
+    setStatus(i18n.t('youtube.selectTracks'));
   }
 
   async function resolveSelection(
@@ -133,7 +134,7 @@ export function createYoutubeTrackPickerModal(
     if (!payload) return;
     const hasTracks = payloadHasTracks(payload);
     if (action === 'use-selected' && hasTracks && !ctx.dom.youtubePickerPrimarySelect.value) {
-      setStatus('Primary subtitle selection is required.', true);
+      setStatus(i18n.t('youtube.primaryRequired'), true);
       return;
     }
 
@@ -261,11 +262,11 @@ export function createYoutubeTrackPickerModal(
       const secondaryTrackId = ctx.dom.youtubePickerSecondarySelect.value || null;
       if (primaryTrackId && secondaryTrackId === primaryTrackId) {
         ctx.dom.youtubePickerSecondarySelect.value = '';
-        setStatus('Primary and secondary subtitles must be different.', true);
+        setStatus(i18n.t('youtube.differentSubs'), true);
         return;
       }
       setSelection(primaryTrackId, secondaryTrackId);
-      setStatus('Select the subtitle tracks to download.');
+      setStatus(i18n.t('youtube.selectTracks'));
     });
 
     ctx.dom.youtubePickerContinueButton.addEventListener('click', () => {

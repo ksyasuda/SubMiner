@@ -13,6 +13,7 @@ import {
   CartesianGrid,
   Customized,
 } from 'recharts';
+import { useTranslation } from '../../i18n';
 import { useSessionDetail } from '../../hooks/useSessions';
 import { getStatsClient } from '../../hooks/useStatsApi';
 import type { KnownWordsTimelinePoint } from '../../hooks/useSessions';
@@ -151,6 +152,7 @@ function SessionChartOffsetProbe({
 }
 
 export function SessionDetail({ session }: SessionDetailProps) {
+  const { t } = useTranslation();
   const { timeline, events, knownWordsTimeline, loading, error } = useSessionDetail(
     session.sessionId,
   );
@@ -259,8 +261,8 @@ export function SessionDetail({ session }: SessionDetailProps) {
     void getStatsClient().ankiBrowse(noteId);
   };
 
-  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">Loading timeline...</div>;
-  if (error) return <div className="text-ctp-red text-xs p-2">Error: {error}</div>;
+  if (loading) return <div className="text-ctp-overlay2 text-xs p-2">{t('stats.loading.timeline')}</div>;
+  if (error) return <div className="text-ctp-red text-xs p-2">{t('stats.errorPrefix')}: {error}</div>;
 
   if (hasKnownWords) {
     return (
@@ -282,7 +284,7 @@ export function SessionDetail({ session }: SessionDetailProps) {
         cardEventCount={cardEventCount}
         lookupRate={lookupRate}
         session={session}
-      />
+        t={t} />
     );
   }
 
@@ -304,6 +306,7 @@ export function SessionDetail({ session }: SessionDetailProps) {
       cardEventCount={cardEventCount}
       lookupRate={lookupRate}
       session={session}
+      t={t}
     />
   );
 }
@@ -328,6 +331,7 @@ function RatioView({
   cardEventCount,
   lookupRate,
   session,
+  t,
 }: {
   sorted: TimelineEntry[];
   knownWordsMap: Map<number, KnownWordsLineCounts>;
@@ -346,12 +350,13 @@ function RatioView({
   cardEventCount: number;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
   const chartData = buildKnownWordsRatioChartData(sorted, knownWordsMap);
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">{t('stats.loading.noWordData')}</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -428,11 +433,11 @@ function RatioView({
               formatter={(_value: number, name: string, props: { payload?: RatioChartPoint }) => {
                 const d = props.payload;
                 if (!d) return [_value, name];
-                if (name === 'Known words') {
+                if (name === t('stats.sessions.knownWords')) {
                   const knownPct = d.totalWords === 0 ? 0 : (d.knownWords / d.totalWords) * 100;
                   return [`${d.knownWords.toLocaleString()} (${knownPct.toFixed(1)}%)`, name];
                 }
-                if (name === 'Unknown words') return [d.unknownWords.toLocaleString(), name];
+                if (name === t('stats.sessions.unknownWords')) return [d.unknownWords.toLocaleString(), name];
                 return [_value, name];
               }}
               itemSorter={() => -1}
@@ -488,7 +493,7 @@ function RatioView({
               stroke="#a6da95"
               strokeWidth={1.5}
               fill={`url(#knownGrad-${session.sessionId})`}
-              name="Known words"
+              name={t('stats.sessions.knownWords')}
               type="monotone"
               dot={false}
               activeDot={{ r: 3, fill: '#a6da95', stroke: '#1e2030', strokeWidth: 1 }}
@@ -501,7 +506,7 @@ function RatioView({
               stroke="#c6a0f6"
               strokeWidth={0}
               fill={`url(#unknownGrad-${session.sessionId})`}
-              name="Unknown words"
+              name={t('stats.sessions.unknownWords')}
               type="monotone"
               isAnimationActive={false}
             />
@@ -524,7 +529,7 @@ function RatioView({
 
       {/* ── Bottom: Token accumulation sparkline ── */}
       <div className="flex items-center gap-2 border-t border-ctp-surface1 pt-1">
-        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">total words</span>
+        <span className="text-[9px] text-ctp-overlay0 whitespace-nowrap">{t('stats.sessions.totalWords')}</span>
         <div className="flex-1 h-[28px]">
           <ResponsiveContainer width="100%" height={28}>
             <LineChart data={sparkData}>
@@ -554,6 +559,7 @@ function RatioView({
         cardEventCount={cardEventCount}
         session={session}
         lookupRate={lookupRate}
+        t={t}
       />
     </div>
   );
@@ -578,6 +584,7 @@ function FallbackView({
   cardEventCount,
   lookupRate,
   session,
+  t,
 }: {
   sorted: TimelineEntry[];
   cardEvents: SessionEvent[];
@@ -595,17 +602,18 @@ function FallbackView({
   cardEventCount: number;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
   session: SessionSummary;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const [plotArea, setPlotArea] = useState<SessionChartPlotArea | null>(null);
   const chartData: FallbackChartPoint[] = [];
-  for (const t of sorted) {
-    const totalWords = getSessionDisplayWordCount(t);
+  for (const entry of sorted) {
+    const totalWords = getSessionDisplayWordCount(entry);
     if (totalWords === 0) continue;
-    chartData.push({ tsMs: t.sampleMs, totalWords });
+    chartData.push({ tsMs: entry.sampleMs, totalWords });
   }
 
   if (chartData.length === 0) {
-    return <div className="text-ctp-overlay2 text-xs p-2">No word data for this session.</div>;
+    return <div className="text-ctp-overlay2 text-xs p-2">{t('stats.loading.noWordData')}</div>;
   }
 
   const tsMin = chartData[0]!.tsMs;
@@ -651,7 +659,7 @@ function FallbackView({
             <Tooltip
               contentStyle={tooltipStyle}
               labelFormatter={formatTime}
-              formatter={(value: number) => [`${value.toLocaleString()}`, 'Total words']}
+              formatter={(value: number) => [`${value.toLocaleString()}`, t('stats.sessions.totalWords')]}
             />
 
             {pauseRegions.map((r, i) => (
@@ -694,7 +702,7 @@ function FallbackView({
               strokeWidth={1.5}
               dot={false}
               activeDot={{ r: 3, fill: '#8aadf4', stroke: '#1e2030', strokeWidth: 1 }}
-              name="Total words"
+              name={t('stats.sessions.totalWords')}
               type="monotone"
               isAnimationActive={false}
             />
@@ -721,6 +729,7 @@ function FallbackView({
         cardEventCount={cardEventCount}
         session={session}
         lookupRate={lookupRate}
+        t={t}
       />
     </div>
   );
@@ -740,6 +749,7 @@ function StatsBar({
   cardEventCount: number;
   session: SessionSummary;
   lookupRate: ReturnType<typeof buildLookupRateDisplay>;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-4 text-[11px] pt-1">
@@ -751,14 +761,14 @@ function StatsBar({
               className="inline-block w-2.5 h-2.5 rounded-sm"
               style={{ background: 'rgba(166,218,149,0.4)', border: '1px solid #a6da95' }}
             />
-            <span className="text-ctp-overlay2">Known</span>
+            <span className="text-ctp-overlay2">{t('stats.sessions.known')}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span
               className="inline-block w-2.5 h-2.5 rounded-sm"
               style={{ background: 'rgba(198,160,246,0.2)', border: '1px solid #c6a0f6' }}
             />
-            <span className="text-ctp-overlay2">Unknown</span>
+            <span className="text-ctp-overlay2">{t('stats.sessions.unknown')}</span>
           </span>
           <span className="text-ctp-surface2">|</span>
         </>
@@ -767,8 +777,7 @@ function StatsBar({
       {/* Group 2: Playback stats */}
       {pauseCount > 0 && (
         <span className="text-ctp-overlay2">
-          <span className="text-ctp-peach">{pauseCount}</span> pause
-          {pauseCount !== 1 ? 's' : ''}
+          {t('stats.sessions.pauseCount', { count: pauseCount })}
         </span>
       )}
       {pauseCount > 0 && <span className="text-ctp-surface2">|</span>}
@@ -780,21 +789,19 @@ function StatsBar({
           style={{ background: '#b7bdf8', opacity: 0.8 }}
         />
         <span className="text-ctp-overlay2">
-          {session.yomitanLookupCount} Yomitan lookup
-          {session.yomitanLookupCount !== 1 ? 's' : ''}
+          {t('stats.sessions.yomitanLookupCount', { count: session.yomitanLookupCount })}
         </span>
       </span>
       {lookupRate && (
         <span className="text-ctp-overlay2">
-          lookup rate: <span className="text-ctp-sapphire">{lookupRate.shortValue}</span>{' '}
+          {t('stats.sessions.lookupRate')}: <span className="text-ctp-sapphire">{lookupRate.shortValue}</span>{' '}
           <span className="text-ctp-subtext0">({lookupRate.longValue})</span>
         </span>
       )}
       <span className="flex items-center gap-1.5">
         <span className="text-[12px]">{'\u26CF'}</span>
         <span className="text-ctp-cards-mined">
-          {Math.max(cardEventCount, session.cardsMined)} card
-          {Math.max(cardEventCount, session.cardsMined) !== 1 ? 's' : ''} mined
+          {t('stats.sessions.cardsMined', { count: Math.max(cardEventCount, session.cardsMined) })}
         </span>
       </span>
     </div>

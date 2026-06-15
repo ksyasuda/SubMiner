@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { SessionDetail } from '../sessions/SessionDetail';
 import { SessionRow } from '../sessions/SessionRow';
 import type { SessionSummary } from '../../types/stats';
@@ -18,6 +19,7 @@ export function MediaSessionList({
   initialExpandedSessionId = null,
   onConsumeInitialExpandedSession,
 }: MediaSessionListProps) {
+  const { t } = useTranslation();
   const [expandedId, setExpandedId] = useState<number | null>(initialExpandedSessionId);
 
   useEffect(() => {
@@ -34,12 +36,12 @@ export function MediaSessionList({
   }, [expandedId, sessions]);
 
   if (sessions.length === 0) {
-    return <div className="text-sm text-ctp-overlay2">No sessions recorded</div>;
+    return <div className="text-sm text-ctp-overlay2">{t('stats.media.noSessions')}</div>;
   }
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-semibold text-ctp-text">Session History</h3>
+      <h3 className="text-sm font-semibold text-ctp-text">{t('stats.mediaSessionList.sessionHistory')}</h3>
       {sessions.map((s) => (
         <div key={s.sessionId}>
           <SessionRow

@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 import { resolveControllerConfigForGamepad } from '../controller-profile-config.js';
 import { createControllerBindingCapture } from '../handlers/controller-binding-capture.js';
 import {
@@ -106,7 +107,7 @@ export function createControllerSelectModal(
       );
       learningActionId = actionId;
       controllerConfigForm.render();
-      setStatus(`Waiting for input for ${definition.label}.`);
+      setStatus(i18n.t('controller.waitingInput', { label: definition.label }));
     },
     onClear: (actionId) => {
       void saveBinding(actionId, { kind: 'none' });
@@ -132,7 +133,7 @@ export function createControllerSelectModal(
       );
       dpadLearningActionId = actionId;
       controllerConfigForm.render();
-      setStatus(`Press a D-pad direction for ${definition.label}.`);
+      setStatus(i18n.t('controller.waitingDpad', { label: definition.label }));
     },
     onDpadClear: (actionId) => {
       void saveDpadFallback(actionId, 'none');
@@ -193,11 +194,11 @@ export function createControllerSelectModal(
       const option = document.createElement('option');
       option.value = getDeviceSelectionKey(device);
       option.selected = index === ctx.state.controllerDeviceSelectedIndex;
-      option.textContent = `${device.id || `Gamepad ${device.index}`} (${[
+      option.textContent = `${device.id || i18n.t('controller.gamepadN', { index: device.index })} (${[
         `#${device.index}`,
-        device.mapping || 'unknown',
-        device.id === ctx.state.activeGamepadId ? 'active' : null,
-        device.id === preferredId ? 'saved' : null,
+        device.mapping || i18n.t('controller.tag.unknown'),
+        device.id === ctx.state.activeGamepadId ? i18n.t('controller.tag.active') : null,
+        device.id === preferredId ? i18n.t('controller.tag.saved') : null,
       ]
         .filter(Boolean)
         .join(', ')})`;
@@ -207,8 +208,11 @@ export function createControllerSelectModal(
     ctx.dom.controllerSelectPicker.disabled = ctx.state.connectedGamepads.length === 0;
     ctx.dom.controllerSelectSummary.textContent =
       ctx.state.connectedGamepads.length === 0
-        ? 'No controller detected.'
-        : `Active: ${ctx.state.activeGamepadId ?? 'none'} · Preferred: ${preferredId || 'none'}`;
+        ? i18n.t('controller.noController')
+        : i18n.t('controller.activePreferred', {
+            active: ctx.state.activeGamepadId ?? 'none',
+            preferred: preferredId || 'none',
+          });
 
     lastRenderedDevicesKey = getDevicesKey();
     lastRenderedActiveGamepadId = ctx.state.activeGamepadId;
@@ -290,10 +294,10 @@ export function createControllerSelectModal(
       dpadLearningActionId = null;
       bindingCapture = null;
       controllerConfigForm.render();
-      setStatus(`${definition?.label ?? actionId} updated.`);
+      setStatus(i18n.t('controller.updated', { label: definition?.label ?? actionId }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to save binding: ${message}`, true);
+      setStatus(i18n.t('controller.saveFailed', { message }), true);
     }
   }
 
@@ -310,17 +314,17 @@ export function createControllerSelectModal(
       dpadLearningActionId = null;
       bindingCapture = null;
       controllerConfigForm.render();
-      setStatus(`${definition?.label ?? actionId} D-pad updated.`);
+      setStatus(i18n.t('controller.dpadUpdated', { label: definition?.label ?? actionId }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to save D-pad binding: ${message}`, true);
+      setStatus(i18n.t('controller.dpadSaveFailed', { message }), true);
     }
   }
 
   async function saveSelectedController(): Promise<void> {
     const selected = ctx.state.connectedGamepads[ctx.state.controllerDeviceSelectedIndex];
     if (!selected) {
-      setStatus('No controller selected.', true);
+      setStatus(i18n.t('controller.noSelection'), true);
       return;
     }
 
@@ -331,13 +335,17 @@ export function createControllerSelectModal(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setStatus(`Failed to save preferred controller: ${message}`, true);
+      setStatus(i18n.t('controller.savePrefFailed', { message }), true);
       return;
     }
 
     syncSelectedControllerId();
     renderPicker();
-    setStatus(`Saved preferred controller: ${selected.id || `Gamepad ${selected.index}`}`);
+    setStatus(
+      i18n.t('controller.savedPref', {
+        name: selected.id || i18n.t('controller.gamepadN', { index: selected.index }),
+      }),
+    );
   }
 
   function updateDevices(): void {
@@ -383,7 +391,7 @@ export function createControllerSelectModal(
     }
 
     if (ctx.state.connectedGamepads.length === 0 && !learningActionId && !dpadLearningActionId) {
-      setStatus('No controllers detected.');
+      setStatus(i18n.t('controller.noControllers'));
     }
   }
 
@@ -403,9 +411,9 @@ export function createControllerSelectModal(
     renderPicker();
     controllerConfigForm.render();
     if (ctx.state.connectedGamepads.length === 0) {
-      setStatus('No controllers detected.');
+      setStatus(i18n.t('controller.noControllers'));
     } else {
-      setStatus('Choose a controller or click Learn to remap an action.');
+      setStatus(i18n.t('controller.chooseHint'));
     }
     return true;
   }
@@ -433,7 +441,7 @@ export function createControllerSelectModal(
         dpadLearningActionId = null;
         bindingCapture = null;
         controllerConfigForm.render();
-        setStatus('Controller learn mode cancelled.');
+        setStatus(i18n.t('controller.learnCancelled'));
         return true;
       }
       closeControllerSelectModal();

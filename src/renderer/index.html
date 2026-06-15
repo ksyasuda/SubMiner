@@ -24,11 +24,10 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self' 'unsafe-inline' chrome-extension:; script-src 'self' 'unsafe-inline' chrome-extension:; style-src 'self' 'unsafe-inline' chrome-extension:; img-src 'self' data: blob: chrome-extension:; worker-src 'self' blob:;"
     />
-    <title>SubMiner</title>
+    <title data-i18n="app.title">SubMiner</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- Programmatic focus fallback target for Electron/window focus management. -->
     <div id="overlay" tabindex="-1">
       <div
         id="controllerStatusToast"
@@ -53,16 +52,18 @@
         class="notification-history side-right"
         role="dialog"
         aria-label="Notification history"
+        data-i18n-aria="overlay.notificationHistory"
         aria-hidden="true"
       >
         <header class="notification-history-header">
-          <span class="notification-history-title">Notifications</span>
+          <span class="notification-history-title" data-i18n="overlay.notifications">Notifications</span>
           <div class="notification-history-header-actions">
-            <button class="notification-history-clear" type="button">Clear</button>
+            <button class="notification-history-clear" type="button" data-i18n="overlay.clearNotifications">Clear</button>
             <button
               class="notification-history-close"
               type="button"
               aria-label="Close notification history"
+              data-i18n-aria="overlay.closeNotificationHistory"
             >
               ×
             </button>
@@ -70,7 +71,7 @@
         </header>
         <div class="notification-history-body">
           <ul class="notification-history-list"></ul>
-          <div class="notification-history-empty">No notifications yet</div>
+          <div class="notification-history-empty" data-i18n="overlay.noNotifications">No notifications yet</div>
         </div>
       </aside>
       <div id="secondarySubContainer" class="secondary-sub-hidden">
@@ -82,34 +83,34 @@
       <div id="jimakuModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">
-            <div class="modal-title">Jimaku Subtitles</div>
-            <button id="jimakuClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="jimaku.title">Jimaku Subtitles</div>
+            <button id="jimakuClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <div class="jimaku-form">
               <label class="jimaku-field">
-                <span>Title</span>
-                <input id="jimakuTitle" type="text" placeholder="Anime title" />
+                <span data-i18n="jimaku.label.title">Title</span>
+                <input id="jimakuTitle" type="text" data-i18n-placeholder="jimaku.placeholder.title" placeholder="Anime title" />
               </label>
               <label class="jimaku-field">
-                <span>Season</span>
+                <span data-i18n="jimaku.label.season">Season</span>
                 <input id="jimakuSeason" type="number" min="1" placeholder="1" />
               </label>
               <label class="jimaku-field">
-                <span>Episode</span>
+                <span data-i18n="jimaku.label.episode">Episode</span>
                 <input id="jimakuEpisode" type="number" min="1" placeholder="1" />
               </label>
-              <button id="jimakuSearch" class="jimaku-button" type="button">Search</button>
+              <button id="jimakuSearch" class="jimaku-button" type="button" data-i18n="jimaku.search">Search</button>
             </div>
             <div id="jimakuStatus" class="jimaku-status"></div>
             <div id="jimakuEntriesSection" class="jimaku-section hidden">
-              <div class="jimaku-section-title">Entries</div>
+              <div class="jimaku-section-title" data-i18n="jimaku.entries">Entries</div>
               <ul id="jimakuEntries" class="jimaku-list"></ul>
             </div>
             <div id="jimakuFilesSection" class="jimaku-section hidden">
-              <div class="jimaku-section-title">Files</div>
+              <div class="jimaku-section-title" data-i18n="jimaku.files">Files</div>
               <ul id="jimakuFiles" class="jimaku-list"></ul>
-              <button id="jimakuBroaden" class="jimaku-link hidden" type="button">
+              <button id="jimakuBroaden" class="jimaku-link hidden" type="button" data-i18n="jimaku.broadenSearch">
                 Broaden search (all files)
               </button>
             </div>
@@ -119,8 +120,8 @@
       <div id="youtubePickerModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content youtube-picker-content">
           <div class="modal-header">
-            <div class="modal-title">YouTube Subtitle Tracks</div>
-            <button id="youtubePickerCloseButton" class="modal-close" type="button">
+            <div class="modal-title" data-i18n="youtube.title">YouTube Subtitle Tracks</div>
+            <button id="youtubePickerCloseButton" class="modal-close" type="button" data-i18n="youtube.continueWithout">
               Continue without subtitles
             </button>
           </div>
@@ -128,18 +129,18 @@
             <div id="youtubePickerTitle" class="youtube-picker-title"></div>
             <div class="youtube-picker-grid">
               <label class="youtube-picker-field">
-                <span>Primary subtitle</span>
+                <span data-i18n="youtube.primarySub">Primary subtitle</span>
                 <select id="youtubePickerPrimarySelect"></select>
               </label>
               <label class="youtube-picker-field">
-                <span>Secondary subtitle</span>
+                <span data-i18n="youtube.secondarySub">Secondary subtitle</span>
                 <select id="youtubePickerSecondarySelect"></select>
               </label>
             </div>
             <div id="youtubePickerStatus" class="youtube-picker-status"></div>
             <ul id="youtubePickerTracks" class="youtube-picker-tracks"></ul>
             <div class="youtube-picker-footer">
-              <button id="youtubePickerContinueButton" class="kiku-confirm-button" type="button">
+              <button id="youtubePickerContinueButton" class="kiku-confirm-button" type="button" data-i18n="youtube.useSelected">
                 Use selected subtitles
               </button>
             </div>
@@ -149,24 +150,22 @@
       <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">
-            <div class="modal-title">Duplicate Card Detected</div>
+            <div class="modal-title" data-i18n="kiku.title">Duplicate Card Detected</div>
           </div>
           <div class="modal-body">
             <div id="kikuSelectionStep">
-              <div class="kiku-info-text">
-                A card with the same expression already exists. Select which card to keep. The other
-                card's content will be merged using Kiku field grouping. You can choose whether to
-                delete the duplicate.
+              <div class="kiku-info-text" data-i18n="kiku.info">
+                A card with the same expression already exists. Select which card to keep. The other card's content will be merged using Kiku field grouping. You can choose whether to delete the duplicate.
               </div>
               <div class="kiku-cards-container">
                 <div id="kikuCard1" class="kiku-card active" tabindex="0">
-                  <div class="kiku-card-label">1 &mdash; Original Card</div>
+                  <div class="kiku-card-label" data-i18n="kiku.originalCard">1 &mdash; Original Card</div>
                   <div class="kiku-card-expression" id="kikuCard1Expression"></div>
                   <div class="kiku-card-sentence" id="kikuCard1Sentence"></div>
                   <div class="kiku-card-meta" id="kikuCard1Meta"></div>
                 </div>
                 <div id="kikuCard2" class="kiku-card" tabindex="0">
-                  <div class="kiku-card-label">2 &mdash; New Card</div>
+                  <div class="kiku-card-label" data-i18n="kiku.newCard">2 &mdash; New Card</div>
                   <div class="kiku-card-expression" id="kikuCard2Expression"></div>
                   <div class="kiku-card-sentence" id="kikuCard2Sentence"></div>
                   <div class="kiku-card-meta" id="kikuCard2Meta"></div>
@@ -175,39 +174,31 @@
               <div class="kiku-footer">
                 <label class="kiku-delete-toggle">
                   <input id="kikuDeleteDuplicate" type="checkbox" checked />
-                  Delete duplicate card after merge
+                  <span data-i18n="kiku.deleteDuplicate">Delete duplicate card after merge</span>
                 </label>
-                <button id="kikuConfirmButton" class="kiku-confirm-button" type="button">
-                  Continue
-                </button>
-                <button id="kikuCancelButton" class="kiku-cancel-button" type="button">
-                  Cancel
-                </button>
+                <button id="kikuConfirmButton" class="kiku-confirm-button" type="button" data-i18n="common.continue">Continue</button>
+                <button id="kikuCancelButton" class="kiku-cancel-button" type="button" data-i18n="common.cancel">Cancel</button>
               </div>
             </div>
 
             <div id="kikuPreviewStep" class="hidden">
               <div class="kiku-preview-header">
-                <div class="kiku-preview-title">Final Merge Preview</div>
+                <div class="kiku-preview-title" data-i18n="kiku.mergePreview">Final Merge Preview</div>
                 <div class="kiku-preview-toggle">
-                  <button id="kikuPreviewCompact" type="button">Compact</button>
-                  <button id="kikuPreviewFull" type="button">Full</button>
+                  <button id="kikuPreviewCompact" type="button" data-i18n="kiku.compact">Compact</button>
+                  <button id="kikuPreviewFull" type="button" data-i18n="kiku.full">Full</button>
                 </div>
               </div>
               <div id="kikuPreviewError" class="kiku-preview-error hidden"></div>
               <pre id="kikuPreviewJson" class="kiku-preview-json"></pre>
               <div class="kiku-footer">
-                <button id="kikuBackButton" class="kiku-cancel-button" type="button">Back</button>
-                <button id="kikuFinalConfirmButton" class="kiku-confirm-button" type="button">
-                  Confirm Merge
-                </button>
-                <button id="kikuFinalCancelButton" class="kiku-cancel-button" type="button">
-                  Cancel
-                </button>
+                <button id="kikuBackButton" class="kiku-cancel-button" type="button" data-i18n="common.back">Back</button>
+                <button id="kikuFinalConfirmButton" class="kiku-confirm-button" type="button" data-i18n="kiku.confirmMerge">Confirm Merge</button>
+                <button id="kikuFinalCancelButton" class="kiku-cancel-button" type="button" data-i18n="common.cancel">Cancel</button>
               </div>
             </div>
 
-            <div id="kikuHint" class="kiku-hint">
+            <div id="kikuHint" class="kiku-hint" data-i18n="kiku.hint">
               Press 1 or 2 to select &middot; Enter to confirm &middot; Esc to cancel
             </div>
           </div>
@@ -216,11 +207,11 @@
       <div id="runtimeOptionsModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content runtime-modal-content">
           <div class="modal-header">
-            <div class="modal-title">Runtime Options</div>
-            <button id="runtimeOptionsClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="runtimeOptions.title">Runtime Options</div>
+            <button id="runtimeOptionsClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
-            <div id="runtimeOptionsHint" class="runtime-options-hint">
+            <div id="runtimeOptionsHint" class="runtime-options-hint" data-i18n="runtimeOptions.hint">
               Arrow keys: select/change · Enter or double-click: apply · Esc: close
             </div>
             <ul id="runtimeOptionsList" class="runtime-options-list"></ul>
@@ -231,14 +222,15 @@
       <div id="characterDictionaryModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content character-dictionary-content">
           <div class="modal-header">
-            <div class="modal-title">Character Dictionary Management</div>
-            <button id="characterDictionaryClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="characterDictionary.title">Character Dictionary Management</div>
+            <button id="characterDictionaryClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <div
               class="character-dictionary-tabs"
               role="tablist"
               aria-label="Character dictionary views"
+              data-i18n-aria="characterDictionary.views"
             >
               <button
                 id="characterDictionaryOverrideTab"
@@ -246,6 +238,7 @@
                 type="button"
                 role="tab"
                 aria-selected="true"
+                data-i18n="characterDictionary.override"
               >
                 Override
               </button>
@@ -255,6 +248,7 @@
                 type="button"
                 role="tab"
                 aria-selected="false"
+                data-i18n="characterDictionary.manage"
               >
                 Manage
               </button>
@@ -267,12 +261,14 @@
                   class="character-dictionary-search-input"
                   type="text"
                   aria-label="Search character dictionary"
+                  data-i18n-aria="characterDictionary.searchAria"
                   autocomplete="off"
                 />
                 <button
                   id="characterDictionarySearchButton"
                   class="character-dictionary-use"
                   type="button"
+                  data-i18n="characterDictionary.search"
                 >
                   Search
                 </button>
@@ -293,13 +289,13 @@
       <div id="subsyncModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content subsync-modal-content">
           <div class="modal-header">
-            <div class="modal-title">Subtitle Sync</div>
-            <button id="subsyncClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="subsync.title">Subtitle Sync</div>
+            <button id="subsyncClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <div class="subsync-form">
               <div class="subsync-field">
-                <span>Engine</span>
+                <span data-i18n="subsync.engine">Engine</span>
                 <label class="subsync-radio">
                   <input id="subsyncEngineAlass" type="radio" name="subsyncEngine" checked />
                   alass
@@ -310,13 +306,13 @@
                 </label>
               </div>
               <label id="subsyncSourceLabel" class="subsync-field">
-                <span>Source Subtitle (for alass)</span>
+                <span data-i18n="subsync.sourceSub">Source Subtitle (for alass)</span>
                 <select id="subsyncSourceSelect"></select>
               </label>
             </div>
             <div id="subsyncStatus" class="runtime-options-status"></div>
             <div class="subsync-footer">
-              <button id="subsyncRun" class="kiku-confirm-button" type="button">Run Sync</button>
+              <button id="subsyncRun" class="kiku-confirm-button" type="button" data-i18n="subsync.run">Run Sync</button>
             </div>
           </div>
         </div>
@@ -324,21 +320,19 @@
       <div id="controllerSelectModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content runtime-modal-content">
           <div class="modal-header">
-            <div class="modal-title">Controller Configuration</div>
-            <button id="controllerSelectClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="controllerSelect.title">Controller Configuration</div>
+            <button id="controllerSelectClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <label class="controller-select-field">
-              <span>Preferred Controller</span>
+              <span data-i18n="controllerSelect.preferred">Preferred Controller</span>
               <select id="controllerSelectPicker"></select>
             </label>
             <div id="controllerSelectSummary" class="controller-select-summary"></div>
             <div id="controllerConfigList" class="controller-config-list"></div>
             <div id="controllerSelectStatus" class="runtime-options-status"></div>
             <div class="subsync-footer">
-              <button id="controllerSelectSave" class="kiku-confirm-button" type="button">
-                Save Controller
-              </button>
+              <button id="controllerSelectSave" class="kiku-confirm-button" type="button" data-i18n="controllerSelect.save">Save Controller</button>
             </div>
           </div>
         </div>
@@ -351,27 +345,25 @@
             aria-live="polite"
           ></div>
           <div class="modal-header">
-            <div class="modal-title">Controller Debug</div>
-            <button id="controllerDebugClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="controllerDebug.title">Controller Debug</div>
+            <button id="controllerDebugClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <div id="controllerDebugStatus" class="runtime-options-status"></div>
             <div id="controllerDebugSummary" class="controller-debug-summary"></div>
             <div class="controller-debug-grid">
               <div>
-                <div class="jimaku-section-title">Axes</div>
+                <div class="jimaku-section-title" data-i18n="controllerDebug.axes">Axes</div>
                 <pre id="controllerDebugAxes" class="controller-debug-pre"></pre>
               </div>
               <div>
-                <div class="jimaku-section-title">Buttons</div>
+                <div class="jimaku-section-title" data-i18n="controllerDebug.buttons">Buttons</div>
                 <pre id="controllerDebugButtons" class="controller-debug-pre"></pre>
               </div>
               <div class="controller-debug-span">
                 <div class="controller-debug-section-header">
-                  <div class="jimaku-section-title">Config</div>
-                  <button id="controllerDebugCopy" class="kiku-cancel-button" type="button">
-                    Copy
-                  </button>
+                  <div class="jimaku-section-title" data-i18n="controllerDebug.config">Config</div>
+                  <button id="controllerDebugCopy" class="kiku-cancel-button" type="button" data-i18n="common.copy">Copy</button>
                 </div>
                 <pre id="controllerDebugButtonIndices" class="controller-debug-pre"></pre>
               </div>
@@ -382,8 +374,8 @@
       <div id="subtitleSidebarModal" class="modal hidden subtitle-sidebar-modal" aria-hidden="true">
         <div id="subtitleSidebarContent" class="modal-content subtitle-sidebar-content">
           <div class="modal-header">
-            <div class="modal-title">Subtitle Sidebar</div>
-            <button id="subtitleSidebarClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="subtitleSidebar.title">Subtitle Sidebar</div>
+            <button id="subtitleSidebarClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body subtitle-sidebar-body">
             <div id="subtitleSidebarStatus" class="runtime-options-status"></div>
@@ -394,8 +386,8 @@
       <div id="sessionHelpModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content session-help-content">
           <div class="modal-header">
-            <div class="modal-title">Session Help</div>
-            <button id="sessionHelpClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="sessionHelp.title">Session Help</div>
+            <button id="sessionHelpClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body">
             <div id="sessionHelpShortcut" class="session-help-shortcut"></div>
@@ -406,6 +398,7 @@
               class="session-help-filter"
               type="text"
               placeholder="Type / to search shortcuts"
+              data-i18n-placeholder="sessionHelp.searchPlaceholder"
               autocomplete="off"
               spellcheck="false"
             />
@@ -416,28 +409,28 @@
       <div id="playlistBrowserModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content playlist-browser-content">
           <div class="modal-header">
-            <div class="modal-title">Playlist Browser</div>
-            <button id="playlistBrowserClose" class="modal-close" type="button">Close</button>
+            <div class="modal-title" data-i18n="playlistBrowser.title">Playlist Browser</div>
+            <button id="playlistBrowserClose" class="modal-close" type="button" data-i18n="common.close">Close</button>
           </div>
           <div class="modal-body playlist-browser-body">
             <div id="playlistBrowserTitle" class="playlist-browser-title"></div>
             <div id="playlistBrowserStatus" class="playlist-browser-status"></div>
             <div class="playlist-browser-grid">
               <div class="playlist-browser-pane">
-                <div class="playlist-browser-pane-title">Directory</div>
+                <div class="playlist-browser-pane-title" data-i18n="playlistBrowser.directory">Directory</div>
                 <ul id="playlistBrowserDirectoryList" class="playlist-browser-list"></ul>
               </div>
               <div class="playlist-browser-pane">
-                <div class="playlist-browser-pane-title">Playlist</div>
+                <div class="playlist-browser-pane-title" data-i18n="playlistBrowser.playlist">Playlist</div>
                 <ul id="playlistBrowserPlaylistList" class="playlist-browser-list"></ul>
               </div>
             </div>
             <div class="playlist-browser-footer">
-              <span>Tab switch pane</span>
-              <span>Enter activate</span>
-              <span>Delete remove</span>
-              <span>Ctrl/Cmd+Arrows reorder</span>
-              <span>Esc close</span>
+              <span data-i18n="playlistBrowser.tabSwitch">Tab switch pane</span>
+              <span data-i18n="playlistBrowser.enterActivate">Enter activate</span>
+              <span data-i18n="playlistBrowser.deleteRemove">Delete remove</span>
+              <span data-i18n="playlistBrowser.reorder">Ctrl/Cmd+Arrows reorder</span>
+              <span data-i18n="playlistBrowser.escClose">Esc close</span>
             </div>
           </div>
         </div>

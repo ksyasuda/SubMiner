@@ -1,4 +1,5 @@
 import type { SessionHelpSection } from './session-help-sections';
+import { i18n } from '../../i18n/index.js';
 
 export type SessionHelpSubtitleStyle = {
   knownWordColor?: unknown;
@@ -34,45 +35,45 @@ function normalizeColor(value: unknown, fallback: string): string {
 
 export function buildColorSection(style: SessionHelpSubtitleStyle): SessionHelpSection {
   return {
-    title: 'Color legend',
+    title: i18n.t('sessionHelp.colorLegend'),
     rows: [
       {
-        shortcut: 'Known words',
+        shortcut: i18n.t('sessionHelp.colors.knownWords'),
         action: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
         color: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
       },
       {
-        shortcut: 'N+1 words',
+        shortcut: i18n.t('sessionHelp.colors.nPlusOne'),
         action: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
         color: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),
       },
       {
-        shortcut: 'Character names',
+        shortcut: i18n.t('sessionHelp.colors.characterNames'),
         action: normalizeColor(style.nameMatchColor, FALLBACK_COLORS.nameMatchColor),
         color: normalizeColor(style.nameMatchColor, FALLBACK_COLORS.nameMatchColor),
       },
       {
-        shortcut: 'JLPT N1',
+        shortcut: i18n.t('sessionHelp.colors.jlptN1'),
         action: normalizeColor(style.jlptColors?.N1, FALLBACK_COLORS.jlptN1Color),
         color: normalizeColor(style.jlptColors?.N1, FALLBACK_COLORS.jlptN1Color),
       },
       {
-        shortcut: 'JLPT N2',
+        shortcut: i18n.t('sessionHelp.colors.jlptN2'),
         action: normalizeColor(style.jlptColors?.N2, FALLBACK_COLORS.jlptN2Color),
         color: normalizeColor(style.jlptColors?.N2, FALLBACK_COLORS.jlptN2Color),
       },
       {
-        shortcut: 'JLPT N3',
+        shortcut: i18n.t('sessionHelp.colors.jlptN3'),
         action: normalizeColor(style.jlptColors?.N3, FALLBACK_COLORS.jlptN3Color),
         color: normalizeColor(style.jlptColors?.N3, FALLBACK_COLORS.jlptN3Color),
       },
       {
-        shortcut: 'JLPT N4',
+        shortcut: i18n.t('sessionHelp.colors.jlptN4'),
         action: normalizeColor(style.jlptColors?.N4, FALLBACK_COLORS.jlptN4Color),
         color: normalizeColor(style.jlptColors?.N4, FALLBACK_COLORS.jlptN4Color),
       },
       {
-        shortcut: 'JLPT N5',
+        shortcut: i18n.t('sessionHelp.colors.jlptN5'),
         action: normalizeColor(style.jlptColors?.N5, FALLBACK_COLORS.jlptN5Color),
         color: normalizeColor(style.jlptColors?.N5, FALLBACK_COLORS.jlptN5Color),
       },
