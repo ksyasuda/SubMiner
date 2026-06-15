@@ -1,6 +1,46 @@
 # Changelog
 
-## v0.16.0 (2026-06-10)
+## v0.17.0 (2026-06-15)
+
+**Changed**
+
+- **Subtitle Delay Keybindings**: Updated default overlay subtitle delay and step bindings to match mpv conventions: `z`, `Z`, and `x` adjust `sub-delay`; `Ctrl+Shift+Left/Right` run native `sub-step` with OSD feedback. The previous SubMiner-only adjacent-cue delay action has been removed.
+- **Update Notifications**: New installs now default update notifications to overlay-only instead of overlay + system notifications.
+
+**Fixed**
+
+- **Anki – Highlight Word**: Fixed bolding of the mined word in Kiku sentence and sentence-furigana fields when the source Yomitan sentence did not already contain bold markup.
+- **Anki – Lapis/Kiku Word Cards**: Fixed word-and-sentence marker missing from Lapis/Kiku word cards enriched through SubMiner, which could hide sentence context on the card front.
+- **Anki – Windows Media Generation**: Fixed known-word cache refreshes when no deck is configured, and fixed audio/image generation after background launches by recreating missing FFmpeg temp directories before clipping.
+- **Character Dictionary – Windows**: Fixed the Windows "SubMiner mpv" shortcut so character dictionary auto-sync can fall back to mpv's current video path when app media state is not yet ready.
+- **Notifications**: Restored the SubMiner app icon on system notifications that do not supply a custom notification image.
+- **Overlay – macOS Yomitan Popup**: Fixed Yomitan popup focus after card mining or popup reload; fixed popups staying open when clicking transparent overlay space — click-away now closes the popup and returns click passthrough to mpv without a hide/reappear cycle.
+- **Overlay – Linux Auto-Pause Startup**: Fixed the visible overlay on Linux auto-paused startup to stay interactive during the initial measurement gap; startup subtitle cache misses now paint raw text before tokenization finishes, and temporarily empty `sub-text` refreshes are resolved before warm readiness resumes playback.
+- **Overlay – Playlist Advance**: Fixed the visible overlay being dismissed when mpv advances to the next playlist item, including when the next episode loads after the warm transition delay.
+- **Overlay – Windows Subtitle Bar**: Fixed shaky hover and click interaction on the Windows subtitle bar when a video attaches to an already-running background SubMiner instance.
+- **Stats – AniList Linking**: Fixed manual AniList linking from the stats anime page so auto-searches strip the generated "Season N" suffix and query only the anime title.
+- **Updates – Linux Support Assets**: Fixed Linux updates to correctly install and refresh the launcher runtime plugin copy and rofi theme alongside AppImage and launcher updates; unrelated SubMiner data directories are now left untouched and plugin copies are staged before replacing the live runtime. Fixed first-launch playback on fresh installs by auto-installing missing managed support assets from the bundled app before mpv starts.
+
+**Docs**
+
+- **Linux Update Flows**: Documented that Linux update flows manage the launcher runtime plugin copy and rofi theme from `subminer-assets.tar.gz`, and that normal launcher playback auto-installs those managed support assets on a fresh install if either is missing.
+
+<details>
+<summary>Internal changes</summary>
+
+**Internal**
+
+- **Runtime Modules**: Split main-process runtime wiring into focused modules without changing user-facing behavior; hardened helpers against stale background stats daemon PIDs, stalled subtitle extraction, and dropped async errors.
+- **Release CI**: Fixed GitHub release notes to preserve the `What's Changed` and `New Contributors` attribution sections when CI regenerates from the committed changelog; scoped prerelease note reuse to the same base version so a new beta line starts from current fragments.
+
+</details>
+
+## Previous Versions
+
+<details>
+<summary>v0.16.x</summary>
+
+<h2>v0.16.0 (2026-06-10)</h2>
 
 **Breaking Changes**
 
@@ -24,7 +64,7 @@
 - **Stats Browsing**: Remembers library card size; retries stored cover art without extra AniList lookups; preserves PNG/WebP MIME types; honors custom AnkiConnect URLs for Browse; shows progress during session deletes.
 - **Startup Notifications**: Tokenization, subtitle annotation, and character dictionary status now route through queued overlay notifications in `overlay`/`both` mode instead of falling back to mpv OSD while the overlay loads.
 - **Notification Deduplication**: Cycling subtitle modes updates the active overlay card in place rather than stacking duplicates; repeated progress updates (e.g. subsync) tick in place without flickering.
-- **Update Notification Default**: New installs default `notificationType` to `overlay`, while `both` remains available for overlay + system notifications.
+- **Update Notification Default**: New installs default `notificationType` to `both` so update alerts appear in both overlay and system notifications.
 
 **Fixed**
 
@@ -48,7 +88,7 @@
 
 </details>
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.15.x</summary>
