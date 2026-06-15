@@ -61,8 +61,10 @@
    committed file — so review it before committing. If you add more
    `changes/*.md` fragments for a later beta/RC, rerun
    `bun run changelog:prerelease-notes --version <version>`; the generator uses
-   the existing prerelease notes as the baseline and asks Claude to merge only
-   the new fragment material. Do not run `bun run changelog:build`.
+   the existing prerelease notes as the baseline only when their hidden
+   `prerelease-base-version` marker matches the current base version, and asks
+   Claude to merge only the new fragment material. Do not run
+   `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
 

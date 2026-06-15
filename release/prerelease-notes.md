@@ -1,5 +1,7 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
+<!-- prerelease-base-version: 0.17.0 -->
+
 ## Highlights
 ### Changed
 

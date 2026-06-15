@@ -93,6 +93,40 @@ function isSupportedPrereleaseVersion(version: string): boolean {
   return /^\d+\.\d+\.\d+-(beta|rc)\.\d+$/u.test(normalizeVersion(version));
 }
 
+function resolvePrereleaseBaseVersion(version: string): string {
+  const match = /^(\d+\.\d+\.\d+)-(?:beta|rc)\.\d+$/u.exec(normalizeVersion(version));
+  if (!match) {
+    throw new Error(
+      `Unsupported prerelease version (${version}). Expected x.y.z-beta.N or x.y.z-rc.N.`,
+    );
+  }
+  return match[1]!;
+}
+
+function renderPrereleaseBaseVersionMarker(version: string): string {
+  return `<!-- prerelease-base-version: ${resolvePrereleaseBaseVersion(version)} -->`;
+}
+
+function extractPrereleaseBaseVersionMarker(notes: string): string | null {
+  return (
+    /<!--\s*prerelease-base-version:\s*(\d+\.\d+\.\d+)\s*-->/u.exec(notes)?.[1] ?? null
+  );
+}
+
+function stripPrereleaseMetadata(notes: string): string {
+  return notes
+    .replace(/<!--\s*prerelease-base-version:\s*\d+\.\d+\.\d+\s*-->\s*/u, '')
+    .trim();
+}
+
+function resolveReusablePrereleaseNotes(notes: string, version: string): string | undefined {
+  const existingBaseVersion = extractPrereleaseBaseVersionMarker(notes);
+  if (existingBaseVersion !== resolvePrereleaseBaseVersion(version)) {
+    return undefined;
+  }
+  return stripPrereleaseMetadata(notes);
+}
+
 function verifyRequestedVersionMatchesPackageVersion(
   options: Pick<ChangelogOptions, 'cwd' | 'version' | 'deps'>,
 ): void {
@@ -669,13 +703,16 @@ function renderReleaseNotes(
     disclaimer?: string;
     contributions?: Contribution[];
     contributorSections?: string[];
+    metadata?: string[];
   },
 ): string {
   const prefix = options?.disclaimer ? [options.disclaimer, ''] : [];
+  const metadata = options?.metadata?.length ? [...options.metadata, ''] : [];
   const contributorSections =
     options?.contributorSections ?? renderContributorsSections(options?.contributions ?? []);
   return [
     ...prefix,
+    ...metadata,
     '## Highlights',
     changes,
     '',
@@ -705,6 +742,7 @@ function writeReleaseNotesFile(
     outputPath?: string;
     contributions?: Contribution[];
     contributorSections?: string[];
+    metadata?: string[];
   },
 ): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
@@ -1038,7 +1076,7 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
 
   const prereleaseNotesPath = path.join(cwd, PRERELEASE_NOTES_PATH);
   const existingReleaseNotes = existsSync(prereleaseNotesPath)
-    ? readFileSync(prereleaseNotesPath, 'utf8')
+    ? resolveReusablePrereleaseNotes(readFileSync(prereleaseNotesPath, 'utf8'), version)
     : undefined;
   const changes = polishFragmentsWithClaude(fragments, {
     mode: 'release-notes',
@@ -1052,6 +1090,7 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
       '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
     outputPath: PRERELEASE_NOTES_PATH,
     contributions,
+    metadata: [renderPrereleaseBaseVersionMarker(version)],
   });
 }
 

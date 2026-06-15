@@ -605,6 +605,7 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
 
     const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
     assert.match(prereleaseNotes, /^> This is a prerelease build for testing\./m);
+    assert.match(prereleaseNotes, /<!-- prerelease-base-version: 0\.11\.3 -->/);
     assert.match(prereleaseNotes, /## Highlights\n### Added\n- Polished: added entry\./);
     assert.match(prereleaseNotes, /### Fixed\n- Polished: fixed entry\./);
     assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
@@ -619,6 +620,8 @@ test('writePrereleaseNotesForVersion reuses existing prerelease notes when addin
   const projectRoot = path.join(workspace, 'SubMiner');
   const existingNotes = [
     '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '<!-- prerelease-base-version: 0.11.3 -->',
     '',
     '## Highlights',
     '### Added',
@@ -679,12 +682,69 @@ test('writePrereleaseNotesForVersion reuses existing prerelease notes when addin
   }
 });
 
+test('writePrereleaseNotesForVersion ignores unmarked prerelease notes from an older release line', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-ignore-unmarked-old-notes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingNotes = [
+    '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '## Highlights',
+    '### Added',
+    '- Settings Window: Previous release line entry.',
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.17.0-beta.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(path.join(projectRoot, 'release', 'prerelease-notes.md'), existingNotes, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    [
+      'type: changed',
+      'area: overlay',
+      '',
+      '- Replaced subtitle delay actions with native mpv keybindings.',
+    ].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = defaultStubClaude();
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.17.0-beta.1',
+      deps: { runClaude: stub.runClaude },
+    });
+
+    assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
+    assert.doesNotMatch(stub.calls[0]!.input, /EXISTING PRERELEASE NOTES/);
+    assert.doesNotMatch(stub.calls[0]!.input, /Settings Window: Previous release line entry/);
+
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(prereleaseNotes, /### Changed\n- Polished: changed entry\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test('writePrereleaseNotesForVersion prompts Claude to revise stale prerelease bullets instead of appending fix churn', async () => {
   const { writePrereleaseNotesForVersion } = await loadModule();
   const workspace = createWorkspace('prerelease-net-outcome-prompt');
   const projectRoot = path.join(workspace, 'SubMiner');
   const existingNotes = [
     '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '<!-- prerelease-base-version: 0.12.0 -->',
     '',
     '## Highlights',
     '### Added',
