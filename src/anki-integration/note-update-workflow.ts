@@ -60,6 +60,10 @@ export interface NoteUpdateWorkflowDeps {
     expression: string,
   ) => Promise<boolean>;
   processSentence: (mpvSentence: string, noteFields: Record<string, string>) => string;
+  processSentenceFurigana?: (
+    sentenceFurigana: string,
+    noteFields: Record<string, string>,
+  ) => string;
   setCardTypeFields: (
     updatedFields: Record<string, string>,
     availableFieldNames: string[],
@@ -204,6 +208,23 @@ export class NoteUpdateWorkflow {
           );
         }
         updatePerformed = true;
+      }
+      const sentenceFuriganaField = this.deps.resolveConfiguredFieldName(
+        noteInfo,
+        'SentenceFurigana',
+      );
+      const existingSentenceFurigana = sentenceFuriganaField
+        ? noteInfo.fields[sentenceFuriganaField]?.value || ''
+        : '';
+      if (sentenceFuriganaField && existingSentenceFurigana && this.deps.processSentenceFurigana) {
+        const processedSentenceFurigana = this.deps.processSentenceFurigana(
+          existingSentenceFurigana,
+          fields,
+        );
+        if (processedSentenceFurigana !== existingSentenceFurigana) {
+          updatedFields[sentenceFuriganaField] = processedSentenceFurigana;
+          updatePerformed = true;
+        }
       }
 
       if (config.media?.generateAudio) {

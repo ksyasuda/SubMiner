@@ -125,6 +125,31 @@ test('NoteUpdateWorkflow updates sentence field and emits notification', async (
   assert.equal(harness.notifications.length, 1);
 });
 
+test('NoteUpdateWorkflow updates sentence furigana when highlight processor changes it', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'tokugi' },
+          Sentence: { value: '' },
+          SentenceFurigana: { value: '<span class="term">tokugi</span>' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.processSentenceFurigana = (sentenceFurigana) =>
+    sentenceFurigana.replace('tokugi', '<b>tokugi</b>');
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+    SentenceFurigana: '<span class="term"><b>tokugi</b></span>',
+  });
+});
+
 test('NoteUpdateWorkflow marks enriched Kiku word cards as word-and-sentence cards', async () => {
   const harness = createWorkflowHarness();
   harness.deps.getEffectiveSentenceCardConfig = () => ({
