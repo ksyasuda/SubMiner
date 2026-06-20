@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CardCreationService } from './card-creation';
+import type { MediaInput } from '../media-generator';
 import type { AnkiConnectConfig } from '../types/anki';
 
 test('CardCreationService counts locally created sentence cards', async () => {
@@ -287,6 +288,8 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
 test('CardCreationService uses stream-open-filename for remote media generation', async () => {
   const audioPaths: string[] = [];
   const imagePaths: string[] = [];
+  const recordMediaPath = (mediaInput: MediaInput): string =>
+    typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
   const edlSource = [
     'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
     '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
@@ -345,11 +348,11 @@ test('CardCreationService uses stream-open-filename for remote media generation'
     },
     mediaGenerator: {
       generateAudio: async (path) => {
-        audioPaths.push(path);
+        audioPaths.push(recordMediaPath(path));
         return Buffer.from('audio');
       },
       generateScreenshot: async (path) => {
-        imagePaths.push(path);
+        imagePaths.push(recordMediaPath(path));
         return Buffer.from('image');
       },
       generateAnimatedImage: async () => null,

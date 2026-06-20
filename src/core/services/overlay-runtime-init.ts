@@ -25,6 +25,10 @@ type CreateAnkiIntegrationArgs = {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   knownWordCacheStatePath: string;
+  getCachedMediaPath?: (
+    currentVideoPath: string,
+    kind: 'audio' | 'video',
+  ) => Promise<string | null>;
 };
 
 export type OverlayWindowTrackerOptions = {
@@ -65,6 +69,7 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     args.aiConfig,
     undefined,
     args.showOverlayNotification,
+    args.getCachedMediaPath,
   );
 }
 
@@ -132,6 +137,10 @@ export function initializeOverlayRuntime(
       data: KikuFieldGroupingRequestData,
     ) => Promise<KikuFieldGroupingChoice>;
     getKnownWordCacheStatePath: () => string;
+    getCachedMediaPath?: (
+      currentVideoPath: string,
+      kind: 'audio' | 'video',
+    ) => Promise<string | null>;
     shouldStartAnkiIntegration?: () => boolean;
     createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
     backendOverride: string | null;
@@ -166,6 +175,10 @@ export function initializeOverlayAnkiIntegration(options: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  getCachedMediaPath?: (
+    currentVideoPath: string,
+    kind: 'audio' | 'video',
+  ) => Promise<string | null>;
   shouldStartAnkiIntegration?: () => boolean;
   createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): boolean {
@@ -200,6 +213,7 @@ export function initializeOverlayAnkiIntegration(options: {
     showOverlayNotification: options.showOverlayNotification,
     createFieldGroupingCallback: options.createFieldGroupingCallback,
     knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
+    ...(options.getCachedMediaPath ? { getCachedMediaPath: options.getCachedMediaPath } : {}),
   });
   if (options.shouldStartAnkiIntegration?.() !== false) {
     integration.start();

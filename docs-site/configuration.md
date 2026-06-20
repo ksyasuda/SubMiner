@@ -1520,14 +1520,20 @@ Set defaults used by managed subtitle auto-selection and the `subminer` launcher
 ```json
 {
   "youtube": {
-    "primarySubLanguages": ["ja", "jpn"]
+    "primarySubLanguages": ["ja", "jpn"],
+    "mediaCache": {
+      "mode": "direct"
+    }
   }
 }
 ```
 
-| Option                | Values   | Description                                                                                      |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `primarySubLanguages` | string[] | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
+| Option                | Values                   | Description                                                                                      |
+| --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `primarySubLanguages` | string[]                 | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
+| `mediaCache.mode`     | `direct` \| `background` | YouTube card audio/image extraction mode (default `direct`)                                      |
+
+`mediaCache.mode: "direct"` extracts card media from the active YouTube stream URL. `mediaCache.mode: "background"` starts a separate yt-dlp media download after YouTube playback has loaded. Playback and subtitle loading do not wait for that download; card media generation uses the cached file once it is ready and otherwise falls back to direct stream extraction.
 
 Current launcher behavior:
 

@@ -40,6 +40,10 @@ export interface AnkiJimakuIpcRuntimeOptions {
   getAnkiIntegration: () => AnkiIntegration | null;
   setAnkiIntegration: (integration: AnkiIntegration | null) => void;
   getKnownWordCacheStatePath: () => string;
+  getCachedMediaPath?: (
+    currentVideoPath: string,
+    kind: 'audio' | 'video',
+  ) => Promise<string | null>;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
@@ -107,6 +111,7 @@ export function registerAnkiJimakuIpcRuntime(
           mergeAiConfig(config.ai, config.ankiConnect?.ai) as AiConfig,
           undefined,
           options.showOverlayNotification,
+          options.getCachedMediaPath,
         );
         integration.start();
         options.setAnkiIntegration(integration);

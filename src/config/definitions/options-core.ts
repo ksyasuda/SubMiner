@@ -120,6 +120,17 @@ export function buildCoreConfigOptionRegistry(
         'Comma-separated primary subtitle language priority for managed subtitle auto-selection.',
     },
     {
+      path: 'youtube.mediaCache.mode',
+      kind: 'enum',
+      enumValues: ['direct', 'background'],
+      enumLabels: {
+        direct: 'Direct stream extraction',
+        background: 'Background media cache',
+      },
+      defaultValue: defaultConfig.youtube.mediaCache.mode,
+      description: 'How YouTube card audio/images are extracted.',
+    },
+    {
       path: 'controller.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.controller.enabled,

@@ -122,8 +122,15 @@ export interface AiConfig {
   requestTimeoutMs?: number;
 }
 
+export type YoutubeMediaCacheMode = 'direct' | 'background';
+
+export interface YoutubeMediaCacheConfig {
+  mode?: YoutubeMediaCacheMode;
+}
+
 export interface YoutubeConfig {
   primarySubLanguages?: string[];
+  mediaCache?: YoutubeMediaCacheConfig;
 }
 
 export interface YoutubeSubgenConfig {

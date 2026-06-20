@@ -25,7 +25,7 @@ async function withStubbedFfmpeg(
       "  console.log(' V..... libaom-av1');",
       '  process.exit(0);',
       '}',
-      "fs.writeFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, `${args.join('\\n')}\\n`, 'utf8');",
+      "fs.writeFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, JSON.stringify(args), 'utf8');",
       'const outputPath = args.at(-1);',
       "fs.writeFileSync(outputPath, 'avif', 'utf8');",
     ].join('\n'),
@@ -61,7 +61,7 @@ async function withStubbedFfmpeg(
 }
 
 function readFfmpegArgs(argsPath: string): string[] {
-  return fs.readFileSync(argsPath, 'utf8').trim().split('\n');
+  return JSON.parse(fs.readFileSync(argsPath, 'utf8')) as string[];
 }
 
 test('buildAnimatedImageVideoFilter holds lead-in until the next frame after the audio boundary', () => {
@@ -180,5 +180,66 @@ test('generateAudio recreates missing temp directory before invoking ffmpeg', as
     const outputPath = args.at(-1);
     assert.equal(typeof outputPath, 'string');
     assert.equal(fs.existsSync(path.dirname(outputPath!)), true);
+  });
+});
+
+test('generateAudio adds remote input options before the ffmpeg input', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio(
+      {
+        path: 'https://rr1---sn.example.googlevideo.com/videoplayback?mime=audio%2Fwebm',
+        inputOptions: {
+          reconnect: true,
+          userAgent: 'Mozilla/5.0',
+          headers: {
+            Referer: 'https://www.youtube.com/',
+            Origin: 'https://www.youtube.com',
+          },
+        },
+      },
+      10,
+      12,
+    );
+
+    const args = readFfmpegArgs(argsPath);
+    const inputIndex = args.indexOf('-i');
+    assert.ok(inputIndex > 0);
+    assert.ok(args.indexOf('-reconnect') > -1);
+    assert.ok(args.indexOf('-reconnect') < inputIndex);
+    assert.equal(args[args.indexOf('-reconnect') + 1], '1');
+    assert.equal(args[args.indexOf('-reconnect_streamed') + 1], '1');
+    assert.equal(args[args.indexOf('-reconnect_delay_max') + 1], '5');
+    assert.equal(args[args.indexOf('-user_agent') + 1], 'Mozilla/5.0');
+    assert.equal(
+      args[args.indexOf('-headers') + 1],
+      'Referer: https://www.youtube.com/\r\nOrigin: https://www.youtube.com\r\n',
+    );
+  });
+});
+
+test('generateAudio skips stale audio stream maps for single resolved streams', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio(
+      {
+        path: 'https://rr1---sn.example.googlevideo.com/videoplayback?mime=audio%2Fwebm',
+        singleResolvedStream: true,
+      },
+      10,
+      12,
+      0,
+      22,
+    );
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args.includes('-map'), false);
+  });
+});
+
+test('generateAudio keeps explicit audio stream maps for normal media paths', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mp4', 10, 12, 0, 2);
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args[args.indexOf('-map') + 1], '0:2');
   });
 });

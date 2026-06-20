@@ -618,7 +618,10 @@
     "primarySubLanguages": [
       "ja",
       "jpn"
-    ] // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
+    ], // Comma-separated primary subtitle language priority for managed subtitle auto-selection.
+    "mediaCache": {
+      "mode": "direct" // How YouTube card audio/images are extracted. Values: direct | background
+    } // Media cache setting.
   }, // Defaults for managed subtitle language preferences and YouTube subtitle loading.
 
   // ==========================================

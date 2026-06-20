@@ -5,11 +5,15 @@ import {
 } from '../anki-field-config';
 import { AnkiConnectConfig } from '../types/anki';
 import { createLogger } from '../logger';
+import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import { AiConfig } from '../types/integrations';
 import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
-import { resolveMediaGenerationInputPath } from './media-source';
+import {
+  resolveMediaGenerationInput,
+  type MediaGenerationInputResolverOptions,
+} from './media-source';
 import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 
 const log = createLogger('anki').child('integration.card-creation');
@@ -38,14 +42,14 @@ interface CardCreationClient {
 
 interface CardCreationMediaGenerator {
   generateAudio(
-    path: string,
+    path: MediaInput,
     startTime: number,
     endTime: number,
     audioPadding?: number,
     audioStreamIndex?: number,
   ): Promise<Buffer | null>;
   generateScreenshot(
-    path: string,
+    path: MediaInput,
     timestamp: number,
     options: {
       format: 'jpg' | 'png' | 'webp';
@@ -55,7 +59,7 @@ interface CardCreationMediaGenerator {
     },
   ): Promise<Buffer | null>;
   generateAnimatedImage(
-    path: string,
+    path: MediaInput,
     startTime: number,
     endTime: number,
     audioPadding?: number,
@@ -74,6 +78,7 @@ interface CardCreationDeps {
   getAiConfig: () => AiConfig;
   getTimingTracker: () => SubtitleTimingTracker;
   getMpvClient: () => MpvClient;
+  getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'];
   getDeck?: () => string | undefined;
   client: CardCreationClient;
   mediaGenerator: CardCreationMediaGenerator;
@@ -120,6 +125,14 @@ interface CardCreationDeps {
 
 export class CardCreationService {
   constructor(private readonly deps: CardCreationDeps) {}
+
+  private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
+    const options: MediaGenerationInputResolverOptions = {};
+    if (this.deps.getCachedMediaPath) {
+      options.getCachedMediaPath = this.deps.getCachedMediaPath;
+    }
+    return options;
+  }
 
   private getConfiguredAnkiTags(): string[] {
     const tags = this.deps.getConfig().tags;
@@ -246,11 +259,12 @@ export class CardCreationService {
           `Clipboard update: timing range ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`,
         );
 
+        const mediaResolverOptions = this.getMediaResolverOptions();
         const audioSourcePath = this.deps.getConfig().media?.generateAudio
-          ? await resolveMediaGenerationInputPath(mpvClient, 'audio')
+          ? await resolveMediaGenerationInput(mpvClient, 'audio', mediaResolverOptions)
           : null;
         const videoPath = this.deps.getConfig().media?.generateImage
-          ? await resolveMediaGenerationInputPath(mpvClient, 'video')
+          ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)
           : null;
 
         if (this.deps.getConfig().media?.generateAudio) {
@@ -522,8 +536,17 @@ export class CardCreationService {
 
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
-        const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'video');
-        const audioSourcePath = await resolveMediaGenerationInputPath(mpvClient, 'audio');
+        const mediaResolverOptions = this.getMediaResolverOptions();
+        const videoPath = await resolveMediaGenerationInput(
+          mpvClient,
+          'video',
+          mediaResolverOptions,
+        );
+        const audioSourcePath = await resolveMediaGenerationInput(
+          mpvClient,
+          'audio',
+          mediaResolverOptions,
+        );
         if (!videoPath) {
           this.deps.showOsdNotification('No video loaded');
           return false;
@@ -740,7 +763,7 @@ export class CardCreationService {
   }
 
   private async mediaGenerateAudio(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
   ): Promise<Buffer | null> {
@@ -759,7 +782,7 @@ export class CardCreationService {
   }
 
   private async generateImageBuffer(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
     animatedLeadInSeconds = 0,

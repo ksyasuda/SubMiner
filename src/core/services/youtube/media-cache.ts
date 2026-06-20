@@ -1,0 +1,239 @@
+import { spawn as spawnProcess } from 'node:child_process';
+import * as crypto from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import type { YoutubeMediaCacheMode } from '../../../types/integrations';
+import { getYoutubeYtDlpCommand } from './ytdlp-command';
+
+type MediaCacheSessionState = 'running' | 'ready' | 'failed';
+
+type SpawnedProcess = EventEmitter & {
+  killed?: boolean;
+  kill?: (signal?: NodeJS.Signals | number) => boolean;
+};
+
+type SpawnProcess = (
+  command: string,
+  args: string[],
+  options?: { stdio?: Array<'ignore' | 'pipe'> },
+) => SpawnedProcess;
+
+interface MediaCacheSession {
+  url: string;
+  dir: string;
+  process: SpawnedProcess | null;
+  readyPath: string | null;
+  state: MediaCacheSessionState;
+}
+
+export interface YoutubeMediaCacheStartOptions {
+  mode: YoutubeMediaCacheMode;
+}
+
+export interface YoutubeMediaCacheServiceDeps {
+  cacheRoot?: string;
+  getYtDlpCommand?: () => string;
+  spawn?: SpawnProcess;
+  logInfo?: (message: string) => void;
+  logWarn?: (message: string) => void;
+}
+
+const MEDIA_FILE_EXTENSIONS = new Set(['.mkv', '.mp4', '.webm', '.m4a', '.mp3', '.opus']);
+
+function cacheKeyForUrl(url: string): string {
+  return crypto.createHash('sha256').update(url).digest('hex').slice(0, 24);
+}
+
+function isFinalMediaFile(fileName: string): boolean {
+  if (!fileName.startsWith('media.')) {
+    return false;
+  }
+  if (fileName.endsWith('.part') || fileName.endsWith('.ytdl') || fileName.endsWith('.tmp')) {
+    return false;
+  }
+  return MEDIA_FILE_EXTENSIONS.has(path.extname(fileName).toLowerCase());
+}
+
+function findReadyMediaPath(dir: string): string | null {
+  try {
+    const files = fs.readdirSync(dir);
+    const mediaFile = files.find(isFinalMediaFile);
+    return mediaFile ? path.join(dir, mediaFile) : null;
+  } catch {
+    return null;
+  }
+}
+
+function createYtDlpArgs(url: string, outputTemplate: string): string[] {
+  return [
+    '--no-playlist',
+    '--no-warnings',
+    '-f',
+    'bestvideo*+bestaudio/best',
+    '--merge-output-format',
+    'mkv',
+    '-o',
+    outputTemplate,
+    url,
+  ];
+}
+
+export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDeps = {}) {
+  const cacheRoot = deps.cacheRoot ?? path.join(os.tmpdir(), 'subminer-youtube-media-cache');
+  const getYtDlpCommand = deps.getYtDlpCommand ?? getYoutubeYtDlpCommand;
+  const spawn: SpawnProcess =
+    deps.spawn ??
+    ((command, args, options) =>
+      spawnProcess(command, args, options ?? {}) as unknown as SpawnedProcess);
+  const sessions = new Map<string, MediaCacheSession>();
+  let activeKey: string | null = null;
+
+  const getSessionDir = (url: string): string => path.join(cacheRoot, cacheKeyForUrl(url));
+  const removeSession = (key: string): void => {
+    const session = sessions.get(key);
+    if (!session) {
+      return;
+    }
+    if (session.state === 'running' && session.process?.kill && !session.process.killed) {
+      session.process.kill();
+    }
+    sessions.delete(key);
+    if (activeKey === key) {
+      activeKey = null;
+    }
+    try {
+      fs.rmSync(session.dir, { recursive: true, force: true });
+    } catch {
+      // Temp cache cleanup should not block shutdown or playback startup.
+    }
+  };
+  const removeInactiveSessions = (keyToKeep: string): void => {
+    for (const key of [...sessions.keys()]) {
+      if (key !== keyToKeep) {
+        removeSession(key);
+      }
+    }
+  };
+
+  const getCachedMediaPath = async (url: string): Promise<string | null> => {
+    const key = cacheKeyForUrl(url);
+    const session = sessions.get(key);
+    if (session?.readyPath && fs.existsSync(session.readyPath)) {
+      return session.readyPath;
+    }
+
+    const readyPath = findReadyMediaPath(session?.dir ?? getSessionDir(url));
+    if (readyPath) {
+      sessions.set(key, {
+        url,
+        dir: path.dirname(readyPath),
+        process: null,
+        readyPath,
+        state: 'ready',
+      });
+      return readyPath;
+    }
+
+    return null;
+  };
+
+  const getActiveCachedMediaPath = async (): Promise<string | null> => {
+    if (!activeKey) {
+      return null;
+    }
+    const session = sessions.get(activeKey);
+    return session ? getCachedMediaPath(session.url) : null;
+  };
+
+  const start = (url: string, options: YoutubeMediaCacheStartOptions): void => {
+    if (options.mode !== 'background') {
+      return;
+    }
+
+    const key = cacheKeyForUrl(url);
+    activeKey = key;
+    const existingSession = sessions.get(key);
+    if (existingSession?.state === 'running') {
+      removeInactiveSessions(key);
+      return;
+    }
+    if (existingSession) {
+      if (
+        existingSession.state === 'ready' &&
+        ((existingSession.readyPath && fs.existsSync(existingSession.readyPath)) ||
+          findReadyMediaPath(existingSession.dir))
+      ) {
+        removeInactiveSessions(key);
+        return;
+      }
+      removeSession(key);
+      activeKey = key;
+    }
+    removeInactiveSessions(key);
+
+    const dir = getSessionDir(url);
+    fs.mkdirSync(dir, { recursive: true });
+    const outputTemplate = path.join(dir, 'media.%(ext)s');
+    const args = createYtDlpArgs(url, outputTemplate);
+    const child = spawn(getYtDlpCommand(), args, { stdio: ['ignore', 'ignore', 'ignore'] });
+    const session: MediaCacheSession = {
+      url,
+      dir,
+      process: child,
+      readyPath: null,
+      state: 'running',
+    };
+    sessions.set(key, session);
+    deps.logInfo?.(`Started YouTube media cache download for ${url}`);
+
+    child.once('error', (error) => {
+      const currentSession = sessions.get(key);
+      if (currentSession !== session) {
+        return;
+      }
+      session.state = 'failed';
+      session.process = null;
+      deps.logWarn?.(
+        `YouTube media cache download failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    child.once('close', (code) => {
+      const currentSession = sessions.get(key);
+      if (currentSession !== session) {
+        return;
+      }
+      session.process = null;
+      if (code === 0) {
+        const readyPath = findReadyMediaPath(dir);
+        if (readyPath) {
+          session.state = 'ready';
+          session.readyPath = readyPath;
+          deps.logInfo?.(`YouTube media cache ready at ${readyPath}`);
+          return;
+        }
+      }
+      session.state = 'failed';
+      deps.logWarn?.(`YouTube media cache download exited without a usable media file.`);
+    });
+  };
+
+  const cleanup = (): void => {
+    for (const key of [...sessions.keys()]) {
+      removeSession(key);
+    }
+    activeKey = null;
+  };
+
+  return {
+    cleanup,
+    getActiveCachedMediaPath,
+    getCachedMediaPath,
+    start,
+  };
+}

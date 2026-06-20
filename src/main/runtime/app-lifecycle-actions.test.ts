@@ -41,18 +41,20 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
   cleanup();
-  assert.equal(calls.length, 32);
+  assert.equal(calls.length, 33);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
   assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
   assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));
+  assert.ok(calls.includes('cleanup-youtube-media'));
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 
@@ -92,6 +94,7 @@ test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping 
       throw new Error('stop failed');
     },
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
+    cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });

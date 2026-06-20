@@ -227,7 +227,7 @@ export function renderControl(
     for (const enumValue of enumValues) {
       const option = createElement('option') as HTMLOptionElement;
       option.value = enumValue;
-      option.textContent = enumValue;
+      option.textContent = field.enumLabels?.[enumValue] ?? enumValue;
       option.selected = enumValue === value;
       select.append(option);
     }

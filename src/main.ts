@@ -332,6 +332,7 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
@@ -1172,6 +1173,10 @@ const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
   },
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 });
+const youtubeMediaCache = createYoutubeMediaCacheService({
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
 const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   getMpvClient: () => appState.mpvClient,
   now: () => Date.now(),
@@ -1316,6 +1321,11 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   },
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
+  startYoutubeMediaCache: (url) => {
+    youtubeMediaCache.start(url, {
+      mode: getResolvedConfig().youtube.mediaCache.mode,
+    });
+  },
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
@@ -1632,6 +1642,22 @@ function isYoutubePlaybackActiveNow(): boolean {
   return isYoutubePlaybackActive(
     appState.currentMediaPath,
     appState.mpvClient?.currentVideoPath ?? null,
+  );
+}
+
+async function getCachedYoutubeMediaPathForCurrentPlayback(
+  currentVideoPath: string,
+  _kind: 'audio' | 'video',
+): Promise<string | null> {
+  if (getResolvedConfig().youtube.mediaCache.mode !== 'background') {
+    return null;
+  }
+  if (!isYoutubePlaybackActiveNow()) {
+    return null;
+  }
+  return (
+    (await youtubeMediaCache.getCachedMediaPath(currentVideoPath)) ??
+    (await youtubeMediaCache.getActiveCachedMediaPath())
   );
 }
 
@@ -3801,6 +3827,7 @@ const {
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
+    cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
@@ -5731,6 +5758,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         );
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
       showDesktopNotification,
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
@@ -6207,6 +6236,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },

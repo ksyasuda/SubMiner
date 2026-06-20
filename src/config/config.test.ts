@@ -80,6 +80,7 @@ test('loads defaults when config is missing', () => {
   assert.equal('remoteControlDeviceName' in config.jellyfin, false);
   assert.equal('deviceId' in config.jellyfin, false);
   assert.equal('clientVersion' in config.jellyfin, false);
+  assert.equal(config.youtube.mediaCache.mode, 'direct');
   assert.equal(config.ai.enabled, false);
   assert.equal(config.ai.apiKeyCommand, '');
   assert.equal(config.texthooker.openBrowser, false);
@@ -1748,6 +1749,46 @@ test('parses global shortcuts and startup settings', () => {
   assert.equal(config.youtubeSubgen.whisperVadModel, '/models/vad.bin');
   assert.equal(config.youtubeSubgen.whisperThreads, 12);
   assert.equal(config.youtubeSubgen.fixWithAi, true);
+});
+
+test('parses YouTube media cache config and warns on invalid values', () => {
+  const validDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(validDir, 'config.jsonc'),
+    `{
+      "youtube": {
+        "mediaCache": {
+          "mode": "background"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const validService = new ConfigService(validDir);
+  assert.equal(validService.getConfig().youtube.mediaCache.mode, 'background');
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "youtube": {
+        "mediaCache": {
+          "mode": "always"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(
+    invalidService.getConfig().youtube.mediaCache.mode,
+    DEFAULT_CONFIG.youtube.mediaCache.mode,
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'youtube.mediaCache.mode'),
+  );
 });
 
 test('parses controller settings with logical bindings and tuning knobs', () => {

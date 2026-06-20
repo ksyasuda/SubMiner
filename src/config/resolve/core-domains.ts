@@ -297,6 +297,27 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         'Expected string array.',
       );
     }
+
+    if (isObject(src.youtube.mediaCache)) {
+      const mode = src.youtube.mediaCache.mode;
+      if (mode === 'direct' || mode === 'background') {
+        resolved.youtube.mediaCache.mode = mode;
+      } else if (mode !== undefined) {
+        warn(
+          'youtube.mediaCache.mode',
+          mode,
+          resolved.youtube.mediaCache.mode,
+          "Expected 'direct' or 'background'.",
+        );
+      }
+    } else if (src.youtube.mediaCache !== undefined) {
+      warn(
+        'youtube.mediaCache',
+        src.youtube.mediaCache,
+        resolved.youtube.mediaCache,
+        'Expected object.',
+      );
+    }
   }
 
   if (isObject(src.subsync)) {

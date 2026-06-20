@@ -21,8 +21,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from './logger';
+import { normalizeMediaInput, type MediaInput } from './media-input';
 
 const log = createLogger('media');
+
+export type { MediaInput, MediaInputOptions } from './media-input';
 
 function normalizeAnimatedImageFps(fps: number | undefined): number {
   const fallbackFps = 10;
@@ -181,7 +184,7 @@ export class MediaGenerator {
   }
 
   async generateAudio(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
     padding: number = 0,
@@ -190,12 +193,22 @@ export class MediaGenerator {
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime - safePadding);
     const duration = endTime - start + safePadding;
+    const mediaInput = normalizeMediaInput(videoPath);
 
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('audio', 'mp3');
-      const args: string[] = ['-ss', start.toString(), '-t', duration.toString(), '-i', videoPath];
+      const args: string[] = [
+        '-ss',
+        start.toString(),
+        '-t',
+        duration.toString(),
+        ...mediaInput.inputArgs,
+        '-i',
+        mediaInput.path,
+      ];
 
       if (
+        !mediaInput.singleResolvedStream &&
         typeof audioStreamIndex === 'number' &&
         Number.isInteger(audioStreamIndex) &&
         audioStreamIndex >= 0
@@ -223,7 +236,7 @@ export class MediaGenerator {
   }
 
   async generateScreenshot(
-    videoPath: string,
+    videoPath: MediaInput,
     timestamp: number,
     options: {
       format: 'jpg' | 'png' | 'webp';
@@ -239,8 +252,17 @@ export class MediaGenerator {
       png: 'png',
       webp: 'webp',
     };
+    const mediaInput = normalizeMediaInput(videoPath);
 
-    const args: string[] = ['-ss', timestamp.toString(), '-i', videoPath, '-vframes', '1'];
+    const args: string[] = [
+      '-ss',
+      timestamp.toString(),
+      ...mediaInput.inputArgs,
+      '-i',
+      mediaInput.path,
+      '-vframes',
+      '1',
+    ];
 
     const vfParts: string[] = [];
     if (maxWidth && maxWidth > 0 && maxHeight && maxHeight > 0) {
@@ -334,7 +356,7 @@ export class MediaGenerator {
   }
 
   async generateAnimatedImage(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
     padding: number = 0,
@@ -364,6 +386,7 @@ export class MediaGenerator {
 
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('animation', 'avif');
+      const mediaInput = normalizeMediaInput(videoPath);
 
       const encoderArgs: string[] = ['-c:v', av1Encoder];
       if (av1Encoder === 'libaom-av1') {
@@ -382,8 +405,9 @@ export class MediaGenerator {
           start.toString(),
           '-t',
           duration.toString(),
+          ...mediaInput.inputArgs,
           '-i',
-          videoPath,
+          mediaInput.path,
           '-vf',
           buildAnimatedImageVideoFilter({
             fps: clampedFps,

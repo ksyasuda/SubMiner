@@ -61,7 +61,11 @@ import { NoteUpdateWorkflow } from './anki-integration/note-update-workflow';
 import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflow';
 import { resolveAnimatedImageLeadInSeconds } from './anki-integration/animated-image-sync';
 import { AnkiIntegrationRuntime, normalizeAnkiIntegrationConfig } from './anki-integration/runtime';
-import { resolveMediaGenerationInputPath } from './anki-integration/media-source';
+import {
+  resolveMediaGenerationInput,
+  resolveMediaGenerationInputPath,
+  type MediaGenerationInputResolverOptions,
+} from './anki-integration/media-source';
 
 const log = createLogger('anki').child('integration');
 
@@ -225,6 +229,8 @@ export class AnkiIntegration {
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
   private noteIdRedirects = new Map<number, number>();
   private trackedDuplicateNoteIds = new Map<number, number[]>();
+  private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
+    null;
 
   constructor(
     config: AnkiConnectConfig,
@@ -240,6 +246,7 @@ export class AnkiIntegration {
     aiConfig: AiConfig = {},
     recordCardsMined?: (count: number, noteIds?: number[]) => void,
     overlayNotificationCallback?: (payload: OverlayNotificationPayload) => void,
+    getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -252,6 +259,7 @@ export class AnkiIntegration {
     this.overlayNotificationCallback = overlayNotificationCallback || null;
     this.fieldGroupingCallback = fieldGroupingCallback || null;
     this.recordCardsMinedCallback = recordCardsMined ?? null;
+    this.getCachedMediaPath = getCachedMediaPath ?? null;
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
     this.cardCreationService = this.createCardCreationService();
@@ -293,6 +301,14 @@ export class AnkiIntegration {
     } catch (error) {
       log.warn(`recordCardsMined callback failed during ${source}:`, (error as Error).message);
     }
+  }
+
+  private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
+    const options: MediaGenerationInputResolverOptions = {};
+    if (this.getCachedMediaPath) {
+      options.getCachedMediaPath = this.getCachedMediaPath;
+    }
+    return options;
   }
 
   private createKnownWordCache(knownWordCacheStatePath?: string): KnownWordCacheManager {
@@ -377,6 +393,7 @@ export class AnkiIntegration {
       getAiConfig: () => this.aiConfig,
       getTimingTracker: () => this.timingTracker,
       getMpvClient: () => this.mpvClient,
+      ...(this.getCachedMediaPath ? { getCachedMediaPath: this.getCachedMediaPath } : {}),
       getDeck: () => this.config.deck,
       client: {
         addNote: (deck, modelName, fields, tags) =>
@@ -839,7 +856,11 @@ export class AnkiIntegration {
       return null;
     }
 
-    const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'audio');
+    const videoPath = await resolveMediaGenerationInput(
+      mpvClient,
+      'audio',
+      this.getMediaResolverOptions(),
+    );
     if (!videoPath) {
       return null;
     }
@@ -862,7 +883,11 @@ export class AnkiIntegration {
       return null;
     }
 
-    const videoPath = await resolveMediaGenerationInputPath(this.mpvClient, 'video');
+    const videoPath = await resolveMediaGenerationInput(
+      this.mpvClient,
+      'video',
+      this.getMediaResolverOptions(),
+    );
     if (!videoPath) {
       return null;
     }

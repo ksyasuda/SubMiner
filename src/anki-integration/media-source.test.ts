@@ -1,7 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveMediaGenerationInputPath } from './media-source';
+import * as mediaSource from './media-source';
+
+const { resolveMediaGenerationInputPath } = mediaSource;
+
+type StructuredMediaInput = {
+  path: string;
+  source: string;
+  singleResolvedStream: boolean;
+  inputOptions?: {
+    reconnect?: boolean;
+    userAgent?: string;
+    headers?: Record<string, string>;
+  };
+};
+
+type StructuredMediaResolver = (
+  mpvClient: Parameters<typeof resolveMediaGenerationInputPath>[0],
+  kind?: Parameters<typeof resolveMediaGenerationInputPath>[1],
+  options?: {
+    getCachedMediaPath?: (
+      currentVideoPath: string,
+      kind: Parameters<typeof resolveMediaGenerationInputPath>[1],
+    ) => Promise<string | null>;
+  },
+) => Promise<StructuredMediaInput | null>;
 
 test('resolveMediaGenerationInputPath keeps local file paths', async () => {
   const result = await resolveMediaGenerationInputPath({
@@ -61,4 +85,104 @@ test('resolveMediaGenerationInputPath falls back to currentVideoPath when stream
   });
 
   assert.equal(result, 'https://www.youtube.com/watch?v=abc123');
+});
+
+test('resolveMediaGenerationInput returns single-stream metadata for mpv EDL URLs', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  const edlSource = [
+    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
+    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+  ].join(';');
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async (name: string) => {
+        if (name === 'stream-open-filename') return edlSource;
+        if (name === 'user-agent') return 'Mozilla/5.0';
+        if (name === 'http-header-fields') {
+          return ['Cookie: SID=secret', 'Referer: https://www.youtube.com/', 'X-Test: ok'];
+        }
+        return null;
+      },
+    },
+    'audio',
+  );
+
+  assert.equal(result?.path, 'https://audio.example/videoplayback?mime=audio%2Fwebm');
+  assert.equal(result?.singleResolvedStream, true);
+  assert.equal(result?.inputOptions?.reconnect, true);
+  assert.equal(result?.inputOptions?.userAgent, 'Mozilla/5.0');
+  assert.deepEqual(result?.inputOptions?.headers, {
+    Referer: 'https://www.youtube.com/',
+    'X-Test': 'ok',
+  });
+});
+
+test('resolveMediaGenerationInput reads file-local mpv request options', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async (name: string) => {
+        if (name === 'stream-open-filename') {
+          return 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123';
+        }
+        if (name === 'file-local-options/user-agent') return 'SubMiner Test Agent';
+        if (name === 'options/http-header-fields') return ['X-Shared: ok'];
+        if (name === 'file-local-options/http-header-fields') {
+          return ['Cookie: SID=secret', 'Referer: https://m.youtube.com/', 'X-Local: yes'];
+        }
+        return null;
+      },
+    },
+    'video',
+  );
+
+  assert.equal(result?.path, 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123');
+  assert.equal(result?.singleResolvedStream, true);
+  assert.equal(result?.inputOptions?.userAgent, 'SubMiner Test Agent');
+  assert.deepEqual(result?.inputOptions?.headers, {
+    'X-Shared': 'ok',
+    Referer: 'https://m.youtube.com/',
+    'X-Local': 'yes',
+    Origin: 'https://www.youtube.com',
+  });
+});
+
+test('resolveMediaGenerationInput prefers a ready cached media file for YouTube extraction', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async () => 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123',
+    },
+    'video',
+    {
+      getCachedMediaPath: async () => '/tmp/subminer-youtube-media-cache/abc123/media.mkv',
+    },
+  );
+
+  assert.equal(result?.path, '/tmp/subminer-youtube-media-cache/abc123/media.mkv');
+  assert.equal(result?.source, 'youtube-cache');
+  assert.equal(result?.singleResolvedStream, false);
+  assert.equal(result?.inputOptions, undefined);
 });
