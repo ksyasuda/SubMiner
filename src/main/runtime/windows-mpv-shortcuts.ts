@@ -101,7 +101,7 @@ export function applyWindowsMpvShortcuts(options: {
     return {
       ok: false,
       status: 'failed',
-      message: `Failed to create Windows mpv shortcuts: ${failures.join(', ')}`,
+      message: i18n.t('setup.launcher.shortcutsFailed', { paths: failures.join(', ') }),
     };
   }
 

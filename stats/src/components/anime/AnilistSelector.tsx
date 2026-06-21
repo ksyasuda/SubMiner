@@ -145,7 +145,9 @@ export function AnilistSelector({
                   <div className="text-xs text-ctp-subtext0 truncate">{media.title.english}</div>
                 )}
                 <div className="text-xs text-ctp-overlay2 mt-0.5">
-                  {media.episodes ? `${media.episodes} eps` : 'Unknown eps'}
+                  {media.episodes
+                    ? t('stats.anilistSelector.eps', { count: media.episodes })
+                    : t('stats.anilistSelector.unknownEps')}
                   {media.seasonYear ? ` · ${media.season ?? ''} ${media.seasonYear}` : ''}
                 </div>
               </div>

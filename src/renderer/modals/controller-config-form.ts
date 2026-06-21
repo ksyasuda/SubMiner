@@ -220,15 +220,21 @@ export function formatControllerBindingSummary(
     return i18n.t('controller.disabled');
   }
   if ('direction' in binding) {
-    return `Axis ${binding.axisIndex} ${binding.direction === 'positive' ? '+' : '-'}`;
+    return i18n.t('controller.axisDirection', {
+      axis: binding.axisIndex,
+      sign: binding.direction === 'positive' ? '+' : '-',
+    });
   }
   if ('buttonIndex' in binding) {
-    return `Button ${binding.buttonIndex}`;
+    return i18n.t('controller.buttonIndex', { index: binding.buttonIndex });
   }
   if (binding.dpadFallback === 'none') {
-    return `Axis ${binding.axisIndex}`;
+    return i18n.t('controller.axisIndex', { index: binding.axisIndex });
   }
-  return `Axis ${binding.axisIndex} + D-pad ${binding.dpadFallback}`;
+  return i18n.t('controller.axisDpad', {
+    axis: binding.axisIndex,
+    dpad: binding.dpadFallback,
+  });
 }
 
 function formatFriendlyStickLabel(binding: ResolvedControllerAxisBinding): string {

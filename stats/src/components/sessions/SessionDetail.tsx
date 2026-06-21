@@ -756,6 +756,7 @@ function StatsBar({
   cardEventCount,
   session,
   lookupRate,
+  t,
 }: {
   hasKnownWords: boolean;
   pauseCount: number;

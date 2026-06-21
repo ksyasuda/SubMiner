@@ -39,6 +39,9 @@ class I18n {
   setLanguage(lang: SupportedLanguage): void {
     this.currentLanguage = lang;
     this.loadTranslations(lang);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = lang;
+    }
     this.onChange?.();
   }
 
@@ -135,7 +138,7 @@ export function applyI18nToDOM(root: Document | HTMLElement = document): void {
     }
   });
 
-  const placeholders = root.querySelectorAll('[data-i18n-placeholder]');
+  const placeholders = root.querySelectorAll('[data-i18n-placeholder]:not([data-i18n])');
   placeholders.forEach((el) => {
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
       const key = el.getAttribute('data-i18n-placeholder');

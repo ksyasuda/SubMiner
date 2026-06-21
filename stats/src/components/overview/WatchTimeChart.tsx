@@ -17,7 +17,10 @@ export function WatchTimeChart({ rollups }: WatchTimeChartProps) {
 
   const formatActiveMinutes = (value: number | string, _name?: string, _payload?: unknown) => {
     const minutes = Number(value);
-    return [`${Number.isFinite(minutes) ? minutes : 0} min`, t('stats.watchTime.activeTime')];
+    return [
+      `${Number.isFinite(minutes) ? minutes : 0} ${t('stats.watchTime.minutes')}`,
+      t('stats.watchTime.activeTime'),
+    ];
   };
 
   const byDay = new Map<number, number>();

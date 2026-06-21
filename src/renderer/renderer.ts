@@ -626,9 +626,11 @@ async function init(): Promise<void> {
   // Initialize i18n from main process (resolves OS language correctly)
   try {
     const uiLang = await window.electronAPI.getUILanguage();
-    i18n.setLanguage(uiLang as 'en' | 'zh-CN');
+    const resolvedLang =
+      uiLang === 'en' || uiLang === 'zh-CN' ? uiLang : i18n.detectSystemLanguage();
+    i18n.setLanguage(resolvedLang);
   } catch {
-    i18n.setLanguage('en');
+    i18n.setLanguage(i18n.detectSystemLanguage());
   }
   applyI18nToDOM();
 

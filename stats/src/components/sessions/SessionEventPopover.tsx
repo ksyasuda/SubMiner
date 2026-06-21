@@ -121,7 +121,7 @@ export function SessionEventPopover({
                     ) : null}
                     {showUnavailableFallback ? (
                       <div className="mb-2 text-xs text-ctp-overlay1">
-                        Preview unavailable from AnkiConnect.
+                        {t('stats.sessionEventPopover.previewUnavailableFromAnkiConnect')}
                       </div>
                     ) : null}
                     <button

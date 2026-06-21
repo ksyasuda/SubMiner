@@ -26,13 +26,15 @@ export type SessionHelpTab = {
   label: string;
 };
 
-export const SESSION_HELP_TABS: SessionHelpTab[] = [
-  { id: 'essentials', label: i18n.t('sessionHelp.tab.essentials') },
-  { id: 'playback', label: i18n.t('sessionHelp.tab.playback') },
-  { id: 'mining', label: i18n.t('sessionHelp.tab.mining') },
-  { id: 'tools', label: i18n.t('sessionHelp.tab.tools') },
-  { id: 'reference', label: i18n.t('sessionHelp.tab.reference') },
-];
+export function getSessionHelpTabs(): SessionHelpTab[] {
+  return [
+    { id: 'essentials', label: i18n.t('sessionHelp.tab.essentials') },
+    { id: 'playback', label: i18n.t('sessionHelp.tab.playback') },
+    { id: 'mining', label: i18n.t('sessionHelp.tab.mining') },
+    { id: 'tools', label: i18n.t('sessionHelp.tab.tools') },
+    { id: 'reference', label: i18n.t('sessionHelp.tab.reference') },
+  ];
+}
 
 const KEY_NAME_MAP: Record<string, string> = {
   Space: 'Space',
@@ -457,7 +459,6 @@ export function getSessionHelpSectionTabId(section: SessionHelpSection): Session
     case i18n.t('sessionHelp.section.fixedOverlay'):
     case i18n.t('sessionHelp.section.globalShortcuts'):
       return 'essentials';
-    case 'Playback and navigation':
     case i18n.t('sessionHelp.sections.playback'):
     case i18n.t('sessionHelp.sections.sync'):
     case i18n.t('sessionHelp.sections.visual'):

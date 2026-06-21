@@ -16,10 +16,10 @@ export function applyTopLevelConfig(context: ResolveContext): void {
     resolved.auto_start_overlay = src.auto_start_overlay as boolean;
   }
 
-  if (typeof src.uiLanguage === 'string') {
-    if (VALID_UI_LANGUAGES.has(src.uiLanguage)) {
+  if (src.uiLanguage !== undefined) {
+    if (typeof src.uiLanguage === 'string' && VALID_UI_LANGUAGES.has(src.uiLanguage)) {
       resolved.uiLanguage = src.uiLanguage;
-    } else if (src.uiLanguage !== undefined) {
+    } else {
       warn(
         'uiLanguage',
         src.uiLanguage,

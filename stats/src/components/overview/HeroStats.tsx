@@ -38,7 +38,7 @@ export function HeroStats({ summary, sessions }: HeroStatsProps) {
       />
       <StatCard
         label={t('stats.hero.currentStreak')}
-        value={`${summary.streakDays}d`}
+        value={t('stats.hero.streakValue', { days: summary.streakDays })}
         color="text-ctp-peach"
       />
       <StatCard

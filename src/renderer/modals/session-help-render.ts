@@ -34,22 +34,25 @@ function createShortcutRow(row: SessionHelpItem, globalIndex: number): HTMLButto
   return button;
 }
 
-const SECTION_ICON: Record<string, string> = {
-  [i18n.t('sessionHelp.sections.playback')]: '▶',
-  [i18n.t('sessionHelp.sections.visual')]: '◉',
-  [i18n.t('sessionHelp.sections.sync')]: '⟲',
-  [i18n.t('sessionHelp.section.mining')]: '✦',
-  [i18n.t('sessionHelp.section.stats')]: '◉',
-  [i18n.t('sessionHelp.section.overlayControls')]: '◈',
-  [i18n.t('sessionHelp.section.modals')]: '▣',
-  [i18n.t('sessionHelp.sections.runtime')]: '⚙',
-  [i18n.t('sessionHelp.sections.system')]: '◆',
-  [i18n.t('sessionHelp.sections.other')]: '…',
-  [i18n.t('sessionHelp.section.fixedOverlay')]: '◇',
-  [i18n.t('sessionHelp.section.yChords')]: '⌘',
-  [i18n.t('sessionHelp.section.globalShortcuts')]: '◆',
-  [i18n.t('sessionHelp.colorLegend')]: '◈',
-};
+function getSectionIcon(translatedKey: string): string {
+  const sectionIcons: Record<string, string> = {
+    [i18n.t('sessionHelp.sections.playback')]: '▶',
+    [i18n.t('sessionHelp.sections.visual')]: '◉',
+    [i18n.t('sessionHelp.sections.sync')]: '⟲',
+    [i18n.t('sessionHelp.section.mining')]: '✦',
+    [i18n.t('sessionHelp.section.stats')]: '◉',
+    [i18n.t('sessionHelp.section.overlayControls')]: '◈',
+    [i18n.t('sessionHelp.section.modals')]: '▣',
+    [i18n.t('sessionHelp.sections.runtime')]: '⚙',
+    [i18n.t('sessionHelp.sections.system')]: '◆',
+    [i18n.t('sessionHelp.sections.other')]: '…',
+    [i18n.t('sessionHelp.section.fixedOverlay')]: '◇',
+    [i18n.t('sessionHelp.section.yChords')]: '⌘',
+    [i18n.t('sessionHelp.section.globalShortcuts')]: '◆',
+    [i18n.t('sessionHelp.colorLegend')]: '◈',
+  };
+  return sectionIcons[translatedKey] ?? '•';
+}
 
 export function createSessionHelpSectionNode(
   section: SessionHelpSection,
@@ -61,7 +64,7 @@ export function createSessionHelpSectionNode(
 
   const title = document.createElement('h3');
   title.className = 'session-help-section-title';
-  const icon = SECTION_ICON[section.title] ?? '•';
+  const icon = getSectionIcon(section.title);
   title.textContent = `${icon} ${section.title}`;
   sectionNode.appendChild(title);
 

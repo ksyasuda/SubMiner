@@ -65,7 +65,9 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
         <h3 className="text-sm font-semibold text-ctp-text">
           {titleBySort[sortBy]}
           {search && (
-            <span className="ml-2 text-ctp-overlay1 font-normal">({filtered.length} matches)</span>
+            <span className="ml-2 text-ctp-overlay1 font-normal">
+              ({t('stats.wordList.matches', { count: filtered.length })})
+            </span>
           )}
         </h3>
         <select
@@ -110,7 +112,7 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
             className="rounded border border-ctp-surface2 px-2 py-0.5 text-xs text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setPage((p) => p - 1)}
           >
-            Prev
+            {t('stats.wordList.prev')}
           </button>
           <span className="text-xs text-ctp-overlay1">
             {page + 1} / {totalPages}
@@ -121,7 +123,7 @@ export function WordList({ words, selectedKey = null, onSelectWord, search = '' 
             className="rounded border border-ctp-surface2 px-2 py-0.5 text-xs text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:opacity-40 disabled:cursor-not-allowed"
             onClick={() => setPage((p) => p + 1)}
           >
-            Next
+            {t('stats.wordList.next')}
           </button>
         </div>
       )}

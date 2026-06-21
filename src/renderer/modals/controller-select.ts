@@ -210,8 +210,8 @@ export function createControllerSelectModal(
       ctx.state.connectedGamepads.length === 0
         ? i18n.t('controller.noController')
         : i18n.t('controller.activePreferred', {
-            active: ctx.state.activeGamepadId ?? 'none',
-            preferred: preferredId || 'none',
+            active: ctx.state.activeGamepadId ?? i18n.t('controller.none'),
+            preferred: preferredId || i18n.t('controller.none'),
           });
 
     lastRenderedDevicesKey = getDevicesKey();

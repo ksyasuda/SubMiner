@@ -202,7 +202,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
       ...baseOptions,
       query: {
         ...baseOptions.query,
-        lang: options.getUILanguage?.() ?? 'en',
+        lang: options.getUILanguage?.() ?? 'system',
       },
     });
 

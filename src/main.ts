@@ -624,7 +624,7 @@ const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
-const TRAY_TOOLTIP = i18n.t('tray.tooltip');
+const getTrayTooltip = (): string => i18n.t('tray.tooltip');
 const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
@@ -5982,8 +5982,6 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
   },
 });
 
-runAndApplyStartupState();
-
 // Initialize i18n in main process so tray menu, dialogs, and OSD respect language config
 (function initMainProcessI18n() {
   const uiLang = getResolvedConfig().uiLanguage;
@@ -5994,6 +5992,8 @@ runAndApplyStartupState();
     i18n.setLanguage(locale.startsWith('zh') ? 'zh-CN' : 'en');
   }
 })();
+
+runAndApplyStartupState();
 
 void app.whenReady().then(() => {
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
@@ -6140,7 +6140,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
       createEmptyImage: () => nativeImage.createEmpty(),
       createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
-      trayTooltip: TRAY_TOOLTIP,
+      trayTooltip: getTrayTooltip(),
       platform: process.platform,
       logWarn: (message) => logger.warn(message),
       initializeOverlayRuntime: () => initializeOverlayRuntime(),

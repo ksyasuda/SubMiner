@@ -114,7 +114,7 @@ export interface TriggerSubsyncFromConfigDeps extends SubsyncCoreDeps {
 function getMpvClientForSubsync(deps: SubsyncCoreDeps): MpvClientLike {
   const client = deps.getMpvClient();
   if (!client || !client.connected) {
-    throw new Error('MPV not connected');
+    throw new Error(i18n.t('subsync.mpvNotConnected'));
   }
   return client;
 }
@@ -350,9 +350,10 @@ export async function runSubsyncManual(
     try {
       validateFfsubsyncReference(context.videoPath);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         ok: false,
-        message: `ffsubsync synchronization failed: ${(error as Error).message}`,
+        message: i18n.t('subsync.ffsubsyncFailed', { message }),
       };
     }
     return subsyncToReference('ffsubsync', context.videoPath, context, resolved, client);
@@ -400,7 +401,8 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
     await openSubsyncManualPicker(deps);
     deps.showMpvOsd(i18n.t('subsync.chooseEngine'));
   } catch (error) {
-    deps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    deps.showMpvOsd(i18n.t('subsync.failed', { message }));
   } finally {
     deps.setSubsyncInProgress(false);
   }

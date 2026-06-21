@@ -636,7 +636,7 @@ export function createSubtitleSidebarModal(
 
     ctx.dom.subtitleSidebarList.innerHTML = '';
     if (snapshot.cues.length === 0) {
-      setStatus(i18n.t('playlistBrowser.noSubtitles'));
+      setStatus(i18n.t('subtitleSidebar.noSubtitles'));
     } else {
       setStatus(i18n.t('subtitleSidebar.parsedCueCount', { count: snapshot.cues.length }));
     }

@@ -522,10 +522,10 @@ export function renderAnkiFieldInput(
     : [];
   const select = createElement('select', 'config-input') as HTMLSelectElement;
   if (!state.noteFieldModelName) {
-    addOption(select, current, 'Select Note Type First');
+    addOption(select, current, i18n.t('settings.selectNoteTypeFirst'));
     select.disabled = true;
   } else if (state.modelFieldNamesLoading.has(state.noteFieldModelName)) {
-    addOption(select, current, current || 'Loading Fields...');
+    addOption(select, current, current || i18n.t('settings.loadingFields'));
     select.disabled = true;
   } else {
     for (const fieldName of uniqueSorted([...availableFields, current])) {

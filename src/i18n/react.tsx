@@ -1,4 +1,4 @@
-import { createContext, useContext, useSyncExternalStore, useCallback } from 'react';
+import { createContext, useContext, useSyncExternalStore, useCallback, useEffect } from 'react';
 import { i18n } from './index';
 import type { SupportedLanguage } from './types';
 
@@ -28,9 +28,11 @@ export function I18nProvider({
   children: React.ReactNode;
   initialLanguage?: SupportedLanguage;
 }) {
-  if (initialLanguage) {
-    i18n.setLanguage(initialLanguage);
-  }
+  useEffect(() => {
+    if (initialLanguage && i18n.getLanguage() !== initialLanguage) {
+      i18n.setLanguage(initialLanguage);
+    }
+  }, [initialLanguage]);
 
   const language = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 

@@ -49,9 +49,11 @@ export function handleMultiCopyDigit(
   const actualCount = blocks.length;
   deps.writeClipboardText(blocks.join('\n\n'));
   if (actualCount < count) {
-    deps.showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
+    deps.showMpvOsd(
+      i18n.t('mining.onlyXLinesAvailable', { actual: actualCount, requested: count }),
+    );
   } else {
-    deps.showMpvOsd(`Copied ${actualCount} lines`);
+    deps.showMpvOsd(i18n.t('mining.copiedXLines', { count: actualCount }));
   }
 }
 
@@ -161,7 +163,7 @@ export async function mineSentenceCard(deps: {
 
   const mpvClient = deps.mpvClient;
   if (!mpvClient || !mpvClient.connected) {
-    deps.showMpvOsd('MPV not connected');
+    deps.showMpvOsd(i18n.t('mining.mpvNotConnected'));
     return false;
   }
   if (!mpvClient.currentSubText) {
@@ -228,6 +230,7 @@ export function handleMineSentenceDigit(
     })
     .catch((err) => {
       deps.logError('mineSentenceMultiple failed:', err);
-      deps.showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      deps.showMpvOsd(i18n.t('mining.mineSentenceFailed', { message }));
     });
 }

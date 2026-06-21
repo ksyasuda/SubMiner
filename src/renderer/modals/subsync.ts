@@ -139,11 +139,12 @@ export function createSubsyncModal(
       if (result.ok) return;
       reopenSubsyncModalWithError(sourceTracksSnapshot, engine, sourceTrackId, result.message);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       reopenSubsyncModalWithError(
         sourceTracksSnapshot,
         engine,
         sourceTrackId,
-        i18n.t('subsync.failed', { message: (error as Error).message }),
+        i18n.t('subsync.failed', { message }),
       );
     } finally {
       ctx.state.subsyncSubmitting = false;

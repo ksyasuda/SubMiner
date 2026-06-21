@@ -39,7 +39,8 @@ function startKeyLearning(
 ): void {
   activeKeyLearningStop?.();
   const previousText = button.textContent ?? '';
-  button.textContent = i18n.t('settings.pressKeys');
+  const learningText = i18n.t('settings.pressKeys');
+  button.textContent = learningText;
   button.classList.add('learning');
   let onKeyDown: (event: KeyboardEvent) => void;
   let onBlur: () => void;
@@ -50,7 +51,7 @@ function startKeyLearning(
     window.removeEventListener('blur', onBlur, true);
     window.removeEventListener('mousedown', onMouseDown, true);
     button.classList.remove('learning');
-    if (button.textContent === 'Press Keys...') {
+    if (button.textContent === learningText) {
       button.textContent = previousText;
     }
     if (activeKeyLearningStop === stop) {

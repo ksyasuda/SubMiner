@@ -31,8 +31,7 @@ export function TrackingSnapshot({
       <p className="mt-1 mb-3 text-xs text-ctp-overlay2">{t('stats.tracking.subtitle')}</p>
       {showTrackedCardNote && (
         <div className="mb-3 rounded-lg border border-ctp-surface2 bg-ctp-surface1/50 px-3 py-2 text-xs text-ctp-subtext0">
-          No lifetime card totals in the summary table yet. New cards mined after this fix will
-          appear here.
+          {t('stats.tracking.trackedCardsNote')}
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">

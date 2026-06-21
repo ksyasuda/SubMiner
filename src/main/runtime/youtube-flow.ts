@@ -617,7 +617,7 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
       ? createYoutubeFlowOsdProgress(deps.showMpvOsd)
       : null;
     if (osdProgress) {
-      osdProgress.setMessage('Downloading subtitles...');
+      osdProgress.setMessage(i18n.t('osd.downloadingSubtitles'));
     }
     try {
       const outputDir = await prepareSubtitleOutputDir(input.outputDir);

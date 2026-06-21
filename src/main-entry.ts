@@ -163,7 +163,7 @@ function createWindowsRuntimePluginPolicy() {
       if (!detection.installed || !detection.path) return;
       dialog.showMessageBoxSync({
         type: 'warning',
-        title: 'SubMiner mpv plugin detected',
+        title: i18n.t('legacyPlugin.dialog.detected.title'),
         message: buildInstalledWindowsMpvPluginMessage(detection.path, detection.version),
       });
     },

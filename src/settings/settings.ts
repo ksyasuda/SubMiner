@@ -400,7 +400,7 @@ async function save(): Promise<void> {
   try {
     result = await window.configSettingsAPI.savePatch({ operations });
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : 'Save failed', 'error');
+    setStatus(error instanceof Error ? error.message : i18n.t('settings.saveFailed'), 'error');
     syncSaveButton();
     return;
   }
@@ -408,7 +408,7 @@ async function save(): Promise<void> {
     const message =
       result.error ??
       result.warnings?.map((warning) => `${warning.path}: ${warning.message}`).join('\n') ??
-      'Save failed';
+      i18n.t('settings.saveFailed');
     setStatus(message, 'error');
     syncSaveButton();
     return;
@@ -419,11 +419,14 @@ async function save(): Promise<void> {
   state.inputErrors.clear();
   const restartSections = result.restartRequiredSections ?? [];
   if (restartSections.length > 0) {
-    setStatus(`Saved. Restart required: ${restartSections.join(', ')}`, 'info');
+    setStatus(
+      i18n.t('settings.savedRestartRequired', { sections: restartSections.join(', ') }),
+      'info',
+    );
   } else if (result.hotReloadFields.length > 0) {
-    setStatus('Saved. Live settings applied.', 'success');
+    setStatus(i18n.t('settings.savedLiveApplied'), 'success');
   } else {
-    setStatus('Saved.', 'success');
+    setStatus(i18n.t('settings.saved'), 'success');
   }
   render();
 }

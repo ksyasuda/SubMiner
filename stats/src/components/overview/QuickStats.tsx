@@ -31,7 +31,7 @@ export function QuickStats({ rollups }: QuickStatsProps) {
         <div className="flex justify-between">
           <span className="text-ctp-subtext0">{t('stats.quickStats.streak')}</span>
           <span className="text-ctp-peach font-medium">
-            {streak} day{streak !== 1 ? 's' : ''}
+            {t('stats.quickStats.streakDays', { count: streak })}
           </span>
         </div>
         <div className="flex justify-between">

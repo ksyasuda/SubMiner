@@ -234,7 +234,7 @@ export function SearchTab() {
                         {buttonLabel(
                           'word',
                           wordStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
+                          availability.canMineWordAudio ? '' : t('stats.search.unavailable'),
                         )}
                       </button>
                     )}
@@ -262,7 +262,7 @@ export function SearchTab() {
                         {buttonLabel(
                           'audio',
                           audioStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
+                          availability.canMineWordAudio ? '' : t('stats.search.unavailable'),
                         )}
                       </button>
                     )}

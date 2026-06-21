@@ -454,7 +454,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
         deps.logInfo('Cleared stored Jellyfin auth session.');
         deps.showMpvOsd(i18n.t('osd.jellyfinLoggedOut'));
         deps.reloadSetupWindow({
-          statusMessage: 'Jellyfin session cleared.',
+          statusMessage: i18n.t('jellyfin.sessionCleared'),
           statusKind: 'success',
         });
       } catch (error) {
@@ -474,7 +474,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
       deps.reloadSetupWindow({
         selectedServerUrl: submission.server,
         username: submission.username,
-        statusMessage: 'Jellyfin login already in progress.',
+        statusMessage: i18n.t('jellyfin.loginInProgress'),
         statusKind: 'loading',
       });
       return true;
@@ -501,7 +501,7 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
       deps.reloadSetupWindow({
         selectedServerUrl: session.serverUrl,
         username: session.username,
-        statusMessage: `Authenticated as ${session.username}.`,
+        statusMessage: i18n.t('jellyfin.loginSuccess', { username: session.username }),
         statusKind: 'success',
       });
     } catch (error) {

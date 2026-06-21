@@ -28,7 +28,10 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
 
   const formatActiveMinutes = (value: number | string) => {
     const minutes = Number(value);
-    return [`${Number.isFinite(minutes) ? minutes : 0} min`, t('stats.watchTime.activeTime')];
+    return [
+      `${Number.isFinite(minutes) ? minutes : 0} ${t('stats.animeDetail.minutes')}`,
+      t('stats.watchTime.activeTime'),
+    ];
   };
 
   useEffect(() => {
