@@ -93,7 +93,16 @@ export class PendingYoutubeMediaQueue {
       return false;
     }
 
-    const cachedPath = await getCachedMediaPath(sourceUrl, 'video');
+    let cachedPath: string | null = null;
+    try {
+      cachedPath = await getCachedMediaPath(sourceUrl, 'video');
+    } catch (error) {
+      this.deps.logWarn(
+        'Failed to read YouTube cache state; falling back to immediate media generation:',
+        error instanceof Error ? error.message : String(error),
+      );
+      return false;
+    }
     if (cachedPath) {
       return false;
     }
