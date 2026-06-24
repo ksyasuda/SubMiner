@@ -514,6 +514,48 @@ test('configured overlay notifications require visible ready overlay window', ()
   assert.match(statusBlock, /isOverlayReady: \(\) => isVisibleOverlayContentReady\(\)/);
 });
 
+test('YouTube media cache lifecycle routes through configured status notifications', () => {
+  const source = readMainSource();
+  const cacheBlock = source.match(
+    /const youtubeMediaCache = createYoutubeMediaCacheService\(\{(?<body>[\s\S]*?)\n\}\);\nconst waitForYoutubeMpvConnected/,
+  )?.groups?.body;
+  const startCacheBlock = source.match(
+    /startYoutubeMediaCache:\s*\(url\)\s*=>\s*\{(?<body>[\s\S]*?)\n  \},\n  runYoutubePlaybackFlow/,
+  )?.groups?.body;
+
+  assert.ok(cacheBlock);
+  assert.ok(startCacheBlock);
+  assert.match(
+    cacheBlock,
+    /onDownloadStarted:\s*\(event\)\s*=>\s*\{[\s\S]*showConfiguredStatusNotification\(\s*'YouTube media cache is downloading\.'/,
+  );
+  assert.match(cacheBlock, /id:\s*'youtube-media-cache-status'/);
+  assert.match(cacheBlock, /variant:\s*'progress'/);
+  assert.match(cacheBlock, /persistent:\s*true/);
+  assert.match(
+    cacheBlock,
+    /onReady:\s*\(event\)\s*=>\s*\{[\s\S]*showConfiguredStatusNotification\(\s*'YouTube media cache ready\.'/,
+  );
+  assert.match(cacheBlock, /variant:\s*'success'/);
+  assert.match(cacheBlock, /notifyNoQueued:\s*false/);
+  assert.match(startCacheBlock, /mode:\s*getResolvedConfig\(\)\.youtube\.mediaCache\.mode/);
+  assert.match(
+    startCacheBlock,
+    /maxHeight:\s*getResolvedConfig\(\)\.youtube\.mediaCache\.maxHeight/,
+  );
+});
+
+test('mpv connection flushes queued configured OSD notifications', () => {
+  const source = readMainSource();
+  const connectedBlock = source.match(
+    /onMpvConnected:\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    maybeRunAnilistPostWatchUpdate:/,
+  )?.groups?.body;
+
+  assert.ok(connectedBlock);
+  assert.match(source, /flushQueuedMpvOsdNotifications/);
+  assert.match(connectedBlock, /flushQueuedMpvOsdNotifications\(\);/);
+});
+
 test('manual visible overlay show primes current subtitle from mpv before relying on live events', () => {
   const source = readMainSource();
   const setBlock = source.match(

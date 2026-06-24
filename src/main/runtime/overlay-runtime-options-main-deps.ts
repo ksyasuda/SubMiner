@@ -42,6 +42,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   createFieldGroupingCallback: OverlayRuntimeOptionsMainDeps['createFieldGroupingCallback'];
   getKnownWordCacheStatePath: () => string;
   getCachedMediaPath?: OverlayRuntimeOptionsMainDeps['getCachedMediaPath'];
+  shouldRequireRemoteMediaCache?: OverlayRuntimeOptionsMainDeps['shouldRequireRemoteMediaCache'];
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -79,6 +80,9 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     createFieldGroupingCallback: () => deps.createFieldGroupingCallback(),
     getKnownWordCacheStatePath: () => deps.getKnownWordCacheStatePath(),
     ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),
+    ...(deps.shouldRequireRemoteMediaCache
+      ? { shouldRequireRemoteMediaCache: deps.shouldRequireRemoteMediaCache }
+      : {}),
     shouldStartAnkiIntegration: () => deps.shouldStartAnkiIntegration(),
     bindOverlayOwner: deps.bindOverlayOwner,
     releaseOverlayOwner: deps.releaseOverlayOwner,

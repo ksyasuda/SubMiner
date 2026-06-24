@@ -12,9 +12,11 @@ import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
 import {
   resolveMediaGenerationInput,
+  resolveAudioStreamIndexForMediaGeneration,
   type MediaGenerationInputResolverOptions,
 } from './media-source';
 import { shouldMarkWordAndSentenceCard } from './note-field-utils';
+import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
 
 const log = createLogger('anki').child('integration.card-creation');
 
@@ -79,6 +81,8 @@ interface CardCreationDeps {
   getTimingTracker: () => SubtitleTimingTracker;
   getMpvClient: () => MpvClient;
   getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'];
+  shouldRequireRemoteMediaCache?: () => boolean;
+  queuePendingYoutubeMediaUpdate?: (job: PendingYoutubeMediaUpdate) => void;
   getDeck?: () => string | undefined;
   client: CardCreationClient;
   mediaGenerator: CardCreationMediaGenerator;
@@ -127,9 +131,14 @@ export class CardCreationService {
   constructor(private readonly deps: CardCreationDeps) {}
 
   private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
-    const options: MediaGenerationInputResolverOptions = {};
+    const options: MediaGenerationInputResolverOptions = {
+      logDebug: (message) => log.debug(message),
+    };
     if (this.deps.getCachedMediaPath) {
       options.getCachedMediaPath = this.deps.getCachedMediaPath;
+    }
+    if (this.deps.shouldRequireRemoteMediaCache?.()) {
+      options.remoteCacheMode = 'required';
     }
     return options;
   }
@@ -547,7 +556,11 @@ export class CardCreationService {
           'audio',
           mediaResolverOptions,
         );
-        if (!videoPath) {
+        const shouldQueuePendingYoutubeMedia =
+          !videoPath &&
+          this.deps.shouldRequireRemoteMediaCache?.() === true &&
+          typeof this.deps.queuePendingYoutubeMediaUpdate === 'function';
+        if (!videoPath && !shouldQueuePendingYoutubeMedia) {
           this.deps.showOsdNotification('No video loaded');
           return false;
         }
@@ -677,6 +690,28 @@ export class CardCreationService {
           errors.push('card type fields');
         }
 
+        const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
+        if (shouldQueuePendingYoutubeMedia) {
+          this.deps.queuePendingYoutubeMediaUpdate?.({
+            sourceUrl: mpvClient.currentVideoPath,
+            noteId,
+            startTime,
+            endTime,
+            label,
+            audioFieldName: resolvedSentenceAudioField,
+            imageFieldName: this.deps.getConfig().fields?.image,
+            miscInfoFieldName: resolvedMiscInfoField ?? undefined,
+            generateAudio: this.deps.getConfig().media?.generateAudio !== false,
+            generateImage: this.deps.getConfig().media?.generateImage !== false,
+          });
+          await this.deps.showNotification(noteId, label, 'media queued');
+          return true;
+        }
+
+        if (!videoPath) {
+          return false;
+        }
+
         const mediaFields: Record<string, string> = {};
 
         try {
@@ -727,7 +762,6 @@ export class CardCreationService {
           }
         }
 
-        const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
         const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
         await this.deps.showNotification(noteId, label, errorSuffix);
         return true;
@@ -777,7 +811,10 @@ export class CardCreationService {
       startTime,
       endTime,
       this.deps.getConfig().media?.audioPadding,
-      mpvClient.currentAudioStreamIndex ?? undefined,
+      resolveAudioStreamIndexForMediaGeneration(
+        videoPath,
+        mpvClient.currentAudioStreamIndex ?? undefined,
+      ),
     );
   }
 

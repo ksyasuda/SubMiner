@@ -62,10 +62,14 @@ import { FieldGroupingWorkflow } from './anki-integration/field-grouping-workflo
 import { resolveAnimatedImageLeadInSeconds } from './anki-integration/animated-image-sync';
 import { AnkiIntegrationRuntime, normalizeAnkiIntegrationConfig } from './anki-integration/runtime';
 import {
+  resolveAudioStreamIndexForMediaGeneration,
   resolveMediaGenerationInput,
   resolveMediaGenerationInputPath,
   type MediaGenerationInputResolverOptions,
 } from './anki-integration/media-source';
+import type { PendingYoutubeMediaUpdate } from './anki-integration/pending-youtube-media';
+import { PendingYoutubeMediaQueue } from './anki-integration/pending-youtube-media-queue';
+import type { PendingYoutubeMediaQueueReadyOptions } from './anki-integration/pending-youtube-media-queue';
 
 const log = createLogger('anki').child('integration');
 
@@ -231,6 +235,8 @@ export class AnkiIntegration {
   private trackedDuplicateNoteIds = new Map<number, number[]>();
   private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
     null;
+  private shouldRequireRemoteMediaCache: (() => boolean) | null = null;
+  private pendingYoutubeMediaQueue: PendingYoutubeMediaQueue;
 
   constructor(
     config: AnkiConnectConfig,
@@ -247,6 +253,7 @@ export class AnkiIntegration {
     recordCardsMined?: (count: number, noteIds?: number[]) => void,
     overlayNotificationCallback?: (payload: OverlayNotificationPayload) => void,
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
+    shouldRequireRemoteMediaCache?: () => boolean,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -260,6 +267,8 @@ export class AnkiIntegration {
     this.fieldGroupingCallback = fieldGroupingCallback || null;
     this.recordCardsMinedCallback = recordCardsMined ?? null;
     this.getCachedMediaPath = getCachedMediaPath ?? null;
+    this.shouldRequireRemoteMediaCache = shouldRequireRemoteMediaCache ?? null;
+    this.pendingYoutubeMediaQueue = this.createPendingYoutubeMediaQueue();
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
     this.cardCreationService = this.createCardCreationService();
@@ -304,11 +313,78 @@ export class AnkiIntegration {
   }
 
   private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
-    const options: MediaGenerationInputResolverOptions = {};
+    const options: MediaGenerationInputResolverOptions = {
+      logDebug: (message) => log.debug(message),
+    };
     if (this.getCachedMediaPath) {
       options.getCachedMediaPath = this.getCachedMediaPath;
     }
+    if (this.shouldRequireRemoteMediaCache?.()) {
+      options.remoteCacheMode = 'required';
+    }
     return options;
+  }
+
+  private createPendingYoutubeMediaQueue(): PendingYoutubeMediaQueue {
+    return new PendingYoutubeMediaQueue({
+      client: {
+        notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
+        updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
+        storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
+      },
+      mediaGenerator: {
+        generateAudio: (videoPath, startTime, endTime, audioPadding, audioStreamIndex) =>
+          this.mediaGenerator.generateAudio(
+            videoPath,
+            startTime,
+            endTime,
+            audioPadding,
+            audioStreamIndex,
+          ),
+        generateScreenshot: (videoPath, timestamp, options) =>
+          this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
+        generateAnimatedImage: (videoPath, startTime, endTime, audioPadding, options) =>
+          this.mediaGenerator.generateAnimatedImage(
+            videoPath,
+            startTime,
+            endTime,
+            audioPadding,
+            options,
+          ),
+      },
+      getConfig: () => this.config,
+      getCurrentVideoPath: () => this.mpvClient.currentVideoPath,
+      getCachedMediaPath: this.getCachedMediaPath,
+      shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
+      getSubtitleMediaRange: (context) => this.getSubtitleMediaRange(context),
+      getResolvedSentenceAudioFieldName: (noteInfo) =>
+        this.getResolvedSentenceAudioFieldName(noteInfo),
+      resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
+        this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
+      mergeFieldValue: (existing, newValue, overwrite) =>
+        this.mergeFieldValue(existing, newValue, overwrite),
+      getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
+      generateAudioFilename: () => this.generateAudioFilename(),
+      generateImageFilename: () => this.generateImageFilename(),
+      formatMiscInfoPatternForMediaPath: (
+        fallbackFilename,
+        startTimeSeconds,
+        mediaPath,
+        mediaTitle,
+      ) =>
+        this.formatMiscInfoPatternForMediaPath(
+          fallbackFilename,
+          startTimeSeconds,
+          mediaPath,
+          mediaTitle,
+        ),
+      showStatusNotification: (message) => this.showStatusNotification(message),
+      showNotification: (noteId, label, errorSuffix) =>
+        this.showNotification(noteId, label, errorSuffix),
+      logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
+      logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
+      logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
+    });
   }
 
   private createKnownWordCache(knownWordCacheStatePath?: string): KnownWordCacheManager {
@@ -394,6 +470,8 @@ export class AnkiIntegration {
       getTimingTracker: () => this.timingTracker,
       getMpvClient: () => this.mpvClient,
       ...(this.getCachedMediaPath ? { getCachedMediaPath: this.getCachedMediaPath } : {}),
+      shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
+      queuePendingYoutubeMediaUpdate: (job) => this.queuePendingYoutubeMediaUpdate(job),
       getDeck: () => this.config.deck,
       client: {
         addNote: (deck, modelName, fields, tags) =>
@@ -557,6 +635,7 @@ export class AnkiIntegration {
       formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
         this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
       consumeSubtitleMiningContext: () => this.consumeSubtitleMiningContext(),
+      queuePendingYoutubeMediaUpdate: (job) => this.queuePendingYoutubeMediaUpdateForNote(job),
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
       showNotification: (noteId, label) => this.showNotification(noteId, label),
       showOsdNotification: (message) => this.showStatusNotification(message),
@@ -850,6 +929,27 @@ export class AnkiIntegration {
     };
   }
 
+  private queuePendingYoutubeMediaUpdate(job: PendingYoutubeMediaUpdate): void {
+    this.pendingYoutubeMediaQueue.enqueue(job);
+  }
+
+  private async queuePendingYoutubeMediaUpdateForNote(job: {
+    noteId: number;
+    noteInfo: NoteInfo;
+    context?: SubtitleMiningContext;
+    label: string | number;
+  }): Promise<boolean> {
+    return this.pendingYoutubeMediaQueue.queueFromNote(job);
+  }
+
+  async handleYoutubeMediaCacheReady(
+    sourceUrl: string,
+    cachedPath: string,
+    options?: PendingYoutubeMediaQueueReadyOptions,
+  ): Promise<void> {
+    await this.pendingYoutubeMediaQueue.handleReady(sourceUrl, cachedPath, options);
+  }
+
   private async generateAudio(context?: SubtitleMiningContext): Promise<Buffer | null> {
     const mpvClient = this.mpvClient;
     if (!mpvClient || !mpvClient.currentVideoPath) {
@@ -871,7 +971,7 @@ export class AnkiIntegration {
       startTime,
       endTime,
       this.config.media?.audioPadding,
-      this.mpvClient.currentAudioStreamIndex,
+      resolveAudioStreamIndexForMediaGeneration(videoPath, this.mpvClient.currentAudioStreamIndex),
     );
   }
 
@@ -921,17 +1021,30 @@ export class AnkiIntegration {
   }
 
   private formatMiscInfoPattern(fallbackFilename: string, startTimeSeconds?: number): string {
+    return this.formatMiscInfoPatternForMediaPath(
+      fallbackFilename,
+      startTimeSeconds,
+      this.mpvClient.currentVideoPath || '',
+      this.mpvClient.currentMediaTitle ?? undefined,
+    );
+  }
+
+  private formatMiscInfoPatternForMediaPath(
+    fallbackFilename: string,
+    startTimeSeconds: number | undefined,
+    mediaPath: string,
+    mediaTitle?: string,
+  ): string {
     if (!this.config.metadata?.pattern) {
       return '';
     }
 
-    const currentVideoPath = this.mpvClient.currentVideoPath || '';
-    const videoFilename = extractFilenameFromMediaPath(currentVideoPath);
-    const mediaTitle = trimToNonEmptyString(this.mpvClient.currentMediaTitle);
+    const videoFilename = extractFilenameFromMediaPath(mediaPath);
+    const resolvedMediaTitle = trimToNonEmptyString(mediaTitle);
     const filenameWithExt =
-      (shouldPreferMediaTitleForMiscInfo(currentVideoPath, videoFilename)
-        ? mediaTitle || videoFilename
-        : videoFilename || mediaTitle) || fallbackFilename;
+      (shouldPreferMediaTitleForMiscInfo(mediaPath, videoFilename)
+        ? resolvedMediaTitle || videoFilename
+        : videoFilename || resolvedMediaTitle) || fallbackFilename;
     const filenameWithoutExt = filenameWithExt.replace(/\.[^.]+$/, '');
 
     const currentTimePos =

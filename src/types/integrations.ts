@@ -126,6 +126,7 @@ export type YoutubeMediaCacheMode = 'direct' | 'background';
 
 export interface YoutubeMediaCacheConfig {
   mode?: YoutubeMediaCacheMode;
+  maxHeight?: number;
 }
 
 export interface YoutubeConfig {

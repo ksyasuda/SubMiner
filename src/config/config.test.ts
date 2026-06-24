@@ -81,6 +81,7 @@ test('loads defaults when config is missing', () => {
   assert.equal('deviceId' in config.jellyfin, false);
   assert.equal('clientVersion' in config.jellyfin, false);
   assert.equal(config.youtube.mediaCache.mode, 'direct');
+  assert.equal(config.youtube.mediaCache.maxHeight, 720);
   assert.equal(config.ai.enabled, false);
   assert.equal(config.ai.apiKeyCommand, '');
   assert.equal(config.texthooker.openBrowser, false);
@@ -1758,7 +1759,8 @@ test('parses YouTube media cache config and warns on invalid values', () => {
     `{
       "youtube": {
         "mediaCache": {
-          "mode": "background"
+          "mode": "background",
+          "maxHeight": 480
         }
       }
     }`,
@@ -1767,6 +1769,7 @@ test('parses YouTube media cache config and warns on invalid values', () => {
 
   const validService = new ConfigService(validDir);
   assert.equal(validService.getConfig().youtube.mediaCache.mode, 'background');
+  assert.equal(validService.getConfig().youtube.mediaCache.maxHeight, 480);
 
   const invalidDir = makeTempDir();
   fs.writeFileSync(
@@ -1774,7 +1777,8 @@ test('parses YouTube media cache config and warns on invalid values', () => {
     `{
       "youtube": {
         "mediaCache": {
-          "mode": "always"
+          "mode": "always",
+          "maxHeight": -1
         }
       }
     }`,
@@ -1786,8 +1790,15 @@ test('parses YouTube media cache config and warns on invalid values', () => {
     invalidService.getConfig().youtube.mediaCache.mode,
     DEFAULT_CONFIG.youtube.mediaCache.mode,
   );
+  assert.equal(
+    invalidService.getConfig().youtube.mediaCache.maxHeight,
+    DEFAULT_CONFIG.youtube.mediaCache.maxHeight,
+  );
   assert.ok(
     invalidService.getWarnings().some((warning) => warning.path === 'youtube.mediaCache.mode'),
+  );
+  assert.ok(
+    invalidService.getWarnings().some((warning) => warning.path === 'youtube.mediaCache.maxHeight'),
   );
 });
 

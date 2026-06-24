@@ -310,6 +310,18 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
           "Expected 'direct' or 'background'.",
         );
       }
+
+      const maxHeight = asNumber(src.youtube.mediaCache.maxHeight);
+      if (maxHeight !== undefined && Number.isInteger(maxHeight) && maxHeight >= 0) {
+        resolved.youtube.mediaCache.maxHeight = maxHeight;
+      } else if (src.youtube.mediaCache.maxHeight !== undefined) {
+        warn(
+          'youtube.mediaCache.maxHeight',
+          src.youtube.mediaCache.maxHeight,
+          resolved.youtube.mediaCache.maxHeight,
+          'Expected a whole number at least 0.',
+        );
+      }
     } else if (src.youtube.mediaCache !== undefined) {
       warn(
         'youtube.mediaCache',

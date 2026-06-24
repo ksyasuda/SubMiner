@@ -167,6 +167,7 @@ test('settings registry exposes specialized controls for config-assisted inputs'
 
 test('settings registry exposes YouTube media cache mode as a labeled select', () => {
   const mediaCacheMode = field('youtube.mediaCache.mode');
+  const mediaCacheMaxHeight = field('youtube.mediaCache.maxHeight');
 
   assert.equal(mediaCacheMode.control, 'select');
   assert.deepEqual(mediaCacheMode.enumValues, ['direct', 'background']);
@@ -174,6 +175,8 @@ test('settings registry exposes YouTube media cache mode as a labeled select', (
     direct: 'Direct stream extraction',
     background: 'Background media cache',
   });
+  assert.equal(mediaCacheMaxHeight.control, 'number');
+  assert.equal(mediaCacheMaxHeight.defaultValue, 720);
 });
 
 test('settings registry exposes css declaration editor for primary and secondary subtitle appearance', () => {

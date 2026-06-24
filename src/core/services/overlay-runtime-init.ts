@@ -29,6 +29,7 @@ type CreateAnkiIntegrationArgs = {
     currentVideoPath: string,
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
+  shouldRequireRemoteMediaCache?: () => boolean;
 };
 
 export type OverlayWindowTrackerOptions = {
@@ -70,6 +71,7 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     undefined,
     args.showOverlayNotification,
     args.getCachedMediaPath,
+    args.shouldRequireRemoteMediaCache,
   );
 }
 
@@ -141,6 +143,7 @@ export function initializeOverlayRuntime(
       currentVideoPath: string,
       kind: 'audio' | 'video',
     ) => Promise<string | null>;
+    shouldRequireRemoteMediaCache?: () => boolean;
     shouldStartAnkiIntegration?: () => boolean;
     createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
     backendOverride: string | null;
@@ -179,6 +182,7 @@ export function initializeOverlayAnkiIntegration(options: {
     currentVideoPath: string,
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
+  shouldRequireRemoteMediaCache?: () => boolean;
   shouldStartAnkiIntegration?: () => boolean;
   createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): boolean {
@@ -214,6 +218,9 @@ export function initializeOverlayAnkiIntegration(options: {
     createFieldGroupingCallback: options.createFieldGroupingCallback,
     knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
     ...(options.getCachedMediaPath ? { getCachedMediaPath: options.getCachedMediaPath } : {}),
+    ...(options.shouldRequireRemoteMediaCache
+      ? { shouldRequireRemoteMediaCache: options.shouldRequireRemoteMediaCache }
+      : {}),
   });
   if (options.shouldStartAnkiIntegration?.() !== false) {
     integration.start();

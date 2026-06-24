@@ -31,17 +31,21 @@ interface MediaCacheSession {
 
 export interface YoutubeMediaCacheStartOptions {
   mode: YoutubeMediaCacheMode;
+  maxHeight?: number;
 }
 
 export interface YoutubeMediaCacheServiceDeps {
   cacheRoot?: string;
   getYtDlpCommand?: () => string;
   spawn?: SpawnProcess;
+  onDownloadStarted?: (event: { url: string }) => void;
+  onReady?: (event: { url: string; path: string }) => void;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
 }
 
 const MEDIA_FILE_EXTENSIONS = new Set(['.mkv', '.mp4', '.webm', '.m4a', '.mp3', '.opus']);
+const DEFAULT_MAX_HEIGHT = 720;
 
 function cacheKeyForUrl(url: string): string {
   return crypto.createHash('sha256').update(url).digest('hex').slice(0, 24);
@@ -67,12 +71,25 @@ function findReadyMediaPath(dir: string): string | null {
   }
 }
 
-function createYtDlpArgs(url: string, outputTemplate: string): string[] {
+function getFormatSelector(maxHeight: number): string {
+  return maxHeight > 0
+    ? `bestvideo*[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`
+    : 'bestvideo*+bestaudio/best';
+}
+
+function normalizeMaxHeight(maxHeight: number | undefined): number {
+  if (maxHeight === undefined) {
+    return DEFAULT_MAX_HEIGHT;
+  }
+  return Number.isInteger(maxHeight) && maxHeight >= 0 ? maxHeight : DEFAULT_MAX_HEIGHT;
+}
+
+function createYtDlpArgs(url: string, outputTemplate: string, maxHeight?: number): string[] {
   return [
     '--no-playlist',
     '--no-warnings',
     '-f',
-    'bestvideo*+bestaudio/best',
+    getFormatSelector(normalizeMaxHeight(maxHeight)),
     '--merge-output-format',
     'mkv',
     '-o',
@@ -177,7 +194,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
     const dir = getSessionDir(url);
     fs.mkdirSync(dir, { recursive: true });
     const outputTemplate = path.join(dir, 'media.%(ext)s');
-    const args = createYtDlpArgs(url, outputTemplate);
+    const args = createYtDlpArgs(url, outputTemplate, options.maxHeight);
     const child = spawn(getYtDlpCommand(), args, { stdio: ['ignore', 'ignore', 'ignore'] });
     const session: MediaCacheSession = {
       url,
@@ -188,6 +205,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
     };
     sessions.set(key, session);
     deps.logInfo?.(`Started YouTube media cache download for ${url}`);
+    deps.onDownloadStarted?.({ url });
 
     child.once('error', (error) => {
       const currentSession = sessions.get(key);
@@ -215,6 +233,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
           session.state = 'ready';
           session.readyPath = readyPath;
           deps.logInfo?.(`YouTube media cache ready at ${readyPath}`);
+          deps.onReady?.({ url, path: readyPath });
           return;
         }
       }

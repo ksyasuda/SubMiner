@@ -44,6 +44,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
     currentVideoPath: string,
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
+  shouldRequireRemoteMediaCache?: () => boolean;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (
@@ -112,6 +113,7 @@ export function registerAnkiJimakuIpcRuntime(
           undefined,
           options.showOverlayNotification,
           options.getCachedMediaPath,
+          options.shouldRequireRemoteMediaCache,
         );
         integration.start();
         options.setAnkiIntegration(integration);

@@ -55,11 +55,19 @@ test('YouTube media cache exposes the downloaded file after the background job c
   const cacheRoot = makeTempCacheRoot();
   const spawnedProcesses: FakeYtDlpProcess[] = [];
   const spawnCalls: SpawnCall[] = [];
+  const readyEvents: Array<{ url: string; path: string }> = [];
+  const startedEvents: Array<{ url: string }> = [];
 
   try {
     const cache = createYoutubeMediaCacheService({
       cacheRoot,
       getYtDlpCommand: () => 'yt-dlp',
+      onDownloadStarted: (event) => {
+        startedEvents.push(event);
+      },
+      onReady: (event) => {
+        readyEvents.push(event);
+      },
       spawn: (command, args, options) => {
         spawnCalls.push({ command, args, options });
         const proc = new FakeYtDlpProcess();
@@ -70,10 +78,15 @@ test('YouTube media cache exposes the downloaded file after the background job c
 
     cache.start('https://youtu.be/demo', { mode: 'background' });
 
+    assert.deepEqual(startedEvents, [{ url: 'https://youtu.be/demo' }]);
     assert.equal(spawnCalls.length, 1);
     assert.equal(spawnCalls[0]?.command, 'yt-dlp');
     assert.ok(spawnCalls[0]?.args.includes('--no-playlist'));
     assert.ok(spawnCalls[0]?.args.includes('--merge-output-format'));
+    assert.equal(
+      spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-f') + 1],
+      'bestvideo*[height<=720]+bestaudio/best[height<=720]',
+    );
     assert.deepEqual(spawnCalls[0]?.options?.stdio, ['ignore', 'ignore', 'ignore']);
     assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), null);
 
@@ -88,6 +101,59 @@ test('YouTube media cache exposes the downloaded file after the background job c
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), outputPath);
+    assert.deepEqual(readyEvents, [{ url: 'https://youtu.be/demo', path: outputPath }]);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache can disable the download height cap', () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnCalls: SpawnCall[] = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        return new FakeYtDlpProcess();
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 0 });
+
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(
+      spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-f') + 1],
+      'bestvideo*+bestaudio/best',
+    );
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache applies the configured download height cap', () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnCalls: SpawnCall[] = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        return new FakeYtDlpProcess();
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 480 });
+
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(
+      spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-f') + 1],
+      'bestvideo*[height<=480]+bestaudio/best[height<=480]',
+    );
   } finally {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
   }

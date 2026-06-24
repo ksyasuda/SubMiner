@@ -128,13 +128,16 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
         throw new Error('Timed out waiting for mpv to load the requested YouTube URL.');
       }
       if (deps.startYoutubeMediaCache) {
-        void Promise.resolve(deps.startYoutubeMediaCache(request.url)).catch((error) => {
-          deps.logWarn(
-            `Failed to start YouTube media cache: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-          );
-        });
+        void new Promise<void>((resolve) => {
+          resolve(deps.startYoutubeMediaCache?.(request.url));
+        })
+          .catch((error) => {
+            deps.logWarn(
+              `Failed to start YouTube media cache: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          });
       }
 
       await deps.runYoutubePlaybackFlow({

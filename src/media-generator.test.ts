@@ -8,6 +8,10 @@ import { buildAnimatedImageVideoFilter, MediaGenerator } from './media-generator
 
 async function withStubbedFfmpeg(
   run: (generator: MediaGenerator, argsPath: string) => Promise<void>,
+  options: {
+    logDebug?: (message: string) => void;
+    now?: () => number;
+  } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-media-generator-test-'));
   const binDir = path.join(root, 'bin');
@@ -44,7 +48,7 @@ async function withStubbedFfmpeg(
   const originalArgsPath = process.env.SUBMINER_TEST_FFMPEG_ARGS;
   process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
   process.env.SUBMINER_TEST_FFMPEG_ARGS = argsPath;
-  const generator = new MediaGenerator(tempDir);
+  const generator = new MediaGenerator(tempDir, options);
 
   try {
     await run(generator, argsPath);
@@ -242,4 +246,66 @@ test('generateAudio keeps explicit audio stream maps for normal media paths', as
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-map') + 1], '0:2');
   });
+});
+
+test('generateAudio debug-logs cached input and completion timing', async () => {
+  const logs: string[] = [];
+  const times = [1000, 1052];
+
+  await withStubbedFfmpeg(
+    async (generator) => {
+      await generator.generateAudio(
+        {
+          path: '/tmp/subminer-youtube-media-cache/abc123/media.mkv',
+          source: 'youtube-cache',
+        },
+        10,
+        12,
+      );
+    },
+    {
+      logDebug: (message) => logs.push(message),
+      now: () => times.shift() ?? 1052,
+    },
+  );
+
+  assert.match(logs.join('\n'), /\[media-generator\] audio start/);
+  assert.match(logs.join('\n'), /source=youtube-cache/);
+  assert.match(
+    logs.join('\n'),
+    /input=local:\/tmp\/subminer-youtube-media-cache\/abc123\/media\.mkv/,
+  );
+  assert.match(logs.join('\n'), /\[media-generator\] audio complete/);
+  assert.match(logs.join('\n'), /elapsedMs=52/);
+  assert.match(logs.join('\n'), /bytes=4/);
+});
+
+test('generateAudio debug logs sanitize remote inputs', async () => {
+  const logs: string[] = [];
+  const times = [1000, 1003];
+
+  await withStubbedFfmpeg(
+    async (generator) => {
+      await generator.generateAudio(
+        {
+          path: 'https://rr1---sn.example.googlevideo.com/videoplayback?signature=secret&expire=123',
+          inputOptions: {
+            reconnect: true,
+            headers: {
+              Referer: 'https://www.youtube.com/watch?v=abc123',
+            },
+          },
+        },
+        10,
+        12,
+      );
+    },
+    {
+      logDebug: (message) => logs.push(message),
+      now: () => times.shift() ?? 1003,
+    },
+  );
+
+  assert.match(logs.join('\n'), /input=remote:rr1---sn\.example\.googlevideo\.com/);
+  assert.doesNotMatch(logs.join('\n'), /signature=secret|expire=123|Referer|abc123/);
 });

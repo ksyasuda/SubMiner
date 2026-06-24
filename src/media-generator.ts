@@ -72,18 +72,93 @@ export function buildAnimatedImageVideoFilter(options: {
   return vfParts.join(',');
 }
 
+export interface MediaGeneratorOptions {
+  logDebug?: (message: string) => void;
+  now?: () => number;
+}
+
+function sanitizeDebugToken(value: string, fallback: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const sanitized = trimmed.replace(/[^A-Za-z0-9_.:-]+/g, '-').slice(0, 80);
+  return sanitized || fallback;
+}
+
+function describeMediaInputPathForDebugLog(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return `remote:${url.hostname.toLowerCase() || 'unknown'}`;
+    }
+    return `${url.protocol.replace(/:$/, '')}:`;
+  } catch {
+    // Not a URL; treat as a local file path below.
+  }
+
+  if (value.startsWith('edl://')) {
+    return 'edl:';
+  }
+
+  return `local:${value}`;
+}
+
+function describeMediaInputForDebugLog(input: MediaInput): string {
+  const pathValue = typeof input === 'string' ? input : input.path;
+  const sourceValue = typeof input === 'string' ? 'raw' : input.source;
+  const source = sanitizeDebugToken(sourceValue ?? 'raw', 'raw');
+  return `source=${source} input=${describeMediaInputPathForDebugLog(pathValue)}`;
+}
+
+function describeFfmpegFailureForDebugLog(error: ExecFileException): string {
+  const code = typeof error.code === 'string' || typeof error.code === 'number' ? error.code : null;
+  const signal = typeof error.signal === 'string' ? error.signal : null;
+  if (code !== null) {
+    return `code=${code}`;
+  }
+  if (signal) {
+    return `signal=${signal}`;
+  }
+  return `name=${sanitizeDebugToken(error.name || 'Error', 'Error')}`;
+}
+
 export class MediaGenerator {
   private tempDir: string;
   private notifyIconDir: string;
   private av1EncoderPromise: Promise<string | null> | null = null;
+  private readonly options: MediaGeneratorOptions;
 
-  constructor(tempDir?: string) {
+  constructor(tempDir?: string, options: MediaGeneratorOptions = {}) {
+    this.options = options;
     this.tempDir = tempDir || path.join(os.tmpdir(), 'subminer-media');
     this.notifyIconDir = path.join(os.tmpdir(), 'subminer-notify');
     this.ensureDirectory(this.tempDir);
     this.ensureDirectory(this.notifyIconDir);
     // Clean up old notification icons on startup (older than 1 hour)
     this.cleanupOldNotificationIcons();
+  }
+
+  private nowMs(): number {
+    try {
+      const value = this.options.now?.() ?? Date.now();
+      return Number.isFinite(value) ? value : Date.now();
+    } catch {
+      return Date.now();
+    }
+  }
+
+  private elapsedMs(startedAt: number): number {
+    return Math.max(0, Math.round(this.nowMs() - startedAt));
+  }
+
+  private logMediaDebug(message: string): void {
+    const logDebug = this.options.logDebug ?? ((line: string) => log.debug(line));
+    try {
+      logDebug(`[media-generator] ${message}`);
+    } catch {
+      // Debug logging should not affect media generation.
+    }
   }
 
   private ensureDirectory(dir: string): void {
@@ -194,9 +269,11 @@ export class MediaGenerator {
     const start = Math.max(0, startTime - safePadding);
     const duration = endTime - start + safePadding;
     const mediaInput = normalizeMediaInput(videoPath);
+    const inputDescription = describeMediaInputForDebugLog(videoPath);
 
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('audio', 'mp3');
+      const startedAt = this.nowMs();
       const args: string[] = [
         '-ss',
         start.toString(),
@@ -218,8 +295,14 @@ export class MediaGenerator {
 
       args.push('-vn', '-acodec', 'libmp3lame', '-q:a', '2', '-ar', '44100', '-y', outputPath);
 
+      this.logMediaDebug(
+        `audio start ${inputDescription} start=${start} duration=${duration} padding=${safePadding}`,
+      );
       execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
         if (error) {
+          this.logMediaDebug(
+            `audio failed ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} ${describeFfmpegFailureForDebugLog(error)}`,
+          );
           reject(this.ffmpegError('audio generation', error));
           return;
         }
@@ -227,6 +310,9 @@ export class MediaGenerator {
         try {
           const data = fs.readFileSync(outputPath);
           fs.unlinkSync(outputPath);
+          this.logMediaDebug(
+            `audio complete ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} bytes=${data.byteLength}`,
+          );
           resolve(data);
         } catch (err) {
           reject(err);
@@ -253,6 +339,7 @@ export class MediaGenerator {
       webp: 'webp',
     };
     const mediaInput = normalizeMediaInput(videoPath);
+    const inputDescription = describeMediaInputForDebugLog(videoPath);
 
     const args: string[] = [
       '-ss',
@@ -292,10 +379,17 @@ export class MediaGenerator {
 
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('screenshot', ext);
+      const startedAt = this.nowMs();
       args.push(outputPath);
 
+      this.logMediaDebug(
+        `screenshot start ${inputDescription} timestamp=${timestamp} format=${format} maxWidth=${maxWidth ?? 'none'} maxHeight=${maxHeight ?? 'none'}`,
+      );
       execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
         if (error) {
+          this.logMediaDebug(
+            `screenshot failed ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} ${describeFfmpegFailureForDebugLog(error)}`,
+          );
           reject(this.ffmpegError('screenshot generation', error));
           return;
         }
@@ -303,6 +397,9 @@ export class MediaGenerator {
         try {
           const data = fs.readFileSync(outputPath);
           fs.unlinkSync(outputPath);
+          this.logMediaDebug(
+            `screenshot complete ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} bytes=${data.byteLength}`,
+          );
           resolve(data);
         } catch (err) {
           reject(err);
@@ -374,10 +471,15 @@ export class MediaGenerator {
     const start = Math.max(0, startTime - safePadding);
     const duration = roundDurationUpToNextFrameBoundary(endTime - start + safePadding, clampedFps);
     const totalLeadingStillDuration = Math.max(0, leadingStillDuration);
+    const inputDescription = describeMediaInputForDebugLog(videoPath);
 
     const clampedCrf = Math.max(0, Math.min(63, crf));
 
+    const encoderDetectionStartedAt = this.nowMs();
     const av1Encoder = await this.detectAv1Encoder();
+    this.logMediaDebug(
+      `animated-image encoder ${inputDescription} elapsedMs=${this.elapsedMs(encoderDetectionStartedAt)} encoder=${av1Encoder ?? 'none'}`,
+    );
     if (!av1Encoder) {
       throw new Error(
         'No supported AV1 encoder found for animated AVIF (tried libaom-av1, libsvtav1, librav1e).',
@@ -387,6 +489,7 @@ export class MediaGenerator {
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('animation', 'avif');
       const mediaInput = normalizeMediaInput(videoPath);
+      const startedAt = this.nowMs();
 
       const encoderArgs: string[] = ['-c:v', av1Encoder];
       if (av1Encoder === 'libaom-av1') {
@@ -398,6 +501,9 @@ export class MediaGenerator {
         encoderArgs.push('-qp', clampedCrf.toString(), '-speed', '8');
       }
 
+      this.logMediaDebug(
+        `animated-image start ${inputDescription} start=${start} duration=${duration} padding=${safePadding} fps=${clampedFps} maxWidth=${maxWidth ?? 'none'} maxHeight=${maxHeight ?? 'none'} crf=${clampedCrf} encoder=${av1Encoder}`,
+      );
       execFile(
         'ffmpeg',
         [
@@ -422,6 +528,9 @@ export class MediaGenerator {
         { timeout: 60000 },
         (error) => {
           if (error) {
+            this.logMediaDebug(
+              `animated-image failed ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} ${describeFfmpegFailureForDebugLog(error)}`,
+            );
             reject(this.ffmpegError('animation generation', error));
             return;
           }
@@ -429,6 +538,9 @@ export class MediaGenerator {
           try {
             const data = fs.readFileSync(outputPath);
             fs.unlinkSync(outputPath);
+            this.logMediaDebug(
+              `animated-image complete ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} bytes=${data.byteLength}`,
+            );
             resolve(data);
           } catch (err) {
             reject(err);

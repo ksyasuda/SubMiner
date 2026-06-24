@@ -131,6 +131,13 @@ export function buildCoreConfigOptionRegistry(
       description: 'How YouTube card audio/images are extracted.',
     },
     {
+      path: 'youtube.mediaCache.maxHeight',
+      kind: 'number',
+      defaultValue: defaultConfig.youtube.mediaCache.maxHeight,
+      description:
+        'Maximum video height downloaded for the YouTube background media cache. Set to 0 for unlimited.',
+    },
+    {
       path: 'controller.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.controller.enabled,

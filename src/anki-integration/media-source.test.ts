@@ -24,6 +24,8 @@ type StructuredMediaResolver = (
       currentVideoPath: string,
       kind: Parameters<typeof resolveMediaGenerationInputPath>[1],
     ) => Promise<string | null>;
+    remoteCacheMode?: 'optional' | 'required';
+    logDebug?: (message: string) => void;
   },
 ) => Promise<StructuredMediaInput | null>;
 
@@ -185,4 +187,112 @@ test('resolveMediaGenerationInput prefers a ready cached media file for YouTube 
   assert.equal(result?.source, 'youtube-cache');
   assert.equal(result?.singleResolvedStream, false);
   assert.equal(result?.inputOptions, undefined);
+});
+
+test('resolveMediaGenerationInput debug-logs sanitized YouTube cache hits', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+  const logs: string[] = [];
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123&signature=secret',
+      requestProperty: async () => 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123',
+    },
+    'video',
+    {
+      getCachedMediaPath: async () => '/tmp/subminer-youtube-media-cache/abc123/media.mkv',
+      logDebug: (message) => logs.push(message),
+    },
+  );
+
+  assert.equal(result?.source, 'youtube-cache');
+  assert.match(logs.join('\n'), /kind=video source=youtube-cache/);
+  assert.match(
+    logs.join('\n'),
+    /input=local:\/tmp\/subminer-youtube-media-cache\/abc123\/media\.mkv/,
+  );
+  assert.match(logs.join('\n'), /current=remote:www\.youtube\.com/);
+  assert.doesNotMatch(logs.join('\n'), /signature=secret|videoplayback/);
+});
+
+test('resolveMediaGenerationInput does not fall back to direct remote streams when cache is required', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async () => 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123',
+    },
+    'video',
+    {
+      getCachedMediaPath: async () => null,
+      remoteCacheMode: 'required',
+    },
+  );
+
+  assert.equal(result, null);
+});
+
+test('resolveMediaGenerationInput falls back when optional cache lookup fails', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async () => 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123',
+    },
+    'video',
+    {
+      getCachedMediaPath: async () => {
+        throw new Error('cache unavailable');
+      },
+    },
+  );
+
+  assert.equal(result?.path, 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123');
+  assert.equal(result?.source, 'stream-open-filename');
+});
+
+test('resolveMediaGenerationInput debug-logs sanitized required-cache misses', async () => {
+  const resolver = (
+    mediaSource as typeof mediaSource & {
+      resolveMediaGenerationInput?: StructuredMediaResolver;
+    }
+  ).resolveMediaGenerationInput;
+  assert.equal(typeof resolver, 'function');
+  const logs: string[] = [];
+
+  const result = await resolver!(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123&signature=secret',
+      requestProperty: async () => 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123',
+    },
+    'video',
+    {
+      getCachedMediaPath: async () => null,
+      remoteCacheMode: 'required',
+      logDebug: (message) => logs.push(message),
+    },
+  );
+
+  assert.equal(result, null);
+  assert.match(logs.join('\n'), /kind=video source=cache-miss/);
+  assert.match(logs.join('\n'), /mode=required/);
+  assert.match(logs.join('\n'), /current=remote:www\.youtube\.com/);
+  assert.doesNotMatch(logs.join('\n'), /signature=secret|videoplayback|googlevideo/);
 });

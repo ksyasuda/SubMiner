@@ -1174,6 +1174,32 @@ const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 });
 const youtubeMediaCache = createYoutubeMediaCacheService({
+  onDownloadStarted: (event) => {
+    showConfiguredStatusNotification('YouTube media cache is downloading.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'progress',
+      persistent: true,
+    });
+    logger.info(`YouTube media cache download notification shown for ${event.url}`);
+  },
+  onReady: (event) => {
+    showConfiguredStatusNotification('YouTube media cache ready.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'success',
+      persistent: false,
+    });
+    void appState.ankiIntegration
+      ?.handleYoutubeMediaCacheReady(event.url, event.path, { notifyNoQueued: false })
+      .catch((error) => {
+        logger.warn(
+          `Failed to apply queued YouTube media updates: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+  },
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
 });
@@ -1324,6 +1350,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   startYoutubeMediaCache: (url) => {
     youtubeMediaCache.start(url, {
       mode: getResolvedConfig().youtube.mediaCache.mode,
+      maxHeight: getResolvedConfig().youtube.mediaCache.maxHeight,
     });
   },
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
@@ -1645,6 +1672,12 @@ function isYoutubePlaybackActiveNow(): boolean {
   );
 }
 
+function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
+  return (
+    getResolvedConfig().youtube.mediaCache.mode === 'background' && isYoutubePlaybackActiveNow()
+  );
+}
+
 async function getCachedYoutubeMediaPathForCurrentPlayback(
   currentVideoPath: string,
   _kind: 'audio' | 'video',
@@ -1655,6 +1688,8 @@ async function getCachedYoutubeMediaPathForCurrentPlayback(
   if (!isYoutubePlaybackActiveNow()) {
     return null;
   }
+  // mpv can expose the resolved stream URL here while the cache key uses the original page URL.
+  // Keep the active-cache fallback so current playback can still resolve the ready cached file.
   return (
     (await youtubeMediaCache.getCachedMediaPath(currentVideoPath)) ??
     (await youtubeMediaCache.getActiveCachedMediaPath())
@@ -2662,6 +2697,7 @@ const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
 });
 const {
   flushQueuedOverlayNotifications,
+  flushQueuedMpvOsdNotifications,
   openAnkiCardFromNotification,
   toggleNotificationHistoryPanel,
   showConfiguredPlaybackFeedback,
@@ -4313,6 +4349,7 @@ const {
     },
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
+      flushQueuedMpvOsdNotifications();
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -5760,6 +5797,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
         getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
       showDesktopNotification,
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
@@ -6238,6 +6276,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
         getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },

@@ -1,5 +1,5 @@
 import { isRemoteMediaPath } from '../jimaku/utils';
-import type { MediaInputOptions } from '../media-input';
+import type { MediaInput, MediaInputOptions } from '../media-input';
 import type { MpvClient } from '../types/runtime';
 
 export type MediaGenerationKind = 'audio' | 'video';
@@ -22,6 +22,18 @@ export interface MediaGenerationInputResolverOptions {
     currentVideoPath: string,
     kind: MediaGenerationKind,
   ) => Promise<string | null>;
+  remoteCacheMode?: 'optional' | 'required';
+  logDebug?: (message: string) => void;
+}
+
+export function resolveAudioStreamIndexForMediaGeneration(
+  input: MediaInput,
+  audioStreamIndex: number | null | undefined,
+): number | undefined {
+  if (typeof input === 'object' && 'source' in input && input.source === 'youtube-cache') {
+    return undefined;
+  }
+  return audioStreamIndex ?? undefined;
 }
 
 const BLOCKED_HTTP_HEADER_NAMES = new Set(['authorization', 'cookie', 'proxy-authorization']);
@@ -117,6 +129,73 @@ function matchesHost(hostname: string, expectedHost: string): boolean {
 function isGoogleVideoMediaPath(value: string): boolean {
   const host = getHostname(value);
   return Boolean(host && matchesHost(host, 'googlevideo.com'));
+}
+
+function describeMediaPathForDebugLog(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return `remote:${url.hostname.toLowerCase() || 'unknown'}`;
+    }
+    return `${url.protocol.replace(/:$/, '')}:`;
+  } catch {
+    // Not a URL; treat as a local file path below.
+  }
+
+  if (value.startsWith('edl://')) {
+    return 'edl:';
+  }
+
+  return `local:${value}`;
+}
+
+function logMediaResolutionDebug(
+  options: MediaGenerationInputResolverOptions,
+  message: string,
+): void {
+  if (!options.logDebug) {
+    return;
+  }
+  try {
+    options.logDebug(`[media-source] ${message}`);
+  } catch {
+    // Debug logging should not affect media generation.
+  }
+}
+
+function logResolvedMediaGenerationInput(
+  options: MediaGenerationInputResolverOptions,
+  currentVideoPath: string,
+  result: ResolvedMediaGenerationInput,
+): void {
+  logMediaResolutionDebug(
+    options,
+    [
+      `kind=${result.kind}`,
+      `source=${result.source}`,
+      `input=${describeMediaPathForDebugLog(result.path)}`,
+      `current=${describeMediaPathForDebugLog(currentVideoPath)}`,
+      `singleResolvedStream=${result.singleResolvedStream}`,
+    ].join(' '),
+  );
+}
+
+function logMediaGenerationInputMiss(
+  options: MediaGenerationInputResolverOptions,
+  kind: MediaGenerationKind,
+  currentVideoPath: string,
+  reason: string,
+): void {
+  logMediaResolutionDebug(
+    options,
+    [
+      `kind=${kind}`,
+      'source=cache-miss',
+      `reason=${reason}`,
+      `mode=${options.remoteCacheMode ?? 'optional'}`,
+      `current=${describeMediaPathForDebugLog(currentVideoPath)}`,
+    ].join(' '),
+  );
 }
 
 function setHeaderIfMissing(headers: Record<string, string>, name: string, value: string): void {
@@ -243,37 +322,54 @@ export async function resolveMediaGenerationInput(
 ): Promise<ResolvedMediaGenerationInput | null> {
   const currentVideoPath = trimToNonEmptyString(mpvClient?.currentVideoPath);
   if (!currentVideoPath) {
+    logMediaResolutionDebug(options, `kind=${kind} source=none reason=no-current-video`);
     return null;
   }
 
   if (!isRemoteMediaPath(currentVideoPath)) {
-    return {
+    const result: ResolvedMediaGenerationInput = {
       path: currentVideoPath,
       kind,
       source: 'current-path',
       singleResolvedStream: false,
     };
+    logResolvedMediaGenerationInput(options, currentVideoPath, result);
+    return result;
   }
 
-  const cachedPath = options.getCachedMediaPath
-    ? trimToNonEmptyString(await options.getCachedMediaPath(currentVideoPath, kind))
-    : null;
+  let cachedPath: string | null = null;
+  if (options.getCachedMediaPath) {
+    try {
+      cachedPath = trimToNonEmptyString(await options.getCachedMediaPath(currentVideoPath, kind));
+    } catch {
+      cachedPath = null;
+    }
+  }
   if (cachedPath) {
-    return {
+    const result: ResolvedMediaGenerationInput = {
       path: cachedPath,
       kind,
       source: 'youtube-cache',
       singleResolvedStream: false,
     };
+    logResolvedMediaGenerationInput(options, currentVideoPath, result);
+    return result;
+  }
+
+  if (options.remoteCacheMode === 'required') {
+    logMediaGenerationInputMiss(options, kind, currentVideoPath, 'required-cache-unavailable');
+    return null;
   }
 
   if (!mpvClient?.requestProperty) {
-    return {
+    const result: ResolvedMediaGenerationInput = {
       path: currentVideoPath,
       kind,
       source: 'current-path',
       singleResolvedStream: false,
     };
+    logResolvedMediaGenerationInput(options, currentVideoPath, result);
+    return result;
   }
 
   try {
@@ -283,30 +379,50 @@ export async function resolveMediaGenerationInput(
     if (streamOpenFilename?.startsWith('edl://')) {
       const preferredUrl = resolvePreferredUrlFromMpvEdlSource(streamOpenFilename, kind);
       if (preferredUrl) {
-        return toResolvedMediaGenerationInput(mpvClient, preferredUrl, kind, 'edl-stream', true);
+        const result = await toResolvedMediaGenerationInput(
+          mpvClient,
+          preferredUrl,
+          kind,
+          'edl-stream',
+          true,
+        );
+        logResolvedMediaGenerationInput(options, currentVideoPath, result);
+        return result;
       }
-      return toResolvedMediaGenerationInput(
+      const result = await toResolvedMediaGenerationInput(
         mpvClient,
         streamOpenFilename,
         kind,
         'stream-open-filename',
         false,
       );
+      logResolvedMediaGenerationInput(options, currentVideoPath, result);
+      return result;
     }
     if (streamOpenFilename) {
-      return toResolvedMediaGenerationInput(
+      const result = await toResolvedMediaGenerationInput(
         mpvClient,
         streamOpenFilename,
         kind,
         'stream-open-filename',
         isRemoteMediaPath(streamOpenFilename),
       );
+      logResolvedMediaGenerationInput(options, currentVideoPath, result);
+      return result;
     }
   } catch {
     // Fall back to the current path when mpv does not expose a resolved stream URL.
   }
 
-  return toResolvedMediaGenerationInput(mpvClient, currentVideoPath, kind, 'current-path', false);
+  const result = await toResolvedMediaGenerationInput(
+    mpvClient,
+    currentVideoPath,
+    kind,
+    'current-path',
+    false,
+  );
+  logResolvedMediaGenerationInput(options, currentVideoPath, result);
+  return result;
 }
 
 export async function resolveMediaGenerationInputPath(

@@ -348,6 +348,7 @@ export interface ResolvedConfig {
     primarySubLanguages: string[];
     mediaCache: {
       mode: YoutubeMediaCacheMode;
+      maxHeight: number;
     };
   };
   youtubeSubgen: YoutubeSubgenConfig & {

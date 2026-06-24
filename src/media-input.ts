@@ -8,6 +8,7 @@ export type MediaInput =
   | string
   | {
       path: string;
+      source?: string;
       inputOptions?: MediaInputOptions;
       singleResolvedStream?: boolean;
     };
