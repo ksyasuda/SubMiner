@@ -19,6 +19,7 @@ const REDACTED_VALUE = '<redacted>';
 const REDACTED_CREDENTIALS = '<credentials>';
 const REDACTED_EMAIL = '<email>';
 const REDACTED_IP = '<ip>';
+const MAX_JSON_CANDIDATE_SCAN_CHARS = 64 * 1024;
 
 const SENSITIVE_HEADER_NAMES = [
   'api-key',
@@ -75,13 +76,14 @@ const YTDLP_COOKIE_EQUALS_RE =
 const YTDLP_COOKIE_SPACE_RE =
   /(--(?:cookies|cookies-from-browser)\s+)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\r\n]*?)(?=\s+--[A-Za-z0-9][A-Za-z0-9-]*|\r?\n|$)/gi;
 const URL_TOKEN_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
-const URL_CREDENTIALS_RE = /\b([a-z][a-z0-9+.-]*:\/\/)([^/@\s]+@)/gi;
+const URL_CREDENTIALS_RE = /\b([a-z][a-z0-9+.-]*:\/\/)([^/?#\s"'<>]*@)/gi;
 const URL_QUERY_PAIR_RE = /([?&;]|&amp;)([^=&#;]+)=([^&#;]*)/gi;
 const TRAILING_URL_PUNCTUATION_RE = /[)\].,;:!?]+$/;
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const BRACKETED_IP_RE = /\[([0-9A-F:.%]+)\]/gi;
+const BRACKETED_IP_RE = /\[([0-9A-F:.]+(?:%[A-Z0-9_.~-]+)?)\]/gi;
 const IPV4_RE = /(^|[^A-Za-z0-9_.-])((?:\d{1,3}\.){3}\d{1,3})(?![A-Za-z0-9_.-])/g;
-const IPV6_RE = /(^|[^A-Za-z0-9_.-])([0-9A-F]{0,4}:[0-9A-F:.%]{2,})(?![A-Za-z0-9_.-])/gi;
+const IPV6_RE =
+  /(^|[^A-Za-z0-9_.-])([0-9A-F]{0,4}:[0-9A-F:.]*(?:%[A-Z0-9_.~-]+)?)(?![A-Za-z0-9_.-])/gi;
 
 function safeDecodeFormComponent(value: string): string {
   try {
@@ -185,13 +187,20 @@ function redactYtDlpCookieArgs(text: string): string {
     .replace(YTDLP_COOKIE_SPACE_RE, `$1${REDACTED_VALUE}`);
 }
 
-function findJsonEnd(text: string, start: number): number {
+function findJsonScanEnd(text: string, start: number): number {
+  const boundedEnd = Math.min(text.length, start + MAX_JSON_CANDIDATE_SCAN_CHARS);
+  const newline = text.indexOf('\n', start);
+  if (newline !== -1 && newline < boundedEnd) return newline;
+  return boundedEnd;
+}
+
+function findJsonEnd(text: string, start: number, endExclusive: number): number {
   const stack: string[] = [];
   let inString = false;
   let quote = '';
   let escaped = false;
 
-  for (let index = start; index < text.length; index += 1) {
+  for (let index = start; index < endExclusive; index += 1) {
     const char = text[index];
 
     if (inString) {
@@ -248,8 +257,12 @@ function redactJsonPayloads(text: string): string {
     const char = text[index];
     if (char !== '{' && char !== '[') continue;
 
-    const end = findJsonEnd(text, index);
-    if (end === -1) continue;
+    const scanEnd = findJsonScanEnd(text, index);
+    const end = findJsonEnd(text, index, scanEnd);
+    if (end === -1) {
+      index = Math.max(index, scanEnd - 1);
+      continue;
+    }
 
     const candidate = text.slice(index, end + 1);
     try {

@@ -2,12 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { getDefaultLauncherLogFile, getDefaultMpvLogFile } from './types.js';
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
-}
+import { localDateKey } from '../src/shared/log-files.js';
 
 test('getDefaultMpvLogFile uses APPDATA on windows', () => {
   const today = localDateKey(new Date());

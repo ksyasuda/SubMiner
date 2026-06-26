@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { resolveLogBaseDir } from '../../shared/log-files';
+import { localDateKey, resolveLogBaseDir } from '../../shared/log-files';
 import { writeStoredZip } from '../../shared/stored-zip';
 import { redactLogExportText } from './log-redaction';
 
@@ -32,10 +32,6 @@ export type ExportLogsOptions = {
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
-}
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function localWeekKey(date: Date): string {

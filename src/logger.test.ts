@@ -2,12 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveDefaultLogFilePath, setLogRotation } from './logger';
-
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
-    date.getDate(),
-  ).padStart(2, '0')}`;
-}
+import { localDateKey } from './shared/log-files';
 
 test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
   const today = localDateKey(new Date());

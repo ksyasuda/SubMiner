@@ -40,7 +40,7 @@ function padDatePart(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-function localDateKey(date: Date): string {
+export function localDateKey(date: Date): string {
   if (Number.isNaN(date.getTime())) {
     throw new RangeError('Invalid time value');
   }

@@ -1,9 +1,23 @@
 import assert from 'node:assert/strict';
+import { performance } from 'node:perf_hooks';
 import test from 'node:test';
 import { LOG_EXPORT_REDACTION_RULES, redactLogExportText } from './log-redaction';
 
 test('log export redaction rules expose auditable fixtures', () => {
-  assert.ok(LOG_EXPORT_REDACTION_RULES.length >= 8);
+  assert.deepEqual(
+    LOG_EXPORT_REDACTION_RULES.map((rule) => rule.name),
+    [
+      'signed-youtube-media-url-query',
+      'url-sensitive-components',
+      'sensitive-headers',
+      'yt-dlp-cookie-args',
+      'json-secret-values',
+      'generic-sensitive-key-values',
+      'home-path-usernames',
+      'email-addresses',
+      'ip-addresses',
+    ],
+  );
 
   const names = new Set<string>();
   for (const rule of LOG_EXPORT_REDACTION_RULES) {
@@ -15,6 +29,7 @@ test('log export redaction rules expose auditable fixtures', () => {
     assert.ok(rule.examples.length > 0, `${rule.name} examples`);
 
     for (const example of rule.examples) {
+      assert.equal(rule.redact(example.input), example.expected, `${rule.name} direct`);
       assert.equal(redactLogExportText(example.input), example.expected, rule.name);
     }
   }
@@ -35,6 +50,14 @@ test('redactLogExportText redacts parsed URL query values without swallowing pun
   assert.doesNotMatch(masked, /tok123/);
   assert.doesNotMatch(masked, /ani-token/);
   assert.doesNotMatch(masked, /secret-value/);
+});
+
+test('redactLogExportText redacts URL credentials containing at signs', () => {
+  const masked = redactLogExportText('GET https://alice:p@ss@example.test/watch?state=ok');
+
+  assert.equal(masked, 'GET https://<credentials>@example.test/watch?state=ok');
+  assert.doesNotMatch(masked, /alice/);
+  assert.doesNotMatch(masked, /p@ss/);
 });
 
 test('redactLogExportText redacts signed YouTube media URL query strings', () => {
@@ -71,4 +94,23 @@ test('redactLogExportText redacts nested JSON secret values', () => {
   assert.doesNotMatch(masked, /123/);
   assert.doesNotMatch(masked, /true/);
   assert.doesNotMatch(masked, /null/);
+});
+
+test('redactLogExportText redacts IPv6 addresses with zone identifiers', () => {
+  const masked = redactLogExportText('connected [fe80::1%en0]:443 and fe80::2%eth0');
+
+  assert.equal(masked, 'connected [<ip>]:443 and <ip>');
+});
+
+test('redactLogExportText keeps malformed JSON scans bounded', () => {
+  const malformedLine = `${'{'.repeat(20_000)} token=secret`;
+  const start = performance.now();
+  const masked = redactLogExportText(`${malformedLine}\njson {"token":"secret","safe":"ok"}`);
+  const elapsedMs = performance.now() - start;
+
+  assert.match(masked, /token=<redacted>/);
+  assert.match(masked, /json {"token":"<redacted>","safe":"ok"}/);
+  assert.doesNotMatch(masked, /token=secret/);
+  assert.doesNotMatch(masked, /"token":"secret"/);
+  assert.ok(elapsedMs < 100, `expected bounded scan under 100ms, got ${elapsedMs.toFixed(1)}ms`);
 });
