@@ -1200,6 +1200,23 @@ const youtubeMediaCache = createYoutubeMediaCacheService({
         );
       });
   },
+  onFailed: (event) => {
+    showConfiguredStatusNotification('YouTube media cache failed.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'error',
+      persistent: false,
+    });
+    void appState.ankiIntegration
+      ?.handleYoutubeMediaCacheFailed(event.url, { notifyStatus: false })
+      .catch((error) => {
+        logger.warn(
+          `Failed to drain queued YouTube media updates after cache failure: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+  },
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
 });

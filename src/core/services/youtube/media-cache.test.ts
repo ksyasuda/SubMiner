@@ -82,6 +82,10 @@ test('YouTube media cache exposes the downloaded file after the background job c
     assert.equal(spawnCalls.length, 1);
     assert.equal(spawnCalls[0]?.command, 'yt-dlp');
     assert.ok(spawnCalls[0]?.args.includes('--no-playlist'));
+    assert.ok(spawnCalls[0]?.args.includes('--force-ipv4'));
+    assert.equal(spawnCalls[0]?.args[spawnCalls[0].args.indexOf('--retries') + 1], '5');
+    assert.equal(spawnCalls[0]?.args[spawnCalls[0].args.indexOf('--fragment-retries') + 1], '5');
+    assert.equal(spawnCalls[0]?.args[spawnCalls[0].args.indexOf('--extractor-retries') + 1], '5');
     assert.ok(spawnCalls[0]?.args.includes('--merge-output-format'));
     assert.equal(
       spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-f') + 1],
@@ -102,6 +106,68 @@ test('YouTube media cache exposes the downloaded file after the background job c
 
     assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), outputPath);
     assert.deepEqual(readyEvents, [{ url: 'https://youtu.be/demo', path: outputPath }]);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache reports failed background downloads', async () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnedProcesses: FakeYtDlpProcess[] = [];
+  const failedEvents: Array<{ url: string }> = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      onFailed: (event) => {
+        failedEvents.push(event);
+      },
+      spawn: () => {
+        const proc = new FakeYtDlpProcess();
+        spawnedProcesses.push(proc);
+        return proc;
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background' });
+    spawnedProcesses[0]?.emit('close', 1);
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(failedEvents, [{ url: 'https://youtu.be/demo' }]);
+    assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), null);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache only reports a failed download once when error is followed by close', async () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnedProcesses: FakeYtDlpProcess[] = [];
+  const failedEvents: Array<{ url: string }> = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      onFailed: (event) => {
+        failedEvents.push(event);
+      },
+      spawn: () => {
+        const proc = new FakeYtDlpProcess();
+        spawnedProcesses.push(proc);
+        return proc;
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background' });
+    spawnedProcesses[0]?.emit('error', new Error('spawn failed'));
+    spawnedProcesses[0]?.emit('close', 1);
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(failedEvents, [{ url: 'https://youtu.be/demo' }]);
   } finally {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
   }
@@ -159,6 +225,31 @@ test('YouTube media cache applies the configured download height cap', () => {
   }
 });
 
+test('YouTube media cache removes stale files from previous runs on startup', () => {
+  const cacheRoot = makeTempCacheRoot();
+  const staleDir = path.join(cacheRoot, 'stale-session');
+  const spawnCalls: SpawnCall[] = [];
+
+  try {
+    fs.mkdirSync(staleDir, { recursive: true });
+    fs.writeFileSync(path.join(staleDir, 'media.mkv'), 'stale cached media');
+
+    createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args) => {
+        spawnCalls.push({ command, args });
+        return new FakeYtDlpProcess();
+      },
+    });
+
+    assert.equal(fs.existsSync(staleDir), false);
+    assert.deepEqual(spawnCalls, []);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
 test('YouTube media cache restarts when a ready cached file was deleted externally', async () => {
   const cacheRoot = makeTempCacheRoot();
   const spawnedProcesses: FakeYtDlpProcess[] = [];
@@ -193,6 +284,32 @@ test('YouTube media cache restarts when a ready cached file was deleted external
 
     assert.equal(spawnCalls.length, 2);
     assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), null);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache removes stale disk siblings before starting a new cache', () => {
+  const cacheRoot = makeTempCacheRoot();
+  const staleDir = path.join(cacheRoot, 'stale-sibling');
+  const spawnCalls: Array<{ command: string; args: string[] }> = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args) => {
+        spawnCalls.push({ command, args });
+        return new FakeYtDlpProcess();
+      },
+    });
+    fs.mkdirSync(staleDir, { recursive: true });
+    fs.writeFileSync(path.join(staleDir, 'media.mkv'), 'stale cached media');
+
+    cache.start('https://youtu.be/demo', { mode: 'background' });
+
+    assert.equal(fs.existsSync(staleDir), false);
+    assert.equal(spawnCalls.length, 1);
   } finally {
     fs.rmSync(cacheRoot, { recursive: true, force: true });
   }

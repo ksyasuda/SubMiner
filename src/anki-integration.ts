@@ -69,7 +69,10 @@ import {
 } from './anki-integration/media-source';
 import type { PendingYoutubeMediaUpdate } from './anki-integration/pending-youtube-media';
 import { PendingYoutubeMediaQueue } from './anki-integration/pending-youtube-media-queue';
-import type { PendingYoutubeMediaQueueReadyOptions } from './anki-integration/pending-youtube-media-queue';
+import type {
+  PendingYoutubeMediaQueueFailedOptions,
+  PendingYoutubeMediaQueueReadyOptions,
+} from './anki-integration/pending-youtube-media-queue';
 
 const log = createLogger('anki').child('integration');
 
@@ -950,6 +953,13 @@ export class AnkiIntegration {
     await this.pendingYoutubeMediaQueue.handleReady(sourceUrl, cachedPath, options);
   }
 
+  async handleYoutubeMediaCacheFailed(
+    sourceUrl: string,
+    options?: PendingYoutubeMediaQueueFailedOptions,
+  ): Promise<void> {
+    await this.pendingYoutubeMediaQueue.handleFailed(sourceUrl, options);
+  }
+
   private async generateAudio(context?: SubtitleMiningContext): Promise<Buffer | null> {
     const mpvClient = this.mpvClient;
     if (!mpvClient || !mpvClient.currentVideoPath) {
@@ -1595,7 +1605,7 @@ export class AnkiIntegration {
       miscInfoValue?: string;
     } = {};
 
-    if (this.config.media?.generateAudio && this.mpvClient?.currentVideoPath) {
+    if (this.config.media?.generateAudio !== false && this.mpvClient?.currentVideoPath) {
       try {
         const audioFilename = this.generateAudioFilename();
         const audioBuffer = await this.generateAudio();
@@ -1615,7 +1625,7 @@ export class AnkiIntegration {
       }
     }
 
-    if (this.config.media?.generateImage && this.mpvClient?.currentVideoPath) {
+    if (this.config.media?.generateImage !== false && this.mpvClient?.currentVideoPath) {
       try {
         const animatedLeadInSeconds = noteInfo
           ? await this.getAnimatedImageLeadInSeconds(noteInfo)

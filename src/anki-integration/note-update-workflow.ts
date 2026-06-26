@@ -234,9 +234,10 @@ export class NoteUpdateWorkflow {
         }
       }
 
+      const generateAudio = config.media?.generateAudio !== false;
+      const generateImage = config.media?.generateImage !== false;
       const mediaCacheQueued =
-        (config.media?.generateAudio || config.media?.generateImage) &&
-        this.deps.queuePendingYoutubeMediaUpdate
+        (generateAudio || generateImage) && this.deps.queuePendingYoutubeMediaUpdate
           ? await this.deps.queuePendingYoutubeMediaUpdate({
               noteId,
               noteInfo,
@@ -245,7 +246,7 @@ export class NoteUpdateWorkflow {
             })
           : false;
 
-      if (!mediaCacheQueued && config.media?.generateAudio) {
+      if (!mediaCacheQueued && generateAudio) {
         try {
           const audioFilename = this.deps.generateAudioFilename();
           const audioBuffer = await this.deps.generateAudio(subtitleMiningContext ?? undefined);
@@ -270,7 +271,7 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      if (!mediaCacheQueued && config.media?.generateImage) {
+      if (!mediaCacheQueued && generateImage) {
         try {
           const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
           const imageFilename = this.deps.generateImageFilename();

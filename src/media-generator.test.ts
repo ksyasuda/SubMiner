@@ -212,6 +212,8 @@ test('generateAudio adds remote input options before the ffmpeg input', async ()
     assert.ok(args.indexOf('-reconnect') < inputIndex);
     assert.equal(args[args.indexOf('-reconnect') + 1], '1');
     assert.equal(args[args.indexOf('-reconnect_streamed') + 1], '1');
+    assert.equal(args[args.indexOf('-reconnect_on_network_error') + 1], '1');
+    assert.equal(args[args.indexOf('-reconnect_on_http_error') + 1], '403,5xx');
     assert.equal(args[args.indexOf('-reconnect_delay_max') + 1], '5');
     assert.equal(args[args.indexOf('-user_agent') + 1], 'Mozilla/5.0');
     assert.equal(

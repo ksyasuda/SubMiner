@@ -65,7 +65,18 @@ export function normalizeMediaInput(input: MediaInput): NormalizedMediaInput {
 
   const inputArgs: string[] = [];
   if (input.inputOptions?.reconnect) {
-    inputArgs.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+    inputArgs.push(
+      '-reconnect',
+      '1',
+      '-reconnect_streamed',
+      '1',
+      '-reconnect_on_network_error',
+      '1',
+      '-reconnect_on_http_error',
+      '403,5xx',
+      '-reconnect_delay_max',
+      '5',
+    );
   }
 
   const userAgent = trimToNonEmptyString(input.inputOptions?.userAgent);

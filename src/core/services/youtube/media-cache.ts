@@ -40,6 +40,7 @@ export interface YoutubeMediaCacheServiceDeps {
   spawn?: SpawnProcess;
   onDownloadStarted?: (event: { url: string }) => void;
   onReady?: (event: { url: string; path: string }) => void;
+  onFailed?: (event: { url: string }) => void;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
 }
@@ -88,6 +89,13 @@ function createYtDlpArgs(url: string, outputTemplate: string, maxHeight?: number
   return [
     '--no-playlist',
     '--no-warnings',
+    '--force-ipv4',
+    '--retries',
+    '5',
+    '--fragment-retries',
+    '5',
+    '--extractor-retries',
+    '5',
     '-f',
     getFormatSelector(normalizeMaxHeight(maxHeight)),
     '--merge-output-format',
@@ -109,6 +117,29 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
   let activeKey: string | null = null;
 
   const getSessionDir = (url: string): string => path.join(cacheRoot, cacheKeyForUrl(url));
+  const removeCacheDir = (dir: string): void => {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // Temp cache cleanup should not block shutdown or playback startup.
+    }
+  };
+  const removeCacheRootEntriesExcept = (dirsToKeep: string[]): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(cacheRoot, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const keepDirs = new Set(dirsToKeep.map((dir) => path.resolve(dir)));
+    for (const entry of entries) {
+      const entryPath = path.join(cacheRoot, entry.name);
+      if (keepDirs.has(path.resolve(entryPath))) {
+        continue;
+      }
+      removeCacheDir(entryPath);
+    }
+  };
   const removeSession = (key: string): void => {
     const session = sessions.get(key);
     if (!session) {
@@ -121,11 +152,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
     if (activeKey === key) {
       activeKey = null;
     }
-    try {
-      fs.rmSync(session.dir, { recursive: true, force: true });
-    } catch {
-      // Temp cache cleanup should not block shutdown or playback startup.
-    }
+    removeCacheDir(session.dir);
   };
   const removeInactiveSessions = (keyToKeep: string): void => {
     for (const key of [...sessions.keys()]) {
@@ -134,6 +161,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
       }
     }
   };
+  removeCacheRootEntriesExcept([]);
 
   const getCachedMediaPath = async (url: string): Promise<string | null> => {
     const key = cacheKeyForUrl(url);
@@ -172,9 +200,11 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
 
     const key = cacheKeyForUrl(url);
     activeKey = key;
+    const dir = getSessionDir(url);
     const existingSession = sessions.get(key);
     if (existingSession?.state === 'running') {
       removeInactiveSessions(key);
+      removeCacheRootEntriesExcept([existingSession.dir]);
       return;
     }
     if (existingSession) {
@@ -184,14 +214,15 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
           findReadyMediaPath(existingSession.dir))
       ) {
         removeInactiveSessions(key);
+        removeCacheRootEntriesExcept([existingSession.dir]);
         return;
       }
       removeSession(key);
       activeKey = key;
     }
     removeInactiveSessions(key);
+    removeCacheRootEntriesExcept([dir]);
 
-    const dir = getSessionDir(url);
     fs.mkdirSync(dir, { recursive: true });
     const outputTemplate = path.join(dir, 'media.%(ext)s');
     const args = createYtDlpArgs(url, outputTemplate, options.maxHeight);
@@ -219,11 +250,15 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      deps.onFailed?.({ url });
     });
 
     child.once('close', (code) => {
       const currentSession = sessions.get(key);
       if (currentSession !== session) {
+        return;
+      }
+      if (session.state === 'failed') {
         return;
       }
       session.process = null;
@@ -239,6 +274,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
       }
       session.state = 'failed';
       deps.logWarn?.(`YouTube media cache download exited without a usable media file.`);
+      deps.onFailed?.({ url });
     });
   };
 

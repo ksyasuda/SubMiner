@@ -20,6 +20,14 @@ import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
 
 const log = createLogger('anki').child('integration.card-creation');
 
+function shouldGenerateAudio(config: AnkiConnectConfig): boolean {
+  return config.media?.generateAudio !== false;
+}
+
+function shouldGenerateImage(config: AnkiConnectConfig): boolean {
+  return config.media?.generateImage !== false;
+}
+
 export interface CardCreationNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
@@ -268,15 +276,18 @@ export class CardCreationService {
           `Clipboard update: timing range ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`,
         );
 
+        const config = this.deps.getConfig();
+        const generateAudio = shouldGenerateAudio(config);
+        const generateImage = shouldGenerateImage(config);
         const mediaResolverOptions = this.getMediaResolverOptions();
-        const audioSourcePath = this.deps.getConfig().media?.generateAudio
+        const audioSourcePath = generateAudio
           ? await resolveMediaGenerationInput(mpvClient, 'audio', mediaResolverOptions)
           : null;
-        const videoPath = this.deps.getConfig().media?.generateImage
+        const videoPath = generateImage
           ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)
           : null;
 
-        if (this.deps.getConfig().media?.generateAudio) {
+        if (generateAudio) {
           try {
             const audioFilename = this.generateAudioFilename();
             const audioBuffer = audioSourcePath
@@ -304,7 +315,7 @@ export class CardCreationService {
           }
         }
 
-        if (this.deps.getConfig().media?.generateImage) {
+        if (generateImage) {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
@@ -464,7 +475,7 @@ export class CardCreationService {
           errors.push('audio');
         }
 
-        if (this.deps.getConfig().media?.generateImage) {
+        if (shouldGenerateImage(this.deps.getConfig())) {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
@@ -545,22 +556,23 @@ export class CardCreationService {
 
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
+        const config = this.deps.getConfig();
+        const generateAudio = shouldGenerateAudio(config);
+        const generateImage = shouldGenerateImage(config);
         const mediaResolverOptions = this.getMediaResolverOptions();
-        const videoPath = await resolveMediaGenerationInput(
-          mpvClient,
-          'video',
-          mediaResolverOptions,
-        );
-        const audioSourcePath = await resolveMediaGenerationInput(
-          mpvClient,
-          'audio',
-          mediaResolverOptions,
-        );
+        const videoPath = generateImage
+          ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)
+          : null;
+        const audioSourcePath = generateAudio
+          ? await resolveMediaGenerationInput(mpvClient, 'audio', mediaResolverOptions)
+          : null;
+        const missingRequestedMediaInput =
+          (generateImage && !videoPath) || (generateAudio && !audioSourcePath);
         const shouldQueuePendingYoutubeMedia =
-          !videoPath &&
+          missingRequestedMediaInput &&
           this.deps.shouldRequireRemoteMediaCache?.() === true &&
           typeof this.deps.queuePendingYoutubeMediaUpdate === 'function';
-        if (!videoPath && !shouldQueuePendingYoutubeMedia) {
+        if (missingRequestedMediaInput && !shouldQueuePendingYoutubeMedia) {
           this.deps.showOsdNotification('No video loaded');
           return false;
         }
@@ -570,13 +582,13 @@ export class CardCreationService {
 
         const sentenceField = sentenceCardConfig.sentenceField;
         const audioFieldName = sentenceCardConfig.audioField || 'SentenceAudio';
-        const translationField = this.deps.getConfig().fields?.translation || 'SelectionText';
+        const translationField = config.fields?.translation || 'SelectionText';
         let resolvedMiscInfoField: string | null = null;
         let resolvedSentenceAudioField: string = audioFieldName;
 
         fields[sentenceField] = sentence;
 
-        const ankiAiConfig = this.deps.getConfig().ai;
+        const ankiAiConfig = config.ai;
         const ankiAiEnabled =
           typeof ankiAiConfig === 'object' && ankiAiConfig !== null
             ? ankiAiConfig.enabled === true
@@ -599,7 +611,7 @@ export class CardCreationService {
 
         if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
           fields.IsSentenceCard = 'x';
-          fields[getConfiguredWordFieldName(this.deps.getConfig())] = sentence;
+          fields[getConfiguredWordFieldName(config)] = sentence;
         }
 
         const pendingNoteInfo = this.createPendingNoteInfo(fields);
@@ -608,7 +620,7 @@ export class CardCreationService {
         );
         const pendingExpressionText = getPreferredWordValueFromExtractedFields(
           pendingNoteFields,
-          this.deps.getConfig(),
+          config,
         ).trim();
         let duplicateNoteIds: number[] = [];
         if (
@@ -626,7 +638,7 @@ export class CardCreationService {
           }
         }
 
-        const deck = this.deps.getConfig().deck || 'Default';
+        const deck = config.deck || 'Default';
         let noteId: number;
         try {
           noteId = await this.deps.client.addNote(
@@ -672,7 +684,7 @@ export class CardCreationService {
               this.deps.resolveNoteFieldName(createdNoteInfo, audioFieldName) || audioFieldName;
             resolvedMiscInfoField = this.deps.resolveConfiguredFieldName(
               createdNoteInfo,
-              this.deps.getConfig().fields?.miscInfo,
+              config.fields?.miscInfo,
             );
 
             const cardTypeFields: Record<string, string> = {};
@@ -699,54 +711,58 @@ export class CardCreationService {
             endTime,
             label,
             audioFieldName: resolvedSentenceAudioField,
-            imageFieldName: this.deps.getConfig().fields?.image,
+            imageFieldName: config.fields?.image,
             miscInfoFieldName: resolvedMiscInfoField ?? undefined,
-            generateAudio: this.deps.getConfig().media?.generateAudio !== false,
-            generateImage: this.deps.getConfig().media?.generateImage !== false,
+            generateAudio,
+            generateImage,
           });
           await this.deps.showNotification(noteId, label, 'media queued');
           return true;
         }
 
-        if (!videoPath) {
+        if (missingRequestedMediaInput) {
           return false;
         }
 
         const mediaFields: Record<string, string> = {};
 
-        try {
-          const audioFilename = this.generateAudioFilename();
-          const audioBuffer = audioSourcePath
-            ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
-            : null;
+        if (generateAudio) {
+          try {
+            const audioFilename = this.generateAudioFilename();
+            const audioBuffer = audioSourcePath
+              ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
+              : null;
 
-          if (audioBuffer) {
-            await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-            const audioValue = `[sound:${audioFilename}]`;
-            mediaFields[resolvedSentenceAudioField] = audioValue;
-            miscInfoFilename = audioFilename;
+            if (audioBuffer) {
+              await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
+              const audioValue = `[sound:${audioFilename}]`;
+              mediaFields[resolvedSentenceAudioField] = audioValue;
+              miscInfoFilename = audioFilename;
+            }
+          } catch (error) {
+            log.error('Failed to generate sentence audio:', (error as Error).message);
+            errors.push('audio');
           }
-        } catch (error) {
-          log.error('Failed to generate sentence audio:', (error as Error).message);
-          errors.push('audio');
         }
 
-        try {
-          const imageFilename = this.generateImageFilename();
-          const imageBuffer = await this.generateImageBuffer(videoPath, startTime, endTime);
+        if (generateImage) {
+          try {
+            const imageFilename = this.generateImageFilename();
+            const imageBuffer = await this.generateImageBuffer(videoPath!, startTime, endTime);
 
-          const imageField = this.deps.getConfig().fields?.image;
-          if (imageBuffer && imageField) {
-            await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
-            mediaFields[imageField] = `<img src="${imageFilename}">`;
-            miscInfoFilename = imageFilename;
+            const imageField = config.fields?.image;
+            if (imageBuffer && imageField) {
+              await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
+              mediaFields[imageField] = `<img src="${imageFilename}">`;
+              miscInfoFilename = imageFilename;
+            }
+          } catch (error) {
+            log.error('Failed to generate sentence image:', (error as Error).message);
+            errors.push('image');
           }
-        } catch (error) {
-          log.error('Failed to generate sentence image:', (error as Error).message);
-          errors.push('image');
         }
 
-        if (this.deps.getConfig().fields?.miscInfo) {
+        if (config.fields?.miscInfo) {
           const miscInfo = this.deps.formatMiscInfoPattern(miscInfoFilename || '', startTime);
           if (miscInfo && resolvedMiscInfoField) {
             mediaFields[resolvedMiscInfoField] = miscInfo;

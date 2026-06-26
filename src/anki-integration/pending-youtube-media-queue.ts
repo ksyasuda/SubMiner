@@ -12,6 +12,10 @@ export interface PendingYoutubeMediaQueueReadyOptions {
   notifyNoQueued?: boolean;
 }
 
+export interface PendingYoutubeMediaQueueFailedOptions {
+  notifyStatus?: boolean;
+}
+
 export interface PendingYoutubeMediaNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
@@ -65,6 +69,14 @@ function trimToNonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function shouldGenerateAudio(config: AnkiConnectConfig): boolean {
+  return config.media?.generateAudio !== false;
+}
+
+function shouldGenerateImage(config: AnkiConnectConfig): boolean {
+  return config.media?.generateImage !== false;
+}
+
 export class PendingYoutubeMediaQueue {
   private updates: PendingYoutubeMediaUpdate[] = [];
 
@@ -74,11 +86,16 @@ export class PendingYoutubeMediaQueue {
     if (!job.generateAudio && !job.generateImage) {
       return;
     }
+    const isFirstQueuedForSource = !this.updates.some((existing) =>
+      youtubeMediaUrlsMatch(existing.sourceUrl, job.sourceUrl),
+    );
     this.updates.push(job);
     this.deps.logInfo('Queued YouTube media update for note:', job.noteId);
-    this.deps.showStatusNotification(
-      'YouTube media cache is still downloading. Card media will be added when the cache is ready.',
-    );
+    if (isFirstQueuedForSource) {
+      this.deps.showStatusNotification(
+        'YouTube media cache is still downloading. Card media will be added when the cache is ready.',
+      );
+    }
   }
 
   async queueFromNote(job: {
@@ -124,8 +141,8 @@ export class PendingYoutubeMediaQueue {
         ) ?? undefined,
       miscInfoFieldName:
         this.deps.resolveConfiguredFieldName(job.noteInfo, config.fields?.miscInfo) ?? undefined,
-      generateAudio: config.media?.generateAudio === true,
-      generateImage: config.media?.generateImage === true,
+      generateAudio: shouldGenerateAudio(config),
+      generateImage: shouldGenerateImage(config),
     });
     return true;
   }
@@ -175,6 +192,39 @@ export class PendingYoutubeMediaQueue {
       this.deps.showStatusNotification(
         `Queued YouTube media finished with ${updatedCount} updated, ${partialCount} partial, and ${failedCount} failed.`,
       );
+    }
+  }
+
+  async handleFailed(
+    sourceUrl: string,
+    options: PendingYoutubeMediaQueueFailedOptions = {},
+  ): Promise<void> {
+    const jobs = this.takeMatchingUpdates(sourceUrl);
+    if (jobs.length === 0) {
+      if (options.notifyStatus !== false) {
+        this.deps.showStatusNotification('YouTube media cache failed.');
+      }
+      return;
+    }
+
+    if (options.notifyStatus !== false) {
+      this.deps.showStatusNotification(
+        `YouTube media cache failed. Media was not added to ${jobs.length} queued card${
+          jobs.length === 1 ? '' : 's'
+        }.`,
+      );
+    }
+    this.deps.logWarn('Discarding queued YouTube media updates after cache failure:', jobs.length);
+
+    for (const job of jobs) {
+      try {
+        await this.deps.showNotification(job.noteId, job.label, 'media cache failed');
+      } catch (error) {
+        this.deps.logWarn(
+          'Failed to show queued YouTube media failure notification:',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
   }
 
