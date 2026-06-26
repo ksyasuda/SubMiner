@@ -197,6 +197,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
 
   const start = (url: string, options: YoutubeMediaCacheStartOptions): void => {
     if (options.mode !== 'background') {
+      activeKey = null;
       return;
     }
 
