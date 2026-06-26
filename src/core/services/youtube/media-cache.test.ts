@@ -225,6 +225,80 @@ test('YouTube media cache applies the configured download height cap', () => {
   }
 });
 
+test('YouTube media cache restarts ready sessions when the height cap changes', async () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnedProcesses: FakeYtDlpProcess[] = [];
+  const spawnCalls: SpawnCall[] = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        const proc = new FakeYtDlpProcess();
+        spawnedProcesses.push(proc);
+        return proc;
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 720 });
+    const firstOutputTemplate = spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-o') + 1];
+    assert.equal(typeof firstOutputTemplate, 'string');
+    const firstOutputDir = path.dirname(firstOutputTemplate!);
+    const firstOutputPath = path.join(firstOutputDir, 'media.mkv');
+    fs.mkdirSync(firstOutputDir, { recursive: true });
+    fs.writeFileSync(firstOutputPath, 'cached media');
+    spawnedProcesses[0]?.emit('close', 0);
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), firstOutputPath);
+
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 480 });
+
+    assert.equal(spawnCalls.length, 2);
+    assert.equal(fs.existsSync(firstOutputPath), false);
+    assert.equal(await cache.getCachedMediaPath('https://youtu.be/demo'), null);
+    assert.equal(
+      spawnCalls[1]?.args[spawnCalls[1].args.indexOf('-f') + 1],
+      'bestvideo*[height<=480]+bestaudio/best[height<=480]',
+    );
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
+test('YouTube media cache restarts running sessions when the height cap changes', () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnedProcesses: FakeYtDlpProcess[] = [];
+  const spawnCalls: SpawnCall[] = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      spawn: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        const proc = new FakeYtDlpProcess();
+        spawnedProcesses.push(proc);
+        return proc;
+      },
+    });
+
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 720 });
+    cache.start('https://youtu.be/demo', { mode: 'background', maxHeight: 480 });
+
+    assert.equal(spawnedProcesses[0]?.killed, true);
+    assert.equal(spawnCalls.length, 2);
+    assert.equal(
+      spawnCalls[1]?.args[spawnCalls[1].args.indexOf('-f') + 1],
+      'bestvideo*[height<=480]+bestaudio/best[height<=480]',
+    );
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
 test('YouTube media cache removes stale files from previous runs on startup', () => {
   const cacheRoot = makeTempCacheRoot();
   const staleDir = path.join(cacheRoot, 'stale-session');

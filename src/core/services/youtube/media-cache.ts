@@ -24,6 +24,7 @@ type SpawnProcess = (
 interface MediaCacheSession {
   url: string;
   dir: string;
+  maxHeight: number;
   process: SpawnedProcess | null;
   readyPath: string | null;
   state: MediaCacheSessionState;
@@ -175,6 +176,7 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
       sessions.set(key, {
         url,
         dir: path.dirname(readyPath),
+        maxHeight: session?.maxHeight ?? DEFAULT_MAX_HEIGHT,
         process: null,
         readyPath,
         state: 'ready',
@@ -199,16 +201,19 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
     }
 
     const key = cacheKeyForUrl(url);
+    const maxHeight = normalizeMaxHeight(options.maxHeight);
     activeKey = key;
     const dir = getSessionDir(url);
     const existingSession = sessions.get(key);
-    if (existingSession?.state === 'running') {
+    const canReuseExistingSession = existingSession?.maxHeight === maxHeight;
+    if (existingSession?.state === 'running' && canReuseExistingSession) {
       removeInactiveSessions(key);
       removeCacheRootEntriesExcept([existingSession.dir]);
       return;
     }
     if (existingSession) {
       if (
+        canReuseExistingSession &&
         existingSession.state === 'ready' &&
         ((existingSession.readyPath && fs.existsSync(existingSession.readyPath)) ||
           findReadyMediaPath(existingSession.dir))
@@ -225,11 +230,12 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
 
     fs.mkdirSync(dir, { recursive: true });
     const outputTemplate = path.join(dir, 'media.%(ext)s');
-    const args = createYtDlpArgs(url, outputTemplate, options.maxHeight);
+    const args = createYtDlpArgs(url, outputTemplate, maxHeight);
     const child = spawn(getYtDlpCommand(), args, { stdio: ['ignore', 'ignore', 'ignore'] });
     const session: MediaCacheSession = {
       url,
       dir,
+      maxHeight,
       process: child,
       readyPath: null,
       state: 'running',
