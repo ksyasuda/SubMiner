@@ -197,6 +197,12 @@ export function createYoutubeMediaCacheService(deps: YoutubeMediaCacheServiceDep
 
   const start = (url: string, options: YoutubeMediaCacheStartOptions): void => {
     if (options.mode !== 'background') {
+      if (activeKey) {
+        const activeSession = sessions.get(activeKey);
+        if (activeSession?.state === 'running') {
+          removeSession(activeKey);
+        }
+      }
       activeKey = null;
       return;
     }

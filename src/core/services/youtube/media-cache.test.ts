@@ -149,6 +149,49 @@ test('YouTube media cache clears the active cache when direct mode starts', asyn
   }
 });
 
+test('YouTube media cache cancels the active download when direct mode starts', async () => {
+  const cacheRoot = makeTempCacheRoot();
+  const spawnedProcesses: FakeYtDlpProcess[] = [];
+  const spawnCalls: SpawnCall[] = [];
+  const readyEvents: Array<{ url: string; path: string }> = [];
+
+  try {
+    const cache = createYoutubeMediaCacheService({
+      cacheRoot,
+      getYtDlpCommand: () => 'yt-dlp',
+      onReady: (event) => {
+        readyEvents.push(event);
+      },
+      spawn: (command, args, options) => {
+        spawnCalls.push({ command, args, options });
+        const proc = new FakeYtDlpProcess();
+        spawnedProcesses.push(proc);
+        return proc;
+      },
+    });
+
+    cache.start('https://youtu.be/background', { mode: 'background' });
+    const outputTemplate = spawnCalls[0]?.args[spawnCalls[0].args.indexOf('-o') + 1];
+    assert.equal(typeof outputTemplate, 'string');
+    const outputDir = path.dirname(outputTemplate!);
+    const outputPath = path.join(outputDir, 'media.mkv');
+    fs.mkdirSync(outputDir, { recursive: true });
+    fs.writeFileSync(outputPath, 'cached media');
+
+    cache.start('https://youtu.be/direct', { mode: 'direct' });
+    spawnedProcesses[0]?.emit('close', 0);
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(spawnedProcesses[0]?.killed, true);
+    assert.deepEqual(readyEvents, []);
+    assert.equal(await cache.getActiveCachedMediaPath(), null);
+    assert.equal(await cache.getCachedMediaPath('https://youtu.be/background'), null);
+  } finally {
+    fs.rmSync(cacheRoot, { recursive: true, force: true });
+  }
+});
+
 test('YouTube media cache reports failed background downloads', async () => {
   const cacheRoot = makeTempCacheRoot();
   const spawnedProcesses: FakeYtDlpProcess[] = [];
