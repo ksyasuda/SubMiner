@@ -3,8 +3,14 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveDefaultLogFilePath, setLogRotation } from './logger';
 
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`;
+}
+
 test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const resolved = resolveDefaultLogFilePath({
     platform: 'win32',
     homeDir: 'C:\\Users\\tester',
@@ -20,7 +26,7 @@ test('resolveDefaultLogFilePath uses APPDATA on windows', () => {
 });
 
 test('resolveDefaultLogFilePath uses .config on linux', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const resolved = resolveDefaultLogFilePath({
     platform: 'linux',
     homeDir: '/home/tester',
@@ -34,7 +40,7 @@ test('resolveDefaultLogFilePath uses .config on linux', () => {
 
 test('setLogRotation accepts numeric retention days', () => {
   const previous = process.env.SUBMINER_LOG_ROTATION;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   setLogRotation(14);
   try {
     const resolved = resolveDefaultLogFilePath({

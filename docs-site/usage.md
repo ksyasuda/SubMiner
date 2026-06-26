@@ -148,7 +148,7 @@ SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin corre
 SubMiner.AppImage --help                  # Show all options
 ```
 
-The tray menu includes `Export Logs`, which creates the same sanitized log ZIP as `subminer logs -e` and shows the archive path when complete.
+The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token-like values, and signed YouTube media URL query strings.
 
 Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for starting or stopping cast discovery in the current app session without changing config.
 
@@ -191,7 +191,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 - `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
 - `subminer doctor`: health checks for core dependencies and runtime paths.
 - `subminer settings`: open the SubMiner settings window (also `subminer --settings`).
-- `subminer logs -e`: export a sanitized ZIP of today's logs, or the most recent logs when no current-day log exists.
+- `subminer logs -e`: export a sanitized ZIP of today's local-date logs, or the most recent logs when no current-day log exists. The exported copy masks common PII and secrets; on-disk logs are unchanged.
 - `subminer config`: config file helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.

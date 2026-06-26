@@ -12,6 +12,20 @@ import {
   resolveDefaultLogFilePath,
 } from './log-files';
 
+function withTimeZone<T>(timeZone: string, run: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
+
 test('resolveDefaultLogFilePath uses app prefix by default', () => {
   const now = new Date('2026-03-22T12:00:00.000Z');
   const resolved = resolveDefaultLogFilePath('app', {
@@ -23,6 +37,36 @@ test('resolveDefaultLogFilePath uses app prefix by default', () => {
   assert.equal(
     resolved,
     path.join('/home/tester', '.config', 'SubMiner', 'logs', 'app-2026-03-22.log'),
+  );
+});
+
+test('resolveDefaultLogFilePath uses the local date when UTC has advanced', () => {
+  withTimeZone('America/Los_Angeles', () => {
+    const now = new Date('2026-05-26T02:00:00.000Z');
+    assert.equal(now.toISOString().slice(0, 10), '2026-05-26');
+
+    const resolved = resolveDefaultLogFilePath('app', {
+      platform: 'linux',
+      homeDir: '/home/tester',
+      now,
+    });
+
+    assert.equal(
+      resolved,
+      path.join('/home/tester', '.config', 'SubMiner', 'logs', 'app-2026-05-25.log'),
+    );
+  });
+});
+
+test('resolveDefaultLogFilePath rejects invalid dates', () => {
+  assert.throws(
+    () =>
+      resolveDefaultLogFilePath('app', {
+        platform: 'linux',
+        homeDir: '/home/tester',
+        now: new Date('invalid'),
+      }),
+    /Invalid time value/,
   );
 });
 

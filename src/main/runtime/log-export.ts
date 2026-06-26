@@ -3,6 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { resolveLogBaseDir } from '../../shared/log-files';
 import { writeStoredZip } from '../../shared/stored-zip';
+import { redactLogExportText } from './log-redaction';
 
 type LogCandidate = {
   path: string;
@@ -28,8 +29,6 @@ export type ExportLogsOptions = {
   outputDir?: string;
   now?: Date;
 };
-
-const REDACTED_USER = '<user>';
 
 function pad(value: number): string {
   return String(value).padStart(2, '0');
@@ -167,9 +166,7 @@ function selectLogCandidates(
 }
 
 export function maskUsernamesInLogText(text: string): string {
-  return text
-    .replace(/(\/(?:home|Users)\/)([^/\r\n]+)(?=\/|$)/g, `$1${REDACTED_USER}`)
-    .replace(/([A-Za-z]:[\\/]+Users[\\/]+)([^\\/:\r\n]+)(?=[\\/]|$)/g, `$1${REDACTED_USER}`);
+  return redactLogExportText(text);
 }
 
 export function exportLogsArchive(options: ExportLogsOptions = {}): ExportLogsResult {
