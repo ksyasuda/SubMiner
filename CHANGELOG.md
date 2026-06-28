@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.17.1 (2026-06-27)
+
+### Added
+- YouTube Media Cache Mode: Adds `youtube.mediaCache.mode` with `direct` and `background` options. Background mode uses a yt-dlp cache download when direct stream extraction is unreliable — creates a text-only card immediately, queues media updates for mined notes, and fills audio/image fields once the download finishes. Progress is announced via overlay/OSD notifications. Downloads are capped at 720p by default (`youtube.mediaCache.maxHeight`). Switching back to direct mode cancels any in-flight background download.
+
+### Fixed
+- Log Export: Fixed log filenames to use the local date so exports around UTC midnight include the current day's logs rather than stale prior-day files. Expanded export redaction to mask IPs, emails, auth and cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL parameters.
+- YouTube Card Media: Improved media generation reliability by sending safer ffmpeg options for resolved streams and skipping stale stream maps (including cached YouTube files). Hardened background cache downloads with IPv4 and extractor retry flags; failed downloads now notify the user and clear queued media updates instead of leaving them silently pending. Stale background cache files are cleaned on startup and before each new download.
+
 ## v0.17.0 (2026-06-15)
 
 ### Changed
