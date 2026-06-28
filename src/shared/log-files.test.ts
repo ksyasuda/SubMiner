@@ -12,6 +12,45 @@ import {
   resolveDefaultLogFilePath,
 } from './log-files';
 
+function withTimeZone<T>(timeZone: string, run: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
+
+function withMockedNow<T>(isoDate: string, run: () => T): T {
+  const RealDate = Date;
+  const fixedMs = RealDate.parse(isoDate);
+  class FixedDate extends RealDate {
+    constructor(value?: string | number | Date) {
+      if (arguments.length === 0) {
+        super(fixedMs);
+      } else {
+        super(value as string);
+      }
+    }
+
+    static override now(): number {
+      return fixedMs;
+    }
+  }
+
+  globalThis.Date = FixedDate as DateConstructor;
+  try {
+    return run();
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
 test('resolveDefaultLogFilePath uses app prefix by default', () => {
   const now = new Date('2026-03-22T12:00:00.000Z');
   const resolved = resolveDefaultLogFilePath('app', {
@@ -23,6 +62,36 @@ test('resolveDefaultLogFilePath uses app prefix by default', () => {
   assert.equal(
     resolved,
     path.join('/home/tester', '.config', 'SubMiner', 'logs', 'app-2026-03-22.log'),
+  );
+});
+
+test('resolveDefaultLogFilePath uses the local date when UTC has advanced', () => {
+  withTimeZone('America/Los_Angeles', () => {
+    const now = new Date('2026-05-26T02:00:00.000Z');
+    assert.equal(now.toISOString().slice(0, 10), '2026-05-26');
+
+    const resolved = resolveDefaultLogFilePath('app', {
+      platform: 'linux',
+      homeDir: '/home/tester',
+      now,
+    });
+
+    assert.equal(
+      resolved,
+      path.join('/home/tester', '.config', 'SubMiner', 'logs', 'app-2026-05-25.log'),
+    );
+  });
+});
+
+test('resolveDefaultLogFilePath rejects invalid dates', () => {
+  assert.throws(
+    () =>
+      resolveDefaultLogFilePath('app', {
+        platform: 'linux',
+        homeDir: '/home/tester',
+        now: new Date('invalid'),
+      }),
+    /Invalid time value/,
   );
 });
 
@@ -89,6 +158,34 @@ test('pruneLogFiles removes logs older than retention window', () => {
   } finally {
     fs.rmSync(logsDir, { recursive: true, force: true });
   }
+});
+
+test('pruneLogDirectoryForPath deduplicates by local day across UTC midnight', () => {
+  withTimeZone('America/Los_Angeles', () => {
+    const logsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-log-prune-local-day-'));
+    const logPath = path.join(logsDir, 'app-2026-05-25.log');
+    const firstStalePath = path.join(logsDir, 'app-first-stale.log');
+    const secondStalePath = path.join(logsDir, 'app-second-stale.log');
+    const staleDate = new Date('2026-05-01T12:00:00.000Z');
+
+    try {
+      fs.writeFileSync(firstStalePath, 'stale\n', 'utf8');
+      fs.utimesSync(firstStalePath, staleDate, staleDate);
+
+      withMockedNow('2026-05-25T23:30:00.000Z', () => pruneLogDirectoryForPath(logPath, 7));
+
+      assert.equal(fs.existsSync(firstStalePath), false);
+
+      fs.writeFileSync(secondStalePath, 'stale\n', 'utf8');
+      fs.utimesSync(secondStalePath, staleDate, staleDate);
+
+      withMockedNow('2026-05-26T00:30:00.000Z', () => pruneLogDirectoryForPath(logPath, 7));
+
+      assert.equal(fs.existsSync(secondStalePath), true);
+    } finally {
+      fs.rmSync(logsDir, { recursive: true, force: true });
+    }
+  });
 });
 
 test('appendLogLine trims oversized logs to newest bytes', () => {

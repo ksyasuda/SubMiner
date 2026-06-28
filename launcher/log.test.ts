@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { getDefaultLauncherLogFile, getDefaultMpvLogFile } from './types.js';
+import { localDateKey } from '../src/shared/log-files.js';
 
 test('getDefaultMpvLogFile uses APPDATA on windows', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const resolved = getDefaultMpvLogFile({
     platform: 'win32',
     homeDir: 'C:\\Users\\tester',
@@ -20,7 +21,7 @@ test('getDefaultMpvLogFile uses APPDATA on windows', () => {
 });
 
 test('getDefaultLauncherLogFile uses launcher prefix', () => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey(new Date());
   const resolved = getDefaultLauncherLogFile({
     platform: 'linux',
     homeDir: '/home/tester',

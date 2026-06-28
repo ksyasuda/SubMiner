@@ -14,6 +14,20 @@ function cleanupDir(dirPath: string): void {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
+function withTimeZone<T>(timeZone: string, run: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
+
 function writeLog(logsDir: string, name: string, content: string, mtime: string): string {
   const logPath = path.join(logsDir, name);
   fs.writeFileSync(logPath, content, 'utf8');
@@ -65,6 +79,80 @@ test('maskUsernamesInLogText redacts linux macOS and Windows home paths', () => 
   assert.match(masked, /C:\\Users\\<user>\\AppData/);
   assert.match(masked, /C:\\\\Users\\\\<user>\\\\AppData/);
   assert.doesNotMatch(masked, /kyle/);
+});
+
+test('maskUsernamesInLogText redacts IP addresses and emails', () => {
+  const masked = maskUsernamesInLogText(
+    [
+      'ffmpeg failed after request from public ip 203.0.113.42',
+      'connect tcp 192.168.1.25:443: i/o timeout',
+      'remote addr [2001:db8::1234]:443',
+      'support email kyle@example.test',
+    ].join('\n'),
+  );
+
+  assert.match(masked, /public ip <ip>/);
+  assert.match(masked, /tcp <ip>:443/);
+  assert.match(masked, /remote addr \[<ip>\]:443/);
+  assert.match(masked, /support email <email>/);
+  assert.doesNotMatch(masked, /203\.0\.113\.42/);
+  assert.doesNotMatch(masked, /192\.168\.1\.25/);
+  assert.doesNotMatch(masked, /2001:db8::1234/);
+  assert.doesNotMatch(masked, /kyle@example\.test/);
+});
+
+test('maskUsernamesInLogText redacts headers and yt-dlp cookie arguments', () => {
+  const masked = maskUsernamesInLogText(
+    [
+      'Authorization: Bearer ya29.secret-token',
+      'Cookie: SID=session-value; HSID=history-value',
+      'Set-Cookie: VISITOR_INFO1_LIVE=visitor; Path=/',
+      'x-goog-visitor-id: Cgt2aXNpdG9y',
+      'warn yt-dlp header Authorization: Bearer inline-token',
+      'yt-dlp --cookies /Users/kyle/cookies.txt --cookies-from-browser chrome:Profile 1',
+      'yt-dlp --cookies=/tmp/ytdlp-cookies.txt --cookies-from-browser=firefox:default',
+    ].join('\n'),
+  );
+
+  assert.match(masked, /Authorization: <redacted>/);
+  assert.match(masked, /Cookie: <redacted>/);
+  assert.match(masked, /Set-Cookie: <redacted>/);
+  assert.match(masked, /x-goog-visitor-id: <redacted>/i);
+  assert.match(masked, /--cookies <redacted>/);
+  assert.match(masked, /--cookies=<redacted>/);
+  assert.match(masked, /--cookies-from-browser <redacted>/);
+  assert.match(masked, /--cookies-from-browser=<redacted>/);
+  assert.doesNotMatch(masked, /ya29/);
+  assert.doesNotMatch(masked, /inline-token/);
+  assert.doesNotMatch(masked, /session-value/);
+  assert.doesNotMatch(masked, /cookies\.txt/);
+  assert.doesNotMatch(masked, /firefox:default/);
+});
+
+test('maskUsernamesInLogText redacts URL credentials and sensitive query values', () => {
+  const masked = maskUsernamesInLogText(
+    [
+      'GET https://alice:secret@example.test/watch?v=abc&access_token=tok123&api_key=key456',
+      'stream https://video.example.test/file.m3u8?signature=sig789&expire=1777777777',
+      'callback subminer://anilist-setup?access_token=ani-token&state=ok',
+      'json {"password":"hunter2","refreshToken":"refresh-token","client_secret":"client-secret"}',
+    ].join('\n'),
+  );
+
+  assert.match(masked, /https:\/\/<credentials>@example\.test/);
+  assert.match(masked, /access_token=<redacted>/);
+  assert.match(masked, /api_key=<redacted>/);
+  assert.match(masked, /signature=<redacted>/);
+  assert.match(masked, /"password":"<redacted>"/);
+  assert.match(masked, /"refreshToken":"<redacted>"/);
+  assert.match(masked, /"client_secret":"<redacted>"/);
+  assert.doesNotMatch(masked, /alice:secret/);
+  assert.doesNotMatch(masked, /tok123/);
+  assert.doesNotMatch(masked, /key456/);
+  assert.doesNotMatch(masked, /sig789/);
+  assert.doesNotMatch(masked, /ani-token/);
+  assert.doesNotMatch(masked, /hunter2/);
+  assert.match(masked, /state=ok/);
 });
 
 test('exportLogsArchive exports current-day logs and masks usernames', () => {
@@ -150,6 +238,43 @@ test('exportLogsArchive ignores older dated logs when current-day dated logs exi
   } finally {
     cleanupDir(root);
   }
+});
+
+test('exportLogsArchive ranks dated fallback logs by local day freshness', () => {
+  withTimeZone('America/Los_Angeles', () => {
+    const root = makeTempDir();
+    const logsDir = path.join(root, 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    try {
+      const datedLog = writeLog(
+        logsDir,
+        'app-2026-05-25.log',
+        'dated local-day log\n',
+        '2026-05-25T12:00:00Z',
+      );
+      writeLog(
+        logsDir,
+        'app-2026-05-undated.log',
+        'undated touched before local midnight\n',
+        '2026-05-26T01:00:00Z',
+      );
+
+      const result = exportLogsArchive({
+        logsDir,
+        outputDir: root,
+        now: new Date('2026-05-27T16:00:00.000Z'),
+      });
+
+      assert.equal(result.mode, 'most-recent');
+      assert.deepEqual(result.exportedFiles, [datedLog]);
+
+      const entries = readStoredZipEntries(result.zipPath);
+      assert.deepEqual([...entries.keys()], ['logs/app-2026-05-25.log']);
+    } finally {
+      cleanupDir(root);
+    }
+  });
 });
 
 test('exportLogsArchive falls back to newest log per kind', () => {

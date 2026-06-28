@@ -83,7 +83,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows                  |
 | `subminer doctor`                          | Dependency + config + socket diagnostics                           |
 | `subminer settings`                        | Open the SubMiner settings window                                  |
-| `subminer logs -e`                         | Export a sanitized log ZIP and print its path                      |
+| `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path           |
 | `subminer config path`                     | Print active config file path                                      |
 | `subminer config show`                     | Print active config contents                                       |
 | `subminer mpv status`                      | Check mpv socket readiness                                         |

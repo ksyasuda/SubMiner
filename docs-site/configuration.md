@@ -188,6 +188,9 @@ Control the minimum log level for runtime output:
 | `files.launcher` | boolean                                  | Write launcher command logs (default: `true`)                        |
 | `files.mpv`      | boolean                                  | Write mpv player logs. Enable temporarily for mpv/plugin debugging.  |
 
+Log filenames use the local calendar date, for example `app-YYYY-MM-DD.log`, `launcher-YYYY-MM-DD.log`, and `mpv-YYYY-MM-DD.log`.
+Log export creates a sanitized copy of those files; it does not rewrite the original log files on disk.
+
 ### Updates
 
 Configure automatic update checks and update notifications:

@@ -36,6 +36,17 @@ function floorDiv(left: number, right: number): number {
   return Math.floor(left / right);
 }
 
+function padDatePart(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+export function localDateKey(date: Date): string {
+  if (Number.isNaN(date.getTime())) {
+    throw new RangeError('Invalid time value');
+  }
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+}
+
 function daysFromCivil(year: number, month: number, day: number): bigint {
   const adjustedYear = year - (month <= 2 ? 1 : 0);
   const era = floorDiv(adjustedYear >= 0 ? adjustedYear : adjustedYear - 399, 400);
@@ -78,7 +89,7 @@ export function resolveDefaultLogFilePath(
   },
 ): string {
   const now = options?.now ?? new Date();
-  const suffix = now.toISOString().slice(0, 10);
+  const suffix = localDateKey(now);
   return path.join(resolveLogBaseDir(options), 'logs', `${kind}-${suffix}.log`);
 }
 
@@ -167,7 +178,7 @@ export function pruneLogFiles(
 
 function maybePruneLogDirectory(logPath: string, retentionDays: number): void {
   const logsDir = path.dirname(logPath);
-  const key = `${logsDir}:${new Date().toISOString().slice(0, 10)}:${retentionDays}`;
+  const key = `${logsDir}:${localDateKey(new Date())}:${retentionDays}`;
   if (prunedDirectories.has(key)) return;
   pruneLogFiles(logsDir, { retentionDays });
   prunedDirectories.add(key);
