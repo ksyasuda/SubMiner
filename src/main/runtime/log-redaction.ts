@@ -101,7 +101,7 @@ const SENSITIVE_INLINE_HEADER_RE = new RegExp(
 );
 const KEY_VALUE_NAME_PATTERN = '[A-Za-z0-9][A-Za-z0-9_.%-]*';
 const SENSITIVE_QUOTED_VALUE_RE = new RegExp(
-  `(["'])(${KEY_VALUE_NAME_PATTERN})\\1(\\s*[:=]\\s*)(["'])([^"'\\r\\n]*)\\4`,
+  `(["'])(${KEY_VALUE_NAME_PATTERN})\\1(\\s*[:=]\\s*)(["'])((?:(?!\\4)[^\\r\\n])*)\\4`,
   'g',
 );
 const SENSITIVE_UNQUOTED_VALUE_RE = new RegExp(

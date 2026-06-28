@@ -114,6 +114,12 @@ test('redactLogExportText redacts compound secret keys', () => {
   assert.doesNotMatch(masked, /sk-inline|AIza-inline|hunter-inline/);
 });
 
+test('redactLogExportText redacts quoted secret values containing the opposite quote', () => {
+  const masked = redactLogExportText(`"password":"pa'ss" 'token':'to"ken' "safe":"pa'ss"`);
+
+  assert.equal(masked, `"password":"<redacted>" 'token':'<redacted>' "safe":"pa'ss"`);
+});
+
 test('redactLogExportText redacts IPv6 addresses with zone identifiers', () => {
   const masked = redactLogExportText('connected [fe80::1%en0]:443 and fe80::2%eth0');
 
