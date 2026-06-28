@@ -95,6 +95,25 @@ test('redactLogExportText redacts nested JSON secret values', () => {
   assert.doesNotMatch(masked, /null/);
 });
 
+test('redactLogExportText redacts compound secret keys', () => {
+  const masked = redactLogExportText(
+    [
+      'json {"openaiApiKey":"sk-secret","google_api_key":"AIza-secret","userPassword":"hunter2","safe":"ok"}',
+      'openaiApiKey=sk-inline google_api_key=AIza-inline userPassword=hunter-inline',
+    ].join('\n'),
+  );
+
+  assert.match(masked, /"openaiApiKey":"<redacted>"/);
+  assert.match(masked, /"google_api_key":"<redacted>"/);
+  assert.match(masked, /"userPassword":"<redacted>"/);
+  assert.match(masked, /"safe":"ok"/);
+  assert.match(masked, /openaiApiKey=<redacted>/);
+  assert.match(masked, /google_api_key=<redacted>/);
+  assert.match(masked, /userPassword=<redacted>/);
+  assert.doesNotMatch(masked, /sk-secret|AIza-secret|hunter2/);
+  assert.doesNotMatch(masked, /sk-inline|AIza-inline|hunter-inline/);
+});
+
 test('redactLogExportText redacts IPv6 addresses with zone identifiers', () => {
   const masked = redactLogExportText('connected [fe80::1%en0]:443 and fe80::2%eth0');
 

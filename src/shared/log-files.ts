@@ -178,7 +178,7 @@ export function pruneLogFiles(
 
 function maybePruneLogDirectory(logPath: string, retentionDays: number): void {
   const logsDir = path.dirname(logPath);
-  const key = `${logsDir}:${new Date().toISOString().slice(0, 10)}:${retentionDays}`;
+  const key = `${logsDir}:${localDateKey(new Date())}:${retentionDays}`;
   if (prunedDirectories.has(key)) return;
   pruneLogFiles(logsDir, { retentionDays });
   prunedDirectories.add(key);

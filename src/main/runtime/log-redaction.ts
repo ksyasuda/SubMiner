@@ -54,7 +54,43 @@ const SENSITIVE_VALUE_KEY_PATTERNS = [
   'token',
 ].join('|');
 
-const SENSITIVE_VALUE_KEY_RE = new RegExp(`^(?:${SENSITIVE_VALUE_KEY_PATTERNS})$`, 'i');
+const SENSITIVE_VALUE_KEY_SEQUENCES: readonly (readonly string[])[] = [
+  ['access', 'token'],
+  ['api', 'key'],
+  ['apikey'],
+  ['authorization'],
+  ['client', 'secret'],
+  ['cookie'],
+  ['cookies'],
+  ['id', 'token'],
+  ['password'],
+  ['passwd'],
+  ['pwd'],
+  ['refresh', 'token'],
+  ['secret'],
+  ['session'],
+  ['sid'],
+  ['sig'],
+  ['signature'],
+  ['token'],
+];
+const SENSITIVE_NORMALIZED_KEY_SUFFIXES = [
+  'accesstoken',
+  'apikey',
+  'authorization',
+  'clientsecret',
+  'cookie',
+  'cookies',
+  'idtoken',
+  'password',
+  'passwd',
+  'pwd',
+  'refreshtoken',
+  'secret',
+  'session',
+  'signature',
+  'token',
+] as const;
 const SENSITIVE_HEADER_RE = new RegExp(
   `(^|\\r?\\n)(\\s*(?:${SENSITIVE_HEADER_NAMES})\\s*:\\s*)[^\\r\\n]*`,
   'gi',
@@ -63,13 +99,14 @@ const SENSITIVE_INLINE_HEADER_RE = new RegExp(
   `\\b((?:${SENSITIVE_HEADER_NAMES})\\s*:\\s*)[^\\r\\n]*`,
   'gi',
 );
+const KEY_VALUE_NAME_PATTERN = '[A-Za-z0-9][A-Za-z0-9_.%-]*';
 const SENSITIVE_QUOTED_VALUE_RE = new RegExp(
-  `(["'])(${SENSITIVE_VALUE_KEY_PATTERNS})\\1(\\s*[:=]\\s*)(["'])([^"'\\r\\n]*)\\4`,
-  'gi',
+  `(["'])(${KEY_VALUE_NAME_PATTERN})\\1(\\s*[:=]\\s*)(["'])([^"'\\r\\n]*)\\4`,
+  'g',
 );
 const SENSITIVE_UNQUOTED_VALUE_RE = new RegExp(
-  `\\b(${SENSITIVE_VALUE_KEY_PATTERNS})(\\s*[:=]\\s*)(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|[^\\s,}\\]\\)&<>"']+)`,
-  'gi',
+  `\\b(${KEY_VALUE_NAME_PATTERN})(\\s*[:=]\\s*)(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|[^\\s,}\\]\\)&<>"']+)`,
+  'g',
 );
 const YTDLP_COOKIE_EQUALS_RE =
   /(--(?:cookies|cookies-from-browser)=)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s\r\n]+)/gi;
@@ -93,8 +130,34 @@ function safeDecodeFormComponent(value: string): string {
   }
 }
 
+function tokenizeValueKey(key: string): string[] {
+  return (
+    key
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .match(/[a-z0-9]+/g) ?? []
+  );
+}
+
+function containsTokenSequence(tokens: readonly string[], sequence: readonly string[]): boolean {
+  for (let index = 0; index <= tokens.length - sequence.length; index += 1) {
+    if (sequence.every((token, offset) => tokens[index + offset] === token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isSensitiveValueKey(key: string): boolean {
-  return SENSITIVE_VALUE_KEY_RE.test(safeDecodeFormComponent(key));
+  const decoded = safeDecodeFormComponent(key);
+  const tokens = tokenizeValueKey(decoded);
+  if (SENSITIVE_VALUE_KEY_SEQUENCES.some((sequence) => containsTokenSequence(tokens, sequence))) {
+    return true;
+  }
+
+  const normalized = tokens.join('');
+  return SENSITIVE_NORMALIZED_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
 }
 
 function splitTrailingUrlPunctuation(token: string): { core: string; trailing: string } {
@@ -283,10 +346,13 @@ function redactSensitiveKeyValues(text: string): string {
   return text
     .replace(
       SENSITIVE_QUOTED_VALUE_RE,
-      (_match, keyQuote: string, key: string, separator: string, valueQuote: string) =>
-        `${keyQuote}${key}${keyQuote}${separator}${valueQuote}${REDACTED_VALUE}${valueQuote}`,
+      (match, keyQuote: string, key: string, separator: string, valueQuote: string) =>
+        isSensitiveValueKey(key)
+          ? `${keyQuote}${key}${keyQuote}${separator}${valueQuote}${REDACTED_VALUE}${valueQuote}`
+          : match,
     )
     .replace(SENSITIVE_UNQUOTED_VALUE_RE, (match, key: string, separator: string) => {
+      if (!isSensitiveValueKey(key)) return match;
       const value = match.slice(key.length + separator.length);
       const quote = value[0];
       if (quote === '"' || quote === "'") {
@@ -386,6 +452,10 @@ export const LOG_EXPORT_REDACTION_RULES: readonly LogRedactionRule[] = [
         input: 'json {"token":123,"safe":"ok"}',
         expected: `json {"token":"${REDACTED_VALUE}","safe":"ok"}`,
       },
+      {
+        input: 'json {"openaiApiKey":"sk-secret","safe":"ok"}',
+        expected: `json {"openaiApiKey":"${REDACTED_VALUE}","safe":"ok"}`,
+      },
     ],
     redact: redactJsonPayloads,
   },
@@ -398,6 +468,10 @@ export const LOG_EXPORT_REDACTION_RULES: readonly LogRedactionRule[] = [
       {
         input: 'refreshToken=abc123 state=ok',
         expected: `refreshToken=${REDACTED_VALUE} state=ok`,
+      },
+      {
+        input: 'google_api_key=AIza-secret userPassword=hunter2',
+        expected: `google_api_key=${REDACTED_VALUE} userPassword=${REDACTED_VALUE}`,
       },
     ],
     redact: redactSensitiveKeyValues,

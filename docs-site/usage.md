@@ -148,7 +148,7 @@ SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin corre
 SubMiner.AppImage --help                  # Show all options
 ```
 
-The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token-like values, and signed YouTube media URL query strings.
+The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL query strings. The exported copy is sanitized; source log files remain unredacted on disk.
 
 Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for starting or stopping cast discovery in the current app session without changing config.
 

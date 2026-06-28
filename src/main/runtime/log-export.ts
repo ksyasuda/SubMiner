@@ -121,17 +121,41 @@ function selectMostRecentPerKind(candidates: LogCandidate[]): LogCandidate[] {
   return [...byKind.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function localDateEndMs(dateKey: string): number | null {
+  const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day, 23, 59, 59, 999);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date.getTime();
+}
+
+function localWeekEndMs(weekKey: string): number | null {
+  const match = weekKey.match(/^(\d{4})-W(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const date = new Date(year, 0, week * 7, 23, 59, 59, 999);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
 function candidateFreshnessMs(candidate: LogCandidate): number {
   if (candidate.fileDateKey) {
-    return Date.parse(`${candidate.fileDateKey}T23:59:59.999Z`);
+    return localDateEndMs(candidate.fileDateKey) ?? candidate.mtimeMs;
   }
   if (candidate.fileWeekKey) {
-    const match = candidate.fileWeekKey.match(/^(\d{4})-W(\d{2})$/);
-    if (match) {
-      const year = Number(match[1]);
-      const week = Number(match[2]);
-      return Date.UTC(year, 0, week * 7, 23, 59, 59, 999);
-    }
+    return localWeekEndMs(candidate.fileWeekKey) ?? candidate.mtimeMs;
   }
   return candidate.mtimeMs;
 }

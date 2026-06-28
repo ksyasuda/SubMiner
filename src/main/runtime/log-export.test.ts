@@ -14,6 +14,20 @@ function cleanupDir(dirPath: string): void {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
+function withTimeZone<T>(timeZone: string, run: () => T): T {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    return run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = previous;
+    }
+  }
+}
+
 function writeLog(logsDir: string, name: string, content: string, mtime: string): string {
   const logPath = path.join(logsDir, name);
   fs.writeFileSync(logPath, content, 'utf8');
@@ -224,6 +238,43 @@ test('exportLogsArchive ignores older dated logs when current-day dated logs exi
   } finally {
     cleanupDir(root);
   }
+});
+
+test('exportLogsArchive ranks dated fallback logs by local day freshness', () => {
+  withTimeZone('America/Los_Angeles', () => {
+    const root = makeTempDir();
+    const logsDir = path.join(root, 'logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    try {
+      const datedLog = writeLog(
+        logsDir,
+        'app-2026-05-25.log',
+        'dated local-day log\n',
+        '2026-05-25T12:00:00Z',
+      );
+      writeLog(
+        logsDir,
+        'app-2026-05-undated.log',
+        'undated touched before local midnight\n',
+        '2026-05-26T01:00:00Z',
+      );
+
+      const result = exportLogsArchive({
+        logsDir,
+        outputDir: root,
+        now: new Date('2026-05-27T16:00:00.000Z'),
+      });
+
+      assert.equal(result.mode, 'most-recent');
+      assert.deepEqual(result.exportedFiles, [datedLog]);
+
+      const entries = readStoredZipEntries(result.zipPath);
+      assert.deepEqual([...entries.keys()], ['logs/app-2026-05-25.log']);
+    } finally {
+      cleanupDir(root);
+    }
+  });
 });
 
 test('exportLogsArchive falls back to newest log per kind', () => {
