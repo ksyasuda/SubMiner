@@ -37,6 +37,11 @@ type OverlayRuntimeOptions = {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  getCachedMediaPath?: (
+    currentVideoPath: string,
+    kind: 'audio' | 'video',
+  ) => Promise<string | null>;
+  shouldRequireRemoteMediaCache?: () => boolean;
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -71,6 +76,11 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
   getKnownWordCacheStatePath: () => string;
+  getCachedMediaPath?: (
+    currentVideoPath: string,
+    kind: 'audio' | 'video',
+  ) => Promise<string | null>;
+  shouldRequireRemoteMediaCache?: () => boolean;
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -97,6 +107,10 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     showOverlayNotification: deps.showOverlayNotification,
     createFieldGroupingCallback: deps.createFieldGroupingCallback,
     getKnownWordCacheStatePath: deps.getKnownWordCacheStatePath,
+    ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),
+    ...(deps.shouldRequireRemoteMediaCache
+      ? { shouldRequireRemoteMediaCache: deps.shouldRequireRemoteMediaCache }
+      : {}),
     shouldStartAnkiIntegration: deps.shouldStartAnkiIntegration,
     bindOverlayOwner: deps.bindOverlayOwner,
     releaseOverlayOwner: deps.releaseOverlayOwner,

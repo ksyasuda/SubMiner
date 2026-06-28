@@ -5,14 +5,28 @@ import {
 } from '../anki-field-config';
 import { AnkiConnectConfig } from '../types/anki';
 import { createLogger } from '../logger';
+import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
 import { AiConfig } from '../types/integrations';
 import { MpvClient } from '../types/runtime';
 import { resolveSentenceBackText } from './ai';
-import { resolveMediaGenerationInputPath } from './media-source';
+import {
+  resolveMediaGenerationInput,
+  resolveAudioStreamIndexForMediaGeneration,
+  type MediaGenerationInputResolverOptions,
+} from './media-source';
 import { shouldMarkWordAndSentenceCard } from './note-field-utils';
+import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
 
 const log = createLogger('anki').child('integration.card-creation');
+
+function shouldGenerateAudio(config: AnkiConnectConfig): boolean {
+  return config.media?.generateAudio !== false;
+}
+
+function shouldGenerateImage(config: AnkiConnectConfig): boolean {
+  return config.media?.generateImage !== false;
+}
 
 export interface CardCreationNoteInfo {
   noteId: number;
@@ -38,14 +52,14 @@ interface CardCreationClient {
 
 interface CardCreationMediaGenerator {
   generateAudio(
-    path: string,
+    path: MediaInput,
     startTime: number,
     endTime: number,
     audioPadding?: number,
     audioStreamIndex?: number,
   ): Promise<Buffer | null>;
   generateScreenshot(
-    path: string,
+    path: MediaInput,
     timestamp: number,
     options: {
       format: 'jpg' | 'png' | 'webp';
@@ -55,7 +69,7 @@ interface CardCreationMediaGenerator {
     },
   ): Promise<Buffer | null>;
   generateAnimatedImage(
-    path: string,
+    path: MediaInput,
     startTime: number,
     endTime: number,
     audioPadding?: number,
@@ -74,6 +88,9 @@ interface CardCreationDeps {
   getAiConfig: () => AiConfig;
   getTimingTracker: () => SubtitleTimingTracker;
   getMpvClient: () => MpvClient;
+  getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'];
+  shouldRequireRemoteMediaCache?: () => boolean;
+  queuePendingYoutubeMediaUpdate?: (job: PendingYoutubeMediaUpdate) => void;
   getDeck?: () => string | undefined;
   client: CardCreationClient;
   mediaGenerator: CardCreationMediaGenerator;
@@ -120,6 +137,19 @@ interface CardCreationDeps {
 
 export class CardCreationService {
   constructor(private readonly deps: CardCreationDeps) {}
+
+  private getMediaResolverOptions(): MediaGenerationInputResolverOptions {
+    const options: MediaGenerationInputResolverOptions = {
+      logDebug: (message) => log.debug(message),
+    };
+    if (this.deps.getCachedMediaPath) {
+      options.getCachedMediaPath = this.deps.getCachedMediaPath;
+    }
+    if (this.deps.shouldRequireRemoteMediaCache?.()) {
+      options.remoteCacheMode = 'required';
+    }
+    return options;
+  }
 
   private getConfiguredAnkiTags(): string[] {
     const tags = this.deps.getConfig().tags;
@@ -246,14 +276,18 @@ export class CardCreationService {
           `Clipboard update: timing range ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`,
         );
 
-        const audioSourcePath = this.deps.getConfig().media?.generateAudio
-          ? await resolveMediaGenerationInputPath(mpvClient, 'audio')
+        const config = this.deps.getConfig();
+        const generateAudio = shouldGenerateAudio(config);
+        const generateImage = shouldGenerateImage(config);
+        const mediaResolverOptions = this.getMediaResolverOptions();
+        const audioSourcePath = generateAudio
+          ? await resolveMediaGenerationInput(mpvClient, 'audio', mediaResolverOptions)
           : null;
-        const videoPath = this.deps.getConfig().media?.generateImage
-          ? await resolveMediaGenerationInputPath(mpvClient, 'video')
+        const videoPath = generateImage
+          ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)
           : null;
 
-        if (this.deps.getConfig().media?.generateAudio) {
+        if (generateAudio) {
           try {
             const audioFilename = this.generateAudioFilename();
             const audioBuffer = audioSourcePath
@@ -281,7 +315,7 @@ export class CardCreationService {
           }
         }
 
-        if (this.deps.getConfig().media?.generateImage) {
+        if (generateImage) {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
@@ -441,7 +475,7 @@ export class CardCreationService {
           errors.push('audio');
         }
 
-        if (this.deps.getConfig().media?.generateImage) {
+        if (shouldGenerateImage(this.deps.getConfig())) {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
@@ -522,9 +556,23 @@ export class CardCreationService {
 
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
-        const videoPath = await resolveMediaGenerationInputPath(mpvClient, 'video');
-        const audioSourcePath = await resolveMediaGenerationInputPath(mpvClient, 'audio');
-        if (!videoPath) {
+        const config = this.deps.getConfig();
+        const generateAudio = shouldGenerateAudio(config);
+        const generateImage = shouldGenerateImage(config);
+        const mediaResolverOptions = this.getMediaResolverOptions();
+        const videoPath = generateImage
+          ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)
+          : null;
+        const audioSourcePath = generateAudio
+          ? await resolveMediaGenerationInput(mpvClient, 'audio', mediaResolverOptions)
+          : null;
+        const missingRequestedMediaInput =
+          (generateImage && !videoPath) || (generateAudio && !audioSourcePath);
+        const shouldQueuePendingYoutubeMedia =
+          missingRequestedMediaInput &&
+          this.deps.shouldRequireRemoteMediaCache?.() === true &&
+          typeof this.deps.queuePendingYoutubeMediaUpdate === 'function';
+        if (missingRequestedMediaInput && !shouldQueuePendingYoutubeMedia) {
           this.deps.showOsdNotification('No video loaded');
           return false;
         }
@@ -534,13 +582,13 @@ export class CardCreationService {
 
         const sentenceField = sentenceCardConfig.sentenceField;
         const audioFieldName = sentenceCardConfig.audioField || 'SentenceAudio';
-        const translationField = this.deps.getConfig().fields?.translation || 'SelectionText';
+        const translationField = config.fields?.translation || 'SelectionText';
         let resolvedMiscInfoField: string | null = null;
         let resolvedSentenceAudioField: string = audioFieldName;
 
         fields[sentenceField] = sentence;
 
-        const ankiAiConfig = this.deps.getConfig().ai;
+        const ankiAiConfig = config.ai;
         const ankiAiEnabled =
           typeof ankiAiConfig === 'object' && ankiAiConfig !== null
             ? ankiAiConfig.enabled === true
@@ -563,7 +611,7 @@ export class CardCreationService {
 
         if (sentenceCardConfig.lapisEnabled || sentenceCardConfig.kikuEnabled) {
           fields.IsSentenceCard = 'x';
-          fields[getConfiguredWordFieldName(this.deps.getConfig())] = sentence;
+          fields[getConfiguredWordFieldName(config)] = sentence;
         }
 
         const pendingNoteInfo = this.createPendingNoteInfo(fields);
@@ -572,7 +620,7 @@ export class CardCreationService {
         );
         const pendingExpressionText = getPreferredWordValueFromExtractedFields(
           pendingNoteFields,
-          this.deps.getConfig(),
+          config,
         ).trim();
         let duplicateNoteIds: number[] = [];
         if (
@@ -590,7 +638,7 @@ export class CardCreationService {
           }
         }
 
-        const deck = this.deps.getConfig().deck || 'Default';
+        const deck = config.deck || 'Default';
         let noteId: number;
         try {
           noteId = await this.deps.client.addNote(
@@ -636,7 +684,7 @@ export class CardCreationService {
               this.deps.resolveNoteFieldName(createdNoteInfo, audioFieldName) || audioFieldName;
             resolvedMiscInfoField = this.deps.resolveConfiguredFieldName(
               createdNoteInfo,
-              this.deps.getConfig().fields?.miscInfo,
+              config.fields?.miscInfo,
             );
 
             const cardTypeFields: Record<string, string> = {};
@@ -654,41 +702,67 @@ export class CardCreationService {
           errors.push('card type fields');
         }
 
+        const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
+        if (shouldQueuePendingYoutubeMedia) {
+          this.deps.queuePendingYoutubeMediaUpdate?.({
+            sourceUrl: mpvClient.currentVideoPath,
+            noteId,
+            startTime,
+            endTime,
+            label,
+            audioFieldName: resolvedSentenceAudioField,
+            imageFieldName: config.fields?.image,
+            miscInfoFieldName: resolvedMiscInfoField ?? undefined,
+            generateAudio,
+            generateImage,
+          });
+          await this.deps.showNotification(noteId, label, 'media queued');
+          return true;
+        }
+
+        if (missingRequestedMediaInput) {
+          return false;
+        }
+
         const mediaFields: Record<string, string> = {};
 
-        try {
-          const audioFilename = this.generateAudioFilename();
-          const audioBuffer = audioSourcePath
-            ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
-            : null;
+        if (generateAudio) {
+          try {
+            const audioFilename = this.generateAudioFilename();
+            const audioBuffer = audioSourcePath
+              ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
+              : null;
 
-          if (audioBuffer) {
-            await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-            const audioValue = `[sound:${audioFilename}]`;
-            mediaFields[resolvedSentenceAudioField] = audioValue;
-            miscInfoFilename = audioFilename;
+            if (audioBuffer) {
+              await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
+              const audioValue = `[sound:${audioFilename}]`;
+              mediaFields[resolvedSentenceAudioField] = audioValue;
+              miscInfoFilename = audioFilename;
+            }
+          } catch (error) {
+            log.error('Failed to generate sentence audio:', (error as Error).message);
+            errors.push('audio');
           }
-        } catch (error) {
-          log.error('Failed to generate sentence audio:', (error as Error).message);
-          errors.push('audio');
         }
 
-        try {
-          const imageFilename = this.generateImageFilename();
-          const imageBuffer = await this.generateImageBuffer(videoPath, startTime, endTime);
+        if (generateImage) {
+          try {
+            const imageFilename = this.generateImageFilename();
+            const imageBuffer = await this.generateImageBuffer(videoPath!, startTime, endTime);
 
-          const imageField = this.deps.getConfig().fields?.image;
-          if (imageBuffer && imageField) {
-            await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
-            mediaFields[imageField] = `<img src="${imageFilename}">`;
-            miscInfoFilename = imageFilename;
+            const imageField = config.fields?.image;
+            if (imageBuffer && imageField) {
+              await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
+              mediaFields[imageField] = `<img src="${imageFilename}">`;
+              miscInfoFilename = imageFilename;
+            }
+          } catch (error) {
+            log.error('Failed to generate sentence image:', (error as Error).message);
+            errors.push('image');
           }
-        } catch (error) {
-          log.error('Failed to generate sentence image:', (error as Error).message);
-          errors.push('image');
         }
 
-        if (this.deps.getConfig().fields?.miscInfo) {
+        if (config.fields?.miscInfo) {
           const miscInfo = this.deps.formatMiscInfoPattern(miscInfoFilename || '', startTime);
           if (miscInfo && resolvedMiscInfoField) {
             mediaFields[resolvedMiscInfoField] = miscInfo;
@@ -704,7 +778,6 @@ export class CardCreationService {
           }
         }
 
-        const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
         const errorSuffix = errors.length > 0 ? `${errors.join(', ')} failed` : undefined;
         await this.deps.showNotification(noteId, label, errorSuffix);
         return true;
@@ -740,7 +813,7 @@ export class CardCreationService {
   }
 
   private async mediaGenerateAudio(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
   ): Promise<Buffer | null> {
@@ -754,12 +827,15 @@ export class CardCreationService {
       startTime,
       endTime,
       this.deps.getConfig().media?.audioPadding,
-      mpvClient.currentAudioStreamIndex ?? undefined,
+      resolveAudioStreamIndexForMediaGeneration(
+        videoPath,
+        mpvClient.currentAudioStreamIndex ?? undefined,
+      ),
     );
   }
 
   private async generateImageBuffer(
-    videoPath: string,
+    videoPath: MediaInput,
     startTime: number,
     endTime: number,
     animatedLeadInSeconds = 0,

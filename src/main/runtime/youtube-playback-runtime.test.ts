@@ -146,3 +146,135 @@ test('youtube playback runtime resolves the socket path lazily for windows start
 
   assert.ok(calls.some((entry) => entry.includes('--input-ipc-server=/tmp/updated.sock')));
 });
+
+test('youtube playback runtime starts media cache without blocking the subtitle flow', async () => {
+  const calls: string[] = [];
+  let resolveCache: (() => void) | undefined;
+  const cachePromise = new Promise<void>((resolve) => {
+    resolveCache = resolve;
+  });
+
+  const runtime = createYoutubePlaybackRuntime({
+    platform: 'linux',
+    directPlaybackFormat: 'best',
+    mpvYtdlFormat: 'bestvideo+bestaudio',
+    autoLaunchTimeoutMs: 2_000,
+    connectTimeoutMs: 1_000,
+    getSocketPath: () => '/tmp/mpv.sock',
+    getMpvConnected: () => true,
+    invalidatePendingAutoplayReadyFallbacks: () => {
+      calls.push('invalidate-autoplay');
+    },
+    setAppOwnedFlowInFlight: (next) => {
+      calls.push(`app-owned:${next}`);
+    },
+    ensureYoutubePlaybackRuntimeReady: async () => {
+      calls.push('ensure-runtime-ready');
+    },
+    resolveYoutubePlaybackUrl: async () => {
+      throw new Error('linux path should not resolve direct playback url');
+    },
+    launchWindowsMpv: async () => ({ ok: false }),
+    waitForYoutubeMpvConnected: async () => true,
+    prepareYoutubePlaybackInMpv: async ({ url }) => {
+      calls.push(`prepare:${url}`);
+      return true;
+    },
+    startYoutubeMediaCache: async (url) => {
+      calls.push(`cache:${url}`);
+      await cachePromise;
+      calls.push('cache-done');
+    },
+    runYoutubePlaybackFlow: async ({ url, mode }) => {
+      calls.push(`run-flow:${url}:${mode}`);
+    },
+    logInfo: (message) => {
+      calls.push(`info:${message}`);
+    },
+    logWarn: (message) => {
+      calls.push(`warn:${message}`);
+    },
+    schedule: () => 1 as never,
+    clearScheduled: () => {},
+  });
+
+  await runtime.runYoutubePlaybackFlow({
+    url: 'https://youtu.be/demo',
+    mode: 'download',
+    source: 'second-instance',
+  });
+
+  const prepareIndex = calls.indexOf('prepare:https://youtu.be/demo');
+  const cacheIndex = calls.indexOf('cache:https://youtu.be/demo');
+  const runFlowIndex = calls.indexOf('run-flow:https://youtu.be/demo:download');
+  assert.notEqual(prepareIndex, -1);
+  assert.notEqual(cacheIndex, -1);
+  assert.notEqual(runFlowIndex, -1);
+  assert.ok(prepareIndex < cacheIndex);
+  assert.ok(cacheIndex < runFlowIndex);
+  assert.equal(calls.includes('cache-done'), false);
+  const resolveCacheNow = resolveCache;
+  assert.ok(resolveCacheNow);
+  resolveCacheNow();
+});
+
+test('youtube playback runtime logs synchronous media cache startup failures', async () => {
+  const calls: string[] = [];
+
+  const runtime = createYoutubePlaybackRuntime({
+    platform: 'linux',
+    directPlaybackFormat: 'best',
+    mpvYtdlFormat: 'bestvideo+bestaudio',
+    autoLaunchTimeoutMs: 2_000,
+    connectTimeoutMs: 1_000,
+    getSocketPath: () => '/tmp/mpv.sock',
+    getMpvConnected: () => true,
+    invalidatePendingAutoplayReadyFallbacks: () => {
+      calls.push('invalidate-autoplay');
+    },
+    setAppOwnedFlowInFlight: (next) => {
+      calls.push(`app-owned:${next}`);
+    },
+    ensureYoutubePlaybackRuntimeReady: async () => {
+      calls.push('ensure-runtime-ready');
+    },
+    resolveYoutubePlaybackUrl: async () => {
+      throw new Error('linux path should not resolve direct playback url');
+    },
+    launchWindowsMpv: async () => ({ ok: false }),
+    waitForYoutubeMpvConnected: async () => true,
+    prepareYoutubePlaybackInMpv: async ({ url }) => {
+      calls.push(`prepare:${url}`);
+      return true;
+    },
+    startYoutubeMediaCache: () => {
+      calls.push('cache');
+      throw new Error('cache exploded');
+    },
+    runYoutubePlaybackFlow: async ({ url, mode }) => {
+      calls.push(`run-flow:${url}:${mode}`);
+    },
+    logInfo: (message) => {
+      calls.push(`info:${message}`);
+    },
+    logWarn: (message) => {
+      calls.push(`warn:${message}`);
+    },
+    schedule: () => 1 as never,
+    clearScheduled: () => {},
+  });
+
+  await runtime.runYoutubePlaybackFlow({
+    url: 'https://youtu.be/demo',
+    mode: 'download',
+    source: 'second-instance',
+  });
+  await Promise.resolve();
+
+  assert.ok(calls.includes('run-flow:https://youtu.be/demo:download'));
+  assert.ok(
+    calls.some((entry) =>
+      entry.startsWith('warn:Failed to start YouTube media cache: cache exploded'),
+    ),
+  );
+});

@@ -32,6 +32,7 @@ export interface ConfigOptionRegistryEntry {
    * `osd` and `osd-system` in NOTIFICATION_TYPE_VALUES.
    */
   enumValues?: readonly string[];
+  enumLabels?: Record<string, string>;
   /**
    * Optional settings UI subset when legacy/runtime-valid enum options should remain
    * editable in config files but hidden from new UI choices, for example

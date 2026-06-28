@@ -409,3 +409,59 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   assert.deepEqual(imageContext, sidebarContext);
   assert.equal(miscInfoStartTime, 10);
 });
+
+test('NoteUpdateWorkflow queues media updates when YouTube cache is pending', async () => {
+  const harness = createWorkflowHarness();
+  const queuedUpdates: Array<{
+    noteId: number;
+    noteInfo: NoteUpdateWorkflowNoteInfo;
+    context?: SubtitleMiningContext;
+    label: string | number;
+  }> = [];
+  const mediaCalls: string[] = [];
+
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Sentence',
+      image: 'Picture',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: true,
+    },
+    behavior: {},
+  });
+  harness.deps.generateAudio = async () => {
+    mediaCalls.push('audio');
+    return Buffer.from('audio');
+  };
+  harness.deps.generateImage = async () => {
+    mediaCalls.push('image');
+    return Buffer.from('image');
+  };
+  harness.deps.queuePendingYoutubeMediaUpdate = async (job) => {
+    queuedUpdates.push(job);
+    return true;
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(mediaCalls, []);
+  assert.equal(queuedUpdates.length, 1);
+  assert.equal(queuedUpdates[0]?.noteId, 42);
+  assert.equal(queuedUpdates[0]?.label, 'taberu');
+  assert.equal(queuedUpdates[0]?.context, undefined);
+  assert.deepEqual(harness.updates, [{ noteId: 42, fields: { Sentence: 'subtitle-text' } }]);
+});

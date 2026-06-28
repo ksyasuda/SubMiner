@@ -28,7 +28,7 @@ test('notifyConfiguredStatus routes both to overlay and system without osd', () 
   ]);
 });
 
-test('notifyConfiguredStatus falls back to desktop for pre-overlay both status', () => {
+test('notifyConfiguredStatus queues overlay for pre-overlay both status and preserves desktop', () => {
   const calls: string[] = [];
 
   notifyConfiguredStatus('Overlay loading...', {
@@ -43,10 +43,10 @@ test('notifyConfiguredStatus falls back to desktop for pre-overlay both status',
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['desktop:SubMiner:Overlay loading...']);
+  assert.deepEqual(calls, ['overlay::Overlay loading...', 'desktop:SubMiner:Overlay loading...']);
 });
 
-test('notifyConfiguredStatus falls back to desktop for pre-overlay overlay-only status', () => {
+test('notifyConfiguredStatus queues overlay for pre-overlay overlay-only status', () => {
   const calls: string[] = [];
 
   notifyConfiguredStatus('Overlay loading...', {
@@ -61,7 +61,7 @@ test('notifyConfiguredStatus falls back to desktop for pre-overlay overlay-only 
       calls.push(`desktop:${title}:${options.body ?? ''}`),
   });
 
-  assert.deepEqual(calls, ['desktop:SubMiner:Overlay loading...']);
+  assert.deepEqual(calls, ['overlay::Overlay loading...']);
 });
 
 test('notifyConfiguredStatus routes pre-overlay system status to desktop only', () => {
@@ -95,6 +95,37 @@ test('notifyConfiguredStatus keeps osd-system on legacy surfaces', () => {
   });
 
   assert.deepEqual(calls, ['osd:Overlay loading...', 'desktop:SubMiner:Overlay loading...']);
+});
+
+test('notifyConfiguredStatus queues osd status when mpv osd is unavailable', () => {
+  const calls: string[] = [];
+
+  notifyConfiguredStatus(
+    'YouTube media cache is downloading.',
+    {
+      getNotificationType: () => 'osd',
+      showOsd: (message) => {
+        calls.push(`osd:${message}`);
+        return false;
+      },
+      queueOsd: (message, options) => {
+        calls.push(`queue:${options.id ?? ''}:${message}`);
+      },
+      showDesktopNotification: (title, options) =>
+        calls.push(`desktop:${title}:${options.body ?? ''}`),
+    },
+    {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'progress',
+      persistent: true,
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'osd:YouTube media cache is downloading.',
+    'queue:youtube-media-cache-status:YouTube media cache is downloading.',
+  ]);
 });
 
 test('notifyConfiguredStatus can suppress desktop delivery for progress ticks', () => {

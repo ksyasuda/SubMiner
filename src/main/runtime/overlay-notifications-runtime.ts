@@ -32,7 +32,7 @@ export interface OverlayNotificationsRuntimeDeps {
   getMainOverlayWindow: () => BrowserWindow | null;
   getVisibleOverlayVisible: () => boolean;
   broadcastToOverlayWindows: (channel: string, ...args: unknown[]) => void;
-  showMpvOsd: (message: string) => void;
+  showMpvOsd: (message: string) => boolean | void;
   getMpvClient: () => MpvIpcClient | null;
   getAnkiIntegration: () => AnkiIntegration | null;
   getRuntimeOptionsManager: () => RuntimeOptionsManager | null;
@@ -42,6 +42,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
   isVisibleOverlayContentReady: () => boolean;
   getConfiguredStatusNotificationType: () => NotificationType;
   flushQueuedOverlayNotifications: () => void;
+  flushQueuedMpvOsdNotifications: () => void;
   showOverlayNotification: (payload: OverlayNotificationPayload) => void;
   dismissOverlayNotification: (id: string) => void;
   openAnkiCardFromNotification: (noteId: number) => Promise<void>;
@@ -95,9 +96,36 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
   });
   let overlayLoadingOsdController: ReturnType<typeof createOverlayLoadingOsdController> | null =
     null;
+  const queuedConfiguredOsdNotifications = new Map<
+    string,
+    { message: string; options: ConfiguredStatusNotificationOptions }
+  >();
 
   function flushQueuedOverlayNotifications(): void {
     overlayNotificationDelivery.flush();
+  }
+
+  function queueConfiguredOsdNotification(
+    message: string,
+    options: ConfiguredStatusNotificationOptions,
+  ): void {
+    const key = options.id ?? message;
+    queuedConfiguredOsdNotifications.set(key, { message, options });
+    while (queuedConfiguredOsdNotifications.size > 16) {
+      const oldestKey = queuedConfiguredOsdNotifications.keys().next().value;
+      if (typeof oldestKey !== 'string') {
+        break;
+      }
+      queuedConfiguredOsdNotifications.delete(oldestKey);
+    }
+  }
+
+  function flushQueuedMpvOsdNotifications(): void {
+    for (const [key, entry] of [...queuedConfiguredOsdNotifications.entries()]) {
+      if (deps.showMpvOsd(entry.message) !== false) {
+        queuedConfiguredOsdNotifications.delete(key);
+      }
+    }
   }
 
   function sendOverlayNotificationEvent(payload: OverlayNotificationEventPayload): void {
@@ -145,6 +173,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
         getNotificationType: () => deps.getResolvedConfig().ankiConnect.behavior.notificationType,
         isOverlayReady: () => isVisibleOverlayContentReady(),
         showOsd: (text) => deps.showMpvOsd(text),
+        queueOsd: (text, queueOptions) => queueConfiguredOsdNotification(text, queueOptions),
         showOverlayNotification,
         showDesktopNotification: (title, notificationOptions) =>
           showDesktopNotification(title, notificationOptions),
@@ -238,6 +267,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
     isVisibleOverlayContentReady,
     getConfiguredStatusNotificationType,
     flushQueuedOverlayNotifications,
+    flushQueuedMpvOsdNotifications,
     showOverlayNotification,
     dismissOverlayNotification,
     openAnkiCardFromNotification,

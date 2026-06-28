@@ -88,6 +88,12 @@ SubMiner handles several YouTube subtitle formats transparently:
 
 For auto-generated tracks, SubMiner prefers `srv3` > `srv2` > `srv1` > `vtt` (TimedText XML produces cleaner output). For manual tracks, `srt` > `vtt` is preferred.
 
+## Card Media Cache
+
+By default, YouTube card audio and screenshots are extracted directly from mpv's active stream URLs. If generated card media fails with YouTube `403` errors, set `youtube.mediaCache.mode` to `"background"`. Background mode starts a separate `yt-dlp` media download after playback loads, creates text fields immediately, queues audio/image work for mined notes, and fills those fields once the local cache file is ready.
+
+Background cache downloads use IPv4 and retry flags to reduce YouTube throttling failures. If the background download still fails, SubMiner shows a cache failure notification, shows queued-card failure notifications, and clears those pending updates so cards are not left waiting silently.
+
 ## Configuration Reference
 
 ### Primary Subtitle Languages
@@ -131,6 +137,7 @@ Precedence: CLI flag > environment variable > `config.jsonc` > built-in default.
 - **No subtitles found**: The video may not have Japanese subtitles. Open the picker with `Ctrl+Alt+C` to see all available tracks.
 - **yt-dlp not found**: Install `yt-dlp` and ensure it is on `PATH`, or set `SUBMINER_YTDLP_BIN` to the binary path.
 - **Probe timeout**: `yt-dlp` has a 15-second timeout per operation. Slow connections or rate-limited IPs may hit this. Retry or update `yt-dlp`.
+- **Card media `403` errors**: Switch `youtube.mediaCache.mode` from `"direct"` to `"background"` so card media is generated from a local `yt-dlp` cache instead of ffmpeg reading an expiring YouTube stream URL.
 - **Auto-caption quality**: YouTube auto-generated captions vary in quality. Manual subtitles (when available) are always preferred.
 - **`ytsearch:` targets**: `subminer ytsearch:"keyword"` plays the first search result. Subtitle availability depends on the matched video.
 - **Secondary subtitle fails**: Secondary track failures never block playback. The primary subtitle loads independently.

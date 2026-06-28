@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CardCreationService } from './card-creation';
+import type { MediaInput } from '../media-generator';
 import type { AnkiConnectConfig } from '../types/anki';
 
 test('CardCreationService counts locally created sentence cards', async () => {
@@ -287,6 +288,8 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
 test('CardCreationService uses stream-open-filename for remote media generation', async () => {
   const audioPaths: string[] = [];
   const imagePaths: string[] = [];
+  const recordMediaPath = (mediaInput: MediaInput): string =>
+    typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
   const edlSource = [
     'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
     '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
@@ -345,11 +348,11 @@ test('CardCreationService uses stream-open-filename for remote media generation'
     },
     mediaGenerator: {
       generateAudio: async (path) => {
-        audioPaths.push(path);
+        audioPaths.push(recordMediaPath(path));
         return Buffer.from('audio');
       },
       generateScreenshot: async (path) => {
-        imagePaths.push(path);
+        imagePaths.push(recordMediaPath(path));
         return Buffer.from('image');
       },
       generateAnimatedImage: async () => null,
@@ -396,6 +399,259 @@ test('CardCreationService uses stream-open-filename for remote media generation'
   assert.equal(created, true);
   assert.deepEqual(audioPaths, ['https://audio.example/videoplayback?mime=audio%2Fwebm']);
   assert.deepEqual(imagePaths, ['https://video.example/videoplayback?mime=video%2Fmp4']);
+});
+
+test('CardCreationService does not use mpv stream indexes for ready cached YouTube media', async () => {
+  const audioCalls: Array<{ path: string; audioStreamIndex?: number }> = [];
+
+  const service = new CardCreationService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          sentence: 'Sentence',
+          audio: 'SentenceAudio',
+          image: 'Picture',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: false,
+          imageFormat: 'jpg',
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getAiConfig: () => ({}),
+    getTimingTracker: () => ({}) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+        currentSubText: '字幕',
+        currentSubStart: 10,
+        currentSubEnd: 12,
+        currentTimePos: 11,
+        currentAudioStreamIndex: 0,
+      }) as never,
+    getCachedMediaPath: async () => '/tmp/subminer-youtube-media-cache/media.mkv',
+    shouldRequireRemoteMediaCache: () => true,
+    client: {
+      addNote: async () => 42,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            Picture: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async () => undefined,
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async (path, _startTime, _endTime, _padding, audioStreamIndex) => {
+        audioCalls.push({ path: typeof path === 'string' ? path : path.path, audioStreamIndex });
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+    showOsdNotification: () => undefined,
+    showUpdateResult: () => undefined,
+    showStatusNotification: () => undefined,
+    showNotification: async () => undefined,
+    beginUpdateProgress: () => undefined,
+    endUpdateProgress: () => undefined,
+    withUpdateProgress: async (_message, action) => action(),
+    resolveConfiguredFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    resolveNoteFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    getAnimatedImageLeadInSeconds: async () => 0,
+    extractFields: () => ({}),
+    processSentence: (sentence) => sentence,
+    setCardTypeFields: () => undefined,
+    mergeFieldValue: (_existing, newValue) => newValue,
+    formatMiscInfoPattern: () => '',
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: false,
+      kikuEnabled: false,
+      kikuFieldGrouping: 'disabled',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    getFallbackDurationSeconds: () => 10,
+    appendKnownWordsFromNoteInfo: () => undefined,
+    isUpdateInProgress: () => false,
+    setUpdateInProgress: () => undefined,
+    trackLastAddedNoteId: () => undefined,
+  });
+
+  const created = await service.createSentenceCard('テスト', 10, 12);
+
+  assert.equal(created, true);
+  assert.deepEqual(audioCalls, [
+    {
+      path: '/tmp/subminer-youtube-media-cache/media.mkv',
+      audioStreamIndex: undefined,
+    },
+  ]);
+});
+
+test('CardCreationService queues YouTube media when required cache is not ready', async () => {
+  const mediaCalls: string[] = [];
+  const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
+  const queuedUpdates: Array<{
+    sourceUrl: string;
+    noteId: number;
+    startTime: number;
+    endTime: number;
+    label: string | number;
+    audioFieldName?: string;
+    imageFieldName?: string;
+    miscInfoFieldName?: string;
+    generateAudio: boolean;
+    generateImage: boolean;
+  }> = [];
+  let streamRequests = 0;
+
+  const service = new CardCreationService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          sentence: 'Sentence',
+          audio: 'SentenceAudio',
+          image: 'Picture',
+          miscInfo: 'MiscInfo',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: true,
+          imageFormat: 'jpg',
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getAiConfig: () => ({}),
+    getTimingTracker: () => ({}) as never,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+        currentSubText: '字幕',
+        currentSubStart: 10,
+        currentSubEnd: 12,
+        currentTimePos: 11,
+        currentAudioStreamIndex: 2,
+        requestProperty: async () => {
+          streamRequests += 1;
+          return 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123';
+        },
+      }) as never,
+    getCachedMediaPath: async () => null,
+    shouldRequireRemoteMediaCache: () => true,
+    queuePendingYoutubeMediaUpdate: (job) => {
+      queuedUpdates.push(job);
+    },
+    client: {
+      addNote: async () => 42,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            Picture: { value: '' },
+            MiscInfo: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (noteId, fields) => {
+        updates.push({ noteId, fields });
+      },
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [],
+      retrieveMediaFile: async () => '',
+    },
+    mediaGenerator: {
+      generateAudio: async () => {
+        mediaCalls.push('audio');
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async () => {
+        mediaCalls.push('image');
+        return Buffer.from('image');
+      },
+      generateAnimatedImage: async () => null,
+    },
+    showOsdNotification: () => undefined,
+    showUpdateResult: () => undefined,
+    showStatusNotification: () => undefined,
+    showNotification: async () => undefined,
+    beginUpdateProgress: () => undefined,
+    endUpdateProgress: () => undefined,
+    withUpdateProgress: async (_message, action) => action(),
+    resolveConfiguredFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    resolveNoteFieldName: (noteInfo, preferredName) => {
+      if (!preferredName) return null;
+      return Object.keys(noteInfo.fields).find((field) => field === preferredName) ?? null;
+    },
+    getAnimatedImageLeadInSeconds: async () => 0,
+    extractFields: () => ({}),
+    processSentence: (sentence) => sentence,
+    setCardTypeFields: () => undefined,
+    mergeFieldValue: (_existing, newValue) => newValue,
+    formatMiscInfoPattern: () => '',
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: false,
+      kikuEnabled: false,
+      kikuFieldGrouping: 'disabled',
+      kikuDeleteDuplicateInAuto: false,
+    }),
+    getFallbackDurationSeconds: () => 10,
+    appendKnownWordsFromNoteInfo: () => undefined,
+    isUpdateInProgress: () => false,
+    setUpdateInProgress: () => undefined,
+    trackLastAddedNoteId: () => undefined,
+  });
+
+  const created = await service.createSentenceCard('テスト', 10, 12);
+
+  assert.equal(created, true);
+  assert.equal(streamRequests, 0);
+  assert.deepEqual(mediaCalls, []);
+  assert.deepEqual(queuedUpdates, [
+    {
+      sourceUrl: 'https://www.youtube.com/watch?v=abc123',
+      noteId: 42,
+      startTime: 10,
+      endTime: 12,
+      label: 'テスト',
+      audioFieldName: 'SentenceAudio',
+      imageFieldName: 'Picture',
+      miscInfoFieldName: 'MiscInfo',
+      generateAudio: true,
+      generateImage: true,
+    },
+  ]);
+  assert.deepEqual(updates, []);
 });
 
 test('CardCreationService tracks pre-add duplicate note ids for kiku sentence cards', async () => {

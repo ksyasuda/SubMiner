@@ -16,6 +16,7 @@ import type {
   StatsConfig,
   YomitanConfig,
   YoutubeConfig,
+  YoutubeMediaCacheMode,
   YoutubeSubgenConfig,
 } from './integrations';
 import type {
@@ -345,6 +346,10 @@ export interface ResolvedConfig {
   };
   youtube: YoutubeConfig & {
     primarySubLanguages: string[];
+    mediaCache: {
+      mode: YoutubeMediaCacheMode;
+      maxHeight: number;
+    };
   };
   youtubeSubgen: YoutubeSubgenConfig & {
     whisperBin: string;

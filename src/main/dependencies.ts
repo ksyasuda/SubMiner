@@ -126,6 +126,8 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   getAnkiIntegration: AnkiJimakuIpcRuntimeOptions['getAnkiIntegration'];
   setAnkiIntegration: AnkiJimakuIpcRuntimeOptions['setAnkiIntegration'];
   getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
+  getCachedMediaPath?: AnkiJimakuIpcRuntimeOptions['getCachedMediaPath'];
+  shouldRequireRemoteMediaCache?: AnkiJimakuIpcRuntimeOptions['shouldRequireRemoteMediaCache'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
@@ -317,6 +319,10 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     getAnkiIntegration: params.getAnkiIntegration,
     setAnkiIntegration: params.setAnkiIntegration,
     getKnownWordCacheStatePath: params.getKnownWordCacheStatePath,
+    ...(params.getCachedMediaPath ? { getCachedMediaPath: params.getCachedMediaPath } : {}),
+    ...(params.shouldRequireRemoteMediaCache
+      ? { shouldRequireRemoteMediaCache: params.shouldRequireRemoteMediaCache }
+      : {}),
     showDesktopNotification: params.showDesktopNotification,
     showOverlayNotification: params.showOverlayNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,

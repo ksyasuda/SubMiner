@@ -165,6 +165,20 @@ test('settings registry exposes specialized controls for config-assisted inputs'
   assert.equal(field('discordPresence.presenceStyle').control, 'select');
 });
 
+test('settings registry exposes YouTube media cache mode as a labeled select', () => {
+  const mediaCacheMode = field('youtube.mediaCache.mode');
+  const mediaCacheMaxHeight = field('youtube.mediaCache.maxHeight');
+
+  assert.equal(mediaCacheMode.control, 'select');
+  assert.deepEqual(mediaCacheMode.enumValues, ['direct', 'background']);
+  assert.deepEqual(mediaCacheMode.enumLabels, {
+    direct: 'Direct stream extraction',
+    background: 'Background media cache',
+  });
+  assert.equal(mediaCacheMaxHeight.control, 'number');
+  assert.equal(mediaCacheMaxHeight.defaultValue, 720);
+});
+
 test('settings registry exposes css declaration editor for primary and secondary subtitle appearance', () => {
   const primaryVisible = fields
     .filter(

@@ -5,6 +5,7 @@ export interface ConfiguredStatusNotificationDeps {
   getNotificationType: () => NotificationType | undefined;
   isOverlayReady?: () => boolean;
   showOsd: (message: string) => boolean | void;
+  queueOsd?: (message: string, options: ConfiguredStatusNotificationOptions) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   showDesktopNotification: (title: string, options: { body?: string }) => void;
 }
@@ -50,8 +51,7 @@ export function notifyConfiguredStatus(
   }
 
   if (showOverlay) {
-    const overlayReady = deps.isOverlayReady?.() ?? true;
-    if (deps.showOverlayNotification && overlayReady) {
+    if (deps.showOverlayNotification) {
       deps.showOverlayNotification({
         id: options.id,
         title: options.title ?? 'SubMiner',
@@ -65,7 +65,10 @@ export function notifyConfiguredStatus(
   }
 
   if (showOsd) {
-    deps.showOsd(message);
+    const shown = deps.showOsd(message);
+    if (shown === false && delivery !== 'feedback') {
+      deps.queueOsd?.(message, options);
+    }
   }
 
   if (desktopEnabled && shouldShowDesktop(type)) {

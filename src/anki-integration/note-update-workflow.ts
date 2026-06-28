@@ -85,6 +85,12 @@ export interface NoteUpdateWorkflowDeps {
   ) => Promise<Buffer | null>;
   formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
   consumeSubtitleMiningContext?: () => SubtitleMiningContext | null;
+  queuePendingYoutubeMediaUpdate?: (job: {
+    noteId: number;
+    noteInfo: NoteUpdateWorkflowNoteInfo;
+    context?: SubtitleMiningContext;
+    label: string | number;
+  }) => Promise<boolean>;
   addConfiguredTagsToNote: (noteId: number) => Promise<void>;
   showNotification: (noteId: number, label: string | number) => Promise<void>;
   showOsdNotification: (message: string) => void;
@@ -195,6 +201,7 @@ export class NoteUpdateWorkflow {
         sentenceField,
         config.fields?.sentence,
       );
+      const noteLabel = hasExpressionText ? expressionText : noteId;
 
       const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
       if (sentenceField && currentSubtitleText) {
@@ -227,7 +234,19 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      if (config.media?.generateAudio) {
+      const generateAudio = config.media?.generateAudio !== false;
+      const generateImage = config.media?.generateImage !== false;
+      const mediaCacheQueued =
+        (generateAudio || generateImage) && this.deps.queuePendingYoutubeMediaUpdate
+          ? await this.deps.queuePendingYoutubeMediaUpdate({
+              noteId,
+              noteInfo,
+              context: subtitleMiningContext ?? undefined,
+              label: noteLabel,
+            })
+          : false;
+
+      if (!mediaCacheQueued && generateAudio) {
         try {
           const audioFilename = this.deps.generateAudioFilename();
           const audioBuffer = await this.deps.generateAudio(subtitleMiningContext ?? undefined);
@@ -252,7 +271,7 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      if (config.media?.generateImage) {
+      if (!mediaCacheQueued && generateImage) {
         try {
           const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
           const imageFilename = this.deps.generateImageFilename();
@@ -287,7 +306,7 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      if (config.fields?.miscInfo) {
+      if (!mediaCacheQueued && config.fields?.miscInfo) {
         const miscInfo = this.deps.formatMiscInfoPattern(
           miscInfoFilename || '',
           subtitleMiningContext?.startTime ?? this.deps.getCurrentSubtitleStart(),
@@ -305,8 +324,8 @@ export class NoteUpdateWorkflow {
       if (updatePerformed) {
         await this.deps.client.updateNoteFields(noteId, updatedFields);
         await this.deps.addConfiguredTagsToNote(noteId);
-        this.deps.logInfo('Updated card fields for:', hasExpressionText ? expressionText : noteId);
-        await this.deps.showNotification(noteId, hasExpressionText ? expressionText : noteId);
+        this.deps.logInfo('Updated card fields for:', noteLabel);
+        await this.deps.showNotification(noteId, noteLabel);
       }
 
       if (shouldRunFieldGrouping && hasExpressionText && duplicateNoteId !== null) {

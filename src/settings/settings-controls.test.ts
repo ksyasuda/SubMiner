@@ -93,3 +93,32 @@ test('select controls show config-only current values without offering them othe
     restoreDocument();
   }
 });
+
+test('select controls use configured option labels', () => {
+  const restoreDocument = installDocumentStub();
+  try {
+    const field = {
+      ...createSelectField(),
+      enumValues: ['direct', 'background'],
+      enumLabels: {
+        direct: 'Direct stream extraction',
+        background: 'Background media cache',
+      },
+    } as ConfigSettingsField & { enumLabels: Record<string, string> };
+
+    const control = renderControl(field, {
+      valueForField: () => 'direct',
+      valueForPath: () => undefined,
+      updateDraft: () => {},
+      resetDraftPath: () => {},
+      setFieldError: () => {},
+    }) as HTMLSelectElement;
+
+    assert.deepEqual(
+      Array.from(control.options).map((option) => option.textContent),
+      ['Direct stream extraction', 'Background media cache'],
+    );
+  } finally {
+    restoreDocument();
+  }
+});

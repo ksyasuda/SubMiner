@@ -332,6 +332,7 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
 import {
@@ -1172,6 +1173,53 @@ const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
   },
   wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 });
+const youtubeMediaCache = createYoutubeMediaCacheService({
+  onDownloadStarted: (event) => {
+    showConfiguredStatusNotification('YouTube media cache is downloading.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'progress',
+      persistent: true,
+    });
+    logger.info(`YouTube media cache download notification shown for ${event.url}`);
+  },
+  onReady: (event) => {
+    showConfiguredStatusNotification('YouTube media cache ready.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'success',
+      persistent: false,
+    });
+    void appState.ankiIntegration
+      ?.handleYoutubeMediaCacheReady(event.url, event.path, { notifyNoQueued: false })
+      .catch((error) => {
+        logger.warn(
+          `Failed to apply queued YouTube media updates: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+  },
+  onFailed: (event) => {
+    showConfiguredStatusNotification('YouTube media cache failed.', {
+      id: 'youtube-media-cache-status',
+      title: 'YouTube media cache',
+      variant: 'error',
+      persistent: false,
+    });
+    void appState.ankiIntegration
+      ?.handleYoutubeMediaCacheFailed(event.url, { notifyStatus: false })
+      .catch((error) => {
+        logger.warn(
+          `Failed to drain queued YouTube media updates after cache failure: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+  },
+  logInfo: (message) => logger.info(message),
+  logWarn: (message) => logger.warn(message),
+});
 const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   getMpvClient: () => appState.mpvClient,
   now: () => Date.now(),
@@ -1316,6 +1364,12 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   },
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
+  startYoutubeMediaCache: (url) => {
+    youtubeMediaCache.start(url, {
+      mode: getResolvedConfig().youtube.mediaCache.mode,
+      maxHeight: getResolvedConfig().youtube.mediaCache.maxHeight,
+    });
+  },
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
@@ -1632,6 +1686,30 @@ function isYoutubePlaybackActiveNow(): boolean {
   return isYoutubePlaybackActive(
     appState.currentMediaPath,
     appState.mpvClient?.currentVideoPath ?? null,
+  );
+}
+
+function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
+  return (
+    getResolvedConfig().youtube.mediaCache.mode === 'background' && isYoutubePlaybackActiveNow()
+  );
+}
+
+async function getCachedYoutubeMediaPathForCurrentPlayback(
+  currentVideoPath: string,
+  _kind: 'audio' | 'video',
+): Promise<string | null> {
+  if (getResolvedConfig().youtube.mediaCache.mode !== 'background') {
+    return null;
+  }
+  if (!isYoutubePlaybackActiveNow()) {
+    return null;
+  }
+  // mpv can expose the resolved stream URL here while the cache key uses the original page URL.
+  // Keep the active-cache fallback so current playback can still resolve the ready cached file.
+  return (
+    (await youtubeMediaCache.getCachedMediaPath(currentVideoPath)) ??
+    (await youtubeMediaCache.getActiveCachedMediaPath())
   );
 }
 
@@ -2636,6 +2714,7 @@ const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
 });
 const {
   flushQueuedOverlayNotifications,
+  flushQueuedMpvOsdNotifications,
   openAnkiCardFromNotification,
   toggleNotificationHistoryPanel,
   showConfiguredPlaybackFeedback,
@@ -3801,6 +3880,7 @@ const {
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
+    cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();
@@ -4286,6 +4366,7 @@ const {
     },
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
+      flushQueuedMpvOsdNotifications();
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -5731,6 +5812,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         );
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
       showDesktopNotification,
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
@@ -6207,6 +6291,9 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },

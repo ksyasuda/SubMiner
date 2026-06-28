@@ -29,6 +29,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   clearYomitanSettingsWindow: () => void;
   stopJellyfinRemoteSession: () => void;
   cleanupYoutubeSubtitleTempDirs: () => void;
+  cleanupYoutubeMediaCache: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
@@ -67,6 +68,7 @@ export function createOnWillQuitCleanupHandler(deps: {
       deps.cleanupJellyfinSubtitleCache();
     }
     deps.cleanupYoutubeSubtitleTempDirs();
+    deps.cleanupYoutubeMediaCache();
     deps.stopDiscordPresenceService();
   };
 }

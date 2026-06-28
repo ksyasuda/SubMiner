@@ -111,6 +111,10 @@ export const CORE_DEFAULT_CONFIG: Pick<
   },
   youtube: {
     primarySubLanguages: ['ja', 'jpn'],
+    mediaCache: {
+      mode: 'direct',
+      maxHeight: 720,
+    },
   },
   subsync: {
     alass_path: '',

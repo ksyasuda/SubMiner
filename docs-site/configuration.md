@@ -1520,14 +1520,24 @@ Set defaults used by managed subtitle auto-selection and the `subminer` launcher
 ```json
 {
   "youtube": {
-    "primarySubLanguages": ["ja", "jpn"]
+    "primarySubLanguages": ["ja", "jpn"],
+    "mediaCache": {
+      "mode": "direct",
+      "maxHeight": 720
+    }
   }
 }
 ```
 
-| Option                | Values   | Description                                                                                      |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `primarySubLanguages` | string[] | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
+| Option                 | Values                   | Description                                                                                      |
+| ---------------------- | ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `primarySubLanguages`  | string[]                 | Primary subtitle language priority for managed subtitle auto-selection (default `["ja", "jpn"]`) |
+| `mediaCache.mode`      | `direct` \| `background` | YouTube card audio/image extraction mode (default `direct`)                                      |
+| `mediaCache.maxHeight` | number                   | Maximum background cache download height. Set `0` for unlimited (default `720`)                  |
+
+`mediaCache.mode: "direct"` extracts card media from the active YouTube stream URL. `mediaCache.mode: "background"` starts a separate yt-dlp media download after YouTube playback has loaded. Playback and subtitle loading do not wait for that download. Use background mode if direct card media generation hits YouTube `403` errors from expiring stream URLs.
+
+Background cache downloads are capped by `mediaCache.maxHeight`, which defaults to 720p; set it to `0` to let yt-dlp choose the best available height. Downloads use IPv4 and yt-dlp retry flags to reduce YouTube throttling failures. SubMiner announces when the background cache download starts and when the cache is ready, using the configured notification surface; overlay and OSD messages queue until the overlay or mpv is ready. If you mine cards before the cache is ready, SubMiner creates the text fields immediately, queues the audio/image work for those note IDs, shows a status notification, and fills the media fields once the cached file is ready. If the cache download fails, SubMiner shows a failure notification, shows queued-card failure notifications, and clears the pending updates.
 
 Current launcher behavior:
 

@@ -43,6 +43,7 @@ export interface ConfigSettingsField {
   control: ConfigSettingsControl;
   defaultValue: unknown;
   enumValues?: readonly string[];
+  enumLabels?: Record<string, string>;
   restartBehavior: ConfigSettingsRestartBehavior;
   advanced?: boolean;
   secret?: boolean;

@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { AnkiIntegration } from './anki-integration';
 import { FieldGroupingMergeCollaborator } from './anki-integration/field-grouping-merge';
+import type { MediaInput } from './media-input';
 import { AnkiConnectConfig } from './types';
 
 type TestOverlayNotificationPayload = {
@@ -22,6 +23,13 @@ interface IntegrationTestContext {
     notesInfo: number;
   };
   stateDir: string;
+}
+
+function describeMediaInputForTest(input: MediaInput): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+  return `${input.path}:${input.source ?? 'raw'}`;
 }
 
 function createIntegrationTestContext(
@@ -525,6 +533,354 @@ test('AnkiIntegration marks partial update notifications as failures in OSD mode
   ).showNotification(42, 'taberu', 'image failed');
 
   assert.deepEqual(osdMessages, ['x Updated card: taberu (image failed)']);
+});
+
+test('AnkiIntegration applies ready YouTube cache media to every queued note id', async () => {
+  const osdMessages: string[] = [];
+  const updatedNotes: Array<{ noteId: number; fields: Record<string, string> }> = [];
+  const storedMedia: string[] = [];
+  const mediaInputs: string[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      fields: {
+        image: 'Picture',
+      },
+      media: {
+        imageFormat: 'jpg',
+      },
+      behavior: {
+        notificationType: 'osd',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+  );
+
+  const internals = integration as unknown as {
+    client: {
+      notesInfo: (noteIds: number[]) => Promise<unknown[]>;
+      updateNoteFields: (noteId: number, fields: Record<string, string>) => Promise<void>;
+      storeMediaFile: (filename: string, data: Buffer) => Promise<void>;
+    };
+    mediaGenerator: {
+      generateAudio: (
+        path: MediaInput,
+        startTime: number,
+        endTime: number,
+        audioPadding?: number,
+        audioStreamIndex?: number,
+      ) => Promise<Buffer>;
+      generateScreenshot: (path: MediaInput) => Promise<Buffer>;
+    };
+    queuePendingYoutubeMediaUpdate: (job: {
+      sourceUrl: string;
+      noteId: number;
+      startTime: number;
+      endTime: number;
+      label: string | number;
+      audioStreamIndex?: number;
+      audioFieldName?: string;
+      imageFieldName?: string;
+      generateAudio: boolean;
+      generateImage: boolean;
+    }) => void;
+  };
+  internals.client = {
+    notesInfo: async (noteIds) =>
+      noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+        },
+      })),
+    updateNoteFields: async (noteId, fields) => {
+      updatedNotes.push({ noteId, fields });
+    },
+    storeMediaFile: async (filename) => {
+      storedMedia.push(filename);
+    },
+  };
+  internals.mediaGenerator = {
+    generateAudio: async (mediaPath, _startTime, _endTime, _audioPadding, audioStreamIndex) => {
+      mediaInputs.push(
+        `audio:${describeMediaInputForTest(mediaPath)}:${audioStreamIndex ?? 'auto'}`,
+      );
+      return Buffer.from('audio');
+    },
+    generateScreenshot: async (mediaPath) => {
+      mediaInputs.push(`image:${describeMediaInputForTest(mediaPath)}`);
+      return Buffer.from('image');
+    },
+  };
+  internals.queuePendingYoutubeMediaUpdate({
+    sourceUrl: 'https://www.youtube.com/watch?v=abc123',
+    noteId: 101,
+    startTime: 10,
+    endTime: 12,
+    label: 'first',
+    audioStreamIndex: 22,
+    audioFieldName: 'SentenceAudio',
+    imageFieldName: 'Picture',
+    generateAudio: true,
+    generateImage: true,
+  });
+  internals.queuePendingYoutubeMediaUpdate({
+    sourceUrl: 'https://youtu.be/abc123',
+    noteId: 202,
+    startTime: 20,
+    endTime: 22,
+    label: 'second',
+    audioStreamIndex: 23,
+    audioFieldName: 'SentenceAudio',
+    imageFieldName: 'Picture',
+    generateAudio: true,
+    generateImage: true,
+  });
+
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
+
+  assert.deepEqual(mediaInputs, [
+    'audio:/tmp/media.mkv:youtube-cache:auto',
+    'image:/tmp/media.mkv:youtube-cache',
+    'audio:/tmp/media.mkv:youtube-cache:auto',
+    'image:/tmp/media.mkv:youtube-cache',
+  ]);
+  assert.deepEqual(
+    updatedNotes.map((update) => update.noteId),
+    [101, 202],
+  );
+  const firstUpdate = updatedNotes[0];
+  const secondUpdate = updatedNotes[1];
+  assert.ok(firstUpdate);
+  assert.ok(secondUpdate);
+  assert.match(firstUpdate.fields.SentenceAudio ?? '', /^\[sound:audio_/);
+  assert.match(firstUpdate.fields.Picture ?? '', /^<img src="image_/);
+  assert.match(secondUpdate.fields.SentenceAudio ?? '', /^\[sound:audio_/);
+  assert.match(secondUpdate.fields.Picture ?? '', /^<img src="image_/);
+  assert.equal(storedMedia.length, 4);
+  assert.equal(
+    osdMessages.some((message) =>
+      message.includes('YouTube media cache ready. Adding media to 2 queued cards.'),
+    ),
+    true,
+  );
+});
+
+test('AnkiIntegration reports partial queued YouTube media updates separately from failures', async () => {
+  const osdMessages: string[] = [];
+  const updatedNotes: Array<{ noteId: number; fields: Record<string, string> }> = [];
+  const notifications: Array<{ noteId: number; label: string | number; suffix?: string }> = [];
+
+  const integration = new AnkiIntegration(
+    {
+      fields: {
+        image: 'Picture',
+      },
+      media: {
+        imageFormat: 'jpg',
+      },
+      behavior: {
+        notificationType: 'osd',
+      },
+    },
+    {} as never,
+    {} as never,
+    (text) => {
+      osdMessages.push(text);
+    },
+  );
+
+  const internals = integration as unknown as {
+    client: {
+      notesInfo: (noteIds: number[]) => Promise<unknown[]>;
+      updateNoteFields: (noteId: number, fields: Record<string, string>) => Promise<void>;
+      storeMediaFile: () => Promise<void>;
+    };
+    mediaGenerator: {
+      generateAudio: () => Promise<Buffer>;
+      generateScreenshot: () => Promise<Buffer>;
+    };
+    queuePendingYoutubeMediaUpdate: (job: {
+      sourceUrl: string;
+      noteId: number;
+      startTime: number;
+      endTime: number;
+      label: string | number;
+      audioFieldName?: string;
+      imageFieldName?: string;
+      generateAudio: boolean;
+      generateImage: boolean;
+    }) => void;
+    showNotification: (noteId: number, label: string | number, suffix?: string) => Promise<void>;
+  };
+  internals.client = {
+    notesInfo: async (noteIds) =>
+      noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+        },
+      })),
+    updateNoteFields: async (noteId, fields) => {
+      updatedNotes.push({ noteId, fields });
+    },
+    storeMediaFile: async () => undefined,
+  };
+  internals.mediaGenerator = {
+    generateAudio: async () => {
+      throw new Error('audio stream not found');
+    },
+    generateScreenshot: async () => Buffer.from('image'),
+  };
+  internals.showNotification = async (noteId, label, suffix) => {
+    notifications.push({ noteId, label, suffix });
+  };
+
+  internals.queuePendingYoutubeMediaUpdate({
+    sourceUrl: 'https://www.youtube.com/watch?v=partial',
+    noteId: 303,
+    startTime: 10,
+    endTime: 12,
+    label: 'partial',
+    audioFieldName: 'SentenceAudio',
+    imageFieldName: 'Picture',
+    generateAudio: true,
+    generateImage: true,
+  });
+
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/partial', '/tmp/media.mkv');
+
+  assert.equal(updatedNotes.length, 1);
+  assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image_/);
+  assert.equal(updatedNotes[0]?.fields.SentenceAudio, undefined);
+  assert.deepEqual(notifications, [{ noteId: 303, label: 'partial', suffix: 'audio failed' }]);
+  assert.equal(
+    osdMessages.some((message) =>
+      message.includes('Queued YouTube media finished with 0 updated, 1 partial, and 0 failed.'),
+    ),
+    true,
+  );
+});
+
+test('AnkiIntegration does not use mpv stream indexes for ready cached YouTube audio', async () => {
+  const audioCalls: Array<{ path: string; audioStreamIndex?: number }> = [];
+
+  const integration = new AnkiIntegration(
+    {
+      media: {
+        audioPadding: 0,
+      },
+    },
+    {} as never,
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      currentAudioStreamIndex: 0,
+      currentSubStart: 10,
+      currentSubEnd: 12,
+      currentTimePos: 11,
+    } as never,
+    () => undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    undefined,
+    async () => '/tmp/subminer-youtube-media-cache/media.mkv',
+    () => true,
+  );
+
+  const internals = integration as unknown as {
+    mediaGenerator: {
+      generateAudio: (
+        path: { path: string },
+        startTime: number,
+        endTime: number,
+        audioPadding?: number,
+        audioStreamIndex?: number,
+      ) => Promise<Buffer>;
+    };
+    generateAudio: () => Promise<Buffer | null>;
+  };
+  internals.mediaGenerator = {
+    generateAudio: async (path, _startTime, _endTime, _audioPadding, audioStreamIndex) => {
+      audioCalls.push({ path: path.path, audioStreamIndex });
+      return Buffer.from('audio');
+    },
+  };
+
+  await internals.generateAudio();
+
+  assert.deepEqual(audioCalls, [
+    {
+      path: '/tmp/subminer-youtube-media-cache/media.mkv',
+      audioStreamIndex: undefined,
+    },
+  ]);
+});
+
+test('AnkiIntegration announces ready YouTube cache when no queued notes exist', async () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
+
+  assert.equal(overlayNotifications.length, 1);
+  assert.equal(overlayNotifications[0]?.title, 'SubMiner');
+  assert.equal(overlayNotifications[0]?.body, 'YouTube media cache ready.');
+});
+
+test('AnkiIntegration can let caller own no-queued YouTube cache ready notification', async () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv', {
+    notifyNoQueued: false,
+  });
+
+  assert.deepEqual(overlayNotifications, []);
 });
 
 test('AnkiIntegration embeds generated notification image on overlay mined-card notifications', async () => {

@@ -297,6 +297,39 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         'Expected string array.',
       );
     }
+
+    if (isObject(src.youtube.mediaCache)) {
+      const mode = src.youtube.mediaCache.mode;
+      if (mode === 'direct' || mode === 'background') {
+        resolved.youtube.mediaCache.mode = mode;
+      } else if (mode !== undefined) {
+        warn(
+          'youtube.mediaCache.mode',
+          mode,
+          resolved.youtube.mediaCache.mode,
+          "Expected 'direct' or 'background'.",
+        );
+      }
+
+      const maxHeight = asNumber(src.youtube.mediaCache.maxHeight);
+      if (maxHeight !== undefined && Number.isInteger(maxHeight) && maxHeight >= 0) {
+        resolved.youtube.mediaCache.maxHeight = maxHeight;
+      } else if (src.youtube.mediaCache.maxHeight !== undefined) {
+        warn(
+          'youtube.mediaCache.maxHeight',
+          src.youtube.mediaCache.maxHeight,
+          resolved.youtube.mediaCache.maxHeight,
+          'Expected a whole number at least 0.',
+        );
+      }
+    } else if (src.youtube.mediaCache !== undefined) {
+      warn(
+        'youtube.mediaCache',
+        src.youtube.mediaCache,
+        resolved.youtube.mediaCache,
+        'Expected object.',
+      );
+    }
   }
 
   if (isObject(src.subsync)) {

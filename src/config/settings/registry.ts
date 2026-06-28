@@ -720,6 +720,7 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
     ...(option?.settingsEnumValues || option?.enumValues
       ? { enumValues: option.settingsEnumValues ?? option.enumValues }
       : {}),
+    ...(option?.enumLabels ? { enumLabels: option.enumLabels } : {}),
     restartBehavior: restartBehaviorForPath(leaf.path),
     advanced:
       leaf.path.startsWith('controller.') ||
