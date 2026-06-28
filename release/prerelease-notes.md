@@ -1,60 +1,24 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
-<!-- prerelease-base-version: 0.17.0 -->
+<!-- prerelease-base-version: 0.17.1 -->
 
 ## Highlights
-### Changed
+### Added
 
-- **Subtitle Delay Shortcuts:** Overlay subtitle delay controls now match mpv's native defaults.
-  - `z`, `Z`, and `x` adjust `sub-delay`; `Ctrl+Shift+Left/Right` run native `sub-step` and show the current delay on the OSD.
-  - The previous SubMiner-only adjacent-cue delay action has been removed.
-
-- **Update Notifications:** New installs now default to overlay-only update notifications instead of overlay plus system notifications.
+- **YouTube Media Cache Mode**: A new `youtube.mediaCache.mode` setting (`direct` or `background`) lets you choose how SubMiner extracts audio and image from YouTube cards.
+  - In background mode, SubMiner creates a text-only card immediately, downloads a yt-dlp media cache (capped at 720p by default), and fills audio and image fields once the file is ready — with overlay and OSD notifications when the download starts and when media is available.
+  - If a background download fails, SubMiner now notifies you and clears any pending media updates rather than leaving cards silently incomplete.
 
 ### Fixed
 
-- **Anki Card Enrichment:** Fixed two issues where card fields were not populated correctly after mining.
-  - Highlight Word now bolds the mined word in Kiku sentence and sentence-furigana fields even when the source Yomitan sentence has no existing bold markup.
-  - Lapis and Kiku word cards enriched through SubMiner now include the word-and-sentence marker, restoring sentence context on the card front.
+- **Log Export**: Log filenames now use your local date, so exporting logs near midnight no longer pulls stale files from the previous UTC day. Export redaction has also been expanded to mask a broader range of sensitive data, including IP addresses, email addresses, authentication and cookie headers, yt-dlp cookie arguments, URL credentials, and signed YouTube media URLs.
 
-- **Windows Overlay:** Fixed shaky hover and click behavior on the subtitle bar when a video attaches to an already-running SubMiner instance.
-
-- **Windows Anki & Media:** Fixed two issues affecting Windows users running SubMiner in background-launch mode.
-  - Known-word cache refreshes no longer fail when no deck is configured.
-  - Audio and image clipping now works correctly by recreating missing FFmpeg temp directories before processing.
-
-- **Windows Character Dictionary:** The character dictionary auto-sync now correctly falls back to mpv's current video path on Windows when app media state is not yet ready.
-
-- **Linux Support Assets:** Linux updates now create and refresh both managed support assets: the launcher runtime plugin copy and the rofi theme.
-  - First playback on a fresh Linux install auto-installs those bundled assets before mpv starts if either one is missing.
-  - Asset refreshes leave unrelated SubMiner data directories untouched and stage plugin copies before replacing the live runtime plugin.
-
-- **Linux Visible Overlay Startup:** Auto-paused visible overlay startup stays fully interactive during the first measurement gap.
-  - Startup subtitle cache misses paint raw text before tokenization finishes, and temporarily empty mpv subtitle reads refresh parsed cues before warm readiness resumes playback.
-
-- **Playlist Transitions:** The visible overlay stays active while mpv advances to the next playlist item, including when the next episode loads after the warm transition delay.
-
-- **macOS Yomitan Popup Focus:** Yomitan popup focus is restored after card mining or popup reload.
-  - Clicking transparent overlay space now closes the popup and returns passthrough to mpv without a hide/reappear cycle.
-
-- **Stats AniList Search:** Manual AniList linking from the stats page now strips generated `Season N` suffixes before searching, so the base anime title is used.
-
-- **Desktop Notifications:** System notifications now show the SubMiner app icon when no custom notification image is provided.
-
-- **Release Notes:** GitHub release `What's Changed` and `New Contributors` attribution sections are preserved when CI regenerates release notes from committed changelog output.
-
-### Docs
-
-- **Linux Update Flow:** Documented that Linux update flows manage the launcher runtime plugin copy and rofi theme from `subminer-assets.tar.gz`, and that normal playback auto-installs those managed support assets if either one is missing.
+- **YouTube Card Media Reliability**: Direct stream extraction now uses safer ffmpeg options and skips stale or cached stream map entries to reduce failed media generation. Background cache downloads are hardened with IPv4 and extractor retry flags, stale cache files are cleaned up on startup and before new downloads, and in-flight background downloads are stopped automatically when switching back to direct mode.
 
 ## What's Changed
 
-- Replace subtitle delay actions with native mpv keybindings by @ksyasuda in #120
-- fix(stats): strip Season N suffix from AniList title searches by @ksyasuda in #121
-- fix(overlay): preserve visible state across playlist item transitions by @ksyasuda in #124
-- fix(overlay): restore macOS Yomitan popup focus without breaking click-away by @ksyasuda in #125
-- fix(linux): auto-install managed plugin copy; include in asset updates by @ksyasuda in #127
-- Fix Windows Anki startup and overlay regressions by @ksyasuda in #128
+- feat(youtube): add mediaCache mode and safer stream media extraction by @ksyasuda in #130
+- fix(logs): use local date for log filenames and expand export redaction by @ksyasuda in #131
 
 ## Installation
 
