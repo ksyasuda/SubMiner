@@ -108,15 +108,11 @@ function renderPrereleaseBaseVersionMarker(version: string): string {
 }
 
 function extractPrereleaseBaseVersionMarker(notes: string): string | null {
-  return (
-    /<!--\s*prerelease-base-version:\s*(\d+\.\d+\.\d+)\s*-->/u.exec(notes)?.[1] ?? null
-  );
+  return /<!--\s*prerelease-base-version:\s*(\d+\.\d+\.\d+)\s*-->/u.exec(notes)?.[1] ?? null;
 }
 
 function stripPrereleaseMetadata(notes: string): string {
-  return notes
-    .replace(/<!--\s*prerelease-base-version:\s*\d+\.\d+\.\d+\s*-->\s*/u, '')
-    .trim();
+  return notes.replace(/<!--\s*prerelease-base-version:\s*\d+\.\d+\.\d+\s*-->\s*/u, '').trim();
 }
 
 function resolveReusablePrereleaseNotes(notes: string, version: string): string | undefined {

@@ -1,25 +1,18 @@
 ## Highlights
-### Added
-
-- **YouTube Media Cache Mode:** New `youtube.mediaCache.mode` setting lets you choose between `direct` (the existing behavior) and `background` modes for extracting audio and images when creating cards from YouTube videos.
-  - Background mode uses a separate yt-dlp download to cache the video file locally, which can rescue media extraction when direct stream URLs are unreliable or expire quickly.
-  - While the cache downloads, SubMiner creates a text-only card immediately, then fills in audio and image once the file is ready — no need to re-mine the sentence.
-  - Cache downloads are capped at 720p by default (`youtube.mediaCache.maxHeight`) to keep file sizes reasonable.
 
 ### Fixed
 
-- **Log Export:** Log filenames now use your local date, so exporting logs around UTC midnight correctly captures today's file instead of yesterday's.
-  - Log exports also now redact a broader set of sensitive data — IP addresses, email addresses, auth and cookie headers, yt-dlp cookie arguments, URL credentials, API keys, and signed YouTube media URLs.
+- **YouTube Background Cache:** Fixed Windows background media cache startup for YouTube URLs opened directly in mpv.
+  - Resolved stream URLs are now tracked even when mpv still exposes the original YouTube playlist entry.
+  - Queued Anki media updates can append audio and images after the cache finishes instead of staying text-only.
 
-- **YouTube Card Media Generation:** Extraction is more reliable and resilient across a wider range of stream conditions.
-  - Stale or cached stream maps are skipped automatically, and ffmpeg requests use safer options for resolved streams to reduce failures.
-  - Background cache downloads retry on network issues (IPv4 and extractor fallbacks), notify you on failure instead of silently hanging, and clean up stale cache files on startup and before each new download.
-  - Switching back to direct mode now cancels any in-progress background downloads cleanly.
+- **YouTube Subtitle Picker Notifications:** Manual subtitle picker requests now show immediate status while SubMiner probes tracks and opens the modal.
+  - Subtitle download progress is replaced with a transient success notification after tracks load.
 
 ## What's Changed
 
-- feat(youtube): add mediaCache mode and safer stream media extraction by @ksyasuda in #130
-- fix(logs): use local date for log filenames and expand export redaction by @ksyasuda in #131
+- feat(youtube): notify on manual picker open and show success after track load by @ksyasuda in #133
+- fix(youtube): recover source URL for background media cache on direct mpv open by @ksyasuda in #132
 
 ## Installation
 

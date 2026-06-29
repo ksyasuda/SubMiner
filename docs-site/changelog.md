@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.17.2 (2026-06-28)
+
+**Fixed**
+- YouTube Background Cache: Fixed Windows YouTube background media cache startup for YouTube URLs opened directly in mpv, including resolved stream URLs when mpv still exposes the original YouTube playlist entry, so queued Anki media updates can append audio and images after the cache finishes.
+- YouTube Subtitle Picker: Manual subtitle picker requests now show an immediate configured notification while SubMiner probes tracks and opens the modal. Subtitle download progress is replaced with a transient success notification after tracks load.
+
 ## v0.17.1 (2026-06-27)
 
 **Added**

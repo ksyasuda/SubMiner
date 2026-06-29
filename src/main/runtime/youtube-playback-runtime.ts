@@ -130,14 +130,13 @@ export function createYoutubePlaybackRuntime(deps: YoutubePlaybackRuntimeDeps) {
       if (deps.startYoutubeMediaCache) {
         void new Promise<void>((resolve) => {
           resolve(deps.startYoutubeMediaCache?.(request.url));
-        })
-          .catch((error) => {
-            deps.logWarn(
-              `Failed to start YouTube media cache: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
-          });
+        }).catch((error) => {
+          deps.logWarn(
+            `Failed to start YouTube media cache: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
       }
 
       await deps.runYoutubePlaybackFlow({

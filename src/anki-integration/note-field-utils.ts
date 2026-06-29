@@ -2,7 +2,10 @@ export interface NoteFieldValueInfo {
   fields: Record<string, { value: string }>;
 }
 
-export function getNoteFieldValue(noteInfo: NoteFieldValueInfo, preferredName: string): string | null {
+export function getNoteFieldValue(
+  noteInfo: NoteFieldValueInfo,
+  preferredName: string,
+): string | null {
   const resolvedFieldName = Object.keys(noteInfo.fields).find(
     (fieldName) => fieldName.toLowerCase() === preferredName.toLowerCase(),
   );
