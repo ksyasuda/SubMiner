@@ -22,6 +22,7 @@ import { withConfiguredOverlayNotificationPosition } from './overlay-notificatio
 import { createOverlayNotificationDelivery } from './overlay-notification-delivery';
 import {
   getPlaybackFeedbackNotificationOptions,
+  getYoutubeFlowStatusNotificationOptions,
   notifyConfiguredStatus,
   type ConfiguredStatusNotificationOptions,
 } from './configured-status-notification';
@@ -206,18 +207,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
   }
 
   function showYoutubeFlowStatusNotification(message: string): void {
-    const progress =
-      message.startsWith('Downloading subtitles') ||
-      message.startsWith('Loading subtitles') ||
-      message.startsWith('Getting subtitles') ||
-      message === 'Opening YouTube video';
-    showConfiguredStatusNotification(message, {
-      id: 'youtube-subtitles-status',
-      title: 'YouTube subtitles',
-      variant: progress ? 'progress' : 'info',
-      persistent: progress,
-      desktop: !progress,
-    });
+    showConfiguredStatusNotification(message, getYoutubeFlowStatusNotificationOptions(message));
   }
 
   function getOverlayLoadingOsdController(): ReturnType<typeof createOverlayLoadingOsdController> {

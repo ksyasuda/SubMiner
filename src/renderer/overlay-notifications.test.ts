@@ -384,6 +384,92 @@ test('overlay notification renderer updates same-id progress without replacing t
   }
 });
 
+test('overlay notification renderer auto-dismisses same-id terminal update after persistent progress', () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const stack = createFakeElement();
+  let nextTimerId = 1;
+  const timers = new Map<number, { callback: () => void; delayMs: number }>();
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: {
+      createElement: (tagName: string) => createFakeElement(tagName),
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: (id: number) => {
+        timers.delete(id);
+      },
+      setTimeout: (callback: () => void, delayMs: number) => {
+        const id = nextTimerId;
+        nextTimerId += 1;
+        timers.set(id, { callback, delayMs });
+        return id;
+      },
+    },
+  });
+
+  try {
+    const renderer = createOverlayNotificationRenderer({
+      dom: {
+        overlayNotificationStack: stack,
+      },
+      state: {
+        isOverOverlayNotification: false,
+      },
+    } as never);
+
+    renderer.show({
+      id: 'youtube-subtitles-status',
+      title: 'YouTube subtitles',
+      body: 'Downloading subtitles...',
+      variant: 'progress',
+      persistent: true,
+    });
+    const card = stack.children[0];
+    if (!card) {
+      assert.fail('Expected overlay notification card.');
+    }
+
+    renderer.show({
+      id: 'youtube-subtitles-status',
+      title: 'YouTube subtitles',
+      body: 'Subtitles loaded.',
+      variant: 'success',
+      persistent: false,
+    });
+
+    const autoDismissTimer = [...timers.values()].find((timer) => timer.delayMs === 3000);
+    assert.ok(autoDismissTimer, 'Expected terminal update to schedule an auto-dismiss timer.');
+    assert.equal(stack.children[0], card);
+    assert.equal(
+      findChildByClass(card, 'overlay-notification-body')?.textContent,
+      'Subtitles loaded.',
+    );
+    assert.equal(card.classList.contains('success'), true);
+
+    autoDismissTimer.callback();
+
+    assert.equal(card.classList.contains('leaving'), true);
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+});
+
 test('overlay notification cards use larger display dimensions', () => {
   assert.match(
     overlayNotificationCss,
