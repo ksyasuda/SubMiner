@@ -32,7 +32,7 @@ export interface PendingYoutubeMediaQueueDeps {
     'generateAudio' | 'generateScreenshot' | 'generateAnimatedImage'
   >;
   getConfig: () => AnkiConnectConfig;
-  getCurrentVideoPath: () => string | undefined;
+  getCurrentVideoPath: () => Promise<string | undefined> | string | undefined;
   getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null;
   shouldRequireRemoteMediaCache: () => boolean;
   getSubtitleMediaRange: (context?: SubtitleMiningContext) => {
@@ -104,7 +104,7 @@ export class PendingYoutubeMediaQueue {
     context?: SubtitleMiningContext;
     label: string | number;
   }): Promise<boolean> {
-    const sourceUrl = trimToNonEmptyString(this.deps.getCurrentVideoPath());
+    const sourceUrl = trimToNonEmptyString(await this.deps.getCurrentVideoPath());
     const getCachedMediaPath = this.deps.getCachedMediaPath;
     if (!sourceUrl || this.deps.shouldRequireRemoteMediaCache() !== true || !getCachedMediaPath) {
       return false;

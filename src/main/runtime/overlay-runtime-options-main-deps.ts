@@ -43,6 +43,7 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
   getKnownWordCacheStatePath: () => string;
   getCachedMediaPath?: OverlayRuntimeOptionsMainDeps['getCachedMediaPath'];
   shouldRequireRemoteMediaCache?: OverlayRuntimeOptionsMainDeps['shouldRequireRemoteMediaCache'];
+  getYoutubeMediaSourceUrl?: OverlayRuntimeOptionsMainDeps['getYoutubeMediaSourceUrl'];
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -82,6 +83,9 @@ export function createBuildInitializeOverlayRuntimeMainDepsHandler(deps: {
     ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),
     ...(deps.shouldRequireRemoteMediaCache
       ? { shouldRequireRemoteMediaCache: deps.shouldRequireRemoteMediaCache }
+      : {}),
+    ...(deps.getYoutubeMediaSourceUrl
+      ? { getYoutubeMediaSourceUrl: deps.getYoutubeMediaSourceUrl }
       : {}),
     shouldStartAnkiIntegration: () => deps.shouldStartAnkiIntegration(),
     bindOverlayOwner: deps.bindOverlayOwner,

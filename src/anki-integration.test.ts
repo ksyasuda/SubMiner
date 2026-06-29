@@ -768,6 +768,98 @@ test('AnkiIntegration reports partial queued YouTube media updates separately fr
   );
 });
 
+test('AnkiIntegration queues YouTube media updates against recovered source URLs', async () => {
+  const updatedNotes: Array<{ noteId: number; fields: Record<string, string> }> = [];
+  const storedMedia: string[] = [];
+
+  const integration = new AnkiIntegration(
+    {
+      fields: {
+        image: 'Picture',
+      },
+      media: {
+        imageFormat: 'jpg',
+      },
+    },
+    {} as never,
+    {
+      currentVideoPath: 'https://rr1---sn.example.googlevideo.com/videoplayback?expire=1777777777',
+      currentSubStart: 10,
+      currentSubEnd: 12,
+      currentTimePos: 11,
+    } as never,
+    () => undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    undefined,
+    async () => null,
+    () => true,
+    () => 'https://www.youtube.com/watch?v=abc123',
+  );
+
+  const internals = integration as unknown as {
+    client: {
+      notesInfo: (noteIds: number[]) => Promise<unknown[]>;
+      updateNoteFields: (noteId: number, fields: Record<string, string>) => Promise<void>;
+      storeMediaFile: (filename: string) => Promise<void>;
+    };
+    mediaGenerator: {
+      generateAudio: () => Promise<Buffer>;
+      generateScreenshot: () => Promise<Buffer>;
+    };
+    queuePendingYoutubeMediaUpdateForNote: (job: {
+      noteId: number;
+      noteInfo: { noteId: number; fields: Record<string, { value: string }> };
+      label: string | number;
+    }) => Promise<boolean>;
+    showNotification: () => Promise<void>;
+  };
+  internals.client = {
+    notesInfo: async (noteIds) =>
+      noteIds.map((noteId) => ({
+        noteId,
+        fields: {
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+        },
+      })),
+    updateNoteFields: async (noteId, fields) => {
+      updatedNotes.push({ noteId, fields });
+    },
+    storeMediaFile: async (filename) => {
+      storedMedia.push(filename);
+    },
+  };
+  internals.mediaGenerator = {
+    generateAudio: async () => Buffer.from('audio'),
+    generateScreenshot: async () => Buffer.from('image'),
+  };
+  internals.showNotification = async () => undefined;
+
+  const queued = await internals.queuePendingYoutubeMediaUpdateForNote({
+    noteId: 404,
+    noteInfo: {
+      noteId: 404,
+      fields: {
+        SentenceAudio: { value: '' },
+        Picture: { value: '' },
+      },
+    },
+    label: 'resolved source',
+  });
+  await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
+
+  assert.equal(queued, true);
+  assert.equal(updatedNotes.length, 1);
+  assert.equal(updatedNotes[0]?.noteId, 404);
+  assert.match(updatedNotes[0]?.fields.SentenceAudio ?? '', /^\[sound:audio_/);
+  assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image_/);
+  assert.equal(storedMedia.length, 2);
+});
+
 test('AnkiIntegration does not use mpv stream indexes for ready cached YouTube audio', async () => {
   const audioCalls: Array<{ path: string; audioStreamIndex?: number }> = [];
 

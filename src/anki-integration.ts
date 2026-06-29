@@ -239,6 +239,9 @@ export class AnkiIntegration {
   private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
     null;
   private shouldRequireRemoteMediaCache: (() => boolean) | null = null;
+  private getYoutubeMediaSourceUrl:
+    | (() => Promise<string | null | undefined> | string | null | undefined)
+    | null = null;
   private pendingYoutubeMediaQueue: PendingYoutubeMediaQueue;
 
   constructor(
@@ -257,6 +260,7 @@ export class AnkiIntegration {
     overlayNotificationCallback?: (payload: OverlayNotificationPayload) => void,
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
     shouldRequireRemoteMediaCache?: () => boolean,
+    getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -271,6 +275,7 @@ export class AnkiIntegration {
     this.recordCardsMinedCallback = recordCardsMined ?? null;
     this.getCachedMediaPath = getCachedMediaPath ?? null;
     this.shouldRequireRemoteMediaCache = shouldRequireRemoteMediaCache ?? null;
+    this.getYoutubeMediaSourceUrl = getYoutubeMediaSourceUrl ?? null;
     this.pendingYoutubeMediaQueue = this.createPendingYoutubeMediaQueue();
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
@@ -356,7 +361,7 @@ export class AnkiIntegration {
           ),
       },
       getConfig: () => this.config,
-      getCurrentVideoPath: () => this.mpvClient.currentVideoPath,
+      getCurrentVideoPath: () => this.getCurrentYoutubeMediaSourceUrl(),
       getCachedMediaPath: this.getCachedMediaPath,
       shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
       getSubtitleMediaRange: (context) => this.getSubtitleMediaRange(context),
@@ -474,6 +479,7 @@ export class AnkiIntegration {
       getMpvClient: () => this.mpvClient,
       ...(this.getCachedMediaPath ? { getCachedMediaPath: this.getCachedMediaPath } : {}),
       shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
+      getYoutubeMediaSourceUrl: () => this.getCurrentYoutubeMediaSourceUrl(),
       queuePendingYoutubeMediaUpdate: (job) => this.queuePendingYoutubeMediaUpdate(job),
       getDeck: () => this.config.deck,
       client: {
@@ -943,6 +949,14 @@ export class AnkiIntegration {
     label: string | number;
   }): Promise<boolean> {
     return this.pendingYoutubeMediaQueue.queueFromNote(job);
+  }
+
+  private async getCurrentYoutubeMediaSourceUrl(): Promise<string> {
+    return (
+      trimToNonEmptyString(await this.getYoutubeMediaSourceUrl?.()) ??
+      trimToNonEmptyString(this.mpvClient.currentVideoPath) ??
+      ''
+    );
   }
 
   async handleYoutubeMediaCacheReady(

@@ -128,6 +128,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   getKnownWordCacheStatePath: AnkiJimakuIpcRuntimeOptions['getKnownWordCacheStatePath'];
   getCachedMediaPath?: AnkiJimakuIpcRuntimeOptions['getCachedMediaPath'];
   shouldRequireRemoteMediaCache?: AnkiJimakuIpcRuntimeOptions['shouldRequireRemoteMediaCache'];
+  getYoutubeMediaSourceUrl?: AnkiJimakuIpcRuntimeOptions['getYoutubeMediaSourceUrl'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
@@ -322,6 +323,9 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     ...(params.getCachedMediaPath ? { getCachedMediaPath: params.getCachedMediaPath } : {}),
     ...(params.shouldRequireRemoteMediaCache
       ? { shouldRequireRemoteMediaCache: params.shouldRequireRemoteMediaCache }
+      : {}),
+    ...(params.getYoutubeMediaSourceUrl
+      ? { getYoutubeMediaSourceUrl: params.getYoutubeMediaSourceUrl }
       : {}),
     showDesktopNotification: params.showDesktopNotification,
     showOverlayNotification: params.showOverlayNotification,

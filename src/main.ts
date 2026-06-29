@@ -348,6 +348,7 @@ import {
   shouldAutoOpenFirstRunSetup,
 } from './main/runtime/first-run-setup-service';
 import { createYoutubeFlowRuntime } from './main/runtime/youtube-flow';
+import { createYoutubeMediaCachePlaybackRuntime } from './main/runtime/youtube-media-cache-playback';
 import { createYoutubePlaybackRuntime } from './main/runtime/youtube-playback-runtime';
 import {
   clearYoutubePrimarySubtitleNotificationTimer,
@@ -533,7 +534,6 @@ import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runti
 import {
   isSameYoutubeMediaPath,
   isYoutubeMediaPath,
-  isYoutubePlaybackActive,
   shouldUseCachedYoutubeParsedCues,
 } from './main/runtime/youtube-playback';
 import { createYomitanProfilePolicy } from './main/runtime/yomitan-profile-policy';
@@ -1220,6 +1220,18 @@ const youtubeMediaCache = createYoutubeMediaCacheService({
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
 });
+const youtubeMediaCachePlaybackRuntime = createYoutubeMediaCachePlaybackRuntime({
+  getMediaCacheConfig: () => getResolvedConfig().youtube.mediaCache,
+  requestMpvProperty: async (name) => {
+    const client = appState.mpvClient;
+    if (!client) return null;
+    return await client.requestProperty(name);
+  },
+  startYoutubeMediaCache: (url, options) => {
+    youtubeMediaCache.start(url, options);
+  },
+  logWarn: (message) => logger.warn(message),
+});
 const waitForYoutubeMpvConnected = createWaitForMpvConnectedHandler({
   getMpvClient: () => appState.mpvClient,
   now: () => Date.now(),
@@ -1683,10 +1695,35 @@ const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNo
 });
 
 function isYoutubePlaybackActiveNow(): boolean {
-  return isYoutubePlaybackActive(
-    appState.currentMediaPath,
-    appState.mpvClient?.currentVideoPath ?? null,
-  );
+  return Boolean(getCurrentYoutubeMediaCacheSourceUrlSnapshot());
+}
+
+function getCurrentYoutubeMediaCacheSourceUrlSnapshot(): string | null {
+  const currentMediaPath = appState.currentMediaPath?.trim() || null;
+  if (isYoutubeMediaPath(currentMediaPath)) {
+    return currentMediaPath;
+  }
+
+  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
+  if (isYoutubeMediaPath(currentVideoPath)) {
+    return currentVideoPath;
+  }
+
+  return youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrlSnapshot();
+}
+
+async function getCurrentYoutubeMediaCacheSourceUrl(): Promise<string | null> {
+  const currentMediaPath = appState.currentMediaPath?.trim() || null;
+  if (isYoutubeMediaPath(currentMediaPath)) {
+    return currentMediaPath;
+  }
+
+  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
+  if (isYoutubeMediaPath(currentVideoPath)) {
+    return currentVideoPath;
+  }
+
+  return await youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrl();
 }
 
 function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
@@ -1702,13 +1739,16 @@ async function getCachedYoutubeMediaPathForCurrentPlayback(
   if (getResolvedConfig().youtube.mediaCache.mode !== 'background') {
     return null;
   }
-  if (!isYoutubePlaybackActiveNow()) {
+  const cacheSourceUrl = isYoutubeMediaPath(currentVideoPath)
+    ? currentVideoPath
+    : await getCurrentYoutubeMediaCacheSourceUrl();
+  if (!cacheSourceUrl) {
     return null;
   }
   // mpv can expose the resolved stream URL here while the cache key uses the original page URL.
   // Keep the active-cache fallback so current playback can still resolve the ready cached file.
   return (
-    (await youtubeMediaCache.getCachedMediaPath(currentVideoPath)) ??
+    (await youtubeMediaCache.getCachedMediaPath(cacheSourceUrl)) ??
     (await youtubeMediaCache.getActiveCachedMediaPath())
   );
 }
@@ -4442,6 +4482,7 @@ const {
         subtitlePrefetchRuntime.cancelPendingInit();
       }
       youtubePrimarySubtitleNotificationRuntime.handleMediaPathChange(path);
+      void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
         void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
@@ -5815,6 +5856,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getCachedMediaPath: (currentVideoPath, kind) =>
         getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
       shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
+      getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
       showDesktopNotification,
       showOverlayNotification,
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
@@ -6294,6 +6336,7 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       getCachedMediaPath: (currentVideoPath, kind) =>
         getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
       shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
+      getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
       shouldStartAnkiIntegration: () =>
         !(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs)),
     },

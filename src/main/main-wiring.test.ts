@@ -50,6 +50,16 @@ test('media path changes clear rendered subtitle state without clearing same-you
   );
 });
 
+test('media path changes start the YouTube media cache coordinator', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /updateCurrentMediaPath:\s*\(path\)\s*=>\s*\{(?<body>[\s\S]*?)\n    restoreMpvSubVisibility:/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(actionBlock, /youtubeMediaCachePlaybackRuntime\.handleMediaPathChange\(path\);/);
+});
+
 test('same media path updates do not reset autoplay ready fallback state', () => {
   const source = readMainSource();
   const actionBlock = source.match(

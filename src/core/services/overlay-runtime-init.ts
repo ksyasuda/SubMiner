@@ -30,6 +30,7 @@ type CreateAnkiIntegrationArgs = {
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
   shouldRequireRemoteMediaCache?: () => boolean;
+  getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
 };
 
 export type OverlayWindowTrackerOptions = {
@@ -72,6 +73,7 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     args.showOverlayNotification,
     args.getCachedMediaPath,
     args.shouldRequireRemoteMediaCache,
+    args.getYoutubeMediaSourceUrl,
   );
 }
 
@@ -144,6 +146,7 @@ export function initializeOverlayRuntime(
       kind: 'audio' | 'video',
     ) => Promise<string | null>;
     shouldRequireRemoteMediaCache?: () => boolean;
+    getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
     shouldStartAnkiIntegration?: () => boolean;
     createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
     backendOverride: string | null;
@@ -183,6 +186,7 @@ export function initializeOverlayAnkiIntegration(options: {
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
   shouldRequireRemoteMediaCache?: () => boolean;
+  getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
   shouldStartAnkiIntegration?: () => boolean;
   createAnkiIntegration?: (args: CreateAnkiIntegrationArgs) => AnkiIntegrationLike;
 }): boolean {
@@ -220,6 +224,9 @@ export function initializeOverlayAnkiIntegration(options: {
     ...(options.getCachedMediaPath ? { getCachedMediaPath: options.getCachedMediaPath } : {}),
     ...(options.shouldRequireRemoteMediaCache
       ? { shouldRequireRemoteMediaCache: options.shouldRequireRemoteMediaCache }
+      : {}),
+    ...(options.getYoutubeMediaSourceUrl
+      ? { getYoutubeMediaSourceUrl: options.getYoutubeMediaSourceUrl }
       : {}),
   });
   if (options.shouldStartAnkiIntegration?.() !== false) {
