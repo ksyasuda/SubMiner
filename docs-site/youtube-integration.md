@@ -80,17 +80,17 @@ The picker displays each track with its language, kind (manual/auto), and title 
 
 SubMiner handles several YouTube subtitle formats transparently:
 
-| Format | Handling |
-| ------ | -------- |
-| `srt`, `vtt` | Used directly (preferred for manual tracks) |
+| Format                 | Handling                                                 |
+| ---------------------- | -------------------------------------------------------- |
+| `srt`, `vtt`           | Used directly (preferred for manual tracks)              |
 | `srv1`, `srv2`, `srv3` | YouTube TimedText XML --- converted to VTT automatically |
-| Auto-generated VTT | Normalized to remove rolling-caption text duplication |
+| Auto-generated VTT     | Normalized to remove rolling-caption text duplication    |
 
 For auto-generated tracks, SubMiner prefers `srv3` > `srv2` > `srv1` > `vtt` (TimedText XML produces cleaner output). For manual tracks, `srt` > `vtt` is preferred.
 
 ## Card Media Cache
 
-By default, YouTube card audio and screenshots are extracted directly from mpv's active stream URLs. If generated card media fails with YouTube `403` errors, set `youtube.mediaCache.mode` to `"background"`. Background mode starts a separate `yt-dlp` media download after playback loads, creates text fields immediately, queues audio/image work for mined notes, and fills those fields once the local cache file is ready.
+By default, YouTube card audio and screenshots are extracted directly from mpv's active stream URLs. If generated card media fails with YouTube `403` errors, set `youtube.mediaCache.mode` to `"background"`. Background mode starts a separate `yt-dlp` media download after playback loads, including YouTube URLs opened directly in mpv and resolved stream URLs when mpv still exposes the original YouTube playlist entry. It creates text fields immediately, queues audio/image work for mined notes, and fills those fields once the local cache file is ready.
 
 Background cache downloads use IPv4 and retry flags to reduce YouTube throttling failures. If the background download still fails, SubMiner shows a cache failure notification, shows queued-card failure notifications, and clears those pending updates so cards are not left waiting silently.
 
@@ -101,13 +101,13 @@ Background cache downloads use IPv4 and retry flags to reduce YouTube throttling
 ```jsonc
 {
   "youtube": {
-    "primarySubLanguages": ["ja", "jpn"]
-  }
+    "primarySubLanguages": ["ja", "jpn"],
+  },
 }
 ```
 
-| Option | Type | Description |
-| ------ | ---- | ----------- |
+| Option                | Type       | Description                                                                           |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------- |
 | `primarySubLanguages` | `string[]` | Language priority for YouTube primary subtitle auto-loading (default `["ja", "jpn"]`) |
 
 ### Secondary Subtitle Languages
@@ -119,16 +119,16 @@ Secondary track selection uses the shared `secondarySub` config:
   "secondarySub": {
     "secondarySubLanguages": [],
     "autoLoadSecondarySub": false,
-    "defaultMode": "hover"
-  }
+    "defaultMode": "hover",
+  },
 }
 ```
 
-| Option | Type | Description |
-| ------ | ---- | ----------- |
-| `secondarySubLanguages` | `string[]` | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track. Default is empty (`[]`). For YouTube, SubMiner always tries an English track first regardless of this list. |
-| `autoLoadSecondarySub` | `boolean` | Auto-detect and load a matching secondary track (default: `false`) |
-| `defaultMode` | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`) |
+| Option                  | Type                                 | Description                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secondarySubLanguages` | `string[]`                           | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track. Default is empty (`[]`). For YouTube, SubMiner always tries an English track first regardless of this list. |
+| `autoLoadSecondarySub`  | `boolean`                            | Auto-detect and load a matching secondary track (default: `false`)                                                                                                                                  |
+| `defaultMode`           | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`)                                                                                                                                   |
 
 Precedence: CLI flag > environment variable > `config.jsonc` > built-in default.
 

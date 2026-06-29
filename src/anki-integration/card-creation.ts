@@ -90,6 +90,7 @@ interface CardCreationDeps {
   getMpvClient: () => MpvClient;
   getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'];
   shouldRequireRemoteMediaCache?: () => boolean;
+  getYoutubeMediaSourceUrl?: () => string | null | undefined;
   queuePendingYoutubeMediaUpdate?: (job: PendingYoutubeMediaUpdate) => void;
   getDeck?: () => string | undefined;
   client: CardCreationClient;
@@ -705,7 +706,7 @@ export class CardCreationService {
         const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
         if (shouldQueuePendingYoutubeMedia) {
           this.deps.queuePendingYoutubeMediaUpdate?.({
-            sourceUrl: mpvClient.currentVideoPath,
+            sourceUrl: this.deps.getYoutubeMediaSourceUrl?.() || mpvClient.currentVideoPath,
             noteId,
             startTime,
             endTime,

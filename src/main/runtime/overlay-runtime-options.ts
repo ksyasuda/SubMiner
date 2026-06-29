@@ -42,6 +42,7 @@ type OverlayRuntimeOptions = {
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
   shouldRequireRemoteMediaCache?: () => boolean;
+  getYoutubeMediaSourceUrl?: () => string | null | undefined;
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -81,6 +82,7 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
   shouldRequireRemoteMediaCache?: () => boolean;
+  getYoutubeMediaSourceUrl?: () => string | null | undefined;
   shouldStartAnkiIntegration: () => boolean;
   bindOverlayOwner?: () => void;
   releaseOverlayOwner?: () => void;
@@ -110,6 +112,9 @@ export function createBuildInitializeOverlayRuntimeOptionsHandler(deps: {
     ...(deps.getCachedMediaPath ? { getCachedMediaPath: deps.getCachedMediaPath } : {}),
     ...(deps.shouldRequireRemoteMediaCache
       ? { shouldRequireRemoteMediaCache: deps.shouldRequireRemoteMediaCache }
+      : {}),
+    ...(deps.getYoutubeMediaSourceUrl
+      ? { getYoutubeMediaSourceUrl: deps.getYoutubeMediaSourceUrl }
       : {}),
     shouldStartAnkiIntegration: deps.shouldStartAnkiIntegration,
     bindOverlayOwner: deps.bindOverlayOwner,
