@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+/package-lock.json
 
 # Superpowers brainstorming
 .superpowers/
@@ -16,6 +17,8 @@ coverage/
 
 # Launcher build artifact (produced by make build-launcher)
 /subminer
+/main-entry.js
+/main-entry.js.map
 
 # Logs
 *.log
