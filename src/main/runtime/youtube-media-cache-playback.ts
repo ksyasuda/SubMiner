@@ -125,6 +125,7 @@ async function resolveYoutubeSourceUrl(
 
 export function createYoutubeMediaCachePlaybackRuntime(deps: YoutubeMediaCachePlaybackRuntimeDeps) {
   let activeYoutubeSourceUrl: string | null = null;
+  let activeYoutubeSourceUrlPromise: Promise<string | null> | null = null;
   let generation = 0;
 
   const handleMediaPathChange = async (mediaPath: string): Promise<void> => {
@@ -132,6 +133,7 @@ export function createYoutubeMediaCachePlaybackRuntime(deps: YoutubeMediaCachePl
     const config = deps.getMediaCacheConfig();
     if (config.mode !== 'background') {
       activeYoutubeSourceUrl = null;
+      activeYoutubeSourceUrlPromise = Promise.resolve(null);
       return;
     }
 
@@ -139,7 +141,12 @@ export function createYoutubeMediaCachePlaybackRuntime(deps: YoutubeMediaCachePl
       activeYoutubeSourceUrl = null;
     }
 
-    const sourceUrl = await resolveYoutubeSourceUrl(deps, mediaPath);
+    const sourceUrlPromise = resolveYoutubeSourceUrl(deps, mediaPath);
+    activeYoutubeSourceUrlPromise = sourceUrlPromise.then((sourceUrl) =>
+      currentGeneration === generation ? sourceUrl : null,
+    );
+
+    const sourceUrl = await sourceUrlPromise;
     if (currentGeneration !== generation) {
       return;
     }
@@ -164,7 +171,9 @@ export function createYoutubeMediaCachePlaybackRuntime(deps: YoutubeMediaCachePl
   };
 
   return {
-    getActiveYoutubeSourceUrl: (): string | null => activeYoutubeSourceUrl,
+    getActiveYoutubeSourceUrl: async (): Promise<string | null> =>
+      activeYoutubeSourceUrlPromise ?? activeYoutubeSourceUrl,
+    getActiveYoutubeSourceUrlSnapshot: (): string | null => activeYoutubeSourceUrl,
     handleMediaPathChange,
   };
 }

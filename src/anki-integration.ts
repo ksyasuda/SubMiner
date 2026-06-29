@@ -239,7 +239,9 @@ export class AnkiIntegration {
   private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
     null;
   private shouldRequireRemoteMediaCache: (() => boolean) | null = null;
-  private getYoutubeMediaSourceUrl: (() => string | null | undefined) | null = null;
+  private getYoutubeMediaSourceUrl:
+    | (() => Promise<string | null | undefined> | string | null | undefined)
+    | null = null;
   private pendingYoutubeMediaQueue: PendingYoutubeMediaQueue;
 
   constructor(
@@ -258,7 +260,7 @@ export class AnkiIntegration {
     overlayNotificationCallback?: (payload: OverlayNotificationPayload) => void,
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
     shouldRequireRemoteMediaCache?: () => boolean,
-    getYoutubeMediaSourceUrl?: () => string | null | undefined,
+    getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -949,9 +951,9 @@ export class AnkiIntegration {
     return this.pendingYoutubeMediaQueue.queueFromNote(job);
   }
 
-  private getCurrentYoutubeMediaSourceUrl(): string {
+  private async getCurrentYoutubeMediaSourceUrl(): Promise<string> {
     return (
-      trimToNonEmptyString(this.getYoutubeMediaSourceUrl?.()) ??
+      trimToNonEmptyString(await this.getYoutubeMediaSourceUrl?.()) ??
       trimToNonEmptyString(this.mpvClient.currentVideoPath) ??
       ''
     );

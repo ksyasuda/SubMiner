@@ -28,6 +28,14 @@ function shouldGenerateImage(config: AnkiConnectConfig): boolean {
   return config.media?.generateImage !== false;
 }
 
+function trimToNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export interface CardCreationNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
@@ -90,7 +98,7 @@ interface CardCreationDeps {
   getMpvClient: () => MpvClient;
   getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'];
   shouldRequireRemoteMediaCache?: () => boolean;
-  getYoutubeMediaSourceUrl?: () => string | null | undefined;
+  getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
   queuePendingYoutubeMediaUpdate?: (job: PendingYoutubeMediaUpdate) => void;
   getDeck?: () => string | undefined;
   client: CardCreationClient;
@@ -706,7 +714,9 @@ export class CardCreationService {
         const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
         if (shouldQueuePendingYoutubeMedia) {
           this.deps.queuePendingYoutubeMediaUpdate?.({
-            sourceUrl: this.deps.getYoutubeMediaSourceUrl?.() || mpvClient.currentVideoPath,
+            sourceUrl:
+              trimToNonEmptyString(await this.deps.getYoutubeMediaSourceUrl?.()) ??
+              mpvClient.currentVideoPath,
             noteId,
             startTime,
             endTime,

@@ -45,7 +45,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
     kind: 'audio' | 'video',
   ) => Promise<string | null>;
   shouldRequireRemoteMediaCache?: () => boolean;
-  getYoutubeMediaSourceUrl?: () => string | null | undefined;
+  getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
   createFieldGroupingCallback: () => (

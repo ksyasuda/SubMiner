@@ -1695,10 +1695,10 @@ const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNo
 });
 
 function isYoutubePlaybackActiveNow(): boolean {
-  return Boolean(getCurrentYoutubeMediaCacheSourceUrl());
+  return Boolean(getCurrentYoutubeMediaCacheSourceUrlSnapshot());
 }
 
-function getCurrentYoutubeMediaCacheSourceUrl(): string | null {
+function getCurrentYoutubeMediaCacheSourceUrlSnapshot(): string | null {
   const currentMediaPath = appState.currentMediaPath?.trim() || null;
   if (isYoutubeMediaPath(currentMediaPath)) {
     return currentMediaPath;
@@ -1709,7 +1709,21 @@ function getCurrentYoutubeMediaCacheSourceUrl(): string | null {
     return currentVideoPath;
   }
 
-  return youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrl();
+  return youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrlSnapshot();
+}
+
+async function getCurrentYoutubeMediaCacheSourceUrl(): Promise<string | null> {
+  const currentMediaPath = appState.currentMediaPath?.trim() || null;
+  if (isYoutubeMediaPath(currentMediaPath)) {
+    return currentMediaPath;
+  }
+
+  const currentVideoPath = appState.mpvClient?.currentVideoPath?.trim() || null;
+  if (isYoutubeMediaPath(currentVideoPath)) {
+    return currentVideoPath;
+  }
+
+  return await youtubeMediaCachePlaybackRuntime.getActiveYoutubeSourceUrl();
 }
 
 function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
@@ -1727,7 +1741,7 @@ async function getCachedYoutubeMediaPathForCurrentPlayback(
   }
   const cacheSourceUrl = isYoutubeMediaPath(currentVideoPath)
     ? currentVideoPath
-    : getCurrentYoutubeMediaCacheSourceUrl();
+    : await getCurrentYoutubeMediaCacheSourceUrl();
   if (!cacheSourceUrl) {
     return null;
   }
