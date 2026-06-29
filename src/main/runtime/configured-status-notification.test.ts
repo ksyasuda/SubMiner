@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   getPlaybackFeedbackNotificationOptions,
+  getYoutubeFlowStatusNotificationOptions,
   notifyConfiguredStatus,
 } from './configured-status-notification';
 import { createOverlayNotificationDelivery } from './overlay-notification-delivery';
@@ -224,6 +225,36 @@ test('playback feedback options reuse subtitle mode notification ids', () => {
     id: 'secondary-subtitle-mode-feedback',
   });
   assert.deepEqual(getPlaybackFeedbackNotificationOptions('Secondary subtitle track: English'), {});
+});
+
+test('youtube flow status options route picker opening as one-shot configured status', () => {
+  assert.deepEqual(getYoutubeFlowStatusNotificationOptions('Opening YouTube subtitle picker...'), {
+    id: 'youtube-subtitles-status',
+    title: 'YouTube subtitles',
+    variant: 'info',
+    persistent: false,
+    desktop: true,
+  });
+});
+
+test('youtube flow status options route loaded messages as transient success', () => {
+  assert.deepEqual(getYoutubeFlowStatusNotificationOptions('Subtitles loaded.'), {
+    id: 'youtube-subtitles-status',
+    title: 'YouTube subtitles',
+    variant: 'success',
+    persistent: false,
+    desktop: true,
+  });
+  assert.deepEqual(
+    getYoutubeFlowStatusNotificationOptions('Primary and secondary subtitles loaded.'),
+    {
+      id: 'youtube-subtitles-status',
+      title: 'YouTube subtitles',
+      variant: 'success',
+      persistent: false,
+      desktop: true,
+    },
+  );
 });
 
 test('notifyConfiguredStatus falls back to desktop if overlay is unavailable', () => {

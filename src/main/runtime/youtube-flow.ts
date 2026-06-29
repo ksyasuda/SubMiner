@@ -755,6 +755,8 @@ export function createYoutubeFlowRuntime(deps: YoutubeFlowDeps) {
     url: string;
     mode?: YoutubeFlowMode;
   }): Promise<void> => {
+    deps.showMpvOsd('Opening YouTube subtitle picker...');
+
     let probe: YoutubeTrackProbeResult;
     try {
       probe = await deps.probeYoutubeTracks(input.url);

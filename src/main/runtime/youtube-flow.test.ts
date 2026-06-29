@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 import { createYoutubeFlowRuntime } from './youtube-flow';
+import type { YoutubeTrackProbeResult } from '../../core/services/youtube/track-probe';
 import type { YoutubePickerOpenPayload, YoutubeTrackOption } from '../../types';
 
 const primaryTrack: YoutubeTrackOption = {
@@ -19,6 +20,66 @@ const secondaryTrack: YoutubeTrackOption = {
   kind: 'manual',
   label: 'English (manual)',
 };
+
+test('youtube flow announces manual picker opening before probing tracks', async () => {
+  const osdMessages: string[] = [];
+  let resolveProbe: (probe: YoutubeTrackProbeResult) => void = () => {};
+  const probePromise = new Promise<YoutubeTrackProbeResult>((resolve) => {
+    resolveProbe = resolve;
+  });
+
+  const runtime = createYoutubeFlowRuntime({
+    probeYoutubeTracks: async () => await probePromise,
+    acquireYoutubeSubtitleTracks: async () => new Map(),
+    acquireYoutubeSubtitleTrack: async () => ({ path: '/tmp/unused.vtt' }),
+    openPicker: async (payload) => {
+      queueMicrotask(() => {
+        void runtime.resolveActivePicker({
+          sessionId: payload.sessionId,
+          action: 'continue-without-subtitles',
+          primaryTrackId: null,
+          secondaryTrackId: null,
+        });
+      });
+      return true;
+    },
+    pauseMpv: () => {},
+    resumeMpv: () => {},
+    sendMpvCommand: () => {},
+    requestMpvProperty: async () => null,
+    refreshCurrentSubtitle: () => {},
+    startTokenizationWarmups: async () => {},
+    waitForTokenizationReady: async () => {},
+    waitForAnkiReady: async () => {},
+    wait: async () => {},
+    waitForPlaybackWindowReady: async () => {},
+    waitForOverlayGeometryReady: async () => {},
+    focusOverlayWindow: () => {},
+    showMpvOsd: (text) => {
+      osdMessages.push(text);
+    },
+    reportSubtitleFailure: (message) => {
+      throw new Error(message);
+    },
+    warn: (message) => {
+      throw new Error(message);
+    },
+    log: () => {},
+    getYoutubeOutputDir: () => '/tmp',
+  });
+
+  const pending = runtime.openManualPicker({ url: 'https://example.com' });
+  await Promise.resolve();
+
+  assert.deepEqual(osdMessages, ['Opening YouTube subtitle picker...']);
+
+  resolveProbe({
+    videoId: 'video123',
+    title: 'Video 123',
+    tracks: [],
+  });
+  await pending;
+});
 
 test('youtube flow can open a manual picker session and load the selected subtitles', async () => {
   const commands: Array<Array<string | number>> = [];
@@ -126,6 +187,7 @@ test('youtube flow can open a manual picker session and load the selected subtit
   assert.equal(openedPayloads[0]?.defaultSecondaryTrackId, secondaryTrack.id);
   assert.ok(waits.includes(150));
   assert.deepEqual(osdMessages, [
+    'Opening YouTube subtitle picker...',
     'Getting subtitles...',
     'Downloading subtitles...',
     'Loading subtitles...',

@@ -74,6 +74,10 @@ Press **Ctrl+Alt+C** during YouTube playback to open the subtitle picker overlay
 - Select different primary and secondary tracks
 - Retry track loading if the auto-load failed or picked the wrong track
 
+SubMiner shows an "Opening YouTube subtitle picker..." status through your configured notification
+surface while it probes tracks and prepares the modal, then updates the subtitle download progress
+card to a success notification after the selected tracks load.
+
 The picker displays each track with its language, kind (manual/auto), and title when available.
 
 ## Subtitle Format Handling

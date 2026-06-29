@@ -31,6 +31,25 @@ export function getPlaybackFeedbackNotificationOptions(
   return {};
 }
 
+export function getYoutubeFlowStatusNotificationOptions(
+  message: string,
+): ConfiguredStatusNotificationOptions {
+  const success =
+    message === 'Subtitles loaded.' || message === 'Primary and secondary subtitles loaded.';
+  const progress =
+    message.startsWith('Downloading subtitles') ||
+    message.startsWith('Loading subtitles') ||
+    message.startsWith('Getting subtitles') ||
+    message === 'Opening YouTube video';
+  return {
+    id: 'youtube-subtitles-status',
+    title: 'YouTube subtitles',
+    variant: success ? 'success' : progress ? 'progress' : 'info',
+    persistent: progress,
+    desktop: !progress,
+  };
+}
+
 export function notifyConfiguredStatus(
   message: string,
   deps: ConfiguredStatusNotificationDeps,
