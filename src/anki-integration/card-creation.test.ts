@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CardCreationService } from './card-creation';
+import { toMpvEdlValue } from './mpv-edl-test-utils';
 import type { MediaInput } from '../media-generator';
 import type { AnkiConnectConfig } from '../types/anki';
 
@@ -290,9 +291,11 @@ test('CardCreationService uses stream-open-filename for remote media generation'
   const imagePaths: string[] = [];
   const recordMediaPath = (mediaInput: MediaInput): string =>
     typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
+  const audioUrl = 'https://audio.example/videoplayback?mime=audio%2Fwebm';
+  const videoUrl = 'https://video.example/videoplayback?mime=video%2Fmp4';
   const edlSource = [
-    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
-    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    `edl://!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(audioUrl)}`,
+    `!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(videoUrl)}`,
     '!global_tags,title=test',
   ].join(';');
 
@@ -397,8 +400,8 @@ test('CardCreationService uses stream-open-filename for remote media generation'
   const created = await service.createSentenceCard('テスト', 0, 1);
 
   assert.equal(created, true);
-  assert.deepEqual(audioPaths, ['https://audio.example/videoplayback?mime=audio%2Fwebm']);
-  assert.deepEqual(imagePaths, ['https://video.example/videoplayback?mime=video%2Fmp4']);
+  assert.deepEqual(audioPaths, [audioUrl]);
+  assert.deepEqual(imagePaths, [videoUrl]);
 });
 
 test('CardCreationService does not use mpv stream indexes for ready cached YouTube media', async () => {
