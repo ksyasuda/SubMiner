@@ -2,12 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import * as mediaSource from './media-source';
+import { toMpvEdlValue } from './mpv-edl-test-utils';
 
 const { resolveMediaGenerationInputPath } = mediaSource;
-
-function toMpvEdlValue(value: string): string {
-  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
-}
 
 type StructuredMediaInput = {
   path: string;

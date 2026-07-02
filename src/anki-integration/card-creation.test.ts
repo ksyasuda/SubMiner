@@ -2,12 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { CardCreationService } from './card-creation';
+import { toMpvEdlValue } from './mpv-edl-test-utils';
 import type { MediaInput } from '../media-generator';
 import type { AnkiConnectConfig } from '../types/anki';
-
-function toMpvEdlValue(value: string): string {
-  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
-}
 
 test('CardCreationService counts locally created sentence cards', async () => {
   const minedCards: Array<{ count: number; noteIds?: number[] }> = [];
