@@ -348,6 +348,7 @@ export class AnkiIntegration {
             endTime,
             audioPadding,
             audioStreamIndex,
+            this.config.media?.normalizeAudio !== false,
           ),
         generateScreenshot: (videoPath, timestamp, options) =>
           this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
@@ -502,6 +503,7 @@ export class AnkiIntegration {
             endTime,
             audioPadding,
             audioStreamIndex,
+            this.config.media?.normalizeAudio !== false,
           ),
         generateScreenshot: (videoPath, timestamp, options) =>
           this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
@@ -996,6 +998,7 @@ export class AnkiIntegration {
       endTime,
       this.config.media?.audioPadding,
       resolveAudioStreamIndexForMediaGeneration(videoPath, this.mpvClient.currentAudioStreamIndex),
+      this.config.media?.normalizeAudio !== false,
     );
   }
 

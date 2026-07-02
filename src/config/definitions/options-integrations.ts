@@ -182,6 +182,12 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Generate sentence audio for mined cards.',
     },
     {
+      path: 'ankiConnect.media.normalizeAudio',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.normalizeAudio,
+      description: 'Normalize generated sentence audio loudness during media extraction.',
+    },
+    {
       path: 'ankiConnect.media.generateImage',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.media.generateImage,

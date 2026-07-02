@@ -163,6 +163,24 @@ test('generateAudio defaults to unpadded sentence timing', async () => {
   });
 });
 
+test('generateAudio normalizes sentence audio by default', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mp4', 10, 12);
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args[args.indexOf('-af') + 1], 'loudnorm=I=-18:TP=-1.5:LRA=11');
+  });
+});
+
+test('generateAudio can preserve raw sentence audio loudness', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mp4', 10, 12, 0, null, false);
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args.includes('-af'), false);
+  });
+});
+
 test('generateAudio clips leading padding without adding it to trailing duration', async () => {
   await withStubbedFfmpeg(async (generator, argsPath) => {
     await generator.generateAudio('/video.mp4', 0.2, 1.2, 0.5);

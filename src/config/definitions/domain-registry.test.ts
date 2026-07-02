@@ -110,6 +110,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'subtitleStyle.autoPauseVideoOnYomitanPopup',
     'ankiConnect.enabled',
     'subtitleStyle.nameMatchEnabled',
+    'ankiConnect.media.normalizeAudio',
     'anilist.characterDictionary.collapsibleSections.description',
     'mpv.executablePath',
     'mpv.launchMode',

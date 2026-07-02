@@ -559,6 +559,7 @@
       "animatedMaxHeight": 0, // Maximum height for animated AVIF captures, in pixels. Set to 0 to preserve aspect ratio.
       "animatedCrf": 35, // Animated AVIF CRF quality target. Lower values produce larger, higher-quality files.
       "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
+      "normalizeAudio": true, // Normalize generated sentence audio loudness during media extraction. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
       "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.

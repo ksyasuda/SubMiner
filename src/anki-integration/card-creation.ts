@@ -65,6 +65,7 @@ interface CardCreationMediaGenerator {
     endTime: number,
     audioPadding?: number,
     audioStreamIndex?: number,
+    normalizeAudio?: boolean,
   ): Promise<Buffer | null>;
   generateScreenshot(
     path: MediaInput,
@@ -842,6 +843,7 @@ export class CardCreationService {
         videoPath,
         mpvClient.currentAudioStreamIndex ?? undefined,
       ),
+      this.deps.getConfig().media?.normalizeAudio !== false,
     );
   }
 

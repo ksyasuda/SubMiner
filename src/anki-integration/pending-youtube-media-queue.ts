@@ -272,6 +272,7 @@ export class PendingYoutubeMediaQueue {
           job.endTime,
           config.media?.audioPadding,
           undefined,
+          config.media?.normalizeAudio !== false,
         );
         if (audioBuffer) {
           await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
