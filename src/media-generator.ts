@@ -24,6 +24,7 @@ import { createLogger } from './logger';
 import { normalizeMediaInput, type MediaInput } from './media-input';
 
 const log = createLogger('media');
+const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-18:TP=-1.5:LRA=11';
 
 export type { MediaInput, MediaInputOptions } from './media-input';
 
@@ -264,6 +265,7 @@ export class MediaGenerator {
     endTime: number,
     padding: number = 0,
     audioStreamIndex: number | null = null,
+    normalizeAudio = true,
   ): Promise<Buffer> {
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime - safePadding);
@@ -293,7 +295,11 @@ export class MediaGenerator {
         args.push('-map', `0:${audioStreamIndex}`);
       }
 
-      args.push('-vn', '-acodec', 'libmp3lame', '-q:a', '2', '-ar', '44100', '-y', outputPath);
+      args.push('-vn');
+      if (normalizeAudio) {
+        args.push('-af', AUDIO_NORMALIZATION_FILTER);
+      }
+      args.push('-acodec', 'libmp3lame', '-q:a', '2', '-ar', '44100', '-y', outputPath);
 
       this.logMediaDebug(
         `audio start ${inputDescription} start=${start} duration=${duration} padding=${safePadding}`,

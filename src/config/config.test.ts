@@ -92,6 +92,7 @@ test('loads defaults when config is missing', () => {
     model: '',
     systemPrompt: '',
   });
+  assert.equal(config.ankiConnect.media.normalizeAudio, true);
   assert.equal(config.startupWarmups.lowPowerMode, false);
   assert.equal(config.startupWarmups.mecab, true);
   assert.equal(config.startupWarmups.yomitanExtension, true);

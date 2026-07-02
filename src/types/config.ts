@@ -235,6 +235,7 @@ export interface ResolvedConfig {
       animatedMaxHeight?: number;
       animatedCrf: number;
       syncAnimatedImageToWordAudio: boolean;
+      normalizeAudio: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;

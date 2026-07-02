@@ -860,13 +860,18 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
   assert.equal(storedMedia.length, 2);
 });
 
-test('AnkiIntegration does not use mpv stream indexes for ready cached YouTube audio', async () => {
-  const audioCalls: Array<{ path: string; audioStreamIndex?: number }> = [];
+test('AnkiIntegration passes audio normalization config for ready cached YouTube audio', async () => {
+  const audioCalls: Array<{
+    path: string;
+    audioStreamIndex?: number;
+    normalizeAudio?: boolean;
+  }> = [];
 
   const integration = new AnkiIntegration(
     {
       media: {
         audioPadding: 0,
+        normalizeAudio: false,
       },
     },
     {} as never,
@@ -896,13 +901,21 @@ test('AnkiIntegration does not use mpv stream indexes for ready cached YouTube a
         endTime: number,
         audioPadding?: number,
         audioStreamIndex?: number,
+        normalizeAudio?: boolean,
       ) => Promise<Buffer>;
     };
     generateAudio: () => Promise<Buffer | null>;
   };
   internals.mediaGenerator = {
-    generateAudio: async (path, _startTime, _endTime, _audioPadding, audioStreamIndex) => {
-      audioCalls.push({ path: path.path, audioStreamIndex });
+    generateAudio: async (
+      path,
+      _startTime,
+      _endTime,
+      _audioPadding,
+      audioStreamIndex,
+      normalizeAudio,
+    ) => {
+      audioCalls.push({ path: path.path, audioStreamIndex, normalizeAudio });
       return Buffer.from('audio');
     },
   };
@@ -913,6 +926,7 @@ test('AnkiIntegration does not use mpv stream indexes for ready cached YouTube a
     {
       path: '/tmp/subminer-youtube-media-cache/media.mkv',
       audioStreamIndex: undefined,
+      normalizeAudio: false,
     },
   ]);
 });

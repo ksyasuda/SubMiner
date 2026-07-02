@@ -161,13 +161,14 @@ Audio is extracted from the video file using the subtitle's start and end timest
 "ankiConnect": {
   "media": {
     "generateAudio": true,
+    "normalizeAudio": true,      // normalize generated clip loudness
     "audioPadding": 0,           // optional seconds before and after subtitle timing
     "maxMediaDuration": 30       // cap total duration in seconds
   }
 }
 ```
 
-Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMiner uses the active stream.
+Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMiner uses the active stream. Generated sentence audio is loudness-normalized by default during extraction; set `normalizeAudio` to `false` to keep raw source loudness.
 
 The audio is uploaded to Anki's media folder and inserted as `[sound:audio_<timestamp>.mp3]`.
 
@@ -347,6 +348,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "imageType": "static",
       "imageFormat": "jpg",
       "imageQuality": 92,
+      "normalizeAudio": true,
       "audioPadding": 0,
       "maxMediaDuration": 30,
     },

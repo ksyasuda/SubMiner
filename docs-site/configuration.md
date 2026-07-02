@@ -951,6 +951,7 @@ Enable automatic Anki card creation and updates with media generation:
       "animatedMaxWidth": 640,
       "animatedMaxHeight": 0,
       "animatedCrf": 35,
+      "normalizeAudio": true,
       "audioPadding": 0,
       "fallbackDuration": 3,
       "maxMediaDuration": 30
@@ -1001,6 +1002,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.ai.model`                            | string                                      | Optional model override for Anki AI translation/enrichment flows.                                                                                                                                                               |
 | `ankiConnect.ai.systemPrompt`                     | string                                      | Optional system prompt override for Anki AI translation/enrichment flows.                                                                                                                                                       |
 | `media.generateAudio`                             | `true`, `false`                             | Generate audio clips from video (default: `true`)                                                                                                                                                                               |
+| `media.normalizeAudio`                            | `true`, `false`                             | Normalize generated sentence-audio loudness during media extraction (default: `true`). Set to `false` to keep raw source loudness.                                                                                              |
 | `media.generateImage`                             | `true`, `false`                             | Generate image/animation screenshots (default: `true`)                                                                                                                                                                          |
 | `media.imageType`                                 | `"static"`, `"avif"`                        | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                                                                                                            |
 | `media.imageFormat`                               | `"jpg"`, `"png"`, `"webp"`                  | Image format (default: `"jpg"`)                                                                                                                                                                                                 |

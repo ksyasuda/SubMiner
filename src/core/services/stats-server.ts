@@ -1206,6 +1206,7 @@ export function createStatsApp(
     const mediaGen = options?.createMediaGenerator?.() ?? new MediaGenerator();
 
     const audioPadding = ankiConfig.media?.audioPadding ?? 0;
+    const normalizeAudio = ankiConfig.media?.normalizeAudio !== false;
     const maxMediaDuration = ankiConfig.media?.maxMediaDuration ?? 30;
 
     const startSec = startMs / 1000;
@@ -1228,7 +1229,14 @@ export function createStatsApp(
 
     const audioPromise = generateAudio
       ? timeMiningPhase(mode, 'generateAudio', () =>
-          mediaGen.generateAudio(sourcePath, startSec, clampedEndSec, audioPadding),
+          mediaGen.generateAudio(
+            sourcePath,
+            startSec,
+            clampedEndSec,
+            audioPadding,
+            null,
+            normalizeAudio,
+          ),
         )
       : Promise.resolve(null);
 
