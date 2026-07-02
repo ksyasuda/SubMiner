@@ -5,6 +5,10 @@ import * as mediaSource from './media-source';
 
 const { resolveMediaGenerationInputPath } = mediaSource;
 
+function toMpvEdlValue(value: string): string {
+  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
+}
+
 type StructuredMediaInput = {
   path: string;
   source: string;
@@ -53,9 +57,11 @@ test('resolveMediaGenerationInputPath prefers stream-open-filename for remote me
 });
 
 test('resolveMediaGenerationInputPath unwraps mpv edl source for audio and video', async () => {
+  const audioUrl = 'https://audio.example/videoplayback?mime=audio%2Fwebm';
+  const videoUrl = 'https://video.example/videoplayback?mime=video%2Fmp4';
   const edlSource = [
-    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
-    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    `edl://!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(audioUrl)}`,
+    `!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(videoUrl)}`,
     '!global_tags,title=test',
   ].join(';');
 
@@ -74,8 +80,52 @@ test('resolveMediaGenerationInputPath unwraps mpv edl source for audio and video
     'video',
   );
 
-  assert.equal(audioResult, 'https://audio.example/videoplayback?mime=audio%2Fwebm');
-  assert.equal(videoResult, 'https://video.example/videoplayback?mime=video%2Fmp4');
+  assert.equal(audioResult, audioUrl);
+  assert.equal(videoResult, videoUrl);
+});
+
+test('resolveMediaGenerationInputPath strips mpv edl segment options from unwrapped streams', async () => {
+  const audioUrl = 'https://audio.example/videoplayback?mime=audio%2Fwebm';
+  const signedVideoUrl =
+    'https://rr1---sn.example.googlevideo.com/videoplayback?mime=video%2Fmp4&mn=sn-a,sn-b&lsig=abc%3D';
+  const edlSource = [
+    `edl://!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(audioUrl)}`,
+    `!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(signedVideoUrl)},title=clip,length=73,timestamps=chapters`,
+    '!global_tags,title=test',
+  ].join(';');
+
+  const result = await resolveMediaGenerationInputPath(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async () => edlSource,
+    },
+    'video',
+  );
+
+  assert.equal(result, signedVideoUrl);
+});
+
+test('resolveMediaGenerationInputPath ignores length-guarded URLs in mpv edl headers', async () => {
+  const initUrl = 'https://init.example/init.mp4';
+  const audioUrl = 'https://audio.example/stream';
+  const videoUrl = 'https://video.example/stream';
+  const edlSource = [
+    `edl://!mp4_dash,init=${toMpvEdlValue(initUrl)}`,
+    '!new_stream',
+    toMpvEdlValue(audioUrl),
+    '!new_stream',
+    toMpvEdlValue(videoUrl),
+  ].join(';');
+
+  const audioResult = await resolveMediaGenerationInputPath(
+    {
+      currentVideoPath: 'https://www.youtube.com/watch?v=abc123',
+      requestProperty: async () => edlSource,
+    },
+    'audio',
+  );
+
+  assert.equal(audioResult, audioUrl);
 });
 
 test('resolveMediaGenerationInputPath falls back to currentVideoPath when stream-open-filename fails', async () => {
@@ -97,9 +147,11 @@ test('resolveMediaGenerationInput returns single-stream metadata for mpv EDL URL
   ).resolveMediaGenerationInput;
   assert.equal(typeof resolver, 'function');
 
+  const audioUrl = 'https://audio.example/videoplayback?mime=audio%2Fwebm';
+  const videoUrl = 'https://video.example/videoplayback?mime=video%2Fmp4';
   const edlSource = [
-    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
-    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    `edl://!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(audioUrl)}`,
+    `!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(videoUrl)}`,
   ].join(';');
 
   const result = await resolver!(
@@ -117,7 +169,7 @@ test('resolveMediaGenerationInput returns single-stream metadata for mpv EDL URL
     'audio',
   );
 
-  assert.equal(result?.path, 'https://audio.example/videoplayback?mime=audio%2Fwebm');
+  assert.equal(result?.path, audioUrl);
   assert.equal(result?.singleResolvedStream, true);
   assert.equal(result?.inputOptions?.reconnect, true);
   assert.equal(result?.inputOptions?.userAgent, 'Mozilla/5.0');

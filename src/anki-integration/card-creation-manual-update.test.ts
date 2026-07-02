@@ -7,6 +7,10 @@ import type { AnkiConnectConfig } from '../types/anki';
 
 type CardCreationDeps = ConstructorParameters<typeof CardCreationService>[0];
 
+function toMpvEdlValue(value: string): string {
+  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
+}
+
 function setWordAndSentenceCardTypeFields(
   updatedFields: Record<string, string>,
   availableFieldNames: string[],
@@ -269,9 +273,11 @@ test('manual clipboard subtitle update uses resolved mpv stream URLs for remote 
   const imagePaths: string[] = [];
   const recordMediaPath = (mediaInput: MediaInput): string =>
     typeof mediaInput === 'string' ? mediaInput : mediaInput.path;
+  const audioUrl = 'https://audio.example/videoplayback?mime=audio%2Fwebm';
+  const videoUrl = 'https://video.example/videoplayback?mime=video%2Fmp4';
   const edlSource = [
-    'edl://!new_stream;!no_clip;!no_chapters;%70%https://audio.example/videoplayback?mime=audio%2Fwebm',
-    '!new_stream;!no_clip;!no_chapters;%69%https://video.example/videoplayback?mime=video%2Fmp4',
+    `edl://!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(audioUrl)}`,
+    `!new_stream;!no_clip;!no_chapters;${toMpvEdlValue(videoUrl)}`,
     '!global_tags,title=test',
   ].join(';');
 
@@ -354,8 +360,8 @@ test('manual clipboard subtitle update uses resolved mpv stream URLs for remote 
 
   await service.updateLastAddedFromClipboard('一行目\n\n二行目');
 
-  assert.deepEqual(audioPaths, ['https://audio.example/videoplayback?mime=audio%2Fwebm']);
-  assert.deepEqual(imagePaths, ['https://video.example/videoplayback?mime=video%2Fmp4']);
+  assert.deepEqual(audioPaths, [audioUrl]);
+  assert.deepEqual(imagePaths, [videoUrl]);
   assert.equal(storedMedia.length, 2);
   assert.equal(updatedFields.length, 1);
   assert.equal(updatedFields[0]?.Sentence, '一行目 二行目');

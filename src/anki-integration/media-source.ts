@@ -1,6 +1,7 @@
 import { isRemoteMediaPath } from '../jimaku/utils';
 import type { MediaInput, MediaInputOptions } from '../media-input';
 import type { MpvClient } from '../types/runtime';
+import { extractFileUrlsFromMpvEdlSource } from './mpv-edl';
 
 export type MediaGenerationKind = 'audio' | 'video';
 export type MediaGenerationInputSource =
@@ -73,9 +74,8 @@ function normalizeHeaderName(value: string): string | null {
 }
 
 function extractUrlsFromMpvEdlSource(source: string): string[] {
-  const matches = source.matchAll(/%\d+%(https?:\/\/.*?)(?=;!new_stream|;!global_tags|$)/gms);
-  return [...matches]
-    .map((match) => trimToNonEmptyString(match[1]))
+  return extractFileUrlsFromMpvEdlSource(source)
+    .map((value) => trimToNonEmptyString(value))
     .filter((value): value is string => value !== null);
 }
 
