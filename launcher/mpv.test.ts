@@ -570,6 +570,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     texthookerOnly: false,
     texthookerOpenBrowser: false,
     useRofi: false,
+    history: false,
     logLevel: 'error',
     logRotation: 7,
     passwordStore: '',

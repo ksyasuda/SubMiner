@@ -64,6 +64,7 @@ function applyRootOptions(program: Command): void {
     .option('--settings', 'Open settings window')
     .option('-u, --update', 'Check for updates')
     .option('-R, --rofi', 'Use rofi picker')
+    .option('-H, --history', 'Browse local watch history')
     .option('-S, --start-overlay', 'Auto-start overlay')
     .option('-T, --no-texthooker', 'Disable texthooker-ui server');
 }

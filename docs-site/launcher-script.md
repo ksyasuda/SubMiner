@@ -61,6 +61,23 @@ Override with the `SUBMINER_ROFI_THEME` environment variable:
 SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 ```
 
+## Watch History
+
+`subminer -H` (or `--history`) browses your local watch history, sourced from the immersion tracker database. It works with both pickers: fzf by default, rofi with `-R -H`.
+
+```bash
+subminer -H                            # fzf history browser
+subminer -R -H                         # rofi history browser
+```
+
+The first menu lists every locally watched series, most recently watched first, using the parsed media title (e.g. the anime title) when available and the directory name otherwise. Selecting a series opens an action menu:
+
+- **Replay last watched** — replays the most recently watched episode
+- **Next episode** — plays the episode after the last watched one (continues into the next season directory when the season ends)
+- **Browse episodes** — lists the video files in the series directory in episode order, using the same fzf/rofi episode picker as directory browsing; if the series has multiple season directories, a season menu is shown first
+
+Series whose directories are not currently accessible (e.g. an unmounted network share) are hidden from the list. Watch history requires the immersion tracker database (`immersionTracking.dbPath`, default `<config dir>/immersion.sqlite`), which SubMiner populates during playback.
+
 ## Common Commands
 
 ```bash
@@ -105,6 +122,7 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-d, --directory`     | Video search directory (default: cwd)                                |
 | `-r, --recursive`     | Search directories recursively                                       |
 | `-R, --rofi`          | Use rofi instead of fzf                                              |
+| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))     |
 | `--setup`             | Open first-run setup popup manually                                  |
 | `-v, --version`       | Print installed SubMiner version                                     |
 | `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible |

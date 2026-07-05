@@ -112,6 +112,7 @@ export interface Args {
   texthookerOnly: boolean;
   texthookerOpenBrowser: boolean;
   useRofi: boolean;
+  history: boolean;
   logLevel: LogLevel;
   logRotation: LogRotation;
   passwordStore: string;
