@@ -5,10 +5,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
 import {
+  detectImageExtension,
   findNextEpisode,
   groupHistoryBySeries,
   isReadonlyWalRetryError,
   listSeasonDirs,
+  materializeCoverArt,
   queryLocalWatchHistory,
   resolveSeriesRoot,
   seasonNumberFromDirName,
@@ -25,6 +27,7 @@ function makeRow(overrides: Partial<HistoryVideoRow> = {}): HistoryVideoRow {
     parsedEpisode: 1,
     animeTitle: null,
     lastWatchedMs: 1000,
+    coverBlobHash: null,
     ...overrides,
   };
 }
@@ -195,7 +198,12 @@ test('findNextEpisode advances seasons when a deleted file was the last episode'
   }
 });
 
-function createHistoryDb(dbPath: string, options: { wal?: boolean } = {}): void {
+const PNG_MAGIC = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+
+function createHistoryDb(
+  dbPath: string,
+  options: { wal?: boolean; coverArt?: boolean } = {},
+): void {
   const db = new Database(dbPath);
   try {
     if (options.wal) db.run('PRAGMA journal_mode = WAL;');
@@ -239,6 +247,23 @@ function createHistoryDb(dbPath: string, options: { wal?: boolean } = {}): void 
         (3, 2, '3000'),
         (4, 3, '9000');
     `);
+    if (options.coverArt) {
+      db.run(`
+        CREATE TABLE imm_media_art(
+          video_id INTEGER PRIMARY KEY,
+          cover_blob_hash TEXT
+        );
+      `);
+      db.run(`
+        CREATE TABLE imm_cover_art_blobs(
+          blob_hash TEXT PRIMARY KEY,
+          cover_blob BLOB NOT NULL
+        );
+      `);
+      // Art only on video 1; video 2 resolves it through the shared anime_id.
+      db.run(`INSERT INTO imm_media_art VALUES (1, 'hash-1');`);
+      db.query('INSERT INTO imm_cover_art_blobs VALUES (?, ?)').run('hash-1', PNG_MAGIC);
+    }
     if (options.wal) db.run('PRAGMA wal_checkpoint(TRUNCATE);');
   } finally {
     db.close();
@@ -262,9 +287,74 @@ test('queryLocalWatchHistory returns local files ordered by most recent session'
   try {
     createHistoryDb(dbPath);
     assertHistoryRows(dbPath);
+    const rows = queryLocalWatchHistory(dbPath);
+    assert.equal(rows[0]?.coverBlobHash, null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('queryLocalWatchHistory resolves cover hashes directly and via shared anime', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-history-art-'));
+  const dbPath = path.join(dir, 'immersion.sqlite');
+  try {
+    createHistoryDb(dbPath, { coverArt: true });
+    const rows = queryLocalWatchHistory(dbPath);
+    assert.equal(rows[0]?.videoId, 1);
+    assert.equal(rows[0]?.coverBlobHash, 'hash-1');
+    assert.equal(rows[1]?.videoId, 2);
+    assert.equal(rows[1]?.coverBlobHash, 'hash-1');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('materializeCoverArt extracts blobs to the cache dir and reuses cached files', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-history-covers-'));
+  const dbPath = path.join(dir, 'immersion.sqlite');
+  const cacheDir = path.join(dir, 'covers');
+  try {
+    createHistoryDb(dbPath, { coverArt: true });
+
+    const covers = materializeCoverArt(
+      dbPath,
+      ['hash-1', 'hash-1', null, 'hash-missing'],
+      cacheDir,
+    );
+    const coverPath = covers.get('hash-1');
+    assert.ok(coverPath);
+    assert.equal(path.extname(coverPath!), '.png');
+    assert.ok(fs.statSync(coverPath!).size > 0);
+    assert.equal(covers.has('hash-missing'), false);
+
+    // Cached file is reused even when the database has disappeared.
+    fs.rmSync(dbPath);
+    const cachedCovers = materializeCoverArt(dbPath, ['hash-1'], cacheDir);
+    assert.equal(cachedCovers.get('hash-1'), coverPath);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('detectImageExtension identifies common cover formats', () => {
+  assert.equal(detectImageExtension(PNG_MAGIC), '.png');
+  assert.equal(detectImageExtension(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), '.jpg');
+  assert.equal(detectImageExtension(Buffer.from('RIFF0000WEBPVP8 ', 'ascii')), '.webp');
+  assert.equal(detectImageExtension(Buffer.from('GIF89a', 'ascii')), '.gif');
+  assert.equal(detectImageExtension(Buffer.from('unknown', 'ascii')), '.jpg');
+});
+
+test('groupHistoryBySeries backfills cover hash from older rows of the same series', () => {
+  const rows = [
+    makeRow({ videoId: 2, parsedEpisode: 2, lastWatchedMs: 3000, coverBlobHash: null }),
+    makeRow({ videoId: 1, parsedEpisode: 1, lastWatchedMs: 1000, coverBlobHash: 'hash-1' }),
+  ];
+
+  const series = groupHistoryBySeries(rows, () => true);
+
+  assert.equal(series.length, 1);
+  assert.equal(series[0]?.lastWatched.videoId, 2);
+  assert.equal(series[0]?.coverBlobHash, 'hash-1');
 });
 
 test('queryLocalWatchHistory reads a cleanly-closed WAL database', () => {

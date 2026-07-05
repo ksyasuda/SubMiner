@@ -36,6 +36,7 @@ interface RawHistoryRow {
   parsed_episode: number | null;
   anime_title: string | null;
   last_watched_ms: number | bigint | null;
+  cover_blob_hash: string | null;
 }
 
 export function queryLocalWatchHistory(dbPath: string): HistoryVideoRow[] {
@@ -78,12 +79,30 @@ function isWalModeSqliteDatabase(dbPath: string): boolean {
   return header.subarray(0, 16).toString('ascii') === 'SQLite format 3\0' && header[18] === 2;
 }
 
+function tableExists(db: Database, tableName: string): boolean {
+  return Boolean(
+    db.query(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(tableName),
+  );
+}
+
 function readHistoryRows(
   dbPath: string,
   options: { readonly?: boolean; readwrite?: boolean; create?: boolean },
 ): HistoryVideoRow[] {
   const db = new Database(dbPath, options);
   try {
+    const hasMediaArt = tableExists(db, 'imm_media_art');
+    const coverSelect = hasMediaArt
+      ? `COALESCE(
+          ma.cover_blob_hash,
+          (SELECT ma2.cover_blob_hash
+           FROM imm_media_art ma2
+           JOIN imm_videos v2 ON v2.video_id = ma2.video_id
+           WHERE v2.anime_id = v.anime_id AND ma2.cover_blob_hash IS NOT NULL
+           LIMIT 1)
+        ) AS cover_blob_hash`
+      : 'NULL AS cover_blob_hash';
+    const coverJoin = hasMediaArt ? 'LEFT JOIN imm_media_art ma ON ma.video_id = v.video_id' : '';
     const rows = db
       .query<RawHistoryRow>(
         `
@@ -94,10 +113,12 @@ function readHistoryRows(
           v.parsed_season,
           v.parsed_episode,
           COALESCE(a.title_romaji, a.canonical_title) AS anime_title,
-          MAX(CAST(s.started_at_ms AS INTEGER)) AS last_watched_ms
+          MAX(CAST(s.started_at_ms AS INTEGER)) AS last_watched_ms,
+          ${coverSelect}
         FROM imm_sessions s
         JOIN imm_videos v ON v.video_id = s.video_id
         LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+        ${coverJoin}
         WHERE v.source_type = 1 AND v.source_path IS NOT NULL AND v.source_path != ''
         GROUP BY v.video_id
         ORDER BY last_watched_ms DESC
@@ -115,6 +136,7 @@ function readHistoryRows(
         parsedEpisode: row.parsed_episode,
         animeTitle: row.anime_title,
         lastWatchedMs: Number(row.last_watched_ms ?? 0),
+        coverBlobHash: row.cover_blob_hash,
       }));
   } finally {
     db.close();

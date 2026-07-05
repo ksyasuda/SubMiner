@@ -14,6 +14,7 @@ import {
   findNextEpisode,
   groupHistoryBySeries,
   listSeasonDirs,
+  materializeCoverArt,
   queryLocalWatchHistory,
   resolveImmersionDbPath,
   sortVideosByEpisode,
@@ -30,15 +31,29 @@ function checkPickerDependencies(args: Args): void {
   if (!commandExists('fzf')) fail('Missing dependency: fzf');
 }
 
-function showRofiIndexMenu(labels: string[], prompt: string, themePath: string | null): number {
+function showRofiIndexMenu(
+  labels: string[],
+  prompt: string,
+  themePath: string | null,
+  icons: Array<string | null> = [],
+): number {
   const rofiArgs = ['-dmenu', '-i', '-matching', 'fuzzy', '-format', 'i', '-p', prompt];
+  const hasIcons = icons.some(Boolean);
+  if (hasIcons) rofiArgs.push('-show-icons');
   if (themePath) {
     rofiArgs.push('-theme', themePath);
   } else {
     rofiArgs.push('-theme-str', 'configuration { font: "Noto Sans CJK JP Regular 8";}');
   }
+  if (hasIcons) {
+    rofiArgs.push('-theme-str', 'configuration { show-icons: true; }');
+    rofiArgs.push('-theme-str', 'element-icon { enabled: true; size: 3em; }');
+  }
+  const lines = labels.map((label, index) =>
+    icons[index] ? `${label}\u0000icon\u001f${icons[index]}` : label,
+  );
   const result = spawnSync('rofi', rofiArgs, {
-    input: `${labels.join('\n')}\n`,
+    input: `${lines.join('\n')}\n`,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'ignore'],
   });
@@ -84,9 +99,12 @@ function pickIndex(
   prompt: string,
   useRofi: boolean,
   themePath: string | null,
+  icons: Array<string | null> = [],
 ): number {
   if (labels.length === 0) return -1;
-  return useRofi ? showRofiIndexMenu(labels, prompt, themePath) : showFzfIndexMenu(labels, prompt);
+  return useRofi
+    ? showRofiIndexMenu(labels, prompt, themePath, icons)
+    : showFzfIndexMenu(labels, prompt);
 }
 
 function formatEpisodeLabel(entry: HistorySeriesEntry): string {
@@ -156,11 +174,22 @@ export async function runHistoryCommand(context: LauncherCommandContext): Promis
 
   log('info', args.logLevel, `Watch history: ${series.length} series found in ${dbPath}`);
 
+  const coverPaths = args.useRofi
+    ? materializeCoverArt(
+        dbPath,
+        series.map((seriesEntry) => seriesEntry.coverBlobHash),
+      )
+    : new Map<string, string>();
+  const seriesIcons = series.map((seriesEntry) =>
+    seriesEntry.coverBlobHash ? (coverPaths.get(seriesEntry.coverBlobHash) ?? null) : null,
+  );
+
   const seriesIdx = pickIndex(
     series.map(formatSeriesLabel),
     'Watch History',
     args.useRofi,
     themePath,
+    seriesIcons,
   );
   if (seriesIdx < 0) return null;
   const entry = series[seriesIdx]!;
@@ -178,11 +207,13 @@ export async function runHistoryCommand(context: LauncherCommandContext): Promis
   }
   actions.push({ kind: 'browse', label: 'Browse episodes' });
 
+  const entryIcon = seriesIcons[seriesIdx] ?? null;
   const actionIdx = pickIndex(
     actions.map((action) => action.label),
     entry.displayName,
     args.useRofi,
     themePath,
+    actions.map(() => entryIcon),
   );
   if (actionIdx < 0) return null;
 

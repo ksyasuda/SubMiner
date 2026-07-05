@@ -6,12 +6,14 @@ export interface HistoryVideoRow {
   parsedEpisode: number | null;
   animeTitle: string | null;
   lastWatchedMs: number;
+  coverBlobHash: string | null;
 }
 
 export interface HistorySeriesEntry {
   seriesRoot: string;
   displayName: string;
   lastWatched: HistoryVideoRow;
+  coverBlobHash: string | null;
 }
 
 export interface SeasonDirEntry {

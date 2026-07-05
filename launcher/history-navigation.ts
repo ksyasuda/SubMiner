@@ -30,11 +30,22 @@ export function groupHistoryBySeries(
 
   for (const row of sorted) {
     const seriesRoot = resolveSeriesRoot(row.sourcePath);
-    if (byRoot.has(seriesRoot)) continue;
+    const existing = byRoot.get(seriesRoot);
+    if (existing) {
+      if (existing.coverBlobHash === null && row.coverBlobHash !== null) {
+        existing.coverBlobHash = row.coverBlobHash;
+      }
+      continue;
+    }
     if (!existsFn(seriesRoot)) continue;
     const displayName =
       row.parsedTitle?.trim() || row.animeTitle?.trim() || path.basename(seriesRoot);
-    byRoot.set(seriesRoot, { seriesRoot, displayName, lastWatched: row });
+    byRoot.set(seriesRoot, {
+      seriesRoot,
+      displayName,
+      lastWatched: row,
+      coverBlobHash: row.coverBlobHash,
+    });
   }
 
   return Array.from(byRoot.values());
