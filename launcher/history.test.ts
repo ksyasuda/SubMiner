@@ -336,6 +336,29 @@ test('materializeCoverArt extracts blobs to the cache dir and reuses cached file
   }
 });
 
+test('materializeCoverArt rejects cover hashes that escape the cache dir', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-history-cover-safety-'));
+  const dbPath = path.join(dir, 'immersion.sqlite');
+  const cacheDir = path.join(dir, 'covers');
+  const unsafeHash = '../escape';
+  try {
+    createHistoryDb(dbPath, { coverArt: true });
+    const db = new Database(dbPath);
+    try {
+      db.query('INSERT INTO imm_cover_art_blobs VALUES (?, ?)').run(unsafeHash, PNG_MAGIC);
+    } finally {
+      db.close();
+    }
+
+    const covers = materializeCoverArt(dbPath, [unsafeHash], cacheDir);
+
+    assert.equal(covers.has(unsafeHash), false);
+    assert.equal(fs.existsSync(path.join(dir, 'escape.png')), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('detectImageExtension identifies common cover formats', () => {
   assert.equal(detectImageExtension(PNG_MAGIC), '.png');
   assert.equal(detectImageExtension(Buffer.from([0xff, 0xd8, 0xff, 0xe0])), '.jpg');

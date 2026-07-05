@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
-import { isReadonlyWalRetryError } from './history-db.js';
+import { withReadonlyWalRetry } from './history-db.js';
 
 const COVER_EXTENSIONS = ['.jpg', '.png', '.webp', '.gif'] as const;
+const SAFE_COVER_HASH_PATTERN = /^[a-z0-9_-]+$/i;
 
 export function getDefaultCoverCacheDir(): string {
   return path.join(os.homedir(), '.cache', 'subminer', 'covers');
@@ -70,6 +71,10 @@ function queryCoverBlobs(
   }
 }
 
+function isSafeCoverHash(hash: string | null | undefined): hash is string {
+  return typeof hash === 'string' && SAFE_COVER_HASH_PATTERN.test(hash);
+}
+
 /**
  * Ensures cover art blobs referenced by hash exist as image files in the cache
  * directory, extracting missing ones from the stats database. Returns a map of
@@ -80,7 +85,7 @@ export function materializeCoverArt(
   hashes: Array<string | null | undefined>,
   cacheDir: string = getDefaultCoverCacheDir(),
 ): Map<string, string> {
-  const wanted = Array.from(new Set(hashes.filter((hash): hash is string => Boolean(hash))));
+  const wanted = Array.from(new Set(hashes.filter(isSafeCoverHash)));
   const resolved = new Map<string, string>();
   if (wanted.length === 0) return resolved;
 
@@ -97,12 +102,7 @@ export function materializeCoverArt(
 
   let blobs: Map<string, Buffer>;
   try {
-    try {
-      blobs = queryCoverBlobs(dbPath, missing, { readonly: true });
-    } catch (error) {
-      if (!isReadonlyWalRetryError(error, dbPath)) throw error;
-      blobs = queryCoverBlobs(dbPath, missing, { readwrite: true, create: false });
-    }
+    blobs = withReadonlyWalRetry(dbPath, (options) => queryCoverBlobs(dbPath, missing, options));
   } catch {
     return resolved;
   }

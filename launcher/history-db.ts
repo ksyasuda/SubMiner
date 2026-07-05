@@ -40,11 +40,18 @@ interface RawHistoryRow {
 }
 
 export function queryLocalWatchHistory(dbPath: string): HistoryVideoRow[] {
+  return withReadonlyWalRetry(dbPath, (options) => readHistoryRows(dbPath, options));
+}
+
+export function withReadonlyWalRetry<T>(
+  dbPath: string,
+  query: (options: { readonly?: boolean; readwrite?: boolean; create?: boolean }) => T,
+): T {
   try {
-    return readHistoryRows(dbPath, { readonly: true });
+    return query({ readonly: true });
   } catch (error) {
     if (!isReadonlyWalRetryError(error, dbPath)) throw error;
-    return readHistoryRows(dbPath, { readwrite: true, create: false });
+    return query({ readwrite: true, create: false });
   }
 }
 
