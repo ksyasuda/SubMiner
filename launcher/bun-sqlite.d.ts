@@ -7,10 +7,10 @@ declare module 'bun:sqlite' {
     lastInsertRowid: number | bigint;
   }
 
-  export interface Statement {
-    all(...params: unknown[]): unknown[];
-    get(...params: unknown[]): unknown;
-    run(...params: unknown[]): RunResult;
+  export interface Statement<ReturnType = unknown, ParamsType extends unknown[] = unknown[]> {
+    all(...params: ParamsType): ReturnType[];
+    get(...params: ParamsType): ReturnType | undefined;
+    run(...params: ParamsType): RunResult;
   }
 
   export class Database {
@@ -18,9 +18,13 @@ declare module 'bun:sqlite' {
       filename: string,
       options?: { readonly?: boolean; readwrite?: boolean; create?: boolean },
     );
-    query(sql: string): Statement;
-    prepare(sql: string): Statement;
+    query<ReturnType = unknown, ParamsType extends unknown[] = unknown[]>(
+      sql: string,
+    ): Statement<ReturnType, ParamsType>;
+    prepare<ReturnType = unknown, ParamsType extends unknown[] = unknown[]>(
+      sql: string,
+    ): Statement<ReturnType, ParamsType>;
     run(sql: string, ...params: unknown[]): RunResult;
-    close(): void;
+    close(throwOnError?: boolean): void;
   }
 }

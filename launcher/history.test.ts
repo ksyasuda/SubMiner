@@ -7,6 +7,7 @@ import { Database } from 'bun:sqlite';
 import {
   findNextEpisode,
   groupHistoryBySeries,
+  isReadonlyWalRetryError,
   listSeasonDirs,
   queryLocalWatchHistory,
   resolveSeriesRoot,
@@ -182,6 +183,18 @@ test('findNextEpisode falls back to episode numbers when file was removed', () =
   }
 });
 
+test('findNextEpisode advances seasons when a deleted file was the last episode', () => {
+  const seriesRoot = createSeriesTree();
+  try {
+    const season1 = path.join(seriesRoot, 'Season-1');
+    const season2 = path.join(seriesRoot, 'Season-2');
+    const missing = path.join(season1, 'Show - S01E03 - Deleted Cut.mkv');
+    assert.equal(findNextEpisode(missing), path.join(season2, 'Show - S02E01.mkv'));
+  } finally {
+    fs.rmSync(path.dirname(seriesRoot), { recursive: true, force: true });
+  }
+});
+
 function createHistoryDb(dbPath: string, options: { wal?: boolean } = {}): void {
   const db = new Database(dbPath);
   try {
@@ -265,6 +278,41 @@ test('queryLocalWatchHistory reads a cleanly-closed WAL database', () => {
     fs.rmSync(`${dbPath}-wal`, { force: true });
     fs.rmSync(`${dbPath}-shm`, { force: true });
     assertHistoryRows(dbPath);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('isReadonlyWalRetryError only accepts readonly errors from WAL-mode databases', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-history-retry-'));
+  const walDbPath = path.join(dir, 'wal.sqlite');
+  const rollbackDbPath = path.join(dir, 'rollback.sqlite');
+  try {
+    createHistoryDb(walDbPath, { wal: true });
+    createHistoryDb(rollbackDbPath);
+
+    assert.equal(
+      isReadonlyWalRetryError(
+        Object.assign(new Error('attempt to write a readonly database'), {
+          code: 'SQLITE_READONLY',
+        }),
+        walDbPath,
+      ),
+      true,
+    );
+    assert.equal(
+      isReadonlyWalRetryError(new Error('no such table: imm_sessions'), walDbPath),
+      false,
+    );
+    assert.equal(
+      isReadonlyWalRetryError(
+        Object.assign(new Error('attempt to write a readonly database'), {
+          code: 'SQLITE_READONLY',
+        }),
+        rollbackDbPath,
+      ),
+      false,
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
