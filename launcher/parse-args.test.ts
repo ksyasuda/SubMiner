@@ -42,6 +42,19 @@ test('parseArgs maps root settings window option', () => {
   assert.equal(parsed.settings, true);
 });
 
+test('parseArgs maps root watch history flags', () => {
+  const shortParsed = parseArgs(['-H'], 'subminer', {});
+  const longParsed = parseArgs(['--history'], 'subminer', {});
+  const rofiParsed = parseArgs(['-R', '-H'], 'subminer', {});
+  const defaultParsed = parseArgs([], 'subminer', {});
+
+  assert.equal(shortParsed.history, true);
+  assert.equal(longParsed.history, true);
+  assert.equal(rofiParsed.history, true);
+  assert.equal(rofiParsed.useRofi, true);
+  assert.equal(defaultParsed.history, false);
+});
+
 test('parseArgs maps root update flags without conflicting with jellyfin username', () => {
   const shortParsed = parseArgs(['-u'], 'subminer', {});
   const longParsed = parseArgs(['--update'], 'subminer', {});

@@ -198,6 +198,7 @@ export function createDefaultArgs(
     texthookerOnly: false,
     texthookerOpenBrowser: false,
     useRofi: false,
+    history: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
     passwordStore: '',
@@ -231,6 +232,7 @@ export function applyRootOptionsToArgs(
   if (typeof options.logLevel === 'string') parsed.logLevel = parseLogLevel(options.logLevel);
   if (typeof options.passwordStore === 'string') parsed.passwordStore = options.passwordStore;
   if (options.rofi === true) parsed.useRofi = true;
+  if (options.history === true) parsed.history = true;
   if (options.update === true) parsed.update = true;
   if (options.version === true) parsed.version = true;
   if (options.settings === true) parsed.settings = true;

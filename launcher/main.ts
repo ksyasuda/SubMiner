@@ -21,6 +21,7 @@ import { runDictionaryCommand } from './commands/dictionary-command.js';
 import { runLogsCommand } from './commands/logs-command.js';
 import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
+import { runHistoryCommand } from './commands/history-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 import { runUpdateCommand } from './commands/update-command.js';
 
@@ -140,6 +141,16 @@ async function main(): Promise<void> {
 
   if (await runJellyfinCommand(appContext)) {
     return;
+  }
+
+  if (appContext.args.history) {
+    const selected = await runHistoryCommand(appContext);
+    if (!selected) {
+      log('info', args.logLevel, 'No watch history selection made, exiting');
+      return;
+    }
+    appContext.args.target = selected;
+    appContext.args.targetKind = 'file';
   }
 
   await runPlaybackCommand(appContext);

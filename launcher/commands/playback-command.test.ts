@@ -35,6 +35,7 @@ function createContext(): LauncherCommandContext {
       texthookerOnly: false,
       texthookerOpenBrowser: false,
       useRofi: false,
+      history: false,
       logLevel: 'info',
       logRotation: 7,
       passwordStore: '',
