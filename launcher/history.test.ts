@@ -301,6 +301,15 @@ test('isReadonlyWalRetryError only accepts readonly errors from WAL-mode databas
       true,
     );
     assert.equal(
+      isReadonlyWalRetryError(
+        Object.assign(new Error('unable to open database file'), {
+          code: 'SQLITE_CANTOPEN',
+        }),
+        walDbPath,
+      ),
+      true,
+    );
+    assert.equal(
       isReadonlyWalRetryError(new Error('no such table: imm_sessions'), walDbPath),
       false,
     );

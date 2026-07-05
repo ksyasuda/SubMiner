@@ -58,7 +58,9 @@ export function isReadonlyWalRetryError(error: unknown, dbPath: string): boolean
   return (
     text.includes('readonly') ||
     text.includes('read-only') ||
-    text.includes('attempt to write a readonly database')
+    text.includes('attempt to write a readonly database') ||
+    text.includes('sqlite_cantopen') ||
+    text.includes('unable to open database file')
   );
 }
 
