@@ -168,7 +168,7 @@ test('generateAudio normalizes sentence audio by default', async () => {
     await generator.generateAudio('/video.mp4', 10, 12);
 
     const args = readFfmpegArgs(argsPath);
-    assert.equal(args[args.indexOf('-af') + 1], 'loudnorm=I=-18:TP=-1.5:LRA=11');
+    assert.equal(args[args.indexOf('-af') + 1], 'loudnorm=I=-23:TP=-2:LRA=11');
   });
 });
 

@@ -24,7 +24,7 @@ import { createLogger } from './logger';
 import { normalizeMediaInput, type MediaInput } from './media-input';
 
 const log = createLogger('media');
-const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-18:TP=-1.5:LRA=11';
+const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-23:TP=-2:LRA=11';
 
 export type { MediaInput, MediaInputOptions } from './media-input';
 
