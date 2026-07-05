@@ -1310,7 +1310,12 @@ ${YOMITAN_SCANNING_HELPERS}
             const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
             const tokenPayload = {
               surface: segments.map((segment) => segment.text).join("") || source,
-              reading: segments.map((segment) => typeof segment.reading === "string" ? segment.reading : "").join(""),
+              reading: segments.map((segment) => {
+                if (typeof segment.reading === "string" && segment.reading.length > 0) { return segment.reading; }
+                const segmentText = typeof segment.text === "string" ? segment.text : "";
+                const isKanaOnly = segmentText.length > 0 && [...segmentText].every((char) => isCodePointKana(char.codePointAt(0)));
+                return isKanaOnly ? segmentText : "";
+              }).join(""),
               headword: preferredHeadword.term,
               startPos: i,
               endPos: i + originalTextLength,

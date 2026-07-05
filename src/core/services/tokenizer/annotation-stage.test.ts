@@ -123,6 +123,48 @@ test('annotateTokens falls back to reading for known-word matches when headword 
   assert.equal(result[0]?.frequencyRank, 1895);
 });
 
+test('annotateTokens ignores partial furigana readings for known-word fallback', () => {
+  const tokens = [
+    makeToken({
+      surface: '待ち合わせてる',
+      headword: '待ち合わせる',
+      reading: 'まあ',
+      partOfSpeech: PartOfSpeech.verb,
+      endPos: 7,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'まあ',
+    }),
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+});
+
+test('annotateTokens reading fallback still matches kana surfaces with complete readings', () => {
+  const tokens = [
+    makeToken({
+      surface: 'ください',
+      headword: '下さい',
+      reading: 'ください',
+      partOfSpeech: PartOfSpeech.verb,
+      endPos: 4,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'ください',
+    }),
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+});
+
 test('annotateTokens excludes frequency for particle/bound_auxiliary and pos1 exclusions', () => {
   const tokens = [
     makeToken({
