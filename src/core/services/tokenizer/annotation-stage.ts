@@ -635,6 +635,32 @@ export function stripSubtitleAnnotationMetadata(
   return sharedStripSubtitleAnnotationMetadata(token, options);
 }
 
+// Furigana-derived readings can be partial (kanji readings only, e.g. まあ for
+// 待ち合わせてる); matching those against known words produces false positives,
+// so the reading fallback requires a reading that plausibly covers the surface:
+// at least as many characters as the surface, with the surface's kana appearing
+// in order within the reading.
+function isCompleteReadingForSurface(surface: string, reading: string): boolean {
+  const surfaceChars = [...normalizeJlptTextForExclusion(surface)];
+  const readingChars = [...normalizeJlptTextForExclusion(reading)];
+  if (readingChars.length < surfaceChars.length) {
+    return false;
+  }
+
+  let cursor = 0;
+  for (const char of surfaceChars) {
+    if (!isKanaChar(char)) {
+      continue;
+    }
+    const foundAt = readingChars.indexOf(char, cursor);
+    if (foundAt === -1) {
+      return false;
+    }
+    cursor = foundAt + 1;
+  }
+  return true;
+}
+
 function computeTokenKnownStatus(
   token: MergedToken,
   isKnownWord: (text: string) => boolean,
@@ -647,6 +673,10 @@ function computeTokenKnownStatus(
 
   const normalizedReading = token.reading.trim();
   if (!normalizedReading) {
+    return false;
+  }
+
+  if (!isCompleteReadingForSurface(token.surface, normalizedReading)) {
     return false;
   }
 

@@ -817,6 +817,12 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
       function isCodePointKana(codePoint) { return isCodePointInRanges(codePoint, KANA_RANGES); }
       function isCodePointJapanese(codePoint) { return isCodePointInRanges(codePoint, JAPANESE_RANGES); }
       function createFuriganaSegment(text, reading) { return {text, reading}; }
+      function getSegmentReadingContribution(segment) {
+        if (typeof segment.reading === "string" && segment.reading.length > 0) { return segment.reading; }
+        const segmentText = typeof segment.text === "string" ? segment.text : "";
+        const isKanaOnly = segmentText.length > 0 && [...segmentText].every((char) => isCodePointKana(char.codePointAt(0)));
+        return isKanaOnly ? segmentText : "";
+      }
       function getProlongedHiragana(previousCharacter) {
         switch (previousCharacter) {
           case "あ": case "か": case "が": case "さ": case "ざ": case "た": case "だ": case "な": case "は": case "ば": case "ぱ": case "ま": case "や": case "ら": case "わ": case "ぁ": case "ゃ": case "ゎ": return "あ";
@@ -1310,7 +1316,7 @@ ${YOMITAN_SCANNING_HELPERS}
             const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
             const tokenPayload = {
               surface: segments.map((segment) => segment.text).join("") || source,
-              reading: segments.map((segment) => typeof segment.reading === "string" ? segment.reading : "").join(""),
+              reading: segments.map(getSegmentReadingContribution).join(""),
               headword: preferredHeadword.term,
               startPos: i,
               endPos: i + originalTextLength,

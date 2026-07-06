@@ -964,12 +964,78 @@ test('requestYomitanScanTokens extracts best frequency rank from selected termsF
   assert.deepEqual(result, [
     {
       surface: '潜み',
-      reading: 'ひそ',
+      reading: 'ひそみ',
       headword: '潜む',
       startPos: 0,
       endPos: 2,
       isNameMatch: false,
       frequencyRank: 4073,
+    },
+  ]);
+});
+
+test('requestYomitanScanTokens emits complete readings for kanji-kana compounds', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'JPDBv2㋕', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('待ち合わせてる', deps, {
+    error: () => undefined,
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('待ち合わせてる')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+
+    return {
+      originalTextLength: 7,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '待ち合わせる',
+              reading: 'まちあわせる',
+              sources: [{ originalText: '待ち合わせてる', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '待ち合わせてる',
+      reading: 'まちあわせてる',
+      headword: '待ち合わせる',
+      startPos: 0,
+      endPos: 7,
+      isNameMatch: false,
+      frequencyRank: undefined,
     },
   ]);
 });
