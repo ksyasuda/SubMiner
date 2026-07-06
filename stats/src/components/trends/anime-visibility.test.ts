@@ -107,11 +107,22 @@ test('max titles preference round-trips and clears when set to null', () => {
   }
 });
 
-test('loadMaxTitles rejects non-positive or non-numeric stored values', () => {
-  const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': 'banana' });
+test('loadMaxTitles rejects unsupported stored values', () => {
+  const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': '8' });
   try {
     assert.equal(loadMaxTitles(), null);
   } finally {
     restore();
+  }
+});
+
+test('loadMaxTitles rejects non-positive or non-numeric stored values', () => {
+  for (const storedValue of ['0', 'banana']) {
+    const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': storedValue });
+    try {
+      assert.equal(loadMaxTitles(), null);
+    } finally {
+      restore();
+    }
   }
 });

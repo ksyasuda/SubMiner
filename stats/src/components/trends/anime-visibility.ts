@@ -37,7 +37,7 @@ export function loadMaxTitles(): number | null {
     const raw = getStorage()?.getItem(MAX_TITLES_KEY);
     if (raw === null || raw === undefined) return null;
     const value = Number(raw);
-    return Number.isInteger(value) && value > 0 ? value : null;
+    return (MAX_TITLES_OPTIONS as readonly number[]).includes(value) ? value : null;
   } catch {
     return null;
   }
