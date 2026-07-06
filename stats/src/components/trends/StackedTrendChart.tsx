@@ -33,19 +33,18 @@ const DEFAULT_LINE_COLORS = [
   '#f4dbd6',
 ];
 
-function buildLineData(raw: PerAnimeDataPoint[]) {
+export function buildLineData(raw: PerAnimeDataPoint[]) {
   const totalByAnime = new Map<string, number>();
   for (const entry of raw) {
     totalByAnime.set(entry.animeTitle, (totalByAnime.get(entry.animeTitle) ?? 0) + entry.value);
   }
 
-  const sorted = [...totalByAnime.entries()].sort((a, b) => b[1] - a[1]);
-  const topTitles = sorted.slice(0, 7).map(([title]) => title);
-  const topSet = new Set(topTitles);
+  const seriesKeys = [...totalByAnime.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([title]) => title);
 
   const byDay = new Map<number, Record<string, number>>();
   for (const entry of raw) {
-    if (!topSet.has(entry.animeTitle)) continue;
     const row = byDay.get(entry.epochDay) ?? {};
     row[entry.animeTitle] = (row[entry.animeTitle] ?? 0) + Math.round(entry.value * 10) / 10;
     byDay.set(entry.epochDay, row);
@@ -60,13 +59,13 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
           day: 'numeric',
         }),
       };
-      for (const title of topTitles) {
+      for (const title of seriesKeys) {
         row[title] = values[title] ?? 0;
       }
       return row;
     });
 
-  return { points, seriesKeys: topTitles };
+  return { points, seriesKeys };
 }
 
 export function StackedTrendChart({ title, data, colorPalette }: StackedTrendChartProps) {
