@@ -8,14 +8,34 @@ test('AnimeVisibilityFilter uses title visibility wording', () => {
     <AnimeVisibilityFilter
       animeTitles={['KonoSuba']}
       hiddenAnime={new Set()}
+      maxTitles={null}
       onShowAll={() => {}}
       onHideAll={() => {}}
       onToggleAnime={() => {}}
+      onMaxTitlesChange={() => {}}
     />,
   );
 
   assert.match(markup, /Title Visibility/);
   assert.doesNotMatch(markup, /Anime Visibility/);
+});
+
+test('AnimeVisibilityFilter offers a per-chart title limit selector', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeVisibilityFilter
+      animeTitles={['KonoSuba']}
+      hiddenAnime={new Set()}
+      maxTitles={7}
+      onShowAll={() => {}}
+      onHideAll={() => {}}
+      onToggleAnime={() => {}}
+      onMaxTitlesChange={() => {}}
+    />,
+  );
+
+  assert.match(markup, /per chart/);
+  assert.match(markup, /<option value="all">All<\/option>/);
+  assert.match(markup, /<option value="7" selected="">/);
 });
 
 test('TrendsTab source labels words per minute without reading speed wording', async () => {

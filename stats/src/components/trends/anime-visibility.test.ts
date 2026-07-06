@@ -5,8 +5,35 @@ import type { PerAnimeDataPoint } from './StackedTrendChart';
 import {
   buildAnimeVisibilityOptions,
   filterHiddenAnimeData,
+  loadHiddenTitles,
+  loadMaxTitles,
   pruneHiddenAnime,
+  saveHiddenTitles,
+  saveMaxTitles,
 } from './anime-visibility';
+
+function installLocalStorage(initial: Record<string, string> = {}) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map(Object.entries(initial));
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    },
+  });
+  return {
+    values,
+    restore: () => {
+      if (previous) {
+        Object.defineProperty(globalThis, 'localStorage', previous);
+      } else {
+        delete (globalThis as { localStorage?: unknown }).localStorage;
+      }
+    },
+  };
+}
 
 const SAMPLE_POINTS: PerAnimeDataPoint[] = [
   { epochDay: 1, animeTitle: 'KonoSuba', value: 5 },
@@ -44,4 +71,47 @@ test('pruneHiddenAnime drops titles that are no longer available', () => {
   ]);
 
   assert.deepEqual([...hidden], ['KonoSuba']);
+});
+
+test('hidden titles round-trip through localStorage', () => {
+  const { restore } = installLocalStorage();
+  try {
+    saveHiddenTitles(new Set(['KonoSuba', 'One Piece']));
+    assert.deepEqual([...loadHiddenTitles()], ['KonoSuba', 'One Piece']);
+  } finally {
+    restore();
+  }
+});
+
+test('loadHiddenTitles tolerates missing or malformed stored values', () => {
+  const { restore } = installLocalStorage({
+    'subminer-stats-trends-hidden-titles': '{"not":"an array"}',
+  });
+  try {
+    assert.deepEqual([...loadHiddenTitles()], []);
+  } finally {
+    restore();
+  }
+});
+
+test('max titles preference round-trips and clears when set to null', () => {
+  const { values, restore } = installLocalStorage();
+  try {
+    saveMaxTitles(7);
+    assert.equal(loadMaxTitles(), 7);
+    saveMaxTitles(null);
+    assert.equal(loadMaxTitles(), null);
+    assert.equal(values.has('subminer-stats-trends-max-titles'), false);
+  } finally {
+    restore();
+  }
+});
+
+test('loadMaxTitles rejects non-positive or non-numeric stored values', () => {
+  const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': 'banana' });
+  try {
+    assert.equal(loadMaxTitles(), null);
+  } finally {
+    restore();
+  }
 });

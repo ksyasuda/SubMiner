@@ -4,9 +4,14 @@ import { DateRangeSelector } from './DateRangeSelector';
 import { TrendChart } from './TrendChart';
 import { StackedTrendChart } from './StackedTrendChart';
 import {
+  MAX_TITLES_OPTIONS,
   buildAnimeVisibilityOptions,
   filterHiddenAnimeData,
+  loadHiddenTitles,
+  loadMaxTitles,
   pruneHiddenAnime,
+  saveHiddenTitles,
+  saveMaxTitles,
 } from './anime-visibility';
 import { LibrarySummarySection } from './LibrarySummarySection';
 
@@ -24,17 +29,21 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 interface AnimeVisibilityFilterProps {
   animeTitles: string[];
   hiddenAnime: ReadonlySet<string>;
+  maxTitles: number | null;
   onShowAll: () => void;
   onHideAll: () => void;
   onToggleAnime: (title: string) => void;
+  onMaxTitlesChange: (value: number | null) => void;
 }
 
 export function AnimeVisibilityFilter({
   animeTitles,
   hiddenAnime,
+  maxTitles,
   onShowAll,
   onHideAll,
   onToggleAnime,
+  onMaxTitlesChange,
 }: AnimeVisibilityFilterProps) {
   if (animeTitles.length === 0) {
     return null;
@@ -48,10 +57,28 @@ export function AnimeVisibilityFilter({
             Title Visibility
           </h4>
           <p className="mt-1 text-xs text-ctp-overlay1">
-            Shared across all anime trend charts. Default: show everything.
+            Shared across all anime trend charts. Default: show everything. Selections are saved.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1 text-[11px] text-ctp-subtext0">
+            Top
+            <select
+              className="rounded-md border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue"
+              value={maxTitles === null ? 'all' : String(maxTitles)}
+              onChange={(event) =>
+                onMaxTitlesChange(event.target.value === 'all' ? null : Number(event.target.value))
+              }
+            >
+              <option value="all">All</option>
+              {MAX_TITLES_OPTIONS.map((count) => (
+                <option key={count} value={count}>
+                  {count}
+                </option>
+              ))}
+            </select>
+            per chart
+          </label>
           <button
             type="button"
             className="rounded-md border border-ctp-surface2 px-2 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue hover:text-ctp-blue"
@@ -96,8 +123,18 @@ export function AnimeVisibilityFilter({
 export function TrendsTab() {
   const [range, setRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
-  const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => new Set());
+  const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => loadHiddenTitles());
+  const [maxTitles, setMaxTitles] = useState<number | null>(() => loadMaxTitles());
   const { data, loading, error } = useTrends(range, groupBy);
+
+  const updateHiddenAnime = (next: Set<string>) => {
+    setHiddenAnime(next);
+    saveHiddenTitles(next);
+  };
+  const updateMaxTitles = (value: number | null) => {
+    setMaxTitles(value);
+    saveMaxTitles(value);
+  };
   const cardsMinedColor = 'var(--color-ctp-cards-mined)';
   const cardsMinedStackedColors = [
     cardsMinedColor,
@@ -246,28 +283,41 @@ export function TrendsTab() {
         <AnimeVisibilityFilter
           animeTitles={animeTitles}
           hiddenAnime={activeHiddenAnime}
-          onShowAll={() => setHiddenAnime(new Set())}
-          onHideAll={() => setHiddenAnime(new Set(animeTitles))}
-          onToggleAnime={(title) =>
-            setHiddenAnime((current) => {
-              const next = new Set(current);
-              if (next.has(title)) {
-                next.delete(title);
-              } else {
-                next.add(title);
-              }
-              return next;
-            })
-          }
+          maxTitles={maxTitles}
+          onShowAll={() => updateHiddenAnime(new Set())}
+          onHideAll={() => updateHiddenAnime(new Set(animeTitles))}
+          onToggleAnime={(title) => {
+            const next = new Set(hiddenAnime);
+            if (next.has(title)) {
+              next.delete(title);
+            } else {
+              next.add(title);
+            }
+            updateHiddenAnime(next);
+          }}
+          onMaxTitlesChange={updateMaxTitles}
         />
-        <StackedTrendChart title="Watch Time Progress (min)" data={filteredWatchTimeProgress} />
-        <StackedTrendChart title="Episodes Progress" data={filteredAnimeProgress} />
+        <StackedTrendChart
+          title="Watch Time Progress (min)"
+          data={filteredWatchTimeProgress}
+          maxSeries={maxTitles}
+        />
+        <StackedTrendChart
+          title="Episodes Progress"
+          data={filteredAnimeProgress}
+          maxSeries={maxTitles}
+        />
         <StackedTrendChart
           title="Cards Mined Progress"
           data={filteredCardsProgress}
           colorPalette={cardsMinedStackedColors}
+          maxSeries={maxTitles}
         />
-        <StackedTrendChart title="Words Seen Progress" data={filteredWordsProgress} />
+        <StackedTrendChart
+          title="Words Seen Progress"
+          data={filteredWordsProgress}
+          maxSeries={maxTitles}
+        />
 
         <SectionHeader>Library — Summary</SectionHeader>
         <LibrarySummarySection rows={data.librarySummary} hiddenTitles={activeHiddenAnime} />
