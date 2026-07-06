@@ -11,6 +11,7 @@ import {
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
   normalizeSubtitle,
+  prepareSecondarySubtitleLines,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
 } from './subtitle-render.js';
@@ -1403,4 +1404,44 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
     cssText,
     /body\.layer-visible\s+#secondarySubContainer\s*\{[^}]*display:\s*none/i,
   );
+});
+
+test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one deduped line', () => {
+  // Karaoke-typeset OP/ED: one ASS event per syllable, duplicated across layers,
+  // joined with \N by mpv's secondary-sub-text.
+  const karaoke = ['ya', 'This', 'ya', 'This', 'ya', 'This', 'no', 'ma', 'ups', 'ma', 'ups'].join(
+    '\\N',
+  );
+
+  assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
+});
+
+test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {
+  const dialogue = 'I never expected this.\\NBut here we are.';
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue), [
+    'I never expected this.',
+    'But here we are.',
+  ]);
+});
+
+test('prepareSecondarySubtitleLines does not collapse many long simultaneous lines', () => {
+  const lines = Array.from({ length: 9 }, (_, i) => `This is a full sentence number ${i}.`);
+
+  assert.deepEqual(prepareSecondarySubtitleLines(lines.join('\\N')), lines);
+});
+
+test('prepareSecondarySubtitleLines strips ASS override tags and handles empty input', () => {
+  assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}Sign text'), ['Sign text']);
+  assert.deepEqual(prepareSecondarySubtitleLines(''), []);
+  assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}'), []);
+});
+
+test('secondary subtitle root CSS caps height so hover-pause band stays a top strip', () => {
+  const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
+  const cssText = fs.readFileSync(srcCssPath, 'utf-8');
+
+  const secondaryRootBlock = extractClassBlock(cssText, '#secondarySubRoot');
+  assert.match(secondaryRootBlock, /max-height:\s*6em;/);
+  assert.match(secondaryRootBlock, /overflow:\s*hidden;/);
 });
