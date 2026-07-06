@@ -652,6 +652,43 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
   root.appendChild(fragment);
 }
 
+// Karaoke-typeset OP/ED tracks emit one ASS event per syllable (duplicated across
+// layers), and mpv's secondary-sub-text joins every active event with newlines —
+// rendering those verbatim stacks dozens of tiny lines down the screen and turns the
+// hover-pause band into a full-screen trap.
+const KARAOKE_MIN_LINE_COUNT = 8;
+const KARAOKE_MAX_MEDIAN_LINE_LENGTH = 4;
+
+function isKaraokeLikeLineSet(lines: string[]): boolean {
+  if (lines.length < KARAOKE_MIN_LINE_COUNT) return false;
+  const lengths = lines.map((line) => line.length).sort((a, b) => a - b);
+  const median = lengths[Math.floor(lengths.length / 2)] ?? 0;
+  return median <= KARAOKE_MAX_MEDIAN_LINE_LENGTH;
+}
+
+export function prepareSecondarySubtitleLines(text: string): string[] {
+  const normalized = normalizeSubtitle(text, true, false);
+
+  if (!normalized) return [];
+
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (!isKaraokeLikeLineSet(lines)) {
+    return lines;
+  }
+
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const line of lines) {
+    if (seen.has(line)) continue;
+    seen.add(line);
+    unique.push(line);
+  }
+  return [unique.join(' ')];
+}
+
 export function createSubtitleRenderer(ctx: RendererContext) {
   let lastPrimarySubtitleRenderKey: string | null = null;
   let lastPrimarySubtitleNormalizedText: string | null = null;
@@ -750,15 +787,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
     ctx.dom.secondarySubRoot.replaceChildren();
     if (!text) return;
 
-    const normalized = text
-      .replace(/\\N/g, '\n')
-      .replace(/\\n/g, '\n')
-      .replace(/\{[^}]*\}/g, '')
-      .trim();
-
-    if (!normalized) return;
-
-    const lines = normalized.split('\n');
+    const lines = prepareSecondarySubtitleLines(text);
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
       if (line) {
