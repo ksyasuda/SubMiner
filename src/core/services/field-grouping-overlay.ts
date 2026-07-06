@@ -102,6 +102,18 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     return opened;
   };
 
+  const dismissModalUi = (): void => {
+    const kikuModal = 'kiku' as T;
+    // Best-effort: tell the renderer hosting the modal to close its dialog. When the modal
+    // lives in the dedicated modal window this is redundant with the teardown below, but it
+    // also covers the case where the request was routed into the visible overlay.
+    sendToVisibleOverlay('kiku:field-grouping-cancel', undefined, { preferModalWindow: true });
+    // Reliable teardown of main-side modal state (restore set, main-overlay passthrough,
+    // dedicated modal window). This is what recovers the frozen overlay when a grouping
+    // request times out or fails to reach a visible modal.
+    options.handleOverlayModalClosed?.(kikuModal);
+  };
+
   const createFieldGroupingCallback = (): ((
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>) => {
@@ -112,6 +124,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
       setResolver: options.setResolver,
       sendToVisibleOverlay,
       sendKikuFieldGroupingRequest,
+      dismissModalUi,
     });
   };
 

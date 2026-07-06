@@ -245,6 +245,12 @@ test('createFieldGroupingOverlayRuntime callback cancels and cleans up when kiku
           restoreOnModalClose: 'kiku',
           preferModalWindow: true,
         },
+        // Abandonment also asks the renderer hosting the modal to close its dialog.
+        {
+          channel: 'kiku:field-grouping-cancel',
+          restoreOnModalClose: undefined,
+          preferModalWindow: true,
+        },
       ],
     );
     assert.deepEqual(waitCalls, [
@@ -254,7 +260,10 @@ test('createFieldGroupingOverlayRuntime callback cancels and cleans up when kiku
     assert.deepEqual(warnings, [
       'Kiku field grouping modal did not acknowledge modal open on first attempt; retrying dedicated modal window.',
     ]);
-    assert.deepEqual(closed, ['kiku']);
+    // Once from the send-failure path inside sendKikuFieldGroupingRequest, once from the
+    // callback's abandonment cleanup. The real runtime guards this via the restore set, so
+    // the duplicate is a harmless no-op.
+    assert.deepEqual(closed, ['kiku', 'kiku']);
   } finally {
     globalThis.setTimeout = originalSetTimeout;
   }

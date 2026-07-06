@@ -130,6 +130,7 @@ export const IPC_CHANNELS = {
     secondarySubtitleMode: 'secondary-subtitle:mode',
     subsyncOpenManual: 'subsync:open-manual',
     kikuFieldGroupingRequest: 'kiku:field-grouping-request',
+    kikuFieldGroupingCancel: 'kiku:field-grouping-cancel',
     runtimeOptionsChanged: 'runtime-options:changed',
     runtimeOptionsOpen: 'runtime-options:open',
     jimakuOpen: 'jimaku:open',

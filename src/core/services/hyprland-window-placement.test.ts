@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildHyprlandPlacementDispatches,
   ensureHyprlandWindowFloatingByTitle,
+  ensureHyprlandWindowFloatingByTitleWithStatus,
   findHyprlandWindowForPlacement,
   hasHyprlandWindowPlacementBoundsMismatch,
   shouldAttemptHyprlandWindowPlacement,
@@ -201,6 +202,67 @@ test('buildHyprlandPlacementDispatches unpins previously pinned overlay windows'
       ['dispatch', 'alterzorder', 'top,address:0xabc'],
     ],
   );
+});
+
+test('ensureHyprlandWindowFloatingByTitleWithStatus reports not-applicable off Hyprland', () => {
+  const status = ensureHyprlandWindowFloatingByTitleWithStatus({
+    title: 'SubMiner Overlay Modal',
+    platform: 'linux',
+    env: {},
+    execFileSync: (() => {
+      throw new Error('should not query the compositor when placement is not applicable');
+    }) as never,
+  });
+
+  assert.deepEqual(status, { applicable: false, clientFound: false, dispatched: false });
+});
+
+test('ensureHyprlandWindowFloatingByTitleWithStatus reports pending when the client is not yet mapped', () => {
+  // The window has not been mapped by the compositor yet, so no client matches. Callers use
+  // this to keep retrying until the modal is actually placed above fullscreen mpv.
+  const status = ensureHyprlandWindowFloatingByTitleWithStatus({
+    title: 'SubMiner Overlay Modal',
+    platform: 'linux',
+    env: { HYPRLAND_INSTANCE_SIGNATURE: 'abc' },
+    pid: 999,
+    execFileSync: ((command: string, args: string[]) => {
+      if (args.join(' ') === '-j clients') {
+        return JSON.stringify([]);
+      }
+      return '';
+    }) as never,
+  });
+
+  assert.deepEqual(status, { applicable: true, clientFound: false, dispatched: false });
+});
+
+test('ensureHyprlandWindowFloatingByTitleWithStatus reports the client found once mapped', () => {
+  const status = ensureHyprlandWindowFloatingByTitleWithStatus({
+    title: 'SubMiner Overlay Modal',
+    platform: 'linux',
+    env: { HYPRLAND_INSTANCE_SIGNATURE: 'abc' },
+    pid: 456,
+    execFileSync: ((command: string, args: string[]) => {
+      if (args.join(' ') === '-j clients') {
+        return JSON.stringify([
+          {
+            address: '0xmatch',
+            pid: 456,
+            title: 'SubMiner Overlay Modal',
+            mapped: true,
+            floating: false,
+            pinned: false,
+          },
+        ]);
+      }
+      if (args.join(' ') === '-j status') {
+        return JSON.stringify({ configProvider: 'lua' });
+      }
+      return '';
+    }) as never,
+  });
+
+  assert.deepEqual(status, { applicable: true, clientFound: true, dispatched: true });
 });
 
 test('ensureHyprlandWindowFloatingByTitle dispatches float-only placement for matching tiled window', () => {

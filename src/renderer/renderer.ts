@@ -565,6 +565,13 @@ function registerModalOpenHandlers(): void {
       });
     },
   );
+  window.electronAPI.onKikuFieldGroupingCancel(() => {
+    runGuarded('kiku:field-grouping-cancel', () => {
+      // Main already settled the choice (timeout/failure); just close the dialog. Using the
+      // plain close path avoids sending a second, redundant response back to main.
+      kikuModal.closeKikuFieldGroupingModal();
+    });
+  });
 }
 
 function registerKeyboardCommandHandlers(): void {
