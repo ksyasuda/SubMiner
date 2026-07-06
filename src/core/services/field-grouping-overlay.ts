@@ -1,4 +1,5 @@
 import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
+import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import { createFieldGroupingCallbackRuntime, sendToVisibleOverlayRuntime } from './overlay-bridge';
 
 interface WindowLike {
@@ -107,7 +108,9 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     // Best-effort: tell the renderer hosting the modal to close its dialog. When the modal
     // lives in the dedicated modal window this is redundant with the teardown below, but it
     // also covers the case where the request was routed into the visible overlay.
-    sendToVisibleOverlay('kiku:field-grouping-cancel', undefined, { preferModalWindow: true });
+    sendToVisibleOverlay(IPC_CHANNELS.event.kikuFieldGroupingCancel, undefined, {
+      preferModalWindow: true,
+    });
     // Reliable teardown of main-side modal state (restore set, main-overlay passthrough,
     // dedicated modal window). This is what recovers the frozen overlay when a grouping
     // request times out or fails to reach a visible modal.

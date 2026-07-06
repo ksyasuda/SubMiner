@@ -24,6 +24,14 @@ export function createFieldGroupingCallback(options: {
     cancelled: true,
   });
 
+  const dismissModalUi = (): void => {
+    try {
+      options.dismissModalUi?.();
+    } catch (error) {
+      console.error('Failed to dismiss Kiku field grouping modal UI:', error);
+    }
+  };
+
   return async (data: KikuFieldGroupingRequestData): Promise<KikuFieldGroupingChoice> => {
     return new Promise((resolve) => {
       if (options.getResolver()) {
@@ -52,7 +60,7 @@ export function createFieldGroupingCallback(options: {
         // that the request path spun up. A normal response already routes through the
         // renderer's close handler, so only the abandon paths need this.
         if (abandoned) {
-          options.dismissModalUi?.();
+          dismissModalUi();
         }
 
         if (!previousVisibleOverlay && options.getVisibleOverlayVisible()) {
