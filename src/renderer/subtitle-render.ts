@@ -667,23 +667,21 @@ function isKaraokeLikeLineSet(lines: string[]): boolean {
 }
 
 export function prepareSecondarySubtitleLines(text: string): string[] {
-  const normalized = text
-    .replace(/\\N/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\{[^}]*\}/g, '')
-    .trim();
+  const normalized = normalizeSubtitle(text, true, false);
 
   if (!normalized) return [];
 
-  const lines = normalized.split('\n');
-  const contentLines = lines.map((line) => line.trim()).filter((line) => line.length > 0);
-  if (!isKaraokeLikeLineSet(contentLines)) {
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (!isKaraokeLikeLineSet(lines)) {
     return lines;
   }
 
   const seen = new Set<string>();
   const unique: string[] = [];
-  for (const line of contentLines) {
+  for (const line of lines) {
     if (seen.has(line)) continue;
     seen.add(line);
     unique.push(line);

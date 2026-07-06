@@ -1417,7 +1417,7 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
 });
 
 test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {
-  const dialogue = 'I never expected this.\\NBut here we are.';
+  const dialogue = ' I never expected this. \\N\\N But here we are. ';
 
   assert.deepEqual(prepareSecondarySubtitleLines(dialogue), [
     'I never expected this.',
