@@ -106,6 +106,7 @@ export interface CliCommandServiceDeps {
     mode: NonNullable<CliArgs['youtubeMode']>;
     source: CliCommandSource;
   }) => Promise<void>;
+  ensureBackgroundStatsServer?: () => void;
   printHelp: () => void;
   hasMainWindow: () => boolean;
   getMultiCopyTimeoutMs: () => number;
@@ -185,6 +186,7 @@ interface AnilistCliRuntime {
 interface AppCliRuntime {
   stop: () => void;
   hasMainWindow: () => boolean;
+  ensureBackgroundStatsServer?: () => void;
   runUpdateCommand: CliCommandServiceDeps['runUpdateCommand'];
   runEnsureLinuxRuntimePluginAssetsCommand: CliCommandServiceDeps['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandServiceDeps['runYoutubePlaybackFlow'];
@@ -299,6 +301,7 @@ export function createCliCommandDepsRuntime(
     runUpdateCommand: options.app.runUpdateCommand,
     runEnsureLinuxRuntimePluginAssetsCommand: options.app.runEnsureLinuxRuntimePluginAssetsCommand,
     runYoutubePlaybackFlow: options.app.runYoutubePlaybackFlow,
+    ensureBackgroundStatsServer: options.app.ensureBackgroundStatsServer,
     printHelp: options.ui.printHelp,
     hasMainWindow: options.app.hasMainWindow,
     getMultiCopyTimeoutMs: options.getMultiCopyTimeoutMs,
@@ -391,6 +394,10 @@ export function handleCliCommand(
     deps.setMpvClientSocketPath(socketPath);
     deps.connectMpvClient();
     deps.log(`Starting MPV IPC connection on socket: ${socketPath}`);
+  }
+
+  if (args.start && args.background) {
+    deps.ensureBackgroundStatsServer?.();
   }
 
   if (args.sessionAction) {

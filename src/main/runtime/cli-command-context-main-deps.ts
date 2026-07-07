@@ -61,6 +61,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     source: CliCommandSource,
   ) => Promise<void>;
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
+  ensureBackgroundStatsServer?: CliCommandContextFactoryDeps['ensureBackgroundStatsServer'];
 
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
@@ -140,6 +141,7 @@ export function createBuildCliCommandContextMainDepsHandler(deps: {
     runEnsureLinuxRuntimePluginAssetsCommand: (args: CliArgs, source: CliCommandSource) =>
       deps.runEnsureLinuxRuntimePluginAssetsCommand(args, source),
     runYoutubePlaybackFlow: (request) => deps.runYoutubePlaybackFlow(request),
+    ensureBackgroundStatsServer: deps.ensureBackgroundStatsServer,
     openYomitanSettings: () => deps.openYomitanSettings(),
     openConfigSettingsWindow: () => deps.openConfigSettingsWindow(),
     cycleSecondarySubMode: () => deps.cycleSecondarySubMode(),

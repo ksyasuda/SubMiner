@@ -95,7 +95,7 @@ Stats server config lives under `stats`:
 
 - `toggleKey` is overlay-local, not a system-wide shortcut.
 - `serverPort` controls the localhost dashboard URL.
-- `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running.
+- `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running. Background app launches (`subminer app`) start the stats server immediately, registering it so later launches reuse it instead of starting another one.
 - `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
 - `subminer stats -b` starts or reuses the dedicated background stats daemon and exits after startup acknowledgement.

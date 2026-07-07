@@ -47,6 +47,7 @@ export interface CliCommandRuntimeServiceContext {
   runUpdateCommand: CliCommandRuntimeServiceDepsParams['app']['runUpdateCommand'];
   runEnsureLinuxRuntimePluginAssetsCommand: CliCommandRuntimeServiceDepsParams['app']['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandRuntimeServiceDepsParams['app']['runYoutubePlaybackFlow'];
+  ensureBackgroundStatsServer?: CliCommandRuntimeServiceDepsParams['app']['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   cycleSecondarySubMode: () => void;
@@ -124,6 +125,7 @@ function createCliCommandDepsFromContext(
     app: {
       stop: context.stopApp,
       hasMainWindow: context.hasMainWindow,
+      ensureBackgroundStatsServer: context.ensureBackgroundStatsServer,
       runUpdateCommand: context.runUpdateCommand,
       runEnsureLinuxRuntimePluginAssetsCommand: context.runEnsureLinuxRuntimePluginAssetsCommand,
       runYoutubePlaybackFlow: context.runYoutubePlaybackFlow,
