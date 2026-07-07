@@ -57,17 +57,29 @@ interface StackedTooltipProps {
   payload?: TooltipEntry[];
 }
 
+function tooltipEntryValue(entry: TooltipEntry): number {
+  const numeric = typeof entry.value === 'number' ? entry.value : Number(entry.value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+// Tooltip rows are sorted by value (largest first) so the biggest contributors
+// read top-down, independent of the series/stacking order.
+export function sortTooltipEntries<T extends TooltipEntry>(entries: readonly T[]): T[] {
+  return [...entries].sort((a, b) => tooltipEntryValue(b) - tooltipEntryValue(a));
+}
+
 function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
   if (!active || !payload || payload.length === 0) {
     return null;
   }
-  const columns = tooltipColumnCount(payload.length);
+  const sorted = sortTooltipEntries(payload);
+  const columns = tooltipColumnCount(sorted.length);
   return (
     <div
       style={{
         ...TOOLTIP_CONTENT_STYLE,
         padding: '6px 10px',
-        maxWidth: '80vw',
+        maxWidth: '90vw',
       }}
     >
       {label !== undefined && (
@@ -78,12 +90,12 @@ function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          columnGap: 12,
+          gridTemplateColumns: `repeat(${columns}, max-content)`,
+          columnGap: 16,
           rowGap: 2,
         }}
       >
-        {payload.map((entry, index) => (
+        {sorted.map((entry, index) => (
           <div
             key={`${entry.name ?? index}`}
             style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
@@ -98,18 +110,8 @@ function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
                 flexShrink: 0,
               }}
             />
-            <span
-              style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: 220,
-              }}
-            >
-              {entry.name}
-            </span>
-            <span style={{ marginLeft: 'auto', color: CHART_THEME.tooltipLabel }}>
-              {entry.value}
-            </span>
+            <span>{entry.name}</span>
+            <span style={{ marginLeft: 16, color: CHART_THEME.tooltipLabel }}>{entry.value}</span>
           </div>
         ))}
       </div>
@@ -252,18 +254,18 @@ export function StackedTrendChart({
           ))}
         </AreaChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 overflow-hidden max-h-10">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
         {seriesKeys.map((key, i) => (
           <span
             key={key}
-            className="flex items-center gap-1 text-[10px] text-ctp-subtext0 max-w-[140px]"
+            className="flex items-center gap-1 text-[10px] text-ctp-subtext0 whitespace-nowrap"
             title={key}
           >
             <span
               className="inline-block w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: colors[i % colors.length] }}
             />
-            <span className="truncate">{key}</span>
+            <span>{key}</span>
           </span>
         ))}
       </div>

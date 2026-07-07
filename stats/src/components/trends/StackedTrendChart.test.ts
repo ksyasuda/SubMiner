@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildLineData, tooltipColumnCount, type PerAnimeDataPoint } from './StackedTrendChart';
+import {
+  buildLineData,
+  sortTooltipEntries,
+  tooltipColumnCount,
+  type PerAnimeDataPoint,
+} from './StackedTrendChart';
 
 function makePoints(titleCount: number): PerAnimeDataPoint[] {
   const points: PerAnimeDataPoint[] = [];
@@ -9,6 +14,20 @@ function makePoints(titleCount: number): PerAnimeDataPoint[] {
   }
   return points;
 }
+
+test('sortTooltipEntries orders rows by value descending, tolerating string values', () => {
+  const sorted = sortTooltipEntries([
+    { name: 'A', value: 5 },
+    { name: 'B', value: 20 },
+    { name: 'C', value: '12.5' },
+    { name: 'D', value: undefined },
+  ]);
+
+  assert.deepEqual(
+    sorted.map((entry) => entry.name),
+    ['B', 'C', 'A', 'D'],
+  );
+});
 
 test('tooltipColumnCount wraps into extra columns as items grow, capped at 3', () => {
   assert.equal(tooltipColumnCount(1), 1);

@@ -96,56 +96,50 @@ test('loadHiddenTitles tolerates missing or malformed stored values', () => {
   }
 });
 
-test('max titles preference round-trips and clears when set to null', () => {
+test('max titles preference defaults to 7 and round-trips including explicit All', () => {
   const { values, restore } = installLocalStorage();
   try {
-    saveMaxTitles(7);
+    // First run (nothing stored) defaults to the 7-title cap, not "All".
     assert.equal(loadMaxTitles(), 7);
+    saveMaxTitles(5);
+    assert.equal(loadMaxTitles(), 5);
+    // "All" persists explicitly instead of collapsing back to the default.
     saveMaxTitles(null);
     assert.equal(loadMaxTitles(), null);
-    assert.equal(values.has('subminer-stats-trends-max-titles'), false);
+    assert.equal(values.get('subminer-stats-trends-max-titles'), 'all');
   } finally {
     restore();
   }
 });
 
-test('loadMaxTitles rejects unsupported stored values', () => {
-  const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': '8' });
-  try {
-    assert.equal(loadMaxTitles(), null);
-  } finally {
-    restore();
-  }
-});
-
-test('loadMaxTitles rejects non-positive or non-numeric stored values', () => {
-  for (const storedValue of ['0', 'banana']) {
+test('loadMaxTitles falls back to the default for unsupported stored values', () => {
+  for (const storedValue of ['8', '0', 'banana']) {
     const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': storedValue });
     try {
-      assert.equal(loadMaxTitles(), null);
+      assert.equal(loadMaxTitles(), 7);
     } finally {
       restore();
     }
   }
 });
 
-test('max titles mode round-trips and defaults to total', () => {
+test('max titles mode defaults to recent and round-trips', () => {
   const { restore } = installLocalStorage();
   try {
-    assert.equal(loadMaxTitlesMode(), 'total');
-    saveMaxTitlesMode('recent');
     assert.equal(loadMaxTitlesMode(), 'recent');
     saveMaxTitlesMode('total');
     assert.equal(loadMaxTitlesMode(), 'total');
+    saveMaxTitlesMode('recent');
+    assert.equal(loadMaxTitlesMode(), 'recent');
   } finally {
     restore();
   }
 });
 
-test('loadMaxTitlesMode falls back to total for unknown stored values', () => {
+test('loadMaxTitlesMode falls back to recent for unknown stored values', () => {
   const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles-mode': 'sideways' });
   try {
-    assert.equal(loadMaxTitlesMode(), 'total');
+    assert.equal(loadMaxTitlesMode(), 'recent');
   } finally {
     restore();
   }

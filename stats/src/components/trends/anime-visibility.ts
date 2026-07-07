@@ -6,10 +6,16 @@ const MAX_TITLES_MODE_KEY = 'subminer-stats-trends-max-titles-mode';
 
 export const MAX_TITLES_OPTIONS = [3, 5, 7, 10] as const;
 
-// How the per-chart limit picks which titles survive: 'total' keeps the
-// highest cumulative totals, 'recent' keeps the most recently active titles.
+// How the per-chart limit picks which titles survive: 'recent' keeps the most
+// recently active titles, 'total' keeps the highest cumulative totals. 'recent'
+// is listed first so it heads the dropdown.
 export type MaxTitlesMode = 'total' | 'recent';
-export const MAX_TITLES_MODES: readonly MaxTitlesMode[] = ['total', 'recent'];
+export const MAX_TITLES_MODES: readonly MaxTitlesMode[] = ['recent', 'total'];
+
+// First-run defaults: show the 7 most recently active titles per chart.
+const DEFAULT_MAX_TITLES = 7;
+const DEFAULT_MAX_TITLES_MODE: MaxTitlesMode = 'recent';
+const ALL_TITLES_STORED_VALUE = 'all';
 
 function getStorage(): Storage | null {
   try {
@@ -38,26 +44,24 @@ export function saveHiddenTitles(hidden: ReadonlySet<string>): void {
   }
 }
 
+// Returns the persisted per-chart limit: a specific count, or null for "All".
+// Absent/garbage storage falls back to the default count (never null), so a
+// first run shows the default cap rather than every title. "All" is stored
+// explicitly so it round-trips instead of collapsing back to the default.
 export function loadMaxTitles(): number | null {
   try {
     const raw = getStorage()?.getItem(MAX_TITLES_KEY);
-    if (raw === null || raw === undefined) return null;
+    if (raw === ALL_TITLES_STORED_VALUE) return null;
     const value = Number(raw);
-    return (MAX_TITLES_OPTIONS as readonly number[]).includes(value) ? value : null;
+    return (MAX_TITLES_OPTIONS as readonly number[]).includes(value) ? value : DEFAULT_MAX_TITLES;
   } catch {
-    return null;
+    return DEFAULT_MAX_TITLES;
   }
 }
 
 export function saveMaxTitles(value: number | null): void {
   try {
-    const storage = getStorage();
-    if (!storage) return;
-    if (value === null) {
-      storage.removeItem(MAX_TITLES_KEY);
-    } else {
-      storage.setItem(MAX_TITLES_KEY, String(value));
-    }
+    getStorage()?.setItem(MAX_TITLES_KEY, value === null ? ALL_TITLES_STORED_VALUE : String(value));
   } catch {
     // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
   }
@@ -66,9 +70,10 @@ export function saveMaxTitles(value: number | null): void {
 export function loadMaxTitlesMode(): MaxTitlesMode {
   try {
     const raw = getStorage()?.getItem(MAX_TITLES_MODE_KEY);
-    return raw === 'recent' ? 'recent' : 'total';
+    if (raw === 'recent' || raw === 'total') return raw;
+    return DEFAULT_MAX_TITLES_MODE;
   } catch {
-    return 'total';
+    return DEFAULT_MAX_TITLES_MODE;
   }
 }
 

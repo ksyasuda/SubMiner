@@ -76,8 +76,8 @@ export function AnimeVisibilityFilter({
               value={maxTitlesMode}
               onChange={(event) => onMaxTitlesModeChange(event.target.value as MaxTitlesMode)}
             >
-              <option value="total">top</option>
               <option value="recent">most recent</option>
+              <option value="total">top</option>
             </select>
             <select
               aria-label="Titles per chart"
