@@ -975,6 +975,105 @@ test('requestYomitanScanTokens extracts best frequency rank from selected termsF
   ]);
 });
 
+test('requestYomitanScanTokens retries shorter windows when a greedy match has no exact-source headword', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profileIndex: 0,
+        scanLength: 40,
+        dictionaries: ['JMdict'],
+        dictionaryPriorityByName: { JMdict: 0 },
+        dictionaryFrequencyModeByName: {},
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'JMdict', enabled: true, id: 0 }],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens('平 （平）', deps, {
+    error: () => undefined,
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (!text.startsWith('平')) {
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    }
+    if (text.length >= 4) {
+      // Simulates Yomitan normalization consuming punctuation/whitespace:
+      // the greedy match spans 平 （平 but no headword source equals it.
+      return {
+        originalTextLength: 4,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: '平々',
+                reading: 'へいへい',
+                sources: [{ originalText: '平平', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: '平',
+              reading: 'たいら',
+              sources: [{ originalText: '平', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '平',
+      reading: 'たいら',
+      headword: '平',
+      headwordReading: 'たいら',
+      startPos: 0,
+      endPos: 1,
+      isNameMatch: false,
+      frequencyRank: undefined,
+    },
+    {
+      surface: '平',
+      reading: 'たいら',
+      headword: '平',
+      headwordReading: 'たいら',
+      startPos: 3,
+      endPos: 4,
+      isNameMatch: false,
+      frequencyRank: undefined,
+    },
+  ]);
+});
+
 test('requestYomitanScanTokens emits complete readings for kanji-kana compounds', async () => {
   let scannerScript = '';
   const deps = createDeps(async (script) => {

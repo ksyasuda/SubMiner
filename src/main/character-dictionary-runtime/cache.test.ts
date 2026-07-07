@@ -36,7 +36,20 @@ test('writeSnapshot persists and readSnapshot restores current-format snapshots'
 
   writeSnapshot(snapshotPath, snapshot);
 
-  assert.deepEqual(readSnapshot(snapshotPath), snapshot);
+  assert.deepEqual(readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
+});
+
+test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', () => {
+  const outputDir = makeTempDir();
+  const snapshotPath = getSnapshotPath(outputDir, 130298);
+  const snapshot: CharacterDictionarySnapshot = {
+    ...createSnapshot(),
+    nameSplitSource: 'mecab',
+  };
+
+  writeSnapshot(snapshotPath, snapshot);
+
+  assert.equal(readSnapshot(snapshotPath)?.nameSplitSource, 'mecab');
 });
 
 test('readSnapshot ignores snapshots written with an older format version', () => {

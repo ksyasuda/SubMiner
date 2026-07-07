@@ -7,6 +7,7 @@ import {
   hasKanaOnly,
   isRomanizedName,
   splitJapaneseName,
+  splitJapaneseNameCandidates,
 } from './name-reading';
 import type {
   CharacterDictionaryGlossaryEntry,
@@ -15,9 +16,10 @@ import type {
   CharacterRecord,
   JapaneseNameParts,
   NameReadings,
+  ResolvedNameSplits,
 } from './types';
 
-function expandRawNameVariants(rawName: string): string[] {
+export function expandRawNameVariants(rawName: string): string[] {
   const trimmed = rawName.trim();
   if (!trimmed) return [];
 
@@ -40,26 +42,41 @@ function expandRawNameVariants(rawName: string): string[] {
   return [...variants];
 }
 
-function isJapaneseNameSplitCandidate(name: string): boolean {
+export function isJapaneseNameSplitCandidate(name: string): boolean {
   const compact = name.replace(/[\s\u3000・･·•]/g, '');
   return (
     containsKanji(compact) && /^[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]+$/.test(compact)
   );
 }
 
-function addJapaneseNameParts(character: CharacterRecord, name: string, terms: Set<string>): void {
+function addJapaneseNameParts(
+  character: CharacterRecord,
+  name: string,
+  terms: Set<string>,
+  resolvedSplits?: ResolvedNameSplits,
+): void {
   if (!isJapaneseNameSplitCandidate(name)) return;
 
-  const nameParts = splitJapaneseName(name, character.firstNameHint, character.lastNameHint);
-  if (nameParts.family) {
-    terms.add(nameParts.family);
-  }
-  if (nameParts.given) {
-    terms.add(nameParts.given);
+  const candidates = splitJapaneseNameCandidates(
+    name,
+    character.firstNameHint,
+    character.lastNameHint,
+    resolvedSplits,
+  );
+  for (const nameParts of candidates) {
+    if (nameParts.family) {
+      terms.add(nameParts.family);
+    }
+    if (nameParts.given) {
+      terms.add(nameParts.given);
+    }
   }
 }
 
-export function buildNameTerms(character: CharacterRecord): string[] {
+export function buildNameTerms(
+  character: CharacterRecord,
+  resolvedSplits?: ResolvedNameSplits,
+): string[] {
   const base = new Set<string>();
   const romanizedBase = new Set<string>();
   const rawNames = [character.nativeName, character.fullName, ...character.alternativeNames];
@@ -95,7 +112,7 @@ export function buildNameTerms(character: CharacterRecord): string[] {
       }
 
       if (target === base) {
-        addJapaneseNameParts(character, name, base);
+        addJapaneseNameParts(character, name, base, resolvedSplits);
       }
     }
   }
@@ -108,6 +125,7 @@ export function buildNameTerms(character: CharacterRecord): string[] {
     character.nativeName,
     character.firstNameHint,
     character.lastNameHint,
+    resolvedSplits,
   );
   if (nativeParts.family) {
     base.add(nativeParts.family);

@@ -38,6 +38,7 @@ import {
   createCharacterDictionaryManualSelectionStore,
 } from './character-dictionary-runtime/manual-selection';
 import { snapshotHasCharacterNameImages } from './character-dictionary-runtime/image-lookup';
+import { resolveJapaneseNameSplits } from './character-dictionary-runtime/name-split-resolver';
 import type {
   AniListMediaCandidate,
   CharacterDictionaryBuildResult,
@@ -175,11 +176,19 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     userDataPath: deps.userDataPath,
   });
 
-  const shouldRefreshCachedSnapshot = (snapshot: CharacterDictionarySnapshot): boolean => {
-    if (deps.getNameMatchImagesEnabled?.() !== true) {
-      return false;
+  const isNameSplitTokenizerAvailable = (): boolean =>
+    typeof deps.tokenizeJapaneseName === 'function' &&
+    deps.getJapaneseNameTokenizerAvailable?.() === true;
+
+  const getCachedSnapshotRefreshReason = (snapshot: CharacterDictionarySnapshot): string | null => {
+    if (deps.getNameMatchImagesEnabled?.() === true && !snapshotHasCharacterNameImages(snapshot)) {
+      return 'missing cached character images';
     }
-    return !snapshotHasCharacterNameImages(snapshot);
+    // Heuristic name splits are upgraded once MeCab becomes available.
+    if (snapshot.nameSplitSource !== 'mecab' && isNameSplitTokenizerAvailable()) {
+      return 'name splits predate MeCab availability';
+    }
+    return null;
   };
 
   const createAniListRequestSlot = (): (() => Promise<void>) => {
@@ -323,7 +332,8 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
   ): Promise<CharacterDictionarySnapshotResult> => {
     const snapshotPath = getSnapshotPath(outputDir, mediaId);
     const cachedSnapshot = readSnapshot(snapshotPath);
-    if (cachedSnapshot && !shouldRefreshCachedSnapshot(cachedSnapshot)) {
+    const refreshReason = cachedSnapshot ? getCachedSnapshotRefreshReason(cachedSnapshot) : null;
+    if (cachedSnapshot && refreshReason === null) {
       deps.logInfo?.(`[dictionary] snapshot hit for AniList ${mediaId}`);
       return {
         mediaId: cachedSnapshot.mediaId,
@@ -334,9 +344,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       };
     }
     if (cachedSnapshot) {
-      deps.logInfo?.(
-        `[dictionary] snapshot stale for AniList ${mediaId}: missing cached character images`,
-      );
+      deps.logInfo?.(`[dictionary] snapshot stale for AniList ${mediaId}: ${refreshReason}`);
     }
 
     progress?.onGenerating?.({
@@ -399,6 +407,11 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       }
     }
 
+    const nameSplitTokenizerAvailable = isNameSplitTokenizerAvailable();
+    const resolvedNameSplits = nameSplitTokenizerAvailable
+      ? await resolveJapaneseNameSplits(characters, deps.tokenizeJapaneseName!, deps.logWarn)
+      : undefined;
+
     const snapshot = buildSnapshotFromCharacters(
       mediaId,
       fetchedMediaTitle || mediaTitleHint || `AniList ${mediaId}`,
@@ -407,6 +420,8 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       imagesByVaId,
       deps.now(),
       getCollapsibleSectionOpenState,
+      resolvedNameSplits,
+      nameSplitTokenizerAvailable ? 'mecab' : 'heuristic',
     );
     writeSnapshot(snapshotPath, snapshot);
     deps.logInfo?.(

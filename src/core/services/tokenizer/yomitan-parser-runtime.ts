@@ -1297,47 +1297,69 @@ ${YOMITAN_SCANNING_HELPERS}
       const text = ${JSON.stringify(text)};
       const details = {matchType: "exact", deinflect: true};
       const tokens = [];
-      let i = 0;
-      while (i < text.length) {
-        const codePoint = text.codePointAt(i);
+      async function findTokenAt(position, windowLength) {
+        const codePoint = text.codePointAt(position);
         const character = String.fromCodePoint(codePoint);
-        const substring = text.substring(i, i + ${scanLength});
+        const substring = text.substring(position, position + windowLength);
         const result = await invoke("termsFind", { text: substring, details, optionsContext: { index: ${profileIndex} } });
         const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
         const originalTextLength = typeof result?.originalTextLength === "number" ? result.originalTextLength : 0;
-        if (dictionaryEntries.length > 0 && originalTextLength > 0 && (originalTextLength !== character.length || isCodePointJapanese(codePoint))) {
-          const source = substring.substring(0, originalTextLength);
-          const preferredHeadword = getPreferredHeadword(
-            dictionaryEntries,
-            source,
-            dictionaryPriorityByName,
-            dictionaryFrequencyModeByName
-          );
-          if (preferredHeadword && typeof preferredHeadword.term === "string") {
-            const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
-            const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
-            const tokenPayload = {
-              surface: segments.map((segment) => segment.text).join("") || source,
-              reading: segments.map(getSegmentReadingContribution).join(""),
-              headword: preferredHeadword.term,
-              headwordReading: reading || undefined,
-              startPos: i,
-              endPos: i + originalTextLength,
-              isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,
-              frequencyRank:
-                typeof preferredHeadword.frequencyRank === "number" && Number.isFinite(preferredHeadword.frequencyRank)
-                  ? Math.max(1, Math.floor(preferredHeadword.frequencyRank))
-                  : undefined,
-            };
-            if (Array.isArray(preferredHeadword.wordClasses) && preferredHeadword.wordClasses.length > 0) {
-              tokenPayload.wordClasses = preferredHeadword.wordClasses;
-            }
-            tokens.push(tokenPayload);
-            i += originalTextLength;
-            continue;
-          }
+        if (dictionaryEntries.length === 0 || originalTextLength <= 0 || (originalTextLength === character.length && !isCodePointJapanese(codePoint))) {
+          return { token: null, matchedLength: 0 };
         }
-        i += character.length;
+        const source = substring.substring(0, originalTextLength);
+        const preferredHeadword = getPreferredHeadword(
+          dictionaryEntries,
+          source,
+          dictionaryPriorityByName,
+          dictionaryFrequencyModeByName
+        );
+        if (!preferredHeadword || typeof preferredHeadword.term !== "string") {
+          return { token: null, matchedLength: originalTextLength };
+        }
+        const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
+        const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
+        const tokenPayload = {
+          surface: segments.map((segment) => segment.text).join("") || source,
+          reading: segments.map(getSegmentReadingContribution).join(""),
+          headword: preferredHeadword.term,
+          headwordReading: reading || undefined,
+          startPos: position,
+          endPos: position + originalTextLength,
+          isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,
+          frequencyRank:
+            typeof preferredHeadword.frequencyRank === "number" && Number.isFinite(preferredHeadword.frequencyRank)
+              ? Math.max(1, Math.floor(preferredHeadword.frequencyRank))
+              : undefined,
+        };
+        if (Array.isArray(preferredHeadword.wordClasses) && preferredHeadword.wordClasses.length > 0) {
+          tokenPayload.wordClasses = preferredHeadword.wordClasses;
+        }
+        return { token: tokenPayload, matchedLength: originalTextLength };
+      }
+      let i = 0;
+      while (i < text.length) {
+        let attempt = await findTokenAt(i, ${scanLength});
+        // Yomitan text normalization can consume characters (whitespace,
+        // punctuation) beyond the matched term, leaving no headword whose
+        // source equals the consumed text. Retry with shorter windows so a
+        // valid prefix term (e.g. a character name before a paren) still
+        // tokenizes instead of the position being skipped.
+        let retryLength = Math.min(attempt.matchedLength, ${scanLength}) - 1;
+        while (!attempt.token && retryLength >= 1) {
+          const retry = await findTokenAt(i, retryLength);
+          if (retry.token) {
+            attempt = retry;
+            break;
+          }
+          retryLength = Math.min(retryLength - 1, retry.matchedLength - 1);
+        }
+        if (attempt.token) {
+          tokens.push(attempt.token);
+          i += attempt.matchedLength;
+          continue;
+        }
+        i += String.fromCodePoint(text.codePointAt(i)).length;
       }
       return tokens;
     })();

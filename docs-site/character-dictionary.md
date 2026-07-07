@@ -56,6 +56,8 @@ A single character produces many searchable terms so that names are recognized r
 - Family name alone: 須々木
 - Given name alone: 心一
 
+Unspaced native names (AniList often stores 渡辺真奈美 without a separator) are split into family/given parts with MeCab when it is available: person-name POS tags (姓/名) decide the boundary, validated against AniList's romanized first/last name readings. Without MeCab, a length heuristic based on the romanized readings guesses the boundary — and because that guess can be ambiguous (東紫乃 could be 東+紫乃 or 東紫+乃), terms are generated for the top two candidate boundaries so the real surname still matches. Snapshots built without MeCab are regenerated automatically once MeCab becomes available, upgrading them to the exact splits.
+
 **Middle-dot removal** (common in katakana foreign names):
 
 - ア・リ・ス → アリス (combined), plus individual segments

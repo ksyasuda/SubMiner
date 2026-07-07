@@ -121,6 +121,164 @@ test('generateForCurrentMedia refreshes same-version snapshots missing images wh
   }
 });
 
+test('generateForCurrentMedia refreshes heuristic-split snapshots once MeCab is available', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+    ...createSnapshotWithoutImages(),
+    nameSplitSource: 'heuristic',
+  });
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url === GRAPHQL_URL) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { query?: string };
+      if (body.query?.includes('characters(page: $page')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              Media: {
+                title: { english: 'The Eminence in Shadow' },
+                characters: {
+                  pageInfo: { hasNextPage: false },
+                  edges: [
+                    {
+                      role: 'SUPPORTING',
+                      node: {
+                        id: 123,
+                        description: 'Alexia Midgar.',
+                        image: { large: null, medium: null },
+                        name: {
+                          first: 'Alexia',
+                          last: 'Midgar',
+                          full: 'Alexia Midgar',
+                          native: 'アレクシア・ミドガル',
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+    }
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => false,
+      tokenizeJapaneseName: async () => null,
+      getJapaneseNameTokenizerAvailable: () => true,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+    const refreshedSnapshot = JSON.parse(
+      fs.readFileSync(getSnapshotPath(outputDir, 130298), 'utf8'),
+    ) as CharacterDictionarySnapshot;
+
+    assert.equal(result.fromCache, false);
+    assert.equal(refreshedSnapshot.nameSplitSource, 'mecab');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia keeps mecab-split snapshots when MeCab is available', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+    ...createSnapshotWithoutImages(),
+    nameSplitSource: 'mecab',
+  });
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => false,
+      tokenizeJapaneseName: async () => null,
+      getJapaneseNameTokenizerAvailable: () => true,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+
+    assert.equal(result.fromCache, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('generateForCurrentMedia keeps heuristic-split snapshots while MeCab is unavailable', async () => {
+  const userDataPath = makeTempDir();
+  const outputDir = path.join(userDataPath, 'character-dictionaries');
+  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+    ...createSnapshotWithoutImages(),
+    nameSplitSource: 'heuristic',
+  });
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  }) as typeof globalThis.fetch;
+
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
+      getCurrentMediaTitle: () => 'The Eminence in Shadow - S01E05',
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'The Eminence in Shadow',
+        season: null,
+        episode: 5,
+        source: 'fallback',
+      }),
+      getNameMatchImagesEnabled: () => false,
+      tokenizeJapaneseName: async () => null,
+      getJapaneseNameTokenizerAvailable: () => false,
+      now: () => 1_700_000_000_500,
+    });
+
+    const result = await runtime.generateForCurrentMedia();
+
+    assert.equal(result.fromCache, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('generateForCurrentMedia keeps same-version snapshots without images when inline images are disabled', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');

@@ -2373,6 +2373,11 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
   getCollapsibleSectionOpenState: (section) =>
     getResolvedConfig().anilist.characterDictionary.collapsibleSections[section],
+  tokenizeJapaneseName: async (text) => (await appState.mecabTokenizer?.tokenize(text)) ?? null,
+  getJapaneseNameTokenizerAvailable: () => {
+    const status = appState.mecabTokenizer?.getStatus();
+    return status?.available === true && status.enabled === true;
+  },
   now: () => Date.now(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),

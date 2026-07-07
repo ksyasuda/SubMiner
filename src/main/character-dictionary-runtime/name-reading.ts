@@ -1,5 +1,5 @@
 import { HONORIFIC_SUFFIXES } from './constants';
-import type { JapaneseNameParts, NameReadings } from './types';
+import type { JapaneseNameParts, NameReadings, ResolvedNameSplits } from './types';
 
 export function hasKanaOnly(value: string): boolean {
   return /^[\u3040-\u309f\u30a0-\u30ffー]+$/.test(value);
@@ -262,7 +262,7 @@ export function buildReadingFromRomanized(value: string): string {
   return katakana ? katakanaToHiragana(katakana) : '';
 }
 
-function buildReadingFromHint(value: string): string {
+export function buildReadingFromHint(value: string): string {
   return buildReading(value) || buildReadingFromRomanized(value);
 }
 
@@ -273,20 +273,22 @@ function scoreJapaneseNamePartLength(length: number): number {
   return 0;
 }
 
-function inferJapaneseNameSplitIndex(
+// Ranks every possible family/given boundary. Reading-length ratios cannot
+// always identify the true boundary (あずま can be one kanji or two), so
+// callers may take the top candidates rather than trusting only the best.
+function inferJapaneseNameSplitIndices(
   nameOriginal: string,
   firstNameHint: string,
   lastNameHint: string,
-): number | null {
+): number[] {
   const chars = [...nameOriginal];
-  if (chars.length < 2) return null;
+  if (chars.length < 2) return [];
 
   const familyHintLength = [...buildReadingFromHint(lastNameHint)].length;
   const givenHintLength = [...buildReadingFromHint(firstNameHint)].length;
   const totalHintLength = familyHintLength + givenHintLength;
   const defaultBoundary = Math.round(chars.length / 2);
-  let bestIndex: number | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
+  const scored: Array<{ index: number; score: number }> = [];
 
   for (let index = 1; index < chars.length; index += 1) {
     const familyLength = index;
@@ -309,13 +311,10 @@ function inferJapaneseNameSplitIndex(
       score += 0.25;
     }
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestIndex = index;
-    }
+    scored.push({ index, score });
   }
 
-  return bestIndex;
+  return scored.sort((left, right) => right.score - left.score).map((entry) => entry.index);
 }
 
 export function addRomanizedKanaAliases(values: Iterable<string>): string[] {
@@ -335,6 +334,7 @@ export function splitJapaneseName(
   nameOriginal: string,
   firstNameHint?: string,
   lastNameHint?: string,
+  resolvedSplits?: ResolvedNameSplits,
 ): JapaneseNameParts {
   const trimmed = nameOriginal.trim();
   if (!trimmed) {
@@ -377,6 +377,22 @@ export function splitJapaneseName(
     };
   }
 
+  const resolvedSplit = resolvedSplits?.get(trimmed);
+  if (
+    resolvedSplit &&
+    resolvedSplit.family &&
+    resolvedSplit.given &&
+    `${resolvedSplit.family}${resolvedSplit.given}` === trimmed
+  ) {
+    return {
+      hasSpace: true,
+      original: trimmed,
+      combined: trimmed,
+      family: resolvedSplit.family,
+      given: resolvedSplit.given,
+    };
+  }
+
   const hintedFirst = firstNameHint?.trim() || '';
   const hintedLast = lastNameHint?.trim() || '';
   if (hintedFirst && hintedLast) {
@@ -404,7 +420,7 @@ export function splitJapaneseName(
   }
 
   if (hintedFirst && hintedLast && containsKanji(trimmed)) {
-    const splitIndex = inferJapaneseNameSplitIndex(trimmed, hintedFirst, hintedLast);
+    const splitIndex = inferJapaneseNameSplitIndices(trimmed, hintedFirst, hintedLast)[0] ?? null;
     if (splitIndex != null) {
       const chars = [...trimmed];
       const family = chars.slice(0, splitIndex).join('');
@@ -430,11 +446,62 @@ export function splitJapaneseName(
   };
 }
 
+const MAX_INFERRED_SPLIT_CANDIDATES = 2;
+
+// Returns the possible family/given splits, best first. Only a boundary
+// guessed by the length heuristic is ambiguous (あずま can be one kanji or
+// two), so only that path yields a runner-up candidate; explicit separators,
+// resolved (MeCab) splits, and exact hint matches are trusted as-is.
+export function splitJapaneseNameCandidates(
+  nameOriginal: string,
+  firstNameHint?: string,
+  lastNameHint?: string,
+  resolvedSplits?: ResolvedNameSplits,
+): JapaneseNameParts[] {
+  const primary = splitJapaneseName(nameOriginal, firstNameHint, lastNameHint, resolvedSplits);
+  if (!primary.family || !primary.given) {
+    return [primary];
+  }
+
+  const trimmed = nameOriginal.trim();
+  if (primary.combined !== trimmed) {
+    return [primary];
+  }
+  const resolvedSplit = resolvedSplits?.get(trimmed);
+  if (resolvedSplit && `${resolvedSplit.family}${resolvedSplit.given}` === trimmed) {
+    return [primary];
+  }
+  const hintedFirst = firstNameHint?.trim() || '';
+  const hintedLast = lastNameHint?.trim() || '';
+  if (`${hintedLast}${hintedFirst}` === trimmed || `${hintedFirst}${hintedLast}` === trimmed) {
+    return [primary];
+  }
+
+  const candidates = [primary];
+  const chars = [...trimmed];
+  const splitIndices = inferJapaneseNameSplitIndices(trimmed, hintedFirst, hintedLast);
+  for (const splitIndex of splitIndices.slice(1, MAX_INFERRED_SPLIT_CANDIDATES)) {
+    const family = chars.slice(0, splitIndex).join('');
+    const given = chars.slice(splitIndex).join('');
+    if (family && given) {
+      candidates.push({
+        hasSpace: true,
+        original: trimmed,
+        combined: trimmed,
+        family,
+        given,
+      });
+    }
+  }
+  return candidates;
+}
+
 export function generateNameReadings(
   nameOriginal: string,
   romanizedName: string,
   firstNameHint?: string,
   lastNameHint?: string,
+  resolvedSplits?: ResolvedNameSplits,
 ): NameReadings {
   const trimmed = nameOriginal.trim();
   if (!trimmed) {
@@ -447,7 +514,7 @@ export function generateNameReadings(
     };
   }
 
-  const nameParts = splitJapaneseName(trimmed, firstNameHint, lastNameHint);
+  const nameParts = splitJapaneseName(trimmed, firstNameHint, lastNameHint, resolvedSplits);
   if (!nameParts.hasSpace || !nameParts.family || !nameParts.given) {
     const full = containsKanji(trimmed)
       ? buildReadingFromRomanized(romanizedName)

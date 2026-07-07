@@ -1,0 +1,5 @@
+type: fixed
+area: overlay
+
+- Fixed character-dictionary surname/given-name splitting for unspaced AniList native names where romanized reading length misled the boundary guess (東紫乃 split as 東紫+乃, 渡辺真奈美 as 渡辺真+奈美), so surnames like 東 and 渡辺 were never highlighted with character portraits and unmatched leading kanji (渡) lost hover lookup entirely. Name parts are now resolved with MeCab person-name POS tags and reading validation when MeCab is available; without MeCab, terms are generated for both plausible boundaries so the real surname still matches. Existing snapshots regenerate automatically (format version bump), and snapshots built without MeCab are upgraded to exact MeCab splits once MeCab is detected.
+- Fixed subtitle tokenization dropping a character entirely when Yomitan's greedy scan consumed trailing punctuation/whitespace past the term (e.g. 平 in 「（東）平　（平）え？」 matched across the paren with no exact-source headword). The scanner now retries shorter windows so the prefix term still tokenizes with its name match and portrait.
