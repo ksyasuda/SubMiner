@@ -108,6 +108,55 @@ test('KnownWordCacheManager startLifecycle keeps fresh persisted cache without i
     assert.equal(manager.isKnownWord('猫'), true);
     assert.equal(calls.findNotes, 0);
     assert.equal(calls.notesInfo, 0);
+    // v2 states carry no readings, so they load usable but stale to trigger a
+    // prompt upgrade refresh.
+    assert.equal(
+      (
+        manager as unknown as {
+          getMsUntilNextRefresh: () => number;
+        }
+      ).getMsUntilNextRefresh(),
+      0,
+    );
+  } finally {
+    Date.now = originalDateNow;
+    manager.stopLifecycle();
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager startLifecycle keeps fresh v3 persisted cache without immediate refresh', async () => {
+  const config: AnkiConnectConfig = {
+    knownWords: {
+      highlightEnabled: true,
+      refreshMinutes: 60,
+    },
+  };
+  const { manager, calls, statePath, cleanup } = createKnownWordCacheHarness(config);
+  const originalDateNow = Date.now;
+
+  try {
+    Date.now = () => 120_000;
+    fs.writeFileSync(
+      statePath,
+      JSON.stringify({
+        version: 3,
+        refreshedAtMs: 120_000,
+        scope: '{"refreshMinutes":60,"scope":"all","fieldsWord":""}',
+        notes: {
+          '1': [{ word: '猫', reading: 'ねこ' }],
+        },
+      }),
+      'utf-8',
+    );
+
+    manager.startLifecycle();
+
+    assert.equal(manager.isKnownWord('猫'), true);
+    assert.equal(manager.isKnownWord('猫', 'ねこ'), true);
+    assert.equal(manager.isKnownWord('猫', 'びょう'), false);
+    assert.equal(calls.findNotes, 0);
+    assert.equal(calls.notesInfo, 0);
     assert.equal(
       (
         manager as unknown as {
@@ -263,13 +312,11 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
 
     const persisted = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as {
       version: number;
-      words: string[];
-      notes?: Record<string, string[]>;
+      notes?: Record<string, Array<{ word: string; reading: string | null }>>;
     };
-    assert.equal(persisted.version, 2);
-    assert.deepEqual(persisted.words.sort(), ['鳥']);
+    assert.equal(persisted.version, 3);
     assert.deepEqual(persisted.notes, {
-      '1': ['鳥'],
+      '1': [{ word: '鳥', reading: null }],
     });
   } finally {
     cleanup();
@@ -392,10 +439,10 @@ test('KnownWordCacheManager preserves cache state key captured before refresh wo
 
     const persisted = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as {
       scope: string;
-      words: string[];
+      notes: Record<string, Array<{ word: string; reading: string | null }>>;
     };
     assert.equal(persisted.scope, '{"refreshMinutes":1,"scope":"all","fieldsWord":"Word"}');
-    assert.deepEqual(persisted.words, ['猫']);
+    assert.deepEqual(persisted.notes, { '1': [{ word: '猫', reading: null }] });
   } finally {
     fs.rmSync(stateDir, { recursive: true, force: true });
   }
@@ -644,6 +691,203 @@ test('KnownWordCacheManager skips immediate append when addMinedWordsImmediately
 
     assert.equal(manager.isKnownWord('猫'), false);
     assert.equal(fs.existsSync(statePath), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager disambiguates known words by note reading', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '床' },
+          'Word Reading': { value: 'ゆか' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('床'), true);
+    assert.equal(manager.isKnownWord('床', 'ゆか'), true);
+    assert.equal(manager.isKnownWord('床', 'ユカ'), true);
+    // Same spelling, different word (床/とこ "bed") must not match.
+    assert.equal(manager.isKnownWord('床', 'とこ'), false);
+    // Note readings stay matchable as kana words.
+    assert.equal(manager.isKnownWord('ゆか'), true);
+    assert.equal(manager.isKnownWord('とこ'), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager probes reading fields even with per-deck word fields configured', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Expression',
+    },
+    knownWords: {
+      highlightEnabled: true,
+      decks: {
+        'Kaishi 1.5k': ['Word'],
+      },
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesByQuery.set('deck:"Kaishi 1.5k"', [1]);
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '床' },
+          'Word Reading': { value: 'ゆか' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('床', 'ゆか'), true);
+    assert.equal(manager.isKnownWord('床', 'とこ'), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager matches words without readings in any reading', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '床' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('床'), true);
+    assert.equal(manager.isKnownWord('床', 'とこ'), true);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager extracts word and reading from furigana word fields', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: 'お 決[き]まり' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('お決まり'), true);
+    assert.equal(manager.isKnownWord('お決まり', 'おきまり'), true);
+    assert.equal(manager.isKnownWord('お決まり', 'おさだまり'), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager treats non-kana reading fields as words', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Reading: { value: '漢字' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('漢字'), true);
+  } finally {
+    cleanup();
+  }
+});
+
+test('KnownWordCacheManager keeps kana-only reading notes matchable', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Reading: { value: 'たべる' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('たべる'), true);
+    assert.equal(manager.isKnownWord('タベル'), true);
   } finally {
     cleanup();
   }

@@ -569,7 +569,7 @@
       "refreshMinutes": 1440, // Minutes between known-word cache refreshes.
       "addMinedWordsImmediately": true, // Immediately append newly mined card words into the known-word cache. Values: true | false
       "matchMode": "headword", // Known-word matching strategy for subtitle annotations. Cache matches always receive known-word highlighting even when POS filters suppress other annotation types. Values: headword | surface
-      "decks": {} // Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.
+      "decks": {} // Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }. Reading fields (Reading, Word Reading, ExpressionReading) are always probed so cached words match only in the reading their note teaches; words from notes without readings match in any reading.
     }, // Known words setting.
     "behavior": {
       "overwriteAudio": true, // When updating an existing card, overwrite the audio field instead of skipping it. Values: true | false

@@ -42,7 +42,7 @@ export interface TokenizerServiceDeps {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-  isKnownWord: (text: string) => boolean;
+  isKnownWord: (text: string, reading?: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -77,7 +77,7 @@ export interface TokenizerDepsRuntimeOptions {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-  isKnownWord: (text: string) => boolean;
+  isKnownWord: (text: string, reading?: string) => boolean;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -129,7 +129,7 @@ const INVISIBLE_SEPARATOR_PATTERN = /[\u200b\u2060\ufeff]/g;
 function getKnownWordLookup(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
-): (text: string) => boolean {
+): (text: string, reading?: string) => boolean {
   if (!options.knownWordsEnabled && !options.nPlusOneEnabled) {
     return () => false;
   }
@@ -723,6 +723,7 @@ async function parseWithYomitanInternalParser(
         surface: token.surface,
         reading: token.reading,
         headword: token.headword,
+        headwordReading: token.headwordReading,
         startPos: token.startPos,
         endPos: token.endPos,
         partOfSpeech: posMetadata.partOfSpeech,

@@ -317,7 +317,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'object',
       defaultValue: defaultConfig.ankiConnect.knownWords.decks,
       description:
-        'Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }.',
+        'Decks and expression/word fields for known-word cache. Object mapping deck names to arrays of field names to extract, e.g. { "Kaishi 1.5k": ["Word"] }. Reading fields (Reading, Word Reading, ExpressionReading) are always probed so cached words match only in the reading their note teaches; words from notes without readings match in any reading.',
     },
     {
       path: 'ankiConnect.isKiku.fieldGrouping',
