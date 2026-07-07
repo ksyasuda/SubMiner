@@ -11,6 +11,28 @@ import { collectLaneFiles } from './test-lanes.ts';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
+// Cap per-file buffered output so a long or noisy test cannot grow the string
+// without bound and exhaust memory.
+const MAX_OUTPUT_BYTES = 1024 * 1024;
+
+// Track spawned `bun test` children so we can kill them if the runner is
+// interrupted, avoiding orphaned in-flight test processes.
+const activeChildren = new Set();
+
+function terminateChildren() {
+  for (const child of activeChildren) {
+    child.kill('SIGKILL');
+  }
+  activeChildren.clear();
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    terminateChildren();
+    process.exit(130);
+  });
+}
+
 function parseArgs(argv) {
   const options = { lane: undefined, jobs: 1, timeoutSecs: 300, singleProcess: false };
   for (let index = 0; index < argv.length; index += 1) {
@@ -34,20 +56,32 @@ function parseArgs(argv) {
 function runFile(file, timeoutSecs) {
   return new Promise((resolvePromise) => {
     const child = spawn('bun', ['test', `./${file}`], { cwd: repoRoot });
+    activeChildren.add(child);
     let output = '';
+    let truncated = false;
     let timedOut = false;
-    child.stdout.on('data', (chunk) => (output += chunk));
-    child.stderr.on('data', (chunk) => (output += chunk));
+    const append = (chunk) => {
+      if (truncated) return;
+      output += chunk;
+      if (output.length > MAX_OUTPUT_BYTES) {
+        output = `${output.slice(0, MAX_OUTPUT_BYTES)}\n[output truncated at ${MAX_OUTPUT_BYTES} bytes]\n`;
+        truncated = true;
+      }
+    };
+    child.stdout.on('data', append);
+    child.stderr.on('data', append);
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
     }, timeoutSecs * 1000);
     child.on('close', (code) => {
       clearTimeout(timer);
+      activeChildren.delete(child);
       resolvePromise({ file, code: timedOut ? 124 : (code ?? 1), output, timedOut });
     });
     child.on('error', (error) => {
       clearTimeout(timer);
+      activeChildren.delete(child);
       resolvePromise({ file, code: 1, output: String(error), timedOut: false });
     });
   });

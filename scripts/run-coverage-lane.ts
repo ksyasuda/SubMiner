@@ -214,7 +214,13 @@ function runCoverageLane(): number {
   rmSync(shardRoot, { recursive: true, force: true });
   mkdirSync(shardRoot, { recursive: true });
 
-  const files = collectLaneFiles(repoRoot, laneName);
+  let files: string[];
+  try {
+    files = collectLaneFiles(repoRoot, laneName);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : error}\n`);
+    return 1;
+  }
   const reports: string[] = [];
 
   try {
