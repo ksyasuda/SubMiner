@@ -1821,7 +1821,7 @@ test('tokenizeSubtitle returns null tokens when mecab throws', async () => {
   assert.deepEqual(result, { text: '猫です', tokens: null });
 });
 
-test('tokenizeSubtitle uses Yomitan parser result when available and drops no-headword groups', async () => {
+test('tokenizeSubtitle uses Yomitan parser result and keeps no-headword groups as surface tokens', async () => {
   const parserWindow = {
     isDestroyed: () => false,
     webContents: {
@@ -1859,10 +1859,12 @@ test('tokenizeSubtitle uses Yomitan parser result when available and drops no-he
   );
 
   assert.equal(result.text, '猫です');
-  assert.equal(result.tokens?.length, 1);
+  assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.surface, '猫');
   assert.equal(result.tokens?.[0]?.reading, 'ねこ');
   assert.equal(result.tokens?.[0]?.isKnown, false);
+  assert.equal(result.tokens?.[1]?.surface, 'です');
+  assert.equal(result.tokens?.[1]?.headword, 'です');
 });
 
 test('tokenizeSubtitle logs selected Yomitan groups when debug toggle is enabled', async () => {

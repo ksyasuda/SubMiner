@@ -128,6 +128,61 @@ test('drops scanning parser tokens which have no dictionary headword', () => {
   );
 });
 
+// Regression: 「…とこ戻ろ…」 — Yomitan cannot deinflect the truncated volitional 戻ろ
+// (the bare ろ rule is ichidan-only, 戻る is godan), so 戻 comes back with no headword
+// while ろ matches an unrelated term (櫓). Dropping 戻 made it a plain text node:
+// unhoverable, unannotated, and invisible to the n+1 candidate count.
+test('emits unparsed non-caption text as a token with surface headword', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: 'みんな', reading: 'みんな', headword: '皆' }],
+      [{ text: 'の', reading: 'の', headword: 'の' }],
+      [{ text: 'とこ', reading: 'とこ', headword: '所' }],
+      [{ text: '戻', reading: '' }],
+      [{ text: 'ろ', reading: 'ろ', headword: '櫓' }],
+      [{ text: '…', reading: '' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.deepEqual(
+    tokens?.map((token) => ({ surface: token.surface, headword: token.headword })),
+    [
+      { surface: 'みんな', headword: '皆' },
+      { surface: 'の', headword: 'の' },
+      { surface: 'とこ', headword: '所' },
+      { surface: '戻', headword: '戻' },
+      { surface: 'ろ', headword: '櫓' },
+    ],
+  );
+});
+
+test('still drops punctuation-only and whitespace-only unparsed runs', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: '猫', reading: 'ねこ', headword: '猫' }],
+      [{ text: '…', reading: '' }],
+      [{ text: ' ', reading: '' }],
+      [{ text: '犬', reading: 'いぬ', headword: '犬' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.equal(tokens?.map((token) => token.surface).join(','), '猫,犬');
+});
+
+test('candidate with only unparsed tokens still yields no dictionary match', () => {
+  const parseResults = [
+    makeParseItem('scanning-parser', [
+      [{ text: '戻', reading: '' }],
+      [{ text: '轟', reading: '' }],
+    ]),
+  ];
+
+  const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  assert.equal(tokens, null);
+});
+
 test('prefers the longest dictionary headword across merged segments', () => {
   const parseResults = [
     makeParseItem('scanning-parser', [

@@ -151,6 +151,39 @@ function isStandaloneGrammarEndingSegment(segment: YomitanParseSegment): boolean
   );
 }
 
+// Caption-style asides (SFX/speaker labels) start with a bracket and should stay
+// non-interactive; dropping punctuation-only runs also keeps the source-text gap that
+// sentence-boundary detection relies on (e.g. a dropped 「…」).
+const CAPTION_OPENING_BRACKETS = new Set([
+  '(',
+  '（',
+  '[',
+  '［',
+  '{',
+  '｛',
+  '「',
+  '『',
+  '【',
+  '〈',
+  '《',
+  '≪',
+  '＜',
+  '<',
+]);
+
+function hasLookupWorthyText(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
+}
+
+function isCaptionLikeUnparsedText(text: string): boolean {
+  const firstChar = Array.from(text.trim())[0];
+  return firstChar !== undefined && CAPTION_OPENING_BRACKETS.has(firstChar);
+}
+
+function shouldEmitUnparsedRunAsToken(text: string): boolean {
+  return hasLookupWorthyText(text) && !isCaptionLikeUnparsedText(text);
+}
+
 function shouldMergeKanaContinuation(
   previousToken: MergedToken | undefined,
   continuationSurface: string,
@@ -241,6 +274,11 @@ export function mapYomitanParseResultItemToMergedTokens(
           previousToken.surface += combinedSurface;
           previousToken.reading += combinedReading;
           previousToken.endPos = end;
+        } else if (shouldEmitUnparsedRunAsToken(combinedSurface)) {
+          // Yomitan couldn't parse this run (e.g. 戻ろ… truncated volitional). Keep it
+          // as a token with its surface as headword so it stays hoverable and counts in
+          // the n+1 math — matching what the embedded Yomitan actually returns.
+          pushToken(combinedSurface, combinedReading, combinedSurface, combinedStart, end);
         }
       } else {
         hasDictionaryMatch = true;
