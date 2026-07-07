@@ -268,3 +268,69 @@ test('createFieldGroupingOverlayRuntime callback cancels and cleans up when kiku
     globalThis.setTimeout = originalSetTimeout;
   }
 });
+
+test('createFieldGroupingOverlayRuntime prepares overlay windows before opening the modal', async () => {
+  // The field grouping modal must run the same prerequisites as every other modal
+  // (openOverlayHostedModal) so it opens with the overlay runtime ready and the visible overlay
+  // window present — otherwise on Hyprland it fails to sit above / focus over fullscreen mpv.
+  const order: string[] = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  // The modal acknowledges open below, so the callback stays pending and arms its response
+  // timeout; stub the timer so no real 90s handle leaks into the test runner.
+  globalThis.setTimeout = (() => 0) as unknown as typeof globalThis.setTimeout;
+
+  try {
+    const runtime = createFieldGroupingOverlayRuntime<'kiku'>({
+      getMainWindow: () => null,
+      getVisibleOverlayVisible: () => false,
+      setVisibleOverlayVisible: () => {},
+      getResolver: () => null,
+      setResolver: () => {},
+      getRestoreVisibleOverlayOnModalClose: () => new Set<'kiku'>(),
+      ensureOverlayStartupPrereqs: () => order.push('prereqs'),
+      ensureOverlayWindowsReadyForVisibilityActions: () => order.push('windows-ready'),
+      sendToVisibleOverlay: (channel) => {
+        order.push(`send:${channel}`);
+        return true;
+      },
+      waitForModalOpen: async () => {
+        order.push('wait');
+        return true;
+      },
+    });
+
+    // Do not await: an acknowledged modal leaves the choice pending until the user responds.
+    void runtime.createFieldGroupingCallback()({
+      original: {
+        noteId: 1,
+        expression: 'a',
+        sentencePreview: 'a',
+        hasAudio: false,
+        hasImage: false,
+        isOriginal: true,
+      },
+      duplicate: {
+        noteId: 2,
+        expression: 'b',
+        sentencePreview: 'b',
+        hasAudio: false,
+        hasImage: false,
+        isOriginal: false,
+      },
+    });
+
+    // Let the async send + modal-open ack chain run.
+    for (let i = 0; i < 10; i += 1) {
+      await Promise.resolve();
+    }
+
+    assert.deepEqual(order, [
+      'prereqs',
+      'windows-ready',
+      'send:kiku:field-grouping-request',
+      'wait',
+    ]);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
