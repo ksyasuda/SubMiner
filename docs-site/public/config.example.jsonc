@@ -14,6 +14,14 @@
   "auto_start_overlay": true, // Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner. Values: true | false
 
   // ==========================================
+  // UI Language
+  // User interface display language.
+  // 'system' detects the operating system language.
+  // 'en' forces English, 'zh-CN' uses Simplified Chinese.
+  // ==========================================
+  "uiLanguage": "system", // User interface language. system uses the operating system language, en uses English, zh-CN uses Simplified Chinese. Values: system | en | zh-CN
+
+  // ==========================================
   // Texthooker Server
   // Configure texthooker startup launch and browser opening behavior.
   // ==========================================

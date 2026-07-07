@@ -1,4 +1,5 @@
 import type { ConfigValidationWarning } from '../types';
+import { i18n } from '../i18n/index.js';
 
 export type StartupFailureHandlers = {
   logError: (details: string) => void;
@@ -55,9 +56,9 @@ export function buildConfigWarningNotificationBody(
   }
 
   return [
-    `${warnings.length} config validation issue(s) detected.`,
-    'Defaults were applied where possible.',
-    `File: ${clippedPath}`,
+    i18n.t('dialog.configIssues', { count: warnings.length }),
+    i18n.t('dialog.defaultsApplied'),
+    i18n.t('dialog.configFile', { path: clippedPath }),
     ...lines,
   ].join('\n');
 }
@@ -72,23 +73,23 @@ export function buildConfigWarningDialogDetails(
   );
 
   return [
-    'SubMiner detected config validation issues.',
-    `File: ${configPath}`,
+    i18n.t('dialog.configWarningTitle'),
+    i18n.t('dialog.configFile', { path: configPath }),
     '',
     ...lines,
     '',
-    'Defaults were applied where possible.',
+    i18n.t('dialog.defaultsApplied'),
   ].join('\n');
 }
 
 export function buildConfigParseErrorDetails(configPath: string, parseError: string): string {
   return [
-    'Failed to parse config file at:',
+    i18n.t('dialog.configParseFailed'),
     configPath,
     '',
     `Error: ${parseError}`,
     '',
-    'Fix the config file and restart SubMiner.',
+    i18n.t('dialog.fixConfig'),
   ].join('\n');
 }
 

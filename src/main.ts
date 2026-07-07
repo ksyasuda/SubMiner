@@ -31,6 +31,7 @@ import {
   dialog,
   screen,
 } from 'electron';
+import { i18n } from './i18n/index.js';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
@@ -624,7 +625,7 @@ const ANILIST_DEVELOPER_SETTINGS_URL = 'https://anilist.co/settings/developer';
 const ANILIST_UPDATE_MIN_WATCH_SECONDS = 10 * 60;
 const ANILIST_DURATION_RETRY_INTERVAL_MS = 15_000;
 const ANILIST_MAX_ATTEMPTED_UPDATE_KEYS = 1000;
-const TRAY_TOOLTIP = 'SubMiner';
+const getTrayTooltip = (): string => i18n.t('tray.tooltip');
 const JELLYFIN_SETUP_PRELOAD_PATH = path.join(__dirname, 'preload-jellyfin-setup.js');
 
 let anilistMediaGuessRuntimeState: AnilistMediaGuessRuntimeState =
@@ -790,7 +791,7 @@ const bootServices = createMainBootServices({
   },
   onConfigStartupParseError: (error) => {
     failStartupFromConfig(
-      'SubMiner config parse error',
+      i18n.t('dialog.configParseError'),
       buildConfigParseErrorDetails(error.path, error.parseError),
       {
         logError: (details) => console.error(details),
@@ -1779,7 +1780,7 @@ function reportYoutubeSubtitleFailure(message: string): void {
 
 async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
   if (youtubeFlowRuntime.hasActiveSession()) {
-    showConfiguredStatusNotification('YouTube subtitle flow already in progress.', {
+    showConfiguredStatusNotification(i18n.t('osd.youtubeInProgress'), {
       title: 'YouTube subtitles',
       variant: 'warning',
     });
@@ -1789,7 +1790,7 @@ async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
   if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
     showConfiguredStatusNotification(
-      'YouTube subtitle picker is only available during YouTube playback.',
+      i18n.t('osd.youtubeOnly'),
       {
         title: 'YouTube subtitles',
         variant: 'warning',
@@ -2172,7 +2173,7 @@ const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRun
       });
       if (process.platform === 'darwin') {
         dialog.showErrorBox(
-          'SubMiner config validation warning',
+          i18n.t('dialog.configWarningTitle'),
           buildConfigWarningDialogDetails(configPath, warnings),
         );
       }
@@ -2957,7 +2958,7 @@ function openControllerDebugOverlay(): void {
 
 function openPlaylistBrowser(): void {
   if (!appState.mpvClient?.connected) {
-    showConfiguredStatusNotification('Playlist browser requires active playback.', {
+    showConfiguredStatusNotification(i18n.t('playlistBrowser.requiresPlayback'), {
       title: 'Playlist browser',
       variant: 'warning',
     });
@@ -3142,7 +3143,7 @@ const {
       void appState.jellyfinRemoteSession?.reportPlaying(payload);
     },
     showMpvOsd: (text) => {
-      showConfiguredStatusNotification(text, { title: 'Jellyfin' });
+      showConfiguredStatusNotification(text, { title: i18n.t('notif.appTitle.jellyfin') });
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -3276,7 +3277,7 @@ const {
       }),
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: i18n.t('notif.appTitle.jellyfin') }),
     clearSetupWindow: () => {
       appState.jellyfinSetupWindow = null;
     },
@@ -3385,7 +3386,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       const opened = openConfigSettingsWindow();
       firstRunSetupMessage = opened
         ? 'Opened SubMiner settings.'
-        : 'SubMiner settings are unavailable.';
+        : i18n.t('dialog.settingsUnavailable');
       if (opened) {
         return { skipRender: true };
       }
@@ -3446,7 +3447,7 @@ const {
   notifyDeps: {
     getNotificationType: () => getConfiguredStatusNotificationType(),
     hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: i18n.t('notif.appTitle.anilist') }),
     showOverlayNotification,
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     logInfo: (message) => logger.info(message),
@@ -3774,7 +3775,7 @@ const {
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);
     },
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
+    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: i18n.t('notif.appTitle.anilist') }),
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
@@ -4323,8 +4324,8 @@ async function runAppReadyRuntimeWithFatalReporting(): Promise<void> {
     await appReadyRuntimeRunner();
   } catch (error) {
     reportFatalError(error, {
-      title: 'SubMiner startup failed',
-      context: 'SubMiner failed during app-ready startup.',
+      title: i18n.t('dialog.startupFailed'),
+      context: i18n.t('dialog.startupContext'),
     });
     process.exitCode = 1;
     requestAppQuit();
@@ -4767,7 +4768,7 @@ const {
 
 async function tokenizeSubtitle(text: string): Promise<SubtitleData> {
   if (!isTokenizationWarmupReady()) {
-    startupOsdSequencer.showTokenizationLoading('Loading subtitle tokenization...');
+    startupOsdSequencer.showTokenizationLoading(i18n.t('osd.tokenizationLoading'));
   }
   return await tokenizeSubtitleRuntime(text);
 }
@@ -5385,6 +5386,13 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
         preloadPath: statsPreloadPath,
         getApiBaseUrl: () => ensureStatsServerStarted().url,
         getToggleKey: () => getResolvedConfig().stats.toggleKey,
+        getUILanguage: () => {
+          const uiLang = getResolvedConfig().uiLanguage;
+          if (uiLang === 'en' || uiLang === 'zh-CN') return uiLang;
+          const locale = app.getLocale();
+          if (locale.startsWith('zh')) return 'zh-CN';
+          return 'en';
+        },
         resolveBounds: () => getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
           handleStatsOverlayVisibilityChanged(visible);
@@ -5574,7 +5582,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
           void openAnkiCardFromNotification(noteId).catch((error) => {
             logger.warn('Failed to open Anki card from overlay notification action:', error);
-            showConfiguredStatusNotification('Failed to open Anki card in Anki.', {
+            showConfiguredStatusNotification(i18n.t('dialog.cardsFailed'), {
               id: 'open-anki-card-failed',
               variant: 'error',
             });
@@ -5724,6 +5732,15 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
       getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
       getOverlayNotificationPosition: () => getResolvedConfig().notifications.overlayPosition,
+      getUILanguage: () => {
+        const uiLang = getResolvedConfig().uiLanguage;
+        if (uiLang === 'en' || uiLang === 'zh-CN') {
+          return uiLang;
+        }
+        const locale = app.getLocale();
+        if (locale.startsWith('zh')) return 'zh-CN';
+        return 'en';
+      },
       getControllerConfig: () => getResolvedConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
@@ -6094,7 +6111,19 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
   },
 });
 
+// Initialize i18n in main process so tray menu, dialogs, and OSD respect language config
+(function initMainProcessI18n() {
+  const uiLang = getResolvedConfig().uiLanguage;
+  if (uiLang === 'en' || uiLang === 'zh-CN') {
+    i18n.setLanguage(uiLang);
+  } else {
+    const locale = app.getLocale();
+    i18n.setLanguage(locale.startsWith('zh') ? 'zh-CN' : 'en');
+  }
+})();
+
 runAndApplyStartupState();
+
 void app.whenReady().then(() => {
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
@@ -6186,7 +6215,7 @@ function getJellyfinTrayDiscoveryDeps() {
     refreshTrayMenu: () => refreshTrayMenuIfPresent(),
     logger,
     showMpvOsd: (message: string) =>
-      showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
+      showConfiguredStatusNotification(message, { title: i18n.t('notif.appTitle.jellyfin') }),
   };
 }
 
@@ -6240,7 +6269,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       createImageFromPath: (iconPath) => nativeImage.createFromPath(iconPath),
       createEmptyImage: () => nativeImage.createEmpty(),
       createTray: (icon) => new Tray(icon as ConstructorParameters<typeof Tray>[0]),
-      trayTooltip: TRAY_TOOLTIP,
+      trayTooltip: getTrayTooltip(),
       platform: process.platform,
       logWarn: (message) => logger.warn(message),
       initializeOverlayRuntime: () => initializeOverlayRuntime(),

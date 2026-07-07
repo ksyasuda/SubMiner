@@ -1,3 +1,5 @@
+import { useTranslation } from '../../i18n';
+
 interface DeleteProgressToastProps {
   /** Number of sessions currently being deleted. The toast is hidden when 0. */
   count: number;
@@ -12,6 +14,7 @@ interface DeleteProgressToastProps {
  * finishes.
  */
 export function DeleteProgressToast({ count }: DeleteProgressToastProps) {
+  const { t } = useTranslation();
   if (count <= 0) return null;
 
   return (
@@ -24,9 +27,7 @@ export function DeleteProgressToast({ count }: DeleteProgressToastProps) {
         aria-hidden="true"
         className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-ctp-surface2 border-t-ctp-red"
       />
-      <span className="text-sm text-ctp-text">
-        Deleting {count} session{count === 1 ? '' : 's'}&hellip;
-      </span>
+      <span className="text-sm text-ctp-text">{t('stats.delete.deleting', { count })}</span>
     </div>
   );
 }

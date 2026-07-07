@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { useTrends, type TimeRange, type GroupBy } from '../../hooks/useTrends';
 import { DateRangeSelector } from './DateRangeSelector';
 import { TrendChart } from './TrendChart';
@@ -94,6 +95,7 @@ export function AnimeVisibilityFilter({
 }
 
 export function TrendsTab() {
+  const { t } = useTranslation();
   const [range, setRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => new Set());
@@ -164,7 +166,7 @@ export function TrendsTab() {
         <TrendChart title="Words Seen" data={data.activity.words} color="#8bd5ca" type="bar" />
         <TrendChart title="Sessions" data={data.activity.sessions} color="#b7bdf8" type="bar" />
 
-        <SectionHeader>Cumulative Totals</SectionHeader>
+        <SectionHeader>{t('stats.trends.cumulativeTotals')}</SectionHeader>
         <TrendChart
           title="Watch Time, cumulative (min)"
           data={data.progress.watchTime}
@@ -208,7 +210,7 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Efficiency</SectionHeader>
+        <SectionHeader>{t('stats.trends.efficiency')}</SectionHeader>
         <TrendChart
           title="Words / Min"
           data={data.ratios.readingSpeed}
@@ -228,7 +230,7 @@ export function TrendsTab() {
           type="line"
         />
 
-        <SectionHeader>Patterns</SectionHeader>
+        <SectionHeader>{t('stats.trends.patterns')}</SectionHeader>
         <TrendChart
           title="Watch Time by Day of Week (min)"
           data={data.patterns.watchTimeByDayOfWeek}

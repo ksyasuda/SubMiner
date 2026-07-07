@@ -1,3 +1,5 @@
+import { i18n } from '../../i18n/index.js';
+
 type JellyfinTrayConfig = {
   enabled?: boolean;
   serverUrl?: string | null;
@@ -74,7 +76,7 @@ export async function toggleJellyfinDiscoveryFromTray<TSession extends JellyfinT
       if (activeSession) {
         deps.stopRemoteSession();
         deps.logger.info('Jellyfin discovery stopped.');
-        deps.showMpvOsd('Jellyfin discovery stopped');
+        deps.showMpvOsd(i18n.t('osd.jellyfinStopped'));
       }
       return;
     }
@@ -93,7 +95,7 @@ export async function toggleJellyfinDiscoveryFromTray<TSession extends JellyfinT
         } else {
           deps.stopRemoteSession();
           deps.logger.info('Jellyfin discovery stopped.');
-          deps.showMpvOsd('Jellyfin discovery stopped');
+          deps.showMpvOsd(i18n.t('osd.jellyfinStopped'));
         }
         return;
       }
@@ -106,21 +108,21 @@ export async function toggleJellyfinDiscoveryFromTray<TSession extends JellyfinT
     const remoteSession = deps.getRemoteSession();
     if (!remoteSession) {
       deps.logger.warn('Jellyfin discovery could not start. Configure Jellyfin first.');
-      deps.showMpvOsd('Jellyfin discovery unavailable');
+      deps.showMpvOsd(i18n.t('osd.jellyfinUnavailable'));
       return;
     }
 
     const visible = await remoteSession.advertiseNow();
     if (visible) {
       deps.logger.info('Jellyfin discovery started; cast target is visible in server sessions.');
-      deps.showMpvOsd('Jellyfin discovery started');
+      deps.showMpvOsd(i18n.t('osd.jellyfinStarted'));
     } else {
       deps.logger.warn('Jellyfin discovery started, but cast target is not visible yet.');
-      deps.showMpvOsd('Jellyfin discovery started; waiting for visibility');
+      deps.showMpvOsd(i18n.t('osd.jellyfinWaiting'));
     }
   } catch (error) {
     deps.logger.error('Failed to toggle Jellyfin discovery.', error);
-    deps.showMpvOsd('Jellyfin discovery failed');
+    deps.showMpvOsd(i18n.t('osd.jellyfinFailed'));
   } finally {
     deps.refreshTrayMenu();
   }

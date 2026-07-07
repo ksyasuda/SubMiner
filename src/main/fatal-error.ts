@@ -1,4 +1,5 @@
 import { appendLogLine, resolveDefaultLogFilePath } from '../shared/log-files';
+import { i18n } from '../i18n/index.js';
 
 export type FatalErrorReportOptions = {
   title: string;
@@ -18,8 +19,8 @@ export type FatalErrorReporter = (
   options?: Partial<FatalErrorReportOptions>,
 ) => void;
 
-const DEFAULT_TITLE = 'SubMiner crashed';
-const DEFAULT_CONTEXT = 'SubMiner encountered a fatal error';
+const DEFAULT_TITLE = i18n.t('dialog.crashed');
+const DEFAULT_CONTEXT = i18n.t('dialog.fatalContext');
 
 let fatalErrorReported = false;
 
@@ -111,16 +112,16 @@ export function registerFatalErrorHandlers(deps: {
 }): void {
   process.on('uncaughtException', (error) => {
     deps.reportFatalError(error, {
-      title: 'SubMiner crashed',
-      context: 'SubMiner main process threw an uncaught exception.',
+      title: i18n.t('dialog.crashed'),
+      context: i18n.t('dialog.fatalContext'),
     });
     deps.exit(1);
   });
 
   process.on('unhandledRejection', (reason) => {
     deps.reportFatalError(reason, {
-      title: 'SubMiner crashed',
-      context: 'SubMiner main process had an unhandled promise rejection.',
+      title: i18n.t('dialog.crashed'),
+      context: i18n.t('dialog.rejectionContext'),
     });
     deps.exit(1);
   });

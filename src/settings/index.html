@@ -7,22 +7,22 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self';"
     />
-    <title>SubMiner Settings</title>
+    <title data-i18n="settings.title">SubMiner Settings</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main id="app" class="settings-shell">
-      <aside class="settings-nav" aria-label="Settings categories">
+      <aside class="settings-nav" aria-label="Settings categories" data-i18n-aria="settings.categories">
         <div class="brand-block">
-          <div class="brand-title">SubMiner</div>
-          <div class="brand-subtitle">Settings</div>
+          <div class="brand-title" data-i18n="app.title">SubMiner</div>
+          <div class="brand-subtitle" data-i18n="settings.heading">Settings</div>
         </div>
         <nav id="categoryNav" class="category-nav"></nav>
       </aside>
       <section class="settings-main">
         <header class="settings-toolbar">
           <div class="toolbar-title-block">
-            <h1 id="categoryTitle">Settings</h1>
+            <h1 id="categoryTitle" data-i18n="settings.heading">Settings</h1>
             <div id="categoryMeta" class="toolbar-meta"></div>
           </div>
           <div class="toolbar-actions">
@@ -31,9 +31,11 @@
               class="search-input"
               type="search"
               placeholder="Search"
+              data-i18n-placeholder="settings.searchPlaceholder"
               aria-label="Search settings"
+              data-i18n-aria="settings.searchAria"
             />
-            <button id="saveButton" class="primary-button" type="button" disabled>Save</button>
+            <button id="saveButton" class="primary-button" type="button" disabled data-i18n="settings.save">Save</button>
           </div>
         </header>
         <div id="statusBanner" class="status-banner hidden" role="status"></div>

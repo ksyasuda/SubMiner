@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 import { CoverImage } from './CoverImage';
 import { formatDuration, formatNumber, formatPercent } from '../../lib/formatters';
 import { getStatsClient } from '../../hooks/useStatsApi';
@@ -22,6 +23,7 @@ export function MediaHeader({
   onDeleteEpisode,
   isDeletingEpisode = false,
 }: MediaHeaderProps) {
+  const { t } = useTranslation();
   const knownTokenRate =
     detail.totalLookupCount > 0 ? detail.totalLookupHits / detail.totalLookupCount : null;
   const avgSessionMs =
@@ -68,7 +70,7 @@ export function MediaHeader({
               disabled={isDeletingEpisode}
               className="shrink-0 text-xs text-ctp-red hover:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isDeletingEpisode ? 'Deleting...' : 'Delete Episode'}
+              {isDeletingEpisode ? t('stats.media.deleting') : t('stats.media.deleteEpisode')}
             </button>
           ) : null}
         </div>
@@ -91,30 +93,30 @@ export function MediaHeader({
         <div className="grid grid-cols-2 gap-2 mt-3 text-sm">
           <div>
             <div className="text-ctp-blue font-medium">{formatDuration(detail.totalActiveMs)}</div>
-            <div className="text-xs text-ctp-overlay2">total watch time</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.totalWatchTime')}</div>
           </div>
           <div>
             <div className="text-ctp-cards-mined font-medium">
               {formatNumber(detail.totalCards)}
             </div>
-            <div className="text-xs text-ctp-overlay2">cards mined</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.cardsMined')}</div>
           </div>
           <div>
             <div className="text-ctp-mauve font-medium">{formatNumber(detail.totalTokensSeen)}</div>
-            <div className="text-xs text-ctp-overlay2">word occurrences</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.wordOccurrences')}</div>
           </div>
           <div>
             <div className="text-ctp-lavender font-medium">
               {formatNumber(detail.totalYomitanLookupCount)}
             </div>
-            <div className="text-xs text-ctp-overlay2">Yomitan lookups</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.yomitanLookups')}</div>
           </div>
           <div>
             <div className="text-ctp-sapphire font-medium">
               {lookupRate?.shortValue ?? '\u2014'}
             </div>
             <div className="text-xs text-ctp-overlay2">
-              {lookupRate?.longValue ?? 'lookup rate'}
+              {lookupRate?.longValue ?? t('stats.media.lookupRate')}
             </div>
           </div>
           {knownWordsSummary && knownWordsSummary.totalUniqueWords > 0 ? (
@@ -123,27 +125,21 @@ export function MediaHeader({
                 {formatNumber(knownWordsSummary.knownWordCount)} /{' '}
                 {formatNumber(knownWordsSummary.totalUniqueWords)}
               </div>
-              <div className="text-xs text-ctp-overlay2">
-                known unique words (
-                {Math.round(
-                  (knownWordsSummary.knownWordCount / knownWordsSummary.totalUniqueWords) * 100,
-                )}
-                %)
-              </div>
+              <div className="text-xs text-ctp-overlay2">{t('stats.media.knownUniqueWords')}</div>
             </div>
           ) : (
             <div>
               <div className="text-ctp-peach font-medium">{formatPercent(knownTokenRate)}</div>
-              <div className="text-xs text-ctp-overlay2">known word match rate</div>
+              <div className="text-xs text-ctp-overlay2">{t('stats.media.knownWordMatchRate')}</div>
             </div>
           )}
           <div>
             <div className="text-ctp-text font-medium">{detail.totalSessions}</div>
-            <div className="text-xs text-ctp-overlay2">sessions</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.sessions')}</div>
           </div>
           <div>
             <div className="text-ctp-text font-medium">{formatDuration(avgSessionMs)}</div>
-            <div className="text-xs text-ctp-overlay2">avg session</div>
+            <div className="text-xs text-ctp-overlay2">{t('stats.media.avgSession')}</div>
           </div>
         </div>
       </div>

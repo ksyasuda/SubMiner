@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useState } from 'react';
+import { useTranslation } from './i18n';
 import { DeleteConfirmDialog } from './components/layout/DeleteConfirmDialog';
 import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
@@ -67,6 +68,7 @@ function LoadingSurface({ label, overlay = false }: { label: string; overlay?: b
 }
 
 export function App() {
+  const { t } = useTranslation();
   const [viewState, setViewState] = useState(createInitialStatsView);
   const [mountedTabs, setMountedTabs] = useState<Set<TabId>>(() => new Set(['overview']));
   const [globalWordId, setGlobalWordId] = useState<number | null>(null);
@@ -141,13 +143,13 @@ export function App() {
           className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity"
         >
           <img src="/favicon.png" alt="" className="h-6 object-contain" />
-          <h1 className="text-lg font-semibold text-ctp-text">SubMiner Stats</h1>
+          <h1 className="text-lg font-semibold text-ctp-text">{t('stats.title')}</h1>
         </button>
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </header>
       <main className="flex-1 min-h-0 overflow-y-auto p-4">
         {mediaDetail ? (
-          <Suspense fallback={<LoadingSurface label="Loading media detail..." />}>
+          <Suspense fallback={<LoadingSurface label={t('stats.loadingDetail')} />}>
             <MediaDetailView
               videoId={mediaDetail.videoId}
               initialExpandedSessionId={mediaDetail.initialSessionId}
@@ -167,10 +169,10 @@ export function App() {
               onBack={() => setViewState((prev) => closeMediaDetail(prev))}
               backLabel={
                 mediaDetail.origin.type === 'overview'
-                  ? 'Back to Overview'
+                  ? t('stats.backToOverview')
                   : mediaDetail.origin.type === 'sessions'
-                    ? 'Back to Sessions'
-                    : 'Back to Library'
+                    ? t('stats.backToSessions')
+                    : t('stats.backToLibrary')
               }
               onNavigateToAnime={navigateToAnime}
             />
@@ -200,7 +202,7 @@ export function App() {
                 hidden={activeTab !== 'anime'}
                 className="animate-fade-in"
               >
-                <Suspense fallback={<LoadingSurface label="Loading library..." />}>
+                <Suspense fallback={<LoadingSurface label={t('stats.loading.library')} />}>
                   <AnimeTab
                     initialAnimeId={selectedAnimeId}
                     onClearInitialAnime={() =>
@@ -220,7 +222,7 @@ export function App() {
                 hidden={activeTab !== 'trends'}
                 className="animate-fade-in"
               >
-                <Suspense fallback={<LoadingSurface label="Loading trends..." />}>
+                <Suspense fallback={<LoadingSurface label={t('stats.loading.trends')} />}>
                   <TrendsTab />
                 </Suspense>
               </section>
@@ -233,7 +235,7 @@ export function App() {
                 hidden={activeTab !== 'vocabulary'}
                 className="animate-fade-in"
               >
-                <Suspense fallback={<LoadingSurface label="Loading vocabulary..." />}>
+                <Suspense fallback={<LoadingSurface label={t('stats.loading.vocabulary')} />}>
                   <VocabularyTab
                     onNavigateToAnime={navigateToAnime}
                     onOpenWordDetail={openWordDetail}
@@ -253,7 +255,7 @@ export function App() {
                 hidden={activeTab !== 'search'}
                 className="animate-fade-in"
               >
-                <Suspense fallback={<LoadingSurface label="Loading search..." />}>
+                <Suspense fallback={<LoadingSurface label={t('stats.loading.search')} />}>
                   <SearchTab />
                 </Suspense>
               </section>
@@ -266,7 +268,7 @@ export function App() {
                 hidden={activeTab !== 'sessions'}
                 className="animate-fade-in"
               >
-                <Suspense fallback={<LoadingSurface label="Loading sessions..." />}>
+                <Suspense fallback={<LoadingSurface label={t('stats.loading.sessions')} />}>
                   <SessionsTab
                     initialSessionId={focusedSessionId}
                     onClearInitialSession={() =>
@@ -281,7 +283,7 @@ export function App() {
         )}
       </main>
       {globalWordId !== null ? (
-        <Suspense fallback={<LoadingSurface label="Loading word detail..." overlay />}>
+        <Suspense fallback={<LoadingSurface label={t('stats.loading.wordDetail')} overlay />}>
           <WordDetailPanel
             wordId={globalWordId}
             onClose={() => setGlobalWordId(null)}

@@ -446,6 +446,7 @@ export interface ElectronAPI {
   getStatsToggleKey: () => Promise<string>;
   getMarkWatchedKey: () => Promise<string>;
   getOverlayNotificationPosition: () => Promise<OverlayNotificationPosition>;
+  getUILanguage: () => Promise<string>;
   markActiveVideoWatched: () => Promise<boolean>;
   getControllerConfig: () => Promise<ResolvedControllerConfig>;
   saveControllerConfig: (update: ControllerConfigUpdate) => Promise<void>;

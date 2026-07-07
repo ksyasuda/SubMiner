@@ -6,6 +6,7 @@ import { DEFAULT_CONFIG, DEFAULT_KEYBINDINGS } from '../../config';
 import type { AnkiConnectConfig } from '../../types/anki';
 import type { ConfigHotReloadPayload, ResolvedConfig, SecondarySubMode } from '../../types';
 import type { NotificationType, OverlayNotificationPayload } from '../../types/notification';
+import { i18n } from '../../i18n/index.js';
 
 type ConfigHotReloadAppliedDeps = {
   setKeybindings: (keybindings: ConfigHotReloadPayload['keybindings']) => void;
@@ -207,5 +208,5 @@ export function createConfigHotReloadMessageHandler(deps: ConfigHotReloadMessage
 }
 
 export function buildRestartRequiredConfigMessage(fields: string[]): string {
-  return `Config updated; restart required for: ${fields.join(', ')}`;
+  return i18n.t('dialog.configValidation', { fields: fields.join(', ') });
 }

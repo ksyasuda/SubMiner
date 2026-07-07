@@ -36,6 +36,7 @@ const {
   updates,
   notifications,
   auto_start_overlay,
+  uiLanguage,
 } = CORE_DEFAULT_CONFIG;
 const { ankiConnect, jimaku, anilist, mpv, yomitan, jellyfin, discordPresence, ai, youtubeSubgen } =
   INTEGRATIONS_DEFAULT_CONFIG;
@@ -62,6 +63,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleStyle,
   subtitleSidebar,
   auto_start_overlay,
+  uiLanguage,
   jimaku,
   anilist,
   mpv,

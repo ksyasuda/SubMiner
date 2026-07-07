@@ -1,4 +1,5 @@
 import type { MessageBoxOptions, MessageBoxReturnValue } from 'electron';
+import { i18n } from '../../i18n/index.js';
 
 type ShowMessageBox = (options: MessageBoxOptions) => Promise<MessageBoxReturnValue>;
 
@@ -11,10 +12,10 @@ export async function showLogExportSuccessDialog(options: {
   const successDialog = await options
     .showMessageBox({
       type: 'info',
-      title: 'SubMiner logs exported',
-      message: 'SubMiner log export created.',
+      title: i18n.t('dialog.exportSuccess'),
+      message: i18n.t('dialog.exportSuccessMsg'),
       detail: options.zipPath,
-      buttons: ['OK', 'Show in Folder'],
+      buttons: [i18n.t('dialog.ok'), i18n.t('dialog.showInFolder')],
       defaultId: 0,
       cancelId: 0,
     })
@@ -36,8 +37,8 @@ export async function showLogExportErrorDialog(options: {
   await options
     .showMessageBox({
       type: 'error',
-      title: 'SubMiner log export failed',
-      message: 'Could not export SubMiner logs.',
+      title: i18n.t('dialog.exportFailed'),
+      message: i18n.t('dialog.exportFailedMsg'),
       detail: options.message,
     })
     .catch((dialogError) => {

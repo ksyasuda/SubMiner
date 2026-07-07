@@ -1,4 +1,5 @@
 import type { SubtitleTimingBlock } from '../../subtitle-timing-tracker';
+import { i18n } from '../../i18n/index.js';
 
 interface SubtitleTimingTrackerLike {
   getRecentBlocks: (count: number) => string[];
@@ -41,16 +42,18 @@ export function handleMultiCopyDigit(
   const availableCount = Math.min(count, 200);
   const blocks = deps.subtitleTimingTracker.getRecentBlocks(availableCount);
   if (blocks.length === 0) {
-    deps.showMpvOsd('No subtitle history available');
+    deps.showMpvOsd(i18n.t('osd.noSubtitleHistory'));
     return;
   }
 
   const actualCount = blocks.length;
   deps.writeClipboardText(blocks.join('\n\n'));
   if (actualCount < count) {
-    deps.showMpvOsd(`Only ${actualCount} lines available, copied ${actualCount}`);
+    deps.showMpvOsd(
+      i18n.t('mining.onlyXLinesAvailable', { actual: actualCount, requested: count }),
+    );
   } else {
-    deps.showMpvOsd(`Copied ${actualCount} lines`);
+    deps.showMpvOsd(i18n.t('mining.copiedXLines', { count: actualCount }));
   }
 }
 
@@ -60,16 +63,16 @@ export function copyCurrentSubtitle(deps: {
   showMpvOsd: (text: string) => void;
 }): void {
   if (!deps.subtitleTimingTracker) {
-    deps.showMpvOsd('Subtitle tracker not available');
+    deps.showMpvOsd(i18n.t('osd.noTracker'));
     return;
   }
   const currentSubtitle = deps.subtitleTimingTracker.getCurrentSubtitle();
   if (!currentSubtitle) {
-    deps.showMpvOsd('No current subtitle');
+    deps.showMpvOsd(i18n.t('osd.noCurrentSubtitle'));
     return;
   }
   deps.writeClipboardText(currentSubtitle);
-  deps.showMpvOsd('Copied subtitle');
+  deps.showMpvOsd(i18n.t('osd.copiedSubtitle'));
 }
 
 function requireAnkiIntegration(
@@ -77,7 +80,7 @@ function requireAnkiIntegration(
   showMpvOsd: (text: string) => void,
 ): AnkiIntegrationLike | null {
   if (!ankiIntegration) {
-    showMpvOsd('AnkiConnect integration not enabled');
+    showMpvOsd(i18n.t('osd.ankiNotEnabled'));
     return null;
   }
   return ankiIntegration;
@@ -160,11 +163,11 @@ export async function mineSentenceCard(deps: {
 
   const mpvClient = deps.mpvClient;
   if (!mpvClient || !mpvClient.connected) {
-    deps.showMpvOsd('MPV not connected');
+    deps.showMpvOsd(i18n.t('mining.mpvNotConnected'));
     return false;
   }
   if (!mpvClient.currentSubText) {
-    deps.showMpvOsd('No current subtitle');
+    deps.showMpvOsd(i18n.t('osd.noCurrentSubtitle'));
     return false;
   }
 
@@ -194,7 +197,7 @@ export function handleMineSentenceDigit(
   const blocks =
     entries?.map((entry) => entry.displayText) ?? deps.subtitleTimingTracker.getRecentBlocks(count);
   if (blocks.length === 0) {
-    deps.showMpvOsd('No subtitle history available');
+    deps.showMpvOsd(i18n.t('osd.noSubtitleHistory'));
     return;
   }
 
@@ -206,7 +209,7 @@ export function handleMineSentenceDigit(
     });
 
   if (timings.length === 0) {
-    deps.showMpvOsd('Subtitle timing not found');
+    deps.showMpvOsd(i18n.t('osd.subtitleTimingNotFound'));
     return;
   }
 
@@ -227,6 +230,7 @@ export function handleMineSentenceDigit(
     })
     .catch((err) => {
       deps.logError('mineSentenceMultiple failed:', err);
-      deps.showMpvOsd(`Mine sentence failed: ${(err as Error).message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      deps.showMpvOsd(i18n.t('mining.mineSentenceFailed', { message }));
     });
 }

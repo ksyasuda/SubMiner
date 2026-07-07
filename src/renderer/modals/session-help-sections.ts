@@ -5,6 +5,7 @@ import type {
   SessionKeySpec,
 } from '../../types';
 import { SPECIAL_COMMANDS } from '../../config/definitions/shared';
+import { i18n } from '../../i18n/index.js';
 import { buildColorSection, type SessionHelpSubtitleStyle } from './session-help-colors';
 
 export type SessionHelpItem = {
@@ -25,13 +26,15 @@ export type SessionHelpTab = {
   label: string;
 };
 
-export const SESSION_HELP_TABS: SessionHelpTab[] = [
-  { id: 'essentials', label: 'Essentials' },
-  { id: 'playback', label: 'Playback' },
-  { id: 'mining', label: 'Mining' },
-  { id: 'tools', label: 'Tools' },
-  { id: 'reference', label: 'Reference' },
-];
+export function getSessionHelpTabs(): SessionHelpTab[] {
+  return [
+    { id: 'essentials', label: i18n.t('sessionHelp.tab.essentials') },
+    { id: 'playback', label: i18n.t('sessionHelp.tab.playback') },
+    { id: 'mining', label: i18n.t('sessionHelp.tab.mining') },
+    { id: 'tools', label: i18n.t('sessionHelp.tab.tools') },
+    { id: 'reference', label: i18n.t('sessionHelp.tab.reference') },
+  ];
+}
 
 const KEY_NAME_MAP: Record<string, string> = {
   Space: 'Space',
@@ -85,36 +88,46 @@ function formatKeybinding(rawBinding: string): string {
 
 function describeCommand(command: (string | number)[]): string {
   const first = command[0];
-  if (typeof first !== 'string') return 'Unknown action';
+  if (typeof first !== 'string') return i18n.t('sessionHelp.unknownAction');
 
-  if (first === 'cycle' && command[1] === 'pause') return 'Toggle playback';
+  if (first === 'cycle' && command[1] === 'pause') return i18n.t('sessionHelp.action.togglePlayback');
   if (first === 'seek' && typeof command[1] === 'number') {
-    return `Seek ${command[1] > 0 ? '+' : ''}${command[1]} second(s)`;
+    return i18n.t('sessionHelp.action.seekSubtitle', {
+      sign: command[1] > 0 ? '+' : '',
+      value: String(command[1]),
+    });
   }
   if (first === 'sub-seek' && typeof command[1] === 'number') {
-    if (command[1] > 0) return 'Jump to next subtitle';
-    if (command[1] < 0) return 'Jump to previous subtitle';
-    return 'Reload current subtitle timing';
+    if (command[1] > 0) return i18n.t('sessionHelp.action.jumpToNextSubtitle');
+    if (command[1] < 0) return i18n.t('sessionHelp.action.jumpToPreviousSubtitle');
+    return i18n.t('sessionHelp.action.reloadSubtitleTiming');
   }
   if (first === 'sub-step' && typeof command[1] === 'number') {
-    if (command[1] > 0) return 'Shift subtitle delay to next cue';
-    if (command[1] < 0) return 'Shift subtitle delay to previous cue';
-    return 'Reload current subtitle timing';
+    if (command[1] > 0) return i18n.t('sessionHelp.action.shiftDelayNext');
+    if (command[1] < 0) return i18n.t('sessionHelp.action.shiftDelayPrev');
+    return i18n.t('sessionHelp.action.reloadSubtitleTiming');
   }
-  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return 'Open subtitle sync controls';
-  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) return 'Open runtime options';
-  if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) return 'Open jimaku';
-  if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) return 'Open playlist browser';
-  if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return 'Replay current subtitle';
-  if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return 'Play next subtitle';
+  if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return i18n.t('sessionHelp.action.openSubsync');
+  if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN)
+    return i18n.t('sessionHelp.action.openRuntimeOptions');
+  if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) return i18n.t('sessionHelp.action.openJimaku');
+  if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN)
+    return i18n.t('sessionHelp.action.openPlaylistBrowser');
+  if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE)
+    return i18n.t('sessionHelp.action.replaySubtitle');
+  if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE)
+    return i18n.t('sessionHelp.action.playNextSubtitle');
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
     const [, rawId, rawDirection] = first.split(':');
-    return `Cycle runtime option ${rawId || 'option'} ${
-      rawDirection === 'prev' ? 'previous' : 'next'
-    }`;
+    return i18n.t(
+      rawDirection === 'prev' ? 'sessionHelp.action.cycleOptionPrev' : 'sessionHelp.action.cycleOptionNext',
+      { id: rawId || 'option' },
+    );
   }
 
-  return `MPV command: ${command.map((entry) => String(entry)).join(' ')}`;
+  return i18n.t('sessionHelp.action.mpvCommand', {
+    command: command.map((entry) => String(entry)).join(' '),
+  });
 }
 
 export {
@@ -124,7 +137,7 @@ export {
 
 function sectionForCommand(command: (string | number)[]): string {
   const first = command[0];
-  if (typeof first !== 'string') return 'Other shortcuts';
+  if (typeof first !== 'string') return i18n.t('sessionHelp.sections.other');
 
   if (
     first === 'cycle' ||
@@ -134,15 +147,15 @@ function sectionForCommand(command: (string | number)[]): string {
     first === SPECIAL_COMMANDS.REPLAY_SUBTITLE ||
     first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE
   ) {
-    return 'Playback and navigation';
+    return i18n.t('sessionHelp.sections.playback');
   }
 
   if (first === 'show-text' || first === 'show-progress' || first.startsWith('osd')) {
-    return 'Visual feedback';
+    return i18n.t('sessionHelp.sections.visual');
   }
 
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) {
-    return 'Subtitle sync';
+    return i18n.t('sessionHelp.sections.sync');
   }
 
   if (
@@ -151,11 +164,11 @@ function sectionForCommand(command: (string | number)[]): string {
     first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN ||
     first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)
   ) {
-    return 'Runtime settings';
+    return i18n.t('sessionHelp.sections.runtime');
   }
 
-  if (first === 'quit') return 'System actions';
-  return 'Other shortcuts';
+  if (first === 'quit') return i18n.t('sessionHelp.sections.system');
+  return i18n.t('sessionHelp.sections.other');
 }
 
 const MODIFIER_LABELS: Record<SessionKeyModifier, string> = {
@@ -180,57 +193,60 @@ function describeSessionAction(
 ): string {
   switch (actionId) {
     case 'toggleStatsOverlay':
-      return 'Toggle stats overlay';
+      return i18n.t('sessionHelp.actions.toggleStats');
     case 'toggleVisibleOverlay':
-      return 'Show/hide visible overlay';
+      return i18n.t('sessionHelp.actions.toggleOverlay');
     case 'copySubtitle':
-      return 'Copy subtitle';
+      return i18n.t('sessionHelp.actions.copySubtitle');
     case 'copySubtitleMultiple':
-      return 'Copy subtitle (multi)';
+      return i18n.t('sessionHelp.actions.copySubtitleMultiple');
     case 'updateLastCardFromClipboard':
-      return 'Update last card from clipboard';
+      return i18n.t('sessionHelp.action.updateLastCard');
     case 'triggerFieldGrouping':
-      return 'Trigger field grouping';
+      return i18n.t('sessionHelp.action.triggerFieldGrouping');
     case 'triggerSubsync':
-      return 'Open subtitle sync controls';
+      return i18n.t('sessionHelp.actions.openSubsync');
     case 'mineSentence':
-      return 'Mine sentence';
+      return i18n.t('sessionHelp.actions.mineSentence');
     case 'mineSentenceMultiple':
-      return 'Mine sentence (multi)';
+      return i18n.t('sessionHelp.actions.mineSentenceMultiple');
     case 'toggleSecondarySub':
-      return 'Toggle secondary subtitle mode';
+      return i18n.t('sessionHelp.actions.toggleSecondarySub');
     case 'toggleSubtitleSidebar':
-      return 'Toggle subtitle sidebar';
+      return i18n.t('sessionHelp.actions.toggleSubtitleSidebar');
     case 'toggleNotificationHistory':
-      return 'Toggle notification history';
+      return i18n.t('sessionHelp.actions.toggleNotificationHistory');
     case 'markAudioCard':
-      return 'Mark audio card';
+      return i18n.t('sessionHelp.actions.markAudioCard');
     case 'markWatched':
-      return 'Mark video watched';
+      return i18n.t('sessionHelp.action.markVideoWatched');
     case 'openRuntimeOptions':
-      return 'Open runtime options';
+      return i18n.t('sessionHelp.actions.openRuntimeOptions');
     case 'openSessionHelp':
-      return 'Open session help';
+      return i18n.t('sessionHelp.actions.openSessionHelp');
     case 'openCharacterDictionaryManager':
-      return 'Open character dictionary manager';
+      return i18n.t('sessionHelp.actions.openCharacterDictionary');
     case 'openControllerSelect':
-      return 'Open controller select';
+      return i18n.t('sessionHelp.actions.openControllerSelect');
     case 'openControllerDebug':
-      return 'Open controller debug';
+      return i18n.t('sessionHelp.actions.openControllerDebug');
     case 'openJimaku':
-      return 'Open jimaku';
+      return i18n.t('sessionHelp.actions.openJimaku');
     case 'openYoutubePicker':
-      return 'Open YouTube subtitle picker';
+      return i18n.t('sessionHelp.action.openYoutubePicker');
     case 'openPlaylistBrowser':
-      return 'Open playlist browser';
+      return i18n.t('sessionHelp.action.openPlaylistBrowserAction');
     case 'replayCurrentSubtitle':
-      return 'Replay current subtitle';
+      return i18n.t('sessionHelp.action.replaySubtitle');
     case 'playNextSubtitle':
-      return 'Play next subtitle';
+      return i18n.t('sessionHelp.action.playNextSubtitle');
     case 'cycleRuntimeOption':
-      return `Cycle runtime option ${payload?.runtimeOptionId ?? 'option'} ${
-        payload?.direction === -1 ? 'previous' : 'next'
-      }`;
+      return i18n.t(
+        payload?.direction === -1
+          ? 'sessionHelp.action.cycleOptionPrev'
+          : 'sessionHelp.action.cycleOptionNext',
+        { id: payload?.runtimeOptionId ?? 'option' },
+      );
   }
 }
 
@@ -245,17 +261,17 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'mineSentence':
     case 'mineSentenceMultiple':
     case 'markAudioCard':
-      return 'Mining and capture';
+      return i18n.t('sessionHelp.section.mining');
     case 'toggleStatsOverlay':
     case 'markWatched':
-      return 'Stats and progress';
+      return i18n.t('sessionHelp.section.stats');
     case 'toggleVisibleOverlay':
     case 'toggleSecondarySub':
     case 'toggleSubtitleSidebar':
     case 'toggleNotificationHistory':
-      return 'Overlay controls';
+      return i18n.t('sessionHelp.section.overlayControls');
     case 'triggerSubsync':
-      return 'Subtitle sync';
+      return i18n.t('sessionHelp.sections.sync');
     case 'openRuntimeOptions':
     case 'openJimaku':
     case 'openCharacterDictionaryManager':
@@ -264,12 +280,12 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'openYoutubePicker':
     case 'openPlaylistBrowser':
     case 'openSessionHelp':
-      return 'Modals and tools';
+      return i18n.t('sessionHelp.section.modals');
     case 'replayCurrentSubtitle':
     case 'playNextSubtitle':
-      return 'Playback and navigation';
+      return i18n.t('sessionHelp.sections.playback');
     case 'cycleRuntimeOption':
-      return 'Runtime settings';
+      return i18n.t('sessionHelp.sections.runtime');
   }
 }
 
@@ -291,16 +307,16 @@ function buildSessionBindingSections(
   }
 
   const sectionOrder = [
-    'Playback and navigation',
-    'Mining and capture',
-    'Stats and progress',
-    'Overlay controls',
-    'Subtitle sync',
-    'Runtime settings',
-    'Modals and tools',
-    'Visual feedback',
-    'System actions',
-    'Other shortcuts',
+    i18n.t('sessionHelp.sections.playback'),
+    i18n.t('sessionHelp.section.mining'),
+    i18n.t('sessionHelp.section.stats'),
+    i18n.t('sessionHelp.section.overlayControls'),
+    i18n.t('sessionHelp.sections.sync'),
+    i18n.t('sessionHelp.sections.runtime'),
+    i18n.t('sessionHelp.section.modals'),
+    i18n.t('sessionHelp.sections.visual'),
+    i18n.t('sessionHelp.sections.system'),
+    i18n.t('sessionHelp.sections.other'),
   ];
   return Array.from(grouped.entries())
     .sort((a, b) => {
@@ -322,7 +338,7 @@ function buildConfiguredOverlaySections(input: {
   if (input.markWatchedKey) {
     statsRows.push({
       shortcut: formatKeybinding(input.markWatchedKey),
-      action: 'Mark video watched',
+      action: i18n.t('sessionHelp.action.markVideoWatched'),
     });
   }
 
@@ -330,44 +346,63 @@ function buildConfiguredOverlaySections(input: {
   if (input.subtitleSidebarToggleKey) {
     overlayRows.push({
       shortcut: formatKeybinding(input.subtitleSidebarToggleKey),
-      action: 'Toggle subtitle sidebar',
+      action: i18n.t('sessionHelp.action.toggleSubtitleSidebar'),
     });
   }
 
   return [
-    ...(statsRows.length > 0 ? [{ title: 'Stats and progress', rows: statsRows }] : []),
-    ...(overlayRows.length > 0 ? [{ title: 'Overlay controls', rows: overlayRows }] : []),
+    ...(statsRows.length > 0 ? [{ title: i18n.t('sessionHelp.section.stats'), rows: statsRows }] : []),
+    ...(overlayRows.length > 0
+      ? [{ title: i18n.t('sessionHelp.section.overlayControls'), rows: overlayRows }]
+      : []),
   ];
 }
 
 function buildFixedOverlaySections(): SessionHelpSection[] {
   return [
     {
-      title: 'Fixed overlay controls',
+      title: i18n.t('sessionHelp.section.fixedOverlay'),
       rows: [
-        { shortcut: 'V', action: 'Toggle primary subtitle bar visibility' },
-        { shortcut: 'Ctrl/Cmd + A', action: 'Append clipboard video path to playlist' },
-        { shortcut: 'Right-click', action: 'Toggle playback outside subtitle area' },
-        { shortcut: 'Right-click + drag', action: 'Reposition subtitles on subtitle area' },
+        {
+          shortcut: 'V',
+          action: i18n.t('sessionHelp.fixed.togglePrimarySubtitle'),
+        },
+        {
+          shortcut: 'Ctrl/Cmd + A',
+          action: i18n.t('sessionHelp.fixed.appendClipboardVideo'),
+        },
+        {
+          shortcut: 'Right-click',
+          action: i18n.t('sessionHelp.fixed.togglePlaybackOutsideSubtitle'),
+        },
+        {
+          shortcut: 'Right-click + drag',
+          action: i18n.t('sessionHelp.fixed.repositionSubtitles'),
+        },
       ],
     },
     {
-      title: 'Y chords',
+      title: i18n.t('sessionHelp.section.yChords'),
       rows: [
-        { shortcut: 'Y then Y', action: 'Open SubMiner menu' },
-        { shortcut: 'Y then S', action: 'Start overlay' },
-        { shortcut: 'Y then Shift + S', action: 'Stop overlay' },
-        { shortcut: 'Y then T', action: 'Toggle visible overlay' },
-        { shortcut: 'Y then O', action: 'Open Yomitan settings' },
-        { shortcut: 'Y then R', action: 'Restart overlay' },
-        { shortcut: 'Y then C', action: 'Check overlay status' },
-        { shortcut: 'Y then H/K', action: 'Open session help' },
-        { shortcut: 'Y then D', action: 'Toggle DevTools' },
+        { shortcut: 'Y then Y', action: i18n.t('sessionHelp.fixed.openSubMinerMenu') },
+        { shortcut: 'Y then S', action: i18n.t('sessionHelp.fixed.startOverlay') },
+        { shortcut: 'Y then Shift + S', action: i18n.t('sessionHelp.fixed.stopOverlay') },
+        { shortcut: 'Y then T', action: i18n.t('sessionHelp.fixed.toggleVisibleOverlay') },
+        { shortcut: 'Y then O', action: i18n.t('sessionHelp.fixed.openYomitanSettings') },
+        { shortcut: 'Y then R', action: i18n.t('sessionHelp.fixed.restartOverlay') },
+        { shortcut: 'Y then C', action: i18n.t('sessionHelp.fixed.checkOverlayStatus') },
+        { shortcut: 'Y then H/K', action: i18n.t('sessionHelp.fixed.openSessionHelp') },
+        { shortcut: 'Y then D', action: i18n.t('sessionHelp.fixed.toggleDevTools') },
       ],
     },
     {
-      title: 'Global shortcuts',
-      rows: [{ shortcut: 'Alt + Shift + Y', action: 'Open Yomitan settings' }],
+      title: i18n.t('sessionHelp.section.globalShortcuts'),
+      rows: [
+        {
+          shortcut: 'Alt + Shift + Y',
+          action: i18n.t('sessionHelp.fixed.openYomitanSettingsGlobal'),
+        },
+      ],
     },
   ];
 }
@@ -419,24 +454,24 @@ export function buildSessionHelpSections(input: {
 
 export function getSessionHelpSectionTabId(section: SessionHelpSection): SessionHelpTabId {
   switch (section.title) {
-    case 'Stats and progress':
-    case 'Overlay controls':
-    case 'Fixed overlay controls':
-    case 'Global shortcuts':
+    case i18n.t('sessionHelp.section.stats'):
+    case i18n.t('sessionHelp.section.overlayControls'):
+    case i18n.t('sessionHelp.section.fixedOverlay'):
+    case i18n.t('sessionHelp.section.globalShortcuts'):
       return 'essentials';
-    case 'Playback and navigation':
-    case 'Subtitle sync':
-    case 'Visual feedback':
-    case 'System actions':
+    case i18n.t('sessionHelp.sections.playback'):
+    case i18n.t('sessionHelp.sections.sync'):
+    case i18n.t('sessionHelp.sections.visual'):
+    case i18n.t('sessionHelp.sections.system'):
       return 'playback';
-    case 'Mining and capture':
+    case i18n.t('sessionHelp.section.mining'):
       return 'mining';
-    case 'Modals and tools':
-    case 'Runtime settings':
+    case i18n.t('sessionHelp.section.modals'):
+    case i18n.t('sessionHelp.sections.runtime'):
       return 'tools';
-    case 'Y chords':
-    case 'Color legend':
-    case 'Other shortcuts':
+    case i18n.t('sessionHelp.section.yChords'):
+    case i18n.t('sessionHelp.colorLegend'):
+    case i18n.t('sessionHelp.sections.other'):
     default:
       return 'reference';
   }

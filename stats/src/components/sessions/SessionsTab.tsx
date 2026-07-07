@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { useSessions } from '../../hooks/useSessions';
 import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
@@ -91,6 +92,7 @@ export function SessionsTab({
   onClearInitialSession,
   onNavigateToMediaDetail,
 }: SessionsTabProps = {}) {
+  const { t } = useTranslation();
   const { sessions, loading, error } = useSessions();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandedBuckets, setExpandedBuckets] = useState<Set<string>>(() => new Set());
@@ -208,15 +210,16 @@ export function SessionsTab({
     }
   };
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
+  if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.sessions')}</div>;
+  if (error)
+    return <div className="text-ctp-red p-4">{t('stats.sessions.error', { message: error })}</div>;
 
   return (
     <div className="space-y-4">
       <input
         type="search"
-        aria-label="Search sessions by title"
-        placeholder="Search by title..."
+        aria-label={t('stats.sessions.searchAria')}
+        placeholder={t('stats.sessions.searchPlaceholder')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
@@ -263,7 +266,8 @@ export function SessionsTab({
 
                 const bucketBodyId = `session-bucket-${bucket.key}`;
                 const isExpanded = expandedBuckets.has(bucket.key);
-                const title = bucket.representativeSession.canonicalTitle ?? 'Unknown Media';
+                const title =
+                  bucket.representativeSession.canonicalTitle ?? t('stats.sessions.unknownMedia');
                 const deleteDisabled = deletingBucketKey === bucket.key;
                 return (
                   <div key={bucket.key}>
@@ -286,10 +290,11 @@ export function SessionsTab({
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-medium text-ctp-text truncate">{title}</div>
                           <div className="text-xs text-ctp-overlay2">
-                            {bucket.sessions.length} session
-                            {bucket.sessions.length === 1 ? '' : 's'} ·{' '}
-                            {formatDuration(bucket.totalActiveMs)} active ·{' '}
-                            {formatNumber(bucket.totalCardsMined)} cards
+                            {t('stats.sessions.bucketSummary', {
+                              sessionCount: bucket.sessions.length,
+                              active: formatDuration(bucket.totalActiveMs),
+                              cards: formatNumber(bucket.totalCardsMined),
+                            })}
                           </div>
                         </div>
                       </button>
@@ -297,8 +302,11 @@ export function SessionsTab({
                         type="button"
                         onClick={() => void handleDeleteBucket(bucket)}
                         disabled={deleteDisabled}
-                        aria-label={`Delete all ${bucket.sessions.length} sessions of ${title}`}
-                        title="Delete all sessions in this group"
+                        aria-label={t('stats.sessions.deleteBucketAria', {
+                          count: bucket.sessions.length,
+                          title,
+                        })}
+                        title={t('stats.sessions.deleteBucketTitle')}
                         className="shrink-0 w-8 rounded-lg border border-ctp-surface1 bg-ctp-surface0 text-ctp-overlay2 hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 focus:opacity-100"
                       >
                         {'\u2715'}
@@ -341,7 +349,7 @@ export function SessionsTab({
 
       {filtered.length === 0 && (
         <div className="text-ctp-overlay2 text-sm">
-          {search.trim() ? 'No sessions matching your search.' : 'No sessions recorded yet.'}
+          {search.trim() ? t('stats.sessions.noSearchMatches') : t('stats.sessions.noSessions')}
         </div>
       )}
 

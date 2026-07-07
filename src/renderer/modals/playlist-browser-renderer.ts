@@ -1,5 +1,6 @@
 import type { PlaylistBrowserDirectoryItem, PlaylistBrowserQueueItem } from '../../types';
 import type { RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 type PlaylistBrowserRowRenderActions = {
   appendDirectoryItem: (filePath: string) => void;
@@ -50,9 +51,9 @@ export function renderPlaylistBrowserDirectoryRow(
   meta.className = 'playlist-browser-row-meta';
   meta.textContent = item.isCurrentFile
     ? item.episodeLabel
-      ? `${item.episodeLabel} · Current file`
-      : 'Current file'
-    : (item.episodeLabel ?? 'Video file');
+      ? `${item.episodeLabel} · ${i18n.t('playlistBrowser.currentFile')}`
+      : i18n.t('playlistBrowser.currentFile')
+    : (item.episodeLabel ?? i18n.t('playlistBrowser.videoFile'));
   main.append(label, meta);
 
   const trailing = document.createElement('div');
@@ -64,7 +65,7 @@ export function renderPlaylistBrowserDirectoryRow(
     trailing.appendChild(badge);
   }
   trailing.appendChild(
-    createActionButton('Add', () => {
+    createActionButton(i18n.t('playlistBrowser.add'), () => {
       void actions.appendDirectoryItem(item.path);
     }),
   );
@@ -105,7 +106,7 @@ export function renderPlaylistBrowserPlaylistRow(
   label.textContent = `${index + 1}. ${item.displayLabel}`;
   const meta = document.createElement('div');
   meta.className = 'playlist-browser-row-meta';
-  meta.textContent = item.current || item.playing ? 'Playing now' : 'Queued';
+  meta.textContent = item.current || item.playing ? i18n.t('playlistBrowser.playingNow') : i18n.t('playlistBrowser.queued2');
   const submeta = document.createElement('div');
   submeta.className = 'playlist-browser-row-submeta';
   submeta.textContent = item.filename;
@@ -114,16 +115,16 @@ export function renderPlaylistBrowserPlaylistRow(
   const trailing = document.createElement('div');
   trailing.className = 'playlist-browser-row-actions';
   trailing.append(
-    createActionButton('Play', () => {
+    createActionButton(i18n.t('playlistBrowser.play'), () => {
       void actions.playPlaylistItem(item.index);
     }),
-    createActionButton('Up', () => {
+    createActionButton(i18n.t('playlistBrowser.up'), () => {
       void actions.movePlaylistItem(item.index, -1);
     }),
-    createActionButton('Down', () => {
+    createActionButton(i18n.t('playlistBrowser.down'), () => {
       void actions.movePlaylistItem(item.index, 1);
     }),
-    createActionButton('Remove', () => {
+    createActionButton(i18n.t('playlistBrowser.removeItem'), () => {
       void actions.removePlaylistItem(item.index);
     }),
   );

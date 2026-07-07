@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../../i18n';
 import {
   formatDuration,
   formatRelativeDate,
@@ -355,12 +356,13 @@ export function RecentSessions({
   deletingIds,
   isActive = true,
 }: RecentSessionsProps) {
+  const { t } = useTranslation();
   const coverImages = useCoverImages(sessions, { enabled: isActive });
 
   if (sessions.length === 0) {
     return (
       <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
-        <div className="text-sm text-ctp-overlay2">No sessions yet</div>
+        <div className="text-sm text-ctp-overlay2">{t('stats.empty.noSessions')}</div>
       </div>
     );
   }

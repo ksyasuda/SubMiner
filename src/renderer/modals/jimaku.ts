@@ -6,6 +6,7 @@ import type {
   JimakuMediaInfo,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+import { i18n } from '../../i18n/index.js';
 
 export function createJimakuModal(
   ctx: RendererContext,
@@ -125,12 +126,12 @@ export function createJimakuModal(
   async function performJimakuSearch(): Promise<void> {
     const { query, episode } = getSearchQuery();
     if (!query) {
-      setJimakuStatus('Enter a title before searching.', true);
+      setJimakuStatus(i18n.t('jimaku.enterTitle'), true);
       return;
     }
 
     resetJimakuLists();
-    setJimakuStatus('Searching Jimaku...');
+    setJimakuStatus(i18n.t('jimaku.searching'));
     ctx.state.currentEpisodeFilter = episode;
 
     const response: JimakuApiResponse<JimakuEntry[]> = await window.electronAPI.jimakuSearchEntries(
@@ -148,11 +149,11 @@ export function createJimakuModal(
     ctx.state.selectedEntryIndex = 0;
 
     if (ctx.state.jimakuEntries.length === 0) {
-      setJimakuStatus('No entries found.');
+      setJimakuStatus(i18n.t('jimaku.noEntries'));
       return;
     }
 
-    setJimakuStatus('Select an entry.');
+    setJimakuStatus(i18n.t('jimaku.selectEntry'));
     renderEntries();
     if (ctx.state.jimakuEntries.length === 1) {
       void selectEntry(0);
@@ -160,7 +161,7 @@ export function createJimakuModal(
   }
 
   async function loadFiles(entryId: number, episode: number | null): Promise<void> {
-    setJimakuStatus('Loading files...');
+    setJimakuStatus(i18n.t('jimaku.loadingFiles'));
     ctx.state.jimakuFiles = [];
     ctx.state.selectedFileIndex = 0;
 
@@ -184,16 +185,16 @@ export function createJimakuModal(
     ctx.state.jimakuFiles = response.data;
     if (ctx.state.jimakuFiles.length === 0) {
       if (episode !== null) {
-        setJimakuStatus('No files found for this episode.');
+        setJimakuStatus(i18n.t('jimaku.noFiles'));
         ctx.dom.jimakuBroadenButton.classList.remove('hidden');
       } else {
-        setJimakuStatus('No files found.');
+        setJimakuStatus(i18n.t('jimaku.noFilesAll'));
       }
       return;
     }
 
     ctx.dom.jimakuBroadenButton.classList.add('hidden');
-    setJimakuStatus('Select a subtitle file.');
+    setJimakuStatus(i18n.t('jimaku.selectFile'));
     renderFiles();
     if (ctx.state.jimakuFiles.length === 1) {
       await selectFile(0);
@@ -219,7 +220,7 @@ export function createJimakuModal(
     renderFiles();
 
     if (ctx.state.currentEntryId === null) {
-      setJimakuStatus('Select an entry first.', true);
+      setJimakuStatus(i18n.t('jimaku.selectEntryFirst'), true);
       return;
     }
 
@@ -260,7 +261,7 @@ export function createJimakuModal(
     ctx.dom.jimakuModal.classList.remove('hidden');
     ctx.dom.jimakuModal.setAttribute('aria-hidden', 'false');
 
-    setJimakuStatus('Loading media info...');
+    setJimakuStatus(i18n.t('jimaku.loadingMedia'));
     resetJimakuLists();
 
     window.electronAPI
@@ -274,13 +275,13 @@ export function createJimakuModal(
         if (info.confidence === 'high' && info.title && info.episode) {
           void performJimakuSearch();
         } else if (info.title) {
-          setJimakuStatus('Check title/season/episode and press Search.');
+          setJimakuStatus(i18n.t('jimaku.readyHint'));
         } else {
-          setJimakuStatus('Enter title/season/episode and press Search.');
+          setJimakuStatus(i18n.t('jimaku.readyHint'));
         }
       })
       .catch(() => {
-        setJimakuStatus('Failed to load media info.', true);
+        setJimakuStatus(i18n.t('jimaku.failedMedia'), true);
       });
   }
 

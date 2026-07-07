@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { formatDuration, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import { apiClient } from '../../lib/api-client';
 import { confirmEpisodeDelete } from '../../lib/delete-confirm';
@@ -17,6 +18,7 @@ export function EpisodeList({
   onEpisodeDeleted,
   onOpenDetail,
 }: EpisodeListProps) {
+  const { t } = useTranslation();
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState(initialEpisodes);
 
@@ -56,9 +58,12 @@ export function EpisodeList({
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Episodes</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{t('stats.anime.episodes')}</h3>
         <span className="text-xs text-ctp-overlay2">
-          {watchedCount}/{episodes.length} watched
+          {t('stats.episode.watchedCount', {
+            watched: watchedCount,
+            total: episodes.length,
+          })}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -67,12 +72,20 @@ export function EpisodeList({
             <tr className="text-xs text-ctp-overlay2 border-b border-ctp-surface1">
               <th className="w-6 py-2 pr-1 font-medium" />
               <th className="text-left py-2 pr-3 font-medium">#</th>
-              <th className="text-left py-2 pr-3 font-medium">Title</th>
-              <th className="text-right py-2 pr-3 font-medium">Progress</th>
-              <th className="text-right py-2 pr-3 font-medium">Watch Time</th>
-              <th className="text-right py-2 pr-3 font-medium">Cards</th>
-              <th className="text-right py-2 pr-3 font-medium">Lookup Rate</th>
-              <th className="text-right py-2 pr-3 font-medium">Last Watched</th>
+              <th className="text-left py-2 pr-3 font-medium">{t('stats.episode.col.title')}</th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.progress')}
+              </th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.watchTime')}
+              </th>
+              <th className="text-right py-2 pr-3 font-medium">{t('stats.episode.col.cards')}</th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.lookupRate')}
+              </th>
+              <th className="text-right py-2 pr-3 font-medium">
+                {t('stats.episode.col.lastWatched')}
+              </th>
               <th className="w-28 py-2 font-medium" />
             </tr>
           </thead>

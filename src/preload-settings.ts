@@ -19,6 +19,7 @@ const SETTINGS_IPC_CHANNELS = {
   getAnkiModelNames: 'config-settings:anki-model-names',
   getAnkiModelFieldNames: 'config-settings:anki-model-field-names',
   getYomitanAnkiDeckName: 'config-settings:yomitan-anki-deck-name',
+  getUILanguage: 'get-ui-language',
 } as const;
 
 const configSettingsAPI: ConfigSettingsAPI = {
@@ -49,6 +50,7 @@ const configSettingsAPI: ConfigSettingsAPI = {
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getAnkiModelFieldNames, modelName, draftUrl),
   getYomitanAnkiDeckName: (): Promise<ConfigSettingsAnkiDeckResult> =>
     ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getYomitanAnkiDeckName),
+  getUILanguage: (): Promise<string> => ipcRenderer.invoke(SETTINGS_IPC_CHANNELS.getUILanguage),
 };
 
 contextBridge.exposeInMainWorld('configSettingsAPI', configSettingsAPI);

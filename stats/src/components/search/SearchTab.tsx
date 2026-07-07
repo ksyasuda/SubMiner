@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { apiClient } from '../../lib/api-client';
 import {
   getSentenceSearchMineAvailability,
@@ -29,24 +30,26 @@ function statusKey(result: SentenceSearchResult, index: number, mode: MineMode):
   return `${resultKey(result, index)}-${mode}`;
 }
 
-function buttonLabel(
-  mode: MineMode,
-  status: MineStatus | undefined,
-  disabledLabel: string,
-): string {
-  if (status?.loading) return 'Mining...';
-  if (status?.success) return 'Mined!';
-  if (disabledLabel) return disabledLabel;
-  if (mode === 'word') return 'Word';
-  if (mode === 'audio') return 'Audio';
-  return 'Sentence';
-}
-
 export function formatSentenceSearchMatchCountLabel(count: number): string {
   return count === 1 ? 'Match' : 'Matches';
 }
 
 export function SearchTab() {
+  const { t } = useTranslation();
+
+  function buttonLabel(
+    mode: MineMode,
+    status: MineStatus | undefined,
+    disabledLabel: string,
+  ): string {
+    if (status?.loading) return t('stats.search.mining');
+    if (status?.success) return t('stats.search.mined');
+    if (disabledLabel) return disabledLabel;
+    if (mode === 'word') return t('stats.search.word');
+    if (mode === 'audio') return t('stats.search.audio');
+    return t('stats.search.sentence');
+  }
+
   const [query, setQuery] = useState('');
   const [searchByHeadword, setSearchByHeadword] = useState(true);
   const [results, setResults] = useState<SentenceSearchResult[]>([]);
@@ -131,24 +134,28 @@ export function SearchTab() {
     <div className="space-y-4">
       <section className="rounded-lg border border-ctp-surface1 bg-ctp-mantle/70 p-4">
         <span className="mb-3 block text-xs font-semibold uppercase tracking-[0.18em] text-ctp-overlay1">
-          Sentence Search
+          {t('stats.search.sentenceSearch')}
         </span>
         <div className="flex items-stretch gap-3">
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search sentence text or media..."
+            placeholder={t('stats.search.placeholder')}
             className="min-w-0 flex-1 rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-3 text-base text-ctp-text placeholder:text-ctp-overlay2 focus:border-ctp-yellow focus:outline-none"
             autoComplete="off"
-            aria-label="Sentence search"
+            aria-label={t('stats.search.ariaLabel')}
           />
           <div className="flex min-w-[5rem] flex-col items-center justify-center rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-4 py-2">
             <div className="text-xl font-semibold leading-none text-ctp-yellow">
               {loading ? '...' : results.length}
             </div>
             <div className="mt-1 text-[11px] uppercase tracking-wide text-ctp-overlay1">
-              {loading ? 'Matches' : formatSentenceSearchMatchCountLabel(results.length)}
+              {loading
+                ? t('stats.search.matches')
+                : results.length === 1
+                  ? t('stats.search.match')
+                  : t('stats.search.matches')}
             </div>
           </div>
         </div>
@@ -159,25 +166,25 @@ export function SearchTab() {
             onChange={(event) => setSearchByHeadword(event.target.checked)}
             className="h-4 w-4 rounded border-ctp-surface2 bg-ctp-surface0 text-ctp-yellow focus:ring-ctp-yellow"
           />
-          Search by headword
+          {t('stats.search.searchByHeadword')}
         </label>
       </section>
 
       {error && (
         <div className="rounded-lg border border-ctp-red/40 bg-ctp-red/10 p-3 text-sm text-ctp-red">
-          Error: {error}
+          {t('stats.search.errorPrefix')}: {error}
         </div>
       )}
 
       {!trimmedQuery && (
         <div className="rounded-lg border border-ctp-surface1 bg-ctp-surface0/70 p-6 text-sm text-ctp-overlay2">
-          Search your tracked subtitle lines.
+          {t('stats.search.emptyPrompt')}
         </div>
       )}
 
       {trimmedQuery && !loading && !error && results.length === 0 && (
         <div className="rounded-lg border border-ctp-surface1 bg-ctp-surface0/70 p-6 text-sm text-ctp-overlay2">
-          No sentence matches.
+          {t('stats.search.noMatches')}
         </div>
       )}
 
@@ -190,7 +197,7 @@ export function SearchTab() {
             const audioStatus = mineStatus[statusKey(result, index, 'audio')];
             const wordAudioDisabledReason =
               availability.unavailableReason ??
-              (availability.exactMatch ? '' : 'Exact searched word not found in sentence.');
+              (availability.exactMatch ? '' : t('stats.search.exactWordNotFound'));
             const sentenceDisabledReason = availability.unavailableReason ?? '';
             const errors = [wordStatus?.error, sentenceStatus?.error, audioStatus?.error].filter(
               Boolean,
@@ -219,7 +226,7 @@ export function SearchTab() {
                     {availability.exactMatch && (
                       <button
                         type="button"
-                        title={wordAudioDisabledReason || 'Create a word card from this sentence'}
+                        title={wordAudioDisabledReason || t('stats.search.createWordCard')}
                         className="rounded-md border border-ctp-mauve/50 px-3 py-1.5 text-xs font-medium text-ctp-mauve transition hover:bg-ctp-mauve/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
                         disabled={wordStatus?.loading || !availability.canMineWordAudio}
                         onClick={() => void handleMine(result, index, 'word')}
@@ -227,13 +234,13 @@ export function SearchTab() {
                         {buttonLabel(
                           'word',
                           wordStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
+                          availability.canMineWordAudio ? '' : t('stats.search.unavailable'),
                         )}
                       </button>
                     )}
                     <button
                       type="button"
-                      title={sentenceDisabledReason || 'Create a sentence card from this line'}
+                      title={sentenceDisabledReason || t('stats.search.createSentenceCard')}
                       className="rounded-md border border-ctp-green/50 px-3 py-1.5 text-xs font-medium text-ctp-green transition hover:bg-ctp-green/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
                       disabled={sentenceStatus?.loading || !availability.canMineSentence}
                       onClick={() => void handleMine(result, index, 'sentence')}
@@ -241,13 +248,13 @@ export function SearchTab() {
                       {buttonLabel(
                         'sentence',
                         sentenceStatus,
-                        availability.canMineSentence ? '' : 'Unavailable',
+                        availability.canMineSentence ? '' : t('stats.search.unavailable'),
                       )}
                     </button>
                     {availability.exactMatch && (
                       <button
                         type="button"
-                        title={wordAudioDisabledReason || 'Create an audio card from this sentence'}
+                        title={wordAudioDisabledReason || t('stats.search.createAudioCard')}
                         className="rounded-md border border-ctp-blue/50 px-3 py-1.5 text-xs font-medium text-ctp-blue transition hover:bg-ctp-blue/10 disabled:cursor-not-allowed disabled:border-ctp-surface2 disabled:text-ctp-overlay1 disabled:opacity-60"
                         disabled={audioStatus?.loading || !availability.canMineWordAudio}
                         onClick={() => void handleMine(result, index, 'audio')}
@@ -255,7 +262,7 @@ export function SearchTab() {
                         {buttonLabel(
                           'audio',
                           audioStatus,
-                          availability.canMineWordAudio ? '' : 'Unavailable',
+                          availability.canMineWordAudio ? '' : t('stats.search.unavailable'),
                         )}
                       </button>
                     )}

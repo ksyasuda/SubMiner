@@ -1,4 +1,5 @@
 import { isYoutubeMediaPath } from './youtube-playback';
+import { i18n } from '../../i18n/index.js';
 
 type AnilistGuess = {
   title: string;
@@ -207,7 +208,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season);
         deps.markRetryFailure(attemptKey, 'cannot authenticate without anilist.accessToken');
         deps.refreshRetryQueueState();
-        deps.showMpvOsd('AniList: access token not configured');
+        deps.showMpvOsd(i18n.t('osd.anilistNoToken'));
         return;
       }
 

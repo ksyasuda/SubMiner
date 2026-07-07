@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 import { useKanjiDetail } from '../../hooks/useKanjiDetail';
 import { apiClient } from '../../lib/api-client';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
@@ -44,6 +45,7 @@ export function KanjiDetailPanel({
   onSelectWord,
   onNavigateToAnime,
 }: KanjiDetailPanelProps) {
+  const { t } = useTranslation();
   const { data, loading, error } = useKanjiDetail(kanjiId);
   const [occurrences, setOccurrences] = useState<VocabularyOccurrenceEntry[]>([]);
   const [occLoading, setOccLoading] = useState(false);
@@ -148,19 +150,25 @@ export function KanjiDetailPanel({
                     <div className="text-lg font-bold text-ctp-teal">
                       {formatNumber(data.detail.frequency)}
                     </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">Frequency</div>
+                    <div className="text-[11px] text-ctp-overlay1 uppercase">
+                      {t('stats.vocabulary.frequency')}
+                    </div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-green">
                       {formatRelativeDate(epochMsFromDbTimestamp(data.detail.firstSeen))}
                     </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">First Seen</div>
+                    <div className="text-[11px] text-ctp-overlay1 uppercase">
+                      {t('stats.vocabulary.firstSeen')}
+                    </div>
                   </div>
                   <div className="rounded-lg bg-ctp-surface0 p-3 text-center">
                     <div className="text-sm font-medium text-ctp-mauve">
                       {formatRelativeDate(epochMsFromDbTimestamp(data.detail.lastSeen))}
                     </div>
-                    <div className="text-[11px] text-ctp-overlay1 uppercase">Last Seen</div>
+                    <div className="text-[11px] text-ctp-overlay1 uppercase">
+                      {t('stats.vocabulary.lastSeen')}
+                    </div>
                   </div>
                 </div>
 

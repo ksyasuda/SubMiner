@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from '../../i18n';
 import { useAnimeDetail } from '../../hooks/useAnimeDetail';
 import { getStatsClient } from '../../hooks/useStatsApi';
 import { epochDayToDate } from '../../lib/formatters';
@@ -20,14 +21,18 @@ interface AnimeDetailViewProps {
 
 type Range = 14 | 30 | 90;
 
-function formatActiveMinutes(value: number | string) {
-  const minutes = Number(value);
-  return [`${Number.isFinite(minutes) ? minutes : 0} min`, 'Active Time'];
-}
-
 function AnimeWatchChart({ animeId }: { animeId: number }) {
+  const { t } = useTranslation();
   const [rollups, setRollups] = useState<DailyRollup[]>([]);
   const [range, setRange] = useState<Range>(30);
+
+  const formatActiveMinutes = (value: number | string) => {
+    const minutes = Number(value);
+    return [
+      `${Number.isFinite(minutes) ? minutes : 0} ${t('stats.animeDetail.minutes')}`,
+      t('stats.watchTime.activeTime'),
+    ];
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -63,7 +68,7 @@ function AnimeWatchChart({ animeId }: { animeId: number }) {
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Watch Time</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{t('stats.anime.watchTime')}</h3>
         <div className="flex gap-1">
           {ranges.map((r) => (
             <button
@@ -140,6 +145,7 @@ export function AnimeDetailView({
   onNavigateToWord,
   onOpenEpisodeDetail,
 }: AnimeDetailViewProps) {
+  const { t } = useTranslation();
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
   const [coverRetryToken, setCoverRetryToken] = useState(0);
@@ -149,9 +155,15 @@ export function AnimeDetailView({
     setCoverRetryToken(0);
   }, [animeId]);
 
-  if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
-  if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
-  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Anime not found</div>;
+  if (loading) return <div className="text-ctp-overlay2 p-4">{t('stats.loading.library')}</div>;
+  if (error)
+    return (
+      <div className="text-ctp-red p-4">
+        {t('stats.errorPrefix')}: {error}
+      </div>
+    );
+  if (!data?.detail)
+    return <div className="text-ctp-overlay2 p-4">{t('stats.anime.notFound')}</div>;
 
   const { detail, episodes, anilistEntries } = data;
   return (
@@ -161,7 +173,7 @@ export function AnimeDetailView({
         onClick={onBack}
         className="text-sm text-ctp-blue hover:text-ctp-sapphire transition-colors"
       >
-        &larr; Back to Library
+        &larr; {t('stats.backToLibrary')}
       </button>
       <AnimeHeader
         detail={detail}

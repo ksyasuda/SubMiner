@@ -194,7 +194,7 @@ test('openRuntimeOptionsModal shows loading shell before runtime options resolve
 
       assert.equal(
         input.statusNode.textContent,
-        'Use arrow keys. Click value to cycle. Enter or double-click to apply.',
+        'Arrow keys: select/change · Enter or double-click: apply · Esc: close',
       );
       assert.equal(input.statusNode.classList.contains('error'), false);
     },

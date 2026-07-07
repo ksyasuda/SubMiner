@@ -1,6 +1,8 @@
 export type UpdateAvailableChoice = 'update' | 'close';
 export type RestartChoice = 'restart' | 'later';
 
+import { i18n } from '../../../i18n/index.js';
+
 export interface MessageBoxResultLike {
   response: number;
 }
@@ -29,9 +31,9 @@ export async function showNoUpdateDialog(
 ): Promise<void> {
   await showMessageBox({
     type: 'info',
-    title: 'SubMiner Updates',
-    message: `SubMiner is up to date (v${version})`,
-    buttons: ['Close'],
+    title: i18n.t('update.title'),
+    message: i18n.t('update.upToDate', { version }),
+    buttons: [i18n.t('dialog.close')],
   });
 }
 
@@ -79,9 +81,9 @@ export async function showUpdateAvailableDialog(
 ): Promise<UpdateAvailableChoice> {
   const result = await showMessageBox({
     type: 'question',
-    title: 'SubMiner Updates',
-    message: `SubMiner v${version} is available`,
-    buttons: ['Update', 'Close'],
+    title: i18n.t('update.title'),
+    message: i18n.t('update.available', { version }),
+    buttons: [i18n.t('update.updateButton'), i18n.t('dialog.close')],
     defaultId: 0,
     cancelId: 1,
   });
@@ -91,9 +93,9 @@ export async function showUpdateAvailableDialog(
 export async function showRestartDialog(showMessageBox: ShowMessageBox): Promise<RestartChoice> {
   const result = await showMessageBox({
     type: 'question',
-    title: 'SubMiner Updates',
-    message: 'Restart to update',
-    buttons: ['Restart', 'Later'],
+    title: i18n.t('update.title'),
+    message: i18n.t('update.restart'),
+    buttons: [i18n.t('update.restartButton'), i18n.t('update.laterButton')],
     defaultId: 0,
     cancelId: 1,
   });
@@ -106,10 +108,10 @@ export async function showManualUpdateRequiredDialog(
 ): Promise<void> {
   await showMessageBox({
     type: 'warning',
-    title: 'SubMiner Updates',
-    message: 'Manual install required',
-    detail: `SubMiner v${version} is available, but this build cannot install app updates automatically. Download and install the latest release, then reopen SubMiner.`,
-    buttons: ['Close'],
+    title: i18n.t('update.title'),
+    message: i18n.t('update.manualRequired'),
+    detail: i18n.t('update.manualDetail', { version }),
+    buttons: [i18n.t('dialog.close')],
   });
 }
 
@@ -119,9 +121,9 @@ export async function showUpdateFailedDialog(
 ): Promise<void> {
   await showMessageBox({
     type: 'error',
-    title: 'SubMiner Updates',
-    message: 'Update check failed',
+    title: i18n.t('update.title'),
+    message: i18n.t('update.failed'),
     detail: message,
-    buttons: ['Close'],
+    buttons: [i18n.t('dialog.close')],
   });
 }

@@ -259,6 +259,22 @@ When you launch through the SubMiner app or the `subminer` wrapper, the launcher
 
 On Windows, packaged plugin installs also rewrite the plugin socket path to `\\.\pipe\subminer-socket`.
 
+### UI Language
+
+Choose the language SubMiner uses for its visible UI (tray menu, settings window, stats dashboard, on-screen messages, dialog boxes). SubMiner ships with English and Simplified Chinese (`zh-CN`) translations. The default value is `system`, which uses the operating system's language to pick between the two. Manual override takes precedence:
+
+```json
+{
+  "uiLanguage": "zh-CN"
+}
+```
+
+| Option       | Values                    | Description                                                                                                  |
+| ------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `uiLanguage` | `system`, `en`, `zh-CN`   | Interface display language. `system` follows the OS language; `en` and `zh-CN` force English or Simplified Chinese. Default: `system` |
+
+Changes to `uiLanguage` take effect on the next launch of the main app (tray menu, settings, dialogs, OSD) and the next launch of the stats dashboard. A running instance picks up the new value when it reloads its config.
+
 ### Startup Warmups
 
 Control which startup warmups run in the background versus deferring to first real usage:

@@ -1,7 +1,7 @@
 import {
   filterSessionHelpSections,
   getSessionHelpSectionTabId,
-  SESSION_HELP_TABS,
+  getSessionHelpTabs,
   type SessionHelpSection,
   type SessionHelpTabId,
 } from './session-help-sections';
@@ -31,7 +31,7 @@ export function createSessionHelpTabBar(
   const tabBar = document.createElement('div');
   tabBar.className = 'session-help-tabs';
 
-  for (const tab of SESSION_HELP_TABS) {
+  for (const tab of getSessionHelpTabs()) {
     const tabSections = sections.filter((section) => sectionMatchesTab(section, tab.id));
     if (tabSections.length === 0) continue;
 

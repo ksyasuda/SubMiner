@@ -8,5 +8,5 @@
     "sourceMap": false
   },
   "include": ["src/**/*", "launcher/**/*.ts", "scripts/*.ts"],
-  "exclude": ["node_modules", "dist", "vendor", "scripts/*.test.ts"]
+  "exclude": ["node_modules", "dist", "vendor", "scripts/*.test.ts", "src/i18n/react.tsx"]
 }

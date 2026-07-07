@@ -4,6 +4,7 @@ import type {
   CommandLineLauncherSnapshot,
   LauncherSnapshot,
 } from './command-line-launcher';
+import { i18n } from '../../i18n/index.js';
 
 type FocusableWindowLike = {
   focus: () => void;
@@ -75,38 +76,38 @@ function renderStatusBadge(value: string, tone: 'ready' | 'warn' | 'muted' | 'da
 }
 
 function formatCommand(command: string[] | null): string {
-  return command?.join(' ') ?? 'No install command detected';
+  return command?.join(' ') ?? i18n.t('setup.bun.meta.noCommand');
 }
 
 function getBunStatusLabel(status: BunSnapshot['status']): string {
   switch (status) {
     case 'ready':
-      return 'Ready';
+      return i18n.t('setup.status.ready');
     case 'installing':
-      return 'Installing';
+      return i18n.t('setup.status.installing');
     case 'failed':
-      return 'Failed';
+      return i18n.t('setup.status.failed');
     case 'missing':
-      return 'Missing';
+      return i18n.t('setup.status.missing');
   }
 }
 
 function getLauncherStatusLabel(status: LauncherSnapshot['status']): string {
   switch (status) {
     case 'ready':
-      return 'Ready';
+      return i18n.t('setup.status.ready');
     case 'installed_bun_missing':
-      return 'Installed, Bun missing';
+      return i18n.t('setup.status.installedBunMissing');
     case 'not_installed':
-      return 'Not installed';
+      return i18n.t('setup.status.notInstalled');
     case 'not_on_path':
-      return 'Not on PATH';
+      return i18n.t('setup.status.notOnPath');
     case 'shadowed':
-      return 'Shadowed';
+      return i18n.t('setup.status.shadowed');
     case 'not_installable':
-      return 'Not installable';
+      return i18n.t('setup.status.notInstallable');
     case 'failed':
-      return 'Failed';
+      return i18n.t('setup.status.failed');
   }
 }
 
@@ -138,58 +139,58 @@ function renderCommandLineLauncherSection(
   const bunMeta =
     bun.status === 'ready'
       ? [
-          bun.commandPath ? `Path: ${bun.commandPath}` : null,
-          bun.version ? `Version: ${bun.version}` : null,
+          bun.commandPath ? i18n.t('setup.bun.meta.path', { value: bun.commandPath }) : null,
+          bun.version ? i18n.t('setup.bun.meta.version', { value: bun.version }) : null,
         ].filter(Boolean)
       : [
-          bun.installMethod ? `Method: ${bun.installMethod}` : null,
-          `Command: ${formatCommand(bun.installCommand)}`,
+          bun.installMethod ? i18n.t('setup.bun.meta.method', { value: bun.installMethod }) : null,
+          i18n.t('setup.bun.meta.command', { value: formatCommand(bun.installCommand) }),
           bun.message,
         ].filter(Boolean);
   const launcherMeta = [
-    launcher.commandPath ? `Command: ${launcher.commandPath}` : null,
-    launcher.installPath ? `Install target: ${launcher.installPath}` : null,
-    launcher.pathDir ? `PATH dir: ${launcher.pathDir}` : null,
-    launcher.shadowedBy ? `Shadowed by: ${launcher.shadowedBy}` : null,
+    launcher.commandPath ? i18n.t('setup.bun.meta.command', { value: launcher.commandPath }) : null,
+    launcher.installPath ? i18n.t('setup.bun.meta.installTarget', { value: launcher.installPath }) : null,
+    launcher.pathDir ? i18n.t('setup.bun.meta.pathDir', { value: launcher.pathDir }) : null,
+    launcher.shadowedBy ? i18n.t('setup.bun.meta.shadowedBy', { value: launcher.shadowedBy }) : null,
     launcher.message,
-    bun.status !== 'ready' ? 'Warning: subminer will not run until Bun is available.' : null,
+    bun.status !== 'ready' ? i18n.t('setup.bun.meta.warning') : null,
   ].filter(Boolean);
   const bunInstallButton =
     bun.status === 'missing' || bun.status === 'failed'
-      ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
+      ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">${escapeHtml(i18n.t('setup.bun.installBun'))}</button>`
       : '';
   const launcherButtonDisabled = launcher.status === 'not_installable' ? 'disabled' : '';
 
   return `
     <section class="setup-section">
       <div class="section-head">
-        <h2>Command line launcher</h2>
-        <div class="meta">Optional. Setup can finish without Bun or the launcher.</div>
+        <h2>${escapeHtml(i18n.t('setup.bunSection.title'))}</h2>
+        <div class="meta">${escapeHtml(i18n.t('setup.bunSection.subtitle'))}</div>
       </div>
       <div class="card block">
         <div class="card-head">
           <div>
-            <strong>Bun runtime</strong>
+            <strong>${escapeHtml(i18n.t('setup.bun.bunRuntime'))}</strong>
             ${bunMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
           </div>
           ${renderStatusBadge(getBunStatusLabel(bun.status), getToolTone(bun.status))}
         </div>
         <div class="inline-actions">
           ${bunInstallButton}
-          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
+          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">${escapeHtml(i18n.t('setup.bun.refresh'))}</button>
         </div>
       </div>
       <div class="card block">
         <div class="card-head">
           <div>
-            <strong>SubMiner launcher</strong>
+            <strong>${escapeHtml(i18n.t('setup.bun.subminerLauncher'))}</strong>
             ${launcherMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
           </div>
           ${renderStatusBadge(getLauncherStatusLabel(launcher.status), getLauncherTone(launcher.status))}
         </div>
         <div class="inline-actions">
-          <button ${launcherButtonDisabled} onclick="window.location.href='subminer://first-run-setup?action=install-command-line-launcher'">Install launcher</button>
-          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
+          <button ${launcherButtonDisabled} onclick="window.location.href='subminer://first-run-setup?action=install-command-line-launcher'">${escapeHtml(i18n.t('setup.bun.installLauncher'))}</button>
+          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">${escapeHtml(i18n.t('setup.bun.refresh'))}</button>
         </div>
       </div>
     </section>`;
@@ -199,16 +200,16 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
   const legacyMpvPluginPaths = model.legacyMpvPluginPaths ?? [];
   const finishButtonLabel =
     legacyMpvPluginPaths.length > 0 && model.canFinish
-      ? 'Continue without removing'
-      : 'Finish setup';
+      ? i18n.t('setup.action.continueWithoutRemoving')
+      : i18n.t('setup.action.finish');
   const windowsShortcutLabel =
     model.windowsMpvShortcuts.status === 'installed'
-      ? 'Installed'
+      ? i18n.t('setup.status.installed')
       : model.windowsMpvShortcuts.status === 'skipped'
-        ? 'Skipped'
+        ? i18n.t('setup.status.skipped')
         : model.windowsMpvShortcuts.status === 'failed'
-          ? 'Failed'
-          : 'Optional';
+          ? i18n.t('setup.status.failed')
+          : i18n.t('setup.status.optional');
   const windowsShortcutTone =
     model.windowsMpvShortcuts.status === 'installed'
       ? 'ready'
@@ -219,10 +220,10 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
           : 'warn';
   const mpvExecutablePathLabel =
     model.mpvExecutablePathStatus === 'configured'
-      ? 'Configured'
+      ? i18n.t('setup.status.configured')
       : model.mpvExecutablePathStatus === 'invalid'
-        ? 'Invalid'
-        : 'Blank';
+        ? i18n.t('setup.status.invalid')
+        : i18n.t('setup.status.blank');
   const mpvExecutablePathTone =
     model.mpvExecutablePathStatus === 'configured'
       ? 'ready'
@@ -231,18 +232,18 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         : 'muted';
   const mpvExecutablePathCurrent =
     model.mpvExecutablePathStatus === 'blank'
-      ? 'blank (PATH discovery)'
+      ? i18n.t('setup.mpvExe.blankLabel')
       : model.mpvExecutablePathStatus === 'invalid'
-        ? `${model.mpvExecutablePath} (invalid; file not found)`
+        ? i18n.t('setup.mpvExe.invalidLabel', { path: model.mpvExecutablePath })
         : model.mpvExecutablePath;
   const mpvExecutablePathCard = model.windowsMpvShortcuts.supported
     ? `
     <div class="card block">
       <div class="card-head">
         <div>
-          <strong>mpv executable path</strong>
-          <div class="meta">Leave blank to auto-discover mpv.exe from PATH.</div>
-          <div class="meta">Current: ${escapeHtml(mpvExecutablePathCurrent)}</div>
+          <strong>${escapeHtml(i18n.t('setup.mpvExe.title'))}</strong>
+          <div class="meta">${escapeHtml(i18n.t('setup.mpvExe.leaveBlank'))}</div>
+          <div class="meta">${escapeHtml(i18n.t('setup.mpvExe.current', { value: mpvExecutablePathCurrent }))}</div>
         </div>
         ${renderStatusBadge(mpvExecutablePathLabel, mpvExecutablePathTone)}
       </div>
@@ -253,11 +254,11 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         <input
           id="mpv-executable-path"
           type="text"
-          aria-label="Path to mpv.exe"
+          aria-label="${escapeHtml(i18n.t('setup.mpvExe.ariaLabel'))}"
           value="${escapeHtml(model.mpvExecutablePath)}"
-          placeholder="C:\\Program Files\\mpv\\mpv.exe"
+          placeholder="${escapeHtml(i18n.t('setup.mpvExe.placeholder'))}"
         />
-        <button type="submit">Save mpv executable path</button>
+        <button type="submit">${escapeHtml(i18n.t('setup.mpvExe.save'))}</button>
       </form>
     </div>`
     : '';
@@ -266,9 +267,9 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     <div class="card block">
       <div class="card-head">
         <div>
-          <strong>Windows mpv launcher</strong>
-          <div class="meta">Create standalone \`SubMiner mpv\` shortcuts that run \`SubMiner.exe --launch-mpv\`.</div>
-          <div class="meta">Installed: Start Menu ${model.windowsMpvShortcuts.startMenuInstalled ? 'yes' : 'no'}, Desktop ${model.windowsMpvShortcuts.desktopInstalled ? 'yes' : 'no'}</div>
+          <strong>${escapeHtml(i18n.t('setup.shortcuts.title'))}</strong>
+          <div class="meta">${escapeHtml(i18n.t('setup.shortcuts.subtitle'))}</div>
+          <div class="meta">${escapeHtml(i18n.t('setup.shortcuts.installedStatus', { startMenu: i18n.t(model.windowsMpvShortcuts.startMenuInstalled ? 'setup.shortcuts.yes' : 'setup.shortcuts.no'), desktop: i18n.t(model.windowsMpvShortcuts.desktopInstalled ? 'setup.shortcuts.yes' : 'setup.shortcuts.no') }))}</div>
         </div>
         ${renderStatusBadge(windowsShortcutLabel, windowsShortcutTone)}
       </div>
@@ -276,9 +277,9 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
         class="shortcut-form"
         onsubmit="event.preventDefault(); const params = new URLSearchParams({ action: 'configure-windows-mpv-shortcuts', startMenu: document.getElementById('shortcut-start-menu').checked ? '1' : '0', desktop: document.getElementById('shortcut-desktop').checked ? '1' : '0' }); window.location.href = 'subminer://first-run-setup?' + params.toString();"
       >
-        <label><input id="shortcut-start-menu" type="checkbox" ${model.windowsMpvShortcuts.startMenuEnabled ? 'checked' : ''} /> Create Start Menu shortcut</label>
-        <label><input id="shortcut-desktop" type="checkbox" ${model.windowsMpvShortcuts.desktopEnabled ? 'checked' : ''} /> Create Desktop shortcut</label>
-        <button type="submit">Apply mpv launcher shortcuts</button>
+        <label><input id="shortcut-start-menu" type="checkbox" ${model.windowsMpvShortcuts.startMenuEnabled ? 'checked' : ''} /> ${escapeHtml(i18n.t('setup.shortcuts.startMenuCheckbox'))}</label>
+        <label><input id="shortcut-desktop" type="checkbox" ${model.windowsMpvShortcuts.desktopEnabled ? 'checked' : ''} /> ${escapeHtml(i18n.t('setup.shortcuts.desktopCheckbox'))}</label>
+        <button type="submit">${escapeHtml(i18n.t('setup.shortcuts.apply'))}</button>
       </form>
     </div>`
     : '';
@@ -288,26 +289,26 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     <div class="card block">
       <div class="card-head">
         <div>
-          <strong>Legacy mpv plugin</strong>
-          <div class="meta">Regular mpv still loads SubMiner from these mpv scripts paths.</div>
+          <strong>${escapeHtml(i18n.t('setup.legacy.title'))}</strong>
+          <div class="meta">${escapeHtml(i18n.t('setup.legacy.subtitle'))}</div>
         </div>
-        ${renderStatusBadge('Found', 'warn')}
+        ${renderStatusBadge(i18n.t('setup.status.found'), 'warn')}
       </div>
       <ul class="legacy-paths">
         ${legacyMpvPluginPaths.map((pluginPath) => `<li>${escapeHtml(pluginPath)}</li>`).join('')}
       </ul>
-      <button class="legacy-remove" onclick="if (confirm(&quot;Remove these SubMiner mpv plugin files from mpv's scripts directory? This stops regular mpv from loading SubMiner. SubMiner-managed playback will keep working with the bundled runtime plugin.&quot;)) window.location.href='subminer://first-run-setup?action=remove-legacy-plugin'">Remove legacy mpv plugin</button>
+      <button class="legacy-remove" onclick="if (confirm(&quot;${escapeHtml(i18n.t('setup.legacy.confirmRemove'))}&quot;)) window.location.href='subminer://first-run-setup?action=remove-legacy-plugin'">${escapeHtml(i18n.t('setup.legacy.remove'))}</button>
     </div>`
       : '';
 
   const yomitanMeta = model.externalYomitanConfigured
-    ? 'External profile configured. SubMiner is reusing that Yomitan profile for this setup run.'
-    : `${model.dictionaryCount} installed`;
+    ? i18n.t('setup.yomitan.externalMeta')
+    : i18n.t('setup.yomitan.countMeta', { count: model.dictionaryCount });
   const yomitanBadgeLabel = model.externalYomitanConfigured
-    ? 'External'
+    ? i18n.t('setup.status.external')
     : model.dictionaryCount >= 1
-      ? 'Ready'
-      : 'Missing';
+      ? i18n.t('setup.status.ready')
+      : i18n.t('setup.status.missing');
   const yomitanBadgeTone = model.externalYomitanConfigured
     ? 'ready'
     : model.dictionaryCount >= 1
@@ -318,15 +319,15 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     ? blockerMessage
     : model.canFinish
       ? model.externalYomitanConfigured
-        ? 'Finish stays unlocked while SubMiner is reusing an external Yomitan profile. If you later launch without yomitan.externalProfilePath, setup will require at least one internal dictionary.'
-        : 'Finish stays unlocked once Yomitan reports at least one installed dictionary.'
-      : 'Finish stays locked until Yomitan reports at least one installed dictionary.';
+        ? i18n.t('setup.footer.external')
+        : i18n.t('setup.footer.unlocked')
+      : i18n.t('setup.footer.locked');
 
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>SubMiner First-Run Setup</title>
+  <title>${escapeHtml(i18n.t('setup.title'))}</title>
   <style>
     :root {
       color-scheme: dark;
@@ -507,17 +508,17 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
 </head>
 <body>
   <main>
-    <h1>SubMiner setup</h1>
+    <h1>${escapeHtml(i18n.t('setup.heading'))}</h1>
     <div class="card">
       <div>
-        <strong>Config file</strong>
-        <div class="meta">Default config directory seeded automatically.</div>
+        <strong>${escapeHtml(i18n.t('setup.configFile.title'))}</strong>
+        <div class="meta">${escapeHtml(i18n.t('setup.configFile.subtitle'))}</div>
       </div>
-      ${renderStatusBadge(model.configReady ? 'Ready' : 'Missing', model.configReady ? 'ready' : 'danger')}
+      ${renderStatusBadge(model.configReady ? i18n.t('setup.status.ready') : i18n.t('setup.status.missing'), model.configReady ? 'ready' : 'danger')}
     </div>
     <div class="card">
       <div>
-        <strong>Yomitan dictionaries</strong>
+        <strong>${escapeHtml(i18n.t('setup.yomitan.title'))}</strong>
         <div class="meta">${escapeHtml(yomitanMeta)}</div>
       </div>
       ${renderStatusBadge(yomitanBadgeLabel, yomitanBadgeTone)}
@@ -527,10 +528,10 @@ export function buildFirstRunSetupHtml(model: FirstRunSetupHtmlModel): string {
     ${renderCommandLineLauncherSection(model.commandLineLauncher)}
     ${legacyPluginCard}
     <div class="actions">
-      <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">Open Yomitan Settings</button>
-      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh status</button>
-      <button onclick="window.location.href='subminer://first-run-setup?action=open-config-settings'">Open SubMiner Settings</button>
-      <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">${finishButtonLabel}</button>
+      <button onclick="window.location.href='subminer://first-run-setup?action=open-yomitan-settings'">${escapeHtml(i18n.t('setup.action.openYomitan'))}</button>
+      <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">${escapeHtml(i18n.t('setup.action.refresh'))}</button>
+      <button onclick="window.location.href='subminer://first-run-setup?action=open-config-settings'">${escapeHtml(i18n.t('setup.action.openSubminer'))}</button>
+      <button class="primary" ${model.canFinish ? '' : 'disabled'} onclick="window.location.href='subminer://first-run-setup?action=finish'">${escapeHtml(finishButtonLabel)}</button>
     </div>
     <div class="message">${model.message ? escapeHtml(model.message) : ''}</div>
     <div class="footer">${escapeHtml(footerMessage)}</div>

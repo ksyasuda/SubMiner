@@ -10,6 +10,15 @@ const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'auto_start_overlay',
   },
   {
+    title: 'UI Language',
+    description: [
+      'User interface display language.',
+      "'system' detects the operating system language.",
+      "'en' forces English, 'zh-CN' uses Simplified Chinese.",
+    ],
+    key: 'uiLanguage',
+  },
+  {
     title: 'Texthooker Server',
     description: ['Configure texthooker startup launch and browser opening behavior.'],
     key: 'texthooker',

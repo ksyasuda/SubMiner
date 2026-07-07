@@ -1,4 +1,5 @@
 import { normalizeJellyfinRecentServers } from './jellyfin-cli-auth';
+import { i18n } from '../../i18n/index.js';
 
 type JellyfinSession = {
   serverUrl: string;
@@ -451,15 +452,15 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
         deps.clearStoredSession();
         deps.stopRemoteSession?.();
         deps.logInfo('Cleared stored Jellyfin auth session.');
-        deps.showMpvOsd('Jellyfin logged out');
+        deps.showMpvOsd(i18n.t('osd.jellyfinLoggedOut'));
         deps.reloadSetupWindow({
-          statusMessage: 'Jellyfin session cleared.',
+          statusMessage: i18n.t('jellyfin.sessionCleared'),
           statusKind: 'success',
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         deps.logError('Jellyfin logout failed', error);
-        deps.showMpvOsd(`Jellyfin logout failed: ${message}`);
+        deps.showMpvOsd(i18n.t('osd.jellyfinLogoutFailed', { message }));
         deps.reloadSetupWindow({
           statusMessage: message,
           statusKind: 'error',
@@ -469,11 +470,11 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
     }
 
     if (loginInFlight) {
-      deps.showMpvOsd('Jellyfin login already in progress');
+      deps.showMpvOsd(i18n.t('osd.jellyfinLoginProgress'));
       deps.reloadSetupWindow({
         selectedServerUrl: submission.server,
         username: submission.username,
-        statusMessage: 'Jellyfin login already in progress.',
+        statusMessage: i18n.t('jellyfin.loginInProgress'),
         statusKind: 'loading',
       });
       return true;
@@ -496,17 +497,17 @@ export function createHandleJellyfinSetupSubmissionHandler(deps: {
       }
       await deps.restartRemoteSession?.();
       deps.logInfo(`Jellyfin setup saved for ${session.username}.`);
-      deps.showMpvOsd('Jellyfin login success');
+      deps.showMpvOsd(i18n.t('osd.jellyfinLoginSuccess'));
       deps.reloadSetupWindow({
         selectedServerUrl: session.serverUrl,
         username: session.username,
-        statusMessage: `Authenticated as ${session.username}.`,
+        statusMessage: i18n.t('jellyfin.loginSuccess', { username: session.username }),
         statusKind: 'success',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       deps.logError('Jellyfin setup failed', error);
-      deps.showMpvOsd(`Jellyfin login failed: ${message}`);
+      deps.showMpvOsd(i18n.t('osd.jellyfinLoginFailed', { message }));
       deps.reloadSetupWindow({
         selectedServerUrl: submission.server,
         username: submission.username,

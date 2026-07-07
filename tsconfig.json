@@ -19,5 +19,5 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "vendor"]
+  "exclude": ["node_modules", "dist", "vendor", "src/i18n/react.tsx"]
 }

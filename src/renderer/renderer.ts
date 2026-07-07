@@ -66,6 +66,7 @@ import {
   collectDroppedSubtitlePaths,
   collectDroppedVideoPaths,
 } from '../core/services/overlay-drop.js';
+import { i18n, applyI18nToDOM } from '../i18n/index.js';
 
 const ctx = {
   dom: resolveRendererDom(),
@@ -319,9 +320,7 @@ function applyControllerSnapshot(snapshot: {
 }
 
 function showControllerDisabledNotice(): void {
-  controllerStatusIndicator.show(
-    'Controller support disabled. Set controller.enabled to true in config to use controller tools.',
-  );
+  controllerStatusIndicator.show(i18n.t('controller.supportDisabled'));
 }
 
 function emitControllerPopupScroll(deltaPixels: number): void {
@@ -631,6 +630,17 @@ registerYomitanLookupListener(window, () => {
 });
 
 async function init(): Promise<void> {
+  // Initialize i18n from main process (resolves OS language correctly)
+  try {
+    const uiLang = await window.electronAPI.getUILanguage();
+    const resolvedLang =
+      uiLang === 'en' || uiLang === 'zh-CN' ? uiLang : i18n.detectSystemLanguage();
+    i18n.setLanguage(resolvedLang);
+  } catch {
+    i18n.setLanguage(i18n.detectSystemLanguage());
+  }
+  applyI18nToDOM();
+
   document.body.classList.add(`layer-${ctx.platform.overlayLayer}`);
   if (ctx.platform.isMacOSPlatform) {
     document.body.classList.add('platform-macos');
@@ -871,12 +881,18 @@ function setupDragDropToMpvQueue(): void {
     }
     const osdParts: string[] = [];
     if (loadCommands.length > 0) {
-      const action = appendDroppedVideos ? 'Queued' : 'Loaded';
-      osdParts.push(`${action} ${loadCommands.length} file${loadCommands.length === 1 ? '' : 's'}`);
+      const action = appendDroppedVideos
+        ? i18n.t('osd.dropQueued')
+        : i18n.t('osd.dropLoaded');
+      const countSuffix = loadCommands.length === 1 ? '' : 's';
+      osdParts.push(
+        i18n.t('osd.dropFiles', { action, count: loadCommands.length, countSuffix }),
+      );
     }
     if (subtitleCommands.length > 0) {
+      const countSuffix = subtitleCommands.length === 1 ? '' : 's';
       osdParts.push(
-        `Loaded ${subtitleCommands.length} subtitle file${subtitleCommands.length === 1 ? '' : 's'}`,
+        i18n.t('osd.dropSubtitleFiles', { count: subtitleCommands.length, countSuffix }),
       );
     }
     if (osdParts.length > 0) {

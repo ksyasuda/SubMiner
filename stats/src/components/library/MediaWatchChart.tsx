@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../../i18n';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { epochDayToDate } from '../../lib/formatters';
 import { CHART_THEME } from '../../lib/chart-theme';
@@ -10,13 +11,17 @@ interface MediaWatchChartProps {
 
 type Range = 14 | 30 | 90;
 
-function formatActiveMinutes(value: number | string) {
-  const minutes = Number(value);
-  return [`${Number.isFinite(minutes) ? minutes : 0} min`, 'Active Time'];
-}
-
 export function MediaWatchChart({ rollups }: MediaWatchChartProps) {
+  const { t } = useTranslation();
   const [range, setRange] = useState<Range>(30);
+
+  const formatActiveMinutes = (value: number | string) => {
+    const minutes = Number(value);
+    return [
+      `${Number.isFinite(minutes) ? minutes : 0} ${t('stats.watchTime.minutes')}`,
+      t('stats.watchTime.activeTime'),
+    ];
+  };
 
   const byDay = new Map<number, number>();
   for (const r of rollups) {
@@ -39,7 +44,7 @@ export function MediaWatchChart({ rollups }: MediaWatchChartProps) {
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Watch Time</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{t('stats.anime.watchTime')}</h3>
         <div className="flex gap-1">
           {ranges.map((r) => (
             <button

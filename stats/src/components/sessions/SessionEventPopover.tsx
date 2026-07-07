@@ -3,6 +3,7 @@ import {
   type SessionChartMarker,
   type SessionEventNoteInfo,
 } from '../../lib/session-events';
+import { useTranslation } from '../../i18n';
 
 interface SessionEventPopoverProps {
   marker: SessionChartMarker;
@@ -31,6 +32,7 @@ export function SessionEventPopover({
   onClose,
   onOpenNote,
 }: SessionEventPopoverProps) {
+  const { t } = useTranslation();
   return (
     <div className="relative z-50 w-64 rounded-xl border border-ctp-surface2 bg-ctp-surface0/95 p-3 shadow-2xl shadow-black/30 backdrop-blur-sm">
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -101,7 +103,9 @@ export function SessionEventPopover({
                         Note {noteId}
                       </div>
                       {showUnavailableFallback ? (
-                        <div className="text-[10px] text-ctp-overlay1">Preview unavailable</div>
+                        <div className="text-[10px] text-ctp-overlay1">
+                          {t('stats.sessionEventPopover.previewUnavailable')}
+                        </div>
                       ) : null}
                     </div>
                     {info?.expression ? (
@@ -117,7 +121,7 @@ export function SessionEventPopover({
                     ) : null}
                     {showUnavailableFallback ? (
                       <div className="mb-2 text-xs text-ctp-overlay1">
-                        Preview unavailable from AnkiConnect.
+                        {t('stats.sessionEventPopover.previewUnavailableFromAnkiConnect')}
                       </div>
                     ) : null}
                     <button

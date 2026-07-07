@@ -4,6 +4,7 @@ import type {
   ResolvedControllerConfig,
   ResolvedControllerDiscreteBinding,
 } from '../../types';
+import { i18n } from '../../i18n/index.js';
 
 type ControllerBindingActionId = keyof ResolvedControllerConfig['bindings'];
 
@@ -18,92 +19,92 @@ type ControllerBindingDefinition = {
 export const CONTROLLER_BINDING_DEFINITIONS: ControllerBindingDefinition[] = [
   {
     id: 'toggleLookup',
-    label: 'Toggle Lookup',
-    group: 'Lookup',
+    label: i18n.t('controller.toggleLookup'),
+    group: i18n.t('controller.lookupGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 0 },
   },
   {
     id: 'closeLookup',
-    label: 'Close Lookup',
-    group: 'Lookup',
+    label: i18n.t('controller.closeLookup'),
+    group: i18n.t('controller.lookupGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 1 },
   },
   {
     id: 'mineCard',
-    label: 'Mine Card',
-    group: 'Lookup',
+    label: i18n.t('controller.mineCard'),
+    group: i18n.t('controller.lookupGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 2 },
   },
   {
     id: 'toggleKeyboardOnlyMode',
-    label: 'Toggle Keyboard-Only Mode',
-    group: 'Playback',
+    label: i18n.t('controller.keyboardOnlyMode'),
+    group: i18n.t('controller.playbackGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 3 },
   },
   {
     id: 'toggleMpvPause',
-    label: 'Toggle MPV Pause',
-    group: 'Playback',
+    label: i18n.t('controller.toggleMpvPause'),
+    group: i18n.t('controller.playbackGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 9 },
   },
   {
     id: 'quitMpv',
-    label: 'Quit MPV',
-    group: 'Playback',
+    label: i18n.t('controller.quitMpv'),
+    group: i18n.t('controller.playbackGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 6 },
   },
   {
     id: 'previousAudio',
-    label: 'Previous Audio',
-    group: 'Popup Audio',
+    label: i18n.t('controller.previousAudio'),
+    group: i18n.t('controller.popupAudioGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'none' },
   },
   {
     id: 'nextAudio',
-    label: 'Next Audio',
-    group: 'Popup Audio',
+    label: i18n.t('controller.nextAudio'),
+    group: i18n.t('controller.popupAudioGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 5 },
   },
   {
     id: 'playCurrentAudio',
-    label: 'Play Current Audio',
-    group: 'Popup Audio',
+    label: i18n.t('controller.playCurrentAudio'),
+    group: i18n.t('controller.popupAudioGroup'),
     bindingType: 'discrete',
     defaultBinding: { kind: 'button', buttonIndex: 4 },
   },
   {
     id: 'leftStickHorizontal',
-    label: 'Token Move',
-    group: 'Navigation',
+    label: i18n.t('controller.leftStickHorizontal'),
+    group: i18n.t('controller.navigationGroup'),
     bindingType: 'axis',
     defaultBinding: { kind: 'axis', axisIndex: 0, dpadFallback: 'horizontal' },
   },
   {
     id: 'leftStickVertical',
-    label: 'Popup Scroll',
-    group: 'Navigation',
+    label: i18n.t('controller.leftStickVertical'),
+    group: i18n.t('controller.navigationGroup'),
     bindingType: 'axis',
     defaultBinding: { kind: 'axis', axisIndex: 1, dpadFallback: 'vertical' },
   },
   {
     id: 'rightStickHorizontal',
-    label: 'Alt Horizontal',
-    group: 'Navigation',
+    label: i18n.t('controller.rightStickHorizontal'),
+    group: i18n.t('controller.navigationGroup'),
     bindingType: 'axis',
     defaultBinding: { kind: 'axis', axisIndex: 3, dpadFallback: 'none' },
   },
   {
     id: 'rightStickVertical',
-    label: 'Popup Jump',
-    group: 'Navigation',
+    label: i18n.t('controller.rightStickVertical'),
+    group: i18n.t('controller.navigationGroup'),
     bindingType: 'axis',
     defaultBinding: { kind: 'axis', axisIndex: 4, dpadFallback: 'none' },
   },
@@ -152,6 +153,26 @@ const STANDARD_BUTTON_NAMES: Record<number, string> = {
   16: 'Guide / Home',
 };
 
+const STANDARD_BUTTON_NAME_KEYS: Record<number, string> = {
+  0: 'controller.standardButton.cross',
+  1: 'controller.standardButton.circle',
+  2: 'controller.standardButton.square',
+  3: 'controller.standardButton.triangle',
+  4: 'controller.standardButton.lbL1',
+  5: 'controller.standardButton.rbR1',
+  6: 'controller.standardButton.backSelect',
+  7: 'controller.standardButton.startOptions',
+  8: 'controller.standardButton.l3',
+  9: 'controller.standardButton.r3',
+  10: 'controller.standardButton.leftStickClick',
+  11: 'controller.standardButton.rightStickClick',
+  12: 'controller.standardButton.dpadUp',
+  13: 'controller.standardButton.dpadDown',
+  14: 'controller.standardButton.dpadLeft',
+  15: 'controller.standardButton.dpadRight',
+  16: 'controller.standardButton.guideHome',
+};
+
 const STANDARD_AXIS_NAMES: Record<number, string> = {
   0: 'Left Stick X',
   1: 'Left Stick Y',
@@ -161,47 +182,70 @@ const STANDARD_AXIS_NAMES: Record<number, string> = {
   5: 'Right Trigger',
 };
 
+const STANDARD_AXIS_NAME_KEYS: Record<number, string> = {
+  0: 'controller.standardAxis.leftStickX',
+  1: 'controller.standardAxis.leftStickY',
+  2: 'controller.standardAxis.leftTrigger',
+  3: 'controller.standardAxis.rightStickX',
+  4: 'controller.standardAxis.rightStickY',
+  5: 'controller.standardAxis.rightTrigger',
+};
+
 const DPAD_FALLBACK_LABELS: Record<ControllerDpadFallback, string> = {
-  none: 'None',
-  horizontal: 'D-pad \u2194',
-  vertical: 'D-pad \u2195',
+  none: i18n.t('controller.none'),
+  horizontal: i18n.t('controller.dpadHorizontal'),
+  vertical: i18n.t('controller.dpadVertical'),
 };
 
 function getFriendlyButtonName(buttonIndex: number): string {
-  return STANDARD_BUTTON_NAMES[buttonIndex] ?? `Button ${buttonIndex}`;
+  const key = STANDARD_BUTTON_NAME_KEYS[buttonIndex];
+  if (key) {
+    return i18n.t(key, undefined, STANDARD_BUTTON_NAMES[buttonIndex]);
+  }
+  return i18n.t('controller.buttonIndex', { index: buttonIndex });
 }
 
 function getFriendlyAxisName(axisIndex: number): string {
-  return STANDARD_AXIS_NAMES[axisIndex] ?? `Axis ${axisIndex}`;
+  const key = STANDARD_AXIS_NAME_KEYS[axisIndex];
+  if (key) {
+    return i18n.t(key, undefined, STANDARD_AXIS_NAMES[axisIndex]);
+  }
+  return i18n.t('controller.axisIndex', { index: axisIndex });
 }
 
 export function formatControllerBindingSummary(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
 ): string {
   if (binding.kind === 'none') {
-    return 'Disabled';
+    return i18n.t('controller.disabled');
   }
   if ('direction' in binding) {
-    return `Axis ${binding.axisIndex} ${binding.direction === 'positive' ? '+' : '-'}`;
+    return i18n.t('controller.axisDirection', {
+      axis: binding.axisIndex,
+      sign: binding.direction === 'positive' ? '+' : '-',
+    });
   }
   if ('buttonIndex' in binding) {
-    return `Button ${binding.buttonIndex}`;
+    return i18n.t('controller.buttonIndex', { index: binding.buttonIndex });
   }
   if (binding.dpadFallback === 'none') {
-    return `Axis ${binding.axisIndex}`;
+    return i18n.t('controller.axisIndex', { index: binding.axisIndex });
   }
-  return `Axis ${binding.axisIndex} + D-pad ${binding.dpadFallback}`;
+  return i18n.t('controller.axisDpad', {
+    axis: binding.axisIndex,
+    dpad: binding.dpadFallback,
+  });
 }
 
 function formatFriendlyStickLabel(binding: ResolvedControllerAxisBinding): string {
-  if (binding.kind === 'none') return 'None';
+  if (binding.kind === 'none') return i18n.t('controller.none');
   return getFriendlyAxisName(binding.axisIndex);
 }
 
 function formatFriendlyBindingLabel(
   binding: ResolvedControllerDiscreteBinding | ResolvedControllerAxisBinding,
 ): string {
-  if (binding.kind === 'none') return 'None';
+  if (binding.kind === 'none') return i18n.t('controller.none');
   if ('direction' in binding) {
     const name = getFriendlyAxisName(binding.axisIndex);
     return `${name} ${binding.direction === 'positive' ? '+' : '\u2212'}`;
@@ -278,13 +322,13 @@ export function createControllerConfigForm(options: {
       formatFriendlyBindingLabel(binding),
       binding.kind === 'none',
       isExpanded,
-      `Learn ${definition.label}`,
+      i18n.t('controller.learnLabel', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         expandedRowKey = rowKey;
         options.onLearn(definition.id, definition.bindingType);
       },
-      `Reset ${definition.label}`,
+      i18n.t('controller.resetLabel', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         options.onReset(definition.id);
@@ -298,8 +342,8 @@ export function createControllerConfigForm(options: {
 
     if (isExpanded) {
       const hint = isLearning
-        ? 'Press a button, trigger, or move a stick\u2026'
-        : `Currently: ${formatControllerBindingSummary(binding)}`;
+        ? i18n.t('controller.learnPrompt')
+        : i18n.t('controller.currently', { binding: formatControllerBindingSummary(binding) });
       const panel = createEditPanel(hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
@@ -328,17 +372,17 @@ export function createControllerConfigForm(options: {
     const isLearning = learningActionId === definition.id;
 
     const row = createRow(
-      `${definition.label} (Stick)`,
+      i18n.t('controller.stickRow', { label: definition.label }),
       formatFriendlyStickLabel(binding),
       binding.kind === 'none',
       isExpanded,
-      `Learn ${definition.label} stick`,
+      i18n.t('controller.learnStick', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         expandedRowKey = rowKey;
         options.onLearn(definition.id, 'axis');
       },
-      `Reset ${definition.label} stick`,
+      i18n.t('controller.resetStick', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         options.onReset(definition.id);
@@ -351,8 +395,10 @@ export function createControllerConfigForm(options: {
     options.container.appendChild(row);
 
     if (isExpanded) {
-      const summary = binding.kind === 'none' ? 'Disabled' : `Axis ${binding.axisIndex}`;
-      const hint = isLearning ? 'Move a stick or trigger\u2026' : `Currently: ${summary}`;
+      const summary = binding.kind === 'none' ? i18n.t('controller.disabled') : `Axis ${binding.axisIndex}`;
+      const hint = isLearning
+        ? i18n.t('controller.learnStickPrompt')
+        : i18n.t('controller.currently', { binding: summary });
       const panel = createEditPanel(hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
@@ -384,17 +430,17 @@ export function createControllerConfigForm(options: {
       binding.kind === 'none' ? 'none' : binding.dpadFallback;
     const badgeText = DPAD_FALLBACK_LABELS[dpadFallback];
     const row = createRow(
-      `${definition.label} (D-pad)`,
+      i18n.t('controller.dpadRow', { label: definition.label }),
       badgeText,
       dpadFallback === 'none',
       isExpanded,
-      `Learn ${definition.label} D-pad`,
+      i18n.t('controller.learnDpad', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         expandedRowKey = rowKey;
         options.onDpadLearn(definition.id);
       },
-      `Reset ${definition.label} D-pad`,
+      i18n.t('controller.resetDpad', { label: definition.label }),
       (e) => {
         e.stopPropagation();
         options.onDpadReset(definition.id);
@@ -408,8 +454,8 @@ export function createControllerConfigForm(options: {
 
     if (isExpanded) {
       const hint = isLearning
-        ? 'Press a D-pad direction\u2026'
-        : `Currently: ${DPAD_FALLBACK_LABELS[dpadFallback]}`;
+        ? i18n.t('controller.learnDpadPrompt')
+        : i18n.t('controller.currently', { binding: DPAD_FALLBACK_LABELS[dpadFallback] });
       const panel = createEditPanel(hint, isLearning, {
         onLearn: (e) => {
           e.stopPropagation();
@@ -509,19 +555,19 @@ export function createControllerConfigForm(options: {
     const learnButton = document.createElement('button');
     learnButton.type = 'button';
     learnButton.className = isLearning ? 'btn-learn active' : 'btn-learn';
-    learnButton.textContent = isLearning ? 'Listening\u2026' : 'Learn';
+    learnButton.textContent = isLearning ? i18n.t('controller.learnListening') : i18n.t('controller.learnButton');
     learnButton.addEventListener('click', callbacks.onLearn);
 
     const clearButton = document.createElement('button');
     clearButton.type = 'button';
     clearButton.className = 'btn-secondary';
-    clearButton.textContent = 'Clear';
+    clearButton.textContent = i18n.t('controller.clear');
     clearButton.addEventListener('click', callbacks.onClear);
 
     const resetButton = document.createElement('button');
     resetButton.type = 'button';
     resetButton.className = 'btn-secondary';
-    resetButton.textContent = 'Reset';
+    resetButton.textContent = i18n.t('controller.reset');
     resetButton.addEventListener('click', callbacks.onReset);
 
     actions.appendChild(learnButton);

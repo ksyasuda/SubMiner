@@ -1,3 +1,5 @@
+import { i18n } from '../../i18n/index.js';
+
 export function resolveTrayIconPathRuntime(deps: {
   platform: string;
   resourcesPath: string;
@@ -63,18 +65,18 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
 }> {
   const jellyfinDiscoveryLabel =
     handlers.platform === 'linux' && handlers.jellyfinDiscoveryActive
-      ? '✓ Jellyfin Discovery'
-      : 'Jellyfin Discovery';
+      ? '\u2713 ' + i18n.t('tray.jellyfinDiscovery')
+      : i18n.t('tray.jellyfinDiscovery');
 
   return [
     {
-      label: 'Open Help',
+      label: i18n.t('tray.openHelp'),
       click: handlers.openSessionHelp,
     },
     ...(handlers.showTexthookerPage
       ? [
           {
-            label: 'Open Texthooker',
+            label: i18n.t('tray.openTexthooker'),
             click: handlers.openTexthookerInBrowser,
           },
         ]
@@ -82,7 +84,7 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     ...(handlers.showFirstRunSetup
       ? [
           {
-            label: 'Complete Setup',
+            label: i18n.t('tray.completeSetup'),
             click: handlers.openFirstRunSetup,
           },
         ]
@@ -90,25 +92,25 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     ...(handlers.showWindowsMpvLauncherSetup
       ? [
           {
-            label: 'Open SubMiner Setup',
+            label: i18n.t('tray.openSetup'),
             click: handlers.openWindowsMpvLauncherSetup,
           },
         ]
       : []),
     {
-      label: 'Open Yomitan Settings',
+      label: i18n.t('tray.openYomitanSettings'),
       click: handlers.openYomitanSettings,
     },
     {
-      label: 'Open SubMiner Settings',
+      label: i18n.t('tray.openSettings'),
       click: handlers.openConfigSettings,
     },
     {
-      label: 'Export Logs',
+      label: i18n.t('tray.exportLogs'),
       click: handlers.exportLogs,
     },
     {
-      label: 'Configure Jellyfin',
+      label: i18n.t('tray.configureJellyfin'),
       click: handlers.openJellyfinSetup,
     },
     ...(handlers.showJellyfinDiscovery
@@ -129,16 +131,16 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
         ]
       : []),
     {
-      label: 'Configure AniList',
+      label: i18n.t('tray.configureAnilist'),
       click: handlers.openAnilistSetup,
     },
     {
-      label: 'Check for Updates',
+      label: i18n.t('tray.checkUpdates'),
       click: handlers.checkForUpdates,
     },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: i18n.t('tray.quit'),
       click: handlers.quitApp,
     },
   ];

@@ -63,6 +63,7 @@ export const IPC_CHANNELS = {
     getStatsToggleKey: 'get-stats-toggle-key',
     getMarkWatchedKey: 'get-mark-watched-key',
     getOverlayNotificationPosition: 'get-overlay-notification-position',
+    getUILanguage: 'get-ui-language',
     getControllerConfig: 'get-controller-config',
     getSecondarySubMode: 'get-secondary-sub-mode',
     getCurrentSecondarySub: 'get-current-secondary-sub',

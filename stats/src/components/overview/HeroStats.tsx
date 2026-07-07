@@ -1,3 +1,4 @@
+import { useTranslation } from '../../i18n';
 import { StatCard } from '../layout/StatCard';
 import { formatDuration, formatNumber, todayLocalDay, localDayFromMs } from '../../lib/formatters';
 import type { OverviewSummary } from '../../lib/dashboard-data';
@@ -9,34 +10,39 @@ interface HeroStatsProps {
 }
 
 export function HeroStats({ summary, sessions }: HeroStatsProps) {
+  const { t } = useTranslation();
   const today = todayLocalDay();
   const sessionsToday = sessions.filter((s) => localDayFromMs(s.startedAtMs) === today).length;
 
   return (
     <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
       <StatCard
-        label="Watch Time Today"
+        label={t('stats.hero.watchTimeToday')}
         value={formatDuration(summary.todayActiveMs)}
         color="text-ctp-blue"
       />
       <StatCard
-        label="Cards Mined Today"
+        label={t('stats.hero.cardsMinedToday')}
         value={formatNumber(summary.todayCards)}
         color="text-ctp-cards-mined"
       />
       <StatCard
-        label="Sessions Today"
+        label={t('stats.hero.sessionsToday')}
         value={formatNumber(sessionsToday)}
         color="text-ctp-lavender"
       />
       <StatCard
-        label="Episodes Today"
+        label={t('stats.hero.episodesToday')}
         value={formatNumber(summary.episodesToday)}
         color="text-ctp-teal"
       />
-      <StatCard label="Current Streak" value={`${summary.streakDays}d`} color="text-ctp-peach" />
       <StatCard
-        label="Active Titles"
+        label={t('stats.hero.currentStreak')}
+        value={t('stats.hero.streakValue', { days: summary.streakDays })}
+        color="text-ctp-peach"
+      />
+      <StatCard
+        label={t('stats.hero.activeTitles')}
         value={formatNumber(summary.activeAnimeCount)}
         color="text-ctp-mauve"
       />

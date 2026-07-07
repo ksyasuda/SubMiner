@@ -390,6 +390,14 @@ export function buildCoreConfigOptionRegistry(
         'Show the visible subtitle overlay automatically when the bundled mpv plugin starts SubMiner.',
     },
     {
+      path: 'uiLanguage',
+      kind: 'enum',
+      enumValues: ['system', 'en', 'zh-CN'],
+      defaultValue: defaultConfig.uiLanguage,
+      description:
+        'User interface language. system uses the operating system language, en uses English, zh-CN uses Simplified Chinese.',
+    },
+    {
       path: 'secondarySub.secondarySubLanguages',
       kind: 'array',
       defaultValue: defaultConfig.secondarySub.secondarySubLanguages,

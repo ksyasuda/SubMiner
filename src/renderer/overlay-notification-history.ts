@@ -2,6 +2,7 @@ import type { OverlayNotificationAction, OverlayNotificationVariant } from '../t
 import type { RendererContext } from './context';
 import type { OverlayNotificationEntry } from './overlay-notifications.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
+import { i18n } from '../i18n/index.js';
 
 export const DEFAULT_OVERLAY_NOTIFICATION_HISTORY_MAX = 200;
 
@@ -200,7 +201,7 @@ export function createOverlayNotificationHistoryPanel(
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'notification-history-remove';
-    remove.setAttribute('aria-label', 'Remove from history');
+    remove.setAttribute('aria-label', i18n.t('overlay.notificationHistory.removeAria'));
     remove.textContent = '×';
     remove.addEventListener('click', () => {
       store.remove(entry.id);
