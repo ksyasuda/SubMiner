@@ -411,6 +411,8 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     const resolvedNameSplits = nameSplitTokenizerAvailable
       ? await resolveJapaneseNameSplits(characters, deps.tokenizeJapaneseName!, deps.logWarn)
       : undefined;
+    const nameSplitSource =
+      resolvedNameSplits && resolvedNameSplits.size > 0 ? 'mecab' : 'heuristic';
 
     const snapshot = buildSnapshotFromCharacters(
       mediaId,
@@ -421,7 +423,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       deps.now(),
       getCollapsibleSectionOpenState,
       resolvedNameSplits,
-      nameSplitTokenizerAvailable ? 'mecab' : 'heuristic',
+      nameSplitSource,
     );
     writeSnapshot(snapshotPath, snapshot);
     deps.logInfo?.(

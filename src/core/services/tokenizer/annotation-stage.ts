@@ -778,7 +778,13 @@ export function annotateTokens(
       : false;
     nPlusOneKnownStatuses[index] = isKnownForMatching;
 
+    const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
+
+    // A confirmed character-name match must survive the POS noise filter:
+    // MeCab can tag a name like 平 as a prefix (接頭詞) depending on context,
+    // which would otherwise strip the name match and its portrait.
     if (
+      !prioritizedNameMatch &&
       sharedShouldExcludeTokenFromSubtitleAnnotations(token, {
         pos1Exclusions,
         pos2Exclusions,
@@ -793,8 +799,6 @@ export function annotateTokens(
         isKnown: knownWordsEnabled ? isKnownForMatching : false,
       };
     }
-
-    const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
 
     const frequencyRank =
       frequencyEnabled && !prioritizedNameMatch
