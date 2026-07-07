@@ -591,19 +591,25 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
     fs.chmodSync(path.join(binDir, 'yt-dlp'), 0o755);
     fs.chmodSync(path.join(binDir, 'ffmpeg'), 0o755);
 
+    // Note: no SUBMINER_TEST_CAPTURE here. When set, the launcher intercepts
+    // *every* app command — including the Linux runtime-plugin preflight's
+    // `--ensure-linux-runtime-plugin-assets` install — and returns without
+    // running the fake app, so the preflight would poll 30s for a response that
+    // never arrives and time out. This test asserts on the mpv args, not on
+    // captured app args, so capture isn't needed.
     const env = {
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
-      // Don't force an X11 session with a bogus DISPLAY: headless CI has no X
-      // server at :99, so the overlay's X11 window tracker would block until the
-      // launcher times out. This test only checks the URL reaches mpv; the x11
-      // backend path is covered by launcher/smoke.e2e.test.ts via `--backend x11`.
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
-      SUBMINER_TEST_CAPTURE: path.join(root, 'captured-args.txt'),
     };
-    const result = runLauncher(['https://www.youtube.com/watch?v=abc123'], env);
+    // Pass an explicit backend so overlay startup doesn't probe for a display
+    // (headless CI has none), matching launcher/smoke.e2e.test.ts.
+    const result = runLauncher(
+      ['--backend', 'x11', 'https://www.youtube.com/watch?v=abc123'],
+      env,
+    );
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     const forwardedArgs = fs
