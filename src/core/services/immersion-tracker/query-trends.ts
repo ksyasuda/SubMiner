@@ -721,6 +721,7 @@ export function getTrendsDashboard(
   db: DatabaseSync,
   range: TrendRange = '30d',
   groupBy: TrendGroupBy = 'day',
+  fillEmptyBuckets = true,
 ): TrendsDashboardQueryResult {
   const dayLimit = getTrendDayLimit(range);
   const monthlyLimit = getTrendMonthlyLimit(db, range);
@@ -728,7 +729,11 @@ export function getTrendsDashboard(
   const useMonthlyBuckets = groupBy === 'month';
   const dailyRollups = getDailyRollups(db, dayLimit);
   const monthlyRollups = getMonthlyRollups(db, monthlyLimit);
-  const bucketAxis = buildBucketAxis(db, groupBy, cutoffMs, currentDbTimestamp());
+  // A null axis makes the builders fall back to only the buckets present in the
+  // data; the contiguous axis zero-fills every calendar bucket in the window.
+  const bucketAxis = fillEmptyBuckets
+    ? buildBucketAxis(db, groupBy, cutoffMs, currentDbTimestamp())
+    : null;
 
   const chartRollups = useMonthlyBuckets ? monthlyRollups : dailyRollups;
   const sessions = getTrendSessionMetrics(db, cutoffMs);

@@ -162,9 +162,13 @@ export const apiClient = {
     fetchJson<NewAnimePerDay[]>(`/api/stats/trends/new-anime-per-day?limit=${limit}`),
   getWatchTimePerAnime: (limit = 90) =>
     fetchJson<WatchTimePerAnime[]>(`/api/stats/trends/watch-time-per-anime?limit=${limit}`),
-  getTrendsDashboard: (range: '7d' | '30d' | '90d' | '365d' | 'all', groupBy: 'day' | 'month') =>
+  getTrendsDashboard: (
+    range: '7d' | '30d' | '90d' | '365d' | 'all',
+    groupBy: 'day' | 'month',
+    fillEmpty = true,
+  ) =>
     fetchJson<TrendsDashboardData>(
-      `/api/stats/trends/dashboard?range=${encodeURIComponent(range)}&groupBy=${encodeURIComponent(groupBy)}`,
+      `/api/stats/trends/dashboard?range=${encodeURIComponent(range)}&groupBy=${encodeURIComponent(groupBy)}&fillEmpty=${fillEmpty ? 'true' : 'false'}`,
     ),
   getWordDetail: (wordId: number) =>
     fetchJson<WordDetailData>(`/api/stats/vocabulary/${wordId}/detail`),

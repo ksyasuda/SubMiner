@@ -729,7 +729,7 @@ describe('stats server API routes', () => {
     const res = await app.request('/api/stats/trends/dashboard?range=90d&groupBy=month');
     assert.equal(res.status, 200);
     const body = await res.json();
-    assert.deepEqual(seenArgs, ['90d', 'month']);
+    assert.deepEqual(seenArgs, ['90d', 'month', true]);
     assert.deepEqual(body.activity.watchTime, TRENDS_DASHBOARD.activity.watchTime);
     assert.deepEqual(body.librarySummary, TRENDS_DASHBOARD.librarySummary);
   });
@@ -747,7 +747,7 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/trends/dashboard?range=365d&groupBy=month');
     assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, ['365d', 'month']);
+    assert.deepEqual(seenArgs, ['365d', 'month', true]);
   });
 
   it('GET /api/stats/trends/dashboard falls back to safe defaults for invalid params', async () => {
@@ -763,7 +763,25 @@ describe('stats server API routes', () => {
 
     const res = await app.request('/api/stats/trends/dashboard?range=weird&groupBy=year');
     assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, ['30d', 'day']);
+    assert.deepEqual(seenArgs, ['30d', 'day', true]);
+  });
+
+  it('GET /api/stats/trends/dashboard forwards fillEmpty=false to disable zero-fill', async () => {
+    let seenArgs: unknown[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getTrendsDashboard: async (...args: unknown[]) => {
+          seenArgs = args;
+          return TRENDS_DASHBOARD;
+        },
+      }),
+    );
+
+    const res = await app.request(
+      '/api/stats/trends/dashboard?range=30d&groupBy=day&fillEmpty=false',
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenArgs, ['30d', 'day', false]);
   });
 
   it('GET /api/stats/vocabulary/occurrences returns recent occurrence rows for a word', async () => {

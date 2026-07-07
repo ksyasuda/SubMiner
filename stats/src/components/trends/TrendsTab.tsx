@@ -140,10 +140,11 @@ export function AnimeVisibilityFilter({
 export function TrendsTab() {
   const [range, setRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
+  const [showEmptyDays, setShowEmptyDays] = useState(true);
   const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => loadHiddenTitles());
   const [maxTitles, setMaxTitles] = useState<number | null>(() => loadMaxTitles());
   const [maxTitlesMode, setMaxTitlesMode] = useState<MaxTitlesMode>(() => loadMaxTitlesMode());
-  const { data, loading, error } = useTrends(range, groupBy);
+  const { data, loading, error } = useTrends(range, groupBy, showEmptyDays);
 
   const updateHiddenAnime = (next: Set<string>) => {
     setHiddenAnime(next);
@@ -203,8 +204,10 @@ export function TrendsTab() {
       <DateRangeSelector
         range={range}
         groupBy={groupBy}
+        fillEmpty={showEmptyDays}
         onRangeChange={setRange}
         onGroupByChange={setGroupBy}
+        onFillEmptyChange={setShowEmptyDays}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionHeader>Activity (per {groupBy === 'month' ? 'month' : 'day'})</SectionHeader>

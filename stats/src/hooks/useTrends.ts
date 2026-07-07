@@ -5,7 +5,7 @@ import type { TrendsDashboardData } from '../types/stats';
 export type TimeRange = '7d' | '30d' | '90d' | '365d' | 'all';
 export type GroupBy = 'day' | 'month';
 
-export function useTrends(range: TimeRange, groupBy: GroupBy) {
+export function useTrends(range: TimeRange, groupBy: GroupBy, fillEmpty = true) {
   const [data, setData] = useState<TrendsDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export function useTrends(range: TimeRange, groupBy: GroupBy) {
     setLoading(true);
     setError(null);
     getStatsClient()
-      .getTrendsDashboard(range, groupBy)
+      .getTrendsDashboard(range, groupBy, fillEmpty)
       .then((nextData) => {
         if (cancelled) return;
         setData(nextData);
@@ -31,7 +31,7 @@ export function useTrends(range: TimeRange, groupBy: GroupBy) {
     return () => {
       cancelled = true;
     };
-  }, [range, groupBy]);
+  }, [range, groupBy, fillEmpty]);
 
   return { data, loading, error };
 }

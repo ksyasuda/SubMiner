@@ -1067,6 +1067,57 @@ test('getTrendsDashboard 30d day range zero-fills empty calendar days', () => {
   });
 });
 
+test('getTrendsDashboard skips empty calendar days when zero-fill is disabled', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  withMockNowMs('1772395200000', () => {
+    try {
+      ensureSchema(db);
+
+      const videoId = getOrCreateVideoRecord(db, 'local:/tmp/no-zerofill.mkv', {
+        canonicalTitle: 'No Zero Fill',
+        sourcePath: '/tmp/no-zerofill.mkv',
+        sourceUrl: null,
+        sourceType: SOURCE_TYPE_LOCAL,
+      });
+
+      const insertDailyRollup = db.prepare(
+        `
+          INSERT INTO imm_daily_rollups (
+            rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+            total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      );
+      const createdAtMs = '1772395200000';
+      const todayEpochDay = 20513;
+      insertDailyRollup.run(todayEpochDay, videoId, 1, 30, 4, 100, 2, createdAtMs, createdAtMs);
+      insertDailyRollup.run(
+        todayEpochDay - 10,
+        videoId,
+        1,
+        45,
+        4,
+        120,
+        3,
+        createdAtMs,
+        createdAtMs,
+      );
+
+      const filled = getTrendsDashboard(db, '30d', 'day', true);
+      assert.equal(filled.activity.watchTime.length, 30);
+
+      const compact = getTrendsDashboard(db, '30d', 'day', false);
+      // Only the two active days survive; no zero-filled gaps.
+      assert.equal(compact.activity.watchTime.length, 2);
+      assert.ok(compact.activity.watchTime.every((point) => point.value > 0));
+    } finally {
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
+});
+
 test(
   'getTrendsDashboard supports 365d range and caps day buckets at 365',
   { timeout: 20_000 },

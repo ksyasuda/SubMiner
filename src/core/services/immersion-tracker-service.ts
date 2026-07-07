@@ -571,8 +571,9 @@ export class ImmersionTrackerService {
   async getTrendsDashboard(
     range: '7d' | '30d' | '90d' | '365d' | 'all' = '30d',
     groupBy: 'day' | 'month' = 'day',
+    fillEmptyBuckets = true,
   ): Promise<unknown> {
-    return getTrendsDashboard(this.db, range, groupBy);
+    return getTrendsDashboard(this.db, range, groupBy, fillEmptyBuckets);
   }
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
