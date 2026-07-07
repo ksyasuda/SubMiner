@@ -1003,6 +1003,70 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
   }
 });
 
+test('getTrendsDashboard 30d day range zero-fills empty calendar days', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  withMockNowMs('1772395200000', () => {
+    try {
+      ensureSchema(db);
+
+      const videoId = getOrCreateVideoRecord(db, 'local:/tmp/30d-zerofill.mkv', {
+        canonicalTitle: '30d Zero Fill',
+        sourcePath: '/tmp/30d-zerofill.mkv',
+        sourceUrl: null,
+        sourceType: SOURCE_TYPE_LOCAL,
+      });
+
+      const insertDailyRollup = db.prepare(
+        `
+          INSERT INTO imm_daily_rollups (
+            rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+            total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      );
+      const createdAtMs = '1772395200000';
+      // Local "today" for the mocked clock is epoch day 20513. Seed only two
+      // active days inside the 30-day window, leaving the rest empty.
+      const todayEpochDay = 20513;
+      insertDailyRollup.run(todayEpochDay, videoId, 1, 30, 4, 100, 2, createdAtMs, createdAtMs);
+      insertDailyRollup.run(
+        todayEpochDay - 10,
+        videoId,
+        1,
+        45,
+        4,
+        120,
+        3,
+        createdAtMs,
+        createdAtMs,
+      );
+
+      const dashboard = getTrendsDashboard(db, '30d', 'day');
+
+      // Exactly 30 calendar days, not just the two active ones.
+      assert.equal(dashboard.activity.watchTime.length, 30);
+      // Most recent day carries its seeded value; a gap day reads zero.
+      assert.equal(dashboard.activity.watchTime.at(-1)?.value, 30);
+      assert.equal(dashboard.activity.watchTime.at(-2)?.value, 0);
+      // Only the two seeded days contribute to the totals.
+      const nonZeroDays = dashboard.activity.watchTime.filter((point) => point.value > 0);
+      assert.equal(nonZeroDays.length, 2);
+      // Cumulative watch time still tops out at the sum of both active days.
+      assert.equal(dashboard.progress.watchTime.at(-1)?.value, 75);
+      // Every day-bucketed series shares the same 30-day axis.
+      assert.equal(dashboard.progress.episodes.length, 30);
+      assert.deepEqual(
+        dashboard.progress.episodes.map((point) => point.label),
+        dashboard.activity.watchTime.map((point) => point.label),
+      );
+    } finally {
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
+});
+
 test(
   'getTrendsDashboard supports 365d range and caps day buckets at 365',
   { timeout: 20_000 },
@@ -1266,7 +1330,10 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
 
       const dashboard = getTrendsDashboard(db, '30d', 'month');
 
-      assert.equal(dashboard.activity.watchTime.length, 2);
+      // The 30d window (mocked now Mar 1 → cutoff Jan 31) spans three calendar
+      // months, so January is zero-filled rather than dropped.
+      assert.equal(dashboard.activity.watchTime.length, 3);
+      assert.equal(dashboard.activity.watchTime[0]?.value, 0);
       assert.deepEqual(
         dashboard.progress.newWords.map((point) => point.label),
         dashboard.activity.watchTime.map((point) => point.label),
