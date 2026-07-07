@@ -595,8 +595,10 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
       ...makeTestEnv(homeDir, xdgConfigHome),
       PATH: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
       Path: `${binDir}${path.delimiter}${process.env.Path || process.env.PATH || ''}`,
-      DISPLAY: ':99',
-      XDG_SESSION_TYPE: 'x11',
+      // Don't force an X11 session with a bogus DISPLAY: headless CI has no X
+      // server at :99, so the overlay's X11 window tracker would block until the
+      // launcher times out. This test only checks the URL reaches mpv; the x11
+      // backend path is covered by launcher/smoke.e2e.test.ts via `--backend x11`.
       SUBMINER_APPIMAGE_PATH: appPath,
       SUBMINER_TEST_MPV_ARGS: mpvArgsPath,
       SUBMINER_TEST_CAPTURE: path.join(root, 'captured-args.txt'),
