@@ -56,6 +56,70 @@ test('annotateTokens known-word match mode uses headword vs surface', () => {
   assert.equal(surfaceResult[0]?.isKnown, false);
 });
 
+test('annotateTokens passes dictionary-form reading so spelling collisions stay unknown', () => {
+  // とこ (colloquial ところ) resolves to headword 床/とこ; a known 床/ゆか card
+  // must not mark it known (#138 regression).
+  const cache = new Map([['床', 'ゆか']]);
+  const isKnownWord = (text: string, reading?: string): boolean => {
+    if (!cache.has(text)) {
+      return false;
+    }
+    return reading === undefined || cache.get(text) === reading;
+  };
+  const tokens = [
+    makeToken({
+      surface: 'とこ',
+      headword: '床',
+      reading: 'とこ',
+      headwordReading: 'とこ',
+      endPos: 2,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps({ isKnownWord }));
+
+  assert.equal(result[0]?.isKnown, false);
+});
+
+test('annotateTokens keeps inflected known words matched via headword reading', () => {
+  const isKnownWord = (text: string, reading?: string): boolean =>
+    text === '行く' && (reading === undefined || reading === 'いく');
+  const tokens = [
+    makeToken({
+      surface: '行きたい',
+      headword: '行く',
+      reading: 'いきたい',
+      headwordReading: 'いく',
+      partOfSpeech: PartOfSpeech.verb,
+      endPos: 4,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps({ isKnownWord }));
+
+  assert.equal(result[0]?.isKnown, true);
+});
+
+test('annotateTokens omits reading for headword match when token lacks headword reading and is inflected', () => {
+  // MeCab tokens have no dictionary-form reading; the surface reading of an
+  // inflected form must not be compared against the note's dictionary reading.
+  const isKnownWord = (text: string, reading?: string): boolean =>
+    text === '食べる' && reading === undefined;
+  const tokens = [
+    makeToken({
+      surface: '食べた',
+      headword: '食べる',
+      reading: 'タベタ',
+      partOfSpeech: PartOfSpeech.verb,
+      endPos: 3,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps({ isKnownWord }));
+
+  assert.equal(result[0]?.isKnown, true);
+});
+
 test('annotateTokens marks known words when N+1 is disabled', () => {
   const tokens = [
     makeToken({ surface: '私', headword: '私', startPos: 0, endPos: 1 }),

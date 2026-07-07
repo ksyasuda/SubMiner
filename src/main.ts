@@ -4635,7 +4635,7 @@ const {
       setYomitanParserInitPromise: (promise) => {
         appState.yomitanParserInitPromise = promise;
       },
-      isKnownWord: (text) => Boolean(appState.ankiIntegration?.isKnownWord(text)),
+      isKnownWord: (text, reading) => Boolean(appState.ankiIntegration?.isKnownWord(text, reading)),
       recordLookup: (hit) => {
         ensureImmersionTrackerStarted();
         appState.immersionTracker?.recordLookup(hit);

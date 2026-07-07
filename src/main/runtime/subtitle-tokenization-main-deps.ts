@@ -37,8 +37,8 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
     getYomitanParserInitPromise: () => deps.getYomitanParserInitPromise(),
     setYomitanParserInitPromise: (promise: Promise<boolean> | null) =>
       deps.setYomitanParserInitPromise(promise),
-    isKnownWord: (text: string) => {
-      const hit = deps.isKnownWord(text);
+    isKnownWord: (text: string, reading?: string) => {
+      const hit = deps.isKnownWord(text, reading);
       deps.recordLookup(hit);
       return hit;
     },

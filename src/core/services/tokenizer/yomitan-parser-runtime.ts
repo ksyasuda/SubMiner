@@ -51,6 +51,7 @@ export interface YomitanScanToken {
   surface: string;
   reading: string;
   headword: string;
+  headwordReading?: string;
   startPos: number;
   endPos: number;
   isNameMatch?: boolean;
@@ -92,6 +93,7 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
         typeof entry.surface === 'string' &&
         typeof entry.reading === 'string' &&
         typeof entry.headword === 'string' &&
+        (entry.headwordReading === undefined || typeof entry.headwordReading === 'string') &&
         typeof entry.startPos === 'number' &&
         typeof entry.endPos === 'number' &&
         (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean') &&
@@ -1318,6 +1320,7 @@ ${YOMITAN_SCANNING_HELPERS}
               surface: segments.map((segment) => segment.text).join("") || source,
               reading: segments.map(getSegmentReadingContribution).join(""),
               headword: preferredHeadword.term,
+              headwordReading: reading || undefined,
               startPos: i,
               endPos: i + originalTextLength,
               isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,

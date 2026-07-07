@@ -5,6 +5,16 @@ import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getConfiguredWordFieldName } from '../anki-field-config';
 import { AnkiConnectConfig } from '../types/anki';
 import { createLogger } from '../logger';
+import {
+  DEFAULT_KNOWN_WORD_READING_FIELDS,
+  KnownWordEntry,
+  convertKatakanaToHiragana,
+  isReadingFieldName,
+  knownWordEntryListsEqual,
+  normalizeKnownReadingForLookup,
+  normalizeKnownWordEntryList,
+  parseFuriganaAnnotatedText,
+} from './known-word-entries';
 
 const log = createLogger('anki').child('integration.known-word-cache');
 
@@ -79,7 +89,16 @@ interface KnownWordCacheStateV2 {
   readonly notes: Record<string, string[]>;
 }
 
-type KnownWordCacheState = KnownWordCacheStateV1 | KnownWordCacheStateV2;
+interface KnownWordCacheStateV3 {
+  readonly version: 3;
+  readonly refreshedAtMs: number;
+  readonly scope: string;
+  readonly notes: Record<string, KnownWordEntry[]>;
+}
+
+type KnownWordCacheState = KnownWordCacheStateV1 | KnownWordCacheStateV2 | KnownWordCacheStateV3;
+
+const NO_READING_KEY = '';
 
 interface KnownWordCacheClient {
   findNotes: (
@@ -106,9 +125,12 @@ type KnownWordQueryScope = {
 export class KnownWordCacheManager {
   private knownWordsLastRefreshedAtMs = 0;
   private knownWordsStateKey = '';
-  private knownWords: Set<string> = new Set();
-  private wordReferenceCounts = new Map<string, number>();
-  private noteWordsById = new Map<number, string[]>();
+  // word → (hiragana reading | NO_READING_KEY → note count). NO_READING_KEY
+  // entries fail open: the word matches regardless of the token's reading.
+  private wordReadingCounts = new Map<string, Map<string, number>>();
+  // hiragana reading → note count, so kana tokens still match by reading alone.
+  private readingCounts = new Map<string, number>();
+  private noteEntriesById = new Map<number, KnownWordEntry[]>();
   private knownWordsRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private knownWordsRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
   private isRefreshingKnownWords = false;
@@ -120,13 +142,28 @@ export class KnownWordCacheManager {
     );
   }
 
-  isKnownWord(text: string): boolean {
+  isKnownWord(text: string, reading?: string): boolean {
     if (!this.isKnownWordCacheEnabled()) {
       return false;
     }
 
     const normalized = this.normalizeKnownWordForLookup(text);
-    return normalized.length > 0 ? this.knownWords.has(normalized) : false;
+    if (normalized.length === 0) {
+      return false;
+    }
+
+    const knownReadings = this.wordReadingCounts.get(normalized);
+    if (knownReadings && knownReadings.size > 0) {
+      const normalizedReading =
+        typeof reading === 'string' ? normalizeKnownReadingForLookup(reading) : '';
+      return (
+        normalizedReading.length === 0 ||
+        knownReadings.has(NO_READING_KEY) ||
+        knownReadings.has(normalizedReading)
+      );
+    }
+
+    return this.readingCounts.has(convertKatakanaToHiragana(normalized));
   }
 
   refresh(force = false): Promise<void> {
@@ -173,7 +210,7 @@ export class KnownWordCacheManager {
     let didMutateCache = false;
     const currentStateKey = this.getKnownWordCacheStateKey();
     if (this.knownWordsStateKey && this.knownWordsStateKey !== currentStateKey) {
-      didMutateCache = this.knownWords.size > 0 || this.noteWordsById.size > 0;
+      didMutateCache = this.wordReadingCounts.size > 0 || this.noteEntriesById.size > 0;
       this.clearKnownWordCacheState();
     }
     if (!this.knownWordsStateKey) {
@@ -185,8 +222,8 @@ export class KnownWordCacheManager {
       return didMutateCache;
     }
 
-    const nextWords = this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, preferredFields);
-    const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextWords);
+    const nextEntries = this.extractKnownWordEntriesFromNoteInfo(noteInfo, preferredFields);
+    const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextEntries);
     if (!changed) {
       return didMutateCache;
     }
@@ -198,7 +235,7 @@ export class KnownWordCacheManager {
     log.info(
       'Known-word cache updated in-session',
       `noteId=${noteInfo.noteId}`,
-      `wordCount=${nextWords.length}`,
+      `wordCount=${nextEntries.length}`,
       `scope=${getKnownWordCacheScopeForConfig(this.deps.getConfig())}`,
     );
     return true;
@@ -236,11 +273,11 @@ export class KnownWordCacheManager {
       const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
       const currentNoteIds = Array.from(noteFieldsById.keys()).sort((a, b) => a - b);
 
-      if (this.noteWordsById.size === 0) {
+      if (this.noteEntriesById.size === 0) {
         await this.rebuildFromCurrentNotes(currentNoteIds, noteFieldsById);
       } else {
         const currentNoteIdSet = new Set(currentNoteIds);
-        for (const noteId of Array.from(this.noteWordsById.keys())) {
+        for (const noteId of Array.from(this.noteEntriesById.keys())) {
           if (!currentNoteIdSet.has(noteId)) {
             this.removeNoteSnapshot(noteId);
           }
@@ -251,7 +288,7 @@ export class KnownWordCacheManager {
           for (const noteInfo of noteInfos) {
             this.replaceNoteSnapshot(
               noteInfo.noteId,
-              this.extractNormalizedKnownWordsFromNoteInfo(
+              this.extractKnownWordEntriesFromNoteInfo(
                 noteInfo,
                 noteFieldsById.get(noteInfo.noteId),
               ),
@@ -266,7 +303,7 @@ export class KnownWordCacheManager {
       log.info(
         'Known-word cache refreshed',
         `noteCount=${currentNoteIds.length}`,
-        `wordCount=${this.knownWords.size}`,
+        `wordCount=${this.wordReadingCounts.size}`,
       );
     } catch (error) {
       log.warn('Failed to refresh known-word cache:', (error as Error).message);
@@ -291,7 +328,13 @@ export class KnownWordCacheManager {
 
   private getDefaultKnownWordFields(): string[] {
     const configuredWordField = getConfiguredWordFieldName(this.deps.getConfig());
-    return [...new Set([configuredWordField, 'Word', 'Reading', 'Word Reading'])];
+    return this.withDefaultReadingFields([configuredWordField, 'Word']);
+  }
+
+  // Reading fields are always probed (even when a deck configures explicit
+  // word fields) so entries can carry the reading their note teaches.
+  private withDefaultReadingFields(fields: string[]): string[] {
+    return [...new Set([...fields, ...DEFAULT_KNOWN_WORD_READING_FIELDS])];
   }
 
   private getKnownWordDecks(): string[] {
@@ -337,7 +380,9 @@ export class KnownWordCacheManager {
               .filter((field) => field.length > 0),
           ),
         ];
-        return normalizedFields.length > 0 ? normalizedFields : this.getDefaultKnownWordFields();
+        return normalizedFields.length > 0
+          ? this.withDefaultReadingFields(normalizedFields)
+          : this.getDefaultKnownWordFields();
       }
 
       const deckFields = selectedDeckEntry[1];
@@ -351,7 +396,7 @@ export class KnownWordCacheManager {
           ),
         ];
         if (normalizedFields.length > 0) {
-          return normalizedFields;
+          return this.withDefaultReadingFields(normalizedFields);
         }
       }
 
@@ -382,7 +427,10 @@ export class KnownWordCacheManager {
           : [];
         scopes.push({
           query: `deck:"${escapeAnkiSearchValue(trimmedDeckName)}"`,
-          fields: normalizedFields.length > 0 ? normalizedFields : this.getDefaultKnownWordFields(),
+          fields:
+            normalizedFields.length > 0
+              ? this.withDefaultReadingFields(normalizedFields)
+              : this.getDefaultKnownWordFields(),
         });
       }
       if (scopes.length > 0) {
@@ -490,7 +538,7 @@ export class KnownWordCacheManager {
     for (const noteInfo of noteInfos) {
       this.replaceNoteSnapshot(
         noteInfo.noteId,
-        this.extractNormalizedKnownWordsFromNoteInfo(noteInfo, noteFieldsById.get(noteInfo.noteId)),
+        this.extractKnownWordEntriesFromNoteInfo(noteInfo, noteFieldsById.get(noteInfo.noteId)),
       );
     }
   }
@@ -519,56 +567,77 @@ export class KnownWordCacheManager {
     return noteInfos;
   }
 
-  private replaceNoteSnapshot(noteId: number, nextWords: string[]): boolean {
-    const normalizedWords = normalizeKnownWordList(nextWords);
-    const previousWords = this.noteWordsById.get(noteId) ?? [];
-    if (knownWordListsEqual(previousWords, normalizedWords)) {
+  private replaceNoteSnapshot(noteId: number, nextEntries: KnownWordEntry[]): boolean {
+    const normalizedEntries = normalizeKnownWordEntryList(nextEntries);
+    const previousEntries = this.noteEntriesById.get(noteId) ?? [];
+    if (knownWordEntryListsEqual(previousEntries, normalizedEntries)) {
       return false;
     }
 
-    this.removeWordsFromCounts(previousWords);
-    if (normalizedWords.length > 0) {
-      this.noteWordsById.set(noteId, normalizedWords);
-      this.addWordsToCounts(normalizedWords);
+    this.removeEntriesFromCounts(previousEntries);
+    if (normalizedEntries.length > 0) {
+      this.noteEntriesById.set(noteId, normalizedEntries);
+      this.addEntriesToCounts(normalizedEntries);
     } else {
-      this.noteWordsById.delete(noteId);
+      this.noteEntriesById.delete(noteId);
     }
     return true;
   }
 
   private removeNoteSnapshot(noteId: number): void {
-    const previousWords = this.noteWordsById.get(noteId);
-    if (!previousWords) {
+    const previousEntries = this.noteEntriesById.get(noteId);
+    if (!previousEntries) {
       return;
     }
-    this.noteWordsById.delete(noteId);
-    this.removeWordsFromCounts(previousWords);
+    this.noteEntriesById.delete(noteId);
+    this.removeEntriesFromCounts(previousEntries);
   }
 
-  private addWordsToCounts(words: string[]): void {
-    for (const word of words) {
-      const nextCount = (this.wordReferenceCounts.get(word) ?? 0) + 1;
-      this.wordReferenceCounts.set(word, nextCount);
-      this.knownWords.add(word);
+  private addEntriesToCounts(entries: KnownWordEntry[]): void {
+    for (const entry of entries) {
+      const readingKey = entry.reading ?? NO_READING_KEY;
+      let readings = this.wordReadingCounts.get(entry.word);
+      if (!readings) {
+        readings = new Map();
+        this.wordReadingCounts.set(entry.word, readings);
+      }
+      readings.set(readingKey, (readings.get(readingKey) ?? 0) + 1);
+      if (entry.reading) {
+        this.readingCounts.set(entry.reading, (this.readingCounts.get(entry.reading) ?? 0) + 1);
+      }
     }
   }
 
-  private removeWordsFromCounts(words: string[]): void {
-    for (const word of words) {
-      const nextCount = (this.wordReferenceCounts.get(word) ?? 0) - 1;
-      if (nextCount > 0) {
-        this.wordReferenceCounts.set(word, nextCount);
-      } else {
-        this.wordReferenceCounts.delete(word);
-        this.knownWords.delete(word);
+  private removeEntriesFromCounts(entries: KnownWordEntry[]): void {
+    for (const entry of entries) {
+      const readingKey = entry.reading ?? NO_READING_KEY;
+      const readings = this.wordReadingCounts.get(entry.word);
+      if (readings) {
+        const nextCount = (readings.get(readingKey) ?? 0) - 1;
+        if (nextCount > 0) {
+          readings.set(readingKey, nextCount);
+        } else {
+          readings.delete(readingKey);
+          if (readings.size === 0) {
+            this.wordReadingCounts.delete(entry.word);
+          }
+        }
+      }
+      if (entry.reading) {
+        const nextReadingCount = (this.readingCounts.get(entry.reading) ?? 0) - 1;
+        if (nextReadingCount > 0) {
+          this.readingCounts.set(entry.reading, nextReadingCount);
+        } else {
+          this.readingCounts.delete(entry.reading);
+        }
       }
     }
   }
 
   private clearInMemoryState(): void {
-    this.knownWords = new Set();
-    this.wordReferenceCounts = new Map();
-    this.noteWordsById = new Map();
+    this.wordReadingCounts = new Map();
+    this.readingCounts = new Map();
+    this.noteEntriesById = new Map();
     this.knownWordsLastRefreshedAtMs = 0;
   }
 
@@ -601,32 +670,48 @@ export class KnownWordCacheManager {
       }
 
       this.clearInMemoryState();
+      if (parsed.version === 3) {
+        for (const [noteIdKey, entries] of Object.entries(parsed.notes)) {
+          const noteId = Number.parseInt(noteIdKey, 10);
+          if (!Number.isInteger(noteId) || noteId <= 0) {
+            continue;
+          }
+          const normalizedEntries = normalizeKnownWordEntryList(entries);
+          if (normalizedEntries.length === 0) {
+            continue;
+          }
+          this.noteEntriesById.set(noteId, normalizedEntries);
+          this.addEntriesToCounts(normalizedEntries);
+        }
+        this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
+        this.knownWordsStateKey = parsed.scope;
+        return;
+      }
+
       if (parsed.version === 2) {
+        // Older states have no readings; load them reading-less (fail-open,
+        // matching the old behavior) but leave the cache marked stale so the
+        // next refresh upgrades entries with readings from Anki.
         for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
           const noteId = Number.parseInt(noteIdKey, 10);
           if (!Number.isInteger(noteId) || noteId <= 0) {
             continue;
           }
-          const normalizedWords = normalizeKnownWordList(words);
-          if (normalizedWords.length === 0) {
+          const normalizedEntries = normalizeKnownWordEntryList(
+            words.map((word) => ({ word: this.normalizeKnownWordForLookup(word), reading: null })),
+          );
+          if (normalizedEntries.length === 0) {
             continue;
           }
-          this.noteWordsById.set(noteId, normalizedWords);
-          this.addWordsToCounts(normalizedWords);
+          this.noteEntriesById.set(noteId, normalizedEntries);
+          this.addEntriesToCounts(normalizedEntries);
         }
-      } else {
-        for (const value of parsed.words) {
-          const normalized = this.normalizeKnownWordForLookup(value);
-          if (!normalized) {
-            continue;
-          }
-          this.knownWords.add(normalized);
-          this.wordReferenceCounts.set(normalized, 1);
-        }
+        this.knownWordsStateKey = parsed.scope;
+        return;
       }
 
-      this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
-      this.knownWordsStateKey = parsed.scope;
+      // v1 has no per-note snapshots to convert; refetch from Anki.
+      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     } catch (error) {
       log.warn('Failed to load known-word cache state:', (error as Error).message);
       this.clearInMemoryState();
@@ -636,18 +721,17 @@ export class KnownWordCacheManager {
 
   private persistKnownWordCacheState(): void {
     try {
-      const notes: Record<string, string[]> = {};
-      for (const [noteId, words] of this.noteWordsById.entries()) {
-        if (words.length > 0) {
-          notes[String(noteId)] = words;
+      const notes: Record<string, KnownWordEntry[]> = {};
+      for (const [noteId, entries] of this.noteEntriesById.entries()) {
+        if (entries.length > 0) {
+          notes[String(noteId)] = entries;
         }
       }
 
-      const state: KnownWordCacheStateV2 = {
-        version: 2,
+      const state: KnownWordCacheStateV3 = {
+        version: 3,
         refreshedAtMs: this.knownWordsLastRefreshedAtMs,
         scope: this.knownWordsStateKey,
-        words: Array.from(this.knownWords),
         notes,
       };
       fs.writeFileSync(this.statePath, JSON.stringify(state), 'utf-8');
@@ -659,14 +743,18 @@ export class KnownWordCacheManager {
   private isKnownWordCacheStateValid(value: unknown): value is KnownWordCacheState {
     if (typeof value !== 'object' || value === null) return false;
     const candidate = value as Record<string, unknown>;
-    if (candidate.version !== 1 && candidate.version !== 2) return false;
-    if (typeof candidate.refreshedAtMs !== 'number') return false;
-    if (typeof candidate.scope !== 'string') return false;
-    if (!Array.isArray(candidate.words)) return false;
-    if (!candidate.words.every((entry: unknown) => typeof entry === 'string')) {
+    if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== 3) {
       return false;
     }
-    if (candidate.version === 2) {
+    if (typeof candidate.refreshedAtMs !== 'number') return false;
+    if (typeof candidate.scope !== 'string') return false;
+    if (candidate.version !== 3) {
+      if (!Array.isArray(candidate.words)) return false;
+      if (!candidate.words.every((entry: unknown) => typeof entry === 'string')) {
+        return false;
+      }
+    }
+    if (candidate.version === 2 || candidate.version === 3) {
       if (
         typeof candidate.notes !== 'object' ||
         candidate.notes === null ||
@@ -674,10 +762,18 @@ export class KnownWordCacheManager {
       ) {
         return false;
       }
+      const isValidNoteEntry =
+        candidate.version === 2
+          ? (entry: unknown): boolean => typeof entry === 'string'
+          : (entry: unknown): boolean =>
+              typeof entry === 'object' &&
+              entry !== null &&
+              typeof (entry as KnownWordEntry).word === 'string' &&
+              ((entry as KnownWordEntry).reading === null ||
+                typeof (entry as KnownWordEntry).reading === 'string');
       if (
         !Object.values(candidate.notes as Record<string, unknown>).every(
-          (entry) =>
-            Array.isArray(entry) && entry.every((word: unknown) => typeof word === 'string'),
+          (noteEntries) => Array.isArray(noteEntries) && noteEntries.every(isValidNoteEntry),
         )
       ) {
         return false;
@@ -686,11 +782,12 @@ export class KnownWordCacheManager {
     return true;
   }
 
-  private extractNormalizedKnownWordsFromNoteInfo(
+  private extractKnownWordEntriesFromNoteInfo(
     noteInfo: KnownWordCacheNoteInfo,
     preferredFields = this.getConfiguredFields(),
-  ): string[] {
-    const words: string[] = [];
+  ): KnownWordEntry[] {
+    const wordValues: string[] = [];
+    let noteReading: string | null = null;
     for (const preferredField of preferredFields) {
       const fieldName = resolveFieldName(Object.keys(noteInfo.fields), preferredField);
       if (!fieldName) continue;
@@ -698,12 +795,36 @@ export class KnownWordCacheManager {
       const raw = noteInfo.fields[fieldName]?.value;
       if (!raw) continue;
 
-      const normalized = this.normalizeKnownWordForLookup(raw);
-      if (normalized) {
-        words.push(normalized);
+      const cleaned = this.normalizeRawKnownWordValue(raw);
+      if (!cleaned) continue;
+
+      if (isReadingFieldName(preferredField)) {
+        const normalizedReading = normalizeKnownReadingForLookup(cleaned);
+        if (normalizedReading) {
+          noteReading ??= normalizedReading;
+          continue;
+        }
+        // Non-kana content in a reading field: treat it as a word so decks
+        // with repurposed reading fields keep matching (fail-open).
       }
+      wordValues.push(cleaned);
     }
-    return normalizeKnownWordList(words);
+
+    const entries: KnownWordEntry[] = [];
+    for (const value of wordValues) {
+      const parsed = parseFuriganaAnnotatedText(value);
+      const word = parsed.text.trim().toLowerCase();
+      if (!word) continue;
+      const inlineReading = parsed.reading ? normalizeKnownReadingForLookup(parsed.reading) : '';
+      entries.push({ word, reading: inlineReading || noteReading });
+    }
+
+    // Kana-only notes (reading field but no word field) stay matchable.
+    if (entries.length === 0 && noteReading) {
+      entries.push({ word: noteReading, reading: noteReading });
+    }
+
+    return normalizeKnownWordEntryList(entries);
   }
 
   private normalizeRawKnownWordValue(value: string): string {
@@ -716,22 +837,6 @@ export class KnownWordCacheManager {
   private normalizeKnownWordForLookup(value: string): string {
     return this.normalizeRawKnownWordValue(value).toLowerCase();
   }
-}
-
-function normalizeKnownWordList(words: string[]): string[] {
-  return [...new Set(words.map((word) => word.trim()).filter((word) => word.length > 0))].sort();
-}
-
-function knownWordListsEqual(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  for (let index = 0; index < left.length; index += 1) {
-    if (left[index] !== right[index]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function resolveFieldName(availableFieldNames: string[], preferredName: string): string | null {

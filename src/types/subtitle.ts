@@ -29,6 +29,8 @@ export interface MergedToken {
   surface: string;
   reading: string;
   headword: string;
+  /** Dictionary-form reading of headword (kana), when the parser provides it. */
+  headwordReading?: string;
   startPos: number;
   endPos: number;
   partOfSpeech: PartOfSpeech;
