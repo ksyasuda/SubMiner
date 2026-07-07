@@ -3,9 +3,21 @@
 # Verification
 
 Status: active  
-Last verified: 2026-05-23  
+Last verified: 2026-07-06  
 Owner: Kyle Yasuda  
 Read when: selecting the right verification lane for a change
+
+## Lane Infrastructure
+
+- Lane membership is defined once in `scripts/test-lanes.ts` and discovered by
+  directory — new test files join their lane automatically; never hand-list test
+  files in `package.json`.
+- `scripts/run-test-lane.mjs` runs each test file in its own `bun test` process
+  (per-file isolation with a wall timeout) so a hanging test or leaked global in
+  one file cannot cascade into the rest of the lane. `--jobs N` parallelizes;
+  `--single-process` restores the shared-process mode for debugging.
+- `bun run test:fast` is the full source gate: discovered `src/**`, launcher
+  unit, `scripts/**`, and the compiled runtime-compat slice.
 
 ## Default Handoff Gate
 
@@ -31,6 +43,8 @@ bun run docs:build
 - Config/schema/defaults: `bun run test:config`, then `bun run generate:config-example` if template/defaults changed
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / compiled behavior: `bun run test:runtime:compat`
+- Stats dashboard UI: `bun run test:stats`
+- Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Coverage for the maintained source lane: `bun run test:coverage:src`
 - Deep/local full gate: default handoff gate above
 

@@ -482,6 +482,9 @@ for lane in "${SELECTED_LANES[@]}"; do
     config)
       run_step "$lane" "config" "bun run test:config" || break
       ;;
+    stats)
+      run_step "$lane" "stats" "bun run test:stats" || break
+      ;;
     core)
       run_step "$lane" "typecheck" "bun run typecheck" || break
       run_step "$lane" "fast-tests" "bun run test:fast" || break

@@ -105,6 +105,8 @@ bash plugins/subminer-workflow/skills/subminer-change-verification/scripts/verif
   - For `docs-site/`, `docs/`, and doc-only edits.
 - `config`
   - For `src/config/` and config-template-sensitive edits.
+- `stats`
+  - For `stats/` dashboard UI edits.
 - `core`
   - For general source changes where `typecheck` + `test:fast` is the best cheap signal.
 - `launcher-plugin`

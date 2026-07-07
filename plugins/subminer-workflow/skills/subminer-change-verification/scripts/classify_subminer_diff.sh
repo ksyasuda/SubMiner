@@ -109,6 +109,14 @@ for path in "${PATHS[@]}"; do
   esac
 
   case "$path" in
+    stats/*)
+      add_lane "stats"
+      add_reason "$path -> stats"
+      specialized=1
+      ;;
+  esac
+
+  case "$path" in
     launcher/*|plugin/subminer/*|plugin/subminer.conf|scripts/test-plugin-*|scripts/get-mpv-window-*|scripts/configure-plugin-binary-path.mjs)
       add_lane "launcher-plugin"
       add_reason "$path -> launcher-plugin"

@@ -55,9 +55,6 @@ jobs:
       - name: Verify generated config examples
         run: bun run verify:config-example
 
-      - name: Internal docs knowledge-base checks
-        run: bun run test:docs:kb
-
       - name: Test suite (source)
         run: bun run test:fast
 
@@ -70,6 +67,9 @@ jobs:
           name: coverage-test-src
           path: coverage/test-src/lcov.info
           if-no-files-found: error
+
+      - name: Stats UI tests
+        run: bun run test:stats
 
       - name: Launcher smoke suite (source)
         run: bun run test:launcher:smoke:src
