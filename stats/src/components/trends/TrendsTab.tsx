@@ -72,9 +72,8 @@ export function AnimeVisibilityFilter({
             Show
             <select
               aria-label="Title ranking mode"
-              className="rounded-md border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue disabled:opacity-40"
+              className="rounded-md border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue"
               value={maxTitlesMode}
-              disabled={maxTitles === null}
               onChange={(event) => onMaxTitlesModeChange(event.target.value as MaxTitlesMode)}
             >
               <option value="total">top</option>

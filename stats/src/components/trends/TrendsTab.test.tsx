@@ -61,7 +61,7 @@ test('AnimeVisibilityFilter offers top vs most-recent ranking modes', () => {
   assert.match(markup, /<option value="recent" selected="">most recent<\/option>/);
 });
 
-test('AnimeVisibilityFilter disables the ranking mode when showing all titles', () => {
+test('AnimeVisibilityFilter keeps the ranking mode selectable even when showing all titles', () => {
   const markup = renderToStaticMarkup(
     <AnimeVisibilityFilter
       animeTitles={['KonoSuba']}
@@ -76,7 +76,8 @@ test('AnimeVisibilityFilter disables the ranking mode when showing all titles', 
     />,
   );
 
-  assert.match(markup, /aria-label="Title ranking mode"[^>]*disabled/);
+  assert.match(markup, /aria-label="Title ranking mode"/);
+  assert.doesNotMatch(markup, /aria-label="Title ranking mode"[^>]*disabled/);
 });
 
 test('TrendsTab source labels words per minute without reading speed wording', async () => {
