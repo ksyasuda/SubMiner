@@ -34,6 +34,88 @@ const DEFAULT_LINE_COLORS = [
   '#f4dbd6',
 ];
 
+// Wrap the tooltip into extra columns once a single column would get too tall,
+// keeping it compact instead of overflowing behind the charts below it.
+const TOOLTIP_ROWS_PER_COLUMN = 8;
+const TOOLTIP_MAX_COLUMNS = 3;
+
+export function tooltipColumnCount(itemCount: number): number {
+  const columns = Math.ceil(itemCount / TOOLTIP_ROWS_PER_COLUMN);
+  return Math.min(TOOLTIP_MAX_COLUMNS, Math.max(1, columns));
+}
+
+interface TooltipEntry {
+  name?: string | number;
+  value?: string | number;
+  color?: string;
+}
+
+interface StackedTooltipProps {
+  active?: boolean;
+  label?: string | number;
+  payload?: TooltipEntry[];
+}
+
+function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+  const columns = tooltipColumnCount(payload.length);
+  return (
+    <div
+      style={{
+        ...TOOLTIP_CONTENT_STYLE,
+        padding: '6px 10px',
+        maxWidth: '80vw',
+      }}
+    >
+      {label !== undefined && (
+        <div style={{ color: CHART_THEME.tooltipLabel, marginBottom: 4, fontWeight: 600 }}>
+          {label}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+          columnGap: 12,
+          rowGap: 2,
+        }}
+      >
+        {payload.map((entry, index) => (
+          <div
+            key={`${entry.name ?? index}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: 9999,
+                background: entry.color,
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 220,
+              }}
+            >
+              {entry.name}
+            </span>
+            <span style={{ marginLeft: 'auto', color: CHART_THEME.tooltipLabel }}>
+              {entry.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function buildLineData(raw: PerAnimeDataPoint[], maxSeries?: number | null) {
   const totalByAnime = new Map<string, number>();
   for (const entry of raw) {
@@ -110,7 +192,11 @@ export function StackedTrendChart({
             tickLine={false}
             width={32}
           />
-          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
+          <Tooltip
+            content={<StackedTooltip />}
+            wrapperStyle={{ zIndex: 50 }}
+            allowEscapeViewBox={{ x: false, y: true }}
+          />
           {seriesKeys.map((key, i) => (
             <Area
               key={key}

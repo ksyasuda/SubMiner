@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildLineData, type PerAnimeDataPoint } from './StackedTrendChart';
+import { buildLineData, tooltipColumnCount, type PerAnimeDataPoint } from './StackedTrendChart';
 
 function makePoints(titleCount: number): PerAnimeDataPoint[] {
   const points: PerAnimeDataPoint[] = [];
@@ -9,6 +9,15 @@ function makePoints(titleCount: number): PerAnimeDataPoint[] {
   }
   return points;
 }
+
+test('tooltipColumnCount wraps into extra columns as items grow, capped at 3', () => {
+  assert.equal(tooltipColumnCount(1), 1);
+  assert.equal(tooltipColumnCount(8), 1);
+  assert.equal(tooltipColumnCount(9), 2);
+  assert.equal(tooltipColumnCount(16), 2);
+  assert.equal(tooltipColumnCount(17), 3);
+  assert.equal(tooltipColumnCount(40), 3);
+});
 
 test('buildLineData keeps every title as a series instead of capping at the top 7', () => {
   const { points, seriesKeys } = buildLineData(makePoints(17));
