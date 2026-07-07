@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { appendClipboardVideoToQueueRuntime } from './clipboard-queue';
 
@@ -27,7 +28,8 @@ test('appendClipboardVideoToQueueRuntime rejects unsupported clipboard path', ()
 });
 
 test('appendClipboardVideoToQueueRuntime queues readable media file', () => {
-  const tempPath = path.join(process.cwd(), 'dist', 'clipboard-queue-test-video.mkv');
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'clipboard-queue-'));
+  const tempPath = path.join(tempDir, 'clipboard-queue-test-video.mkv');
   fs.writeFileSync(tempPath, 'stub');
 
   const commands: Array<(string | number)[]> = [];
@@ -43,5 +45,5 @@ test('appendClipboardVideoToQueueRuntime queues readable media file', () => {
   assert.deepEqual(commands[0], ['loadfile', tempPath, 'append']);
   assert.equal(osdMessages[0], `Queued from clipboard: ${path.basename(tempPath)}`);
 
-  fs.unlinkSync(tempPath);
+  fs.rmSync(tempDir, { recursive: true, force: true });
 });

@@ -255,8 +255,18 @@ write_summary_files() {
   local lane_lines
   lane_lines=$(printf '%s\n' "${SELECTED_LANES[@]}")
   printf '%s\n' "$lane_lines" >"$ARTIFACT_DIR/lanes.txt"
-  printf '%s\n' "${BLOCKERS[@]}" >"$ARTIFACT_DIR/blockers.txt"
-  printf '%s\n' "${PATH_ARGS[@]}" >"$ARTIFACT_DIR/requested-paths.txt"
+  # bash 3.2 raises "unbound variable" under set -u when expanding an empty
+  # array, so guard on length (matching the idiom used elsewhere here).
+  if [[ ${#BLOCKERS[@]} -gt 0 ]]; then
+    printf '%s\n' "${BLOCKERS[@]}" >"$ARTIFACT_DIR/blockers.txt"
+  else
+    : >"$ARTIFACT_DIR/blockers.txt"
+  fi
+  if [[ ${#PATH_ARGS[@]} -gt 0 ]]; then
+    printf '%s\n' "${PATH_ARGS[@]}" >"$ARTIFACT_DIR/requested-paths.txt"
+  else
+    : >"$ARTIFACT_DIR/requested-paths.txt"
+  fi
 
   ARTIFACT_DIR_ENV="$ARTIFACT_DIR" \
   SESSION_ID_ENV="$SESSION_ID" \
@@ -481,6 +491,9 @@ for lane in "${SELECTED_LANES[@]}"; do
       ;;
     config)
       run_step "$lane" "config" "bun run test:config" || break
+      ;;
+    stats)
+      run_step "$lane" "stats" "bun run test:stats" || break
       ;;
     core)
       run_step "$lane" "typecheck" "bun run typecheck" || break

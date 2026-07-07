@@ -1,12 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { isAbsolute, join, relative, resolve } from 'node:path';
-
-type LaneConfig = {
-  roots: string[];
-  include: string[];
-  exclude: Set<string>;
-};
+import { collectLaneFiles } from './test-lanes';
 
 type LcovRecord = {
   sourceFile: string;
@@ -17,64 +12,6 @@ type LcovRecord = {
 };
 
 const repoRoot = resolve(__dirname, '..');
-
-const lanes: Record<string, LaneConfig> = {
-  'bun-src-full': {
-    roots: ['src'],
-    include: ['.test.ts', '.type-test.ts'],
-    exclude: new Set([
-      'src/core/services/anki-jimaku-ipc.test.ts',
-      'src/core/services/ipc.test.ts',
-      'src/core/services/overlay-manager.test.ts',
-      'src/main/config-validation.test.ts',
-      'src/main/runtime/registry.test.ts',
-      'src/main/runtime/startup-config.test.ts',
-    ]),
-  },
-  'bun-launcher-unit': {
-    roots: ['launcher'],
-    include: ['.test.ts'],
-    exclude: new Set(['launcher/smoke.e2e.test.ts']),
-  },
-};
-
-function collectFiles(
-  rootDir: string,
-  includeSuffixes: string[],
-  excludeSet: Set<string>,
-): string[] {
-  const out: string[] = [];
-  const visit = (currentDir: string) => {
-    for (const entry of readdirSync(currentDir, { withFileTypes: true })) {
-      const fullPath = resolve(currentDir, entry.name);
-      if (entry.isDirectory()) {
-        visit(fullPath);
-        continue;
-      }
-      const relPath = relative(repoRoot, fullPath).replaceAll('\\', '/');
-      if (excludeSet.has(relPath)) continue;
-      if (includeSuffixes.some((suffix) => relPath.endsWith(suffix))) {
-        out.push(relPath);
-      }
-    }
-  };
-
-  visit(resolve(repoRoot, rootDir));
-  out.sort();
-  return out;
-}
-
-function getLaneFiles(laneName: string): string[] {
-  const lane = lanes[laneName];
-  if (!lane) {
-    throw new Error(`Unknown coverage lane: ${laneName}`);
-  }
-  const files = lane.roots.flatMap((rootDir) => collectFiles(rootDir, lane.include, lane.exclude));
-  if (files.length === 0) {
-    throw new Error(`No test files found for coverage lane: ${laneName}`);
-  }
-  return files;
-}
 
 function parseCoverageDirArg(argv: string[]): string {
   for (let index = 0; index < argv.length; index += 1) {
@@ -277,7 +214,13 @@ function runCoverageLane(): number {
   rmSync(shardRoot, { recursive: true, force: true });
   mkdirSync(shardRoot, { recursive: true });
 
-  const files = getLaneFiles(laneName);
+  let files: string[];
+  try {
+    files = collectLaneFiles(repoRoot, laneName);
+  } catch (error) {
+    process.stderr.write(`${error instanceof Error ? error.message : error}\n`);
+    return 1;
+  }
   const reports: string[] = [];
 
   try {

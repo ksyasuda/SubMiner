@@ -80,18 +80,24 @@ Default lanes:
 
 ```bash
 bun run test           # alias for test:fast
-bun run test:fast      # default fast lane
-bun run test:full      # maintained source + launcher-unit + runtime compat surface
+bun run test:fast      # full source lanes: src + launcher-unit + scripts + runtime compat
 bun run test:runtime:compat # compiled/runtime compatibility slice only
 bun run test:env       # launcher/plugin + env-sensitive verification
+bun run test:stats     # stats dashboard UI suite
 bun run test:immersion:sqlite # SQLite persistence lane
 bun run test:subtitle  # maintained alass/ffsubsync subtitle surface
 ```
 
-- `bun run test` and `bun run test:fast` cover config/core suites plus representative entry/runtime, Anki integration, release-workflow coverage, typecheck, and runtime-registry checks.
-- `bun run test:full` is the maintained full surface: Bun-compatible `src/**` discovery, Bun-compatible launcher unit discovery, and the compiled/runtime compatibility lane for suites routed through `dist/**`.
+Test lane membership is defined once in `scripts/test-lanes.ts` and discovered by
+directory, so new test files join their lane automatically. `scripts/run-test-lane.mjs`
+runs each test file in its own `bun test` process (per-file isolation) so a hanging
+test or leaked global in one file cannot cascade into the rest of the lane; pass
+`--jobs N` to parallelize or `--single-process` for one shared process.
+
+- `bun run test` and `bun run test:fast` cover the full discovered `src/**` suite, launcher unit tests, `scripts/**` tests, and the compiled/runtime compatibility lane.
 - `bun run test:runtime:compat` covers the compiled/runtime slice directly: `ipc`, `anki-jimaku-ipc`, `overlay-manager`, `config-validation`, `startup-config`, and `registry`.
 - `bun run test:env` covers environment-sensitive checks: launcher smoke/plugin verification plus the Bun source SQLite lane.
+- `bun run test:stats` runs the stats dashboard suite under `stats/src/**`.
 - `bun run test:immersion:sqlite` is the reproducible persistence lane when you need real DB-backed SQLite coverage under Bun.
 
 The Bun-managed discovery lanes intentionally exclude a small compiled/runtime-focused set: `src/core/services/ipc.test.ts`, `src/core/services/anki-jimaku-ipc.test.ts`, `src/core/services/overlay-manager.test.ts`, `src/main/config-validation.test.ts`, `src/main/runtime/startup-config.test.ts`, and `src/main/runtime/registry.test.ts`. `bun run test:runtime:compat` keeps them in the standard workflow via `dist/**`.
@@ -126,11 +132,11 @@ Focused commands:
 ```bash
 bun run test:config       # Source-level config schema/validation tests
 bun run test:launcher     # Launcher regression tests (config discovery + command routing)
-bun run test:core         # Source-level core regression tests (default lane)
 bun run test:launcher:smoke:src # Launcher e2e smoke: launcher -> mpv IPC -> overlay start/stop wiring
 bun run test:launcher:env:src # Launcher smoke + Lua plugin gate
 bun run test:src          # Bun-managed maintained src/** discovery lane
 bun run test:launcher:unit:src # Bun-managed maintained launcher unit lane
+bun run test:scripts      # Bun-managed scripts/** test lane
 bun run test:immersion:sqlite:src # Bun source lane
 ```
 
@@ -144,8 +150,6 @@ Smoke and optional deep dist commands:
 bun run build                 # compile dist artifacts
 bun run test:immersion:sqlite # compile + run SQLite-backed immersion tests under Bun
 bun run test:smoke:dist       # explicit smoke scope for compiled runtime
-bun run test:config:dist      # optional full dist config suite
-bun run test:core:dist        # optional full dist core suite
 ```
 
 Use `bun run test:immersion:sqlite` when you need real DB-backed coverage for the immersion tracker.

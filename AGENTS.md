@@ -42,7 +42,10 @@ Start here, then leave this file.
 - Config/schema/defaults: `bun run test:config`; if template/defaults changed, `bun run generate:config-example`
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / dist-sensitive: `bun run test:runtime:compat`
+- Stats dashboard UI (`stats/`): `bun run test:stats`
+- Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Docs-only: `bun run docs:test`, then `bun run docs:build`
+- Test lanes are directory-discovered via `scripts/test-lanes.ts`; never hand-list test files in `package.json`
 
 ## Docs Upkeep
 
