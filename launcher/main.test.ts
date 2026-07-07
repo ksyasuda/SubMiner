@@ -606,10 +606,7 @@ ${bunBinary} -e "const net=require('node:net'); const fs=require('node:fs'); con
     };
     // Pass an explicit backend so overlay startup doesn't probe for a display
     // (headless CI has none), matching launcher/smoke.e2e.test.ts.
-    const result = runLauncher(
-      ['--backend', 'x11', 'https://www.youtube.com/watch?v=abc123'],
-      env,
-    );
+    const result = runLauncher(['--backend', 'x11', 'https://www.youtube.com/watch?v=abc123'], env);
 
     assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     const forwardedArgs = fs

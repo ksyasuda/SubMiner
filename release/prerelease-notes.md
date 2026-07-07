@@ -1,24 +1,55 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
-<!-- prerelease-base-version: 0.17.1 -->
+<!-- prerelease-base-version: 0.18.0 -->
 
 ## Highlights
 ### Added
+- **Watch History Browser**
+  - New `subminer -H` / `--history` command to browse your local watch history, replay the last episode, jump to the next one, or pick an episode via fzf/rofi.
+  - The rofi picker now shows AniList cover art for each show, making it easier to spot the right title at a glance.
 
-- **YouTube Media Cache Mode**: A new `youtube.mediaCache.mode` setting (`direct` or `background`) lets you choose how SubMiner extracts audio and image from YouTube cards.
-  - In background mode, SubMiner creates a text-only card immediately, downloads a yt-dlp media cache (capped at 720p by default), and fills audio and image fields once the file is ready — with overlay and OSD notifications when the download starts and when media is available.
-  - If a background download fails, SubMiner now notifies you and clears any pending media updates rather than leaving cards silently incomplete.
+### Changed
+- **New App Icon**
+  - SubMiner now ships pixel-art submarine artwork, contributed by an anonymous community member.
+  - Applied across the app icon, tray icon, notifications, README, docs site, and stats page.
 
 ### Fixed
-
-- **Log Export**: Log filenames now use your local date, so exporting logs near midnight no longer pulls stale files from the previous UTC day. Export redaction has also been expanded to mask a broader range of sensitive data, including IP addresses, email addresses, authentication and cookie headers, yt-dlp cookie arguments, URL credentials, and signed YouTube media URLs.
-
-- **YouTube Card Media Reliability**: Direct stream extraction now uses safer ffmpeg options and skips stale or cached stream map entries to reduce failed media generation. Background cache downloads are hardened with IPv4 and extractor retry flags, stale cache files are cleaned up on startup and before new downloads, and in-flight background downloads are stopped automatically when switching back to direct mode.
+- **Character Name Highlighting in Subtitles**
+  - Fixed unspaced Japanese names (e.g. 東紫乃, 渡辺真奈美) being split at the wrong point, which left surnames like 東 and 渡辺 without their character portrait or hover lookup.
+  - Fixed names getting cut off or losing their highlight when caught by the subtitle scanner's punctuation handling or by conflicting grammar tagging.
+  - No action needed — existing data upgrades automatically the next time a matching name is seen.
+- **Known-Word Highlighting**
+  - Words are no longer marked "known" (green) just because they share spelling with a known Anki card that actually teaches a different reading (e.g. 床 read as とこ no longer falsely matches a known 床/ゆか card).
+- **Unparsed Subtitle Text**
+  - Subtitle text the dictionary can't recognize (like a truncated verb form) is now still hoverable for lookup and correctly counted toward a sentence's difficulty, instead of showing as dead, non-interactive text.
+- **Kiku Manual Field Grouping**
+  - Fixed the field-grouping dialog getting stuck invisible behind fullscreen video on Hyprland/Wayland, and failing silently on repeated attempts after the first use.
+  - Fixed a duplicate "Field grouping cancelled" notification appearing when grouping was cancelled via the trigger shortcut.
+- **Secondary Subtitles**
+  - Karaoke-style secondary subtitles (common in opening/ending songs) no longer spam dozens of lines down the screen; repeated lines are now collapsed and the subtitle area is capped to a strip at the top.
+- **Card Audio Normalization**
+  - Audio extracted for Anki cards is now volume-normalized by default for more consistent playback loudness.
+  - If you prefer the original source volume, disable it via the new `ankiConnect.media.normalizeAudio` setting.
+- **YouTube Extraction**
+  - Fixed direct YouTube stream extraction occasionally corrupting the stream URL and causing failed audio/video capture.
+- **Background Stats Server**
+  - Launching SubMiner in the background now correctly auto-starts the stats server when enabled, and won't start a duplicate if one's already running.
+- **Stats Trend Charts**
+  - All trend chart titles now show by default, with the ability to hide specific titles (remembered across sessions) and cap how many top titles a chart displays.
 
 ## What's Changed
 
-- feat(youtube): add mediaCache mode and safer stream media extraction by @ksyasuda in #130
-- fix(logs): use local date for log filenames and expand export redaction by @ksyasuda in #131
+- fix(youtube): parse mpv EDL stream URLs with byte-length guards by @ksyasuda in #134
+- Normalize generated Anki audio by default by @ksyasuda in #135
+- feat(launcher): add -H/--history command to browse local watch history by @ksyasuda in #136
+- fix(overlay): prevent field grouping modal from freezing overlay on Hyprland by @ksyasuda in #138
+- fix(overlay): collapse karaoke syllable spam in secondary subtitles by @ksyasuda in #139
+- feat(stats): Trends dashboard overhaul — title visibility, ranking modes, calendar-accurate windows, tooltips by @ksyasuda in #140
+- feat(branding): replace app icon with contributed pixel-art set by @ksyasuda in #141
+- feat(anki): reading-aware known-word matching (cache v3) by @ksyasuda in #142
+- fix(stats): start stats server on background app launch by @ksyasuda in #144
+- fix(tokenizer): keep unparsed Yomitan tokens hoverable by @ksyasuda in #145
+- fix(overlay): resolve unspaced Japanese name splits and scan recovery by @ksyasuda in #146
 
 ## Installation
 
