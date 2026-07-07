@@ -31,6 +31,26 @@ export type JapaneseNameParts = {
   given: string | null;
 };
 
+export type ResolvedNameSplit = {
+  family: string;
+  given: string;
+};
+
+export type ResolvedNameSplits = ReadonlyMap<string, ResolvedNameSplit>;
+
+export type NameSplitToken = {
+  word: string;
+  pos1?: string;
+  pos2?: string;
+  pos3?: string;
+  pos4?: string;
+  katakanaReading?: string;
+};
+
+export type NameSplitTokenizer = (text: string) => Promise<NameSplitToken[] | null>;
+
+export type NameSplitSource = 'mecab' | 'heuristic';
+
 export type NameReadings = {
   hasSpace: boolean;
   original: string;
@@ -45,6 +65,7 @@ export type CharacterDictionarySnapshot = {
   mediaTitle: string;
   entryCount: number;
   updatedAt: number;
+  nameSplitSource?: NameSplitSource;
   termEntries: CharacterDictionaryTermEntry[];
   images: CharacterDictionarySnapshotImage[];
 };
@@ -152,6 +173,8 @@ export interface CharacterDictionaryRuntimeDeps {
   getCollapsibleSectionOpenState?: (
     section: AnilistCharacterDictionaryCollapsibleSectionKey,
   ) => boolean;
+  tokenizeJapaneseName?: NameSplitTokenizer;
+  getJapaneseNameTokenizerAvailable?: () => boolean;
 }
 
 export type ResolvedAniListMedia = {

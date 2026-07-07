@@ -33,6 +33,50 @@ function makeDeps(overrides: Partial<AnnotationStageDeps> = {}): AnnotationStage
   };
 }
 
+test('annotateTokens keeps name matches on tokens the POS noise filter would strip', () => {
+  // MeCab tags 平 as 接頭詞 in contexts like あっ 平 これ…, which is in the
+  // POS1 exclusion list; a confirmed character-name match must survive it.
+  const tokens = [
+    makeToken({
+      surface: '平',
+      headword: '平',
+      reading: 'たいら',
+      pos1: '接頭詞',
+      isNameMatch: true,
+    }),
+    makeToken({
+      surface: '平',
+      headword: '平',
+      reading: 'ひら',
+      pos1: '接頭詞',
+      isNameMatch: false,
+      jlptLevel: 'N1',
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), { nameMatchEnabled: true });
+
+  assert.equal(result[0]?.isNameMatch, true);
+  assert.equal(result[1]?.isNameMatch, false);
+  assert.equal(result[1]?.jlptLevel, undefined);
+});
+
+test('annotateTokens strips name matches from POS-excluded tokens when name matching is disabled', () => {
+  const tokens = [
+    makeToken({
+      surface: '平',
+      headword: '平',
+      reading: 'たいら',
+      pos1: '接頭詞',
+      isNameMatch: true,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), { nameMatchEnabled: false });
+
+  assert.equal(result[0]?.isNameMatch, false);
+});
+
 test('annotateTokens known-word match mode uses headword vs surface', () => {
   const tokens = [makeToken({ surface: '食べた', headword: '食べる', reading: 'タベタ' })];
   const isKnownWord = (text: string): boolean => text === '食べる';
@@ -1994,7 +2038,8 @@ test('annotateTokens keeps known status while clearing other annotations for aru
   assert.equal(result[0]?.headword, '有る');
   assert.equal(result[0]?.isKnown, true);
   assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.isNameMatch, false);
+  // Name matches take precedence over the annotation noise filter.
+  assert.equal(result[0]?.isNameMatch, true);
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.jlptLevel, undefined);
 });

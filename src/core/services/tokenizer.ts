@@ -150,7 +150,8 @@ function hasAnyAnnotationEnabled(options: TokenizerAnnotationOptions): boolean {
     options.knownWordsEnabled ||
     options.nPlusOneEnabled ||
     options.jlptEnabled ||
-    options.frequencyEnabled
+    options.frequencyEnabled ||
+    options.nameMatchEnabled
   );
 }
 

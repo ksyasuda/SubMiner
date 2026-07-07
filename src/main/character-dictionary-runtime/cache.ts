@@ -141,6 +141,7 @@ export function readSnapshot(snapshotPath: string): CharacterDictionarySnapshot 
       mediaTitle: parsed.mediaTitle,
       entryCount: parsed.entryCount,
       updatedAt: parsed.updatedAt,
+      nameSplitSource: parsed.nameSplitSource === 'mecab' ? 'mecab' : 'heuristic',
       termEntries: parsed.termEntries as CharacterDictionaryTermEntry[],
       images: parsed.images as CharacterDictionarySnapshotImage[],
     };

@@ -14,6 +14,8 @@ import type {
   CharacterDictionarySnapshotImage,
   CharacterDictionaryTermEntry,
   CharacterRecord,
+  NameSplitSource,
+  ResolvedNameSplits,
 } from './types';
 
 export function buildSnapshotImagePath(mediaId: number, charId: number, ext: string): string {
@@ -34,6 +36,8 @@ export function buildSnapshotFromCharacters(
   getCollapsibleSectionOpenState: (
     section: AnilistCharacterDictionaryCollapsibleSectionKey,
   ) => boolean,
+  resolvedNameSplits?: ResolvedNameSplits,
+  nameSplitSource: NameSplitSource = 'heuristic',
 ): CharacterDictionarySnapshot {
   const termEntries: CharacterDictionaryTermEntry[] = [];
 
@@ -45,7 +49,7 @@ export function buildSnapshotFromCharacters(
       const vaImg = imagesByVaId.get(va.id);
       if (vaImg) vaImagePaths.set(va.id, vaImg.path);
     }
-    const candidateTerms = buildNameTerms(character);
+    const candidateTerms = buildNameTerms(character, resolvedNameSplits);
     const glossary = createDefinitionGlossary(
       character,
       mediaId,
@@ -59,12 +63,14 @@ export function buildSnapshotFromCharacters(
       character.nativeName,
       character.firstNameHint,
       character.lastNameHint,
+      resolvedNameSplits,
     );
     const readings = generateNameReadings(
       character.nativeName,
       character.fullName,
       character.firstNameHint,
       character.lastNameHint,
+      resolvedNameSplits,
     );
     for (const term of candidateTerms) {
       if (seenTerms.has(term)) continue;
@@ -84,6 +90,7 @@ export function buildSnapshotFromCharacters(
     mediaTitle,
     entryCount: termEntries.length,
     updatedAt,
+    nameSplitSource,
     termEntries,
     images: [...imagesByCharacterId.values(), ...imagesByVaId.values()],
   };
