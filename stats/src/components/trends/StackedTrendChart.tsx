@@ -20,6 +20,8 @@ interface StackedTrendChartProps {
   title: string;
   data: PerAnimeDataPoint[];
   colorPalette?: string[];
+  maxSeries?: number | null;
+  maxSeriesMode?: SeriesRankMode;
 }
 
 const DEFAULT_LINE_COLORS = [
@@ -33,19 +35,147 @@ const DEFAULT_LINE_COLORS = [
   '#f4dbd6',
 ];
 
-function buildLineData(raw: PerAnimeDataPoint[]) {
-  const totalByAnime = new Map<string, number>();
+// Wrap the tooltip into extra columns once a single column would get too tall,
+// keeping it compact instead of overflowing behind the charts below it.
+const TOOLTIP_ROWS_PER_COLUMN = 8;
+const TOOLTIP_MAX_COLUMNS = 3;
+
+export function tooltipColumnCount(itemCount: number): number {
+  const columns = Math.ceil(itemCount / TOOLTIP_ROWS_PER_COLUMN);
+  return Math.min(TOOLTIP_MAX_COLUMNS, Math.max(1, columns));
+}
+
+interface TooltipEntry {
+  name?: string | number;
+  value?: string | number;
+  color?: string;
+}
+
+interface StackedTooltipProps {
+  active?: boolean;
+  label?: string | number;
+  payload?: TooltipEntry[];
+}
+
+function tooltipEntryValue(entry: TooltipEntry): number {
+  const numeric = typeof entry.value === 'number' ? entry.value : Number(entry.value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+// Tooltip rows are sorted by value (largest first) so the biggest contributors
+// read top-down, independent of the series/stacking order.
+export function sortTooltipEntries<T extends TooltipEntry>(entries: readonly T[]): T[] {
+  return [...entries].sort((a, b) => tooltipEntryValue(b) - tooltipEntryValue(a));
+}
+
+function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+  const sorted = sortTooltipEntries(payload);
+  const columns = tooltipColumnCount(sorted.length);
+  return (
+    <div
+      style={{
+        ...TOOLTIP_CONTENT_STYLE,
+        padding: '6px 10px',
+        maxWidth: '90vw',
+      }}
+    >
+      {label !== undefined && (
+        <div style={{ color: CHART_THEME.tooltipLabel, marginBottom: 4, fontWeight: 600 }}>
+          {label}
+        </div>
+      )}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${columns}, max-content)`,
+          columnGap: 16,
+          rowGap: 2,
+        }}
+      >
+        {sorted.map((entry, index) => (
+          <div
+            key={`${entry.name ?? index}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+          >
+            <span
+              style={{
+                display: 'inline-block',
+                width: 8,
+                height: 8,
+                borderRadius: 9999,
+                background: entry.color,
+                flexShrink: 0,
+              }}
+            />
+            <span>{entry.name}</span>
+            <span style={{ marginLeft: 16, color: CHART_THEME.tooltipLabel }}>{entry.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export type SeriesRankMode = 'total' | 'recent';
+
+// Per-title ranking key. The data is cumulative per title, so `total` is the
+// final (latest) cumulative value — not the sum of daily snapshots, which would
+// over-weight titles that plateaued high early. `recentDay` is the latest epoch
+// day the value increased, i.e. its last day of real activity — used to keep
+// the most recently watched titles.
+function rankTitles(raw: PerAnimeDataPoint[]): Map<string, { total: number; recentDay: number }> {
+  const pointsByTitle = new Map<string, PerAnimeDataPoint[]>();
   for (const entry of raw) {
-    totalByAnime.set(entry.animeTitle, (totalByAnime.get(entry.animeTitle) ?? 0) + entry.value);
+    const list = pointsByTitle.get(entry.animeTitle) ?? [];
+    list.push(entry);
+    pointsByTitle.set(entry.animeTitle, list);
   }
 
-  const sorted = [...totalByAnime.entries()].sort((a, b) => b[1] - a[1]);
-  const topTitles = sorted.slice(0, 7).map(([title]) => title);
-  const topSet = new Set(topTitles);
+  const stats = new Map<string, { total: number; recentDay: number }>();
+  for (const [title, points] of pointsByTitle) {
+    const sorted = [...points].sort((a, b) => a.epochDay - b.epochDay);
+    let previous = 0;
+    let recentDay = Number.NEGATIVE_INFINITY;
+    for (const point of sorted) {
+      if (point.value > previous) {
+        recentDay = point.epochDay;
+      }
+      previous = point.value;
+    }
+    const total = sorted.length > 0 ? sorted[sorted.length - 1]!.value : 0;
+    stats.set(title, { total, recentDay });
+  }
+  return stats;
+}
+
+export function buildLineData(
+  raw: PerAnimeDataPoint[],
+  maxSeries?: number | null,
+  mode: SeriesRankMode = 'total',
+) {
+  const stats = rankTitles(raw);
+
+  let seriesKeys = [...stats.entries()]
+    .sort((a, b) => {
+      if (mode === 'recent') {
+        return (
+          b[1].recentDay - a[1].recentDay || b[1].total - a[1].total || a[0].localeCompare(b[0])
+        );
+      }
+      return b[1].total - a[1].total || a[0].localeCompare(b[0]);
+    })
+    .map(([title]) => title);
+  if (typeof maxSeries === 'number' && maxSeries > 0) {
+    seriesKeys = seriesKeys.slice(0, maxSeries);
+  }
+  const seriesSet = new Set(seriesKeys);
 
   const byDay = new Map<number, Record<string, number>>();
   for (const entry of raw) {
-    if (!topSet.has(entry.animeTitle)) continue;
+    if (!seriesSet.has(entry.animeTitle)) continue;
     const row = byDay.get(entry.epochDay) ?? {};
     row[entry.animeTitle] = (row[entry.animeTitle] ?? 0) + Math.round(entry.value * 10) / 10;
     byDay.set(entry.epochDay, row);
@@ -60,17 +190,23 @@ function buildLineData(raw: PerAnimeDataPoint[]) {
           day: 'numeric',
         }),
       };
-      for (const title of topTitles) {
+      for (const title of seriesKeys) {
         row[title] = values[title] ?? 0;
       }
       return row;
     });
 
-  return { points, seriesKeys: topTitles };
+  return { points, seriesKeys };
 }
 
-export function StackedTrendChart({ title, data, colorPalette }: StackedTrendChartProps) {
-  const { points, seriesKeys } = buildLineData(data);
+export function StackedTrendChart({
+  title,
+  data,
+  colorPalette,
+  maxSeries,
+  maxSeriesMode,
+}: StackedTrendChartProps) {
+  const { points, seriesKeys } = buildLineData(data, maxSeries, maxSeriesMode);
   const colors = colorPalette ?? DEFAULT_LINE_COLORS;
 
   if (points.length === 0) {
@@ -100,7 +236,11 @@ export function StackedTrendChart({ title, data, colorPalette }: StackedTrendCha
             tickLine={false}
             width={32}
           />
-          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
+          <Tooltip
+            content={<StackedTooltip />}
+            wrapperStyle={{ zIndex: 50 }}
+            allowEscapeViewBox={{ x: false, y: true }}
+          />
           {seriesKeys.map((key, i) => (
             <Area
               key={key}
@@ -115,18 +255,18 @@ export function StackedTrendChart({ title, data, colorPalette }: StackedTrendCha
           ))}
         </AreaChart>
       </ResponsiveContainer>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 overflow-hidden max-h-10">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
         {seriesKeys.map((key, i) => (
           <span
             key={key}
-            className="flex items-center gap-1 text-[10px] text-ctp-subtext0 max-w-[140px]"
+            className="flex items-center gap-1 text-[10px] text-ctp-subtext0 whitespace-nowrap"
             title={key}
           >
             <span
               className="inline-block w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: colors[i % colors.length] }}
             />
-            <span className="truncate">{key}</span>
+            <span>{key}</span>
           </span>
         ))}
       </div>

@@ -167,7 +167,10 @@ test('getTrendsDashboard requests the chart-ready trends endpoint with range and
 
   try {
     await apiClient.getTrendsDashboard('90d', 'month');
-    assert.equal(seenUrl, `${BASE_URL}/api/stats/trends/dashboard?range=90d&groupBy=month`);
+    assert.equal(
+      seenUrl,
+      `${BASE_URL}/api/stats/trends/dashboard?range=90d&groupBy=month&fillEmpty=true`,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -208,8 +211,11 @@ test('getTrendsDashboard accepts 365d range and builds correct URL', async () =>
   }) as typeof globalThis.fetch;
 
   try {
-    await apiClient.getTrendsDashboard('365d', 'day');
-    assert.equal(seenUrl, `${BASE_URL}/api/stats/trends/dashboard?range=365d&groupBy=day`);
+    await apiClient.getTrendsDashboard('365d', 'day', false);
+    assert.equal(
+      seenUrl,
+      `${BASE_URL}/api/stats/trends/dashboard?range=365d&groupBy=day&fillEmpty=false`,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

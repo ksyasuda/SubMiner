@@ -81,6 +81,12 @@ function parseTrendGroupBy(raw: string | undefined): 'day' | 'month' {
   return raw === 'month' ? 'month' : 'day';
 }
 
+// Defaults to true (zero-fill empty calendar buckets); only an explicit
+// "false" opts into the compact, data-only view.
+function parseTrendFillEmpty(raw: string | undefined): boolean {
+  return raw !== 'false';
+}
+
 function parseEventTypesQuery(raw: string | undefined): number[] | undefined {
   if (!raw) return undefined;
   const parsed = raw
@@ -685,7 +691,8 @@ export function createStatsApp(
   app.get('/api/stats/trends/dashboard', async (c) => {
     const range = parseTrendRange(c.req.query('range'));
     const groupBy = parseTrendGroupBy(c.req.query('groupBy'));
-    return c.json(await tracker.getTrendsDashboard(range, groupBy));
+    const fillEmpty = parseTrendFillEmpty(c.req.query('fillEmpty'));
+    return c.json(await tracker.getTrendsDashboard(range, groupBy, fillEmpty));
   });
 
   app.get('/api/stats/sessions', async (c) => {
