@@ -121,9 +121,11 @@ function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
 
 export type SeriesRankMode = 'total' | 'recent';
 
-// Per-title ranking key. `total` sums the values; `recentDay` is the latest
-// epoch day the title's (cumulative) value increased, i.e. its last day of
-// real activity — used to keep the most recently watched titles.
+// Per-title ranking key. The data is cumulative per title, so `total` is the
+// final (latest) cumulative value — not the sum of daily snapshots, which would
+// over-weight titles that plateaued high early. `recentDay` is the latest epoch
+// day the value increased, i.e. its last day of real activity — used to keep
+// the most recently watched titles.
 function rankTitles(raw: PerAnimeDataPoint[]): Map<string, { total: number; recentDay: number }> {
   const pointsByTitle = new Map<string, PerAnimeDataPoint[]>();
   for (const entry of raw) {
@@ -135,16 +137,15 @@ function rankTitles(raw: PerAnimeDataPoint[]): Map<string, { total: number; rece
   const stats = new Map<string, { total: number; recentDay: number }>();
   for (const [title, points] of pointsByTitle) {
     const sorted = [...points].sort((a, b) => a.epochDay - b.epochDay);
-    let total = 0;
     let previous = 0;
     let recentDay = Number.NEGATIVE_INFINITY;
     for (const point of sorted) {
-      total += point.value;
       if (point.value > previous) {
         recentDay = point.epochDay;
       }
       previous = point.value;
     }
+    const total = sorted.length > 0 ? sorted[sorted.length - 1]!.value : 0;
     stats.set(title, { total, recentDay });
   }
   return stats;

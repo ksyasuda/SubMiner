@@ -4,6 +4,7 @@ import { DateRangeSelector } from './DateRangeSelector';
 import { TrendChart } from './TrendChart';
 import { StackedTrendChart } from './StackedTrendChart';
 import {
+  MAX_TITLES_MODES,
   MAX_TITLES_OPTIONS,
   buildAnimeVisibilityOptions,
   filterHiddenAnimeData,
@@ -19,6 +20,11 @@ import {
   type MaxTitlesMode,
 } from './anime-visibility';
 import { LibrarySummarySection } from './LibrarySummarySection';
+
+const MAX_TITLES_MODE_LABELS: Record<MaxTitlesMode, string> = {
+  recent: 'most recent',
+  total: 'top',
+};
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -78,8 +84,11 @@ export function AnimeVisibilityFilter({
               value={maxTitlesMode}
               onChange={(event) => onMaxTitlesModeChange(event.target.value as MaxTitlesMode)}
             >
-              <option value="recent">most recent</option>
-              <option value="total">top</option>
+              {MAX_TITLES_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {MAX_TITLES_MODE_LABELS[mode]}
+                </option>
+              ))}
             </select>
             <select
               aria-label="Titles per chart"

@@ -73,6 +73,22 @@ test('buildLineData orders series by total value descending', () => {
   assert.deepEqual(seriesKeys, ['Big', 'Medium', 'Small']);
 });
 
+test('buildLineData total mode ranks by final cumulative value, not the sum of snapshots', () => {
+  // "Early" plateaus at 10 across four days (snapshot sum 40); "Late" reaches a
+  // larger final value of 12 in a single day. Ranking by final value keeps Late
+  // first; the old snapshot-sum ranking would have put Early first.
+  const raw: PerAnimeDataPoint[] = [
+    { epochDay: 20_000, animeTitle: 'Early', value: 10 },
+    { epochDay: 20_001, animeTitle: 'Early', value: 10 },
+    { epochDay: 20_002, animeTitle: 'Early', value: 10 },
+    { epochDay: 20_003, animeTitle: 'Early', value: 10 },
+    { epochDay: 20_003, animeTitle: 'Late', value: 12 },
+  ];
+
+  const { seriesKeys } = buildLineData(raw, undefined, 'total');
+  assert.deepEqual(seriesKeys, ['Late', 'Early']);
+});
+
 test('buildLineData recent mode keeps the most recently active titles over the largest', () => {
   // "Old Giant" has a huge cumulative total but stopped growing early; "Fresh"
   // is small but its cumulative value increased on the latest day.
