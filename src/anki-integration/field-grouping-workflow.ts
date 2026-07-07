@@ -98,6 +98,8 @@ export class FieldGroupingWorkflow {
       const originalNotesInfoResult = await this.deps.client.notesInfo([originalNoteId]);
       const originalNotesInfo = originalNotesInfoResult as FieldGroupingWorkflowNoteInfo[];
       if (!originalNotesInfo || originalNotesInfo.length === 0) {
+        // handleManual owns all user-facing notifications; callers must not re-notify on false.
+        this.deps.showOsdNotification('Field grouping failed: original card not found');
         return false;
       }
 

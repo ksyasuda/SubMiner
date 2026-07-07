@@ -156,15 +156,14 @@ export class FieldGroupingService {
           );
           return;
         }
-        const handled = await this.deps.handleFieldGroupingManual(
+        // The manual workflow owns all user-facing notifications for its outcomes (cancelled,
+        // unavailable, failed) — re-notifying on a false return here duplicated them.
+        await this.deps.handleFieldGroupingManual(
           duplicateNoteId,
           noteId,
           noteInfo,
           expressionText,
         );
-        if (!handled) {
-          this.deps.showOsdNotification('Field grouping cancelled');
-        }
       });
     } catch (error) {
       log.error('Error triggering field grouping:', (error as Error).message);
