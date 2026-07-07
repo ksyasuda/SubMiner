@@ -661,6 +661,18 @@ function isCompleteReadingForSurface(surface: string, reading: string): boolean 
   return true;
 }
 
+// Returns the token's trimmed reading only when it plausibly covers the surface
+// (see isCompleteReadingForSurface); undefined otherwise. Shared so the
+// known-word reading disambiguation and the reading fallback stay in sync if the
+// validity rule changes.
+function resolveCompleteTokenReading(token: MergedToken): string | undefined {
+  const normalizedReading = token.reading.trim();
+  if (!normalizedReading || !isCompleteReadingForSurface(token.surface, normalizedReading)) {
+    return undefined;
+  }
+  return normalizedReading;
+}
+
 // Reading to disambiguate the known-word text match, or undefined when the
 // token has no reading that describes the match text: in headword mode an
 // inflected surface's reading does not match the dictionary form's reading,
@@ -680,11 +692,7 @@ function resolveKnownWordReadingForMatch(
     }
   }
 
-  const normalizedReading = token.reading.trim();
-  if (!normalizedReading || !isCompleteReadingForSurface(token.surface, normalizedReading)) {
-    return undefined;
-  }
-  return normalizedReading;
+  return resolveCompleteTokenReading(token);
 }
 
 function computeTokenKnownStatus(
@@ -698,16 +706,12 @@ function computeTokenKnownStatus(
     return true;
   }
 
-  const normalizedReading = token.reading.trim();
-  if (!normalizedReading) {
+  const fallbackReading = resolveCompleteTokenReading(token);
+  if (!fallbackReading) {
     return false;
   }
 
-  if (!isCompleteReadingForSurface(token.surface, normalizedReading)) {
-    return false;
-  }
-
-  return normalizedReading !== matchText.trim() && isKnownWord(normalizedReading);
+  return fallbackReading !== matchText.trim() && isKnownWord(fallbackReading);
 }
 
 function filterTokenFrequencyRank(
