@@ -201,6 +201,9 @@ const onKikuFieldGroupingRequestEvent =
     IPC_CHANNELS.event.kikuFieldGroupingRequest,
     (payload) => payload as KikuFieldGroupingRequestData,
   );
+const onKikuFieldGroupingCancelEvent = createQueuedIpcListener(
+  IPC_CHANNELS.event.kikuFieldGroupingCancel,
+);
 const onSubtitleSetEvent = createLatestValueIpcListenerWithPayload<SubtitleData>(
   IPC_CHANNELS.event.subtitleSet,
   (payload) => payload as SubtitleData,
@@ -396,6 +399,7 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.runSubsyncManual, request),
 
   onKikuFieldGroupingRequest: onKikuFieldGroupingRequestEvent,
+  onKikuFieldGroupingCancel: onKikuFieldGroupingCancelEvent,
   kikuBuildMergePreview: (request: KikuMergePreviewRequest): Promise<KikuMergePreviewResponse> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.kikuBuildMergePreview, request),
 

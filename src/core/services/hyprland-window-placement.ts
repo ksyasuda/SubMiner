@@ -272,6 +272,21 @@ export function hasHyprlandWindowPlacementBoundsMismatch(options: {
   }
 }
 
+/**
+ * Placement outcome for a single reconcile attempt.
+ * - `applicable`: false when not running under Hyprland (nothing to retry).
+ * - `clientFound`: whether a mapped Hyprland client matched. On Wayland the window maps
+ *   asynchronously after `show()`, so early attempts can miss it — callers retry while this
+ *   is false so the modal actually gets promoted above fullscreen mpv instead of staying
+ *   invisible.
+ * - `dispatched`: whether any hyprctl dispatch was issued.
+ */
+export interface HyprlandPlacementStatus {
+  applicable: boolean;
+  clientFound: boolean;
+  dispatched: boolean;
+}
+
 export function ensureHyprlandWindowFloatingByTitle(options: {
   title: string;
   bounds?: HyprlandPlacementBounds | null;
@@ -281,8 +296,20 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
   promote?: boolean;
   execFileSync?: ExecFileSync;
 }): boolean {
+  return ensureHyprlandWindowFloatingByTitleWithStatus(options).dispatched;
+}
+
+export function ensureHyprlandWindowFloatingByTitleWithStatus(options: {
+  title: string;
+  bounds?: HyprlandPlacementBounds | null;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  pid?: number;
+  promote?: boolean;
+  execFileSync?: ExecFileSync;
+}): HyprlandPlacementStatus {
   if (!shouldAttemptHyprlandWindowPlacement(options.platform, options.env)) {
-    return false;
+    return { applicable: false, clientFound: false, dispatched: false };
   }
 
   const run = options.execFileSync ?? execFileSync;
@@ -293,7 +320,7 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
       title: options.title,
     });
     if (!client) {
-      return false;
+      return { applicable: true, clientFound: false, dispatched: false };
     }
 
     const configProvider = detectHyprlandConfigProvider(run);
@@ -329,9 +356,9 @@ export function ensureHyprlandWindowFloatingByTitle(options: {
         // Best-effort reconciliation: the initial placement dispatches already ran.
       }
     }
-    return dispatches.length > 0;
+    return { applicable: true, clientFound: true, dispatched: dispatches.length > 0 };
   } catch {
-    return false;
+    return { applicable: true, clientFound: false, dispatched: false };
   }
 }
 

@@ -926,3 +926,156 @@ test('waitForModalOpen resolves false on timeout', async () => {
 
   assert.equal(await runtime.waitForModalOpen('youtube-track-picker', 5), false);
 });
+
+test('modal placement reconcile retries until the Hyprland client is mapped', () => {
+  const window = createMockWindow();
+  const timers: Array<() => void> = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((cb: () => void) => {
+    timers.push(cb);
+    return { unref() {} };
+  }) as unknown as typeof globalThis.setTimeout;
+
+  const statuses: Array<{ applicable: boolean; clientFound: boolean }> = [];
+  try {
+    const runtime = createOverlayModalRuntimeService({
+      getMainWindow: () => null,
+      getModalWindow: () => window as never,
+      createModalWindow: () => window as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {
+        // The compositor never maps the window, so every reconcile reports pending.
+        const status = { applicable: true, clientFound: false, dispatched: false };
+        statuses.push(status);
+        return status;
+      },
+    });
+
+    runtime.sendToActiveOverlayWindow(
+      'kiku:field-grouping-open',
+      { test: true },
+      { restoreOnModalClose: 'kiku', preferModalWindow: true },
+    );
+    runtime.notifyOverlayModalOpened('kiku');
+
+    let iterations = 0;
+    while (timers.length > 0 && iterations < 50) {
+      const next = timers.shift();
+      next?.();
+      iterations += 1;
+    }
+
+    // The reconcile ladder re-asserts placement across all six delays while the client
+    // stays unmapped, instead of the old single post-show attempt.
+    assert.ok(
+      statuses.length >= 6,
+      `expected at least 6 pending reconcile attempts, saw ${statuses.length}`,
+    );
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
+test('modal placement reconcile stops retrying once the client is mapped', () => {
+  const window = createMockWindow();
+  const timers: Array<() => void> = [];
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((cb: () => void) => {
+    timers.push(cb);
+    return { unref() {} };
+  }) as unknown as typeof globalThis.setTimeout;
+
+  let reconcileCount = 0;
+  try {
+    const runtime = createOverlayModalRuntimeService({
+      getMainWindow: () => null,
+      getModalWindow: () => window as never,
+      createModalWindow: () => window as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {
+        reconcileCount += 1;
+        // Client is already mapped, so placement is settled on the first attempt.
+        return { applicable: true, clientFound: true, dispatched: true };
+      },
+    });
+
+    runtime.sendToActiveOverlayWindow(
+      'kiku:field-grouping-open',
+      { test: true },
+      { restoreOnModalClose: 'kiku', preferModalWindow: true },
+    );
+    runtime.notifyOverlayModalOpened('kiku');
+
+    let iterations = 0;
+    while (timers.length > 0 && iterations < 50) {
+      const next = timers.shift();
+      next?.();
+      iterations += 1;
+    }
+
+    // No 6-deep ladder: a settled placement should not keep rescheduling.
+    assert.ok(
+      reconcileCount < 6,
+      `expected the ladder to stop early, saw ${reconcileCount} reconcile attempts`,
+    );
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
+test('modal placement reconcile cancels stale retry ladder after a newer visible modal interaction', () => {
+  const window = createMockWindow();
+  type TimerEntry = { active: boolean; callback: () => void };
+  const timers: TimerEntry[] = [];
+  const activeTimerCount = () => timers.filter((timer) => timer.active).length;
+  const runNextActiveTimer = () => {
+    const timer = timers.find((candidate) => candidate.active);
+    if (!timer) return;
+    timer.active = false;
+    timer.callback();
+  };
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = ((cb: () => void) => {
+    const timer = { active: true, callback: cb, unref() {} };
+    timers.push(timer);
+    return timer;
+  }) as unknown as typeof globalThis.setTimeout;
+  globalThis.clearTimeout = ((timeout: TimerEntry | undefined) => {
+    if (timeout) {
+      timeout.active = false;
+    }
+  }) as unknown as typeof globalThis.clearTimeout;
+
+  try {
+    const runtime = createOverlayModalRuntimeService({
+      getMainWindow: () => null,
+      getModalWindow: () => window as never,
+      createModalWindow: () => window as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => ({ applicable: true, clientFound: false, dispatched: false }),
+    });
+
+    runtime.sendToActiveOverlayWindow(
+      'kiku:field-grouping-open',
+      { test: true },
+      { restoreOnModalClose: 'kiku', preferModalWindow: true },
+    );
+    runtime.notifyOverlayModalOpened('kiku');
+    assert.equal(activeTimerCount(), 1);
+
+    runtime.sendToActiveOverlayWindow(
+      'kiku:field-grouping-open',
+      { test: true },
+      { restoreOnModalClose: 'kiku', preferModalWindow: true },
+    );
+    assert.equal(activeTimerCount(), 2);
+
+    runNextActiveTimer();
+
+    assert.equal(activeTimerCount(), 1, 'stale retry should not schedule a continuation');
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});

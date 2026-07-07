@@ -28,6 +28,15 @@ export function createBuildFieldGroupingOverlayMainDepsHandler<TModal extends st
     getResolver: () => deps.getResolver(),
     setResolver: (resolver) => deps.setResolver(resolver),
     getRestoreVisibleOverlayOnModalClose: () => deps.getRestoreVisibleOverlayOnModalClose(),
+    // These are optional on the runtime options, so a missing forward compiles silently — but
+    // dropping them left the field grouping modal with no modal-open ack/retry, no teardown on
+    // failure, and no warn logging, which is why the earlier recovery fixes never took effect.
+    waitForModalOpen: deps.waitForModalOpen,
+    handleOverlayModalClosed: deps.handleOverlayModalClosed,
+    logWarn: deps.logWarn,
+    ensureOverlayStartupPrereqs: deps.ensureOverlayStartupPrereqs,
+    ensureOverlayWindowsReadyForVisibilityActions:
+      deps.ensureOverlayWindowsReadyForVisibilityActions,
     sendToVisibleOverlay: (
       channel: string,
       payload?: unknown,

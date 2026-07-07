@@ -65,12 +65,14 @@ export function createFieldGroupingCallbackRuntime<T extends string>(options: {
     runtimeOptions?: { restoreOnModalClose?: T; preferModalWindow?: boolean },
   ) => boolean;
   sendKikuFieldGroupingRequest?: (data: KikuFieldGroupingRequestData) => Promise<boolean>;
+  dismissModalUi?: () => void;
 }): (data: KikuFieldGroupingRequestData) => Promise<KikuFieldGroupingChoice> {
   return createFieldGroupingCallback({
     getVisibleOverlayVisible: options.getVisibleOverlayVisible,
     setVisibleOverlayVisible: options.setVisibleOverlayVisible,
     getResolver: options.getResolver,
     setResolver: options.setResolver,
+    dismissModalUi: options.dismissModalUi,
     sendRequestToVisibleOverlay: (data) =>
       options.sendKikuFieldGroupingRequest
         ? options.sendKikuFieldGroupingRequest(data)

@@ -471,6 +471,7 @@ export interface ElectronAPI {
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => void;
+  onKikuFieldGroupingCancel: (callback: () => void) => void;
   kikuBuildMergePreview: (request: KikuMergePreviewRequest) => Promise<KikuMergePreviewResponse>;
   kikuFieldGroupingRespond: (choice: KikuFieldGroupingChoice) => void;
   getRuntimeOptions: () => Promise<RuntimeOptionState[]>;

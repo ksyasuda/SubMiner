@@ -26,8 +26,9 @@ test('overlay modal runtime main deps builder maps window resolvers', () => {
     getModalWindow: () => modalWindow as never,
     createModalWindow: () => modalWindow as never,
     getModalGeometry: () => ({ x: 1, y: 2, width: 3, height: 4 }),
-    setModalWindowBounds: (geometry) =>
-      calls.push(`modal-bounds:${geometry.x},${geometry.y},${geometry.width},${geometry.height}`),
+    setModalWindowBounds: (geometry) => {
+      calls.push(`modal-bounds:${geometry.x},${geometry.y},${geometry.width},${geometry.height}`);
+    },
   })();
 
   assert.equal(deps.getMainWindow(), mainWindow);

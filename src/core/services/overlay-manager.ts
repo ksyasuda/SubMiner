@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import { RuntimeOptionState, WindowGeometry } from '../../types';
 import { updateOverlayWindowBounds } from './overlay-window';
+import type { HyprlandPlacementStatus } from './hyprland-window-placement';
 
 export interface OverlayManager {
   getMainWindow: () => BrowserWindow | null;
@@ -9,7 +10,7 @@ export interface OverlayManager {
   setModalWindow: (window: BrowserWindow | null) => void;
   getOverlayWindow: () => BrowserWindow | null;
   setOverlayWindowBounds: (geometry: WindowGeometry) => void;
-  setModalWindowBounds: (geometry: WindowGeometry) => void;
+  setModalWindowBounds: (geometry: WindowGeometry) => HyprlandPlacementStatus;
   getVisibleOverlayVisible: () => boolean;
   setVisibleOverlayVisible: (visible: boolean) => void;
   getOverlayWindows: () => BrowserWindow[];
@@ -29,9 +30,12 @@ export function createOverlayManager(options: OverlayManagerOptions = {}): Overl
   let visibleOverlayVisible = false;
   const applyOverlayBounds = options.updateOverlayWindowBounds ?? updateOverlayWindowBounds;
 
-  const updateWindowBounds = (geometry: WindowGeometry, window: BrowserWindow | null): void => {
+  const updateWindowBounds = (
+    geometry: WindowGeometry,
+    window: BrowserWindow | null,
+  ): HyprlandPlacementStatus => {
     const promote = window ? (options.shouldPromoteWindowOnBoundsUpdate?.(window) ?? true) : true;
-    applyOverlayBounds(geometry, window, { promote });
+    return applyOverlayBounds(geometry, window, { promote });
   };
 
   return {
@@ -47,9 +51,7 @@ export function createOverlayManager(options: OverlayManagerOptions = {}): Overl
     setOverlayWindowBounds: (geometry) => {
       updateWindowBounds(geometry, mainWindow);
     },
-    setModalWindowBounds: (geometry) => {
-      updateWindowBounds(geometry, modalWindow);
-    },
+    setModalWindowBounds: (geometry) => updateWindowBounds(geometry, modalWindow),
     getVisibleOverlayVisible: () => visibleOverlayVisible,
     setVisibleOverlayVisible: (visible) => {
       visibleOverlayVisible = visible;

@@ -1,4 +1,5 @@
 import { KikuFieldGroupingChoice, KikuFieldGroupingRequestData } from '../../types';
+import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import { createFieldGroupingCallbackRuntime, sendToVisibleOverlayRuntime } from './overlay-bridge';
 
 interface WindowLike {
@@ -22,6 +23,15 @@ export interface FieldGroupingOverlayRuntimeOptions<T extends string> {
   waitForModalOpen?: (modal: T, timeoutMs: number) => Promise<boolean>;
   handleOverlayModalClosed?: (modal: T) => void;
   logWarn?: (message: string) => void;
+  /**
+   * Prepare the overlay runtime and (re)create the visible overlay window before opening the
+   * modal — the same prerequisites every other modal runs via `openOverlayHostedModal`. Without
+   * them the field grouping modal can open with no sibling overlay window present, and on
+   * Hyprland it then fails to sit above / take focus over fullscreen mpv the way the other
+   * modals do.
+   */
+  ensureOverlayStartupPrereqs?: () => void;
+  ensureOverlayWindowsReadyForVisibilityActions?: () => void;
   sendToVisibleOverlay?: (
     channel: string,
     payload?: unknown,
@@ -69,11 +79,16 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     data: KikuFieldGroupingRequestData,
   ): Promise<boolean> => {
     const kikuModal = 'kiku' as T;
-    const sendOpen = (): boolean =>
-      sendToVisibleOverlay('kiku:field-grouping-request', data, {
+    const sendOpen = (): boolean => {
+      // Match every other modal's open path (openOverlayHostedModal): ensure the overlay runtime
+      // and visible overlay window exist before handing off to the dedicated modal window.
+      options.ensureOverlayStartupPrereqs?.();
+      options.ensureOverlayWindowsReadyForVisibilityActions?.();
+      return sendToVisibleOverlay('kiku:field-grouping-request', data, {
         restoreOnModalClose: kikuModal,
         preferModalWindow: true,
       });
+    };
 
     if (!options.waitForModalOpen) {
       return sendOpen();
@@ -102,6 +117,20 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
     return opened;
   };
 
+  const dismissModalUi = (): void => {
+    const kikuModal = 'kiku' as T;
+    // Best-effort: tell the renderer hosting the modal to close its dialog. When the modal
+    // lives in the dedicated modal window this is redundant with the teardown below, but it
+    // also covers the case where the request was routed into the visible overlay.
+    sendToVisibleOverlay(IPC_CHANNELS.event.kikuFieldGroupingCancel, undefined, {
+      preferModalWindow: true,
+    });
+    // Reliable teardown of main-side modal state (restore set, main-overlay passthrough,
+    // dedicated modal window). This is what recovers the frozen overlay when a grouping
+    // request times out or fails to reach a visible modal.
+    options.handleOverlayModalClosed?.(kikuModal);
+  };
+
   const createFieldGroupingCallback = (): ((
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>) => {
@@ -112,6 +141,7 @@ export function createFieldGroupingOverlayRuntime<T extends string>(
       setResolver: options.setResolver,
       sendToVisibleOverlay,
       sendKikuFieldGroupingRequest,
+      dismissModalUi,
     });
   };
 

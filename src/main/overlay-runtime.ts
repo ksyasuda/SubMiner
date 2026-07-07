@@ -1,10 +1,14 @@
 import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
+import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-window-flags';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
-const MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAY_MS = 50;
+// The dedicated modal window maps asynchronously on Wayland; a single reconcile can fire
+// before the compositor has a client to place, leaving the modal buried under fullscreen mpv.
+// Re-assert placement across this ladder until the Hyprland client is found (or attempts run out).
+const MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAYS_MS = [50, 120, 250, 500, 900, 1400];
 
 function requestOverlayApplicationFocus(): void {
   try {
@@ -31,7 +35,7 @@ export interface OverlayWindowResolver {
   getModalWindow: () => BrowserWindow | null;
   createModalWindow: () => BrowserWindow | null;
   getModalGeometry: () => WindowGeometry;
-  setModalWindowBounds: (geometry: WindowGeometry) => void;
+  setModalWindowBounds: (geometry: WindowGeometry) => HyprlandPlacementStatus | void;
 }
 
 export interface OverlayModalRuntime {
@@ -73,6 +77,7 @@ export function createOverlayModalRuntimeService(
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
+  const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
   const clearRevealFallback = (timeout: RevealFallbackHandle): void =>
@@ -145,21 +150,47 @@ export function createOverlayModalRuntimeService(
     window.moveTop();
   };
 
-  const reconcileModalWindowBounds = (window: BrowserWindow): void => {
+  const reconcileModalWindowBounds = (window: BrowserWindow): HyprlandPlacementStatus | void => {
     const modalWindow = deps.getModalWindow();
     if (!modalWindow || modalWindow !== window || window.isDestroyed()) {
       return;
     }
-    deps.setModalWindowBounds(deps.getModalGeometry());
+    return deps.setModalWindowBounds(deps.getModalGeometry());
   };
 
-  const scheduleModalWindowBoundsReconcile = (window: BrowserWindow): void => {
+  const nextModalWindowBoundsReconcileGeneration = (window: BrowserWindow): number => {
+    const generation = (modalWindowBoundsReconcileGenerations.get(window) ?? 0) + 1;
+    modalWindowBoundsReconcileGenerations.set(window, generation);
+    return generation;
+  };
+
+  const isCurrentModalWindowBoundsReconcileGeneration = (
+    window: BrowserWindow,
+    generation: number,
+  ): boolean => modalWindowBoundsReconcileGenerations.get(window) === generation;
+
+  const scheduleModalWindowBoundsReconcile = (
+    window: BrowserWindow,
+    generation: number,
+    attempt = 0,
+  ): void => {
+    if (attempt >= MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAYS_MS.length) {
+      return;
+    }
     const timeout = setTimeout(() => {
+      if (!isCurrentModalWindowBoundsReconcileGeneration(window, generation)) {
+        return;
+      }
       if (window.isDestroyed() || !window.isVisible()) {
         return;
       }
-      reconcileModalWindowBounds(window);
-    }, MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAY_MS);
+      const status = reconcileModalWindowBounds(window);
+      // Keep retrying only while a Hyprland placement is applicable but the compositor has
+      // not mapped the window yet. Once the client is found (or we're not on Hyprland), stop.
+      if (status && status.applicable && !status.clientFound) {
+        scheduleModalWindowBoundsReconcile(window, generation, attempt + 1);
+      }
+    }, MODAL_POST_SHOW_BOUNDS_RECONCILE_DELAYS_MS[attempt]);
     timeout.unref?.();
   };
 
@@ -206,8 +237,9 @@ export function createOverlayModalRuntimeService(
     if (!window.webContents.isFocused()) {
       window.webContents.focus();
     }
+    const reconcileGeneration = nextModalWindowBoundsReconcileGeneration(window);
     reconcileModalWindowBounds(window);
-    scheduleModalWindowBoundsReconcile(window);
+    scheduleModalWindowBoundsReconcile(window, reconcileGeneration);
   };
 
   const ensureModalWindowInteractive = (window: BrowserWindow): void => {
@@ -219,8 +251,9 @@ export function createOverlayModalRuntimeService(
     if (window.isVisible()) {
       window.focus();
       window.webContents.focus();
+      const reconcileGeneration = nextModalWindowBoundsReconcileGeneration(window);
       reconcileModalWindowBounds(window);
-      scheduleModalWindowBoundsReconcile(window);
+      scheduleModalWindowBoundsReconcile(window, reconcileGeneration);
       return;
     }
 

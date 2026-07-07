@@ -9,7 +9,11 @@ import {
   handleOverlayWindowBlurred,
   type OverlayWindowKind,
 } from './overlay-window-input';
-import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement';
+import {
+  ensureHyprlandWindowFloatingByTitle,
+  ensureHyprlandWindowFloatingByTitleWithStatus,
+  type HyprlandPlacementStatus,
+} from './hyprland-window-placement';
 import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
@@ -54,8 +58,10 @@ export function updateOverlayWindowBounds(
   options: {
     promote?: boolean;
   } = {},
-): void {
-  if (!geometry || !window || window.isDestroyed()) return;
+): HyprlandPlacementStatus {
+  if (!geometry || !window || window.isDestroyed()) {
+    return { applicable: false, clientFound: false, dispatched: false };
+  }
   const bounds = normalizeOverlayWindowBoundsForPlatform(
     geometry,
     process.platform,
@@ -63,7 +69,7 @@ export function updateOverlayWindowBounds(
     window,
   );
   window.setBounds(bounds);
-  ensureHyprlandWindowFloatingByTitle({
+  return ensureHyprlandWindowFloatingByTitleWithStatus({
     title: window.getTitle(),
     bounds,
     promote: options.promote,

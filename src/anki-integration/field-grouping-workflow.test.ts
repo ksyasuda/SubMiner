@@ -26,6 +26,7 @@ function createWorkflowHarness() {
   const deleted: number[][] = [];
   const addedTags: Array<{ noteIds: number[]; tags: string[] }> = [];
   const statuses: string[] = [];
+  const osdMessages: string[] = [];
   const rememberedMerges: Array<{ deletedNoteId: number; keptNoteId: number }> = [];
   const mergeCalls: Array<{
     keepNoteId: number;
@@ -112,7 +113,9 @@ function createWorkflowHarness() {
       statuses.push(message);
     },
     showNotification: async () => undefined,
-    showOsdNotification: () => undefined,
+    showOsdNotification: (message: string) => {
+      osdMessages.push(message);
+    },
     logError: () => undefined,
     logInfo: () => undefined,
     truncateSentence: (value: string) => value,
@@ -125,6 +128,7 @@ function createWorkflowHarness() {
     addedTags,
     rememberedMerges,
     statuses,
+    osdMessages,
     mergeCalls,
     setManualChoice: (choice: typeof manualChoice) => {
       manualChoice = choice;
@@ -189,6 +193,50 @@ test('FieldGroupingWorkflow manual mode returns false when callback unavailable'
 
   assert.equal(handled, false);
   assert.equal(harness.updates.length, 0);
+});
+
+test('FieldGroupingWorkflow manual cancel notifies exactly once', async () => {
+  const harness = createWorkflowHarness();
+  harness.setManualChoice({
+    keepNoteId: 0,
+    deleteNoteId: 0,
+    deleteDuplicate: true,
+    cancelled: true,
+  });
+
+  const handled = await harness.workflow.handleManual(1, 2, {
+    noteId: 2,
+    fields: {
+      Expression: { value: 'word-2' },
+      Sentence: { value: 'line-2' },
+    },
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(harness.osdMessages, ['Field grouping cancelled']);
+  assert.equal(harness.updates.length, 0);
+});
+
+test('FieldGroupingWorkflow manual mode notifies when the original card cannot be loaded', async () => {
+  const harness = createWorkflowHarness();
+  harness.setManualChoice({
+    keepNoteId: 1,
+    deleteNoteId: 2,
+    deleteDuplicate: true,
+    cancelled: false,
+  });
+  harness.deps.client.notesInfo = async () => [];
+
+  const handled = await harness.workflow.handleManual(1, 2, {
+    noteId: 2,
+    fields: {
+      Expression: { value: 'word-2' },
+      Sentence: { value: 'line-2' },
+    },
+  });
+
+  assert.equal(handled, false);
+  assert.deepEqual(harness.osdMessages, ['Field grouping failed: original card not found']);
 });
 
 test('FieldGroupingWorkflow manual keep-new uses new note as merge target and old note as source', async () => {

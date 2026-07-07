@@ -302,7 +302,7 @@ test('triggerFieldGroupingForLastAddedCard refreshes the card when configured fi
   assert.deepEqual(harness.manualCalls, []);
 });
 
-test('triggerFieldGroupingForLastAddedCard shows a cancellation message when manual grouping is declined', async () => {
+test('triggerFieldGroupingForLastAddedCard does not re-notify when manual grouping is declined', async () => {
   const harness = createHarness({
     kikuFieldGrouping: 'manual',
     noteIds: [9],
@@ -339,7 +339,9 @@ test('triggerFieldGroupingForLastAddedCard shows a cancellation message when man
       expression: 'word-9',
     },
   ]);
-  assert.equal(harness.calls.at(-1), 'osd:Field grouping cancelled');
+  // The manual workflow already notifies about its outcome (cancelled/unavailable/failed);
+  // the trigger wrapper re-notifying produced two "Field grouping cancelled" toasts.
+  assert.equal(harness.calls.filter((call) => call === 'osd:Field grouping cancelled').length, 0);
 });
 
 test('buildFieldGroupingPreview returns merged compact and full previews', async () => {

@@ -2324,6 +2324,9 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
     handleOverlayModalClosed: (modal) => overlayModalRuntime.handleOverlayModalClosed(modal),
     logWarn: (message) => logger.warn(message),
+    ensureOverlayStartupPrereqs: () => ensureOverlayStartupPrereqs(),
+    ensureOverlayWindowsReadyForVisibilityActions: () =>
+      ensureOverlayWindowsReadyForVisibilityActions(),
     sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
       overlayModalRuntime.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
   })(),
