@@ -65,10 +65,35 @@ function makeTestEnv(homeDir: string, xdgConfigHome: string): NodeJS.ProcessEnv 
     APPDATA: xdgConfigHome,
     LOCALAPPDATA: path.join(homeDir, 'AppData', 'Local'),
     XDG_CONFIG_HOME: xdgConfigHome,
+    // Pin the data dir under the temp home so the Linux runtime-plugin preflight
+    // resolves managed asset paths deterministically (not the CI runner's).
+    XDG_DATA_HOME: path.join(homeDir, '.local', 'share'),
     PATH: pathValue,
     Path: pathValue,
   };
 }
+
+// On Linux the playback path runs `ensureLinuxRuntimePluginAvailable`, which —
+// when the runtime plugin/theme are missing — spawns the app with
+// `--ensure-linux-runtime-plugin-assets` and polls up to 30s
+// (RESPONSE_TIMEOUT_MS) for an install response. A fake app that just exits
+// never writes that response, so the launcher hangs and the test times out on
+// Linux CI (the preflight is a no-op on macOS/Windows). This shell prelude makes
+// the fake app install the managed plugin/theme and write the response, matching
+// launcher/smoke.e2e.test.ts. Prepend it to each fake app that reaches playback.
+const RUNTIME_PLUGIN_PREFLIGHT_SH = `if [ "$1" = "--ensure-linux-runtime-plugin-assets" ]; then
+  data="\${XDG_DATA_HOME:-$HOME/.local/share}/SubMiner"
+  mkdir -p "$data/plugin/subminer" "$data/themes"
+  printf -- '-- test plugin\\n' > "$data/plugin/subminer/main.lua"
+  printf 'test=true\\n' > "$data/plugin/subminer.conf"
+  printf '/* test theme */\\n' > "$data/themes/subminer.rasi"
+  if [ "$2" = "--ensure-linux-runtime-plugin-assets-response-path" ] && [ -n "$3" ]; then
+    mkdir -p "$(dirname "$3")"
+    printf '{"ok":true,"status":"installed","path":"%s"}' "$data/plugin/subminer/main.lua" > "$3"
+  fi
+  exit 0
+fi
+`;
 
 test('config path uses XDG_CONFIG_HOME override', () => {
   withTempDir((root) => {
@@ -237,7 +262,7 @@ test('doctor refresh-known-words forwards app refresh command without requiring 
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -264,7 +289,7 @@ test('launcher settings option forwards app settings window command', () => {
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -288,7 +313,7 @@ test('launcher settings command forwards app settings window command', () => {
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -369,7 +394,7 @@ test('launcher forwards --args to mpv as parsed tokens', { timeout: 15000 }, () 
         },
       }),
     );
-    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
+    fs.writeFileSync(appPath, `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}exit 0\n`);
     fs.chmodSync(appPath, 0o755);
 
     fs.writeFileSync(
@@ -460,7 +485,7 @@ test('launcher forwards non-info log level into mpv logging args', { timeout: 15
         },
       }),
     );
-    fs.writeFileSync(appPath, '#!/bin/sh\nexit 0\n');
+    fs.writeFileSync(appPath, `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}exit 0\n`);
     fs.chmodSync(appPath, 0o755);
 
     fs.writeFileSync(
@@ -539,7 +564,7 @@ test('launcher routes youtube urls through regular playback startup', { timeout:
     );
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -597,7 +622,7 @@ test('dictionary command forwards --dictionary and --dictionary-target to app co
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -626,7 +651,7 @@ test('dictionary command forwards manual AniList selection modes to app command 
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -763,7 +788,7 @@ test('jellyfin discovery routes to app --background and remote announce with log
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -790,7 +815,7 @@ test('jellyfin discovery via jf alias forwards remote announce for cast visibili
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -817,7 +842,7 @@ test('jellyfin login routes credentials to app command', () => {
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
@@ -856,7 +881,7 @@ test('jellyfin setup forwards password-store to app command', () => {
     const capturePath = path.join(root, 'captured-args.txt');
     fs.writeFileSync(
       appPath,
-      '#!/bin/sh\nif [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n',
+      `#!/bin/sh\n${RUNTIME_PLUGIN_PREFLIGHT_SH}if [ -n "$SUBMINER_TEST_CAPTURE" ]; then printf "%s\\n" "$@" > "$SUBMINER_TEST_CAPTURE"; fi\nexit 0\n`,
     );
     fs.chmodSync(appPath, 0o755);
 
