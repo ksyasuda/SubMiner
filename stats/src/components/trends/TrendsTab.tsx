@@ -10,10 +10,12 @@ import {
   loadHiddenTitles,
   loadMaxTitles,
   loadMaxTitlesMode,
+  loadShowEmptyDays,
   pruneHiddenAnime,
   saveHiddenTitles,
   saveMaxTitles,
   saveMaxTitlesMode,
+  saveShowEmptyDays,
   type MaxTitlesMode,
 } from './anime-visibility';
 import { LibrarySummarySection } from './LibrarySummarySection';
@@ -140,7 +142,7 @@ export function AnimeVisibilityFilter({
 export function TrendsTab() {
   const [range, setRange] = useState<TimeRange>('30d');
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
-  const [showEmptyDays, setShowEmptyDays] = useState(true);
+  const [showEmptyDays, setShowEmptyDays] = useState(() => loadShowEmptyDays());
   const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => loadHiddenTitles());
   const [maxTitles, setMaxTitles] = useState<number | null>(() => loadMaxTitles());
   const [maxTitlesMode, setMaxTitlesMode] = useState<MaxTitlesMode>(() => loadMaxTitlesMode());
@@ -157,6 +159,10 @@ export function TrendsTab() {
   const updateMaxTitlesMode = (mode: MaxTitlesMode) => {
     setMaxTitlesMode(mode);
     saveMaxTitlesMode(mode);
+  };
+  const updateShowEmptyDays = (show: boolean) => {
+    setShowEmptyDays(show);
+    saveShowEmptyDays(show);
   };
   const cardsMinedColor = 'var(--color-ctp-cards-mined)';
   const cardsMinedStackedColors = [
@@ -207,7 +213,7 @@ export function TrendsTab() {
         fillEmpty={showEmptyDays}
         onRangeChange={setRange}
         onGroupByChange={setGroupBy}
-        onFillEmptyChange={setShowEmptyDays}
+        onFillEmptyChange={updateShowEmptyDays}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <SectionHeader>Activity (per {groupBy === 'month' ? 'month' : 'day'})</SectionHeader>

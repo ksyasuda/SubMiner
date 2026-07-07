@@ -3,6 +3,7 @@ import type { PerAnimeDataPoint } from './StackedTrendChart';
 const HIDDEN_TITLES_KEY = 'subminer-stats-trends-hidden-titles';
 const MAX_TITLES_KEY = 'subminer-stats-trends-max-titles';
 const MAX_TITLES_MODE_KEY = 'subminer-stats-trends-max-titles-mode';
+const SHOW_EMPTY_DAYS_KEY = 'subminer-stats-trends-show-empty-days';
 
 export const MAX_TITLES_OPTIONS = [3, 5, 7, 10] as const;
 
@@ -12,8 +13,8 @@ export const MAX_TITLES_OPTIONS = [3, 5, 7, 10] as const;
 export type MaxTitlesMode = 'total' | 'recent';
 export const MAX_TITLES_MODES: readonly MaxTitlesMode[] = ['recent', 'total'];
 
-// First-run defaults: show the 10 most recently active titles per chart.
-const DEFAULT_MAX_TITLES = 10;
+// First-run defaults: show the 7 most recently active titles per chart.
+const DEFAULT_MAX_TITLES = 7;
 const DEFAULT_MAX_TITLES_MODE: MaxTitlesMode = 'recent';
 const ALL_TITLES_STORED_VALUE = 'all';
 
@@ -80,6 +81,24 @@ export function loadMaxTitlesMode(): MaxTitlesMode {
 export function saveMaxTitlesMode(mode: MaxTitlesMode): void {
   try {
     getStorage()?.setItem(MAX_TITLES_MODE_KEY, mode);
+  } catch {
+    // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
+  }
+}
+
+// Whether trend charts zero-fill empty calendar buckets. Defaults to true so a
+// first run shows the calendar-accurate view.
+export function loadShowEmptyDays(): boolean {
+  try {
+    return getStorage()?.getItem(SHOW_EMPTY_DAYS_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+export function saveShowEmptyDays(show: boolean): void {
+  try {
+    getStorage()?.setItem(SHOW_EMPTY_DAYS_KEY, show ? 'true' : 'false');
   } catch {
     // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
   }

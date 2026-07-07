@@ -8,10 +8,12 @@ import {
   loadHiddenTitles,
   loadMaxTitles,
   loadMaxTitlesMode,
+  loadShowEmptyDays,
   pruneHiddenAnime,
   saveHiddenTitles,
   saveMaxTitles,
   saveMaxTitlesMode,
+  saveShowEmptyDays,
 } from './anime-visibility';
 
 function installLocalStorage(initial: Record<string, string> = {}) {
@@ -96,11 +98,11 @@ test('loadHiddenTitles tolerates missing or malformed stored values', () => {
   }
 });
 
-test('max titles preference defaults to 10 and round-trips including explicit All', () => {
+test('max titles preference defaults to 7 and round-trips including explicit All', () => {
   const { values, restore } = installLocalStorage();
   try {
-    // First run (nothing stored) defaults to the 10-title cap, not "All".
-    assert.equal(loadMaxTitles(), 10);
+    // First run (nothing stored) defaults to the 7-title cap, not "All".
+    assert.equal(loadMaxTitles(), 7);
     saveMaxTitles(5);
     assert.equal(loadMaxTitles(), 5);
     // "All" persists explicitly instead of collapsing back to the default.
@@ -116,7 +118,7 @@ test('loadMaxTitles falls back to the default for unsupported stored values', ()
   for (const storedValue of ['8', '0', 'banana']) {
     const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': storedValue });
     try {
-      assert.equal(loadMaxTitles(), 10);
+      assert.equal(loadMaxTitles(), 7);
     } finally {
       restore();
     }
@@ -140,6 +142,19 @@ test('loadMaxTitlesMode falls back to recent for unknown stored values', () => {
   const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles-mode': 'sideways' });
   try {
     assert.equal(loadMaxTitlesMode(), 'recent');
+  } finally {
+    restore();
+  }
+});
+
+test('show empty days preference defaults to true and round-trips', () => {
+  const { restore } = installLocalStorage();
+  try {
+    assert.equal(loadShowEmptyDays(), true);
+    saveShowEmptyDays(false);
+    assert.equal(loadShowEmptyDays(), false);
+    saveShowEmptyDays(true);
+    assert.equal(loadShowEmptyDays(), true);
   } finally {
     restore();
   }
