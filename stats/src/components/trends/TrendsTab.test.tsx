@@ -9,10 +9,12 @@ test('AnimeVisibilityFilter uses title visibility wording', () => {
       animeTitles={['KonoSuba']}
       hiddenAnime={new Set()}
       maxTitles={null}
+      maxTitlesMode="total"
       onShowAll={() => {}}
       onHideAll={() => {}}
       onToggleAnime={() => {}}
       onMaxTitlesChange={() => {}}
+      onMaxTitlesModeChange={() => {}}
     />,
   );
 
@@ -26,16 +28,55 @@ test('AnimeVisibilityFilter offers a per-chart title limit selector', () => {
       animeTitles={['KonoSuba']}
       hiddenAnime={new Set()}
       maxTitles={7}
+      maxTitlesMode="total"
       onShowAll={() => {}}
       onHideAll={() => {}}
       onToggleAnime={() => {}}
       onMaxTitlesChange={() => {}}
+      onMaxTitlesModeChange={() => {}}
     />,
   );
 
   assert.match(markup, /per chart/);
   assert.match(markup, /<option value="all">All<\/option>/);
   assert.match(markup, /<option value="7" selected="">/);
+});
+
+test('AnimeVisibilityFilter offers top vs most-recent ranking modes', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeVisibilityFilter
+      animeTitles={['KonoSuba']}
+      hiddenAnime={new Set()}
+      maxTitles={7}
+      maxTitlesMode="recent"
+      onShowAll={() => {}}
+      onHideAll={() => {}}
+      onToggleAnime={() => {}}
+      onMaxTitlesChange={() => {}}
+      onMaxTitlesModeChange={() => {}}
+    />,
+  );
+
+  assert.match(markup, /<option value="total">top<\/option>/);
+  assert.match(markup, /<option value="recent" selected="">most recent<\/option>/);
+});
+
+test('AnimeVisibilityFilter disables the ranking mode when showing all titles', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeVisibilityFilter
+      animeTitles={['KonoSuba']}
+      hiddenAnime={new Set()}
+      maxTitles={null}
+      maxTitlesMode="total"
+      onShowAll={() => {}}
+      onHideAll={() => {}}
+      onToggleAnime={() => {}}
+      onMaxTitlesChange={() => {}}
+      onMaxTitlesModeChange={() => {}}
+    />,
+  );
+
+  assert.match(markup, /aria-label="Title ranking mode"[^>]*disabled/);
 });
 
 test('TrendsTab source labels words per minute without reading speed wording', async () => {

@@ -9,9 +9,12 @@ import {
   filterHiddenAnimeData,
   loadHiddenTitles,
   loadMaxTitles,
+  loadMaxTitlesMode,
   pruneHiddenAnime,
   saveHiddenTitles,
   saveMaxTitles,
+  saveMaxTitlesMode,
+  type MaxTitlesMode,
 } from './anime-visibility';
 import { LibrarySummarySection } from './LibrarySummarySection';
 
@@ -30,20 +33,24 @@ interface AnimeVisibilityFilterProps {
   animeTitles: string[];
   hiddenAnime: ReadonlySet<string>;
   maxTitles: number | null;
+  maxTitlesMode: MaxTitlesMode;
   onShowAll: () => void;
   onHideAll: () => void;
   onToggleAnime: (title: string) => void;
   onMaxTitlesChange: (value: number | null) => void;
+  onMaxTitlesModeChange: (mode: MaxTitlesMode) => void;
 }
 
 export function AnimeVisibilityFilter({
   animeTitles,
   hiddenAnime,
   maxTitles,
+  maxTitlesMode,
   onShowAll,
   onHideAll,
   onToggleAnime,
   onMaxTitlesChange,
+  onMaxTitlesModeChange,
 }: AnimeVisibilityFilterProps) {
   if (animeTitles.length === 0) {
     return null;
@@ -62,8 +69,19 @@ export function AnimeVisibilityFilter({
         </div>
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1 text-[11px] text-ctp-subtext0">
-            Top
+            Show
             <select
+              aria-label="Title ranking mode"
+              className="rounded-md border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue disabled:opacity-40"
+              value={maxTitlesMode}
+              disabled={maxTitles === null}
+              onChange={(event) => onMaxTitlesModeChange(event.target.value as MaxTitlesMode)}
+            >
+              <option value="total">top</option>
+              <option value="recent">most recent</option>
+            </select>
+            <select
+              aria-label="Titles per chart"
               className="rounded-md border border-ctp-surface2 bg-ctp-surface0 px-1.5 py-1 text-[11px] font-medium text-ctp-text transition hover:border-ctp-blue"
               value={maxTitles === null ? 'all' : String(maxTitles)}
               onChange={(event) =>
@@ -125,6 +143,7 @@ export function TrendsTab() {
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [hiddenAnime, setHiddenAnime] = useState<Set<string>>(() => loadHiddenTitles());
   const [maxTitles, setMaxTitles] = useState<number | null>(() => loadMaxTitles());
+  const [maxTitlesMode, setMaxTitlesMode] = useState<MaxTitlesMode>(() => loadMaxTitlesMode());
   const { data, loading, error } = useTrends(range, groupBy);
 
   const updateHiddenAnime = (next: Set<string>) => {
@@ -134,6 +153,10 @@ export function TrendsTab() {
   const updateMaxTitles = (value: number | null) => {
     setMaxTitles(value);
     saveMaxTitles(value);
+  };
+  const updateMaxTitlesMode = (mode: MaxTitlesMode) => {
+    setMaxTitlesMode(mode);
+    saveMaxTitlesMode(mode);
   };
   const cardsMinedColor = 'var(--color-ctp-cards-mined)';
   const cardsMinedStackedColors = [
@@ -284,6 +307,7 @@ export function TrendsTab() {
           animeTitles={animeTitles}
           hiddenAnime={activeHiddenAnime}
           maxTitles={maxTitles}
+          maxTitlesMode={maxTitlesMode}
           onShowAll={() => updateHiddenAnime(new Set())}
           onHideAll={() => updateHiddenAnime(new Set(animeTitles))}
           onToggleAnime={(title) => {
@@ -296,27 +320,32 @@ export function TrendsTab() {
             updateHiddenAnime(next);
           }}
           onMaxTitlesChange={updateMaxTitles}
+          onMaxTitlesModeChange={updateMaxTitlesMode}
         />
         <StackedTrendChart
           title="Watch Time Progress (min)"
           data={filteredWatchTimeProgress}
           maxSeries={maxTitles}
+          maxSeriesMode={maxTitlesMode}
         />
         <StackedTrendChart
           title="Episodes Progress"
           data={filteredAnimeProgress}
           maxSeries={maxTitles}
+          maxSeriesMode={maxTitlesMode}
         />
         <StackedTrendChart
           title="Cards Mined Progress"
           data={filteredCardsProgress}
           colorPalette={cardsMinedStackedColors}
           maxSeries={maxTitles}
+          maxSeriesMode={maxTitlesMode}
         />
         <StackedTrendChart
           title="Words Seen Progress"
           data={filteredWordsProgress}
           maxSeries={maxTitles}
+          maxSeriesMode={maxTitlesMode}
         />
 
         <SectionHeader>Library — Summary</SectionHeader>

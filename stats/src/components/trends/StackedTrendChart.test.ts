@@ -53,3 +53,35 @@ test('buildLineData orders series by total value descending', () => {
 
   assert.deepEqual(seriesKeys, ['Big', 'Medium', 'Small']);
 });
+
+test('buildLineData recent mode keeps the most recently active titles over the largest', () => {
+  // "Old Giant" has a huge cumulative total but stopped growing early; "Fresh"
+  // is small but its cumulative value increased on the latest day.
+  const raw: PerAnimeDataPoint[] = [
+    { epochDay: 20_000, animeTitle: 'Old Giant', value: 500 },
+    { epochDay: 20_001, animeTitle: 'Old Giant', value: 500 },
+    { epochDay: 20_002, animeTitle: 'Old Giant', value: 500 },
+    { epochDay: 20_000, animeTitle: 'Fresh', value: 1 },
+    { epochDay: 20_001, animeTitle: 'Fresh', value: 2 },
+    { epochDay: 20_002, animeTitle: 'Fresh', value: 5 },
+  ];
+
+  const total = buildLineData(raw, 1, 'total');
+  assert.deepEqual(total.seriesKeys, ['Old Giant']);
+
+  const recent = buildLineData(raw, 1, 'recent');
+  assert.deepEqual(recent.seriesKeys, ['Fresh']);
+});
+
+test('buildLineData recent mode breaks ties by total then name', () => {
+  // Both titles last increased on day 20_002; the larger total wins the tie.
+  const raw: PerAnimeDataPoint[] = [
+    { epochDay: 20_001, animeTitle: 'A', value: 2 },
+    { epochDay: 20_002, animeTitle: 'A', value: 4 },
+    { epochDay: 20_001, animeTitle: 'B', value: 3 },
+    { epochDay: 20_002, animeTitle: 'B', value: 9 },
+  ];
+
+  const { seriesKeys } = buildLineData(raw, 1, 'recent');
+  assert.deepEqual(seriesKeys, ['B']);
+});

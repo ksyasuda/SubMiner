@@ -21,6 +21,7 @@ interface StackedTrendChartProps {
   data: PerAnimeDataPoint[];
   colorPalette?: string[];
   maxSeries?: number | null;
+  maxSeriesMode?: SeriesRankMode;
 }
 
 const DEFAULT_LINE_COLORS = [
@@ -116,14 +117,53 @@ function StackedTooltip({ active, label, payload }: StackedTooltipProps) {
   );
 }
 
-export function buildLineData(raw: PerAnimeDataPoint[], maxSeries?: number | null) {
-  const totalByAnime = new Map<string, number>();
+export type SeriesRankMode = 'total' | 'recent';
+
+// Per-title ranking key. `total` sums the values; `recentDay` is the latest
+// epoch day the title's (cumulative) value increased, i.e. its last day of
+// real activity — used to keep the most recently watched titles.
+function rankTitles(raw: PerAnimeDataPoint[]): Map<string, { total: number; recentDay: number }> {
+  const pointsByTitle = new Map<string, PerAnimeDataPoint[]>();
   for (const entry of raw) {
-    totalByAnime.set(entry.animeTitle, (totalByAnime.get(entry.animeTitle) ?? 0) + entry.value);
+    const list = pointsByTitle.get(entry.animeTitle) ?? [];
+    list.push(entry);
+    pointsByTitle.set(entry.animeTitle, list);
   }
 
-  let seriesKeys = [...totalByAnime.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  const stats = new Map<string, { total: number; recentDay: number }>();
+  for (const [title, points] of pointsByTitle) {
+    const sorted = [...points].sort((a, b) => a.epochDay - b.epochDay);
+    let total = 0;
+    let previous = 0;
+    let recentDay = Number.NEGATIVE_INFINITY;
+    for (const point of sorted) {
+      total += point.value;
+      if (point.value > previous) {
+        recentDay = point.epochDay;
+      }
+      previous = point.value;
+    }
+    stats.set(title, { total, recentDay });
+  }
+  return stats;
+}
+
+export function buildLineData(
+  raw: PerAnimeDataPoint[],
+  maxSeries?: number | null,
+  mode: SeriesRankMode = 'total',
+) {
+  const stats = rankTitles(raw);
+
+  let seriesKeys = [...stats.entries()]
+    .sort((a, b) => {
+      if (mode === 'recent') {
+        return (
+          b[1].recentDay - a[1].recentDay || b[1].total - a[1].total || a[0].localeCompare(b[0])
+        );
+      }
+      return b[1].total - a[1].total || a[0].localeCompare(b[0]);
+    })
     .map(([title]) => title);
   if (typeof maxSeries === 'number' && maxSeries > 0) {
     seriesKeys = seriesKeys.slice(0, maxSeries);
@@ -161,8 +201,9 @@ export function StackedTrendChart({
   data,
   colorPalette,
   maxSeries,
+  maxSeriesMode,
 }: StackedTrendChartProps) {
-  const { points, seriesKeys } = buildLineData(data, maxSeries);
+  const { points, seriesKeys } = buildLineData(data, maxSeries, maxSeriesMode);
   const colors = colorPalette ?? DEFAULT_LINE_COLORS;
 
   if (points.length === 0) {

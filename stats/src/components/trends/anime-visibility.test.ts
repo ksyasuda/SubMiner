@@ -7,9 +7,11 @@ import {
   filterHiddenAnimeData,
   loadHiddenTitles,
   loadMaxTitles,
+  loadMaxTitlesMode,
   pruneHiddenAnime,
   saveHiddenTitles,
   saveMaxTitles,
+  saveMaxTitlesMode,
 } from './anime-visibility';
 
 function installLocalStorage(initial: Record<string, string> = {}) {
@@ -124,5 +126,27 @@ test('loadMaxTitles rejects non-positive or non-numeric stored values', () => {
     } finally {
       restore();
     }
+  }
+});
+
+test('max titles mode round-trips and defaults to total', () => {
+  const { restore } = installLocalStorage();
+  try {
+    assert.equal(loadMaxTitlesMode(), 'total');
+    saveMaxTitlesMode('recent');
+    assert.equal(loadMaxTitlesMode(), 'recent');
+    saveMaxTitlesMode('total');
+    assert.equal(loadMaxTitlesMode(), 'total');
+  } finally {
+    restore();
+  }
+});
+
+test('loadMaxTitlesMode falls back to total for unknown stored values', () => {
+  const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles-mode': 'sideways' });
+  try {
+    assert.equal(loadMaxTitlesMode(), 'total');
+  } finally {
+    restore();
   }
 });

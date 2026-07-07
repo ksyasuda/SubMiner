@@ -2,8 +2,14 @@ import type { PerAnimeDataPoint } from './StackedTrendChart';
 
 const HIDDEN_TITLES_KEY = 'subminer-stats-trends-hidden-titles';
 const MAX_TITLES_KEY = 'subminer-stats-trends-max-titles';
+const MAX_TITLES_MODE_KEY = 'subminer-stats-trends-max-titles-mode';
 
 export const MAX_TITLES_OPTIONS = [3, 5, 7, 10] as const;
+
+// How the per-chart limit picks which titles survive: 'total' keeps the
+// highest cumulative totals, 'recent' keeps the most recently active titles.
+export type MaxTitlesMode = 'total' | 'recent';
+export const MAX_TITLES_MODES: readonly MaxTitlesMode[] = ['total', 'recent'];
 
 function getStorage(): Storage | null {
   try {
@@ -52,6 +58,23 @@ export function saveMaxTitles(value: number | null): void {
     } else {
       storage.setItem(MAX_TITLES_KEY, String(value));
     }
+  } catch {
+    // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
+  }
+}
+
+export function loadMaxTitlesMode(): MaxTitlesMode {
+  try {
+    const raw = getStorage()?.getItem(MAX_TITLES_MODE_KEY);
+    return raw === 'recent' ? 'recent' : 'total';
+  } catch {
+    return 'total';
+  }
+}
+
+export function saveMaxTitlesMode(mode: MaxTitlesMode): void {
+  try {
+    getStorage()?.setItem(MAX_TITLES_MODE_KEY, mode);
   } catch {
     // Storage can be blocked in private/restricted contexts; keep the in-memory choice.
   }
