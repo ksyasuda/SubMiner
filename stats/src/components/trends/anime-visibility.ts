@@ -12,8 +12,8 @@ export const MAX_TITLES_OPTIONS = [3, 5, 7, 10] as const;
 export type MaxTitlesMode = 'total' | 'recent';
 export const MAX_TITLES_MODES: readonly MaxTitlesMode[] = ['recent', 'total'];
 
-// First-run defaults: show the 7 most recently active titles per chart.
-const DEFAULT_MAX_TITLES = 7;
+// First-run defaults: show the 10 most recently active titles per chart.
+const DEFAULT_MAX_TITLES = 10;
 const DEFAULT_MAX_TITLES_MODE: MaxTitlesMode = 'recent';
 const ALL_TITLES_STORED_VALUE = 'all';
 

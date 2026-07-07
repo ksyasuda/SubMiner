@@ -96,11 +96,11 @@ test('loadHiddenTitles tolerates missing or malformed stored values', () => {
   }
 });
 
-test('max titles preference defaults to 7 and round-trips including explicit All', () => {
+test('max titles preference defaults to 10 and round-trips including explicit All', () => {
   const { values, restore } = installLocalStorage();
   try {
-    // First run (nothing stored) defaults to the 7-title cap, not "All".
-    assert.equal(loadMaxTitles(), 7);
+    // First run (nothing stored) defaults to the 10-title cap, not "All".
+    assert.equal(loadMaxTitles(), 10);
     saveMaxTitles(5);
     assert.equal(loadMaxTitles(), 5);
     // "All" persists explicitly instead of collapsing back to the default.
@@ -116,7 +116,7 @@ test('loadMaxTitles falls back to the default for unsupported stored values', ()
   for (const storedValue of ['8', '0', 'banana']) {
     const { restore } = installLocalStorage({ 'subminer-stats-trends-max-titles': storedValue });
     try {
-      assert.equal(loadMaxTitles(), 7);
+      assert.equal(loadMaxTitles(), 10);
     } finally {
       restore();
     }
