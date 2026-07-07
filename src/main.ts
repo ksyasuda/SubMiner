@@ -37,6 +37,7 @@ import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
 import { startAppControlServer } from './main/runtime/app-control-server';
+import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import {
   markJellyfinRemotePlaybackLoaded as markJellyfinRemotePlaybackLoadedState,
   shouldAutoLoadSecondarySubTrackForJellyfinPlayback,
@@ -4069,6 +4070,14 @@ const statsStartupRuntime = {
     }
   },
 } as const;
+const ensureBackgroundStatsServer = createEnsureBackgroundStatsServerHandler({
+  isStatsAutoStartEnabled: () => getResolvedConfig().stats.autoStartServer,
+  isImmersionTrackingEnabled: () => getResolvedConfig().immersionTracking?.enabled !== false,
+  ensureBackgroundStatsServerStarted: () =>
+    statsStartupRuntime.ensureBackgroundStatsServerStarted(),
+  logInfo: (message) => logger.info(message),
+  logWarn: (message, error) => logger.warn(message, error),
+});
 
 const runStatsCliCommand = createRunStatsCliCommandHandler({
   getResolvedConfig: () => getResolvedConfig(),
@@ -5965,6 +5974,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
       );
     },
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
+    ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => openConfigSettingsWindow(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),

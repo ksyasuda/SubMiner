@@ -374,6 +374,46 @@ test('handleCliCommand processes --start for second-instance when overlay runtim
   );
 });
 
+test('handleCliCommand ensures background stats server for initial --start --background', () => {
+  const ensured: number[] = [];
+  const { deps } = createDeps({
+    ensureBackgroundStatsServer: () => {
+      ensured.push(1);
+    },
+  });
+
+  handleCliCommand(makeArgs({ start: true, background: true }), 'initial', deps);
+
+  assert.equal(ensured.length, 1);
+});
+
+test('handleCliCommand ensures background stats server for second-instance --start --background', () => {
+  const ensured: number[] = [];
+  const { deps } = createDeps({
+    isOverlayRuntimeInitialized: () => true,
+    ensureBackgroundStatsServer: () => {
+      ensured.push(1);
+    },
+  });
+
+  handleCliCommand(makeArgs({ start: true, background: true }), 'second-instance', deps);
+
+  assert.equal(ensured.length, 1);
+});
+
+test('handleCliCommand does not ensure background stats server for foreground --start', () => {
+  const ensured: number[] = [];
+  const { deps } = createDeps({
+    ensureBackgroundStatsServer: () => {
+      ensured.push(1);
+    },
+  });
+
+  handleCliCommand(makeArgs({ start: true }), 'initial', deps);
+
+  assert.equal(ensured.length, 0);
+});
+
 test('handleCliCommand forces setup open for second-instance setup command', () => {
   const { deps, calls } = createDeps();
 

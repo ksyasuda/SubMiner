@@ -45,6 +45,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
   runUpdateCommand: CliCommandContextFactoryDeps['runUpdateCommand'];
   runEnsureLinuxRuntimePluginAssetsCommand: CliCommandContextFactoryDeps['runEnsureLinuxRuntimePluginAssetsCommand'];
   runYoutubePlaybackFlow: CliCommandContextFactoryDeps['runYoutubePlaybackFlow'];
+  ensureBackgroundStatsServer?: CliCommandContextFactoryDeps['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   cycleSecondarySubMode: () => void;
@@ -103,6 +104,7 @@ export function createBuildCliCommandContextDepsHandler(deps: {
     runUpdateCommand: deps.runUpdateCommand,
     runEnsureLinuxRuntimePluginAssetsCommand: deps.runEnsureLinuxRuntimePluginAssetsCommand,
     runYoutubePlaybackFlow: deps.runYoutubePlaybackFlow,
+    ensureBackgroundStatsServer: deps.ensureBackgroundStatsServer,
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,
