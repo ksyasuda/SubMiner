@@ -56,7 +56,7 @@ export function showFzfFlatMenu(
     `--prompt=${prompt}`,
     '--delimiter=\t',
     '--with-nth=2',
-    '--preview-window=right:50%:wrap',
+    '--preview-window=down:50%:wrap',
     '--preview',
     previewCommand,
   ];
@@ -468,7 +468,7 @@ thumb=$(get_thumb)
       '--prompt=Select Video: ',
       '--delimiter=\t',
       '--with-nth=1',
-      '--preview-window=right:50%:wrap',
+      '--preview-window=down:50%:wrap',
       '--preview',
       previewCmd,
     ],
