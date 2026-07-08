@@ -5,24 +5,28 @@
 ## Highlights
 ### Added
 - **Watch History Browser**
-  - New `subminer -H` / `--history` command to browse your local watch history, replay the last episode, jump to the next one, or pick an episode via fzf/rofi.
+  - New `subminer -H` / `--history` command lets you browse your local watch history, replay the last episode, jump to the next one, or pick an episode via fzf or rofi.
   - The rofi picker now shows AniList cover art for each show, making it easier to spot the right title at a glance.
 - **Card Audio Normalization**
-  - Audio extracted for Anki cards is now volume-normalized by default for more consistent playback loudness.
-  - If you prefer the original source volume, disable it via the new `ankiConnect.media.normalizeAudio` setting.
+  - Audio extracted for Anki cards is now volume-normalized by default, giving more consistent playback loudness across cards.
+  - Prefer the original source volume? Disable it via the new `ankiConnect.media.normalizeAudio` setting.
 
 ### Changed
 - **New App Icon**
-  - SubMiner now ships pixel-art submarine artwork, contributed by an anonymous community member.
+  - SubMiner now ships pixel-art submarine artwork contributed by an anonymous community member.
   - Applied across the app icon, tray icon, notifications, README, docs site, and stats page.
+- **Launcher Preview Layout**
+  - fzf previews in the launcher now sit below the menu instead of beside it, giving long titles and metadata more horizontal room.
 
 ### Fixed
 - **Character Name Highlighting in Subtitles**
   - Fixed unspaced Japanese names (e.g. 東紫乃, 渡辺真奈美) being split at the wrong point, which left surnames like 東 and 渡辺 without their character portrait or hover lookup.
-  - Fixed names getting cut off or losing their highlight when caught by the subtitle scanner's punctuation handling or by conflicting grammar tagging.
+  - Fixed names getting cut off or losing their highlight when caught by the subtitle scanner's punctuation handling, or stripped entirely when grammar tagging misclassified the name token.
   - No action needed — existing data upgrades automatically the next time a matching name is seen.
 - **Known-Word Highlighting**
   - Words are no longer marked "known" (green) just because they share spelling with a known Anki card that actually teaches a different reading (e.g. 床 read as とこ no longer falsely matches a known 床/ゆか card).
+  - Single-kana grammar tokens (particles like よ, え) no longer borrow an unrelated card's reading and get falsely painted as known.
+  - Stats sessions now correctly reflect known-word counts again after the reading-aware matching upgrade, instead of showing 0 everywhere.
 - **Unparsed Subtitle Text**
   - Subtitle text the dictionary can't recognize (like a truncated verb form) is now still hoverable for lookup and correctly counted toward a sentence's difficulty, instead of showing as dead, non-interactive text.
 - **Kiku Manual Field Grouping**
@@ -36,6 +40,9 @@
   - Launching SubMiner in the background now correctly auto-starts the stats server when enabled, and won't start a duplicate if one's already running.
 - **Stats Trend Charts**
   - All trend chart titles now show by default, with the ability to hide specific titles (remembered across sessions) and cap how many top titles a chart displays.
+- **Stats Cover Art**
+  - Cover art now loads as soon as a series starts playing instead of waiting for your first visit to its detail page, so the stats timeline shows artwork right away.
+  - Existing series missing art are backfilled automatically the next time you open the stats page.
 
 ## What's Changed
 
@@ -50,6 +57,9 @@
 - fix(stats): start stats server on background app launch by @ksyasuda in #144
 - fix(tokenizer): keep unparsed Yomitan tokens hoverable by @ksyasuda in #145
 - fix(overlay): resolve unspaced Japanese name splits and scan recovery by @ksyasuda in #146
+- fix(tokenizer): prevent grammar tokens from borrowing known-word highlight via unrelated readings by @ksyasuda in #147
+- fix(stats): fetch cover art eagerly at session start instead of on series page visit by @ksyasuda in #148
+- fix(stats): parse v3 reading-aware known-word cache in stats server by @ksyasuda in #149
 
 ## Installation
 
