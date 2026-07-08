@@ -3,6 +3,7 @@ import { normalizePos1ExclusionList } from './token-pos1-exclusions';
 
 export const DEFAULT_ANNOTATION_POS2_EXCLUSION_DEFAULTS = Object.freeze([
   '非自立',
+  '接尾',
 ]) as readonly string[];
 
 export const DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG: ResolvedTokenPos2ExclusionConfig = {

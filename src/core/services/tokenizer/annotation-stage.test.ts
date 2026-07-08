@@ -1722,6 +1722,36 @@ test('annotateTokens keeps known status while clearing other annotations for sta
   }
 });
 
+test('annotateTokens excludes standalone noun-suffix tokens from annotations while keeping cache-backed known status', () => {
+  const tokens = [
+    makeToken({
+      surface: 'さん',
+      headword: 'さん',
+      reading: 'サン',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞',
+      pos2: '接尾',
+      startPos: 0,
+      endPos: 2,
+      frequencyRank: 33,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === 'さん',
+      getJlptLevel: (text) => (text === 'さん' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, true);
+  assert.equal(result[0]?.isNPlusOneTarget, false);
+  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.jlptLevel, undefined);
+});
+
 test('annotateTokens keeps known status while clearing other annotations for auxiliary-only te-kureru helper spans', () => {
   const tokens = [
     makeToken({
