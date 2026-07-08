@@ -790,13 +790,14 @@ export function annotateTokens(
         pos2Exclusions,
       })
     ) {
-      // The stripped token loses its known-word highlight along with the
-      // other annotations; the N+1 pass still sees the real known status via
-      // nPlusOneKnownStatuses.
-      return sharedStripSubtitleAnnotationMetadata(token, {
+      const strippedToken = sharedStripSubtitleAnnotationMetadata(token, {
         pos1Exclusions,
         pos2Exclusions,
       });
+      return {
+        ...strippedToken,
+        isKnown: knownWordsEnabled ? isKnownForMatching : false,
+      };
     }
 
     const frequencyRank =
