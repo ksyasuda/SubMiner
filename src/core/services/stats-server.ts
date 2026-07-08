@@ -1026,7 +1026,13 @@ export function createStatsApp(
 
     await Promise.all(
       animeIds.map(async (animeId) => {
-        anime[animeId] = coverImagePayload(await tracker.getAnimeCoverArt(animeId));
+        const art = await tracker.getAnimeCoverArt(animeId);
+        if (!art?.coverBlob) {
+          // Kick off a background fetch; the frontend retries missing covers
+          // with backoff and picks up the art on a later pass.
+          void tracker.ensureAnimeCoverArt(animeId).catch(() => {});
+        }
+        anime[animeId] = coverImagePayload(art);
       }),
     );
     await Promise.all(
@@ -1041,7 +1047,11 @@ export function createStatsApp(
   app.get('/api/stats/anime/:animeId/cover', async (c) => {
     const animeId = parseIntQuery(c.req.param('animeId'), 0);
     if (animeId <= 0) return c.body(null, 404);
-    const art = await tracker.getAnimeCoverArt(animeId);
+    let art = await tracker.getAnimeCoverArt(animeId);
+    if (!art?.coverBlob) {
+      await tracker.ensureAnimeCoverArt(animeId);
+      art = await tracker.getAnimeCoverArt(animeId);
+    }
     if (!art?.coverBlob) return c.body(null, 404);
     const bytes = new Uint8Array(art.coverBlob);
     return new Response(bytes, {
