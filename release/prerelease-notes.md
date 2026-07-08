@@ -7,6 +7,9 @@
 - **Watch History Browser**
   - New `subminer -H` / `--history` command to browse your local watch history, replay the last episode, jump to the next one, or pick an episode via fzf/rofi.
   - The rofi picker now shows AniList cover art for each show, making it easier to spot the right title at a glance.
+- **Card Audio Normalization**
+  - Audio extracted for Anki cards is now volume-normalized by default for more consistent playback loudness.
+  - If you prefer the original source volume, disable it via the new `ankiConnect.media.normalizeAudio` setting.
 
 ### Changed
 - **New App Icon**
@@ -27,9 +30,6 @@
   - Fixed a duplicate "Field grouping cancelled" notification appearing when grouping was cancelled via the trigger shortcut.
 - **Secondary Subtitles**
   - Karaoke-style secondary subtitles (common in opening/ending songs) no longer spam dozens of lines down the screen; repeated lines are now collapsed and the subtitle area is capped to a strip at the top.
-- **Card Audio Normalization**
-  - Audio extracted for Anki cards is now volume-normalized by default for more consistent playback loudness.
-  - If you prefer the original source volume, disable it via the new `ankiConnect.media.normalizeAudio` setting.
 - **YouTube Extraction**
   - Fixed direct YouTube stream extraction occasionally corrupting the stream URL and causing failed audio/video capture.
 - **Background Stats Server**
