@@ -521,6 +521,44 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('GET /api/stats/sessions enriches known-word metrics from a v3 reading-aware cache', async () => {
+    await withTempDir(async (dir) => {
+      const cachePath = path.join(dir, 'known-words.json');
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          version: 3,
+          refreshedAtMs: 1,
+          scope: 'deck:test',
+          notes: {
+            '101': [{ word: 'する', reading: 'する' }],
+            '102': [{ word: '猫', reading: null }],
+          },
+        }),
+      );
+
+      const app = createStatsApp(
+        createMockTracker({
+          getSessionWordsByLine: async (sessionId: number) =>
+            sessionId === 1
+              ? [
+                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
+                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
+                ]
+              : [],
+        }),
+        { knownWordCachePath: cachePath },
+      );
+
+      const res = await app.request('/api/stats/sessions?limit=5');
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      const first = body[0];
+      assert.equal(first.knownWordsSeen, 2);
+      assert.equal(first.knownWordRate, 66.7);
+    });
+  });
+
   it('GET /api/stats/sessions/:id/events forwards event type filters to the tracker', async () => {
     let seenSessionId = 0;
     let seenLimit = 0;

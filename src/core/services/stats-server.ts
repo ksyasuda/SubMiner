@@ -261,9 +261,24 @@ function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
     const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as {
       version?: number;
       words?: string[];
+      notes?: Record<string, Array<{ word?: unknown; reading?: unknown }>>;
     };
     if ((raw.version === 1 || raw.version === 2) && Array.isArray(raw.words)) {
       return new Set(raw.words);
+    }
+    // v3 stores reading-aware entries per note; stats rows only carry
+    // headwords, so flatten to a word set (reading-agnostic, fail-open).
+    if (raw.version === 3 && raw.notes && typeof raw.notes === 'object') {
+      const words = new Set<string>();
+      for (const entries of Object.values(raw.notes)) {
+        if (!Array.isArray(entries)) continue;
+        for (const entry of entries) {
+          if (entry && typeof entry.word === 'string' && entry.word) {
+            words.add(entry.word);
+          }
+        }
+      }
+      return words;
     }
   } catch {
     /* ignore */
