@@ -734,6 +734,49 @@ test('KnownWordCacheManager disambiguates known words by note reading', async ()
   }
 });
 
+test('KnownWordCacheManager does not match single-kana text by reading alone', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1, 2];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '夜' },
+          'Word Reading': { value: 'よ' },
+        },
+      },
+      {
+        noteId: 2,
+        fields: {
+          Word: { value: 'え' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    // よ must not count as known just because 夜 is read よ.
+    assert.equal(manager.isKnownWord('よ'), false);
+    assert.equal(manager.isKnownWord('ヨ'), false);
+    assert.equal(manager.isKnownWord('夜'), true);
+    assert.equal(manager.isKnownWord('夜', 'よ'), true);
+    // A literal single-kana word entry still matches via the word map.
+    assert.equal(manager.isKnownWord('え'), true);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager probes reading fields even with per-deck word fields configured', async () => {
   const config: AnkiConnectConfig = {
     fields: {

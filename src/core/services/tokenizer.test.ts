@@ -132,7 +132,7 @@ test('tokenizeSubtitle splits same-line grammar endings before applying annotati
   assert.equal(result.tokens?.[0]?.jlptLevel, 'N5');
   assert.equal(result.tokens?.[0]?.frequencyRank, 40);
   assert.equal(result.tokens?.[1]?.surface, 'です');
-  assert.equal(result.tokens?.[1]?.isKnown, true);
+  assert.equal(result.tokens?.[1]?.isKnown, false);
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
   assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
@@ -3436,7 +3436,7 @@ test('tokenizeSubtitle excludes default non-independent pos2 from N+1 and freque
   assert.equal(result.tokens?.[0]?.isNPlusOneTarget, false);
 });
 
-test('tokenizeSubtitle keeps known-word highlight for exact non-independent kanji noun tokens', async () => {
+test('tokenizeSubtitle clears known-word highlight for exact non-independent kanji noun tokens', async () => {
   const result = await tokenizeSubtitle(
     'その点',
     makeDepsFromYomitanTokens(
@@ -3484,7 +3484,7 @@ test('tokenizeSubtitle keeps known-word highlight for exact non-independent kanj
   assert.equal(result.tokens?.length, 2);
   assert.equal(result.tokens?.[0]?.isKnown, false);
   assert.equal(result.tokens?.[1]?.surface, '点');
-  assert.equal(result.tokens?.[1]?.isKnown, true);
+  assert.equal(result.tokens?.[1]?.isKnown, false);
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
   assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
   assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
@@ -4099,7 +4099,7 @@ test('tokenizeSubtitle clears all annotations for kana-only demonstrative helper
       {
         surface: 'これで',
         headword: 'これ',
-        isKnown: true,
+        isKnown: false,
         isNPlusOneTarget: false,
         frequencyRank: undefined,
         jlptLevel: undefined,
@@ -4214,7 +4214,7 @@ test('tokenizeSubtitle clears all annotations for explanatory pondering endings'
       {
         surface: 'のかな',
         headword: 'の',
-        isKnown: true,
+        isKnown: false,
         isNPlusOneTarget: false,
         frequencyRank: undefined,
         jlptLevel: undefined,
@@ -4801,7 +4801,7 @@ test('tokenizeSubtitle clears annotations for ja-nai explanatory endings and aru
     {
       surface: 'ある',
       headword: 'ある',
-      isKnown: true,
+      isKnown: false,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -4846,7 +4846,7 @@ test('tokenizeSubtitle clears annotations for standalone polite copula endings w
     {
       surface: 'ですよ',
       headword: 'です',
-      isKnown: true,
+      isKnown: false,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -5173,7 +5173,7 @@ test('tokenizeSubtitle clears annotations for auxiliary inflection fragments whi
     {
       surface: 'れた',
       headword: 'れる',
-      isKnown: true,
+      isKnown: false,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -5310,7 +5310,7 @@ test('tokenizeSubtitle clears annotations for te-kureru auxiliary helper spans',
     {
       surface: 'てく',
       headword: 'てく',
-      isKnown: true,
+      isKnown: false,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,
@@ -5321,7 +5321,7 @@ test('tokenizeSubtitle clears annotations for te-kureru auxiliary helper spans',
     {
       surface: 'れた',
       headword: 'れる',
-      isKnown: true,
+      isKnown: false,
       isNPlusOneTarget: false,
       frequencyRank: undefined,
       jlptLevel: undefined,

@@ -510,6 +510,7 @@ export function stripSubtitleAnnotationMetadata(
 
   const strippedToken = {
     ...token,
+    isKnown: false,
     isNPlusOneTarget: false,
     isNameMatch: false,
     jlptLevel: undefined,

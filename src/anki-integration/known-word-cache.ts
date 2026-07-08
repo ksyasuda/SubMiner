@@ -163,7 +163,14 @@ export class KnownWordCacheManager {
       );
     }
 
-    return this.readingCounts.has(convertKatakanaToHiragana(normalized));
+    // Reading-only fallback, except for single-kana text: particles and
+    // interjections (よ, ね, え…) would otherwise borrow the reading of an
+    // unrelated note (夜「よ」, 絵「え」) and count as known.
+    const hiragana = convertKatakanaToHiragana(normalized);
+    if ([...hiragana].length === 1) {
+      return false;
+    }
+    return this.readingCounts.has(hiragana);
   }
 
   refresh(force = false): Promise<void> {
