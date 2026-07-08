@@ -1051,6 +1051,38 @@ describe('stats server API routes', () => {
     assert.deepEqual(ensureAnimeCoverArtCalls, [99999]);
   });
 
+  it('POST /api/stats/covers limits concurrent missing anime cover backfills', async () => {
+    let activeBackfills = 0;
+    let maxActiveBackfills = 0;
+    const pendingBackfills: Array<() => void> = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () => null,
+        ensureAnimeCoverArt: async () => {
+          activeBackfills += 1;
+          maxActiveBackfills = Math.max(maxActiveBackfills, activeBackfills);
+          await new Promise<void>((resolve) => {
+            pendingBackfills.push(resolve);
+          });
+          activeBackfills -= 1;
+          return false;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/covers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeIds: [101, 102, 103, 104, 105] }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(maxActiveBackfills, 3);
+    for (const resolveBackfill of pendingBackfills) {
+      resolveBackfill();
+    }
+  });
+
   it('GET /api/stats/anime/:animeId/cover fetches missing art before serving', async () => {
     let fetched = false;
     const app = createStatsApp(
