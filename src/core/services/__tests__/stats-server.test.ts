@@ -301,6 +301,7 @@ function createMockTracker(
       { epochDay: Math.floor(Date.now() / 86_400_000) - 1, totalActiveMin: 30 },
       { epochDay: Math.floor(Date.now() / 86_400_000), totalActiveMin: 45 },
     ],
+    ensureAnimeCoverArt: async () => false,
     getAnimeCoverArt: async (animeId: number) =>
       animeId === 1
         ? {
@@ -994,8 +995,9 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
-  it('POST /api/stats/covers batches stored cover art without fetching missing art', async () => {
+  it('POST /api/stats/covers batches stored cover art and backfills missing anime art in the background', async () => {
     let ensureCoverArtCalls = 0;
+    const ensureAnimeCoverArtCalls: number[] = [];
     const app = createStatsApp(
       createMockTracker({
         getCoverArt: async (videoId: number) =>
@@ -1014,6 +1016,10 @@ describe('stats server API routes', () => {
         ensureCoverArt: async () => {
           ensureCoverArtCalls += 1;
           return true;
+        },
+        ensureAnimeCoverArt: async (animeId: number) => {
+          ensureAnimeCoverArtCalls.push(animeId);
+          return false;
         },
       }),
     );
@@ -1042,6 +1048,68 @@ describe('stats server API routes', () => {
       },
     });
     assert.equal(ensureCoverArtCalls, 0);
+    assert.deepEqual(ensureAnimeCoverArtCalls, [99999]);
+  });
+
+  it('POST /api/stats/covers limits concurrent missing anime cover backfills', async () => {
+    let activeBackfills = 0;
+    let maxActiveBackfills = 0;
+    const pendingBackfills: Array<() => void> = [];
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () => null,
+        ensureAnimeCoverArt: async () => {
+          activeBackfills += 1;
+          maxActiveBackfills = Math.max(maxActiveBackfills, activeBackfills);
+          await new Promise<void>((resolve) => {
+            pendingBackfills.push(resolve);
+          });
+          activeBackfills -= 1;
+          return false;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/covers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeIds: [101, 102, 103, 104, 105] }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(maxActiveBackfills, 3);
+    for (const resolveBackfill of pendingBackfills) {
+      resolveBackfill();
+    }
+  });
+
+  it('GET /api/stats/anime/:animeId/cover fetches missing art before serving', async () => {
+    let fetched = false;
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () =>
+          fetched
+            ? {
+                videoId: 1,
+                anilistId: 21858,
+                coverUrl: 'https://example.com/cover.jpg',
+                coverBlob: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+                titleRomaji: 'Little Witch Academia',
+                titleEnglish: 'Little Witch Academia',
+                episodesTotal: 25,
+                fetchedAtMs: Date.now(),
+              }
+            : null,
+        ensureAnimeCoverArt: async () => {
+          fetched = true;
+          return true;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/anime/1/cover');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/jpeg');
   });
 
   it('GET /api/stats/anime/:animeId/words returns top words for an anime', async () => {

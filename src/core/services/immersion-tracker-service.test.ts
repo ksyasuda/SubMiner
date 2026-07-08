@@ -4041,3 +4041,91 @@ test('markActiveVideoWatched returns false when no active session', async () => 
     cleanupDbPath(dbPath);
   }
 });
+
+test('handleMediaChange prefetches cover art at session start', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    const fetchedVideoIds: number[] = [];
+    tracker.setCoverArtFetcher({
+      fetchIfMissing: async (_db, videoId) => {
+        fetchedVideoIds.push(videoId);
+        return false;
+      },
+    });
+
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+    await waitForCondition(() => fetchedVideoIds.length > 0);
+
+    const privateApi = tracker as unknown as {
+      sessionState: { videoId: number } | null;
+    };
+    assert.deepEqual(fetchedVideoIds, [privateApi.sessionState?.videoId]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureAnimeCoverArt fetches art via the latest video of the anime', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (
+        anime_id,
+        normalized_title_key,
+        canonical_title,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES (
+        1,
+        'little witch academia',
+        'Little Witch Academia',
+        1000,
+        1000
+      );
+      INSERT INTO imm_videos (
+        video_id,
+        video_key,
+        canonical_title,
+        source_type,
+        duration_ms,
+        anime_id,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+      (1, 'local:/tmp/lwa-1.mkv', 'Little Witch Academia S01E01', 1, 0, 1, 1000, 1000),
+      (2, 'local:/tmp/lwa-2.mkv', 'Little Witch Academia S01E02', 1, 0, 1, 1000, 1000);
+    `);
+
+    const fetchedVideoIds: number[] = [];
+    tracker.setCoverArtFetcher({
+      fetchIfMissing: async (_db, videoId) => {
+        fetchedVideoIds.push(videoId);
+        return false;
+      },
+    });
+
+    const result = await tracker.ensureAnimeCoverArt(1);
+    assert.equal(result, false);
+    assert.deepEqual(fetchedVideoIds, [2]);
+
+    const missing = await tracker.ensureAnimeCoverArt(999);
+    assert.equal(missing, false);
+    assert.deepEqual(fetchedVideoIds, [2]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});

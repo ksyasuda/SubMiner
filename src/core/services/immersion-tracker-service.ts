@@ -854,6 +854,22 @@ export class ImmersionTrackerService {
     this.coverArtFetcher = fetcher;
   }
 
+  async ensureAnimeCoverArt(animeId: number): Promise<boolean> {
+    const existing = await this.getAnimeCoverArt(animeId);
+    if (existing?.coverBlob) {
+      return true;
+    }
+    const row = this.db
+      .prepare(
+        'SELECT video_id AS videoId FROM imm_videos WHERE anime_id = ? ORDER BY video_id DESC LIMIT 1',
+      )
+      .get(animeId) as { videoId: number } | undefined;
+    if (!row?.videoId) {
+      return false;
+    }
+    return this.ensureCoverArt(row.videoId);
+  }
+
   async ensureCoverArt(videoId: number): Promise<boolean> {
     const existing = await this.getCoverArt(videoId);
     if (existing?.coverBlob) {
@@ -879,8 +895,10 @@ export class ImmersionTrackerService {
     }
 
     const fetchPromise = (async () => {
-      const detail = getMediaDetail(this.db, videoId);
-      const canonicalTitle = detail?.canonicalTitle?.trim();
+      const titleRow = this.db
+        .prepare('SELECT canonical_title AS canonicalTitle FROM imm_videos WHERE video_id = ?')
+        .get(videoId) as { canonicalTitle: string | null } | undefined;
+      const canonicalTitle = titleRow?.canonicalTitle?.trim();
       if (!canonicalTitle) {
         return false;
       }
@@ -1341,6 +1359,9 @@ export class ImmersionTrackerService {
       this.captureYoutubeMetadataAsync(sessionInfo.videoId, normalizedPath);
     } else if (!this.hasJellyfinMetadata(sessionInfo.videoId)) {
       this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
+    }
+    if (!youtubeVideoId) {
+      this.prefetchCoverArtAsync(sessionInfo.videoId);
     }
     this.captureVideoMetadataAsync(sessionInfo.videoId, sourceType, normalizedPath);
   }
@@ -1922,6 +1943,24 @@ export class ImmersionTrackerService {
     void updatePromise.finally(() => {
       this.pendingAnimeMetadataUpdates.delete(videoId);
     });
+  }
+
+  // Fetch cover art eagerly at session start (after anime metadata parsing
+  // settles) so new series show art on the stats timeline without requiring a
+  // visit to the series detail page first.
+  private prefetchCoverArtAsync(videoId: number): void {
+    const pendingMetadata = this.pendingAnimeMetadataUpdates.get(videoId);
+    void (async () => {
+      try {
+        await pendingMetadata;
+        if (this.isDestroyed) {
+          return;
+        }
+        await this.ensureCoverArt(videoId);
+      } catch (error) {
+        this.logger.warn('Unable to prefetch cover art', (error as Error).message);
+      }
+    })();
   }
 
   private updateVideoTitleForActiveSession(canonicalTitle: string): void {
