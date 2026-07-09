@@ -729,15 +729,6 @@ test('shouldExcludeTokenFromVocabularyPersistence excludes common frequency stop
       pos3: '一般|*',
     }),
     makeToken({
-      surface: '確かに',
-      headword: '確かに',
-      reading: 'たしかに',
-      partOfSpeech: PartOfSpeech.other,
-      pos1: '名詞|助詞',
-      pos2: '形容動詞語幹|副詞化',
-      pos3: '*',
-    }),
-    makeToken({
       surface: 'あなた',
       headword: '貴方',
       reading: 'あなた',
@@ -750,6 +741,34 @@ test('shouldExcludeTokenFromVocabularyPersistence excludes common frequency stop
 
   for (const token of tokens) {
     assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), true, token.surface);
+  }
+});
+
+test('content adverbs are not excluded from annotations or vocabulary persistence', () => {
+  const tokens = [
+    makeToken({
+      surface: '確かに',
+      headword: '確かに',
+      reading: 'たしかに',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '名詞|助詞',
+      pos2: '形容動詞語幹|副詞化',
+      pos3: '*',
+    }),
+    makeToken({
+      surface: 'やはり',
+      headword: 'やはり',
+      reading: 'ヤハリ',
+      partOfSpeech: PartOfSpeech.other,
+      pos1: '副詞',
+      pos2: '一般',
+      pos3: '*',
+    }),
+  ];
+
+  for (const token of tokens) {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false, token.surface);
+    assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), false, token.surface);
   }
 });
 
