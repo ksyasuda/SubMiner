@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 export interface RemoteRunResult {
   status: number;
   stdout: string;
+  stderr: string;
 }
 
 /**
@@ -17,23 +18,43 @@ export function assertSafeSshHost(host: string): void {
 }
 
 /**
- * Run a command on the SSH host. stdin/stderr stay attached to the terminal
- * so key passphrase / password prompts and remote progress output work;
- * stdout is captured for the caller.
+ * Run a command on the SSH host. stdin stays attached so interactive prompts
+ * can still read from the terminal; stdout/stderr are captured for callers
+ * that need actionable remote failure messages.
  */
 export function runSsh(host: string, remoteCommand: string): RemoteRunResult {
   assertSafeSshHost(host);
   const result = spawnSync('ssh', [host, remoteCommand], {
     encoding: 'utf8',
-    stdio: ['inherit', 'pipe', 'inherit'],
+    stdio: ['inherit', 'pipe', 'pipe'],
   });
   if (result.error) {
     throw new Error(`Failed to run ssh: ${(result.error as Error).message}`);
   }
-  return { status: result.status ?? 1, stdout: result.stdout ?? '' };
+  return { status: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
+
+function assertSafeScpEndpoint(endpoint: string): void {
+  const colon = endpoint.indexOf(':');
+  const slash = endpoint.indexOf('/');
+  if (colon <= 0 || (slash !== -1 && slash < colon)) {
+    if (endpoint.startsWith('-')) {
+      throw new Error(`Refusing to use scp endpoint that looks like an option: ${endpoint}`);
+    }
+    return;
+  }
+
+  const host = endpoint.slice(0, colon);
+  const remotePath = endpoint.slice(colon + 1);
+  assertSafeSshHost(host);
+  if (remotePath.startsWith('-')) {
+    throw new Error(`Refusing to use scp remote path that looks like an option: ${remotePath}`);
+  }
 }
 
 export function runScp(from: string, to: string): void {
+  assertSafeScpEndpoint(from);
+  assertSafeScpEndpoint(to);
   const result = spawnSync('scp', ['-q', from, to], {
     encoding: 'utf8',
     stdio: ['inherit', 'inherit', 'inherit'],

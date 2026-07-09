@@ -5,6 +5,7 @@ import { IMMERSION_DB_FIXTURE_DDL } from './immersion-db-schema.js';
 export function createImmersionDbFixture(dbPath: string): void {
   const db = new Database(dbPath, { create: true });
   try {
+    db.run('PRAGMA foreign_keys = ON');
     db.run('PRAGMA journal_mode = WAL');
     for (const statement of IMMERSION_DB_FIXTURE_DDL.split(';')) {
       const sql = statement.trim();
@@ -14,7 +15,9 @@ export function createImmersionDbFixture(dbPath: string): void {
       SCHEMA_VERSION,
       String(Date.now()),
     );
-    db.prepare(`INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 0)`).run();
+    db.prepare(
+      `INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 0)`,
+    ).run();
     db.prepare(
       `INSERT INTO imm_lifetime_global(global_id, CREATED_DATE, LAST_UPDATE_DATE) VALUES (1, ?, ?)`,
     ).run(String(Date.now()), String(Date.now()));
@@ -53,7 +56,9 @@ export function insertFixtureSession(dbPath: string, input: FixtureSessionInput)
     let animeId: number | null = null;
     if (input.animeTitleKey) {
       const existing = db
-        .query<{ anime_id: number }>('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?')
+        .query<{
+          anime_id: number;
+        }>('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?')
         .get(input.animeTitleKey);
       animeId = existing
         ? existing.anime_id
@@ -98,7 +103,8 @@ export function insertFixtureSession(dbPath: string, input: FixtureSessionInput)
       db.prepare('UPDATE imm_videos SET watched = 1 WHERE video_id = ?').run(videoId);
     }
 
-    const endedAtMs = input.endedAtMs === undefined ? input.startedAtMs + 1_500_000 : input.endedAtMs;
+    const endedAtMs =
+      input.endedAtMs === undefined ? input.startedAtMs + 1_500_000 : input.endedAtMs;
     const activeWatchedMs = input.activeWatchedMs ?? 1_200_000;
     const cardsMined = input.cardsMined ?? 2;
     const linesSeen = input.linesSeen ?? 100;
@@ -147,7 +153,9 @@ export function insertFixtureSession(dbPath: string, input: FixtureSessionInput)
 
     for (const word of input.words ?? []) {
       const existing = db
-        .query<{ id: number }>('SELECT id FROM imm_words WHERE headword = ? AND word = ? AND reading = ?')
+        .query<{
+          id: number;
+        }>('SELECT id FROM imm_words WHERE headword = ? AND word = ? AND reading = ?')
         .get(word.headword, word.word, word.reading);
       const wordId = existing
         ? existing.id
@@ -172,13 +180,23 @@ export function insertFixtureSession(dbPath: string, input: FixtureSessionInput)
             `INSERT INTO imm_subtitle_lines (session_id, video_id, anime_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(sessionId, videoId, animeId, uniqueCounter, `line ${word.word}`, input.startedAtMs, input.startedAtMs)
-          .lastInsertRowid,
+          .run(
+            sessionId,
+            videoId,
+            animeId,
+            uniqueCounter,
+            `line ${word.word}`,
+            input.startedAtMs,
+            input.startedAtMs,
+          ).lastInsertRowid,
       );
       db.prepare(
         'INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count) VALUES (?, ?, ?)',
       ).run(lineId, wordId, word.count);
-      db.prepare('UPDATE imm_words SET frequency = frequency + ? WHERE id = ?').run(word.count, wordId);
+      db.prepare('UPDATE imm_words SET frequency = frequency + ? WHERE id = ?').run(
+        word.count,
+        wordId,
+      );
     }
 
     if (input.applyLifetime && endedAtMs !== null) {

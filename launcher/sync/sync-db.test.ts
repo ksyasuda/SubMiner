@@ -26,7 +26,11 @@ function makeDbPair(): { dir: string; localPath: string; remotePath: string } {
   return { dir, localPath, remotePath };
 }
 
-function queryOne<T extends Record<string, unknown>>(dbPath: string, sql: string, params: unknown[] = []): T | undefined {
+function queryOne<T extends Record<string, unknown>>(
+  dbPath: string,
+  sql: string,
+  params: unknown[] = [],
+): T | undefined {
   const db = new Database(dbPath, { readonly: true });
   try {
     return db.query<T>(sql).get(...params) as T | undefined;
@@ -37,6 +41,15 @@ function queryOne<T extends Record<string, unknown>>(dbPath: string, sql: string
 
 function count(dbPath: string, sql: string, params: unknown[] = []): number {
   return Number(queryOne<{ n: number }>(dbPath, sql, params)?.n ?? 0);
+}
+
+function withWritableDb<T>(dbPath: string, fn: (db: Database) => T): T {
+  const db = new Database(dbPath, { readwrite: true });
+  try {
+    return fn(db);
+  } finally {
+    db.close();
+  }
 }
 
 test('merges remote-only sessions with catalog, lifetime, and rollups', () => {
@@ -73,7 +86,13 @@ test('merges remote-only sessions with catalog, lifetime, and rollups', () => {
     assert.equal(summary.telemetryRowsAdded, 1);
 
     assert.equal(count(localPath, 'SELECT COUNT(*) AS n FROM imm_sessions'), 2);
-    const global = queryOne<{ total_sessions: number; total_active_ms: number; total_cards: number; active_days: number; episodes_started: number }>(
+    const global = queryOne<{
+      total_sessions: number;
+      total_active_ms: number;
+      total_cards: number;
+      active_days: number;
+      episodes_started: number;
+    }>(
       localPath,
       'SELECT total_sessions, total_active_ms, total_cards, active_days, episodes_started FROM imm_lifetime_global WHERE global_id = 1',
     );
@@ -98,11 +117,15 @@ test('merges remote-only sessions with catalog, lifetime, and rollups', () => {
     // The merged session's rollup group was recomputed.
     assert.equal(summary.rollupGroupsRecomputed, 1);
     const mergedVideoId = Number(
-      queryOne<{ video_id: number }>(localPath, `SELECT video_id FROM imm_videos WHERE video_key = 'showb-e1'`)
-        ?.video_id,
+      queryOne<{ video_id: number }>(
+        localPath,
+        `SELECT video_id FROM imm_videos WHERE video_key = 'showb-e1'`,
+      )?.video_id,
     );
     assert.equal(
-      count(localPath, 'SELECT COUNT(*) AS n FROM imm_daily_rollups WHERE video_id = ?', [mergedVideoId]),
+      count(localPath, 'SELECT COUNT(*) AS n FROM imm_daily_rollups WHERE video_id = ?', [
+        mergedVideoId,
+      ]),
       1,
     );
   } finally {
@@ -143,7 +166,12 @@ test('is idempotent: re-merging the same snapshot changes nothing', () => {
       { ...globalAfterFirst, LAST_UPDATE_DATE: null },
     );
     assert.equal(
-      Number(queryOne<{ frequency: number }>(localPath, `SELECT frequency FROM imm_words WHERE word = '見た'`)?.frequency),
+      Number(
+        queryOne<{ frequency: number }>(
+          localPath,
+          `SELECT frequency FROM imm_words WHERE word = '見た'`,
+        )?.frequency,
+      ),
       4,
     );
   } finally {
@@ -161,9 +189,11 @@ test('preserves anilist_id when inserting a new anime from the snapshot', () => 
       startedAtMs: BASE_MS,
       applyLifetime: true,
     });
-    const remoteDb = new Database(remotePath, { readwrite: true });
-    remoteDb.prepare(`UPDATE imm_anime SET anilist_id = 12345 WHERE normalized_title_key = 'showb'`).run();
-    remoteDb.close();
+    withWritableDb(remotePath, (remoteDb) => {
+      remoteDb
+        .prepare(`UPDATE imm_anime SET anilist_id = 12345 WHERE normalized_title_key = 'showb'`)
+        .run();
+    });
 
     const summary = mergeSnapshotIntoDb(localPath, remotePath);
     assert.equal(summary.animeAdded, 1);
@@ -194,12 +224,16 @@ test('matches an existing local anime by anilist_id even when the title key diff
       startedAtMs: BASE_MS + DAY_MS,
       applyLifetime: true,
     });
-    const localDb = new Database(localPath, { readwrite: true });
-    localDb.prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-romaji'`).run();
-    localDb.close();
-    const remoteDb = new Database(remotePath, { readwrite: true });
-    remoteDb.prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-native'`).run();
-    remoteDb.close();
+    withWritableDb(localPath, (localDb) => {
+      localDb
+        .prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-romaji'`)
+        .run();
+    });
+    withWritableDb(remotePath, (remoteDb) => {
+      remoteDb
+        .prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-native'`)
+        .run();
+    });
 
     const summary = mergeSnapshotIntoDb(localPath, remotePath);
     // Same anilist_id → one anime, not two.
@@ -241,13 +275,86 @@ test('matches shared videos by video_key and merges the watched flag', () => {
 
     // Both sessions now credit the same video; episode was started once and
     // completed once (by the remote session that watched it to the end).
-    const global = queryOne<{ episodes_started: number; episodes_completed: number; total_sessions: number }>(
+    const global = queryOne<{
+      episodes_started: number;
+      episodes_completed: number;
+      total_sessions: number;
+    }>(
       localPath,
       'SELECT episodes_started, episodes_completed, total_sessions FROM imm_lifetime_global WHERE global_id = 1',
     );
     assert.equal(global?.total_sessions, 2);
     assert.equal(global?.episodes_started, 1);
     assert.equal(global?.episodes_completed, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backfills media metadata for matched videos when local metadata is absent', () => {
+  const { dir, localPath, remotePath } = makeDbPair();
+  try {
+    insertFixtureSession(localPath, {
+      uuid: 'local-1',
+      videoKey: 'showa-e1',
+      animeTitleKey: 'showa',
+      startedAtMs: BASE_MS,
+      applyLifetime: true,
+    });
+    insertFixtureSession(remotePath, {
+      uuid: 'remote-1',
+      videoKey: 'showa-e1',
+      animeTitleKey: 'showa',
+      startedAtMs: BASE_MS + DAY_MS,
+      applyLifetime: true,
+    });
+    const remoteDb = new Database(remotePath, { readwrite: true });
+    try {
+      const remoteVideoId = Number(
+        remoteDb
+          .query<{
+            video_id: number;
+          }>(`SELECT video_id FROM imm_videos WHERE video_key = 'showa-e1'`)
+          .get()?.video_id,
+      );
+      remoteDb
+        .prepare(
+          `INSERT INTO imm_media_art (video_id, anilist_id, cover_url, title_romaji, fetched_at_ms)
+           VALUES (?, 123, 'https://example.test/cover.jpg', 'Show A', ?)`,
+        )
+        .run(remoteVideoId, String(BASE_MS));
+      remoteDb
+        .prepare(
+          `INSERT INTO imm_youtube_videos (video_id, youtube_video_id, video_url, video_title, fetched_at_ms)
+           VALUES (?, 'yt-1', 'https://youtube.test/watch?v=yt-1', 'Remote Video', ?)`,
+        )
+        .run(remoteVideoId, String(BASE_MS));
+    } finally {
+      remoteDb.close();
+    }
+
+    const summary = mergeSnapshotIntoDb(localPath, remotePath);
+    assert.equal(summary.videosAdded, 0);
+    const localVideoId = Number(
+      queryOne<{ video_id: number }>(
+        localPath,
+        `SELECT video_id FROM imm_videos WHERE video_key = 'showa-e1'`,
+      )?.video_id,
+    );
+    const art = queryOne<{ cover_url: string; title_romaji: string }>(
+      localPath,
+      'SELECT cover_url, title_romaji FROM imm_media_art WHERE video_id = ?',
+      [localVideoId],
+    );
+    assert.equal(art?.cover_url, 'https://example.test/cover.jpg');
+    assert.equal(art?.title_romaji, 'Show A');
+    const youtube = queryOne<{ youtube_video_id: string; video_title: string }>(
+      localPath,
+      'SELECT youtube_video_id, video_title FROM imm_youtube_videos WHERE video_id = ?',
+      [localVideoId],
+    );
+    assert.equal(youtube?.youtube_video_id, 'yt-1');
+    assert.equal(youtube?.video_title, 'Remote Video');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -310,18 +417,21 @@ test('copies remote-only historical rollups but never sums shared groups', () =>
       startedAtMs: BASE_MS,
       applyLifetime: true,
     });
-    const remoteDb = new Database(remotePath, { readwrite: true });
-    const remoteVideoId = Number(
-      remoteDb.query<{ video_id: number }>(`SELECT video_id FROM imm_videos WHERE video_key = 'old-show-e1'`).get()
-        ?.video_id,
-    );
-    remoteDb
-      .prepare(
-        `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
-         VALUES (10000, ?, 4, 120.5, 400, 3200, 9)`,
-      )
-      .run(remoteVideoId);
-    remoteDb.close();
+    withWritableDb(remotePath, (remoteDb) => {
+      const remoteVideoId = Number(
+        remoteDb
+          .query<{
+            video_id: number;
+          }>(`SELECT video_id FROM imm_videos WHERE video_key = 'old-show-e1'`)
+          .get()?.video_id,
+      );
+      remoteDb
+        .prepare(
+          `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
+           VALUES (10000, ?, 4, 120.5, 400, 3200, 9)`,
+        )
+        .run(remoteVideoId);
+    });
 
     // Local already has its own rollup row for a shared group.
     insertFixtureSession(localPath, {
@@ -330,18 +440,22 @@ test('copies remote-only historical rollups but never sums shared groups', () =>
       startedAtMs: BASE_MS,
       applyLifetime: true,
     });
-    const localDb = new Database(localPath, { readwrite: true });
-    const localVideoId = Number(
-      localDb.query<{ video_id: number }>(`SELECT video_id FROM imm_videos WHERE video_key = 'old-show-e1'`).get()
-        ?.video_id,
-    );
-    localDb
-      .prepare(
-        `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
-         VALUES (10000, ?, 2, 60.0, 200, 1600, 4)`,
-      )
-      .run(localVideoId);
-    localDb.close();
+    const localVideoId = withWritableDb(localPath, (localDb) => {
+      const videoId = Number(
+        localDb
+          .query<{
+            video_id: number;
+          }>(`SELECT video_id FROM imm_videos WHERE video_key = 'old-show-e1'`)
+          .get()?.video_id,
+      );
+      localDb
+        .prepare(
+          `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
+           VALUES (10000, ?, 2, 60.0, 200, 1600, 4)`,
+        )
+        .run(videoId);
+      return videoId;
+    });
 
     const summary = mergeSnapshotIntoDb(localPath, remotePath);
     // Shared group (day 10000) untouched; the remote-only session's own group
@@ -355,28 +469,30 @@ test('copies remote-only historical rollups but never sums shared groups', () =>
     assert.equal(shared?.total_sessions, 2);
 
     // Now a rollup for a video with no local sessions at all gets copied.
-    const remoteDb2 = new Database(remotePath, { readwrite: true });
-    const orphanVideoId = Number(
+    withWritableDb(remotePath, (remoteDb2) => {
+      const orphanVideoId = Number(
+        remoteDb2
+          .prepare(
+            `INSERT INTO imm_videos (video_key, canonical_title, source_type, watched, duration_ms)
+             VALUES ('pruned-show-e1', 'pruned-show-e1', 1, 1, 1440000)`,
+          )
+          .run().lastInsertRowid,
+      );
       remoteDb2
         .prepare(
-          `INSERT INTO imm_videos (video_key, canonical_title, source_type, watched, duration_ms)
-           VALUES ('pruned-show-e1', 'pruned-show-e1', 1, 1, 1440000)`,
+          `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
+           VALUES (9000, ?, 3, 90.0, 300, 2400, 6)`,
         )
-        .run().lastInsertRowid,
-    );
-    remoteDb2
-      .prepare(
-        `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
-         VALUES (9000, ?, 3, 90.0, 300, 2400, 6)`,
-      )
-      .run(orphanVideoId);
-    remoteDb2.close();
+        .run(orphanVideoId);
+    });
 
     const summary2 = mergeSnapshotIntoDb(localPath, remotePath);
     assert.equal(summary2.dailyRollupsCopied, 1);
     const copiedVideoId = Number(
-      queryOne<{ video_id: number }>(localPath, `SELECT video_id FROM imm_videos WHERE video_key = 'pruned-show-e1'`)
-        ?.video_id,
+      queryOne<{ video_id: number }>(
+        localPath,
+        `SELECT video_id FROM imm_videos WHERE video_key = 'pruned-show-e1'`,
+      )?.video_id,
     );
     const copied = queryOne<{ total_sessions: number; total_active_min: number }>(
       localPath,
@@ -390,12 +506,70 @@ test('copies remote-only historical rollups but never sums shared groups', () =>
   }
 });
 
+test('does not copy remote-only daily rollups into months with local sessions', () => {
+  const { dir, localPath, remotePath } = makeDbPair();
+  try {
+    insertFixtureSession(localPath, {
+      uuid: 'local-1',
+      videoKey: 'mixed-month-e1',
+      animeTitleKey: 'mixed-month',
+      startedAtMs: BASE_MS,
+      applyLifetime: true,
+    });
+    const remoteDb = new Database(remotePath, { readwrite: true });
+    try {
+      const remoteVideoId = Number(
+        remoteDb
+          .prepare(
+            `INSERT INTO imm_videos (video_key, canonical_title, source_type, watched, duration_ms)
+             VALUES ('mixed-month-e1', 'mixed-month-e1', 1, 1, 1440000)`,
+          )
+          .run().lastInsertRowid,
+      );
+      remoteDb
+        .prepare(
+          `INSERT INTO imm_daily_rollups (rollup_day, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
+           VALUES (20615, ?, 3, 90.0, 300, 2400, 6)`,
+        )
+        .run(remoteVideoId);
+      remoteDb
+        .prepare(
+          `INSERT INTO imm_monthly_rollups (rollup_month, video_id, total_sessions, total_active_min, total_lines_seen, total_tokens_seen, total_cards)
+           VALUES (202606, ?, 3, 90.0, 300, 2400, 6)`,
+        )
+        .run(remoteVideoId);
+    } finally {
+      remoteDb.close();
+    }
+
+    const summary = mergeSnapshotIntoDb(localPath, remotePath);
+    assert.equal(summary.dailyRollupsCopied, 0);
+    assert.equal(summary.monthlyRollupsCopied, 0);
+    const localVideoId = Number(
+      queryOne<{ video_id: number }>(
+        localPath,
+        `SELECT video_id FROM imm_videos WHERE video_key = 'mixed-month-e1'`,
+      )?.video_id,
+    );
+    assert.equal(
+      count(
+        localPath,
+        'SELECT COUNT(*) AS n FROM imm_daily_rollups WHERE rollup_day = 20615 AND video_id = ?',
+        [localVideoId],
+      ),
+      0,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('rejects snapshots at a different schema version', () => {
   const { dir, localPath, remotePath } = makeDbPair();
   try {
-    const remoteDb = new Database(remotePath, { readwrite: true });
-    remoteDb.prepare('UPDATE imm_schema_version SET schema_version = 17').run();
-    remoteDb.close();
+    withWritableDb(remotePath, (remoteDb) => {
+      remoteDb.prepare('UPDATE imm_schema_version SET schema_version = 17').run();
+    });
 
     assert.throws(() => mergeSnapshotIntoDb(localPath, remotePath), /schema version 17/);
   } finally {

@@ -160,7 +160,9 @@ export function mergeVideos(
 ): VideoMergeResult {
   const videoIdMap = new Map<number, number>();
   const addedVideoIds = new Set<number>();
-  const byKey = local.prepare<SqlRow>('SELECT video_id, watched FROM imm_videos WHERE video_key = ?');
+  const byKey = local.prepare<SqlRow>(
+    'SELECT video_id, watched FROM imm_videos WHERE video_key = ?',
+  );
   const setWatched = local.prepare('UPDATE imm_videos SET watched = 1 WHERE video_id = ?');
 
   for (const row of selectAll(
@@ -168,7 +170,8 @@ export function mergeVideos(
     `SELECT video_id, anime_id, ${VIDEO_COPY_COLUMNS.join(', ')} FROM imm_videos`,
   )) {
     const remoteId = Number(row.video_id);
-    const mappedAnimeId = row.anime_id === null ? null : (animeIdMap.get(Number(row.anime_id)) ?? null);
+    const mappedAnimeId =
+      row.anime_id === null ? null : (animeIdMap.get(Number(row.anime_id)) ?? null);
     const existing = byKey.get(row.video_key);
     if (existing) {
       const localId = Number(existing.video_id);
@@ -194,9 +197,11 @@ export function mergeMediaMetadata(
   videoIdMap: Map<number, number>,
   addedVideoIds: Set<number>,
 ): void {
-  if (addedVideoIds.size === 0) return;
+  if (videoIdMap.size === 0) return;
+  const metadataVideoIds = new Set<number>([...addedVideoIds, ...videoIdMap.keys()]);
 
-  const hasBlobStore = tableExists(local, 'imm_cover_art_blobs') && tableExists(remote, 'imm_cover_art_blobs');
+  const hasBlobStore =
+    tableExists(local, 'imm_cover_art_blobs') && tableExists(remote, 'imm_cover_art_blobs');
   const copyBlob = hasBlobStore
     ? local.prepare(
         `INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
@@ -208,15 +213,19 @@ export function mergeMediaMetadata(
     ? remote.prepare<SqlRow>('SELECT * FROM imm_cover_art_blobs WHERE blob_hash = ?')
     : null;
 
-  if (tableExists(remote, 'imm_media_art')) {
-    for (const remoteVideoId of addedVideoIds) {
+  if (tableExists(remote, 'imm_media_art') && tableExists(local, 'imm_media_art')) {
+    const localArtExists = local.prepare<SqlRow>(
+      'SELECT 1 FROM imm_media_art WHERE video_id = ? LIMIT 1',
+    );
+    for (const remoteVideoId of metadataVideoIds) {
+      const localVideoId = videoIdMap.get(remoteVideoId)!;
+      if (localArtExists.get(localVideoId)) continue;
       const row = remote
         .query<SqlRow>(
           `SELECT ${MEDIA_ART_COPY_COLUMNS.join(', ')} FROM imm_media_art WHERE video_id = ?`,
         )
         .get(remoteVideoId);
       if (!row) continue;
-      const localVideoId = videoIdMap.get(remoteVideoId)!;
       if (row.cover_blob_hash && copyBlob && readBlob) {
         const blob = readBlob.get(row.cover_blob_hash);
         if (blob) {
@@ -233,7 +242,12 @@ export function mergeMediaMetadata(
   }
 
   if (tableExists(remote, 'imm_youtube_videos') && tableExists(local, 'imm_youtube_videos')) {
-    for (const remoteVideoId of addedVideoIds) {
+    const localYoutubeExists = local.prepare<SqlRow>(
+      'SELECT 1 FROM imm_youtube_videos WHERE video_id = ? LIMIT 1',
+    );
+    for (const remoteVideoId of metadataVideoIds) {
+      const localVideoId = videoIdMap.get(remoteVideoId)!;
+      if (localYoutubeExists.get(localVideoId)) continue;
       const row = remote
         .query<SqlRow>(
           `SELECT ${YOUTUBE_COPY_COLUMNS.join(', ')} FROM imm_youtube_videos WHERE video_id = ?`,
@@ -244,7 +258,7 @@ export function mergeMediaMetadata(
         local,
         'imm_youtube_videos',
         ['video_id', ...YOUTUBE_COPY_COLUMNS],
-        [videoIdMap.get(remoteVideoId)!, ...YOUTUBE_COPY_COLUMNS.map((column) => row[column])],
+        [localVideoId, ...YOUTUBE_COPY_COLUMNS.map((column) => row[column])],
       );
     }
   }
@@ -255,7 +269,10 @@ export function mergeExcludedWords(
   remote: Database,
   summary: SyncMergeSummary,
 ): void {
-  if (!tableExists(remote, 'imm_stats_excluded_words') || !tableExists(local, 'imm_stats_excluded_words')) {
+  if (
+    !tableExists(remote, 'imm_stats_excluded_words') ||
+    !tableExists(local, 'imm_stats_excluded_words')
+  ) {
     return;
   }
   const insert = local.prepare(
@@ -267,7 +284,13 @@ export function mergeExcludedWords(
     remote,
     'SELECT headword, word, reading, CREATED_DATE, LAST_UPDATE_DATE FROM imm_stats_excluded_words',
   )) {
-    const result = insert.run(row.headword, row.word, row.reading, row.CREATED_DATE, row.LAST_UPDATE_DATE);
+    const result = insert.run(
+      row.headword,
+      row.word,
+      row.reading,
+      row.CREATED_DATE,
+      row.LAST_UPDATE_DATE,
+    );
     summary.excludedWordsAdded += result.changes;
   }
 }

@@ -149,7 +149,9 @@ export function refreshRollupsForNewSessions(
   }
 
   const stampMs = nowDbTimestamp();
-  const deleteDaily = local.prepare('DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?');
+  const deleteDaily = local.prepare(
+    'DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?',
+  );
   const deleteMonthly = local.prepare(
     'DELETE FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ?',
   );
@@ -192,6 +194,15 @@ export function copyRemoteOnlyRollups(
   const localDaySessions = local.prepare(
     `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_DAY_EXPR} = ? LIMIT 1`,
   );
+  const localMonthSessions = local.prepare(
+    `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_MONTH_EXPR} = ? LIMIT 1`,
+  );
+  const localMonthSessionsForDay = local.prepare(
+    `SELECT 1 FROM imm_sessions
+     WHERE video_id = ?
+       AND ${LOCAL_MONTH_EXPR} = CAST(strftime('%Y%m', CAST(? AS INTEGER) * 86400, 'unixepoch', 'localtime') AS INTEGER)
+     LIMIT 1`,
+  );
   const insertDaily = local.prepare(
     `INSERT INTO imm_daily_rollups (
        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
@@ -205,6 +216,7 @@ export function copyRemoteOnlyRollups(
     if (localVideoId === undefined) continue;
     if (localDailyExists.get(row.rollup_day, localVideoId)) continue;
     if (localDaySessions.get(localVideoId, row.rollup_day)) continue;
+    if (localMonthSessionsForDay.get(localVideoId, row.rollup_day)) continue;
     insertDaily.run(
       row.rollup_day,
       localVideoId,
@@ -224,9 +236,6 @@ export function copyRemoteOnlyRollups(
 
   const localMonthlyExists = local.prepare(
     'SELECT 1 FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ? LIMIT 1',
-  );
-  const localMonthSessions = local.prepare(
-    `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_MONTH_EXPR} = ? LIMIT 1`,
   );
   const insertMonthly = local.prepare(
     `INSERT INTO imm_monthly_rollups (

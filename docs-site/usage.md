@@ -111,6 +111,9 @@ subminer config show              # Print active config contents
 subminer mpv socket               # Print active mpv socket path
 subminer mpv status               # Exit 0 if socket is ready, else exit 1
 subminer mpv idle                 # Launch detached idle mpv with SubMiner defaults
+subminer sync media-box           # Sync stats/watch history with an SSH host
+subminer sync --snapshot ~/subminer-snapshot.sqlite  # Write a local DB snapshot
+subminer sync --merge ~/subminer-snapshot.sqlite     # Merge a snapshot into the local DB
 subminer dictionary /path/to/file-or-directory  # Generate character dictionary ZIP from target (manual Yomitan import)
 subminer dictionary --candidates /path/to/file.mkv
 subminer dictionary --select 21355 /path/to/file.mkv
@@ -194,6 +197,7 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 - `subminer logs -e`: export a sanitized ZIP of today's local-date logs, or the most recent logs when no current-day log exists. The exported copy masks common PII and secrets; on-disk logs are unchanged.
 - `subminer config`: config file helpers (`path`, `show`).
 - `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
+- `subminer sync <host>`: sync immersion stats and watch history with another machine over SSH. The host is the SSH destination (`user@host` or an SSH config alias). Use `--snapshot <file>` to write a consistent local stats DB snapshot, `--merge <file>` to merge a snapshot into the local stats DB, and `--force` to skip the running stats/mpv safety check. Advanced options: `--db <file>` overrides the local stats DB path, and `--remote-cmd <cmd>` overrides the `subminer` command used on the remote host.
 - `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
 - Use `subminer dictionary --candidates <path>` and `subminer dictionary --select <id> <path>` to correct AniList character-dictionary matches for a whole series.
 - `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`). A _texthooker_ is a web page that displays the current subtitle line as selectable text, so browser-based dictionary extensions and other tools can read along with playback.
