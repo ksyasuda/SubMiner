@@ -934,6 +934,7 @@ test('requestYomitanScanTokens keeps scanner metadata for matching spans when pa
       headword: 'っ ',
       startPos: 2,
       endPos: 4,
+      isUnparsedRun: true,
     },
     {
       surface: 'ミナト',

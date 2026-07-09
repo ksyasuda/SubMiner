@@ -146,13 +146,17 @@ test('emits unparsed non-caption text as a token with surface headword', () => {
 
   const tokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
   assert.deepEqual(
-    tokens?.map((token) => ({ surface: token.surface, headword: token.headword })),
+    tokens?.map((token) => ({
+      surface: token.surface,
+      headword: token.headword,
+      isUnparsedRun: token.isUnparsedRun ?? false,
+    })),
     [
-      { surface: 'みんな', headword: '皆' },
-      { surface: 'の', headword: 'の' },
-      { surface: 'とこ', headword: '所' },
-      { surface: '戻', headword: '戻' },
-      { surface: 'ろ', headword: '櫓' },
+      { surface: 'みんな', headword: '皆', isUnparsedRun: false },
+      { surface: 'の', headword: 'の', isUnparsedRun: false },
+      { surface: 'とこ', headword: '所', isUnparsedRun: false },
+      { surface: '戻', headword: '戻', isUnparsedRun: true },
+      { surface: 'ろ', headword: '櫓', isUnparsedRun: false },
     ],
   );
 });

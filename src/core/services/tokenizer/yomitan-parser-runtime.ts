@@ -57,6 +57,7 @@ export interface YomitanScanToken {
   isNameMatch?: boolean;
   frequencyRank?: number;
   wordClasses?: string[];
+  isUnparsedRun?: boolean;
 }
 
 interface YomitanProfileMetadata {
@@ -108,6 +109,27 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
 
 function scanTokenSpanKey(token: YomitanScanToken): string {
   return `${token.startPos}:${token.endPos}:${token.surface}`;
+}
+
+// Maps a parse-selected token to the scanner-token shape carried out of the
+// parser runtime. Shared by both selectYomitanParseTokens fallback paths so the
+// projected fields stay in sync as the shape changes.
+function toYomitanScanToken(token: {
+  surface: string;
+  reading: string;
+  headword: string;
+  startPos: number;
+  endPos: number;
+  isUnparsedRun?: boolean;
+}): YomitanScanToken {
+  return {
+    surface: token.surface,
+    reading: token.reading,
+    headword: token.headword,
+    startPos: token.startPos,
+    endPos: token.endPos,
+    ...(token.isUnparsedRun === true ? { isUnparsedRun: true } : {}),
+  };
 }
 
 // parseText segmentation is authoritative (it emits filler chunks for text the
@@ -1611,14 +1633,7 @@ export async function requestYomitanScanTokens(
 
   const parseResults = await requestYomitanParseResults(text, deps, logger);
   const selectedParseTokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
-  const parseScanTokens =
-    selectedParseTokens?.map((token) => ({
-      surface: token.surface,
-      reading: token.reading,
-      headword: token.headword,
-      startPos: token.startPos,
-      endPos: token.endPos,
-    })) ?? null;
+  const parseScanTokens = selectedParseTokens?.map(toYomitanScanToken) ?? null;
 
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
   const profileIndex = metadata?.profileIndex ?? 0;
@@ -1656,15 +1671,7 @@ export async function requestYomitanScanTokens(
     }
     if (Array.isArray(rawResult)) {
       const selectedTokens = selectYomitanParseTokens(rawResult, () => false, 'headword');
-      return (
-        selectedTokens?.map((token) => ({
-          surface: token.surface,
-          reading: token.reading,
-          headword: token.headword,
-          startPos: token.startPos,
-          endPos: token.endPos,
-        })) ?? null
-      );
+      return selectedTokens?.map(toYomitanScanToken) ?? null;
     }
     if (parseScanTokens && parseScanTokens.length > 0) {
       return parseScanTokens;

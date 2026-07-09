@@ -208,6 +208,48 @@ test('annotateTokens hides known-word marks while still using known words for N+
   assert.equal(result[2]?.isNPlusOneTarget, true);
 });
 
+test('shouldExcludeTokenFromSubtitleAnnotations excludes unparsed-run tokens', () => {
+  // 戻 from 「…とこ戻ろ…」: Yomitan had no dictionary entry, headword falls back
+  // to the surface. Without the flag the token passes every other filter.
+  const unflagged = makeToken({ surface: '戻', headword: '戻', reading: '' });
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(unflagged), false);
+
+  const flagged = makeToken({ surface: '戻', headword: '戻', reading: '', isUnparsedRun: true });
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(flagged), true);
+  assert.equal(shouldExcludeTokenFromVocabularyPersistence(flagged), true);
+});
+
+test('annotateTokens ignores unparsed-run tokens for annotations and N+1', () => {
+  // もう いるぅ～！-style line: the elongation run is the only unknown token and
+  // used to become the sole N+1 candidate despite having no dictionary entry.
+  const tokens = [
+    makeToken({ surface: 'みんな', headword: '皆', reading: 'みんな', startPos: 0, endPos: 3 }),
+    makeToken({ surface: 'とこ', headword: '所', reading: 'とこ', startPos: 3, endPos: 5 }),
+    makeToken({
+      surface: '戻',
+      headword: '戻',
+      reading: '',
+      startPos: 5,
+      endPos: 6,
+      isUnparsedRun: true,
+      frequencyRank: 12,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      isKnownWord: (text) => text === '皆' || text === '所',
+      getJlptLevel: (text) => (text === '戻' ? 'N5' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 2 },
+  );
+
+  assert.equal(result[2]?.isNPlusOneTarget, false);
+  assert.equal(result[2]?.jlptLevel, undefined);
+  assert.equal(result[2]?.frequencyRank, undefined);
+});
+
 test('annotateTokens falls back to reading for known-word matches when headword lookup misses', () => {
   const tokens = [
     makeToken({

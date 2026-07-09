@@ -734,6 +734,7 @@ async function parseWithYomitanInternalParser(
         isNPlusOneTarget: false,
         isNameMatch: token.isNameMatch ?? false,
         frequencyRank: token.frequencyRank,
+        isUnparsedRun: token.isUnparsedRun === true ? true : undefined,
       };
     }),
   );

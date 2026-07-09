@@ -28,6 +28,7 @@ interface YomitanTokenInput {
   frequencyRank?: number;
   isNameMatch?: boolean;
   wordClasses?: string[];
+  isUnparsedRun?: boolean;
 }
 
 function makeDepsFromYomitanTokens(
@@ -60,6 +61,7 @@ function makeDepsFromYomitanTokens(
                 isNameMatch: token.isNameMatch ?? false,
                 frequencyRank: token.frequencyRank,
                 wordClasses: token.wordClasses,
+                isUnparsedRun: token.isUnparsedRun,
               };
             });
           },
@@ -4220,6 +4222,38 @@ test('tokenizeSubtitle clears all annotations for explanatory pondering endings'
         jlptLevel: undefined,
       },
     ],
+  );
+});
+
+test('tokenizeSubtitle ignores unparsed-run tokens for annotations and N+1', async () => {
+  // もう いるぅ～！: the ぅ～ elongation has no Yomitan dictionary entry; it must
+  // not become the sole N+1 candidate or receive frequency/JLPT annotations.
+  const result = await tokenizeSubtitle(
+    'もう いるぅ～！',
+    makeDepsFromYomitanTokens(
+      [
+        { surface: 'もう', reading: 'もう', headword: 'もう' },
+        { surface: 'いる', reading: 'いる', headword: 'いる' },
+        { surface: 'ぅ～', reading: '', headword: 'ぅ～', isUnparsedRun: true, frequencyRank: 999 },
+      ],
+      {
+        getFrequencyDictionaryEnabled: () => true,
+        getJlptLevel: (text) => (text === 'ぅ～' ? 'N5' : null),
+        isKnownWord: (text) => text === 'もう' || text === 'いる',
+        getMinSentenceWordsForNPlusOne: () => 2,
+        tokenizeWithMecab: async () => null,
+      },
+    ),
+  );
+
+  const filler = result.tokens?.find((token) => token.surface === 'ぅ～');
+  assert.ok(filler);
+  assert.equal(filler?.isNPlusOneTarget, false);
+  assert.equal(filler?.frequencyRank, undefined);
+  assert.equal(filler?.jlptLevel, undefined);
+  assert.equal(
+    result.tokens?.some((token) => token.isNPlusOneTarget),
+    false,
   );
 });
 

@@ -474,6 +474,13 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
   token: MergedToken,
   options: SubtitleAnnotationFilterOptions = {},
 ): boolean {
+  // No Yomitan dictionary entry backs this token (ぅ～ elongations, truncated
+  // inflections) — it exists only to stay hoverable and must never receive
+  // annotations or count in the N+1 math.
+  if (token.isUnparsedRun === true) {
+    return true;
+  }
+
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
   const normalizedPos1 = normalizePosTag(token.pos1);
