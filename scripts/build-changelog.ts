@@ -345,6 +345,12 @@ function resolveFragmentRelativePath(fragmentPath: string, cwd: string): string 
   return path.relative(cwd, fragmentPath).split(path.sep).join('/');
 }
 
+export function shouldSkipDefaultContributionLookup(
+  env: Partial<Record<'GITHUB_ACTIONS' | 'GH_TOKEN' | 'GITHUB_TOKEN', string>> = process.env,
+): boolean {
+  return env.GITHUB_ACTIONS === 'true' && !env.GH_TOKEN && !env.GITHUB_TOKEN;
+}
+
 // Walks git history + the GitHub API to attribute each released fragment to the
 // PR (and author) that introduced it. One git call and one gh call per fragment,
 // plus one gh call per unique author for the first-contribution check. Best
@@ -352,6 +358,9 @@ function resolveFragmentRelativePath(fragmentPath: string, cwd: string): string 
 // drop attribution rather than failing the release.
 function defaultResolveContributions(fragmentPaths: string[], cwd: string): Contribution[] {
   if (fragmentPaths.length === 0) {
+    return [];
+  }
+  if (shouldSkipDefaultContributionLookup()) {
     return [];
   }
 

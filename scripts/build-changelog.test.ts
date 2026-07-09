@@ -1213,6 +1213,102 @@ test('writeChangelogArtifacts appends contributor attribution and a new-contribu
   }
 });
 
+test('writeChangelogArtifacts skips contributor attribution in GitHub Actions without a token', async () => {
+  const { writeChangelogArtifacts } = await loadModule();
+  const workspace = createWorkspace('release-notes-actions-no-token');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const originalActions = process.env.GITHUB_ACTIONS;
+  const originalGhToken = process.env.GH_TOKEN;
+  const originalGithubToken = process.env.GITHUB_TOKEN;
+  const originalPath = process.env.PATH;
+  const originalWarn = console.warn;
+  const warnings: string[] = [];
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(path.join(projectRoot, 'CHANGELOG.md'), '# Changelog\n', 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: release', '', '- Added a feature.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    process.env.GITHUB_ACTIONS = 'true';
+    delete process.env.GH_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    process.env.PATH = workspace;
+    console.warn = (message?: unknown) => {
+      warnings.push(String(message));
+    };
+
+    writeChangelogArtifacts({
+      cwd: projectRoot,
+      version: '0.6.0',
+      date: '2026-05-06',
+      deps: { runClaude: defaultStubClaude().runClaude },
+    });
+
+    assert.deepEqual(warnings, []);
+    const releaseNotes = fs.readFileSync(
+      path.join(projectRoot, 'release', 'release-notes.md'),
+      'utf8',
+    );
+    assert.doesNotMatch(releaseNotes, /## What's Changed/);
+  } finally {
+    console.warn = originalWarn;
+    if (originalActions === undefined) {
+      delete process.env.GITHUB_ACTIONS;
+    } else {
+      process.env.GITHUB_ACTIONS = originalActions;
+    }
+    if (originalGhToken === undefined) {
+      delete process.env.GH_TOKEN;
+    } else {
+      process.env.GH_TOKEN = originalGhToken;
+    }
+    if (originalGithubToken === undefined) {
+      delete process.env.GITHUB_TOKEN;
+    } else {
+      process.env.GITHUB_TOKEN = originalGithubToken;
+    }
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('shouldSkipDefaultContributionLookup skips GitHub Actions without a gh token', async () => {
+  const { shouldSkipDefaultContributionLookup } = await loadModule();
+
+  assert.equal(
+    shouldSkipDefaultContributionLookup({
+      GITHUB_ACTIONS: 'true',
+      GH_TOKEN: undefined,
+      GITHUB_TOKEN: undefined,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSkipDefaultContributionLookup({
+      GITHUB_ACTIONS: 'true',
+      GH_TOKEN: 'ghs_test',
+      GITHUB_TOKEN: undefined,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSkipDefaultContributionLookup({
+      GITHUB_ACTIONS: undefined,
+      GH_TOKEN: undefined,
+      GITHUB_TOKEN: undefined,
+    }),
+    false,
+  );
+});
+
 test('writeReleaseNotesForVersion preserves committed contributor attribution before installation', async () => {
   const { writeReleaseNotesForVersion } = await loadModule();
   const workspace = createWorkspace('release-notes-preserve-attribution');
