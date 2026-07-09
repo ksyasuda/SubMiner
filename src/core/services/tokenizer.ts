@@ -33,6 +33,15 @@ type MecabTokenEnrichmentFn = (
   mecabTokens: MergedToken[] | null,
 ) => Promise<MergedToken[]>;
 
+// allowReadingOnlyMatch: false suppresses the cache's reading-only index for
+// lookups that pass a kanji token's reading as the text (see
+// computeTokenKnownStatus in annotation-stage).
+export type KnownWordLookupFn = (
+  text: string,
+  reading?: string,
+  options?: { allowReadingOnlyMatch?: boolean },
+) => boolean;
+
 export interface TokenizerServiceDeps {
   getYomitanExt: () => Extension | null;
   getYomitanSession?: () => Session | null;
@@ -42,7 +51,7 @@ export interface TokenizerServiceDeps {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-  isKnownWord: (text: string, reading?: string) => boolean;
+  isKnownWord: KnownWordLookupFn;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -77,7 +86,7 @@ export interface TokenizerDepsRuntimeOptions {
   setYomitanParserReadyPromise: (promise: Promise<void> | null) => void;
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
-  isKnownWord: (text: string, reading?: string) => boolean;
+  isKnownWord: KnownWordLookupFn;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -129,7 +138,7 @@ const INVISIBLE_SEPARATOR_PATTERN = /[\u200b\u2060\ufeff]/g;
 function getKnownWordLookup(
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
-): (text: string, reading?: string) => boolean {
+): KnownWordLookupFn {
   if (!options.knownWordsEnabled && !options.nPlusOneEnabled) {
     return () => false;
   }

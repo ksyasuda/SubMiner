@@ -26,7 +26,11 @@ const jlptLevelLookupCaches = new WeakMap<
 >();
 
 export interface AnnotationStageDeps {
-  isKnownWord: (text: string, reading?: string) => boolean;
+  isKnownWord: (
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ) => boolean;
   knownWordMatchMode: NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
 }
@@ -654,7 +658,7 @@ function resolveKnownWordReadingForMatch(
 
 function computeTokenKnownStatus(
   token: MergedToken,
-  isKnownWord: (text: string, reading?: string) => boolean,
+  isKnownWord: AnnotationStageDeps['isKnownWord'],
   knownWordMatchMode: NPlusOneMatchMode,
 ): boolean {
   const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
@@ -668,7 +672,14 @@ function computeTokenKnownStatus(
     return false;
   }
 
-  return fallbackReading !== matchText.trim() && isKnownWord(fallbackReading);
+  // This fallback covers words mined in kana (token 大体, mined word だいたい),
+  // so the reading must only match mined word texts — the cache's reading-only
+  // index would let any kanji token match an unrelated note that shares its
+  // reading (渓谷/けいこく vs a mined 警告/けいこく).
+  return (
+    fallbackReading !== matchText.trim() &&
+    isKnownWord(fallbackReading, undefined, { allowReadingOnlyMatch: false })
+  );
 }
 
 function filterTokenFrequencyRank(

@@ -142,7 +142,11 @@ export class KnownWordCacheManager {
     );
   }
 
-  isKnownWord(text: string, reading?: string): boolean {
+  isKnownWord(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): boolean {
     if (!this.isKnownWordCacheEnabled()) {
       return false;
     }
@@ -161,6 +165,14 @@ export class KnownWordCacheManager {
         knownReadings.has(NO_READING_KEY) ||
         knownReadings.has(normalizedReading)
       );
+    }
+
+    // Callers that look up a kanji token's reading (not subtitle text) must
+    // opt out of the reading-only fallback: readingCounts holds readings of
+    // every note including kanji words, so 渓谷's けいこく would match a
+    // mined 警告/けいこく.
+    if (options?.allowReadingOnlyMatch === false) {
+      return false;
     }
 
     // Reading-only fallback, except for single-kana text: particles and

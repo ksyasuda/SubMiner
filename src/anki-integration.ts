@@ -703,8 +703,12 @@ export class AnkiIntegration {
     });
   }
 
-  isKnownWord(text: string, reading?: string): boolean {
-    return this.knownWordCache.isKnownWord(text, reading);
+  isKnownWord(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): boolean {
+    return this.knownWordCache.isKnownWord(text, reading, options);
   }
 
   getKnownWordMatchMode(): NPlusOneMatchMode {

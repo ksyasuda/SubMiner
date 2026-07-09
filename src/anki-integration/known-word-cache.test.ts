@@ -734,6 +734,42 @@ test('KnownWordCacheManager disambiguates known words by note reading', async ()
   }
 });
 
+test('KnownWordCacheManager suppresses reading-only matches when disallowed', async () => {
+  const config: AnkiConnectConfig = {
+    fields: {
+      word: 'Word',
+    },
+    knownWords: {
+      highlightEnabled: true,
+    },
+  };
+  const { manager, clientState, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    clientState.findNotesResult = [1];
+    clientState.notesInfoResult = [
+      {
+        noteId: 1,
+        fields: {
+          Word: { value: '警告' },
+          'Word Reading': { value: 'けいこく' },
+        },
+      },
+    ];
+
+    await manager.refresh(true);
+
+    // Reading-only match stays available for kana subtitle text…
+    assert.equal(manager.isKnownWord('けいこく'), true);
+    // …but a kanji token's reading (渓谷/けいこく) must not borrow 警告's.
+    assert.equal(manager.isKnownWord('けいこく', undefined, { allowReadingOnlyMatch: false }), false);
+    // Mined word texts still match regardless of the flag.
+    assert.equal(manager.isKnownWord('警告', undefined, { allowReadingOnlyMatch: false }), true);
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager does not match single-kana text by reading alone', async () => {
   const config: AnkiConnectConfig = {
     fields: {

@@ -273,6 +273,29 @@ test('annotateTokens falls back to reading for known-word matches when headword 
   assert.equal(result[0]?.frequencyRank, 1895);
 });
 
+test('annotateTokens reading fallback does not match kanji tokens sharing a mined reading', () => {
+  const tokens = [
+    makeToken({
+      surface: '渓谷',
+      headword: '渓谷',
+      reading: 'けいこく',
+      endPos: 2,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      // Mimics the cache with a mined 警告/けいこく: けいこく matches through
+      // the reading-only index unless the lookup opts out of it.
+      isKnownWord: (text, _reading, options) =>
+        text === '警告' || (options?.allowReadingOnlyMatch !== false && text === 'けいこく'),
+    }),
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+});
+
 test('annotateTokens ignores partial furigana readings for known-word fallback', () => {
   const tokens = [
     makeToken({

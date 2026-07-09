@@ -1995,6 +1995,107 @@ test('requestYomitanScanTokens greedily tokenizes character names before longer 
   );
 });
 
+test('requestYomitanScanTokens lets a longer generic word beat a shorter name at the same position', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true },
+                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    '空気変わって',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.match(scannerScript, /const greedyNameScanEnabled = true;/);
+
+  const nameEntry = (term: string, reading: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText: term, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [
+      {
+        dictionary: 'SubMiner Character Dictionary (AniList 130298)',
+        dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
+      },
+    ],
+  });
+  const jmdictEntry = (term: string, reading: string, originalText: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [{ dictionary: 'JMdict', dictionaryAlias: 'JMdict' }],
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (text.startsWith('空気')) {
+      // A character named 空 matches here, but the generic 空気 is longer and
+      // must win the position.
+      return {
+        originalTextLength: 2,
+        dictionaryEntries: [nameEntry('空', 'くう'), jmdictEntry('空気', 'くうき', '空気')],
+      };
+    }
+    if (text.startsWith('変わって')) {
+      return {
+        originalTextLength: 4,
+        dictionaryEntries: [jmdictEntry('変わる', 'かわる', '変わって')],
+      };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.deepEqual(
+    (result as Array<Record<string, unknown>>).map(
+      ({ surface, headword, startPos, endPos, isNameMatch }) => ({
+        surface,
+        headword,
+        startPos,
+        endPos,
+        isNameMatch,
+      }),
+    ),
+    [
+      { surface: '空気', headword: '空気', startPos: 0, endPos: 2, isNameMatch: false },
+      { surface: '変わって', headword: '変わる', startPos: 2, endPos: 6, isNameMatch: false },
+    ],
+  );
+});
+
 test('requestYomitanScanTokens skips greedy name scan without an enabled character dictionary', async () => {
   let scannerScript = '';
   const deps = createDeps(async (script) => {

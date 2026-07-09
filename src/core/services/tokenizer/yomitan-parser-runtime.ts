@@ -1304,6 +1304,22 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         }
         return best;
       }
+      function findLongestGenericMatchLength(dictionaryEntries, textWindow) {
+        let best = 0;
+        for (const dictionaryEntry of dictionaryEntries || []) {
+          if (isNameDictionaryEntry(dictionaryEntry)) { continue; }
+          const headwords = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords : [];
+          for (const headword of headwords) {
+            for (const src of headword?.sources || []) {
+              if (src.matchType !== 'exact' || src.isPrimary !== true) { continue; }
+              const originalText = typeof src.originalText === 'string' ? src.originalText : '';
+              if (!originalText || !textWindow.startsWith(originalText)) { continue; }
+              if (originalText.length > best) { best = originalText.length; }
+            }
+          }
+        }
+        return best;
+      }
       function getPreferredHeadword(dictionaryEntries, token, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
         const currentMediaDictionaryEntries =
           currentCharacterDictionaryMediaId === null
@@ -1455,8 +1471,16 @@ ${YOMITAN_SCANNING_HELPERS}
           }
           const result = await termsFindAt(namePos, ${scanLength});
           const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
-          const nameMatch = findLongestNameMatch(dictionaryEntries, text.substring(namePos, namePos + ${scanLength}));
-          if (!nameMatch) {
+          const textWindow = text.substring(namePos, namePos + ${scanLength});
+          const nameMatch = findLongestNameMatch(dictionaryEntries, textWindow);
+          // A name only claims its span when no strictly longer generic word
+          // starts at the same position (a character named 空 must not split
+          // 空気). Ties go to the name. Generic matches that start earlier and
+          // overlap the name are still blocked by the reservation.
+          if (
+            !nameMatch ||
+            findLongestGenericMatchLength(dictionaryEntries, textWindow) > nameMatch.sourceLength
+          ) {
             namePos += String.fromCodePoint(codePoint).length;
             continue;
           }
