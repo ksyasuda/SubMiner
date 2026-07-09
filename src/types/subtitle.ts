@@ -40,6 +40,12 @@ export interface MergedToken {
   isMerged: boolean;
   isKnown: boolean;
   isNPlusOneTarget: boolean;
+  /**
+   * Text Yomitan had no dictionary entry for (e.g. ぅ～ elongation runs,
+   * truncated inflections). Kept as a token so it stays hoverable, but
+   * ignored by annotation, N+1, and vocabulary-stats logic.
+   */
+  isUnparsedRun?: boolean;
   isNameMatch?: boolean;
   characterImage?: CharacterNameImage;
   jlptLevel?: JlptLevel;

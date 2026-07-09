@@ -239,6 +239,7 @@ export function mapYomitanParseResultItemToMergedTokens(
       headword: string,
       start: number,
       end: number,
+      isUnparsedRun = false,
     ): void => {
       tokens.push({
         surface,
@@ -254,6 +255,7 @@ export function mapYomitanParseResultItemToMergedTokens(
           const matchText = resolveKnownWordText(surface, headword, knownWordMatchMode);
           return matchText ? isKnownWord(matchText) : false;
         })(),
+        ...(isUnparsedRun ? { isUnparsedRun: true } : {}),
       });
     };
 
@@ -275,10 +277,11 @@ export function mapYomitanParseResultItemToMergedTokens(
           previousToken.reading += combinedReading;
           previousToken.endPos = end;
         } else if (shouldEmitUnparsedRunAsToken(combinedSurface)) {
-          // Yomitan couldn't parse this run (e.g. 戻ろ… truncated volitional). Keep it
-          // as a token with its surface as headword so it stays hoverable and counts in
-          // the n+1 math — matching what the embedded Yomitan actually returns.
-          pushToken(combinedSurface, combinedReading, combinedSurface, combinedStart, end);
+          // Yomitan couldn't parse this run (e.g. 戻ろ… truncated volitional, ぅ～
+          // elongations). Keep it as a token with its surface as headword so it stays
+          // hoverable, but flag it so annotation/N+1/vocab logic ignores it — there is
+          // no dictionary entry behind it.
+          pushToken(combinedSurface, combinedReading, combinedSurface, combinedStart, end, true);
         }
       } else {
         hasDictionaryMatch = true;

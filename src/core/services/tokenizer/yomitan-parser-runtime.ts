@@ -57,6 +57,7 @@ export interface YomitanScanToken {
   isNameMatch?: boolean;
   frequencyRank?: number;
   wordClasses?: string[];
+  isUnparsedRun?: boolean;
 }
 
 interface YomitanProfileMetadata {
@@ -1495,6 +1496,7 @@ export async function requestYomitanScanTokens(
       headword: token.headword,
       startPos: token.startPos,
       endPos: token.endPos,
+      ...(token.isUnparsedRun === true ? { isUnparsedRun: true } : {}),
     })) ?? null;
 
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
@@ -1533,6 +1535,7 @@ export async function requestYomitanScanTokens(
           headword: token.headword,
           startPos: token.startPos,
           endPos: token.endPos,
+          ...(token.isUnparsedRun === true ? { isUnparsedRun: true } : {}),
         })) ?? null
       );
     }
