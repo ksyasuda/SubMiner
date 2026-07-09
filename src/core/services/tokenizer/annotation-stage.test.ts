@@ -575,7 +575,9 @@ test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical tokens outside exp
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
 });
 
-test('shouldExcludeTokenFromSubtitleAnnotations still excludes lexical non-independent kanji nouns from non-known annotations', () => {
+test('shouldExcludeTokenFromSubtitleAnnotations keeps lexical non-independent kanji nouns', () => {
+  // Yomitan segments 以外/日/方 as standalone vocabulary tokens; MeCab's
+  // 非自立 tag must only suppress kana grammar nouns (こと, もの, とき).
   const token = makeToken({
     surface: '以外',
     headword: '以外',
@@ -584,6 +586,21 @@ test('shouldExcludeTokenFromSubtitleAnnotations still excludes lexical non-indep
     pos1: '名詞',
     pos2: '非自立',
     pos3: '副詞可能',
+  });
+
+  assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
+  assert.equal(shouldExcludeTokenFromVocabularyPersistence(token), false);
+});
+
+test('shouldExcludeTokenFromSubtitleAnnotations still excludes kana non-independent nouns', () => {
+  const token = makeToken({
+    surface: 'こと',
+    headword: 'こと',
+    reading: 'コト',
+    partOfSpeech: PartOfSpeech.noun,
+    pos1: '名詞',
+    pos2: '非自立',
+    pos3: '一般',
   });
 
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
@@ -1421,8 +1438,8 @@ test('annotateTokens keeps known-word status for non-independent kanji noun toke
 
   assert.equal(result[0]?.isKnown, true);
   assert.equal(result[0]?.isNPlusOneTarget, false);
-  assert.equal(result[0]?.frequencyRank, undefined);
-  assert.equal(result[0]?.jlptLevel, undefined);
+  assert.equal(result[0]?.frequencyRank, 1384);
+  assert.equal(result[0]?.jlptLevel, 'N3');
 });
 
 test('annotateTokens keeps known-word status for lexical non-independent kanji nouns', () => {
@@ -1450,23 +1467,54 @@ test('annotateTokens keeps known-word status for lexical non-independent kanji n
   );
 
   assert.equal(result[0]?.isKnown, true);
-  assert.equal(result[0]?.frequencyRank, undefined);
+  assert.equal(result[0]?.frequencyRank, 437);
   assert.equal(result[0]?.isNPlusOneTarget, false);
 });
 
-test('annotateTokens clears all annotations for non-independent kanji noun tokens under unified gate', () => {
+test('annotateTokens keeps frequency for unknown non-independent kanji noun tokens', () => {
+  // 日 in いい日だったな: MeCab tags it 名詞/非自立 but Yomitan segments it as
+  // a standalone vocabulary token, so frequency highlighting must survive.
   const tokens = [
     makeToken({
-      surface: '者',
-      reading: 'もの',
-      headword: '者',
+      surface: '日',
+      reading: 'ひ',
+      headword: '日',
+      partOfSpeech: PartOfSpeech.noun,
+      pos1: '名詞',
+      pos2: '非自立',
+      pos3: '副詞可能',
+      startPos: 2,
+      endPos: 3,
+      frequencyRank: 718,
+    }),
+  ];
+
+  const result = annotateTokens(
+    tokens,
+    makeDeps({
+      getJlptLevel: (text) => (text === '日' ? 'N4' : null),
+    }),
+    { minSentenceWordsForNPlusOne: 1 },
+  );
+
+  assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.frequencyRank, 718);
+  assert.equal(result[0]?.jlptLevel, 'N4');
+});
+
+test('annotateTokens still clears annotations for kana non-independent noun tokens', () => {
+  const tokens = [
+    makeToken({
+      surface: 'こと',
+      reading: 'こと',
+      headword: 'こと',
       partOfSpeech: PartOfSpeech.other,
       pos1: '名詞',
       pos2: '非自立',
       pos3: '一般',
       startPos: 0,
-      endPos: 1,
-      frequencyRank: 475,
+      endPos: 2,
+      frequencyRank: 96,
     }),
   ];
 

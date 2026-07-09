@@ -137,6 +137,46 @@ function resolvePos2Exclusions(options: SubtitleAnnotationFilterOptions = {}): R
   return resolveAnnotationPos2ExclusionSet(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG);
 }
 
+function hasKanjiChar(text: string): boolean {
+  for (const char of text) {
+    const code = char.codePointAt(0);
+    if (code === undefined) {
+      continue;
+    }
+    if (
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0xf900 && code <= 0xfaff)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Kanji-bearing non-independent nouns (日, 方, 上, …) are real vocabulary that
+// Yomitan segments as standalone tokens; MeCab's 非自立 tag exists to suppress
+// kana grammar nouns (こと, もの, とき) and must not hide these.
+export function isKanjiNonIndependentNounToken(
+  token: MergedToken,
+  pos1Exclusions: ReadonlySet<string>,
+): boolean {
+  if (pos1Exclusions.has('名詞')) {
+    return false;
+  }
+
+  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  if (pos1Parts.length !== 1 || pos2Parts.length !== 1) {
+    return false;
+  }
+  if (pos1Parts[0] !== '名詞' || pos2Parts[0] !== '非自立') {
+    return false;
+  }
+
+  return hasKanjiChar(token.surface) || hasKanjiChar(token.headword);
+}
+
 function normalizeKana(text: string): string {
   const raw = text.trim();
   if (!raw) {
@@ -445,7 +485,10 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
     return true;
   }
 
-  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions)) {
+  if (
+    isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
+    !isKanjiNonIndependentNounToken(token, pos1Exclusions)
+  ) {
     return true;
   }
 

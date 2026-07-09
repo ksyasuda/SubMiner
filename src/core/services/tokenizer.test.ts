@@ -3486,8 +3486,8 @@ test('tokenizeSubtitle keeps known-word highlight for exact non-independent kanj
   assert.equal(result.tokens?.[1]?.surface, '点');
   assert.equal(result.tokens?.[1]?.isKnown, true);
   assert.equal(result.tokens?.[1]?.isNPlusOneTarget, false);
-  assert.equal(result.tokens?.[1]?.frequencyRank, undefined);
-  assert.equal(result.tokens?.[1]?.jlptLevel, undefined);
+  assert.equal(result.tokens?.[1]?.frequencyRank, 1384);
+  assert.equal(result.tokens?.[1]?.jlptLevel, 'N3');
 });
 
 test('tokenizeSubtitle keeps mecab-tagged interjections tokenized while clearing annotation metadata', async () => {
