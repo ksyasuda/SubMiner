@@ -1194,7 +1194,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           if (!includeNameMatchMetadata || !entry || typeof entry !== 'object') {
             return false;
           }
-          return getDictionaryEntryNames(entry).some((name) => name.startsWith("SubMiner Character Dictionary"));
+          return getDictionaryEntryNames(entry).some((name) => name.startsWith(${JSON.stringify(CHARACTER_DICTIONARY_TITLE_PREFIX)}));
         }
         function parseSubMinerMediaIdFromString(value) {
           const imageMatch = value.match(/\bimg\/m(\d+)-/i);
@@ -1202,7 +1202,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
             const parsed = Number.parseInt(imageMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
           }
-          const titleMatch = value.match(/SubMiner Character Dictionary[^\d]*(?:AniList\s*)?(\d+)/i);
+          const titleMatch = value.match(/${CHARACTER_DICTIONARY_TITLE_PREFIX}[^\d]*(?:AniList\s*)?(\d+)/i);
           if (titleMatch) {
             const parsed = Number.parseInt(titleMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
