@@ -105,20 +105,26 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
   );
 }
 
-function hasSameTokenSpans(left: YomitanScanToken[], right: YomitanScanToken[]): boolean {
-  if (left.length !== right.length) {
-    return false;
+function scanTokenSpanKey(token: YomitanScanToken): string {
+  return `${token.startPos}:${token.endPos}:${token.surface}`;
+}
+
+// parseText segmentation is authoritative (it emits filler chunks for text the
+// termsFind scanner skips), but only the termsFind scanner carries annotation
+// metadata (isNameMatch, frequencyRank, headwordReading, wordClasses). Graft
+// scanner tokens onto the parseText segmentation per matching span so one
+// unmatched chunk degrades only itself instead of dropping the whole line's
+// metadata.
+function mergeScannerTokensIntoParseTokens(
+  parseScanTokens: YomitanScanToken[],
+  scannerTokens: YomitanScanToken[],
+): YomitanScanToken[] {
+  const scannerTokensBySpan = new Map<string, YomitanScanToken>();
+  for (const token of scannerTokens) {
+    scannerTokensBySpan.set(scanTokenSpanKey(token), token);
   }
 
-  return left.every((token, index) => {
-    const other = right[index];
-    return (
-      other !== undefined &&
-      token.surface === other.surface &&
-      token.startPos === other.startPos &&
-      token.endPos === other.endPos
-    );
-  });
+  return parseScanTokens.map((token) => scannerTokensBySpan.get(scanTokenSpanKey(token)) ?? token);
 }
 
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
@@ -1514,7 +1520,7 @@ export async function requestYomitanScanTokens(
     );
     if (isScanTokenArray(rawResult)) {
       if (parseScanTokens && parseScanTokens.length > 0) {
-        return hasSameTokenSpans(parseScanTokens, rawResult) ? rawResult : parseScanTokens;
+        return mergeScannerTokensIntoParseTokens(parseScanTokens, rawResult);
       }
       return rawResult;
     }

@@ -820,6 +820,134 @@ test('requestYomitanScanTokens keeps scanner metadata when parse spans agree', a
   ]);
 });
 
+test('requestYomitanScanTokens keeps scanner metadata for matching spans when parse segmentation has filler chunks', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: 'や',
+                reading: '',
+                headwords: [[{ term: 'や' }]],
+              },
+            ],
+            [
+              {
+                text: 'ほ',
+                reading: '',
+                headwords: [[{ term: '帆' }]],
+              },
+            ],
+            [
+              {
+                text: 'っ ',
+                reading: '',
+              },
+            ],
+            [
+              {
+                text: 'ミナト',
+                reading: '',
+                headwords: [[{ term: 'ミナト' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    // The termsFind scanner skips the unmatched っ+space chunk, so its spans
+    // do not line up 1:1 with the parseText segmentation above.
+    return [
+      {
+        surface: 'や',
+        reading: 'や',
+        headword: 'や',
+        headwordReading: 'や',
+        startPos: 0,
+        endPos: 1,
+        frequencyRank: 57,
+      },
+      {
+        surface: 'ほ',
+        reading: 'ほ',
+        headword: '帆',
+        headwordReading: 'ほ',
+        startPos: 1,
+        endPos: 2,
+        frequencyRank: 15414,
+      },
+      {
+        surface: 'ミナト',
+        reading: 'ミナト',
+        headword: 'ミナト',
+        headwordReading: 'みなと',
+        startPos: 4,
+        endPos: 7,
+        isNameMatch: true,
+        frequencyRank: 75133,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens('やほっ ミナト', deps, {
+    error: () => undefined,
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: 'や',
+      reading: 'や',
+      headword: 'や',
+      headwordReading: 'や',
+      startPos: 0,
+      endPos: 1,
+      frequencyRank: 57,
+    },
+    {
+      surface: 'ほ',
+      reading: 'ほ',
+      headword: '帆',
+      headwordReading: 'ほ',
+      startPos: 1,
+      endPos: 2,
+      frequencyRank: 15414,
+    },
+    {
+      surface: 'っ ',
+      reading: '',
+      headword: 'っ ',
+      startPos: 2,
+      endPos: 4,
+    },
+    {
+      surface: 'ミナト',
+      reading: 'ミナト',
+      headword: 'ミナト',
+      headwordReading: 'みなと',
+      startPos: 4,
+      endPos: 7,
+      isNameMatch: true,
+      frequencyRank: 75133,
+    },
+  ]);
+});
+
 test('requestYomitanScanTokens falls back to left-to-right termsFind scanning', async () => {
   const scripts: string[] = [];
   const deps = createDeps(async (script) => {
