@@ -1889,6 +1889,263 @@ test('requestYomitanScanTokens accepts SubMiner character entries with structure
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
 });
 
+test('requestYomitanScanTokens greedily tokenizes character names before longer generic matches', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true },
+                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    '美姫とヨータ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.match(scannerScript, /const greedyNameScanEnabled = true;/);
+
+  const nameEntry = (term: string, reading: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText: term, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [
+      {
+        dictionary: 'SubMiner Character Dictionary (AniList 130298)',
+        dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
+      },
+    ],
+  });
+  const jmdictEntry = (term: string, reading: string, originalText: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [{ dictionary: 'JMdict', dictionaryAlias: 'JMdict' }],
+  });
+
+  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (text.startsWith('美姫')) {
+      return { originalTextLength: 2, dictionaryEntries: [nameEntry('美姫', 'みき')] };
+    }
+    if (text.startsWith('とヨータ')) {
+      // Greedy generic match: とヨー normalizes to とよう (渡洋). Without the
+      // name pre-pass this consumes the ヨ of ヨータ.
+      return {
+        originalTextLength: 3,
+        dictionaryEntries: [jmdictEntry('渡洋', 'とよう', 'とヨー'), jmdictEntry('と', 'と', 'と')],
+      };
+    }
+    if (text.startsWith('ヨータ')) {
+      return { originalTextLength: 3, dictionaryEntries: [nameEntry('ヨータ', 'よーた')] };
+    }
+    if (text === 'と') {
+      return { originalTextLength: 1, dictionaryEntries: [jmdictEntry('と', 'と', 'と')] };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  assert.equal(Array.isArray(result), true);
+  assert.deepEqual(
+    (result as Array<Record<string, unknown>>).map(
+      ({ surface, headword, startPos, endPos, isNameMatch }) => ({
+        surface,
+        headword,
+        startPos,
+        endPos,
+        isNameMatch,
+      }),
+    ),
+    [
+      { surface: '美姫', headword: '美姫', startPos: 0, endPos: 2, isNameMatch: true },
+      { surface: 'と', headword: 'と', startPos: 2, endPos: 3, isNameMatch: false },
+      { surface: 'ヨータ', headword: 'ヨータ', startPos: 3, endPos: 6, isNameMatch: true },
+    ],
+  );
+});
+
+test('requestYomitanScanTokens skips greedy name scan without an enabled character dictionary', async () => {
+  let scannerScript = '';
+  const deps = createDeps(async (script) => {
+    if (script.includes('termsFind')) {
+      scannerScript = script;
+      return [];
+    }
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [{ name: 'JMdict', enabled: true }],
+            },
+          },
+        ],
+      };
+    }
+    return null;
+  });
+
+  await requestYomitanScanTokens(
+    'アクア',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.match(scannerScript, /const greedyNameScanEnabled = false;/);
+});
+
+test('requestYomitanScanTokens replaces parseText segmentation where greedy name tokens re-segment', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true },
+                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    if (script.includes('parseText')) {
+      // parseText walks greedily too, so it merges と with ヨー into 渡洋 and
+      // strands the タ.
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: '美姫',
+                reading: 'みき',
+                headwords: [[{ term: '美姫' }]],
+              },
+            ],
+            [
+              {
+                text: 'とヨー',
+                reading: 'とよう',
+                headwords: [[{ term: '渡洋' }]],
+              },
+            ],
+            [
+              {
+                text: 'タ',
+                reading: '',
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return [
+      {
+        surface: '美姫',
+        reading: 'みき',
+        headword: '美姫',
+        headwordReading: 'みき',
+        startPos: 0,
+        endPos: 2,
+        isNameMatch: true,
+      },
+      {
+        surface: 'と',
+        reading: 'と',
+        headword: 'と',
+        headwordReading: 'と',
+        startPos: 2,
+        endPos: 3,
+        isNameMatch: false,
+      },
+      {
+        surface: 'ヨータ',
+        reading: 'ヨータ',
+        headword: 'ヨータ',
+        headwordReading: 'よーた',
+        startPos: 3,
+        endPos: 6,
+        isNameMatch: true,
+      },
+    ];
+  });
+
+  const result = await requestYomitanScanTokens(
+    '美姫とヨータ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.deepEqual(result, [
+    {
+      surface: '美姫',
+      reading: 'みき',
+      headword: '美姫',
+      headwordReading: 'みき',
+      startPos: 0,
+      endPos: 2,
+      isNameMatch: true,
+    },
+    {
+      surface: 'と',
+      reading: 'と',
+      headword: 'と',
+      headwordReading: 'と',
+      startPos: 2,
+      endPos: 3,
+      isNameMatch: false,
+    },
+    {
+      surface: 'ヨータ',
+      reading: 'ヨータ',
+      headword: 'ヨータ',
+      headwordReading: 'よーた',
+      startPos: 3,
+      endPos: 6,
+      isNameMatch: true,
+    },
+  ]);
+});
+
 test('requestYomitanScanTokens preserves matched headword word classes', async () => {
   let scannerScript = '';
   const deps = createDeps(async (script) => {

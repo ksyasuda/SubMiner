@@ -73,6 +73,7 @@ export interface YomitanAddNoteResult {
 }
 
 const DEFAULT_YOMITAN_SCAN_LENGTH = 40;
+const CHARACTER_DICTIONARY_TITLE_PREFIX = 'SubMiner Character Dictionary';
 const yomitanProfileMetadataByWindow = new WeakMap<BrowserWindow, YomitanProfileMetadata>();
 const yomitanProfileDiagnosticsLoggedByWindow = new WeakSet<BrowserWindow>();
 const yomitanFrequencyCacheByWindow = new WeakMap<
@@ -115,6 +116,12 @@ function scanTokenSpanKey(token: YomitanScanToken): string {
 // scanner tokens onto the parseText segmentation per matching span so one
 // unmatched chunk degrades only itself instead of dropping the whole line's
 // metadata.
+//
+// Exception: character-name tokens. The greedy name scan can re-segment text
+// around a name (e.g. とヨータ → と + ヨータ instead of とヨー + タ), so
+// parseText segmentation cannot be authoritative there. Each name span is
+// expanded until it aligns with token boundaries in both segmentations, then
+// the parse tokens inside are replaced with the scanner tokens.
 function mergeScannerTokensIntoParseTokens(
   parseScanTokens: YomitanScanToken[],
   scannerTokens: YomitanScanToken[],
@@ -123,8 +130,44 @@ function mergeScannerTokensIntoParseTokens(
   for (const token of scannerTokens) {
     scannerTokensBySpan.set(scanTokenSpanKey(token), token);
   }
+  const graftedTokens = parseScanTokens.map(
+    (token) => scannerTokensBySpan.get(scanTokenSpanKey(token)) ?? token,
+  );
 
-  return parseScanTokens.map((token) => scannerTokensBySpan.get(scanTokenSpanKey(token)) ?? token);
+  const nameTokens = scannerTokens.filter((token) => token.isNameMatch === true);
+  if (nameTokens.length === 0) {
+    return graftedTokens;
+  }
+
+  const regions = nameTokens.map((token) => ({ start: token.startPos, end: token.endPos }));
+  const allTokens = [...parseScanTokens, ...scannerTokens];
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const region of regions) {
+      for (const token of allTokens) {
+        const overlaps = token.startPos < region.end && token.endPos > region.start;
+        const extendsBeyond = token.startPos < region.start || token.endPos > region.end;
+        if (overlaps && extendsBeyond) {
+          region.start = Math.min(region.start, token.startPos);
+          region.end = Math.max(region.end, token.endPos);
+          expanded = true;
+        }
+      }
+    }
+  }
+
+  const isInsideNameRegion = (token: YomitanScanToken): boolean =>
+    regions.some((region) => token.startPos >= region.start && token.endPos <= region.end);
+
+  const merged = graftedTokens.filter((token) => !isInsideNameRegion(token));
+  for (const token of scannerTokens) {
+    if (isInsideNameRegion(token)) {
+      merged.push(token);
+    }
+  }
+  merged.sort((a, b) => a.startPos - b.startPos || a.endPos - b.endPos);
+  return merged;
 }
 
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
@@ -1110,8 +1153,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
         }
         return best;
       }
-      function getPreferredHeadword(dictionaryEntries, token, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
-        function normalizeWordClasses(headword) {
+      function normalizeWordClasses(headword) {
           if (!Array.isArray(headword?.wordClasses)) { return undefined; }
           const classes = headword.wordClasses.filter((wordClass) => typeof wordClass === "string" && wordClass.trim().length > 0);
           return classes.length > 0 ? classes : undefined;
@@ -1152,7 +1194,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           if (!includeNameMatchMetadata || !entry || typeof entry !== 'object') {
             return false;
           }
-          return getDictionaryEntryNames(entry).some((name) => name.startsWith("SubMiner Character Dictionary"));
+          return getDictionaryEntryNames(entry).some((name) => name.startsWith(${JSON.stringify(CHARACTER_DICTIONARY_TITLE_PREFIX)}));
         }
         function parseSubMinerMediaIdFromString(value) {
           const imageMatch = value.match(/\bimg\/m(\d+)-/i);
@@ -1160,7 +1202,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
             const parsed = Number.parseInt(imageMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
           }
-          const titleMatch = value.match(/SubMiner Character Dictionary[^\d]*(?:AniList\s*)?(\d+)/i);
+          const titleMatch = value.match(/${CHARACTER_DICTIONARY_TITLE_PREFIX}[^\d]*(?:AniList\s*)?(\d+)/i);
           if (titleMatch) {
             const parsed = Number.parseInt(titleMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
@@ -1220,7 +1262,27 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
           }
           const mediaIds = getSubMinerMediaIds(entry);
           return mediaIds.size === 0 || mediaIds.has(currentCharacterDictionaryMediaId);
+      }
+      function findLongestNameMatch(dictionaryEntries, textWindow) {
+        let best = null;
+        for (const dictionaryEntry of dictionaryEntries || []) {
+          if (!isCurrentMediaNameDictionaryEntry(dictionaryEntry)) { continue; }
+          const headwords = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords : [];
+          for (let headwordIndex = 0; headwordIndex < headwords.length; headwordIndex += 1) {
+            const headword = headwords[headwordIndex];
+            for (const src of headword?.sources || []) {
+              if (src.matchType !== 'exact' || src.isPrimary !== true) { continue; }
+              const originalText = typeof src.originalText === 'string' ? src.originalText : '';
+              if (!originalText || !textWindow.startsWith(originalText)) { continue; }
+              if (best === null || originalText.length > best.sourceLength) {
+                best = { dictionaryEntry, headword, headwordIndex, sourceLength: originalText.length };
+              }
+            }
+          }
         }
+        return best;
+      }
+      function getPreferredHeadword(dictionaryEntries, token, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
         const currentMediaDictionaryEntries =
           currentCharacterDictionaryMediaId === null
             ? (dictionaryEntries || [])
@@ -1267,6 +1329,7 @@ function buildYomitanScanningScript(
   profileIndex: number,
   scanLength: number,
   includeNameMatchMetadata: boolean,
+  greedyNameScanEnabled: boolean,
   currentCharacterDictionaryMediaId: number | null,
   dictionaryPriorityByName: Record<string, number>,
   dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>,
@@ -1293,6 +1356,7 @@ function buildYomitanScanningScript(
         });
 ${YOMITAN_SCANNING_HELPERS}
       const includeNameMatchMetadata = ${includeNameMatchMetadata ? 'true' : 'false'};
+      const greedyNameScanEnabled = ${greedyNameScanEnabled ? 'true' : 'false'};
       const currentCharacterDictionaryMediaId = ${
         currentCharacterDictionaryMediaId !== null
           ? String(currentCharacterDictionaryMediaId)
@@ -1303,26 +1367,17 @@ ${YOMITAN_SCANNING_HELPERS}
       const text = ${JSON.stringify(text)};
       const details = {matchType: "exact", deinflect: true};
       const tokens = [];
-      async function findTokenAt(position, windowLength) {
-        const codePoint = text.codePointAt(position);
-        const character = String.fromCodePoint(codePoint);
+      const termsFindCache = new Map();
+      async function termsFindAt(position, windowLength) {
+        const cacheKey = position + ":" + windowLength;
+        const cached = termsFindCache.get(cacheKey);
+        if (cached) { return cached; }
         const substring = text.substring(position, position + windowLength);
         const result = await invoke("termsFind", { text: substring, details, optionsContext: { index: ${profileIndex} } });
-        const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
-        const originalTextLength = typeof result?.originalTextLength === "number" ? result.originalTextLength : 0;
-        if (dictionaryEntries.length === 0 || originalTextLength <= 0 || (originalTextLength === character.length && !isCodePointJapanese(codePoint))) {
-          return { token: null, matchedLength: 0 };
-        }
-        const source = substring.substring(0, originalTextLength);
-        const preferredHeadword = getPreferredHeadword(
-          dictionaryEntries,
-          source,
-          dictionaryPriorityByName,
-          dictionaryFrequencyModeByName
-        );
-        if (!preferredHeadword || typeof preferredHeadword.term !== "string") {
-          return { token: null, matchedLength: originalTextLength };
-        }
+        termsFindCache.set(cacheKey, result);
+        return result;
+      }
+      function buildScanToken(position, source, preferredHeadword) {
         const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
         const segments = distributeFuriganaInflected(preferredHeadword.term, reading, source);
         const tokenPayload = {
@@ -1331,7 +1386,7 @@ ${YOMITAN_SCANNING_HELPERS}
           headword: preferredHeadword.term,
           headwordReading: reading || undefined,
           startPos: position,
-          endPos: position + originalTextLength,
+          endPos: position + source.length,
           isNameMatch: includeNameMatchMetadata && preferredHeadword.isNameMatch === true,
           frequencyRank:
             typeof preferredHeadword.frequencyRank === "number" && Number.isFinite(preferredHeadword.frequencyRank)
@@ -1341,17 +1396,85 @@ ${YOMITAN_SCANNING_HELPERS}
         if (Array.isArray(preferredHeadword.wordClasses) && preferredHeadword.wordClasses.length > 0) {
           tokenPayload.wordClasses = preferredHeadword.wordClasses;
         }
-        return { token: tokenPayload, matchedLength: originalTextLength };
+        return tokenPayload;
+      }
+      async function findTokenAt(position, windowLength) {
+        const codePoint = text.codePointAt(position);
+        const character = String.fromCodePoint(codePoint);
+        const result = await termsFindAt(position, windowLength);
+        const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
+        const originalTextLength = typeof result?.originalTextLength === "number" ? result.originalTextLength : 0;
+        if (dictionaryEntries.length === 0 || originalTextLength <= 0 || (originalTextLength === character.length && !isCodePointJapanese(codePoint))) {
+          return { token: null, matchedLength: 0 };
+        }
+        const source = text.substring(position, position + originalTextLength);
+        const preferredHeadword = getPreferredHeadword(
+          dictionaryEntries,
+          source,
+          dictionaryPriorityByName,
+          dictionaryFrequencyModeByName
+        );
+        if (!preferredHeadword || typeof preferredHeadword.term !== "string") {
+          return { token: null, matchedLength: originalTextLength };
+        }
+        return { token: buildScanToken(position, source, preferredHeadword), matchedLength: originalTextLength };
+      }
+      // Greedy name pre-pass: character-name matches claim their spans before
+      // the left-to-right walk, so a longer generic match starting earlier
+      // (e.g. とヨー → 渡洋) cannot swallow the start of a name (ヨータ).
+      const nameTokens = [];
+      if (greedyNameScanEnabled) {
+        let namePos = 0;
+        while (namePos < text.length) {
+          const codePoint = text.codePointAt(namePos);
+          if (!isCodePointJapanese(codePoint)) {
+            namePos += String.fromCodePoint(codePoint).length;
+            continue;
+          }
+          const result = await termsFindAt(namePos, ${scanLength});
+          const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
+          const nameMatch = findLongestNameMatch(dictionaryEntries, text.substring(namePos, namePos + ${scanLength}));
+          if (!nameMatch) {
+            namePos += String.fromCodePoint(codePoint).length;
+            continue;
+          }
+          const source = text.substring(namePos, namePos + nameMatch.sourceLength);
+          nameTokens.push(buildScanToken(namePos, source, {
+            term: nameMatch.headword.term,
+            reading: nameMatch.headword.reading,
+            wordClasses: normalizeWordClasses(nameMatch.headword),
+            isNameMatch: true,
+            frequencyRank: getBestFrequencyRank(
+              nameMatch.dictionaryEntry,
+              nameMatch.headwordIndex,
+              dictionaryPriorityByName,
+              dictionaryFrequencyModeByName
+            )
+          }));
+          namePos += nameMatch.sourceLength;
+        }
       }
       let i = 0;
+      let nameIndex = 0;
       while (i < text.length) {
-        let attempt = await findTokenAt(i, ${scanLength});
+        while (nameIndex < nameTokens.length && nameTokens[nameIndex].startPos < i) { nameIndex += 1; }
+        const nextNameToken = nameIndex < nameTokens.length ? nameTokens[nameIndex] : null;
+        if (nextNameToken && nextNameToken.startPos === i) {
+          tokens.push(nextNameToken);
+          i = nextNameToken.endPos;
+          nameIndex += 1;
+          continue;
+        }
+        // Cap the window at the next reserved name span so a generic match
+        // cannot consume into it.
+        const windowLength = nextNameToken ? Math.min(${scanLength}, nextNameToken.startPos - i) : ${scanLength};
+        let attempt = await findTokenAt(i, windowLength);
         // Yomitan text normalization can consume characters (whitespace,
         // punctuation) beyond the matched term, leaving no headword whose
         // source equals the consumed text. Retry with shorter windows so a
         // valid prefix term (e.g. a character name before a paren) still
         // tokenizes instead of the position being skipped.
-        let retryLength = Math.min(attempt.matchedLength, ${scanLength}) - 1;
+        let retryLength = Math.min(attempt.matchedLength, windowLength) - 1;
         while (!attempt.token && retryLength >= 1) {
           const retry = await findTokenAt(i, retryLength);
           if (retry.token) {
@@ -1500,6 +1623,12 @@ export async function requestYomitanScanTokens(
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
   const profileIndex = metadata?.profileIndex ?? 0;
   const scanLength = metadata?.scanLength ?? DEFAULT_YOMITAN_SCAN_LENGTH;
+  const includeNameMatchMetadata = options?.includeNameMatchMetadata === true;
+  const greedyNameScanEnabled =
+    includeNameMatchMetadata &&
+    (metadata?.dictionaries ?? []).some((name) =>
+      name.startsWith(CHARACTER_DICTIONARY_TITLE_PREFIX),
+    );
 
   try {
     const rawResult = await parserWindow.webContents.executeJavaScript(
@@ -1507,7 +1636,8 @@ export async function requestYomitanScanTokens(
         text,
         profileIndex,
         scanLength,
-        options?.includeNameMatchMetadata === true,
+        includeNameMatchMetadata,
+        greedyNameScanEnabled,
         typeof options?.currentCharacterDictionaryMediaId === 'number' &&
           Number.isFinite(options.currentCharacterDictionaryMediaId) &&
           options.currentCharacterDictionaryMediaId > 0
