@@ -9,7 +9,13 @@ import {
   formatMergeSummary,
   mergeSnapshotIntoDb,
 } from '../sync/sync-db.js';
-import { resolveRemoteSubminerCommand, runScp, runSsh, shellQuote } from '../sync/ssh.js';
+import {
+  assertSafeSshHost,
+  resolveRemoteSubminerCommand,
+  runScp,
+  runSsh,
+  shellQuote,
+} from '../sync/ssh.js';
 import { resolvePathMaybe } from '../util.js';
 import type { LauncherCommandContext } from './context.js';
 
@@ -66,6 +72,7 @@ function cleanupRemote(host: string, remoteTmpDir: string): void {
 function runHostSync(context: LauncherCommandContext, dbPath: string): void {
   const { args } = context;
   const host = args.syncHost;
+  assertSafeSshHost(host);
 
   ensureTrackerQuiescent(context, dbPath);
 
@@ -75,10 +82,13 @@ function runHostSync(context: LauncherCommandContext, dbPath: string): void {
   const localTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-'));
   let remoteTmpDir = '';
   try {
+    // Signal failures by throwing (not fail(), which exits synchronously and
+    // would skip the finally cleanup, leaking temp dirs holding snapshot data).
+    // main().catch() reports the message the same way fail() would.
     const mktemp = runSsh(host, 'mktemp -d /tmp/subminer-sync.XXXXXX');
     remoteTmpDir = mktemp.stdout.trim();
     if (mktemp.status !== 0 || !remoteTmpDir.startsWith('/tmp/')) {
-      fail(`Could not create a temporary directory on ${host}.`);
+      throw new Error(`Could not create a temporary directory on ${host}.`);
     }
 
     const forceFlag = args.syncForce ? ' --force' : '';
@@ -94,7 +104,7 @@ function runHostSync(context: LauncherCommandContext, dbPath: string): void {
       `${remoteCmd} sync --snapshot ${shellQuote(remoteSnapshot)}${forceFlag}`,
     );
     if (snapshotRun.status !== 0) {
-      fail(`Remote snapshot failed on ${host}.`);
+      throw new Error(`Remote snapshot failed on ${host}.`);
     }
 
     const pulledSnapshot = path.join(localTmpDir, 'remote.sqlite');
@@ -113,7 +123,7 @@ function runHostSync(context: LauncherCommandContext, dbPath: string): void {
     );
     process.stdout.write(mergeRun.stdout);
     if (mergeRun.status !== 0) {
-      fail(
+      throw new Error(
         `Remote merge failed on ${host}. The local database was updated; re-run "subminer sync ${host}" once the remote issue is fixed.`,
       );
     }

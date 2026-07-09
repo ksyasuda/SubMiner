@@ -138,15 +138,9 @@ export function mergeAnime(
       );
       continue;
     }
-    // anilist_id is UNIQUE; drop it if another local row (matched by a
-    // different title key) already claims it.
-    const anilistTaken =
-      row.anilist_id !== null && byAnilist.get(row.anilist_id) !== undefined
-        ? null
-        : row.anilist_id;
-    const values = ANIME_COPY_COLUMNS.map((column) =>
-      column === 'anilist_id' ? anilistTaken : row[column],
-    );
+    // No local row matched by anilist_id (checked first in `existing` above)
+    // or title key, so the remote anilist_id — if any — is free to insert as-is.
+    const values = ANIME_COPY_COLUMNS.map((column) => row[column]);
     map.set(remoteId, insertRow(local, 'imm_anime', ANIME_COPY_COLUMNS, values));
     summary.animeAdded += 1;
   }

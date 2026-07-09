@@ -151,6 +151,65 @@ test('is idempotent: re-merging the same snapshot changes nothing', () => {
   }
 });
 
+test('preserves anilist_id when inserting a new anime from the snapshot', () => {
+  const { dir, localPath, remotePath } = makeDbPair();
+  try {
+    insertFixtureSession(remotePath, {
+      uuid: 'remote-1',
+      videoKey: 'showb-e1',
+      animeTitleKey: 'showb',
+      startedAtMs: BASE_MS,
+      applyLifetime: true,
+    });
+    const remoteDb = new Database(remotePath, { readwrite: true });
+    remoteDb.prepare(`UPDATE imm_anime SET anilist_id = 12345 WHERE normalized_title_key = 'showb'`).run();
+    remoteDb.close();
+
+    const summary = mergeSnapshotIntoDb(localPath, remotePath);
+    assert.equal(summary.animeAdded, 1);
+    const anime = queryOne<{ anilist_id: number }>(
+      localPath,
+      `SELECT anilist_id FROM imm_anime WHERE normalized_title_key = 'showb'`,
+    );
+    assert.equal(anime?.anilist_id, 12345);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('matches an existing local anime by anilist_id even when the title key differs', () => {
+  const { dir, localPath, remotePath } = makeDbPair();
+  try {
+    insertFixtureSession(localPath, {
+      uuid: 'local-1',
+      videoKey: 'showa-e1',
+      animeTitleKey: 'show-romaji',
+      startedAtMs: BASE_MS,
+      applyLifetime: true,
+    });
+    insertFixtureSession(remotePath, {
+      uuid: 'remote-1',
+      videoKey: 'showa-e2',
+      animeTitleKey: 'show-native',
+      startedAtMs: BASE_MS + DAY_MS,
+      applyLifetime: true,
+    });
+    const localDb = new Database(localPath, { readwrite: true });
+    localDb.prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-romaji'`).run();
+    localDb.close();
+    const remoteDb = new Database(remotePath, { readwrite: true });
+    remoteDb.prepare(`UPDATE imm_anime SET anilist_id = 999 WHERE normalized_title_key = 'show-native'`).run();
+    remoteDb.close();
+
+    const summary = mergeSnapshotIntoDb(localPath, remotePath);
+    // Same anilist_id → one anime, not two.
+    assert.equal(summary.animeAdded, 0);
+    assert.equal(count(localPath, 'SELECT COUNT(*) AS n FROM imm_anime'), 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('matches shared videos by video_key and merges the watched flag', () => {
   const { dir, localPath, remotePath } = makeDbPair();
   try {

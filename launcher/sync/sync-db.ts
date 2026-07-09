@@ -35,7 +35,13 @@ export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): 
   }
 
   const remote = new Database(snapshotPath, { readonly: true });
-  const local = new Database(localDbPath, { readwrite: true, create: false });
+  let local: Database;
+  try {
+    local = new Database(localDbPath, { readwrite: true, create: false });
+  } catch (error) {
+    remote.close();
+    throw error;
+  }
   try {
     assertMergeableSchema(remote, 'Snapshot');
     assertMergeableSchema(local, 'Local');

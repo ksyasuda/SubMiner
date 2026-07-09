@@ -6,11 +6,23 @@ export interface RemoteRunResult {
 }
 
 /**
+ * ssh/scp have no `--` terminator for the destination, so a host that starts
+ * with `-` (e.g. `-oProxyCommand=...`) is parsed as an option. Reject those
+ * before spawning.
+ */
+export function assertSafeSshHost(host: string): void {
+  if (host.startsWith('-')) {
+    throw new Error(`Refusing to use SSH host that looks like an option: ${host}`);
+  }
+}
+
+/**
  * Run a command on the SSH host. stdin/stderr stay attached to the terminal
  * so key passphrase / password prompts and remote progress output work;
  * stdout is captured for the caller.
  */
 export function runSsh(host: string, remoteCommand: string): RemoteRunResult {
+  assertSafeSshHost(host);
   const result = spawnSync('ssh', [host, remoteCommand], {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'inherit'],
@@ -43,11 +55,18 @@ export function shellQuote(value: string): string {
  * configured command first and fall back to the default install location.
  */
 export function resolveRemoteSubminerCommand(host: string, preferred: string | null): string {
-  const candidates = preferred ? [preferred] : ['subminer', '~/.local/bin/subminer'];
+  // Trusted defaults stay unquoted so the remote shell expands `~`; the
+  // user-supplied override is shell-quoted to prevent command injection.
+  const candidates: Array<{ value: string; probe: string }> = preferred
+    ? [{ value: preferred, probe: shellQuote(preferred) }]
+    : [
+        { value: 'subminer', probe: 'subminer' },
+        { value: '~/.local/bin/subminer', probe: '~/.local/bin/subminer' },
+      ];
   for (const candidate of candidates) {
-    const probe = runSsh(host, `command -v ${candidate} >/dev/null 2>&1`);
+    const probe = runSsh(host, `command -v ${candidate.probe} >/dev/null 2>&1`);
     if (probe.status === 0) {
-      return candidate;
+      return candidate.value;
     }
   }
   throw new Error(

@@ -316,7 +316,8 @@ export function parseCliPrograms(
     .option('--remote-cmd <cmd>', 'subminer command to run on the remote host')
     .option('-f, --force', 'Skip the running-app safety check')
     .option('--log-level <level>', 'Log level')
-    .action((host: string | undefined, options: Record<string, unknown>) => {
+    .action((rawHost: string | undefined, options: Record<string, unknown>) => {
+      const host = typeof rawHost === 'string' ? rawHost.trim() : '';
       const snapshot = typeof options.snapshot === 'string' ? options.snapshot.trim() : '';
       const merge = typeof options.merge === 'string' ? options.merge.trim() : '';
       const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
@@ -327,7 +328,7 @@ export function parseCliPrograms(
         throw new Error('Sync host, --snapshot, and --merge cannot be combined.');
       }
       syncTriggered = true;
-      syncHost = host?.trim() || null;
+      syncHost = host || null;
       syncSnapshotPath = snapshot || null;
       syncMergePath = merge || null;
       syncRemoteCmd = typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
