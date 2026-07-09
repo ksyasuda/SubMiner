@@ -25,6 +25,7 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 
 - Leave `dbPath` empty to use the default location (`immersion.sqlite` in SubMiner's app-data directory).
 - Set an explicit path to move the database (useful for backups, cloud syncing, or external tools).
+- To share stats and watch history between two machines, use [`subminer sync <host>`](/launcher-script#sync-between-machines) instead of file-level cloud sync — it merges both databases without one side overwriting the other.
 
 ## Stats Dashboard
 

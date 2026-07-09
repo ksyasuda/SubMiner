@@ -78,6 +78,29 @@ The first menu lists every locally watched series, most recently watched first, 
 
 Series whose directories are not currently accessible (e.g. an unmounted network share) are hidden from the list. Watch history requires the immersion tracker database (`immersionTracking.dbPath`, default `<config dir>/immersion.sqlite`), which SubMiner populates during playback.
 
+## Sync Between Machines
+
+`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version.
+
+```bash
+subminer sync macbook                  # two-way sync with the host "macbook"
+subminer sync user@192.168.1.20       # explicit user@host
+subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote launcher path
+```
+
+How it works: each side takes a consistent snapshot of its database (`VACUUM INTO`), the snapshots are exchanged over `scp`, and each machine merges the other's snapshot into its own database. The merge is an insert-only union keyed on stable identifiers (session UUIDs, video keys, series title keys, word/kanji identity), so it is safe to re-run at any time — syncing twice changes nothing, and nothing is ever overwritten or summed twice. Lifetime totals and rollup charts are updated incrementally, so history older than the session retention window is preserved on both sides.
+
+Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on both machines before syncing; the command refuses to run while a SubMiner process may be writing the database (`--force` overrides). Both machines must be on the same SubMiner version — the sync aborts on a stats schema mismatch.
+
+Two lower-level modes are used internally over SSH and also work standalone for manual transfers (e.g. via a USB drive):
+
+```bash
+subminer sync --snapshot /tmp/stats.sqlite   # write a consistent snapshot of the local database
+subminer sync --merge /tmp/stats.sqlite      # merge a snapshot file into the local database
+```
+
+Unfinished sessions (a crash mid-playback) are skipped until the app finalizes them; they sync on the next run. Word/kanji "known" state from Anki is not part of the database and does not sync — each machine derives it from its own Anki collection.
+
 ## Common Commands
 
 ```bash
@@ -106,6 +129,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer mpv status`                      | Check mpv socket readiness                                         |
 | `subminer mpv socket`                      | Print active socket path                                           |
 | `subminer mpv idle`                        | Launch detached idle mpv instance                                  |
+| `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH           |
 | `subminer dictionary <path>`               | Generate character dictionary ZIP from file/dir target             |
 | `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
 | `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |

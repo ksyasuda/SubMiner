@@ -1,0 +1,4 @@
+type: added
+area: launcher
+
+- Added `subminer sync <host>` to merge immersion stats and watch history between two machines over SSH. Each side snapshots its database (`VACUUM INTO`), snapshots are exchanged with `scp`, and each machine merges the other's data as an insert-only union keyed on session UUIDs / video keys / series title keys, so re-syncing is idempotent and nothing is double-counted. Lifetime totals and daily/monthly rollups are updated incrementally (history older than the session retention window is preserved); remote-only historical rollups are copied. `subminer sync --snapshot <file>` and `subminer sync --merge <file>` expose the underlying steps for manual transfers. The command refuses to run while the stats daemon or an mpv session is active (`--force` overrides) and aborts on stats schema version mismatches.

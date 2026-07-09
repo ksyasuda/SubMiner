@@ -22,6 +22,7 @@ import { runLogsCommand } from './commands/logs-command.js';
 import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
 import { runHistoryCommand } from './commands/history-command.js';
+import { runSyncCommand } from './commands/sync-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 import { runUpdateCommand } from './commands/update-command.js';
 
@@ -104,6 +105,10 @@ async function main(): Promise<void> {
   }
 
   if (runLogsCommand(context)) {
+    return;
+  }
+
+  if (runSyncCommand(context)) {
     return;
   }
 

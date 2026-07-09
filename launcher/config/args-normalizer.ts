@@ -199,6 +199,13 @@ export function createDefaultArgs(
     texthookerOpenBrowser: false,
     useRofi: false,
     history: false,
+    sync: false,
+    syncHost: '',
+    syncSnapshotPath: '',
+    syncMergePath: '',
+    syncRemoteCmd: '',
+    syncDbPath: '',
+    syncForce: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
     passwordStore: '',
@@ -263,6 +270,16 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     !invocations.dictionarySelect
   ) {
     fail('Dictionary target path is required.');
+  }
+  if (invocations.syncTriggered) {
+    parsed.sync = true;
+    parsed.syncHost = invocations.syncHost ?? '';
+    parsed.syncSnapshotPath = invocations.syncSnapshotPath ?? '';
+    parsed.syncMergePath = invocations.syncMergePath ?? '';
+    parsed.syncRemoteCmd = invocations.syncRemoteCmd ?? '';
+    parsed.syncDbPath = invocations.syncDbPath ?? '';
+    parsed.syncForce = invocations.syncForce;
+    if (invocations.syncLogLevel) parsed.logLevel = parseLogLevel(invocations.syncLogLevel);
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;
