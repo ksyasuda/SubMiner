@@ -6,7 +6,7 @@ import path from 'node:path';
 import type { Args } from '../types.js';
 import { createEmptyMergeSummary } from '../sync/sync-shared.js';
 import type { LauncherCommandContext } from './context.js';
-import { runSyncCommand, type SyncCommandDeps } from './sync-command.js';
+import { ensureTrackerQuiescent, runSyncCommand, type SyncCommandDeps } from './sync-command.js';
 
 function makeContext(overrides: Partial<Args>): LauncherCommandContext {
   return {
@@ -35,7 +35,29 @@ function ok(stdout = ''): { status: number; stdout: string; stderr: string } {
   return { status: 0, stdout, stderr: '' };
 }
 
-test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes', () => {
+test('ensureTrackerQuiescent ignores stale sockets but rejects live sockets', async () => {
+  const context = makeContext({ syncDbPath: '/tmp/local.sqlite' });
+  context.mpvSocketPath = '/tmp/subminer-socket';
+  let socketConnectable = false;
+  const deps: Partial<SyncCommandDeps> = {
+    realpathSync: (() => '/tracker.sqlite') as unknown as typeof fs.realpathSync,
+    findLiveStatsDaemonPid: () => null,
+    canConnectUnixSocket: async () => socketConnectable,
+    fail: (message: string): never => {
+      throw new Error(message);
+    },
+  };
+
+  await ensureTrackerQuiescent(context, '/tmp/local.sqlite', deps);
+
+  socketConnectable = true;
+  await assert.rejects(
+    async () => ensureTrackerQuiescent(context, '/tmp/local.sqlite', deps),
+    /mpv\/SubMiner session appears to be running/,
+  );
+});
+
+test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes', async () => {
   const calls: string[] = [];
   const deps: Partial<SyncCommandDeps> = {
     createDbSnapshot: (dbPath: string, outPath: string) => {
@@ -46,7 +68,7 @@ test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes'
       return createEmptyMergeSummary();
     },
     formatMergeSummary: () => 'summary',
-    ensureTrackerQuiescent: () => {
+    ensureTrackerQuiescent: async () => {
       calls.push('quiescent');
     },
     assertSafeSshHost: (host: string) => {
@@ -66,7 +88,7 @@ test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes'
   };
 
   assert.equal(
-    runSyncCommand(
+    await runSyncCommand(
       makeContext({ syncDbPath: '/tmp/local.sqlite', syncSnapshotPath: '/tmp/out.sqlite' }),
       deps,
     ),
@@ -74,23 +96,26 @@ test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes'
   );
   assert.ok(calls.includes('snapshot:/tmp/local.sqlite->/tmp/out.sqlite'));
 
-  runSyncCommand(
+  await runSyncCommand(
     makeContext({ syncDbPath: '/tmp/local.sqlite', syncMergePath: '/tmp/in.sqlite' }),
     deps,
   );
   assert.ok(calls.includes('quiescent'));
   assert.ok(calls.includes('merge:/tmp/local.sqlite<-/tmp/in.sqlite'));
 
-  runSyncCommand(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps);
+  await runSyncCommand(
+    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+    deps,
+  );
   assert.ok(calls.includes('host:media-box'));
 
-  assert.throws(
+  await assert.rejects(
     () => runSyncCommand(makeContext({ syncDbPath: '/tmp/local.sqlite' }), deps),
     /sync requires a host, --snapshot <file>, or --merge <file>/,
   );
 });
 
-test('runHostSync keeps tracker quiescent through local and remote merge and cleans up after failure', () => {
+test('runHostSync keeps tracker quiescent through local and remote merge and cleans up after failure', async () => {
   const calls: string[] = [];
   let localTmpDir = '';
   const deps: Partial<SyncCommandDeps> = {
@@ -103,7 +128,7 @@ test('runHostSync keeps tracker quiescent through local and remote merge and cle
       return createEmptyMergeSummary();
     },
     formatMergeSummary: () => 'summary',
-    ensureTrackerQuiescent: () => {
+    ensureTrackerQuiescent: async () => {
       calls.push('quiescent');
     },
     assertSafeSshHost: () => {},
@@ -127,7 +152,7 @@ test('runHostSync keeps tracker quiescent through local and remote merge and cle
     },
   };
 
-  assert.throws(
+  await assert.rejects(
     () =>
       runSyncCommand(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
     /Remote merge failed on media-box[\s\S]*remote merge exploded/,
@@ -139,12 +164,12 @@ test('runHostSync keeps tracker quiescent through local and remote merge and cle
   assert.equal(fs.existsSync(localTmpDir), false);
 });
 
-test('runHostSync includes remote snapshot stderr in failures', () => {
+test('runHostSync includes remote snapshot stderr in failures', async () => {
   const deps: Partial<SyncCommandDeps> = {
     createDbSnapshot: (_dbPath: string, outPath: string) => {
       fs.writeFileSync(outPath, 'snapshot');
     },
-    ensureTrackerQuiescent: () => {},
+    ensureTrackerQuiescent: async () => {},
     assertSafeSshHost: () => {},
     resolveRemoteSubminerCommand: () => 'subminer',
     runSsh: (_host: string, command: string) => {
@@ -157,7 +182,7 @@ test('runHostSync includes remote snapshot stderr in failures', () => {
     runScp: () => {},
   };
 
-  assert.throws(
+  await assert.rejects(
     () =>
       runSyncCommand(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
     /Remote snapshot failed on media-box[\s\S]*snapshot permission denied/,

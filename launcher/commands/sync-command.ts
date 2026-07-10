@@ -17,6 +17,7 @@ import {
   shellQuote,
 } from '../sync/ssh.js';
 import { resolvePathMaybe } from '../util.js';
+import { canConnectUnixSocket } from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
 import type { RemoteRunResult } from '../sync/ssh.js';
 
@@ -31,13 +32,13 @@ export interface SyncCommandDeps {
   runSsh: typeof runSsh;
   fail: typeof fail;
   log: typeof log;
-  existsSync: typeof fs.existsSync;
+  canConnectUnixSocket: typeof canConnectUnixSocket;
   realpathSync: typeof fs.realpathSync;
   mkdtempSync: typeof fs.mkdtempSync;
   rmSync: typeof fs.rmSync;
   consoleLog: typeof console.log;
   writeStdout: typeof process.stdout.write;
-  ensureTrackerQuiescent: (context: LauncherCommandContext, dbPath: string) => void;
+  ensureTrackerQuiescent: (context: LauncherCommandContext, dbPath: string) => Promise<void>;
 }
 
 function resolveDbPath(context: LauncherCommandContext): string {
@@ -54,11 +55,11 @@ function isTrackerDb(dbPath: string, deps: SyncCommandDeps): boolean {
   }
 }
 
-export function ensureTrackerQuiescent(
+export async function ensureTrackerQuiescent(
   context: LauncherCommandContext,
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
-): void {
+): Promise<void> {
   const deps = resolveSyncCommandDeps(inputDeps);
   if (context.args.syncForce) return;
   // A running SubMiner only holds the tracker's own database; --db pointed
@@ -70,7 +71,7 @@ export function ensureTrackerQuiescent(
       `The SubMiner stats server is running (pid ${daemonPid}). Stop it with "subminer stats -s" (or close SubMiner) before syncing, or pass --force.`,
     );
   }
-  if (context.mpvSocketPath && deps.existsSync(context.mpvSocketPath)) {
+  if (context.mpvSocketPath && (await deps.canConnectUnixSocket(context.mpvSocketPath))) {
     deps.fail(
       `An mpv/SubMiner session appears to be running (socket ${context.mpvSocketPath}). Close it before syncing, or pass --force.`,
     );
@@ -88,13 +89,13 @@ const defaultSyncCommandDeps: SyncCommandDeps = {
   runSsh,
   fail,
   log,
-  existsSync: fs.existsSync,
+  canConnectUnixSocket,
   realpathSync: fs.realpathSync,
   mkdtempSync: fs.mkdtempSync,
   rmSync: fs.rmSync,
   consoleLog: console.log,
   writeStdout: process.stdout.write.bind(process.stdout),
-  ensureTrackerQuiescent: (context, dbPath) => ensureTrackerQuiescent(context, dbPath),
+  ensureTrackerQuiescent: async (context, dbPath) => ensureTrackerQuiescent(context, dbPath),
 };
 
 function resolveSyncCommandDeps(inputDeps: Partial<SyncCommandDeps> = {}): SyncCommandDeps {
@@ -112,13 +113,13 @@ export function runSnapshotMode(
   deps.consoleLog(outPath);
 }
 
-export function runMergeMode(
+export async function runMergeMode(
   context: LauncherCommandContext,
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
-): void {
+): Promise<void> {
   const deps = resolveSyncCommandDeps(inputDeps);
-  deps.ensureTrackerQuiescent(context, dbPath);
+  await deps.ensureTrackerQuiescent(context, dbPath);
   const snapshotPath = resolvePathMaybe(context.args.syncMergePath);
   const summary = deps.mergeSnapshotIntoDb(dbPath, snapshotPath);
   deps.consoleLog(deps.formatMergeSummary(summary));
@@ -134,17 +135,17 @@ function formatRemoteRunError(message: string, run: RemoteRunResult): string {
   return stderr ? `${message}\n${stderr}` : message;
 }
 
-export function runHostSync(
+export async function runHostSync(
   context: LauncherCommandContext,
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
-): void {
+): Promise<void> {
   const deps = resolveSyncCommandDeps(inputDeps);
   const { args } = context;
   const host = args.syncHost;
   deps.assertSafeSshHost(host);
 
-  deps.ensureTrackerQuiescent(context, dbPath);
+  await deps.ensureTrackerQuiescent(context, dbPath);
 
   const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null);
   deps.log('debug', args.logLevel, `Remote subminer command: ${remoteCmd}`);
@@ -183,12 +184,12 @@ export function runHostSync(
     deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
 
     deps.consoleLog(`\nMerging ${host} -> local:`);
-    deps.ensureTrackerQuiescent(context, dbPath);
+    await deps.ensureTrackerQuiescent(context, dbPath);
     const summary = deps.mergeSnapshotIntoDb(dbPath, pulledSnapshot);
     deps.consoleLog(deps.formatMergeSummary(summary));
 
     deps.consoleLog(`\nMerging local -> ${host}:`);
-    deps.ensureTrackerQuiescent(context, dbPath);
+    await deps.ensureTrackerQuiescent(context, dbPath);
     const mergeRun = deps.runSsh(
       host,
       `${remoteCmd} sync --merge ${shellQuote(incomingSnapshot)}${forceFlag}`,
@@ -216,10 +217,10 @@ export function runHostSync(
   }
 }
 
-export function runSyncCommand(
+export async function runSyncCommand(
   context: LauncherCommandContext,
   inputDeps: Partial<SyncCommandDeps> = {},
-): boolean {
+): Promise<boolean> {
   const deps = resolveSyncCommandDeps(inputDeps);
   const { args } = context;
   if (!args.sync) return false;
@@ -228,9 +229,9 @@ export function runSyncCommand(
   if (args.syncSnapshotPath) {
     runSnapshotMode(context, dbPath, deps);
   } else if (args.syncMergePath) {
-    runMergeMode(context, dbPath, deps);
+    await runMergeMode(context, dbPath, deps);
   } else if (args.syncHost) {
-    runHostSync(context, dbPath, deps);
+    await runHostSync(context, dbPath, deps);
   } else {
     deps.fail('sync requires a host, --snapshot <file>, or --merge <file>.');
   }

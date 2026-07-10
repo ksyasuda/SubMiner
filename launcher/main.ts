@@ -108,7 +108,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (runSyncCommand(context)) {
+  if (await runSyncCommand(context)) {
     return;
   }
 
