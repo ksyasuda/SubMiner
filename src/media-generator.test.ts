@@ -190,6 +190,18 @@ test('generateAudio applies mpv volume after loudness normalization', async () =
   });
 });
 
+test('generateAudio limits amplified mpv volume after applying gain', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mp4', 10, 12, 0, null, true, 2);
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(
+      args[args.indexOf('-af') + 1],
+      'loudnorm=I=-23:TP=-2:LRA=11,volume=2,alimiter=limit=0.891251:level=false',
+    );
+  });
+});
+
 test('generateAudio applies mpv volume without loudness normalization', async () => {
   await withStubbedFfmpeg(async (generator, argsPath) => {
     await generator.generateAudio('/video.mp4', 10, 12, 0, null, false, 0.75);

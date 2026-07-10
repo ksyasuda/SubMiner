@@ -25,6 +25,7 @@ import { normalizeMediaInput, type MediaInput } from './media-input';
 
 const log = createLogger('media');
 const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-23:TP=-2:LRA=11';
+const AUDIO_AMPLIFICATION_LIMITER_FILTER = 'alimiter=limit=0.891251:level=false';
 
 export type { MediaInput, MediaInputOptions } from './media-input';
 
@@ -308,6 +309,9 @@ export class MediaGenerator {
         volumeScale !== 1
       ) {
         audioFilters.push(`volume=${volumeScale}`);
+        if (volumeScale > 1) {
+          audioFilters.push(AUDIO_AMPLIFICATION_LIMITER_FILTER);
+        }
       }
       if (audioFilters.length > 0) {
         args.push('-af', audioFilters.join(','));
