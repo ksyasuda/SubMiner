@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertSafeSshHost, runScp, shellQuote } from './ssh.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { assertSafeSshHost, resolveRemoteSubminerCommand, runScp, shellQuote } from './ssh.js';
 
 test('assertSafeSshHost rejects option-like hosts', () => {
   assert.throws(() => assertSafeSshHost('-oProxyCommand=touch pwned'), /looks like an option/);
@@ -28,4 +31,31 @@ test('runScp rejects option-like remote host components', () => {
     () => runScp('-oProxyCommand=sh:/tmp/in.sqlite', '/tmp/out.sqlite'),
     /SSH host that looks like an option/,
   );
+});
+
+test('resolveRemoteSubminerCommand verifies the launcher under the remote runtime PATH', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-ssh-test-'));
+  const sshPath = path.join(tempDir, 'ssh');
+  const originalPath = process.env.PATH;
+  fs.writeFileSync(
+    sshPath,
+    `#!/bin/sh
+case "$2" in
+  *'$HOME/.local/bin'*'$HOME/.bun/bin'*'/opt/homebrew/bin'*'/usr/local/bin'*'/usr/bin'*'/bin'*'subminer --help'*) exit 0 ;;
+  *) exit 1 ;;
+esac
+`,
+    { mode: 0o755 },
+  );
+
+  try {
+    process.env.PATH = `${tempDir}:${originalPath ?? ''}`;
+    assert.equal(
+      resolveRemoteSubminerCommand('macbook', null),
+      'PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH" subminer',
+    );
+  } finally {
+    process.env.PATH = originalPath;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });

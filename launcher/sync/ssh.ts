@@ -71,23 +71,27 @@ export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+const REMOTE_RUNTIME_PATH =
+  'PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"';
+
 /**
- * Non-interactive SSH shells often miss ~/.local/bin in PATH, so probe the
- * configured command first and fall back to the default install location.
+ * Non-interactive SSH shells often miss user-installed launchers and Bun.
+ * Probe the launcher under the same deterministic PATH used by sync itself.
  */
 export function resolveRemoteSubminerCommand(host: string, preferred: string | null): string {
-  // Trusted defaults stay unquoted so the remote shell expands `~`; the
+  // Trusted defaults stay unquoted so the remote shell expands `~`; a
   // user-supplied override is shell-quoted to prevent command injection.
-  const candidates: Array<{ value: string; probe: string }> = preferred
-    ? [{ value: preferred, probe: shellQuote(preferred) }]
+  const candidates: Array<{ value: string; invocation: string }> = preferred
+    ? [{ value: preferred, invocation: shellQuote(preferred) }]
     : [
-        { value: 'subminer', probe: 'subminer' },
-        { value: '~/.local/bin/subminer', probe: '~/.local/bin/subminer' },
+        { value: 'subminer', invocation: 'subminer' },
+        { value: '~/.local/bin/subminer', invocation: '~/.local/bin/subminer' },
       ];
   for (const candidate of candidates) {
-    const probe = runSsh(host, `command -v ${candidate.probe} >/dev/null 2>&1`);
+    const command = `${REMOTE_RUNTIME_PATH} ${candidate.invocation}`;
+    const probe = runSsh(host, `${command} --help >/dev/null 2>&1`);
     if (probe.status === 0) {
-      return candidate.value;
+      return command;
     }
   }
   throw new Error(
