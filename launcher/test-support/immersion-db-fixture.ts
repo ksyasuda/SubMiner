@@ -53,6 +53,7 @@ export function insertFixtureSession(dbPath: string, input: FixtureSessionInput)
   const db = new Database(dbPath, { readwrite: true });
   const stamp = String(input.startedAtMs);
   try {
+    db.run('PRAGMA foreign_keys = ON');
     let animeId: number | null = null;
     if (input.animeTitleKey) {
       const existing = db
