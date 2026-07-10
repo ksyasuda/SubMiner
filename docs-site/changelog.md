@@ -1,12 +1,48 @@
 # Changelog
 
-## v0.17.2 (2026-06-28)
+## v0.18.0 (2026-07-10)
+
+**Added**
+- Sentence Audio Normalization: Generated sentence audio is now normalized to -23 LUFS by default, and clips mined from playback mirror mpv's software volume curve with a limiter to prevent clipping. Both behaviors are configurable independently.
+- Watch History Command: Added `subminer -H` / `--history` to browse watch history, replay or continue episodes, or pick one via fzf or rofi, with cover art shown in the rofi picker.
+
+**Changed**
+- Fzf Preview Layout: Moved fzf previews below launcher menus, giving long titles and metadata more room.
+- Known-Word Highlighting: Now compares subtitle and Anki-card readings, preventing false matches between homographs and unrelated words that share a reading, while still supporting matching across kana and kanji spellings.
+- Annotation Filtering: Standalone suffix tokens (e.g. さん, れる) are now excluded from JLPT/frequency/N+1 highlighting by default, matching how particles and interjections are treated; configurable via the pos2 exclusion setting.
+- App Icon: Replaced the app icon with new pixel-art submarine artwork contributed by the community, used across the app icon, tray, notifications, README, docs site, and Stats page.
+- Stats Trend Charts: Overhauled with persisted title visibility, per-chart title limits, "top" and "most recent" ranking modes, an option to show or hide empty days, calendar-aligned periods, and value-sorted tooltips.
+
+**Fixed**
+- Background Stats Server: `subminer app` background launches now auto-start the stats server when enabled, and skip startup if one is already running.
+- Character Name Highlighting: Character dictionaries now split unspaced native names more reliably, and portraits, highlights, and hover lookup survive punctuation, unmatched text, and competing dictionary matches without incorrectly splitting longer words.
+- Highlighting Coverage: Frequency/JLPT highlighting and vocabulary stats now include content adverbs (e.g. 確かに, やはり) and kanji nouns MeCab tags as non-independent (e.g. 日, 点, 以外), while still suppressing interjections, pronouns, and grammar fragments; lexicalized kana expressions like かといって keep their annotations.
+- Cover Art Fetching: Stats now fetches AniList cover art as soon as a new series starts playing, and backfills missing art for existing series on the next Stats visit.
+- Kiku Field Grouping: The manual field-grouping dialog now stays above fullscreen mpv, remains usable across repeated attempts, closes abandoned windows after timeouts, and reports a clear error when the original card can no longer be loaded.
+- Karaoke Subtitle Collapse: Secondary subtitles no longer stack dozens of one-syllable lines during openings and endings; repeated events collapse into one line, capped to a strip at the top.
+- Unparsed Token Hover: Subtitle text Yomitan can't parse (truncated inflections, elongation runs) remains hoverable, while staying excluded from highlighting, N+1 candidate math, and vocabulary stats.
+- YouTube Streaming: Fixed direct YouTube stream extraction that could corrupt signed URLs and cause ffmpeg 403 errors.
+
+<details>
+<summary>Internal changes</summary>
+
+**Internal**
+- Test lanes moved to `scripts/test-lanes.ts` with per-directory discovery and isolated per-file timeouts; CI now covers previously orphaned stats, scripts, plugin process-retry, and runtime-compat suites, plus a new stats lane in the change-verification workflow.
+
+</details>
+
+## Previous Versions
+
+<details>
+<summary>v0.17.x</summary>
+
+<h2>v0.17.2 (2026-06-28)</h2>
 
 **Fixed**
 - YouTube Background Cache: Fixed Windows YouTube background media cache startup for YouTube URLs opened directly in mpv, including resolved stream URLs when mpv still exposes the original YouTube playlist entry, so queued Anki media updates can append audio and images after the cache finishes.
 - YouTube Subtitle Picker: Manual subtitle picker requests now show an immediate configured notification while SubMiner probes tracks and opens the modal. Subtitle download progress is replaced with a transient success notification after tracks load.
 
-## v0.17.1 (2026-06-27)
+<h2>v0.17.1 (2026-06-27)</h2>
 
 **Added**
 - YouTube Media Cache Mode: Adds `youtube.mediaCache.mode` with `direct` and `background` options. Background mode uses a yt-dlp cache download when direct stream extraction is unreliable — creates a text-only card immediately, queues media updates for mined notes, and fills audio/image fields once the download finishes. Progress is announced via overlay/OSD notifications. Downloads are capped at 720p by default (`youtube.mediaCache.maxHeight`). Switching back to direct mode cancels any in-flight background download.
@@ -15,7 +51,7 @@
 - Log Export: Fixed log filenames to use the local date so exports around UTC midnight include the current day's logs rather than stale prior-day files. Expanded export redaction to mask IPs, emails, auth and cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL parameters.
 - YouTube Card Media: Improved media generation reliability by sending safer ffmpeg options for resolved streams and skipping stale stream maps (including cached YouTube files). Hardened background cache downloads with IPv4 and extractor retry flags; failed downloads now notify the user and clear queued media updates instead of leaving them silently pending. Stale background cache files are cleaned on startup and before each new download.
 
-## v0.17.0 (2026-06-15)
+<h2>v0.17.0 (2026-06-15)</h2>
 
 **Changed**
 
@@ -50,7 +86,7 @@
 
 </details>
 
-## Previous Versions
+</details>
 
 <details>
 <summary>v0.16.x</summary>

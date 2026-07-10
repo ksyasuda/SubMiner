@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.18.0 (2026-07-10)
+
+### Added
+- Sentence Audio Normalization: Generated sentence audio is now normalized to -23 LUFS by default, and clips mined from playback mirror mpv's software volume curve with a limiter to prevent clipping. Both behaviors are configurable independently.
+- Watch History Command: Added `subminer -H` / `--history` to browse watch history, replay or continue episodes, or pick one via fzf or rofi, with cover art shown in the rofi picker.
+
+### Changed
+- Fzf Preview Layout: Moved fzf previews below launcher menus, giving long titles and metadata more room.
+- Known-Word Highlighting: Now compares subtitle and Anki-card readings, preventing false matches between homographs and unrelated words that share a reading, while still supporting matching across kana and kanji spellings.
+- Annotation Filtering: Standalone suffix tokens (e.g. さん, れる) are now excluded from JLPT/frequency/N+1 highlighting by default, matching how particles and interjections are treated; configurable via the pos2 exclusion setting.
+- App Icon: Replaced the app icon with new pixel-art submarine artwork contributed by the community, used across the app icon, tray, notifications, README, docs site, and Stats page.
+- Stats Trend Charts: Overhauled with persisted title visibility, per-chart title limits, "top" and "most recent" ranking modes, an option to show or hide empty days, calendar-aligned periods, and value-sorted tooltips.
+
+### Fixed
+- Background Stats Server: `subminer app` background launches now auto-start the stats server when enabled, and skip startup if one is already running.
+- Character Name Highlighting: Character dictionaries now split unspaced native names more reliably, and portraits, highlights, and hover lookup survive punctuation, unmatched text, and competing dictionary matches without incorrectly splitting longer words.
+- Highlighting Coverage: Frequency/JLPT highlighting and vocabulary stats now include content adverbs (e.g. 確かに, やはり) and kanji nouns MeCab tags as non-independent (e.g. 日, 点, 以外), while still suppressing interjections, pronouns, and grammar fragments; lexicalized kana expressions like かといって keep their annotations.
+- Cover Art Fetching: Stats now fetches AniList cover art as soon as a new series starts playing, and backfills missing art for existing series on the next Stats visit.
+- Kiku Field Grouping: The manual field-grouping dialog now stays above fullscreen mpv, remains usable across repeated attempts, closes abandoned windows after timeouts, and reports a clear error when the original card can no longer be loaded.
+- Karaoke Subtitle Collapse: Secondary subtitles no longer stack dozens of one-syllable lines during openings and endings; repeated events collapse into one line, capped to a strip at the top.
+- Unparsed Token Hover: Subtitle text Yomitan can't parse (truncated inflections, elongation runs) remains hoverable, while staying excluded from highlighting, N+1 candidate math, and vocabulary stats.
+- YouTube Streaming: Fixed direct YouTube stream extraction that could corrupt signed URLs and cause ffmpeg 403 errors.
+
+<details>
+<summary>Internal changes</summary>
+
+### Internal
+- Test lanes moved to `scripts/test-lanes.ts` with per-directory discovery and isolated per-file timeouts; CI now covers previously orphaned stats, scripts, plugin process-retry, and runtime-compat suites, plus a new stats lane in the change-verification workflow.
+
+</details>
+
 ## v0.17.2 (2026-06-28)
 
 ### Fixed
