@@ -90,7 +90,7 @@ SubMiner looks up each token's `frequencyRank` from `term_meta_bank_*.json` file
 When `sourcePath` is omitted, SubMiner searches default install/runtime locations for `frequency-dictionary` directories automatically.
 
 ::: info
-Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist.
+Frequency highlighting skips tokens that look like non-lexical noise (kana reduplication, short kana endings like `っ`), even when dictionary ranks exist. For merged kana tokens, SubMiner keeps a rank when the dictionary headword reading covers the full token (for example, `かと言って` / `かといって`), while grammar wrapped around a shorter lemma remains unannotated.
 :::
 
 ::: info

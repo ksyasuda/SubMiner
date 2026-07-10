@@ -550,10 +550,20 @@ function isKanaOnlyMixedFunctionContentToken(
   }
 
   const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  return (
+  const hasMixedFunctionContentParts =
     pos1Parts.length >= 2 &&
     pos1Parts.some((part) => pos1Exclusions.has(part)) &&
-    pos1Parts.some((part) => !pos1Exclusions.has(part))
+    pos1Parts.some((part) => !pos1Exclusions.has(part));
+  if (!hasMixedFunctionContentParts) {
+    return false;
+  }
+
+  const normalizedReading = normalizeJlptTextForExclusion(token.reading);
+  const normalizedHeadwordReading = normalizeJlptTextForExclusion(token.headwordReading ?? '');
+  return (
+    !normalizedReading ||
+    !normalizedHeadwordReading ||
+    normalizedReading !== normalizedHeadwordReading
   );
 }
 
