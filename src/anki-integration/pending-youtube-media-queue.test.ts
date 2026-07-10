@@ -35,6 +35,7 @@ function createDeps(
     resolveConfiguredFieldName: () => 'Picture',
     mergeFieldValue: (_existing, newValue) => newValue,
     getAnimatedImageLeadInSeconds: async () => 0,
+    getMpvVolumeScale: async () => 1,
     generateAudioFilename: () => 'audio.mp3',
     generateImageFilename: () => 'image.webp',
     formatMiscInfoPatternForMediaPath: () => '',

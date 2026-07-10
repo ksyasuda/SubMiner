@@ -10,6 +10,8 @@ test('sentence card writes generated audio only to sentence audio field', async 
   const addedFields: Record<string, string>[] = [];
   const updatedFields: Record<string, string>[] = [];
   const storedMedia: string[] = [];
+  const requestedProperties: string[] = [];
+  const audioVolumeScales: Array<number | undefined> = [];
 
   const deps: CardCreationDeps = {
     getConfig: () =>
@@ -24,6 +26,7 @@ test('sentence card writes generated audio only to sentence audio field', async 
         media: {
           generateAudio: true,
           generateImage: false,
+          mirrorMpvVolume: true,
           maxMediaDuration: 30,
         },
         behavior: {},
@@ -39,6 +42,10 @@ test('sentence card writes generated audio only to sentence audio field', async 
         currentSubEnd: 14,
         currentTimePos: 13,
         currentAudioStreamIndex: 0,
+        requestProperty: async (name: string) => {
+          requestedProperties.push(name);
+          return 40;
+        },
       }) as never,
     client: {
       addNote: async (_deck, _modelName, fields) => {
@@ -68,7 +75,18 @@ test('sentence card writes generated audio only to sentence audio field', async 
       retrieveMediaFile: async () => '',
     },
     mediaGenerator: {
-      generateAudio: async () => Buffer.from('audio'),
+      generateAudio: async (
+        _path,
+        _startTime,
+        _endTime,
+        _audioPadding,
+        _audioStreamIndex,
+        _normalizeAudio,
+        volumeScale,
+      ) => {
+        audioVolumeScales.push(volumeScale);
+        return Buffer.from('audio');
+      },
       generateScreenshot: async () => null,
       generateAnimatedImage: async () => null,
     },
@@ -124,6 +142,8 @@ test('sentence card writes generated audio only to sentence audio field', async 
     Expression: '字幕',
   });
   assert.equal(storedMedia.length, 1);
+  assert.deepEqual(requestedProperties, ['volume']);
+  assert.deepEqual(audioVolumeScales, [0.4 ** 3]);
   const mediaUpdate = updatedFields.find((fields) => 'SentenceAudio' in fields);
   assert.equal(mediaUpdate?.SentenceAudio, `[sound:${storedMedia[0]}]`);
   assert.equal('ExpressionAudio' in mediaUpdate!, false);

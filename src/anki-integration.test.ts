@@ -573,6 +573,8 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
         endTime: number,
         audioPadding?: number,
         audioStreamIndex?: number,
+        normalizeAudio?: boolean,
+        volumeScale?: number,
       ) => Promise<Buffer>;
       generateScreenshot: (path: MediaInput) => Promise<Buffer>;
     };
@@ -587,6 +589,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
       imageFieldName?: string;
       generateAudio: boolean;
       generateImage: boolean;
+      volumeScale?: number;
     }) => void;
   };
   internals.client = {
@@ -606,9 +609,17 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
     },
   };
   internals.mediaGenerator = {
-    generateAudio: async (mediaPath, _startTime, _endTime, _audioPadding, audioStreamIndex) => {
+    generateAudio: async (
+      mediaPath,
+      _startTime,
+      _endTime,
+      _audioPadding,
+      audioStreamIndex,
+      _normalizeAudio,
+      volumeScale,
+    ) => {
       mediaInputs.push(
-        `audio:${describeMediaInputForTest(mediaPath)}:${audioStreamIndex ?? 'auto'}`,
+        `audio:${describeMediaInputForTest(mediaPath)}:${audioStreamIndex ?? 'auto'}:${volumeScale}`,
       );
       return Buffer.from('audio');
     },
@@ -628,6 +639,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
     imageFieldName: 'Picture',
     generateAudio: true,
     generateImage: true,
+    volumeScale: 0.25,
   });
   internals.queuePendingYoutubeMediaUpdate({
     sourceUrl: 'https://youtu.be/abc123',
@@ -640,14 +652,15 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
     imageFieldName: 'Picture',
     generateAudio: true,
     generateImage: true,
+    volumeScale: 0.8,
   });
 
   await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
 
   assert.deepEqual(mediaInputs, [
-    'audio:/tmp/media.mkv:youtube-cache:auto',
+    'audio:/tmp/media.mkv:youtube-cache:auto:0.25',
     'image:/tmp/media.mkv:youtube-cache',
-    'audio:/tmp/media.mkv:youtube-cache:auto',
+    'audio:/tmp/media.mkv:youtube-cache:auto:0.8',
     'image:/tmp/media.mkv:youtube-cache',
   ]);
   assert.deepEqual(
@@ -771,6 +784,8 @@ test('AnkiIntegration reports partial queued YouTube media updates separately fr
 test('AnkiIntegration queues YouTube media updates against recovered source URLs', async () => {
   const updatedNotes: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const storedMedia: string[] = [];
+  const audioVolumeScales: Array<number | undefined> = [];
+  let mpvVolume = 30;
 
   const integration = new AnkiIntegration(
     {
@@ -787,6 +802,10 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
       currentSubStart: 10,
       currentSubEnd: 12,
       currentTimePos: 11,
+      requestProperty: async (name: string) => {
+        assert.equal(name, 'volume');
+        return mpvVolume;
+      },
     } as never,
     () => undefined,
     undefined,
@@ -807,7 +826,15 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
       storeMediaFile: (filename: string) => Promise<void>;
     };
     mediaGenerator: {
-      generateAudio: () => Promise<Buffer>;
+      generateAudio: (
+        path: MediaInput,
+        startTime: number,
+        endTime: number,
+        audioPadding?: number,
+        audioStreamIndex?: number,
+        normalizeAudio?: boolean,
+        volumeScale?: number,
+      ) => Promise<Buffer>;
       generateScreenshot: () => Promise<Buffer>;
     };
     queuePendingYoutubeMediaUpdateForNote: (job: {
@@ -834,7 +861,18 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
     },
   };
   internals.mediaGenerator = {
-    generateAudio: async () => Buffer.from('audio'),
+    generateAudio: async (
+      _path,
+      _startTime,
+      _endTime,
+      _audioPadding,
+      _audioStreamIndex,
+      _normalizeAudio,
+      volumeScale,
+    ) => {
+      audioVolumeScales.push(volumeScale);
+      return Buffer.from('audio');
+    },
     generateScreenshot: async () => Buffer.from('image'),
   };
   internals.showNotification = async () => undefined;
@@ -850,6 +888,7 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
     },
     label: 'resolved source',
   });
+  mpvVolume = 90;
   await integration.handleYoutubeMediaCacheReady('https://youtu.be/abc123', '/tmp/media.mkv');
 
   assert.equal(queued, true);
@@ -858,6 +897,7 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
   assert.match(updatedNotes[0]?.fields.SentenceAudio ?? '', /^\[sound:audio_/);
   assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image_/);
   assert.equal(storedMedia.length, 2);
+  assert.deepEqual(audioVolumeScales, [0.3 ** 3]);
 });
 
 test('AnkiIntegration passes audio normalization config for ready cached YouTube audio', async () => {
@@ -865,7 +905,9 @@ test('AnkiIntegration passes audio normalization config for ready cached YouTube
     path: string;
     audioStreamIndex?: number;
     normalizeAudio?: boolean;
+    volumeScale?: number;
   }> = [];
+  const requestedProperties: string[] = [];
 
   const integration = new AnkiIntegration(
     {
@@ -881,6 +923,10 @@ test('AnkiIntegration passes audio normalization config for ready cached YouTube
       currentSubStart: 10,
       currentSubEnd: 12,
       currentTimePos: 11,
+      requestProperty: async (name: string) => {
+        requestedProperties.push(name);
+        return 55;
+      },
     } as never,
     () => undefined,
     undefined,
@@ -902,6 +948,7 @@ test('AnkiIntegration passes audio normalization config for ready cached YouTube
         audioPadding?: number,
         audioStreamIndex?: number,
         normalizeAudio?: boolean,
+        volumeScale?: number,
       ) => Promise<Buffer>;
     };
     generateAudio: () => Promise<Buffer | null>;
@@ -914,19 +961,22 @@ test('AnkiIntegration passes audio normalization config for ready cached YouTube
       _audioPadding,
       audioStreamIndex,
       normalizeAudio,
+      volumeScale,
     ) => {
-      audioCalls.push({ path: path.path, audioStreamIndex, normalizeAudio });
+      audioCalls.push({ path: path.path, audioStreamIndex, normalizeAudio, volumeScale });
       return Buffer.from('audio');
     },
   };
 
   await internals.generateAudio();
 
+  assert.deepEqual(requestedProperties, ['volume']);
   assert.deepEqual(audioCalls, [
     {
       path: '/tmp/subminer-youtube-media-cache/media.mkv',
       audioStreamIndex: undefined,
       normalizeAudio: false,
+      volumeScale: 0.55 ** 3,
     },
   ]);
 });

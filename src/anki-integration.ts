@@ -73,6 +73,7 @@ import type {
   PendingYoutubeMediaQueueFailedOptions,
   PendingYoutubeMediaQueueReadyOptions,
 } from './anki-integration/pending-youtube-media-queue';
+import { resolveMpvVolumeScale } from './anki-integration/mpv-volume';
 
 const log = createLogger('anki').child('integration');
 
@@ -341,14 +342,23 @@ export class AnkiIntegration {
         storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
       },
       mediaGenerator: {
-        generateAudio: (videoPath, startTime, endTime, audioPadding, audioStreamIndex) =>
+        generateAudio: (
+          videoPath,
+          startTime,
+          endTime,
+          audioPadding,
+          audioStreamIndex,
+          normalizeAudio,
+          volumeScale,
+        ) =>
           this.mediaGenerator.generateAudio(
             videoPath,
             startTime,
             endTime,
             audioPadding,
             audioStreamIndex,
-            this.config.media?.normalizeAudio !== false,
+            normalizeAudio,
+            volumeScale,
           ),
         generateScreenshot: (videoPath, timestamp, options) =>
           this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
@@ -373,6 +383,7 @@ export class AnkiIntegration {
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
       getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
+      getMpvVolumeScale: () => this.getMpvVolumeScale(),
       generateAudioFilename: () => this.generateAudioFilename(),
       generateImageFilename: () => this.generateImageFilename(),
       formatMiscInfoPatternForMediaPath: (
@@ -496,14 +507,23 @@ export class AnkiIntegration {
         retrieveMediaFile: (filename) => this.client.retrieveMediaFile(filename),
       },
       mediaGenerator: {
-        generateAudio: (videoPath, startTime, endTime, audioPadding, audioStreamIndex) =>
+        generateAudio: (
+          videoPath,
+          startTime,
+          endTime,
+          audioPadding,
+          audioStreamIndex,
+          normalizeAudio,
+          volumeScale,
+        ) =>
           this.mediaGenerator.generateAudio(
             videoPath,
             startTime,
             endTime,
             audioPadding,
             audioStreamIndex,
-            this.config.media?.normalizeAudio !== false,
+            normalizeAudio,
+            volumeScale,
           ),
         generateScreenshot: (videoPath, timestamp, options) =>
           this.mediaGenerator.generateScreenshot(videoPath, timestamp, options),
@@ -965,6 +985,10 @@ export class AnkiIntegration {
     );
   }
 
+  private async getMpvVolumeScale(): Promise<number | undefined> {
+    return resolveMpvVolumeScale(this.mpvClient, this.config.media?.mirrorMpvVolume !== false);
+  }
+
   async handleYoutubeMediaCacheReady(
     sourceUrl: string,
     cachedPath: string,
@@ -1003,6 +1027,7 @@ export class AnkiIntegration {
       this.config.media?.audioPadding,
       resolveAudioStreamIndexForMediaGeneration(videoPath, this.mpvClient.currentAudioStreamIndex),
       this.config.media?.normalizeAudio !== false,
+      await this.getMpvVolumeScale(),
     );
   }
 

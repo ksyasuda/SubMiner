@@ -111,6 +111,7 @@ test('config option registry includes critical paths and has unique entries', ()
     'ankiConnect.enabled',
     'subtitleStyle.nameMatchEnabled',
     'ankiConnect.media.normalizeAudio',
+    'ankiConnect.media.mirrorMpvVolume',
     'anilist.characterDictionary.collapsibleSections.description',
     'mpv.executablePath',
     'mpv.launchMode',

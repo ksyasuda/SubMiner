@@ -52,6 +52,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       animatedCrf: 35,
       syncAnimatedImageToWordAudio: true,
       normalizeAudio: true,
+      mirrorMpvVolume: true,
       audioPadding: 0,
       fallbackDuration: 3.0,
       maxMediaDuration: 30,

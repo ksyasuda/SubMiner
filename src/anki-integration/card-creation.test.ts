@@ -525,6 +525,7 @@ test('CardCreationService queues YouTube media when required cache is not ready'
     miscInfoFieldName?: string;
     generateAudio: boolean;
     generateImage: boolean;
+    volumeScale?: number;
   }> = [];
   let streamRequests = 0;
 
@@ -556,7 +557,10 @@ test('CardCreationService queues YouTube media when required cache is not ready'
         currentSubEnd: 12,
         currentTimePos: 11,
         currentAudioStreamIndex: 2,
-        requestProperty: async () => {
+        requestProperty: async (name: string) => {
+          if (name === 'volume') {
+            return 35;
+          }
           streamRequests += 1;
           return 'https://rr1---sn.example.googlevideo.com/videoplayback?id=123';
         },
@@ -652,6 +656,7 @@ test('CardCreationService queues YouTube media when required cache is not ready'
       miscInfoFieldName: 'MiscInfo',
       generateAudio: true,
       generateImage: true,
+      volumeScale: 0.35 ** 3,
     },
   ]);
   assert.deepEqual(updates, []);

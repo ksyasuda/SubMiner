@@ -46,6 +46,7 @@ export interface PendingYoutubeMediaQueueDeps {
   ) => string | null;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   getAnimatedImageLeadInSeconds: (noteInfo: PendingYoutubeMediaNoteInfo) => Promise<number>;
+  getMpvVolumeScale: () => Promise<number | undefined>;
   generateAudioFilename: () => string;
   generateImageFilename: () => string;
   formatMiscInfoPatternForMediaPath: (
@@ -126,6 +127,9 @@ export class PendingYoutubeMediaQueue {
 
     const config = this.deps.getConfig();
     const mediaRange = this.deps.getSubtitleMediaRange(job.context);
+    const volumeScale = shouldGenerateAudio(config)
+      ? await this.deps.getMpvVolumeScale()
+      : undefined;
     this.enqueue({
       sourceUrl,
       noteId: job.noteId,
@@ -143,6 +147,7 @@ export class PendingYoutubeMediaQueue {
         this.deps.resolveConfiguredFieldName(job.noteInfo, config.fields?.miscInfo) ?? undefined,
       generateAudio: shouldGenerateAudio(config),
       generateImage: shouldGenerateImage(config),
+      volumeScale,
     });
     return true;
   }
@@ -273,6 +278,7 @@ export class PendingYoutubeMediaQueue {
           config.media?.audioPadding,
           undefined,
           config.media?.normalizeAudio !== false,
+          job.volumeScale,
         );
         if (audioBuffer) {
           await this.deps.client.storeMediaFile(audioFilename, audioBuffer);

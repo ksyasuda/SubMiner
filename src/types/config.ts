@@ -236,6 +236,7 @@ export interface ResolvedConfig {
       animatedCrf: number;
       syncAnimatedImageToWordAudio: boolean;
       normalizeAudio: boolean;
+      mirrorMpvVolume: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;
