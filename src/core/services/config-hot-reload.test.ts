@@ -31,6 +31,8 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
   next.jimaku.maxEntryResults = prev.jimaku.maxEntryResults + 1;
   next.subsync.replace = !prev.subsync.replace;
   next.ankiConnect.deck = 'Mining';
+  next.ankiConnect.media.normalizeAudio = !prev.ankiConnect.media.normalizeAudio;
+  next.ankiConnect.media.mirrorMpvVolume = !prev.ankiConnect.media.mirrorMpvVolume;
   next.ankiConnect.behavior.autoUpdateNewCards = !prev.ankiConnect.behavior.autoUpdateNewCards;
   next.ankiConnect.knownWords.highlightEnabled = !prev.ankiConnect.knownWords.highlightEnabled;
   next.ankiConnect.knownWords.refreshMinutes = prev.ankiConnect.knownWords.refreshMinutes + 5;
@@ -65,6 +67,8 @@ test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloada
       'jimaku.maxEntryResults',
       'subsync.replace',
       'ankiConnect.deck',
+      'ankiConnect.media.normalizeAudio',
+      'ankiConnect.media.mirrorMpvVolume',
       'ankiConnect.behavior.autoUpdateNewCards',
       'ankiConnect.knownWords.highlightEnabled',
       'ankiConnect.knownWords.refreshMinutes',

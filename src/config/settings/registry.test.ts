@@ -165,6 +165,15 @@ test('settings registry exposes specialized controls for config-assisted inputs'
   assert.equal(field('discordPresence.presenceStyle').control, 'select');
 });
 
+test('settings registry exposes mpv volume mirroring as a mining toggle', () => {
+  const volumeField = field('ankiConnect.media.mirrorMpvVolume');
+
+  assert.equal(volumeField.category, 'mining-anki');
+  assert.equal(volumeField.section, 'Media Capture');
+  assert.equal(volumeField.control, 'boolean');
+  assert.equal(volumeField.defaultValue, true);
+});
+
 test('settings registry exposes YouTube media cache mode as a labeled select', () => {
   const mediaCacheMode = field('youtube.mediaCache.mode');
   const mediaCacheMaxHeight = field('youtube.mediaCache.maxHeight');
@@ -313,6 +322,8 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'subsync.replace',
     'ankiConnect.behavior.autoUpdateNewCards',
     'ankiConnect.deck',
+    'ankiConnect.media.normalizeAudio',
+    'ankiConnect.media.mirrorMpvVolume',
     'ankiConnect.knownWords.highlightEnabled',
     'ankiConnect.knownWords.refreshMinutes',
     'ankiConnect.knownWords.addMinedWordsImmediately',

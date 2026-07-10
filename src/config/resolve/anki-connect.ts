@@ -106,6 +106,22 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
     },
   };
 
+  if (hasOwn(media, 'mirrorMpvVolume')) {
+    const parsed = asBoolean(media.mirrorMpvVolume);
+    if (parsed === undefined) {
+      context.resolved.ankiConnect.media.mirrorMpvVolume =
+        DEFAULT_CONFIG.ankiConnect.media.mirrorMpvVolume;
+      context.warn(
+        'ankiConnect.media.mirrorMpvVolume',
+        media.mirrorMpvVolume,
+        context.resolved.ankiConnect.media.mirrorMpvVolume,
+        'Expected boolean.',
+      );
+    } else {
+      context.resolved.ankiConnect.media.mirrorMpvVolume = parsed;
+    }
+  }
+
   if (hasOwn(behavior, 'notificationType')) {
     const parsed = asNotificationType(behavior.notificationType);
     if (parsed === undefined) {

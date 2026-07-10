@@ -185,7 +185,15 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.media.normalizeAudio',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.media.normalizeAudio,
-      description: 'Normalize generated sentence audio loudness during media extraction.',
+      description:
+        'Normalize generated sentence audio loudness during media extraction. Changes apply live.',
+    },
+    {
+      path: 'ankiConnect.media.mirrorMpvVolume',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.mirrorMpvVolume,
+      description:
+        "Apply mpv's current software volume curve to generated sentence audio. Changes apply live.",
     },
     {
       path: 'ankiConnect.media.generateImage',

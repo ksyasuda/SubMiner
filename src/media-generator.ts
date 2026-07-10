@@ -25,6 +25,7 @@ import { normalizeMediaInput, type MediaInput } from './media-input';
 
 const log = createLogger('media');
 const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-23:TP=-2:LRA=11';
+const AUDIO_AMPLIFICATION_LIMITER_FILTER = 'alimiter=limit=0.891251:level=false';
 
 export type { MediaInput, MediaInputOptions } from './media-input';
 
@@ -266,6 +267,7 @@ export class MediaGenerator {
     padding: number = 0,
     audioStreamIndex: number | null = null,
     normalizeAudio = true,
+    volumeScale?: number,
   ): Promise<Buffer> {
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime - safePadding);
@@ -296,8 +298,23 @@ export class MediaGenerator {
       }
 
       args.push('-vn');
+      const audioFilters: string[] = [];
       if (normalizeAudio) {
-        args.push('-af', AUDIO_NORMALIZATION_FILTER);
+        audioFilters.push(AUDIO_NORMALIZATION_FILTER);
+      }
+      if (
+        typeof volumeScale === 'number' &&
+        Number.isFinite(volumeScale) &&
+        volumeScale >= 0 &&
+        volumeScale !== 1
+      ) {
+        audioFilters.push(`volume=${volumeScale}`);
+        if (volumeScale > 1) {
+          audioFilters.push(AUDIO_AMPLIFICATION_LIMITER_FILTER);
+        }
+      }
+      if (audioFilters.length > 0) {
+        args.push('-af', audioFilters.join(','));
       }
       args.push('-acodec', 'libmp3lame', '-q:a', '2', '-ar', '44100', '-y', outputPath);
 

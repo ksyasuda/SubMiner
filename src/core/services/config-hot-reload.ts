@@ -68,6 +68,8 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'jimaku',
   'subsync',
   'ankiConnect.deck',
+  'ankiConnect.media.normalizeAudio',
+  'ankiConnect.media.mirrorMpvVolume',
   'ankiConnect.behavior.autoUpdateNewCards',
   'ankiConnect.knownWords.highlightEnabled',
   'ankiConnect.knownWords.refreshMinutes',

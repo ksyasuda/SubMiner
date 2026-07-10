@@ -93,6 +93,7 @@ test('loads defaults when config is missing', () => {
     systemPrompt: '',
   });
   assert.equal(config.ankiConnect.media.normalizeAudio, true);
+  assert.equal(config.ankiConnect.media.mirrorMpvVolume, true);
   assert.equal(config.startupWarmups.lowPowerMode, false);
   assert.equal(config.startupWarmups.mecab, true);
   assert.equal(config.startupWarmups.yomitanExtension, true);
@@ -166,6 +167,31 @@ test('loads defaults when config is missing', () => {
   assert.equal(config.mpv.subminerBinaryPath, '');
   assert.equal(config.mpv.aniskipEnabled, true);
   assert.equal(config.mpv.aniskipButtonKey, 'TAB');
+});
+
+test('rejects invalid mpv volume mirroring values', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "media": {
+          "mirrorMpvVolume": "false"
+        }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+
+  assert.equal(
+    service.getConfig().ankiConnect.media.mirrorMpvVolume,
+    DEFAULT_CONFIG.ankiConnect.media.mirrorMpvVolume,
+  );
+  assert.ok(
+    service.getWarnings().some((warning) => warning.path === 'ankiConnect.media.mirrorMpvVolume'),
+  );
 });
 
 test('parses updates config and warns on invalid values', () => {

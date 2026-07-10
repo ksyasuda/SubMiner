@@ -93,6 +93,16 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.deck')) {
     patch.deck = config.ankiConnect.deck;
   }
+  const mediaPatch: NonNullable<AnkiConnectConfig['media']> = {};
+  if (diff.hotReloadFields.includes('ankiConnect.media.normalizeAudio')) {
+    mediaPatch.normalizeAudio = config.ankiConnect.media.normalizeAudio;
+  }
+  if (diff.hotReloadFields.includes('ankiConnect.media.mirrorMpvVolume')) {
+    mediaPatch.mirrorMpvVolume = config.ankiConnect.media.mirrorMpvVolume;
+  }
+  if (Object.keys(mediaPatch).length > 0) {
+    patch.media = mediaPatch;
+  }
   if (hasAnyHotReloadField(diff, ['ankiConnect.knownWords'])) {
     patch.knownWords = config.ankiConnect.knownWords;
   }

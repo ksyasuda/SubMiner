@@ -75,6 +75,7 @@ export interface AnkiConnectConfig {
     animatedCrf?: number;
     syncAnimatedImageToWordAudio?: boolean;
     normalizeAudio?: boolean;
+    mirrorMpvVolume?: boolean;
     audioPadding?: number;
     fallbackDuration?: number;
     maxMediaDuration?: number;

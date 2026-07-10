@@ -9,6 +9,7 @@ export interface PendingYoutubeMediaUpdate {
   miscInfoFieldName?: string;
   generateAudio: boolean;
   generateImage: boolean;
+  volumeScale?: number;
 }
 
 function trimToNonEmptyString(value: unknown): string | null {

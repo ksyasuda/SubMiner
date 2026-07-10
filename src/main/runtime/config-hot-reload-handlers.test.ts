@@ -149,6 +149,42 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
   assert.ok(calls.includes('broadcast:config:hot-reload'));
 });
 
+test('createConfigHotReloadAppliedHandler applies only changed Anki media options', () => {
+  const config = deepCloneConfig(DEFAULT_CONFIG);
+  config.ankiConnect.media.normalizeAudio = false;
+  config.ankiConnect.media.mirrorMpvVolume = false;
+  const ankiPatches: unknown[] = [];
+
+  const applyHotReload = createConfigHotReloadAppliedHandler({
+    setKeybindings: () => undefined,
+    setSessionBindings: () => undefined,
+    refreshGlobalAndOverlayShortcuts: () => undefined,
+    setSecondarySubMode: () => undefined,
+    broadcastToOverlayWindows: () => undefined,
+    applyAnkiRuntimeConfigPatch: (patch) => ankiPatches.push(patch),
+  });
+
+  applyHotReload(
+    {
+      hotReloadFields: ['ankiConnect.media.normalizeAudio'],
+      restartRequiredFields: [],
+    },
+    config,
+  );
+  applyHotReload(
+    {
+      hotReloadFields: ['ankiConnect.media.mirrorMpvVolume'],
+      restartRequiredFields: [],
+    },
+    config,
+  );
+
+  assert.deepEqual(ankiPatches, [
+    { media: { normalizeAudio: false } },
+    { media: { mirrorMpvVolume: false } },
+  ]);
+});
+
 test('buildConfigHotReloadPayload includes independent primary subtitle mode', () => {
   const config = deepCloneConfig(DEFAULT_CONFIG);
   config.subtitleStyle.primaryDefaultMode = 'hover';

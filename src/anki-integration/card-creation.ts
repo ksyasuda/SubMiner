@@ -17,6 +17,7 @@ import {
 } from './media-source';
 import { shouldMarkWordAndSentenceCard } from './note-field-utils';
 import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
+import { resolveMpvVolumeScale } from './mpv-volume';
 
 const log = createLogger('anki').child('integration.card-creation');
 
@@ -66,6 +67,7 @@ interface CardCreationMediaGenerator {
     audioPadding?: number,
     audioStreamIndex?: number,
     normalizeAudio?: boolean,
+    volumeScale?: number,
   ): Promise<Buffer | null>;
   generateScreenshot(
     path: MediaInput,
@@ -714,6 +716,12 @@ export class CardCreationService {
 
         const label = sentence.length > 30 ? sentence.substring(0, 30) + '...' : sentence;
         if (shouldQueuePendingYoutubeMedia) {
+          const volumeScale = generateAudio
+            ? await resolveMpvVolumeScale(
+                mpvClient,
+                this.deps.getConfig().media?.mirrorMpvVolume !== false,
+              )
+            : undefined;
           this.deps.queuePendingYoutubeMediaUpdate?.({
             sourceUrl:
               trimToNonEmptyString(await this.deps.getYoutubeMediaSourceUrl?.()) ??
@@ -727,6 +735,7 @@ export class CardCreationService {
             miscInfoFieldName: resolvedMiscInfoField ?? undefined,
             generateAudio,
             generateImage,
+            volumeScale,
           });
           await this.deps.showNotification(noteId, label, 'media queued');
           return true;
@@ -844,6 +853,10 @@ export class CardCreationService {
         mpvClient.currentAudioStreamIndex ?? undefined,
       ),
       this.deps.getConfig().media?.normalizeAudio !== false,
+      await resolveMpvVolumeScale(
+        mpvClient,
+        this.deps.getConfig().media?.mirrorMpvVolume !== false,
+      ),
     );
   }
 
