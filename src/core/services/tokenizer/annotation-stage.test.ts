@@ -1713,7 +1713,9 @@ test('annotateTokens excludes kana-only composite function/content tokens from f
   const tokens = [
     makeToken({
       surface: 'になれば',
+      reading: 'になれば',
       headword: 'なる',
+      headwordReading: 'なる',
       pos1: '助詞|動詞',
       pos2: '格助詞|自立|接続助詞',
       startPos: 0,
@@ -1728,6 +1730,28 @@ test('annotateTokens excludes kana-only composite function/content tokens from f
 
   assert.equal(result[0]?.frequencyRank, undefined);
   assert.equal(result[0]?.isNPlusOneTarget, false);
+});
+
+test('annotateTokens keeps frequency for mixed kana tokens whose headword reading covers the token', () => {
+  const tokens = [
+    makeToken({
+      surface: 'かといって',
+      reading: 'カトイッテ',
+      headword: 'かと言って',
+      headwordReading: 'かといって',
+      pos1: '助詞|助詞|動詞|助詞',
+      pos2: '副助詞|格助詞|自立|接続助詞',
+      startPos: 0,
+      endPos: 5,
+      frequencyRank: 4898,
+    }),
+  ];
+
+  const result = annotateTokens(tokens, makeDeps(), {
+    minSentenceWordsForNPlusOne: 1,
+  });
+
+  assert.equal(result[0]?.frequencyRank, 4898);
 });
 
 test('annotateTokens excludes composite tokens when all component pos tags are excluded', () => {
