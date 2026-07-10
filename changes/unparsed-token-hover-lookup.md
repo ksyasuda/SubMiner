@@ -1,4 +1,4 @@
 type: fixed
 area: overlay
 
-- Fixed subtitle text that Yomitan's parser cannot match (truncated inflections like the volitional in とこ戻ろ…, elongation runs like ぅ～/ぉ〜) being rendered as plain, non-interactive text with no hover lookup. Unparsed runs are now kept as hoverable tokens matching Yomitan's own segmentation, while being fully ignored by frequency/JLPT highlighting, the N+1 candidate math, and vocabulary stats. Bracketed SFX/speaker captions and punctuation-only runs are still skipped.
+- Subtitle text that Yomitan cannot parse, including truncated inflections such as とこ戻ろ… and elongation runs such as ぅ～ or ぉ〜, now remains hoverable using Yomitan's segmentation. These runs are excluded from frequency/JLPT highlighting, N+1 candidate math, and vocabulary stats; bracketed captions and punctuation-only runs remain skipped.

@@ -1,4 +1,4 @@
-type: fixed
+type: changed
 area: stats
 
-- Show all trend chart titles by default, persist hidden-title choices, and add a per-chart top-title limit selector.
+- Overhauled Stats trend charts with persisted title visibility, per-chart title limits, `top` and `most recent` ranking modes, an option to show or hide empty days, calendar-aligned periods, and value-sorted multi-column tooltips.

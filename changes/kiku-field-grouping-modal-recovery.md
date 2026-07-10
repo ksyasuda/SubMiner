@@ -1,6 +1,5 @@
 type: fixed
-area: overlay
+area: anki
 
-- Fixed Kiku manual field grouping freezing the overlay after adding a duplicate card: the field grouping modal now reliably appears above fullscreen mpv on Hyprland/Wayland by re-asserting window placement until the compositor maps the modal window, instead of a single post-show attempt that raced the async map and left the dialog invisible.
-- Fixed manual field grouping staying broken after the first attempt: the request resolver is now always cleared once a choice is made or the request is abandoned, so later grouping attempts no longer short-circuit to an instant "Field grouping cancelled".
-- Fixed a timed-out or failed field grouping request leaving an orphaned, invisible modal window covering mpv: abandoned requests now tear down the modal window and close the dialog so the overlay recovers immediately.
+- Kiku manual field grouping now keeps its dialog above fullscreen mpv on Hyprland/Wayland, remains usable across repeated attempts, and closes abandoned modal windows after timeouts or failures so the overlay recovers.
+- Each grouping attempt now reports its outcome once, including a dedicated error when SubMiner can no longer load the original card.
