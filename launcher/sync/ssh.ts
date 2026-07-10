@@ -78,7 +78,11 @@ const REMOTE_RUNTIME_PATH =
  * Non-interactive SSH shells often miss user-installed launchers and Bun.
  * Probe the launcher under the same deterministic PATH used by sync itself.
  */
-export function resolveRemoteSubminerCommand(host: string, preferred: string | null): string {
+export function resolveRemoteSubminerCommand(
+  host: string,
+  preferred: string | null,
+  runRemote: typeof runSsh = runSsh,
+): string {
   // Trusted defaults stay unquoted so the remote shell expands `~`; a
   // user-supplied override is shell-quoted to prevent command injection.
   const candidates: Array<{ value: string; invocation: string }> = preferred
@@ -89,7 +93,7 @@ export function resolveRemoteSubminerCommand(host: string, preferred: string | n
       ];
   for (const candidate of candidates) {
     const command = `${REMOTE_RUNTIME_PATH} ${candidate.invocation}`;
-    const probe = runSsh(host, `${command} --help >/dev/null 2>&1`);
+    const probe = runRemote(host, `${command} --help >/dev/null 2>&1`);
     if (probe.status === 0) {
       return command;
     }
