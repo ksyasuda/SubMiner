@@ -40,6 +40,7 @@ function createContext(): LauncherCommandContext {
       syncHost: '',
       syncSnapshotPath: '',
       syncMergePath: '',
+      syncDirection: 'both',
       syncRemoteCmd: '',
       syncDbPath: '',
       syncForce: false,

@@ -203,6 +203,7 @@ export function createDefaultArgs(
     syncHost: '',
     syncSnapshotPath: '',
     syncMergePath: '',
+    syncDirection: 'both',
     syncRemoteCmd: '',
     syncDbPath: '',
     syncForce: false,
@@ -276,6 +277,7 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.syncHost = invocations.syncHost ?? '';
     parsed.syncSnapshotPath = invocations.syncSnapshotPath ?? '';
     parsed.syncMergePath = invocations.syncMergePath ?? '';
+    parsed.syncDirection = invocations.syncDirection;
     parsed.syncRemoteCmd = invocations.syncRemoteCmd ?? '';
     parsed.syncDbPath = invocations.syncDbPath ?? '';
     parsed.syncForce = invocations.syncForce;

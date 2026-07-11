@@ -42,3 +42,22 @@ test('parseCliPrograms captures texthooker browser-open flag', () => {
   assert.equal(result.invocations.texthookerTriggered, true);
   assert.equal(result.invocations.texthookerOpenBrowser, true);
 });
+
+test('parseCliPrograms captures one-way sync directions', () => {
+  const push = parseCliPrograms(['sync', 'media-box', '--push'], 'subminer');
+  const pull = parseCliPrograms(['sync', 'media-box', '--pull'], 'subminer');
+
+  assert.equal(push.invocations.syncDirection, 'push');
+  assert.equal(pull.invocations.syncDirection, 'pull');
+});
+
+test('parseCliPrograms rejects conflicting or hostless one-way sync directions', () => {
+  assert.throws(
+    () => parseCliPrograms(['sync', 'media-box', '--push', '--pull'], 'subminer'),
+    /--push and --pull cannot be combined/,
+  );
+  assert.throws(
+    () => parseCliPrograms(['sync', '--snapshot', '/tmp/stats.sqlite', '--push'], 'subminer'),
+    /--push and --pull require a host/,
+  );
+});

@@ -15,6 +15,7 @@ function makeContext(overrides: Partial<Args>): LauncherCommandContext {
       syncHost: '',
       syncSnapshotPath: '',
       syncMergePath: '',
+      syncDirection: 'both',
       syncRemoteCmd: '',
       syncDbPath: '',
       syncForce: false,
@@ -187,4 +188,70 @@ test('runHostSync includes remote snapshot stderr in failures', async () => {
       runSyncCommand(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
     /Remote snapshot failed on media-box[\s\S]*snapshot permission denied/,
   );
+});
+
+function makeDirectionDeps(calls: string[]): Partial<SyncCommandDeps> {
+  return {
+    createDbSnapshot: (_dbPath: string, outPath: string) => {
+      calls.push(`snapshot:${outPath}`);
+      fs.writeFileSync(outPath, 'snapshot');
+    },
+    mergeSnapshotIntoDb: () => {
+      calls.push('local-merge');
+      return createEmptyMergeSummary();
+    },
+    formatMergeSummary: () => 'summary',
+    ensureTrackerQuiescent: async () => {
+      calls.push('quiescent');
+    },
+    assertSafeSshHost: () => {},
+    resolveRemoteSubminerCommand: () => 'subminer',
+    runSsh: (_host: string, command: string) => {
+      calls.push(`ssh:${command}`);
+      if (command.startsWith('mktemp ')) return ok('/tmp/subminer-sync.remote\n');
+      return ok();
+    },
+    runScp: (from: string, to: string) => {
+      calls.push(`scp:${from}->${to}`);
+      if (!to.includes(':')) fs.writeFileSync(to, 'pulled');
+    },
+  };
+}
+
+test('runHostSync push only snapshots locally and merges remotely', async () => {
+  const calls: string[] = [];
+
+  await runSyncCommand(
+    makeContext({
+      syncDbPath: '/tmp/local.sqlite',
+      syncHost: 'media-box',
+      syncDirection: 'push',
+    }),
+    makeDirectionDeps(calls),
+  );
+
+  assert.ok(calls.some((call) => call.startsWith('snapshot:')));
+  assert.ok(calls.some((call) => call.includes(' sync --merge ')));
+  assert.ok(calls.some((call) => call.startsWith('scp:') && call.includes('->media-box:')));
+  assert.ok(!calls.some((call) => call.includes(' sync --snapshot ')));
+  assert.ok(!calls.includes('local-merge'));
+});
+
+test('runHostSync pull only snapshots remotely and merges locally', async () => {
+  const calls: string[] = [];
+
+  await runSyncCommand(
+    makeContext({
+      syncDbPath: '/tmp/local.sqlite',
+      syncHost: 'media-box',
+      syncDirection: 'pull',
+    }),
+    makeDirectionDeps(calls),
+  );
+
+  assert.ok(calls.some((call) => call.includes(' sync --snapshot ')));
+  assert.ok(calls.some((call) => call.startsWith('scp:media-box:')));
+  assert.ok(calls.includes('local-merge'));
+  assert.ok(!calls.some((call) => call.startsWith('snapshot:')));
+  assert.ok(!calls.some((call) => call.includes(' sync --merge ')));
 });

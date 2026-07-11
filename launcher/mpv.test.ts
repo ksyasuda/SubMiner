@@ -575,6 +575,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     syncHost: '',
     syncSnapshotPath: '',
     syncMergePath: '',
+    syncDirection: 'both',
     syncRemoteCmd: '',
     syncDbPath: '',
     syncForce: false,

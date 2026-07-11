@@ -143,6 +143,9 @@ export async function runHostSync(
   const deps = resolveSyncCommandDeps(inputDeps);
   const { args } = context;
   const host = args.syncHost;
+  const direction = args.syncDirection ?? 'both';
+  const shouldPull = direction !== 'push';
+  const shouldPush = direction !== 'pull';
   deps.assertSafeSshHost(host);
 
   await deps.ensureTrackerQuiescent(context, dbPath);
@@ -164,44 +167,55 @@ export async function runHostSync(
 
     const forceFlag = args.syncForce ? ' --force' : '';
 
-    deps.consoleLog(`Snapshotting local database (${dbPath})...`);
     const localSnapshot = path.join(localTmpDir, 'local.sqlite');
-    deps.createDbSnapshot(dbPath, localSnapshot);
+    if (shouldPush) {
+      deps.consoleLog(`Snapshotting local database (${dbPath})...`);
+      deps.createDbSnapshot(dbPath, localSnapshot);
+    }
 
-    deps.consoleLog(`Snapshotting ${host}...`);
     const remoteSnapshot = `${remoteTmpDir}/snapshot.sqlite`;
-    const snapshotRun = deps.runSsh(
-      host,
-      `${remoteCmd} sync --snapshot ${shellQuote(remoteSnapshot)}${forceFlag}`,
-    );
-    if (snapshotRun.status !== 0) {
-      throw new Error(formatRemoteRunError(`Remote snapshot failed on ${host}.`, snapshotRun));
+    if (shouldPull) {
+      deps.consoleLog(`Snapshotting ${host}...`);
+      const snapshotRun = deps.runSsh(
+        host,
+        `${remoteCmd} sync --snapshot ${shellQuote(remoteSnapshot)}${forceFlag}`,
+      );
+      if (snapshotRun.status !== 0) {
+        throw new Error(formatRemoteRunError(`Remote snapshot failed on ${host}.`, snapshotRun));
+      }
     }
 
     const pulledSnapshot = path.join(localTmpDir, 'remote.sqlite');
-    deps.runScp(`${host}:${remoteSnapshot}`, pulledSnapshot);
+    if (shouldPull) deps.runScp(`${host}:${remoteSnapshot}`, pulledSnapshot);
     const incomingSnapshot = `${remoteTmpDir}/incoming.sqlite`;
-    deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
+    if (shouldPush) deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
 
-    deps.consoleLog(`\nMerging ${host} -> local:`);
-    await deps.ensureTrackerQuiescent(context, dbPath);
-    const summary = deps.mergeSnapshotIntoDb(dbPath, pulledSnapshot);
-    deps.consoleLog(deps.formatMergeSummary(summary));
+    if (shouldPull) {
+      deps.consoleLog(`\nMerging ${host} -> local:`);
+      await deps.ensureTrackerQuiescent(context, dbPath);
+      const summary = deps.mergeSnapshotIntoDb(dbPath, pulledSnapshot);
+      deps.consoleLog(deps.formatMergeSummary(summary));
+    }
 
-    deps.consoleLog(`\nMerging local -> ${host}:`);
-    await deps.ensureTrackerQuiescent(context, dbPath);
-    const mergeRun = deps.runSsh(
-      host,
-      `${remoteCmd} sync --merge ${shellQuote(incomingSnapshot)}${forceFlag}`,
-    );
-    deps.writeStdout(mergeRun.stdout);
-    if (mergeRun.status !== 0) {
-      throw new Error(
-        formatRemoteRunError(
-          `Remote merge failed on ${host}. The local database was updated; re-run "subminer sync ${host}" once the remote issue is fixed.`,
-          mergeRun,
-        ),
+    if (shouldPush) {
+      deps.consoleLog(`\nMerging local -> ${host}:`);
+      await deps.ensureTrackerQuiescent(context, dbPath);
+      const mergeRun = deps.runSsh(
+        host,
+        `${remoteCmd} sync --merge ${shellQuote(incomingSnapshot)}${forceFlag}`,
       );
+      deps.writeStdout(mergeRun.stdout);
+      if (mergeRun.status !== 0) {
+        const retryCommand =
+          direction === 'push' ? `subminer sync ${host} --push` : `subminer sync ${host}`;
+        const localUpdate = shouldPull ? ' The local database was updated;' : '';
+        throw new Error(
+          formatRemoteRunError(
+            `Remote merge failed on ${host}.${localUpdate} re-run "${retryCommand}" once the remote issue is fixed.`,
+            mergeRun,
+          ),
+        );
+      }
     }
 
     deps.consoleLog('\nSync complete.');

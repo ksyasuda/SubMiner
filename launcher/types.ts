@@ -117,6 +117,7 @@ export interface Args {
   syncHost: string;
   syncSnapshotPath: string;
   syncMergePath: string;
+  syncDirection: 'both' | 'push' | 'pull';
   syncRemoteCmd: string;
   syncDbPath: string;
   syncForce: boolean;

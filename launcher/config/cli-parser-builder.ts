@@ -42,6 +42,7 @@ export interface CliInvocations {
   syncHost: string | null;
   syncSnapshotPath: string | null;
   syncMergePath: string | null;
+  syncDirection: 'both' | 'push' | 'pull';
   syncRemoteCmd: string | null;
   syncDbPath: string | null;
   syncForce: boolean;
@@ -173,6 +174,7 @@ export function parseCliPrograms(
   let syncHost: string | null = null;
   let syncSnapshotPath: string | null = null;
   let syncMergePath: string | null = null;
+  let syncDirection: 'both' | 'push' | 'pull' = 'both';
   let syncRemoteCmd: string | null = null;
   let syncDbPath: string | null = null;
   let syncForce = false;
@@ -312,6 +314,8 @@ export function parseCliPrograms(
     .argument('[host]', 'SSH destination (user@host or an ssh config alias)')
     .option('--snapshot <file>', 'Write a consistent snapshot of the local stats database')
     .option('--merge <file>', 'Merge a snapshot database file into the local stats database')
+    .option('--push', 'Only merge local stats into the SSH host')
+    .option('--pull', 'Only merge stats from the SSH host into the local database')
     .option('--db <file>', 'Override the local stats database path')
     .option('--remote-cmd <cmd>', 'subminer command to run on the remote host')
     .option('-f, --force', 'Skip the running-app safety check')
@@ -320,6 +324,14 @@ export function parseCliPrograms(
       const host = typeof rawHost === 'string' ? rawHost.trim() : '';
       const snapshot = typeof options.snapshot === 'string' ? options.snapshot.trim() : '';
       const merge = typeof options.merge === 'string' ? options.merge.trim() : '';
+      const push = options.push === true;
+      const pull = options.pull === true;
+      if (push && pull) {
+        throw new Error('Sync --push and --pull cannot be combined.');
+      }
+      if ((push || pull) && !host) {
+        throw new Error('Sync --push and --pull require a host.');
+      }
       const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
       if (modes === 0) {
         throw new Error('Sync requires a host, --snapshot <file>, or --merge <file>.');
@@ -331,7 +343,9 @@ export function parseCliPrograms(
       syncHost = host || null;
       syncSnapshotPath = snapshot || null;
       syncMergePath = merge || null;
-      syncRemoteCmd = typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
+      syncDirection = push ? 'push' : pull ? 'pull' : 'both';
+      syncRemoteCmd =
+        typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
       syncDbPath = typeof options.db === 'string' ? options.db.trim() || null : null;
       syncForce = options.force === true;
       syncLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
@@ -452,6 +466,7 @@ export function parseCliPrograms(
       syncHost,
       syncSnapshotPath,
       syncMergePath,
+      syncDirection,
       syncRemoteCmd,
       syncDbPath,
       syncForce,

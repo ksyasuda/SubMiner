@@ -34,6 +34,7 @@ function createArgs(): Args {
     syncHost: '',
     syncSnapshotPath: '',
     syncMergePath: '',
+    syncDirection: 'both',
     syncRemoteCmd: '',
     syncDbPath: '',
     syncForce: false,

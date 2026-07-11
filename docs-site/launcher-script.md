@@ -84,11 +84,15 @@ Series whose directories are not currently accessible (e.g. an unmounted network
 
 ```bash
 subminer sync macbook                  # two-way sync with the host "macbook"
+subminer sync macbook --push           # merge local data into macbook only
+subminer sync macbook --pull           # merge macbook data into local only
 subminer sync user@192.168.1.20       # explicit user@host
 subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote launcher path
 ```
 
 How it works: each side takes a consistent snapshot of its database (`VACUUM INTO`), the snapshots are exchanged over `scp`, and each machine merges the other's snapshot into its own database. The merge is an insert-only union keyed on stable identifiers (session UUIDs, video keys, series title keys, word/kanji identity), so it is safe to re-run at any time — syncing twice changes nothing, and nothing is ever overwritten or summed twice. Lifetime totals and rollup charts are updated incrementally, so history older than the session retention window is preserved on both sides.
+
+For a one-way transfer, `--push` snapshots the local database and merges it into the host without changing the local database. `--pull` snapshots the host and merges it into the local database without changing the host. These modes add missing data; they do not delete destination-only data or make the destination an exact mirror.
 
 Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on both machines before syncing; the command refuses to run while a SubMiner process may be writing the database (`--force` overrides). The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block sync. Both machines must be on the same SubMiner version — the sync aborts on a stats schema mismatch. Remote sync checks standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`.
 
@@ -130,6 +134,8 @@ subminer stats -b                       # start background stats daemon
 | `subminer mpv socket`                      | Print active socket path                                           |
 | `subminer mpv idle`                        | Launch detached idle mpv instance                                  |
 | `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH           |
+| `subminer sync <host> --push`              | Merge local stats/history into another machine only                |
+| `subminer sync <host> --pull`              | Merge another machine's stats/history into the local database only |
 | `subminer dictionary <path>`               | Generate character dictionary ZIP from file/dir target             |
 | `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
 | `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |
