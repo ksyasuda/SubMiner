@@ -1,0 +1,2999 @@
+{
+  "name": "ordinal-prefix-noun",
+  "description": "ordinal dai-prefix noun keeps frequency annotation",
+  "recordedAt": "2026-07-11T00:50:24.889Z",
+  "input": {
+    "text": "第三話を見た"
+  },
+  "config": {},
+  "recording": {
+    "messages": [
+      {
+        "action": "optionsGetFull",
+        "params": null,
+        "response": {
+          "result": {
+            "profileCurrent": 0,
+            "profiles": [
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": true
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": false
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "action": "getDictionaryInfo",
+        "params": null,
+        "response": {
+          "result": [
+            {
+              "title": "日本語文法辞典(全集)"
+            },
+            {
+              "title": "使い方の分かる 類語例解辞典"
+            },
+            {
+              "title": "小学館例解学習国語 第十二版"
+            },
+            {
+              "title": "実用日本語表現辞典"
+            },
+            {
+              "title": "JPDBv2㋕",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "CC100"
+            },
+            {
+              "title": "NHK"
+            },
+            {
+              "title": "Jitendex.org [2026-03-05]"
+            },
+            {
+              "title": "JMnedict [2026-03-21]"
+            },
+            {
+              "title": "Jiten",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "SubMiner Character Dictionary"
+            }
+          ]
+        }
+      },
+      {
+        "action": "getDictionaryInfo",
+        "params": null,
+        "response": {
+          "result": [
+            {
+              "title": "日本語文法辞典(全集)"
+            },
+            {
+              "title": "使い方の分かる 類語例解辞典"
+            },
+            {
+              "title": "小学館例解学習国語 第十二版"
+            },
+            {
+              "title": "実用日本語表現辞典"
+            },
+            {
+              "title": "JPDBv2㋕",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "CC100"
+            },
+            {
+              "title": "NHK"
+            },
+            {
+              "title": "Jitendex.org [2026-03-05]"
+            },
+            {
+              "title": "JMnedict [2026-03-21]"
+            },
+            {
+              "title": "Jiten",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "SubMiner Character Dictionary"
+            }
+          ]
+        }
+      },
+      {
+        "action": "optionsGetFull",
+        "params": null,
+        "response": {
+          "result": {
+            "profileCurrent": 0,
+            "profiles": [
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": true
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": false
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "action": "optionsGetFull",
+        "params": null,
+        "response": {
+          "result": {
+            "profileCurrent": 0,
+            "profiles": [
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": true
+                    },
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": true
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": true
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              },
+              {
+                "options": {
+                  "scanning": {
+                    "length": 21
+                  },
+                  "dictionaries": [
+                    {
+                      "name": "JPDBv2㋕",
+                      "enabled": true
+                    },
+                    {
+                      "name": "CC100",
+                      "enabled": true
+                    },
+                    {
+                      "name": "Jiten",
+                      "enabled": false
+                    },
+                    {
+                      "name": "NHK",
+                      "enabled": false
+                    },
+                    {
+                      "name": "日本語文法辞典(全集)",
+                      "enabled": false
+                    },
+                    {
+                      "name": "使い方の分かる 類語例解辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "小学館例解学習国語 第十二版",
+                      "enabled": false
+                    },
+                    {
+                      "name": "実用日本語表現辞典",
+                      "enabled": false
+                    },
+                    {
+                      "name": "Jitendex.org [2026-03-05]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "JMnedict [2026-03-21]",
+                      "enabled": false
+                    },
+                    {
+                      "name": "SubMiner Character Dictionary",
+                      "enabled": true
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "action": "getDictionaryInfo",
+        "params": null,
+        "response": {
+          "result": [
+            {
+              "title": "日本語文法辞典(全集)"
+            },
+            {
+              "title": "使い方の分かる 類語例解辞典"
+            },
+            {
+              "title": "小学館例解学習国語 第十二版"
+            },
+            {
+              "title": "実用日本語表現辞典"
+            },
+            {
+              "title": "JPDBv2㋕",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "CC100"
+            },
+            {
+              "title": "NHK"
+            },
+            {
+              "title": "Jitendex.org [2026-03-05]"
+            },
+            {
+              "title": "JMnedict [2026-03-21]"
+            },
+            {
+              "title": "Jiten",
+              "frequencyMode": "rank-based"
+            },
+            {
+              "title": "SubMiner Character Dictionary"
+            }
+          ]
+        }
+      },
+      {
+        "action": "parseText",
+        "params": {
+          "text": "第三話を見た",
+          "optionsContext": {
+            "index": 0
+          },
+          "scanLength": 21,
+          "useInternalParser": true,
+          "useMecabParser": false
+        },
+        "response": {
+          "result": [
+            {
+              "id": "scan",
+              "source": "scanning-parser",
+              "dictionary": null,
+              "index": 0,
+              "content": [
+                [
+                  {
+                    "text": "第三",
+                    "reading": "だいさん",
+                    "headwords": [
+                      [
+                        {
+                          "term": "第三",
+                          "reading": "だいさん",
+                          "sources": [
+                            {
+                              "originalText": "第三",
+                              "transformedText": "第三",
+                              "deinflectedText": "第三",
+                              "matchType": "exact",
+                              "matchSource": "term",
+                              "isPrimary": true
+                            }
+                          ],
+                          "frequencies": []
+                        }
+                      ]
+                    ]
+                  }
+                ],
+                [
+                  {
+                    "text": "話",
+                    "reading": "はなし",
+                    "headwords": [
+                      [
+                        {
+                          "term": "話",
+                          "reading": "はなし",
+                          "sources": [
+                            {
+                              "originalText": "話",
+                              "transformedText": "話",
+                              "deinflectedText": "話",
+                              "matchType": "exact",
+                              "matchSource": "term",
+                              "isPrimary": true
+                            }
+                          ],
+                          "frequencies": []
+                        }
+                      ],
+                      [
+                        {
+                          "term": "話",
+                          "reading": "わ",
+                          "sources": [
+                            {
+                              "originalText": "話",
+                              "transformedText": "話",
+                              "deinflectedText": "話",
+                              "matchType": "exact",
+                              "matchSource": "term",
+                              "isPrimary": true
+                            }
+                          ],
+                          "frequencies": []
+                        }
+                      ]
+                    ]
+                  }
+                ],
+                [
+                  {
+                    "text": "を",
+                    "reading": "",
+                    "headwords": [
+                      [
+                        {
+                          "term": "を",
+                          "reading": "を",
+                          "sources": [
+                            {
+                              "originalText": "を",
+                              "transformedText": "を",
+                              "deinflectedText": "を",
+                              "matchType": "exact",
+                              "matchSource": "term",
+                              "isPrimary": true
+                            }
+                          ],
+                          "frequencies": []
+                        }
+                      ]
+                    ]
+                  }
+                ],
+                [
+                  {
+                    "text": "見",
+                    "reading": "み",
+                    "headwords": [
+                      [
+                        {
+                          "term": "見る",
+                          "reading": "みる",
+                          "sources": [
+                            {
+                              "originalText": "見た",
+                              "transformedText": "見た",
+                              "deinflectedText": "見る",
+                              "matchType": "exact",
+                              "matchSource": "term",
+                              "isPrimary": true
+                            }
+                          ],
+                          "frequencies": []
+                        }
+                      ]
+                    ]
+                  },
+                  {
+                    "text": "た",
+                    "reading": ""
+                  }
+                ]
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "第三話を見た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 2,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "第三",
+                    "reading": "だいさん",
+                    "sources": [
+                      {
+                        "originalText": "第三",
+                        "transformedText": "第三",
+                        "deinflectedText": "第三",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "3405",
+                    "displayValueParsed": false,
+                    "frequency": 3405,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "4616",
+                    "displayValueParsed": false,
+                    "frequency": 4616,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "279165㋕",
+                    "displayValueParsed": false,
+                    "frequency": 279165,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 78695,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "第",
+                    "reading": "だい",
+                    "sources": [
+                      {
+                        "originalText": "第",
+                        "transformedText": "第",
+                        "deinflectedText": "第",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "1568",
+                    "displayValueParsed": false,
+                    "frequency": 1568,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "10601㋕",
+                    "displayValueParsed": false,
+                    "frequency": 10601,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "4044",
+                    "displayValueParsed": false,
+                    "frequency": 4044,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "30501㋕",
+                    "displayValueParsed": false,
+                    "frequency": 30501,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 111,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              }
+            ],
+            "originalTextLength": 2
+          }
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "三話を見た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "三",
+                    "reading": "さん",
+                    "sources": [
+                      {
+                        "originalText": "三",
+                        "transformedText": "三",
+                        "deinflectedText": "三",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "626",
+                    "displayValueParsed": false,
+                    "frequency": 626,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "85401㋕",
+                    "displayValueParsed": false,
+                    "frequency": 85401,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "1428",
+                    "displayValueParsed": false,
+                    "frequency": 1428,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "5204㋕",
+                    "displayValueParsed": false,
+                    "frequency": 5204,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 548,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 195,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "三",
+                    "reading": "み",
+                    "sources": [
+                      {
+                        "originalText": "三",
+                        "transformedText": "三",
+                        "deinflectedText": "三",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "10892㋕",
+                    "displayValueParsed": false,
+                    "frequency": 10892,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 5629,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "三",
+                    "reading": "サン",
+                    "sources": [
+                      {
+                        "originalText": "三",
+                        "transformedText": "三",
+                        "deinflectedText": "三",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": []
+              }
+            ],
+            "originalTextLength": 1
+          }
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "話を見た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "話",
+                    "reading": "はなし",
+                    "sources": [
+                      {
+                        "originalText": "話",
+                        "transformedText": "話",
+                        "deinflectedText": "話",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "95",
+                    "displayValueParsed": false,
+                    "frequency": 95,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "22696㋕",
+                    "displayValueParsed": false,
+                    "frequency": 22696,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "103",
+                    "displayValueParsed": false,
+                    "frequency": 103,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "17535㋕",
+                    "displayValueParsed": false,
+                    "frequency": 17535,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 126,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 126356,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "話",
+                    "reading": "わ",
+                    "sources": [
+                      {
+                        "originalText": "話",
+                        "transformedText": "話",
+                        "deinflectedText": "話",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "11001",
+                    "displayValueParsed": false,
+                    "frequency": 11001,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "6835",
+                    "displayValueParsed": false,
+                    "frequency": 6835,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 11726,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 126356,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              }
+            ],
+            "originalTextLength": 1
+          }
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "を見た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "を",
+                    "reading": "を",
+                    "sources": [
+                      {
+                        "originalText": "を",
+                        "transformedText": "を",
+                        "deinflectedText": "を",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "4㋕",
+                    "displayValueParsed": false,
+                    "frequency": 4,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "4㋕",
+                    "displayValueParsed": false,
+                    "frequency": 4,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 5,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              }
+            ],
+            "originalTextLength": 1
+          }
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "見た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": [
+                      {
+                        "name": "-た",
+                        "description": "1. Indicates a reality that has happened in the past.\n2. Indicates the completion of an action.\n3. Indicates the confirmation of a matter.\n4. Indicates the speaker's confidence that the action will definitely be fulfilled.\n5. Indicates the events that occur before the main clause are represented as relative past.\n6. Indicates a mild imperative/command.\nUsage: Attach た to the continuative form (連用形) of verbs after euphonic change form, かった to the stem of i-adjectives."
+                      }
+                    ]
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 2,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "見る",
+                    "reading": "みる",
+                    "sources": [
+                      {
+                        "originalText": "見た",
+                        "transformedText": "見た",
+                        "deinflectedText": "見る",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": [
+                      "v1"
+                    ]
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "36",
+                    "displayValueParsed": false,
+                    "frequency": 36,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "110㋕",
+                    "displayValueParsed": false,
+                    "frequency": 110,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "46",
+                    "displayValueParsed": false,
+                    "frequency": 46,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "895㋕",
+                    "displayValueParsed": false,
+                    "frequency": 895,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 33,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "見",
+                    "reading": "み",
+                    "sources": [
+                      {
+                        "originalText": "見",
+                        "transformedText": "見",
+                        "deinflectedText": "見",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "6181",
+                    "displayValueParsed": false,
+                    "frequency": 6181,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "11878",
+                    "displayValueParsed": false,
+                    "frequency": 11878,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "59864㋕",
+                    "displayValueParsed": false,
+                    "frequency": 59864,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 11907,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 149713,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "見",
+                    "reading": "けん",
+                    "sources": [
+                      {
+                        "originalText": "見",
+                        "transformedText": "見",
+                        "deinflectedText": "見",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "28506",
+                    "displayValueParsed": false,
+                    "frequency": 28506,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 149713,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              }
+            ],
+            "originalTextLength": 2
+          }
+        }
+      },
+      {
+        "action": "termsFind",
+        "params": {
+          "text": "た",
+          "details": {
+            "matchType": "exact",
+            "deinflect": true
+          },
+          "optionsContext": {
+            "index": 0
+          }
+        },
+        "response": {
+          "result": {
+            "dictionaryEntries": [
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 0,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 1,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "た",
+                    "reading": "た",
+                    "sources": [
+                      {
+                        "originalText": "た",
+                        "transformedText": "た",
+                        "deinflectedText": "た",
+                        "matchType": "exact",
+                        "matchSource": "term",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": [
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 9,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 0,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "他",
+                    "reading": "た",
+                    "sources": [
+                      {
+                        "originalText": "た",
+                        "transformedText": "た",
+                        "deinflectedText": "た",
+                        "matchType": "exact",
+                        "matchSource": "reading",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 163,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 113090,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 0,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "多",
+                    "reading": "た",
+                    "sources": [
+                      {
+                        "originalText": "た",
+                        "transformedText": "た",
+                        "deinflectedText": "た",
+                        "matchType": "exact",
+                        "matchSource": "reading",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "5815",
+                    "displayValueParsed": false,
+                    "frequency": 5815,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "8609",
+                    "displayValueParsed": false,
+                    "frequency": 8609,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 4965,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 126617,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": 200,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 0,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "田",
+                    "reading": "た",
+                    "sources": [
+                      {
+                        "originalText": "た",
+                        "transformedText": "た",
+                        "deinflectedText": "た",
+                        "matchType": "exact",
+                        "matchSource": "reading",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [
+                  {
+                    "dictionary": "NHK",
+                    "dictionaryAlias": "NHK"
+                  }
+                ],
+                "frequencies": [
+                  {
+                    "dictionary": "JPDBv2㋕",
+                    "dictionaryAlias": "JPDBv2㋕",
+                    "headwordIndex": 0,
+                    "displayValue": "2236",
+                    "displayValueParsed": false,
+                    "frequency": 2236,
+                    "dictionaryIndex": 2
+                  },
+                  {
+                    "dictionary": "Jiten",
+                    "dictionaryAlias": "Jiten",
+                    "headwordIndex": 0,
+                    "displayValue": "10070",
+                    "displayValueParsed": false,
+                    "frequency": 10070,
+                    "dictionaryIndex": 3
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 20971,
+                    "dictionaryIndex": 4
+                  },
+                  {
+                    "dictionary": "CC100",
+                    "dictionaryAlias": "CC100",
+                    "headwordIndex": 0,
+                    "displayValue": null,
+                    "displayValueParsed": false,
+                    "frequency": 148593,
+                    "dictionaryIndex": 4
+                  }
+                ]
+              },
+              {
+                "type": "term",
+                "isPrimary": true,
+                "textProcessorRuleChainCandidates": [
+                  []
+                ],
+                "inflectionRuleChainCandidates": [
+                  {
+                    "source": "algorithm",
+                    "inflectionRules": []
+                  }
+                ],
+                "score": -2,
+                "frequencyOrder": 0,
+                "dictionaryIndex": 0,
+                "dictionaryAlias": "",
+                "sourceTermExactMatchCount": 0,
+                "matchPrimaryReading": false,
+                "maxOriginalTextLength": 1,
+                "headwords": [
+                  {
+                    "index": 0,
+                    "headwordIndex": 0,
+                    "term": "咫",
+                    "reading": "た",
+                    "sources": [
+                      {
+                        "originalText": "た",
+                        "transformedText": "た",
+                        "deinflectedText": "た",
+                        "matchType": "exact",
+                        "matchSource": "reading",
+                        "isPrimary": true
+                      }
+                    ],
+                    "tags": [],
+                    "wordClasses": []
+                  }
+                ],
+                "definitions": [
+                  {
+                    "dictionary": "Jitendex.org [2026-03-05]",
+                    "dictionaryAlias": "Jitendex.org [2026-03-05]"
+                  }
+                ],
+                "pronunciations": [],
+                "frequencies": []
+              }
+            ],
+            "originalTextLength": 1
+          }
+        }
+      },
+      {
+        "action": "getTermFrequencies",
+        "params": {
+          "termReadingList": [
+            {
+              "term": "第三",
+              "reading": "だいさん"
+            },
+            {
+              "term": "話",
+              "reading": "はなし"
+            },
+            {
+              "term": "を",
+              "reading": "を"
+            },
+            {
+              "term": "見る",
+              "reading": "みた"
+            },
+            {
+              "term": "見た",
+              "reading": "みた"
+            }
+          ],
+          "dictionaries": [
+            "Jitendex.org [2026-03-05]",
+            "日本語文法辞典(全集)",
+            "JPDBv2㋕",
+            "Jiten",
+            "CC100",
+            "実用日本語表現辞典",
+            "NHK",
+            "SubMiner Character Dictionary"
+          ]
+        },
+        "response": {
+          "result": [
+            {
+              "term": "第三",
+              "reading": "だいさん",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": true,
+              "frequency": 3405,
+              "displayValue": "3405",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "第三",
+              "reading": "だいさん",
+              "dictionary": "CC100",
+              "hasReading": true,
+              "frequency": 78695,
+              "displayValue": null,
+              "displayValueParsed": false
+            },
+            {
+              "term": "第三",
+              "reading": "だいさん",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 4616,
+              "displayValue": "4616",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "第三",
+              "reading": "だいさん",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 279165,
+              "displayValue": "279165㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": true,
+              "frequency": 95,
+              "displayValue": "95",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": true,
+              "frequency": 22696,
+              "displayValue": "22696㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "CC100",
+              "hasReading": true,
+              "frequency": 126,
+              "displayValue": null,
+              "displayValueParsed": false
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "CC100",
+              "hasReading": false,
+              "frequency": 126356,
+              "displayValue": null,
+              "displayValueParsed": false
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 103,
+              "displayValue": "103",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "話",
+              "reading": "はなし",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 17535,
+              "displayValue": "17535㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "を",
+              "reading": "を",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": false,
+              "frequency": 4,
+              "displayValue": "4㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "を",
+              "reading": "を",
+              "dictionary": "CC100",
+              "hasReading": true,
+              "frequency": 5,
+              "displayValue": null,
+              "displayValueParsed": false
+            },
+            {
+              "term": "を",
+              "reading": "を",
+              "dictionary": "Jiten",
+              "hasReading": false,
+              "frequency": 4,
+              "displayValue": "4㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            }
+          ]
+        }
+      },
+      {
+        "action": "getTermFrequencies",
+        "params": {
+          "termReadingList": [
+            {
+              "term": "見る",
+              "reading": null
+            },
+            {
+              "term": "見た",
+              "reading": null
+            }
+          ],
+          "dictionaries": [
+            "Jitendex.org [2026-03-05]",
+            "日本語文法辞典(全集)",
+            "JPDBv2㋕",
+            "Jiten",
+            "CC100",
+            "実用日本語表現辞典",
+            "NHK",
+            "SubMiner Character Dictionary"
+          ]
+        },
+        "response": {
+          "result": [
+            {
+              "term": "見る",
+              "reading": "みる",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": true,
+              "frequency": 36,
+              "displayValue": "36",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "見る",
+              "reading": "みる",
+              "dictionary": "JPDBv2㋕",
+              "hasReading": true,
+              "frequency": 110,
+              "displayValue": "110㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "見る",
+              "reading": "みる",
+              "dictionary": "CC100",
+              "hasReading": true,
+              "frequency": 33,
+              "displayValue": null,
+              "displayValueParsed": false
+            },
+            {
+              "term": "見る",
+              "reading": "みる",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 46,
+              "displayValue": "46",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            },
+            {
+              "term": "見る",
+              "reading": "みる",
+              "dictionary": "Jiten",
+              "hasReading": true,
+              "frequency": 895,
+              "displayValue": "895㋕",
+              "displayValueParsed": false,
+              "frequencyMode": "rank-based"
+            }
+          ]
+        }
+      }
+    ],
+    "scripts": [
+      {
+        "sha256": "fb64f047eb0494f136bb92311df43c5318873298fe3efad6bfa82e5d531a93e1",
+        "marker": "optionsGetFull",
+        "result": {
+          "profileIndex": 0,
+          "scanLength": 21,
+          "dictionaries": [
+            "Jitendex.org [2026-03-05]",
+            "日本語文法辞典(全集)",
+            "JPDBv2㋕",
+            "Jiten",
+            "CC100",
+            "実用日本語表現辞典",
+            "NHK",
+            "SubMiner Character Dictionary"
+          ],
+          "dictionaryPriorityByName": {
+            "Jitendex.org [2026-03-05]": 0,
+            "日本語文法辞典(全集)": 1,
+            "JPDBv2㋕": 2,
+            "Jiten": 3,
+            "CC100": 4,
+            "実用日本語表現辞典": 5,
+            "NHK": 6,
+            "SubMiner Character Dictionary": 7
+          },
+          "dictionaryFrequencyModeByName": {
+            "JPDBv2㋕": "rank-based",
+            "Jiten": "rank-based"
+          }
+        }
+      },
+      {
+        "sha256": "0128ae2a23cb40458330fdaa93d3bcb2e64c8cb88187e93ae34ad4aed942e8da",
+        "marker": "parseText",
+        "result": [
+          {
+            "id": "scan",
+            "source": "scanning-parser",
+            "dictionary": null,
+            "index": 0,
+            "content": [
+              [
+                {
+                  "text": "第三",
+                  "reading": "だいさん",
+                  "headwords": [
+                    [
+                      {
+                        "term": "第三",
+                        "reading": "だいさん",
+                        "sources": [
+                          {
+                            "originalText": "第三",
+                            "transformedText": "第三",
+                            "deinflectedText": "第三",
+                            "matchType": "exact",
+                            "matchSource": "term",
+                            "isPrimary": true
+                          }
+                        ],
+                        "frequencies": []
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "text": "話",
+                  "reading": "はなし",
+                  "headwords": [
+                    [
+                      {
+                        "term": "話",
+                        "reading": "はなし",
+                        "sources": [
+                          {
+                            "originalText": "話",
+                            "transformedText": "話",
+                            "deinflectedText": "話",
+                            "matchType": "exact",
+                            "matchSource": "term",
+                            "isPrimary": true
+                          }
+                        ],
+                        "frequencies": []
+                      }
+                    ],
+                    [
+                      {
+                        "term": "話",
+                        "reading": "わ",
+                        "sources": [
+                          {
+                            "originalText": "話",
+                            "transformedText": "話",
+                            "deinflectedText": "話",
+                            "matchType": "exact",
+                            "matchSource": "term",
+                            "isPrimary": true
+                          }
+                        ],
+                        "frequencies": []
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "text": "を",
+                  "reading": "",
+                  "headwords": [
+                    [
+                      {
+                        "term": "を",
+                        "reading": "を",
+                        "sources": [
+                          {
+                            "originalText": "を",
+                            "transformedText": "を",
+                            "deinflectedText": "を",
+                            "matchType": "exact",
+                            "matchSource": "term",
+                            "isPrimary": true
+                          }
+                        ],
+                        "frequencies": []
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "text": "見",
+                  "reading": "み",
+                  "headwords": [
+                    [
+                      {
+                        "term": "見る",
+                        "reading": "みる",
+                        "sources": [
+                          {
+                            "originalText": "見た",
+                            "transformedText": "見た",
+                            "deinflectedText": "見る",
+                            "matchType": "exact",
+                            "matchSource": "term",
+                            "isPrimary": true
+                          }
+                        ],
+                        "frequencies": []
+                      }
+                    ]
+                  ]
+                },
+                {
+                  "text": "た",
+                  "reading": ""
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "sha256": "f3e28b907d27523ba5d7824aa5e95210fc3807f6319af9a75caaff1992f11aaf",
+        "marker": "termsFind",
+        "result": [
+          {
+            "surface": "第三",
+            "reading": "だいさん",
+            "headword": "第三",
+            "headwordReading": "だいさん",
+            "startPos": 0,
+            "endPos": 2,
+            "isNameMatch": false,
+            "frequencyRank": 3405
+          },
+          {
+            "surface": "話",
+            "reading": "はなし",
+            "headword": "話",
+            "headwordReading": "はなし",
+            "startPos": 2,
+            "endPos": 3,
+            "isNameMatch": false,
+            "frequencyRank": 95
+          },
+          {
+            "surface": "を",
+            "reading": "を",
+            "headword": "を",
+            "headwordReading": "を",
+            "startPos": 3,
+            "endPos": 4,
+            "isNameMatch": false,
+            "frequencyRank": 4
+          },
+          {
+            "surface": "見た",
+            "reading": "みた",
+            "headword": "見る",
+            "headwordReading": "みる",
+            "startPos": 4,
+            "endPos": 6,
+            "isNameMatch": false,
+            "frequencyRank": 36,
+            "wordClasses": [
+              "v1"
+            ]
+          }
+        ]
+      },
+      {
+        "sha256": "521c9d6a7068c6df504a0764bb45f46bc98d0b682cadcddd32623dfc29112f83",
+        "marker": "getTermFrequencies",
+        "result": [
+          {
+            "term": "第三",
+            "reading": "だいさん",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": true,
+            "frequency": 3405,
+            "displayValue": "3405",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "第三",
+            "reading": "だいさん",
+            "dictionary": "CC100",
+            "hasReading": true,
+            "frequency": 78695,
+            "displayValue": null,
+            "displayValueParsed": false
+          },
+          {
+            "term": "第三",
+            "reading": "だいさん",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 4616,
+            "displayValue": "4616",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "第三",
+            "reading": "だいさん",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 279165,
+            "displayValue": "279165㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": true,
+            "frequency": 95,
+            "displayValue": "95",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": true,
+            "frequency": 22696,
+            "displayValue": "22696㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "CC100",
+            "hasReading": true,
+            "frequency": 126,
+            "displayValue": null,
+            "displayValueParsed": false
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "CC100",
+            "hasReading": false,
+            "frequency": 126356,
+            "displayValue": null,
+            "displayValueParsed": false
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 103,
+            "displayValue": "103",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "話",
+            "reading": "はなし",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 17535,
+            "displayValue": "17535㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "を",
+            "reading": "を",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": false,
+            "frequency": 4,
+            "displayValue": "4㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "を",
+            "reading": "を",
+            "dictionary": "CC100",
+            "hasReading": true,
+            "frequency": 5,
+            "displayValue": null,
+            "displayValueParsed": false
+          },
+          {
+            "term": "を",
+            "reading": "を",
+            "dictionary": "Jiten",
+            "hasReading": false,
+            "frequency": 4,
+            "displayValue": "4㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          }
+        ]
+      },
+      {
+        "sha256": "51d5618483b16e8410e66cf88f384b7be7025177557e1bc1b91912073eac28b1",
+        "marker": "getTermFrequencies",
+        "result": [
+          {
+            "term": "見る",
+            "reading": "みる",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": true,
+            "frequency": 36,
+            "displayValue": "36",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "見る",
+            "reading": "みる",
+            "dictionary": "JPDBv2㋕",
+            "hasReading": true,
+            "frequency": 110,
+            "displayValue": "110㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "見る",
+            "reading": "みる",
+            "dictionary": "CC100",
+            "hasReading": true,
+            "frequency": 33,
+            "displayValue": null,
+            "displayValueParsed": false
+          },
+          {
+            "term": "見る",
+            "reading": "みる",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 46,
+            "displayValue": "46",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          },
+          {
+            "term": "見る",
+            "reading": "みる",
+            "dictionary": "Jiten",
+            "hasReading": true,
+            "frequency": 895,
+            "displayValue": "895㋕",
+            "displayValueParsed": false,
+            "frequencyMode": "rank-based"
+          }
+        ]
+      }
+    ],
+    "mecab": {
+      "第三話を見た": [
+        {
+          "word": "第",
+          "partOfSpeech": "other",
+          "pos1": "接頭詞",
+          "pos2": "数接続",
+          "pos3": "*",
+          "pos4": "*",
+          "inflectionType": "*",
+          "inflectionForm": "*",
+          "headword": "第",
+          "katakanaReading": "ダイ",
+          "pronunciation": "ダイ"
+        },
+        {
+          "word": "三",
+          "partOfSpeech": "noun",
+          "pos1": "名詞",
+          "pos2": "数",
+          "pos3": "*",
+          "pos4": "*",
+          "inflectionType": "*",
+          "inflectionForm": "*",
+          "headword": "三",
+          "katakanaReading": "サン",
+          "pronunciation": "サン"
+        },
+        {
+          "word": "話",
+          "partOfSpeech": "noun",
+          "pos1": "名詞",
+          "pos2": "接尾",
+          "pos3": "助数詞",
+          "pos4": "*",
+          "inflectionType": "*",
+          "inflectionForm": "*",
+          "headword": "話",
+          "katakanaReading": "ワ",
+          "pronunciation": "ワ"
+        },
+        {
+          "word": "を",
+          "partOfSpeech": "particle",
+          "pos1": "助詞",
+          "pos2": "格助詞",
+          "pos3": "一般",
+          "pos4": "*",
+          "inflectionType": "*",
+          "inflectionForm": "*",
+          "headword": "を",
+          "katakanaReading": "ヲ",
+          "pronunciation": "ヲ"
+        },
+        {
+          "word": "見",
+          "partOfSpeech": "verb",
+          "pos1": "動詞",
+          "pos2": "自立",
+          "pos3": "*",
+          "pos4": "*",
+          "inflectionType": "一段",
+          "inflectionForm": "連用形",
+          "headword": "見る",
+          "katakanaReading": "ミ",
+          "pronunciation": "ミ"
+        },
+        {
+          "word": "た",
+          "partOfSpeech": "bound_auxiliary",
+          "pos1": "助動詞",
+          "pos2": "*",
+          "pos3": "*",
+          "pos4": "*",
+          "inflectionType": "特殊・タ",
+          "inflectionForm": "基本形",
+          "headword": "た",
+          "katakanaReading": "タ",
+          "pronunciation": "タ"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "tokens": [
+      {
+        "surface": "第三",
+        "reading": "だいさん",
+        "headword": "第三",
+        "startPos": 0,
+        "endPos": 2,
+        "partOfSpeech": "other",
+        "isKnown": false,
+        "isNPlusOneTarget": false,
+        "headwordReading": "だいさん",
+        "pos1": "接頭詞|名詞",
+        "pos2": "数接続|数",
+        "pos3": "*",
+        "frequencyRank": 3405
+      },
+      {
+        "surface": "話",
+        "reading": "はなし",
+        "headword": "話",
+        "startPos": 2,
+        "endPos": 3,
+        "partOfSpeech": "other",
+        "isKnown": false,
+        "isNPlusOneTarget": false,
+        "headwordReading": "はなし",
+        "pos1": "名詞",
+        "pos2": "数",
+        "pos3": "*",
+        "frequencyRank": 95
+      },
+      {
+        "surface": "を",
+        "reading": "を",
+        "headword": "を",
+        "startPos": 3,
+        "endPos": 4,
+        "partOfSpeech": "other",
+        "isKnown": false,
+        "isNPlusOneTarget": false,
+        "headwordReading": "を",
+        "pos1": "助詞",
+        "pos2": "格助詞",
+        "pos3": "一般"
+      },
+      {
+        "surface": "見た",
+        "reading": "みた",
+        "headword": "見る",
+        "startPos": 4,
+        "endPos": 6,
+        "partOfSpeech": "verb",
+        "isKnown": false,
+        "isNPlusOneTarget": false,
+        "headwordReading": "みる",
+        "pos1": "動詞",
+        "pos2": "自立",
+        "pos3": "*",
+        "frequencyRank": 36
+      }
+    ]
+  }
+}
