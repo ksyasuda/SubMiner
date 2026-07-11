@@ -8,7 +8,7 @@ export async function fetchYomitanApi(
   const controller = new AbortController();
   const requestSignal = input instanceof Request ? input.signal : undefined;
   const signals = [controller.signal, init?.signal, requestSignal].filter(
-    (signal): signal is AbortSignal => signal !== undefined,
+    (signal): signal is AbortSignal => signal != null,
   );
   const signal = signals.length === 1 ? controller.signal : AbortSignal.any(signals);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);

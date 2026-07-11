@@ -52,3 +52,18 @@ test('fetchYomitanApi preserves a Request input cancellation signal', async () =
     server.stop(true);
   }
 });
+
+test('fetchYomitanApi accepts a null init cancellation signal', async () => {
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () => new Response('ok'),
+  });
+
+  try {
+    const response = await fetchYomitanApi(`${server.url}tokenize`, { signal: null }, 50);
+    assert.equal(response.status, 200);
+  } finally {
+    server.stop(true);
+  }
+});
