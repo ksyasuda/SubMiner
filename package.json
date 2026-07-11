@@ -13,6 +13,8 @@
     "get-frequency:electron": "bun run build:yomitan && bun build scripts/get_frequency.ts --format=cjs --target=node --outfile dist/scripts/get_frequency.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/get_frequency.js --pretty --color-top-x 10000 --yomitan-user-data ~/.config/SubMiner --colorized-line",
     "test-yomitan-parser": "bun run scripts/test-yomitan-parser.ts",
     "test-yomitan-parser:electron": "bun run build:yomitan && bun build scripts/test-yomitan-parser.ts --format=cjs --target=node --outfile dist/scripts/test-yomitan-parser.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/test-yomitan-parser.js",
+    "record-tokenizer-fixture:electron": "bun run build:yomitan && bun build scripts/record-tokenizer-fixture.ts --format=cjs --target=node --outfile dist/scripts/record-tokenizer-fixture.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/record-tokenizer-fixture.js",
+    "compare-yomitan-api:electron": "bun run build:yomitan && bun build scripts/compare-yomitan-api.ts --format=cjs --target=node --outfile dist/scripts/compare-yomitan-api.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/compare-yomitan-api.js",
     "build:yomitan": "bun scripts/build-yomitan.mjs",
     "build:assets": "bun scripts/prepare-build-assets.mjs",
     "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --banner='#!/usr/bin/env bun' --outfile=dist/launcher/subminer",

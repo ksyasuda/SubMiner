@@ -762,7 +762,10 @@ test('KnownWordCacheManager suppresses reading-only matches when disallowed', as
     // Reading-only match stays available for kana subtitle text…
     assert.equal(manager.isKnownWord('けいこく'), true);
     // …but a kanji token's reading (渓谷/けいこく) must not borrow 警告's.
-    assert.equal(manager.isKnownWord('けいこく', undefined, { allowReadingOnlyMatch: false }), false);
+    assert.equal(
+      manager.isKnownWord('けいこく', undefined, { allowReadingOnlyMatch: false }),
+      false,
+    );
     // Mined word texts still match regardless of the flag.
     assert.equal(manager.isKnownWord('警告', undefined, { allowReadingOnlyMatch: false }), true);
   } finally {

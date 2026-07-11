@@ -4,3 +4,4 @@ release
 coverage
 vendor
 *.log
+src/core/services/tokenizer/__fixtures__/golden/*.json
