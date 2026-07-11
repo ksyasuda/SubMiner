@@ -1683,7 +1683,7 @@ async function sleepMs(ms: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-async function canConnectUnixSocket(socketPath: string): Promise<boolean> {
+export async function canConnectUnixSocket(socketPath: string): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     const socket = net.createConnection(socketPath);
     let settled = false;

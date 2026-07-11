@@ -113,6 +113,14 @@ export interface Args {
   texthookerOpenBrowser: boolean;
   useRofi: boolean;
   history: boolean;
+  sync: boolean;
+  syncHost: string;
+  syncSnapshotPath: string;
+  syncMergePath: string;
+  syncDirection: 'both' | 'push' | 'pull';
+  syncRemoteCmd: string;
+  syncDbPath: string;
+  syncForce: boolean;
   logLevel: LogLevel;
   logRotation: LogRotation;
   passwordStore: string;
