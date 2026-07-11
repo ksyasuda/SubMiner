@@ -10,6 +10,8 @@ import { resolveYomitanExtensionPath as resolveBuiltYomitanExtensionPath } from 
 import { MecabTokenizer } from '../src/mecab-tokenizer.js';
 import type { MergedToken } from '../src/types.js';
 
+import { fetchYomitanApi } from './yomitan-api-request.js';
+
 // Compares SubMiner's full tokenization pipeline against a stock Yomitan
 // instance reached through the yomitan-api native-messaging bridge
 // (https://github.com/yomidevs/yomitan-api, default http://127.0.0.1:19633).
@@ -264,7 +266,7 @@ async function fetchApiTokens(
   text: string,
   scanLength: number,
 ): Promise<MergedToken[] | null> {
-  const response = await fetch(`${apiUrl}/tokenize`, {
+  const response = await fetchYomitanApi(`${apiUrl}/tokenize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, scanLength, parser: 'scanning-parser' }),
@@ -445,7 +447,7 @@ async function main(): Promise<void> {
 
   // Fail fast with a clear message when the bridge is not running.
   try {
-    const probe = await fetch(`${options.apiUrl}/serverVersion`, {
+    const probe = await fetchYomitanApi(`${options.apiUrl}/serverVersion`, {
       method: 'POST',
       body: '{}',
     });
@@ -473,6 +475,7 @@ async function main(): Promise<void> {
   }
 
   if (typeof electronModule.app.setPath === 'function') {
+    fs.mkdirSync(options.yomitanUserDataPath, { recursive: true });
     electronModule.app.setPath('userData', options.yomitanUserDataPath);
   }
   await electronModule.app.whenReady();
@@ -578,9 +581,9 @@ async function main(): Promise<void> {
 
 main()
   .then(() => {
-    process.exit(process.exitCode ?? 0);
+    process.exitCode = process.exitCode ?? 0;
   })
   .catch((error) => {
     console.error(`Error: ${(error as Error).message}`);
-    process.exit(1);
+    process.exitCode = 1;
   });
