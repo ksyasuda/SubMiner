@@ -96,7 +96,7 @@ For auto-generated tracks, SubMiner prefers `srv3` > `srv2` > `srv1` > `vtt` (Ti
 
 By default, YouTube card audio and screenshots are extracted directly from mpv's active stream URLs. If generated card media fails with YouTube `403` errors, set `youtube.mediaCache.mode` to `"background"`. Background mode starts a separate `yt-dlp` media download after playback loads, including YouTube URLs opened directly in mpv and resolved stream URLs when mpv still exposes the original YouTube playlist entry. It creates text fields immediately, queues audio/image work for mined notes, and fills those fields once the local cache file is ready.
 
-Background cache downloads use IPv4 and retry flags to reduce YouTube throttling failures. If the background download still fails, SubMiner shows a cache failure notification, shows queued-card failure notifications, and clears those pending updates so cards are not left waiting silently.
+Background cache downloads are capped at 720p by default (`youtube.mediaCache.maxHeight`; set `0` for unlimited) and use IPv4 and retry flags to reduce YouTube throttling failures. If the background download still fails, SubMiner shows a cache failure notification, shows queued-card failure notifications, and clears those pending updates so cards are not left waiting silently.
 
 ## Configuration Reference
 
@@ -112,11 +112,13 @@ Background cache downloads use IPv4 and retry flags to reduce YouTube throttling
 
 | Option                | Type       | Description                                                                           |
 | --------------------- | ---------- | ------------------------------------------------------------------------------------- |
-| `primarySubLanguages` | `string[]` | Language priority for YouTube primary subtitle auto-loading (default `["ja", "jpn"]`) |
+| `primarySubLanguages` | `string[]` | Languages that count as a satisfactory primary subtitle (default `["ja", "jpn"]`). Used by the "primary subtitle missing" notification and by managed local/playlist subtitle selection. |
+
+YouTube auto-selection itself always picks a Japanese track first (manual over auto), then falls back to any manual track — `primarySubLanguages` does not change which YouTube track is auto-picked.
 
 ### Secondary Subtitle Languages
 
-Secondary track selection uses the shared `secondarySub` config:
+YouTube secondary selection is fixed: SubMiner always tries an English track (manual over auto) and loads it when found. The shared `secondarySub` config does not change YouTube track selection — `secondarySubLanguages` and `autoLoadSecondarySub` apply only to local/Jellyfin sidecar selection — but `defaultMode` still controls how the loaded secondary bar is displayed:
 
 ```jsonc
 {
@@ -130,11 +132,11 @@ Secondary track selection uses the shared `secondarySub` config:
 
 | Option                  | Type                                 | Description                                                                                                                                                                                         |
 | ----------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `secondarySubLanguages` | `string[]`                           | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track. Default is empty (`[]`). For YouTube, SubMiner always tries an English track first regardless of this list. |
-| `autoLoadSecondarySub`  | `boolean`                            | Auto-detect and load a matching secondary track (default: `false`)                                                                                                                                  |
+| `secondarySubLanguages` | `string[]`                           | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track for local/Jellyfin sidecar files. Default is empty (`[]`). Not used for YouTube. |
+| `autoLoadSecondarySub`  | `boolean`                            | Auto-detect and load a matching secondary sidecar track for local files (default: `false`). Not used for YouTube.                                                       |
 | `defaultMode`           | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`)                                                                                                                                   |
 
-Precedence: CLI flag > environment variable > `config.jsonc` > built-in default.
+These settings come from `config.jsonc` (or built-in defaults); there are no CLI flags or environment variables for subtitle language selection.
 
 ## Limitations and Troubleshooting
 

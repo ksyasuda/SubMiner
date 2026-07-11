@@ -79,6 +79,7 @@ SubMiner extracts media info from the current video path to pre-fill the search 
 
 - **Season + episode patterns:** `S01E03`, `1x03`
 - **Episode-only patterns:** `E03`, `EP03`, or dash-separated numbers like `Title - 03 -`
+- **Season folders:** a parent directory named `Season 2` or `S2` fills in the season when the filename lacks one
 - **Bracket tags:** `[SubGroup]`, `[1080p]`, `[HEVC]` - stripped before title extraction
 - **Year tags:** `(2024)` - stripped
 - **Dots and underscores:** treated as spaces
@@ -94,7 +95,7 @@ Configure `jimaku.apiKey` or `jimaku.apiKeyCommand` in your config. If using `ap
 
 **"Jimaku request failed" or HTTP 429**
 
-The Jimaku API has rate limits. If you see 429 errors, wait for the retry duration shown in the OSD message and try again. An API key provides higher rate limits.
+The Jimaku API has rate limits. If you see 429 errors, wait for the retry duration shown in the OSD message and try again.
 
 **No entries found**
 

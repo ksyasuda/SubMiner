@@ -54,6 +54,7 @@ The theme is auto-detected from these paths (first match wins):
 - `/usr/local/share/SubMiner/themes/subminer.rasi`
 - `/usr/share/SubMiner/themes/subminer.rasi`
 - macOS: `~/Library/Application Support/SubMiner/themes/subminer.rasi`
+- `assets/themes/subminer.rasi` next to the launcher script (final fallback)
 
 Override with the `SUBMINER_ROFI_THEME` environment variable:
 
@@ -108,7 +109,7 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 ## Common Commands
 
 ```bash
-subminer video.mkv                      # play a specific file (default plugin config auto-starts visible overlay)
+subminer video.mkv                      # play a specific file (managed launches auto-start the visible overlay by default)
 subminer https://youtu.be/...           # YouTube playback (requires yt-dlp)
 subminer --backend x11 video.mkv        # Force x11 backend for a specific file
 subminer -u                             # check for SubMiner updates
@@ -121,11 +122,12 @@ subminer stats -b                       # start background stats daemon
 
 | Subcommand                                 | Purpose                                                            |
 | ------------------------------------------ | ------------------------------------------------------------------ |
-| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login)         |
-| `subminer stats`                           | Start stats server and open immersion dashboard in browser         |
-| `subminer stats -b`                        | Start or reuse background stats daemon (non-blocking)              |
-| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows                  |
-| `subminer doctor`                          | Dependency + config + socket diagnostics                           |
+| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login, `--logout`, `--setup`) |
+| `subminer stats`                           | Start the stats server (opens the dashboard when `stats.autoOpenBrowser` is on)  |
+| `subminer stats -b` / `-s`                 | Start/reuse or stop the background stats daemon                    |
+| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (`-v` vocab, `-l` lifetime summaries) |
+| `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                    |
+| `subminer doctor`                          | Dependency + config + socket diagnostics (`--refresh-known-words` refreshes the known-word cache) |
 | `subminer settings`                        | Open the SubMiner settings window                                  |
 | `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path           |
 | `subminer config path`                     | Print active config file path                                      |
@@ -136,12 +138,12 @@ subminer stats -b                       # start background stats daemon
 | `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH           |
 | `subminer sync <host> --push`              | Merge local stats/history into another machine only                |
 | `subminer sync <host> --pull`              | Merge another machine's stats/history into the local database only |
-| `subminer dictionary <path>`               | Generate character dictionary ZIP from file/dir target             |
+| `subminer dictionary <path>` / `dict`      | Generate character dictionary ZIP from file/dir target             |
 | `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
 | `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |
 | `subminer texthooker`                      | Launch texthooker-only mode                                        |
 | `subminer texthooker -o`                   | Launch texthooker and open it in the default browser               |
-| `subminer app`                             | Pass arguments directly to SubMiner binary                         |
+| `subminer app` / `bin`                     | Pass arguments directly to SubMiner binary (e.g. `subminer app --setup`) |
 
 Use `subminer <subcommand> -h` for command-specific help.
 
@@ -153,24 +155,24 @@ Use `subminer <subcommand> -h` for command-specific help.
 | `-r, --recursive`     | Search directories recursively                                       |
 | `-R, --rofi`          | Use rofi instead of fzf                                              |
 | `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))     |
-| `--setup`             | Open first-run setup popup manually                                  |
-| `-v, --version`       | Print installed SubMiner version                                     |
+| `-v, --version`       | Print the launcher's own version (can differ from the installed app binary) |
 | `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible |
 | `--start`             | Explicitly start overlay after mpv launches                          |
-| `-S, --start-overlay` | Explicitly start overlay after mpv launches                          |
+| `-S, --start-overlay` | Force the visible overlay on start                                   |
 | `-T, --no-texthooker` | Disable texthooker server                                            |
 | `-p, --profile`       | mpv profile name (no default; omitted unless set)                    |
 | `-a, --args`          | Pass additional mpv arguments as a quoted string                     |
 | `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`) |
+| `--settings`          | Open the SubMiner settings window                                    |
 | `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                  |
-| `--dev`, `--debug`    | Enable app dev-mode (not tied to log level)                          |
+
+App-binary flags such as `--setup`, `--dev`, and `--debug` are not launcher flags - pass them through with `subminer app`, for example `subminer app --setup`.
 
 On Linux, `subminer -u` updates from the launcher process itself. It can check and replace the AppImage, launcher, runtime plugin copy, and rofi theme even when SubMiner is already running in the tray.
 
-With default plugin settings (`auto_start=yes`, `auto_start_visible_overlay=yes`, `auto_start_pause_until_ready=yes`), explicit start flags are usually unnecessary.
+Managed launches inject `auto_start=yes`, `auto_start_visible_overlay=yes`, and `auto_start_pause_until_ready=yes` as plugin script-opts from SubMiner's config defaults (`mpv.autoStartSubMiner`, `auto_start_overlay`), so explicit start flags are usually unnecessary. The plugin's own built-in defaults are off - mpv launched outside SubMiner does not auto-start the overlay.
 
 ## Logging
 
-- Default log level is `info`
-- `--background` mode defaults to `warn` unless `--log-level` is explicitly set
-- `--dev` / `--debug` control app behavior, not logging verbosity - use `--log-level` for that
+- Default log level is `warn` (launcher and app; configurable via `logging.level`)
+- `--dev` / `--debug` are app-binary flags that control app dev-mode, not logging verbosity - use `--log-level` for that

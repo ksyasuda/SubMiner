@@ -56,20 +56,20 @@ This is useful when auto-update is disabled or when you want explicit control ov
 Create a standalone sentence card without going through Yomitan:
 
 - **Mine current sentence**: `Ctrl/Cmd+S` (configurable via `shortcuts.mineSentence`)
-- **Mine multiple lines**: `Ctrl/Cmd+Shift+S` followed by a digit 1–9 to select how many recent subtitle lines to combine.
+- **Mine multiple lines**: `Ctrl/Cmd+Shift+S` followed by a digit 1–9 to select how many recent subtitle lines to combine (the digit selector times out after 3 seconds, configurable via `shortcuts.multiCopyTimeoutMs`).
 
 The sentence card uses the note type configured in `isLapis.sentenceCardModel` and always maps sentence/audio to `Sentence` and `SentenceAudio`.
 
 ::: warning Requires Lapis/Kiku note type
-Sentence card creation requires a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type and `ankiConnect.isLapis.enabled: true` in your config. See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
+Sentence card creation requires `ankiConnect.isLapis.sentenceCardModel` to name a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type that exists in Anki (default: `"Lapis"`). See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
 :::
 
 ### 4. Mark as Audio Card
 
-After adding a word via Yomitan, press the audio card shortcut to overwrite the audio with a longer clip spanning the full subtitle timing.
+After adding a word via Yomitan, press the audio card shortcut (`Ctrl/Cmd+Shift+A` by default, `shortcuts.markAudioCard`) to mark the card as an audio card. This sets the audio-card flag and fills sentence, image, and metadata fields alongside the full-subtitle audio clip.
 
 ::: warning Requires Lapis/Kiku note type
-Audio card marking requires a [Lapis](https://github.com/donkuri/lapis) or [Kiku](https://github.com/youyoumu/kiku) compatible note type and `ankiConnect.isLapis.enabled: true` in your config. See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
+Audio card marking uses the same `ankiConnect.isLapis.sentenceCardModel` note type as sentence cards. See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
 :::
 
 ### Field Grouping (Kiku)
@@ -172,7 +172,7 @@ Install the sync tools separately - see [Troubleshooting](/troubleshooting#subti
 
 ## Texthooker
 
-SubMiner runs a local HTTP server at `http://127.0.0.1:5174` (configurable port) that serves a texthooker UI. This allows external tools - such as a browser-based Yomitan instance - to receive subtitle text in real time.
+SubMiner runs a local HTTP server at `http://127.0.0.1:5174` (fixed default port; overridable only via the mpv plugin's `texthooker_port` script-opt) that serves a texthooker UI. This allows external tools - such as a browser-based Yomitan instance - to receive subtitle text in real time.
 
 The texthooker page displays the current subtitle and updates as new lines arrive. This is useful if you prefer to do lookups in a browser rather than through the overlay's built-in Yomitan.
 

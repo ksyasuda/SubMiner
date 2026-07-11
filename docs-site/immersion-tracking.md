@@ -32,9 +32,9 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 The same immersion data powers the stats dashboard.
 
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
-- Launcher command: run `subminer stats` to start the local stats server on demand and open the dashboard in your browser.
+- Launcher command: run `subminer stats` to start the local stats server on demand (it also opens the dashboard in your browser when `stats.autoOpenBrowser` is enabled; the default is `false`).
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.
-- Maintenance command: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand.
+- Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables. `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
 - Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
 
 ### Dashboard Tabs
@@ -87,6 +87,7 @@ Stats server config lives under `stats`:
 {
   "stats": {
     "toggleKey": "Backquote",
+    "markWatchedKey": "KeyW",
     "serverPort": 6969,
     "autoStartServer": true,
     "autoOpenBrowser": false,
@@ -95,6 +96,7 @@ Stats server config lives under `stats`:
 ```
 
 - `toggleKey` is overlay-local, not a system-wide shortcut.
+- `markWatchedKey` toggles the watched state of the highlighted entry inside the stats dashboard.
 - `serverPort` controls the localhost dashboard URL.
 - `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running. Background app launches (`subminer app`) start the stats server immediately, registering it so later launches reuse it instead of starting another one.
 - `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
@@ -186,7 +188,6 @@ SELECT
   total_watched_ms,
   active_watched_ms,
   lines_seen,
-  words_seen,
   tokens_seen,
   cards_mined
 FROM imm_session_telemetry
@@ -204,13 +205,13 @@ SELECT
   s.started_at_ms,
   s.ended_at_ms,
   COALESCE(s.active_watched_ms, 0) AS active_watched_ms,
-  COALESCE(s.words_seen, 0) AS words_seen,
+  COALESCE(s.tokens_seen, 0) AS tokens_seen,
   COALESCE(s.cards_mined, 0) AS cards_mined,
   CASE
     WHEN COALESCE(s.active_watched_ms, 0) > 0
-      THEN COALESCE(s.words_seen, 0) / (COALESCE(s.active_watched_ms, 0) / 60000.0)
+      THEN COALESCE(s.tokens_seen, 0) / (COALESCE(s.active_watched_ms, 0) / 60000.0)
     ELSE NULL
-  END AS words_per_min,
+  END AS tokens_per_min,
   CASE
     WHEN COALESCE(s.active_watched_ms, 0) > 0
       THEN (COALESCE(s.cards_mined, 0) * 60.0) / (COALESCE(s.active_watched_ms, 0) / 60000.0)
@@ -230,7 +231,7 @@ SELECT
   la.total_sessions,
   la.total_active_ms,
   la.total_cards,
-  la.total_words_seen,
+  la.total_tokens_seen,
   la.total_lines_seen,
   la.first_watched_ms,
   la.last_watched_ms
@@ -249,11 +250,10 @@ SELECT
   total_sessions,
   total_active_min,
   total_lines_seen,
-  total_words_seen,
   total_tokens_seen,
   total_cards,
   cards_per_hour,
-  words_per_min,
+  tokens_per_min,
   lookup_hit_rate
 FROM imm_daily_rollups
 ORDER BY rollup_day DESC, video_id DESC
@@ -269,7 +269,6 @@ SELECT
   total_sessions,
   total_active_min,
   total_lines_seen,
-  total_words_seen,
   total_tokens_seen,
   total_cards
 FROM imm_monthly_rollups
@@ -288,15 +287,19 @@ LIMIT ?;
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 - Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
-### Schema (v4)
+### Schema (v18)
+
+The exact schema version lives in `SCHEMA_VERSION` (`src/core/services/immersion-tracker/types.ts`) and is recorded in the `imm_schema_version` table.
 
 Core tables:
 
 - `imm_videos` - video key/title/source metadata
+- `imm_anime` - anime/series metadata referenced by videos and lifetime tables
 - `imm_sessions` - session UUID, video reference, timing/status, final denormalized totals
 - `imm_session_telemetry` - high-frequency session aggregates over time
 - `imm_session_events` - event stream with compact numeric event types
 - `imm_subtitle_lines` - persisted subtitle text and timing per session/video
+- `imm_youtube_videos` - YouTube video/channel metadata for tracked videos
 
 Lifetime summary tables:
 
@@ -309,11 +312,14 @@ Rollup tables:
 
 - `imm_daily_rollups`
 - `imm_monthly_rollups`
+- `imm_rollup_state` - incremental rollup progress bookkeeping
 
 Vocabulary tables:
 
-- `imm_words(id, headword, word, reading, first_seen, last_seen, frequency)`
+- `imm_words(id, headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency, frequency_rank)` with `UNIQUE(headword, word, reading)`
 - `imm_kanji(id, kanji, first_seen, last_seen, frequency)`
+- `imm_word_line_occurrences` / `imm_kanji_line_occurrences` - word/kanji ↔ subtitle-line occurrence links
+- `imm_stats_excluded_words` - vocabulary exclusion list managed from the dashboard
 
 Media-art tables:
 

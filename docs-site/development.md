@@ -5,6 +5,8 @@ For internal architecture/workflow guidance, use `docs/README.md` at the repo ro
 ## Prerequisites
 
 - [Bun](https://bun.sh)
+- A system `lua` interpreter for `bun run test:launcher` / `bun run test:plugin:src`
+- macOS builds compile a Swift helper via `scripts/build-macos-helper.sh` (skip with `SUBMINER_SKIP_MACOS_HELPER_BUILD=1`)
 
 ## Setup
 
@@ -163,7 +165,7 @@ make pretty
 bun run format:check:src
 ```
 
-- `make pretty` runs the maintained Prettier allowlist only (`format:src`).
+- `make pretty` runs the maintained Prettier allowlists (`format:src` and `format:stats`).
 - `bun run format:check:src` checks the same scoped set without writing changes.
 - `bun run format` remains the broad repo-wide Prettier command; use it intentionally.
 
@@ -196,15 +198,7 @@ bun run docs:preview # Preview built site at http://localhost:4173
 bun run docs:test    # Docs regression tests
 ```
 
-Cloudflare Pages deploy settings:
-
-- Git repo: `ksyasuda/SubMiner`
-- Root directory: `docs-site`
-- Build command: `bun run docs:build`
-- Build output directory: `.vitepress/dist`
-- Build watch paths: `docs-site/*`
-
-Use Cloudflare's single `*` wildcard syntax for watch paths. `docs-site/*` covers nested docs-site changes in the repo; `docs-site/**` is not the correct Pages pattern and may skip docs-only pushes.
+Deployment: production docs are built with `bun run docs:build:versioned` and uploaded directly to Cloudflare Pages by the `docs-pages` GitHub Actions workflow using Wrangler (from `.tmp/docs-versioned-site`). Cloudflare's automatic Git-integration deployments are intentionally disabled - see `docs-site/README.md` for the deployment contract. Do not re-enable Pages build settings in the Cloudflare dashboard.
 
 ## Makefile Reference
 
@@ -241,6 +235,7 @@ Run `make help` for a full list of targets. Key ones:
 | `SUBMINER_APPIMAGE_PATH`           | Override SubMiner app binary path for launcher playback commands               |
 | `SUBMINER_BINARY_PATH`             | Alias for `SUBMINER_APPIMAGE_PATH`                                             |
 | `SUBMINER_ROFI_THEME`              | Override rofi theme path for launcher picker                                   |
+| `SUBMINER_MPV_PLUGIN_PATH`         | Override the mpv plugin directory injected by the launcher                     |
 | `SUBMINER_LOG_LEVEL`               | Override app logger level (`debug`, `info`, `warn`, `error`)                   |
 | `SUBMINER_MPV_LOG`                 | Override mpv/app shared log file path                                          |
 | `SUBMINER_JIMAKU_API_KEY`          | Override Jimaku API key for launcher subtitle downloads                        |

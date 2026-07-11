@@ -37,7 +37,7 @@ In both modes, the enrichment workflow is the same:
 4. Fills the translation field from the secondary subtitle or AI.
 5. Writes metadata to the miscInfo field.
 
-Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it uses Yomitan's current mining deck when available; otherwise it searches all decks. In Settings, the AnkiConnect deck dropdown auto-fills and persists Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect.
+Polling mode uses the query `"deck:<ankiConnect.deck>" added:1` to find recently added cards. If no deck is configured, it searches all decks (`added:1`). In Settings, the AnkiConnect deck dropdown auto-fills and persists Yomitan's current mining deck when available, then falls back to the decks reported by AnkiConnect; stats-dashboard mining also falls back to Yomitan's mining deck when `ankiConnect.deck` is empty.
 Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
 
 ### Proxy Mode Setup (Yomitan / Texthooker)
@@ -56,12 +56,12 @@ Known-word sync scope is controlled by `ankiConnect.knownWords.decks`.
 
 Then point Yomitan/clients to `http://127.0.0.1:8766` instead of `8765`.
 
-When SubMiner loads the bundled Yomitan extension, it also attempts to update the **default Yomitan profile** (`profiles[0].options.anki.server`) to the active SubMiner endpoint:
+When SubMiner loads the bundled Yomitan extension, it also attempts to update the **currently active Yomitan profile**'s Anki server to the active SubMiner endpoint (falling back to `profiles[0]` if the active-profile index is invalid):
 
 - proxy URL when `ankiConnect.proxy.enabled` is `true`
 - direct `ankiConnect.url` when proxy mode is disabled
 
-To avoid clobbering custom setups, this auto-update only changes the default profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
+To avoid clobbering custom setups, this auto-update only changes the profile when its current server is blank or the stock Yomitan default (`http://127.0.0.1:8765`).
 
 For browser-based Yomitan or other external clients (for example Texthooker in a normal browser profile), set their Anki server to the same proxy URL separately: `http://127.0.0.1:8766` (or your configured `proxy.host` + `proxy.port`).
 
@@ -81,7 +81,7 @@ In Yomitan, go to Settings → Profile and:
 3. Set server to `http://127.0.0.1:8766` (or your configured proxy URL).
 4. Save and make that profile active when using SubMiner.
 
-This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets `profiles[0]` when it is blank or still default.
+This is only for non-bundled, external/browser Yomitan or other clients. The bundled profile auto-update logic only targets the active profile when its server is blank or still default.
 
 ### Proxy Troubleshooting (quick checks)
 
@@ -101,10 +101,11 @@ curl -sS http://127.0.0.1:8766 \
   -d '{"action":"version","version":2}'
 ```
 
-3. Check both log sinks:
+3. Check the log sinks in `~/.config/SubMiner/logs/`:
 
-- Launcher/mpv-integrated log: `~/.cache/SubMiner/mp.log`
-- App runtime log: `~/.config/SubMiner/logs/SubMiner-YYYY-MM-DD.log`
+- App runtime log: `app-YYYY-MM-DD.log`
+- Launcher log: `launcher-YYYY-MM-DD.log`
+- mpv log: `mpv-YYYY-MM-DD.log`
 
 4. Ensure config JSONC is valid and logging shape is correct:
 
@@ -133,7 +134,9 @@ SubMiner maps its data to your Anki note fields. Configure these under `ankiConn
 }
 ```
 
-Field names must match your Anki note type exactly (case-sensitive). If a configured field does not exist on the note type, SubMiner skips it without error.
+Field names are matched against your Anki note type case-insensitively (an exact match wins, then a lowercase comparison). If a configured field does not exist on the note type, SubMiner skips it without error.
+
+Two related options live alongside `fields`: `ankiConnect.deck` (target deck; empty falls back as described above) and `ankiConnect.tags` (tags added to mined cards, default `["SubMiner"]`; set `[]` to disable tagging). The `miscInfo` content is controlled by `ankiConnect.metadata.pattern` (default `[SubMiner] %f (%t)`; tokens: `%f` filename, `%F` filename with extension, `%t` timestamp, `%T` timestamp with milliseconds, `<br>` newline).
 
 ### Minimal Config
 
@@ -169,7 +172,7 @@ Audio is extracted from the video file using the subtitle's start and end timest
 }
 ```
 
-Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMiner uses the active stream. Generated sentence audio is loudness-normalized by default during extraction; set `normalizeAudio` to `false` to keep raw source loudness. Changing this setting applies to the next extraction without restarting SubMiner.
+Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMiner uses the active stream. Generated sentence audio is loudness-normalized to -23 LUFS by default during extraction; set `normalizeAudio` to `false` to keep raw source loudness. When subtitle timing is missing, clips fall back to `media.fallbackDuration` seconds (default `3`). Changing these settings applies to the next extraction without restarting SubMiner.
 
 `mirrorMpvVolume` is also enabled by default. Immediately before extracting each playback-overlay card's audio, SubMiner reads mpv's numeric `volume` and applies mpv's cubic software-volume curve after loudness normalization. For example, mpv volume `50` produces `0.5³ = 0.125` gain. Amplified output above mpv volume `100` is limited to a `-1 dBFS` ceiling before MP3 encoding to prevent clipping. It ignores mpv's separate `mute` state. If the volume property is missing, invalid, or unavailable, extraction continues with unity scaling; disabling this option skips the query and volume filter. Changing this setting applies to the next extraction without restarting SubMiner. YouTube cards queued for a background media-cache download retain the volume captured when the card was mined. Stats-dashboard mining does not currently have access to the active mpv property client, so it does not apply mpv volume scaling.
 
@@ -186,8 +189,8 @@ A single frame is captured at the current playback position.
     "imageType": "static",
     "imageFormat": "jpg",        // "jpg", "png", or "webp"
     "imageQuality": 92,          // 1–100
-    "imageMaxWidth": null,       // optional, preserves aspect ratio
-    "imageMaxHeight": null
+    "imageMaxWidth": 0,          // 0 = preserve source resolution
+    "imageMaxHeight": 0
   }
 }
 ```
@@ -203,13 +206,13 @@ Instead of a static screenshot, SubMiner can generate an animated AVIF covering 
     "imageType": "avif",
     "animatedFps": 10,
     "animatedMaxWidth": 640,
-    "animatedMaxHeight": null,
+    "animatedMaxHeight": 0,      // 0 = preserve aspect ratio
     "animatedCrf": 35            // 0–63, lower = better quality
   }
 }
 ```
 
-Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`) in your FFmpeg build. Generation timeout is 60 seconds.
+Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`) in your FFmpeg build. Generation timeout is 60 seconds. `media.syncAnimatedImageToWordAudio` (default `true`) prepends a frozen first frame matching the existing word-audio duration, so the motion starts together with the sentence audio.
 
 ### Behavior Options
 
@@ -220,6 +223,7 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
     "overwriteImage": true,         // replace existing image, or append
     "mediaInsertMode": "append",    // "append" or "prepend" to field content
     "autoUpdateNewCards": true,     // auto-update when new card detected
+    "highlightWord": true,          // bold the mined word inside the sentence field
     "notificationType": "overlay"   // "overlay", "system", "both", or "none"
   }
 }
@@ -269,14 +273,14 @@ The built-in translation request asks for English output by default. Customize t
 SubMiner can create standalone sentence cards (without a word/expression) using a separate note type. This is designed for use with [Lapis](https://github.com/donkuri/Lapis) and similar sentence-focused note types.
 
 ::: warning Required config
-Sentence card creation and audio card marking both require `ankiConnect.isLapis.enabled: true` and a valid `sentenceCardModel` pointing to your Lapis/Kiku note type. Without this, the `Ctrl/Cmd+S` and `Ctrl/Cmd+Shift+A` shortcuts will not create cards.
+Sentence card creation and audio card marking require a non-empty `ankiConnect.isLapis.sentenceCardModel` naming a note type that exists in Anki (default: `"Lapis"`). If the model is empty or missing, the `Ctrl/Cmd+S` and `Ctrl/Cmd+Shift+A` shortcuts will not create cards.
 :::
 
 ```jsonc
 "ankiConnect": {
   "isLapis": {
     "enabled": true,
-    "sentenceCardModel": "Japanese sentences"
+    "sentenceCardModel": "Lapis" // default; point at your Lapis/Kiku note type
   }
 }
 ```
@@ -303,25 +307,28 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 **Disabled** (`"disabled"`): No duplicate detection. Each card is independent.
 
-**Auto** (`"auto"`): When a duplicate expression is found, SubMiner merges the new card into the existing one automatically. Both sentences, audio clips, and images are preserved, and exact duplicate values are collapsed to one entry. If `deleteDuplicateInAuto` is true, the new card is deleted after merging.
+**Auto** (`"auto"`): When a duplicate expression is found, SubMiner merges the new card into the existing one automatically. Both cards' sentences, audio clips, and images are preserved as grouped entries. If `deleteDuplicateInAuto` is true, the new card is deleted after merging.
 
 **Manual** (`"manual"`): A modal appears in the overlay showing both cards. You choose which card to keep, preview the merge result, then confirm. The modal has a 90-second timeout, after which it cancels automatically.
 
 ### What Gets Merged
 
-| Field    | Merge behavior                                                  |
-| -------- | --------------------------------------------------------------- |
-| Sentence | Both sentences preserved (exact duplicate text is deduplicated) |
-| Audio    | Both `[sound:...]` entries kept (exact duplicates deduplicated) |
-| Image    | Both images kept (exact duplicates deduplicated)                |
+| Field    | Merge behavior                          |
+| -------- | ---------------------------------------- |
+| Sentence | Both cards' sentences kept as grouped entries |
+| Audio    | Both cards' `[sound:...]` entries kept  |
+| Image    | Both cards' images kept                 |
+
+Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
 
 ### Keyboard Shortcuts in the Modal
 
-| Key       | Action                             |
-| --------- | ---------------------------------- |
-| `1` / `2` | Select card 1 or card 2 to keep    |
-| `Enter`   | Confirm selection                  |
-| `Esc`     | Cancel (keep both cards unchanged) |
+| Key         | Action                             |
+| ----------- | ---------------------------------- |
+| `1` / `2`   | Select card 1 or card 2 to keep    |
+| `Enter`     | Confirm selection                  |
+| `Backspace` | Go back from the merge preview     |
+| `Esc`       | Cancel (keep both cards unchanged) |
 
 ## Full Config Example
 
@@ -331,8 +338,10 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
     "enabled": true,
     "url": "http://127.0.0.1:8765",
     "pollingRate": 3000,
+    "deck": "",
+    "tags": ["SubMiner"],
     "proxy": {
-      "enabled": false,
+      "enabled": true, // default
       "host": "127.0.0.1",
       "port": 8766,
       "upstreamUrl": "http://127.0.0.1:8765",
@@ -363,10 +372,13 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
       "autoUpdateNewCards": true,
       "notificationType": "overlay",
     },
+    "metadata": {
+      "pattern": "[SubMiner] %f (%t)",
+    },
     "ai": {
       "enabled": false,
-      "model": "openai/gpt-4o-mini",
-      "systemPrompt": "Translate mined sentence text only.",
+      "model": "", // e.g. "openai/gpt-4o-mini"
+      "systemPrompt": "",
     },
     "isKiku": {
       "enabled": false,
@@ -375,7 +387,7 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
     },
     "isLapis": {
       "enabled": false,
-      "sentenceCardModel": "Japanese sentences",
+      "sentenceCardModel": "Lapis",
     },
   },
   "ai": {

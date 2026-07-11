@@ -4,7 +4,7 @@
 
 **Who needs this page:** Most users never touch the plugin directly - SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
 
-The plugin ships as a modular Lua package under `plugin/subminer/` (entry point `init.lua`, which loads `main.lua` and sibling modules). Earlier releases shipped a single global `main.lua`; runtime loading replaces it.
+The plugin ships as a modular Lua package under `plugin/subminer/` (entry point `main.lua`, which loads `init.lua` and sibling modules). Earlier releases shipped a single global `main.lua`; runtime loading replaces it.
 
 ## Runtime Loading
 
@@ -27,6 +27,25 @@ On Windows, use a named pipe instead:
 input-ipc-server=\\.\pipe\subminer-socket
 ```
 
+## Configuration (script-opts)
+
+The plugin reads options from `script-opts` with the `subminer-` prefix (for example `--script-opts=subminer-backend=hyprland`). Managed launches inject these automatically from your SubMiner config; the shipped `subminer.conf` is intentionally empty so command-line opts always win.
+
+| Option                                             | Default          | Description                                                                     |
+| -------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `binary_path`                                      | `""`             | Path to the SubMiner binary; empty enables [auto-detection](#binary-auto-detection) |
+| `socket_path`                                      | platform default | mpv IPC socket path (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows) |
+| `texthooker_enabled`                               | `no`             | Start the texthooker server with the overlay                                    |
+| `texthooker_port`                                  | `5174`           | Texthooker server port                                                          |
+| `backend`                                          | `auto`           | Window backend (`auto`, `hyprland`, `sway`, `x11`, `macos`)                     |
+| `auto_start`                                       | `no`             | Start the overlay app on `file-loaded` (managed launches set this from `mpv.autoStartSubMiner`) |
+| `auto_start_visible_overlay`                       | `no`             | Show the visible overlay on auto-start (from `auto_start_overlay` in config)    |
+| `overlay_loading_osd`                              | `no`             | Show an OSD loading spinner while the overlay starts                            |
+| `auto_start_pause_until_ready`                     | `yes`            | Keep mpv paused until the overlay reports tokenization-ready                    |
+| `auto_start_pause_until_ready_timeout_seconds`     | `30`             | Timeout before resuming playback anyway                                         |
+| `osd_messages`                                     | `yes`            | Show plugin OSD status messages                                                 |
+| `log_level`                                        | `info`           | Plugin log verbosity                                                            |
+
 ## Keybindings
 
 Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "chord"):
@@ -44,7 +63,7 @@ Most plugin actions use a `y` chord prefix - press `y`, then the second key (a "
 | `v`             | Toggle primary subtitle bar visibility |
 | `TAB` (default) | Skip intro (AniSkip)                   |
 
-The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. The legacy `y-k` chord still works as a fallback unless you remap the AniSkip key onto it. See [AniSkip Integration](/aniskip-integration) for setup and details.
+The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMiner app binds it over the mpv IPC socket while it is connected. It defaults to `TAB` and is configurable via `mpv.aniskipButtonKey`. When a custom key (other than `TAB` or `y-k`) is configured, the legacy `y-k` chord is also bound as a fallback. See [AniSkip Integration](/aniskip-integration) for setup and details.
 
 The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
 
@@ -70,7 +89,7 @@ Notes:
 
 ## Menu
 
-Press `y-y` to open an interactive menu in mpv's OSD:
+Press `y-y` to open an interactive menu (rendered with mpv's console selector):
 
 ```text
 SubMiner:
@@ -80,6 +99,7 @@ SubMiner:
 4. Open options
 5. Restart overlay
 6. Check status
+7. Stats
 ```
 
 Select an item by pressing its number.
@@ -92,8 +112,8 @@ When `binary_path` is empty, the plugin searches platform-specific locations:
 
 1. `~/.local/bin/SubMiner.AppImage`
 2. `/opt/SubMiner/SubMiner.AppImage`
-3. `/usr/local/bin/SubMiner`
-4. `/usr/bin/SubMiner`
+3. `/usr/local/bin/SubMiner` / `/usr/local/bin/subminer`
+4. `/usr/bin/SubMiner` / `/usr/bin/subminer`
 
 **macOS:**
 
@@ -102,11 +122,14 @@ When `binary_path` is empty, the plugin searches platform-specific locations:
 
 **Windows:**
 
-1. `C:\Program Files\SubMiner\SubMiner.exe`
-2. `C:\Program Files (x86)\SubMiner\SubMiner.exe`
-3. `C:\SubMiner\SubMiner.exe`
+A PowerShell system lookup runs first (running SubMiner process, registry App Paths, `Get-Command`), then static paths:
 
-Packaged Windows plugin installs also rewrite `socket_path` to `\\.\pipe\subminer-socket` automatically.
+1. `%LOCALAPPDATA%\Programs\SubMiner\SubMiner.exe` (the default per-user install location)
+2. `C:\Program Files\SubMiner\SubMiner.exe`
+3. `C:\Program Files (x86)\SubMiner\SubMiner.exe`
+4. `C:\SubMiner\SubMiner.exe`
+
+On Windows the plugin also normalizes a Unix-style `socket_path` (`/tmp/subminer-socket`) to the named pipe `\\.\pipe\subminer-socket` at runtime.
 
 ## Backend Detection
 
@@ -135,7 +158,15 @@ script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
 script-message subminer-autoplay-ready
+script-message subminer-stats-toggle
+script-message subminer-visible-overlay-shown
+script-message subminer-visible-overlay-hidden
+script-message subminer-managed-subtitles-loading
+script-message subminer-overlay-loading-ready
+script-message subminer-reload-session-bindings
 ```
+
+The last five are primarily used by the SubMiner app to notify the plugin of overlay/loading state and to trigger session-binding reloads.
 
 The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) still exist, but they are handled by the SubMiner app over the IPC socket rather than by the plugin - see [AniSkip Integration](/aniskip-integration#triggering-from-mpv).
 
@@ -155,8 +186,8 @@ For how the plugin's auto-start fits into the full launch sequence - including w
 - **File loaded**: If `auto_start=yes`, the plugin starts the overlay.
 - **Auto-start pause gate**: If `auto_start_visible_overlay=yes` and `auto_start_pause_until_ready=yes`, launcher starts mpv paused. On cold managed background startup, SubMiner opens the tray and visible overlay shell before tokenization warmups finish, then the plugin resumes playback after SubMiner reports tokenization-ready (with a 30-second timeout fallback).
 - **Duplicate auto-start events**: Repeated `file-loaded` hooks while overlay is already running are ignored for auto-start triggers (prevents duplicate start attempts).
-- **MPV shutdown**: The plugin sends a stop command to gracefully shut down both the overlay and the texthooker server.
-- **Texthooker**: Starts as a separate subprocess before the overlay to ensure the app lock is acquired first.
+- **MPV shutdown**: The plugin clears its hover/OSD/gate state on shutdown; the overlay app notices the closed IPC socket and shuts itself down.
+- **Texthooker**: When `texthooker_enabled=yes`, the plugin appends `--texthooker` to the overlay start command so the app starts the texthooker server alongside the overlay.
 
 ## Using with the `subminer` Wrapper
 

@@ -134,7 +134,7 @@ Each character entry in the Yomitan dictionary includes structured content:
 
 - **Name** - the matched Japanese name form
 - **Known names** - generated non-honorific Japanese aliases for that character, excluding raw romanized/English aliases from lookup results
-- **Role badge** - color-coded by role: main (score 100), supporting (90), side (80), background (70)
+- **Role badge** - color-coded by role: main / "Protagonist" (score 100), primary / "Main Character" (75), side / "Side Character" (50), appears / "Minor Role" (25). AniList's MAIN maps to main, SUPPORTING to primary, and BACKGROUND to side.
 - **Portrait** - character image from AniList, embedded in the ZIP
 - **Description** - biography text from AniList (collapsible)
 - **Character information** - age, birthday, gender, blood type (collapsible)
@@ -166,7 +166,7 @@ These phases are emitted through the configured notification surface. Some phase
 
 1. **checking** - Is there already a cached snapshot for this media ID?
 2. **generating** - No cache hit: fetch characters from AniList GraphQL, download portraits (250ms throttle between image requests), save snapshot JSON.
-3. **syncing** - Add the media ID to the most-recently-used list. Evict old entries beyond `maxLoaded`.
+3. MRU update (no notification) - add the media ID to the most-recently-used list and evict old entries beyond `maxLoaded`.
 4. **building** - Merge active snapshots into a single Yomitan ZIP. A SHA-1 revision hash is computed from the media set - if it matches the previously imported revision, the import is skipped.
 5. **importing** - Push the ZIP into Yomitan. Waits for Yomitan mutation readiness (7-second timeout per operation).
 6. **ready** - Dictionary is live. Character names will match on the next subtitle line.
@@ -175,11 +175,13 @@ These phases are emitted through the configured notification surface. Some phase
 
 ```jsonc
 {
-  "activeMediaIds": [170942, 163134, 154587],
+  "activeMediaIds": ["170942 - Frieren", "163134 - ...", "154587 - ..."],
   "mergedRevision": "a1b2c3d4e5f6",
   "mergedDictionaryTitle": "SubMiner Character Dictionary",
 }
 ```
+
+(Entries are `"<mediaId> - <title>"` label strings; bare numeric IDs from older versions are still read.)
 
 The `maxLoaded` setting (default: 3) controls how many media snapshots stay in the active set. When you start a 4th title, the oldest is evicted and the merged dictionary is rebuilt without it.
 
@@ -228,7 +230,7 @@ Manual selections are stored in `character-dictionaries/anilist-overrides.json` 
 Open the manager with `Ctrl/Cmd+D` (`shortcuts.openCharacterDictionaryManager`). The manager shows the merged dictionary's active MRU entries, marks the current anime, and lets you adjust eviction priority for the other loaded entries.
 
 - **Remove** drops a non-current entry from the active merged dictionary and rebuilds/imports once.
-- **Up/Down** changes MRU order for future eviction without rebuilding.
+- **Up/Down** changes MRU order for future eviction; the merged dictionary is rebuilt and re-imported after a reorder.
 - **Override** opens the AniList selector for that entry's title so you can replace a saved loaded entry.
 
 The current anime cannot be removed while you are watching it; it stays loaded until playback changes.
@@ -250,13 +252,13 @@ character-dictionaries/
     m170942-va67890.jpg       # Voice actor portrait
 ```
 
-**Snapshot format** (v17): each snapshot contains the media ID, title, entry count, timestamp, an array of Yomitan term entries, and base64-encoded images.
+**Snapshot format** (v19, `CHARACTER_DICTIONARY_FORMAT_VERSION`): each snapshot contains the media ID, title, entry count, timestamp, an array of Yomitan term entries, and base64-encoded images. Snapshots with a different format version are regenerated.
 
 **ZIP structure** follows the Yomitan dictionary format:
 
 ```text
 merged.zip
-  index.json                  # { title, revision, format: 3, author: "SubMiner" }
+  index.json                  # { title, revision, format: 3, author: "SubMiner", description }
   tag_bank_1.json             # Tag definitions
   term_bank_1.json            # Up to 10,000 terms per bank
   term_bank_2.json

@@ -46,11 +46,12 @@ The Settings window groups options by workflow instead of mirroring the raw conf
 - Appearance
 - Behavior
 - Mining & Anki
-- Playback & Sources
 - Input
 - Integrations
 - Tracking & App
 - Advanced
+
+Playback-related fields live as sections inside these groups (for example "Playback Behavior" under **Behavior** and "mpv Playback" / "YouTube Playback Settings" under **Integrations**).
 
 Each field still writes to its current `config.jsonc` path. For example, subtitle hover pause appears under **Behavior** / playback behavior, but saves to `subtitleStyle.autoPauseVideoOnHover`. Anki-aware fields can query AnkiConnect for deck names, note types, and field names. The AnkiConnect deck field also reads Yomitan's current mining deck and persists it into an empty setting when one is found. Stats mining also uses Yomitan's current mining deck when `ankiConnect.deck` is empty. Keybinding fields use click-to-learn controls instead of raw text boxes.
 
@@ -95,9 +96,11 @@ On macOS, these validation warnings also open a native dialog with full details 
 SubMiner watches the active config file (`config.jsonc` or `config.json`) while running and applies supported updates automatically.
 
 Hot-reloadable settings include subtitle appearance, sidebar controls, keybindings,
-logging level, selected source-language preferences, Jimaku/Subsync settings, and
-the Anki deck, known-word, N+1, field, sentence-card, and Kiku options listed
-in the reference tables below.
+shortcuts, notifications, logging level, selected source-language preferences,
+Jimaku/Subsync settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
+stats keys (`stats.toggleKey`, `stats.markWatchedKey`), the secondary-subtitle default
+mode, and the Anki deck, known-word, N+1, field, sentence-card, AI, and Kiku options
+listed in the reference tables below.
 
 When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
 
@@ -482,6 +485,8 @@ Configure the parsed-subtitle sidebar modal.
 | `autoScroll`                | boolean | Keep the active cue in view while playback advances                                                     |
 | `subtitleSidebar.css`       | object  | CSS declaration object applied to the sidebar. Use CSS properties plus sidebar custom properties below. |
 
+Direct style keys are also available under `subtitleSidebar` and map to the same visuals as the CSS custom properties: `maxWidth` (default `420`), `opacity` (`0.95`), `backgroundColor`, `textColor`, `fontFamily`, `fontSize` (`16`), `timestampColor`, `activeLineColor`, `activeLineBackgroundColor`, and `hoverLineBackgroundColor`.
+
 Sidebar CSS custom properties:
 
 | CSS Property                                 | Default                     | Description                  |
@@ -498,7 +503,7 @@ The sidebar is only available when the active subtitle source has been parsed in
 
 For full details on layout modes, behavior, and the keyboard shortcut, see the [Subtitle Sidebar](/subtitle-sidebar) page.
 
-`jlptColors` keys are:
+`subtitleStyle.jlptColors` keys are:
 
 | Key  | Default   | Description             |
 | ---- | --------- | ----------------------- |
@@ -507,12 +512,6 @@ For full details on layout modes, behavior, and the keyboard shortcut, see the [
 | `N3` | `#f9e2af` | JLPT N3 underline color |
 | `N4` | `#8bd5ca` | JLPT N4 underline color |
 | `N5` | `#8aadf4` | JLPT N5 underline color |
-
-**Image Quality Notes:**
-
-- `imageQuality` affects JPG and WebP only; PNG is lossless and ignores this setting
-- JPG quality is mapped to FFmpeg's scale (2-31, lower = better)
-- WebP quality uses FFmpeg's native 0-100 scale
 
 ### Subtitle Position
 
@@ -797,7 +796,7 @@ If you bind a discrete action to an axis manually, include `direction`:
 
 Treat the button-index map as reference-only unless you are copying values from the debug modal. Updating it alone does not rewrite the hardcoded raw numeric values already present in controller bindings or controller profiles. If you need a real remap, prefer the `Alt+C` learn flow so both the source and the descriptor shape stay correct.
 
-If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `auto` accepts either style and remains the default.
+If you choose to bind `L2` or `R2` manually, set `triggerInputMode` to `analog` and tune `triggerDeadzone` when your controller reports triggers as analog values instead of digital pressed/not-pressed buttons. `digital` forces pressed/not-pressed handling; `auto` accepts either style and remains the default.
 
 If one controller reports non-standard raw button numbers, override that controller profile's button-index map using values from the `Alt+Shift+C` debug modal. Use the global button-index map only when the mapping should apply to every controller without a profile.
 
@@ -834,7 +833,7 @@ These shortcuts are only active when the overlay window is visible and automatic
 
 ### Session Help Modal
 
-The session help modal opens from the overlay with `Ctrl/Cmd+/` by default. The mpv plugin also exposes it through the `Y-H` chord (falling back to `Y-K` if needed). It shows the current session keybindings and color legend.
+The session help modal opens from the overlay with `Ctrl/Cmd+/` by default. The mpv plugin also exposes it through the `y-h` chord. It shows the current session keybindings and color legend.
 
 You can filter the modal quickly with `/`:
 
@@ -861,8 +860,8 @@ When config hot-reload updates shortcut/keybinding/style values, close and reope
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
 
 Current runtime options cover automatic card updates, known-word highlighting,
-JLPT underlines, frequency highlighting, known-word match mode, and Kiku field
-grouping mode.
+N+1 annotation, JLPT underlines, frequency highlighting, known-word match mode,
+and Kiku field grouping mode.
 
 Annotation toggles only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
 
@@ -879,7 +878,7 @@ Palette controls:
 
 ### Shared AI Provider
 
-This is the single, shared connection to an OpenAI-compatible LLM endpoint. Configure it **once** here at the top level, and SubMiner reuses it wherever AI is needed (today: Anki translation/enrichment). Per-feature toggles and prompt/model tweaks live in their own sections (for example `ankiConnect.ai`) and inherit this transport.
+This is the single, shared connection to an OpenAI-compatible LLM endpoint. Configure it **once** here at the top level, and SubMiner reuses it wherever AI is needed (Anki translation/enrichment and YouTube subtitle fixing). Per-feature toggles and prompt/model tweaks live in their own sections (for example `ankiConnect.ai` and `youtubeSubgen.ai`) and inherit this transport.
 
 ```json
 {
@@ -907,6 +906,7 @@ This is the single, shared connection to an OpenAI-compatible LLM endpoint. Conf
 SubMiner uses the shared provider for:
 
 - Anki translation/enrichment when Anki AI is enabled
+- YouTube generated-subtitle fixing when `youtubeSubgen.fixWithAi` is enabled (with optional `youtubeSubgen.ai.model` / `systemPrompt` overrides)
 
 ### AnkiConnect
 
@@ -1008,7 +1008,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.generateImage`                             | `true`, `false`                             | Generate image/animation screenshots (default: `true`)                                                                                                                                                                          |
 | `media.imageType`                                 | `"static"`, `"avif"`                        | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                                                                                                            |
 | `media.imageFormat`                               | `"jpg"`, `"png"`, `"webp"`                  | Image format (default: `"jpg"`)                                                                                                                                                                                                 |
-| `media.imageQuality`                              | number (1-100)                              | Image quality for JPG/WebP; PNG ignores this (default: `92`)                                                                                                                                                                    |
+| `media.imageQuality`                              | number (1-100)                              | Image quality for JPG/WebP; PNG ignores this (default: `92`). JPG values are mapped onto FFmpeg's 2-31 quality scale; WebP uses the value directly.                                                                             |
 | `media.imageMaxWidth`                             | number (px)                                 | Optional max width for static screenshots. Unset keeps source width.                                                                                                                                                            |
 | `media.imageMaxHeight`                            | number (px)                                 | Optional max height for static screenshots. Unset keeps source height.                                                                                                                                                          |
 | `media.animatedFps`                               | number (1-60)                               | FPS for animated AVIF (default: `10`)                                                                                                                                                                                           |
@@ -1032,7 +1032,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                      | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                                                          |
 | `behavior.notificationType`                       | `"overlay"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"overlay"`). `"both"` means overlay + system. `osd` and `osd-system` are legacy config-file-only values; use `"osd-system"` to keep the old OSD + system behavior.                  |
 | `behavior.autoUpdateNewCards`                     | `true`, `false`                             | Automatically update cards on creation (default: `true`)                                                                                                                                                                        |
-| `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time                                                                                                                                                        |
+| `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time, `%T`=time with milliseconds, `<br>`=newline                                                                                                           |
 | `isLapis`                                         | object                                      | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.                                                                                    |
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
 
@@ -1136,8 +1136,6 @@ Configure Jimaku API access and defaults:
 
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
 
-Set `openBrowser` to `false` to only print the URL without opening a browser.
-
 ### Subtitle Sync
 
 Sync the active subtitle track from the overlay picker using `alass` or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
@@ -1158,8 +1156,8 @@ Sync the active subtitle track from the overlay picker using `alass` or `ffsubsy
 
 | Option           | Values          | Description                                                                                                               |
 | ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `alass_path`     | string path     | Path to `alass` executable. Empty or `null` resolves from `PATH`. `alass` must be installed separately.                   |
-| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty or `null` resolves from `PATH`. `ffsubsync` must be installed separately.           |
+| `alass_path`     | string path     | Path to `alass` executable. Empty falls back to `/usr/bin/alass`. `alass` must be installed separately.                   |
+| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty falls back to `/usr/bin/ffsubsync`. `ffsubsync` must be installed separately.       |
 | `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
 
@@ -1195,6 +1193,8 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 | `anilist.enabled`                                              | `true`, `false`     | Enable AniList post-watch progress updates (default: `false`)                                                 |
 | `accessToken`                                                  | string              | Optional explicit AniList access token override (default: empty string)                                       |
 | `characterDictionary.maxLoaded`                                | number              | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
+| `characterDictionary.refreshTtlHours`                          | number              | Hours before a cached media snapshot is refreshed (default: `168`, clamped to 1–8760)                         |
+| `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | What happens to snapshots evicted beyond `maxLoaded` (default: `"delete"`)                                |
 | `characterDictionary.collapsibleSections.description`          | `true`, `false`     | Open the Description section by default in generated dictionary entries                                       |
 | `characterDictionary.collapsibleSections.characterInformation` | `true`, `false`     | Open the Character Information section by default in generated dictionary entries                             |
 | `characterDictionary.collapsibleSections.voicedBy`             | `true`, `false`     | Open the Voiced by section by default in generated dictionary entries                                         |
@@ -1504,7 +1504,7 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 | `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`)         |
 | `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                                |
 | `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                                  |
-| `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (default: `\\\\.\\pipe\\subminer-socket`)                  |
+| `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (platform-dependent default: `/tmp/subminer-socket`, or `\\\\.\\pipe\\subminer-socket` on Windows) |
 | `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                             |
 | `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                                   |
 | `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness, with a 30-second fallback (default: `true`) |
@@ -1552,15 +1552,18 @@ Current launcher behavior:
 - If YouTube/mpv already exposes an authoritative matching subtitle track, SubMiner reuses it; otherwise it downloads and injects only the missing side.
 - SubMiner loads the primary subtitle plus a best-effort secondary subtitle.
 - Playback waits only for primary subtitle readiness; secondary failures do not block playback.
-- English secondary subtitles are selected from the secondary-subtitle language list when primary language matches are unavailable.
 - Native mpv secondary subtitle rendering stays hidden during this flow so the SubMiner overlay remains the visible secondary subtitle surface.
 - If primary subtitle loading fails, use `Ctrl+Alt+C` to open the subtitle modal and pick a track.
 
-Language targets are derived from subtitle config:
+Track selection:
 
-- primary track: `youtube.primarySubLanguages` (falls back to `["ja","jpn"]`)
-- secondary track: secondary-subtitle language list (falls back to English when empty)
-- Local playback uses the same priorities after mpv reports subtitle track metadata, so sidecar/internal mixed sets can override an incorrect initial `sid=auto` pick.
+- YouTube auto-selection always targets a Japanese primary track and an English secondary track, preferring manual uploads over auto-generated captions.
+- `youtube.primarySubLanguages` (default `["ja","jpn"]`) defines which loaded track counts as a satisfactory primary for the "primary subtitle missing" notification and for managed local/playlist subtitle selection.
+- Local playback applies these priorities after mpv reports subtitle track metadata, so sidecar/internal mixed sets can override an incorrect initial `sid=auto` pick.
 - Tracks are resolved and loaded before mpv starts; the older launcher mode switch has been removed.
 
-Precedence for launcher defaults is: CLI flag > environment variable > `config.jsonc` > built-in default.
+These settings come from `config.jsonc` (or built-in defaults); there are no CLI flags or environment variables for subtitle language selection.
+
+#### YouTube Subtitle Generation (`youtubeSubgen`)
+
+An advanced, template-hidden section for Whisper-based YouTube subtitle generation: `whisperBin`, `whisperModel`, `whisperVadModel`, `whisperThreads` (default `4`), and `fixWithAi` (default `false`), which post-processes generated subtitles through the [Shared AI Provider](#shared-ai-provider) with optional `youtubeSubgen.ai.model` / `systemPrompt` overrides. These keys are accepted in `config.jsonc` but intentionally omitted from the generated template.

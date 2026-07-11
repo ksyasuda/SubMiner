@@ -265,9 +265,15 @@ script-message subminer-options
 script-message subminer-restart
 script-message subminer-status
 script-message subminer-autoplay-ready
+script-message subminer-stats-toggle
+script-message subminer-visible-overlay-shown
+script-message subminer-visible-overlay-hidden
+script-message subminer-managed-subtitles-loading
+script-message subminer-overlay-loading-ready
+script-message subminer-reload-session-bindings
 ```
 
-The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) are handled by the SubMiner app over the mpv IPC socket while it is connected.
+The overlay/loading/session-binding messages are primarily sent by the SubMiner app to keep the plugin's state in sync. The AniSkip messages (`subminer-skip-intro`, `subminer-aniskip-refresh`) are handled by the SubMiner app over the mpv IPC socket while it is connected.
 
 The start command also accepts inline overrides:
 

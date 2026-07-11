@@ -41,7 +41,7 @@ The update flow:
 1. **Title detection** -- SubMiner extracts the anime title, season, and episode number from the media filename and path. Season folders such as `Season 2` are treated as a strong season signal. SubMiner tries [`guessit`](https://github.com/guessit-io/guessit) first for accurate parsing, then falls back to an internal filename parser if guessit is unavailable.
 2. **AniList search** -- The detected title is searched against the AniList GraphQL API. For season 2 and later files, SubMiner searches the season-specific title first, then falls back to the base title. SubMiner picks the best match by comparing titles (romaji, English, native) and filtering by episode count.
 3. **Progress check** -- SubMiner fetches your current list entry for the matched media. The media must already be in Planning or Watching; otherwise SubMiner shows an MPV message explaining that the update is not possible. If your recorded progress already meets or exceeds the detected episode, the update is skipped.
-4. **Mutation** -- A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`.
+4. **Mutation** -- A `SaveMediaListEntry` mutation sets the new progress and marks the entry as `CURRENT`, or `COMPLETED` when the watched episode is the final episode of the season (the "already at this progress" skip is bypassed for the final episode so completion still lands).
 
 ## Update Queue and Retry
 
@@ -81,7 +81,6 @@ All AniList API calls go through a shared rate limiter that enforces a sliding w
     "enabled": true,
     "accessToken": "",
     "characterDictionary": {
-      "enabled": false,
       "maxLoaded": 3,
       "profileScope": "all",
       "collapsibleSections": {
@@ -99,10 +98,12 @@ All AniList API calls go through a shared rate limiter that enforces a sliding w
 | `enabled`                                   | `true`, `false`     | Enable AniList post-watch progress updates (default: `false`)                                                |
 | `accessToken`                               | string              | Explicit AniList access token override; when blank, SubMiner uses the stored encrypted token (default: `""`) |
 | `characterDictionary.maxLoaded`             | number              | Number of recent media snapshots kept in the merged dictionary (default: `3`)                                |
+| `characterDictionary.refreshTtlHours`       | number              | Hours before a cached media snapshot is refreshed (default: `168`, clamped to 1–8760)                        |
+| `characterDictionary.evictionPolicy`        | `"delete"`, `"disable"` | What happens to snapshots evicted beyond `maxLoaded` (default: `"delete"`)                               |
 | `characterDictionary.profileScope`          | `"all"`, `"active"` | Apply dictionary to all Yomitan profiles or only the active one                                              |
 | `characterDictionary.collapsibleSections.*` | `true`, `false`     | Control which dictionary entry sections start expanded                                                       |
 
-See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format. Character dictionary sync follows `subtitleStyle.nameMatchEnabled`.
+There is no `characterDictionary.enabled` key: character dictionary sync is enabled by `subtitleStyle.nameMatchEnabled`. See the [Character Dictionary](/character-dictionary) page for full details on the character dictionary feature, including name generation, matching, auto-sync lifecycle, and dictionary entry format.
 
 ## CLI Commands
 

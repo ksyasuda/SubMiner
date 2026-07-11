@@ -6,7 +6,7 @@ SubMiner is split into three cooperating runtimes:
 
 - Electron desktop app (`src/`) for overlay/UI/runtime orchestration.
 - Launcher CLI (`launcher/`) for mpv/app command workflows.
-- mpv Lua plugin (`plugin/subminer/init.lua` + module files) for player-side controls and IPC handoff.
+- mpv Lua plugin (`plugin/subminer/main.lua` + module files) for player-side controls and IPC handoff.
 
 Within the desktop app, `src/main.ts` is a composition root that wires small runtime/domain modules plus core services.
 
@@ -24,13 +24,14 @@ Within the desktop app, `src/main.ts` is a composition root that wires small run
 
 ```text
 launcher/                 # Standalone CLI launcher wrapper and mpv helpers
-  commands/               # Command modules (doctor/config/mpv/jellyfin/playback/app passthrough)
+  commands/               # Command modules (doctor/config/mpv/jellyfin/playback/app passthrough/
+                          #   dictionary/history/logs/stats/update)
   config/                 # Launcher config parsers + CLI parser builder
   main.ts                 # Launcher entrypoint and command dispatch
 plugin/
-  subminer/               # Modular mpv plugin (init · main · bootstrap · lifecycle · process
+  subminer/               # Modular mpv plugin (main · init · bootstrap · lifecycle · process
                           #   state · messages · hover · ui · options · environment · log
-                          #   binary)
+                          #   binary · session_bindings · version)
 src/
   ai/                      # AI translation provider utilities (client, config)
   main-entry.ts           # Background-mode bootstrap wrapper before loading main.js
@@ -38,6 +39,7 @@ src/
   preload.ts               # Electron preload bridge
   types.ts                 # Shared type definitions
   main/                    # Main-process composition/runtime adapters
+    boot/                  # Pre-ready boot helpers
     app-lifecycle.ts       # App lifecycle + app-ready runtime runner factories
     character-dictionary-runtime.ts # Character-dictionary orchestration/public runtime API
     cli-runtime.ts         # CLI command runtime service adapters
@@ -71,17 +73,17 @@ src/
     resolve/               # Domain-specific config resolution pipeline stages
   shared/ipc/              # Cross-process IPC channel constants + payload validators
   renderer/                # Overlay renderer (modularized UI/runtime)
-    handlers/              # Keyboard/mouse interaction modules
-    modals/                # Jimaku/Kiku/subsync/runtime-options/session-help modals
+    handlers/              # Keyboard/mouse/gamepad interaction modules
+    modals/                # Modal flows (Jimaku, Kiku, subsync, runtime options, session help,
+                           #   character dictionary, playlist browser, subtitle sidebar,
+                           #   YouTube track picker, controller config/debug/select)
     positioning/           # Subtitle position controller (drag-to-reposition)
+  settings/                # Settings window UI (model, controls, markup)
+  types/                   # Domain type modules (anki, config, integrations, ...)
   window-trackers/         # Backend-specific tracker implementations (Hyprland, Sway, X11, macOS, Windows)
   jimaku/                  # Jimaku API integration helpers
   subsync/                 # Subtitle sync (alass/ffsubsync) helpers
-  subtitle/                # Subtitle processing utilities
-  tokenizers/              # Tokenizer implementations
   anki-integration/        # AnkiConnect proxy server + note-update enrichment workflow
-  token-mergers/           # Token merge strategies
-  translators/             # AI translation providers
 ```
 
 ### Service Layer (`src/core/services/`)
@@ -92,7 +94,7 @@ src/
 - **Mining + Anki/Jimaku runtime:** `mining.ts`, `field-grouping.ts`, `field-grouping-overlay.ts`, `anki-jimaku.ts`, `anki-jimaku-ipc.ts`
 - **Subtitle/token pipeline:** `subtitle-processing-controller.ts`, `subtitle-position.ts`, `subtitle-ws.ts`, `tokenizer.ts` + `tokenizer/*` stage modules (including `parser-enrichment-worker-runtime.ts` for async MeCab enrichment and `yomitan-parser-runtime.ts`)
 - **Integrations:** `jimaku.ts`, `subsync.ts`, `subsync-runner.ts`, `texthooker.ts`, `jellyfin.ts`, `jellyfin-remote.ts`, `discord-presence.ts`, `yomitan-extension-loader.ts`, `yomitan-settings.ts`
-- **Anki integration:** `anki-integration.ts`, `anki-integration/anki-connect-proxy.ts` (local proxy for push-based auto-enrichment), `anki-integration/note-update-workflow.ts`
+- **Anki integration (repo `src/` root, not under `core/services/`):** `src/anki-integration.ts`, `src/anki-integration/anki-connect-proxy.ts` (local proxy for push-based auto-enrichment), `src/anki-integration/note-update-workflow.ts`
 - **Config/runtime controls:** `config-hot-reload.ts`, `runtime-options-ipc.ts`, `cli-command.ts`, `startup.ts`
 - **Domain submodules:** `anilist/*` (token/update queue/updater), `immersion-tracker/*` (storage/session/metadata/query/reducer)
 
@@ -116,12 +118,19 @@ src/renderer/
   handlers/
     keyboard.ts            # Keybindings, chord handling, modal key routing
     mouse.ts               # Hover/drag behavior, selection + observer wiring
+    gamepad-controller.ts  # Gamepad/controller input handling
+    controller-binding-capture.ts # Controller binding capture flow
   modals/
     jimaku.ts              # Jimaku modal flow
     kiku.ts                # Kiku field-grouping modal flow
     runtime-options.ts     # Runtime options modal flow
     session-help.ts        # Keyboard shortcuts/help modal flow
     subsync.ts             # Manual subsync modal flow
+    character-dictionary.ts # Character dictionary modal flow
+    playlist-browser.ts    # Playlist browser modal flow
+    subtitle-sidebar.ts    # Subtitle sidebar modal flow
+    youtube-track-picker.ts # YouTube subtitle track picker
+    controller-*.ts        # Controller config/debug/select modals
   utils/
     dom.ts                 # Required DOM lookups + typed handles
     platform.ts            # Layer/platform capability detection
@@ -130,7 +139,7 @@ src/renderer/
 ### Launcher + Plugin Runtimes
 
 - `launcher/main.ts` dispatches commands through `launcher/commands/*` and shared config readers in `launcher/config/*`. It handles mpv startup, app passthrough, Jellyfin helper commands, and playback handoff.
-- `plugin/subminer/init.lua` runs inside mpv and loads modular Lua files: `main.lua` (orchestration), `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution). AniSkip intro detection lives in the SubMiner app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the IPC socket.
+- `plugin/subminer/main.lua` is the mpv entrypoint: it sets up the module path and loads `init.lua`, a thin shim that boots the modular Lua files: `bootstrap.lua` (startup), `lifecycle.lua` (connect/disconnect), `process.lua` (process management), `state.lua` (shared state), `messages.lua` (IPC), `hover.lua` (hover-token highlight rendering), `ui.lua` (OSD rendering), `options.lua` (config), `environment.lua` (detection), `log.lua` (logging), `binary.lua` (path resolution), `session_bindings.lua` (configurable session keybindings), `version.lua` (version metadata). AniSkip intro detection lives in the SubMiner app (`src/main/runtime/aniskip-runtime.ts`), which drives mpv chapters and the skip key over the IPC socket.
 
 ## Flow Diagram
 
@@ -313,7 +322,7 @@ The runtime sockets in this flow are detailed in [IPC + Runtime Contracts](./ipc
 - **Critical-path init:** Once `app.whenReady()` fires, `composeAppReadyRuntime()` runs strict config reload, resolves keybindings, creates the `MpvIpcClient` (which immediately connects and subscribes to mpv subtitle/playback properties via `observe_property`), and initializes the `RuntimeOptionsManager`, `SubtitleTimingTracker`, and `ImmersionTrackerService`.
 - **Overlay runtime:** `initializeOverlayRuntime()` creates the primary overlay window (interactive Yomitan lookups and subtitle rendering), registers global shortcuts, and sets up bounds tracking via the active window tracker. mpv subtitle suppression is handled by a dedicated `overlay-mpv-sub-visibility` service.
 - **Background warmups:** Non-critical services are launched asynchronously: MeCab tokenizer check (with async worker thread), Yomitan extension load, JLPT + frequency dictionary prewarm, optional Jellyfin remote session, Discord presence service, AniList token refresh, and optional AnkiConnect proxy server. Warmup coverage is configurable through `startupWarmups` (including low-power mode that defers all but Yomitan).
-- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through `SubtitlePipeline` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
+- **Runtime:** Event-driven. mpv property changes, IPC messages, CLI commands, overlay shortcuts, and hot-reload notifications route through runtime handlers/composers. Subtitle text flows through the `SubtitleProcessingController` (normalize → tokenize → merge), and results are sent to the main overlay renderer and modal surfaces.
 - **Shutdown:** `onWillQuitCleanup` destroys tray + config watcher, unregisters shortcuts, stops WebSocket + texthooker servers, closes the mpv socket + flushes OSD log, stops the window tracker, closes the Yomitan parser window, flushes the immersion tracker (SQLite), stops Jellyfin/Discord services, stops the AnkiConnect proxy server, and cleans Anki/AniList state.
 
 ```mermaid
@@ -380,7 +389,7 @@ flowchart TB
 
 ## Subtitle Prefetch Pipeline
 
-SubMiner can pre-tokenize upcoming subtitle lines before they appear on screen. When an external subtitle file (SRT, VTT, or ASS) is detected on the active track, the `SubtitlePrefetchService` parses all cues via the `SubtitleCueParser`, identifies a priority window of upcoming lines based on the current playback position, and tokenizes them in the background through the same pipeline used for live subtitles. Results are stored directly into the `SubtitleProcessingController` cache, so when a subtitle actually appears during playback, it hits a warm cache and renders in ~30-50ms instead of ~200-320ms.
+SubMiner can pre-tokenize upcoming subtitle lines before they appear on screen. When an external subtitle file (SRT, VTT, or ASS) is detected on the active track, the `SubtitlePrefetchService` parses all cues via the subtitle cue parser (`subtitle-cue-parser.ts`), identifies a priority window of upcoming lines based on the current playback position, and tokenizes them in the background through the same pipeline used for live subtitles. Results are stored directly into the `SubtitleProcessingController` cache, so when a subtitle actually appears during playback, it hits a warm cache and renders in ~30-50ms instead of ~200-320ms.
 
 The prefetcher yields to live subtitle processing (which always takes priority over background work) and re-computes its priority window on seek. Cache invalidation events (e.g. marking a word as known) trigger re-prefetching of the current window to keep results fresh.
 

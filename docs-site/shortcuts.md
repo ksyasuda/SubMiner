@@ -10,17 +10,15 @@ A few terms used throughout:
 
 All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindings`. Set any shortcut to `null` to disable it.
 
-## Global Shortcuts
+## App-Wide Shortcuts
 
-These work system-wide regardless of which window has focus.
-
-| Shortcut      | Action                 | Configurable                           |
-| ------------- | ---------------------- | -------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay | `shortcuts.toggleVisibleOverlayGlobal` |
-| `Alt+Shift+Y` | Open Yomitan settings  | Fixed (not configurable)               |
+| Shortcut      | Action                 | Scope                                       | Configurable                           |
+| ------------- | ---------------------- | -------------------------------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus     | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open Yomitan settings  | OS-global (registered with the OS)           | Fixed (not configurable)               |
 
 ::: tip
-Global shortcuts are registered with the OS. If they conflict with another application, update them in `shortcuts` config and restart SubMiner.
+`Alt+Shift+O` is dispatched by the overlay window and the mpv plugin, so it works from either surface without OS registration. Only `Alt+Shift+Y` is registered with the OS; if it conflicts with another application, that binding cannot be changed. All `shortcuts.*` keys hot-reload - no restart needed.
 :::
 
 ## Mining Shortcuts
@@ -88,7 +86,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
 | `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                 |
-| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey`                |
+| `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey` (overlay) / `shortcuts.toggleSubtitleSidebar` (mpv session binding) |
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                          |
 | `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                     |
 
@@ -109,7 +107,7 @@ Controller input only drives the overlay while keyboard-only mode is enabled. Th
 
 ## MPV Plugin Chords
 
-When the mpv plugin is installed, all commands use a `y` chord prefix - press `y`, then the second key within 1 second.
+When the mpv plugin is installed, all commands use a `y` chord prefix - press `y`, then the second key (the overlay-side chord times out after 1 second; the mpv plugin uses native mpv key sequences).
 
 | Chord | Action                                                     |
 | ----- | ---------------------------------------------------------- |

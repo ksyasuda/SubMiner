@@ -164,7 +164,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 **Overlay does not appear**
 
 - Confirm SubMiner is running: `SubMiner.AppImage --start` or check for the process.
-- On Linux, the overlay requires a supported window backend. Hyprland and Sway have native Wayland support; all other compositors require both mpv and SubMiner to run under X11 or Xwayland (`xdotool` and `xwininfo` must be installed).
+- On Linux, the overlay requires a supported window backend. Hyprland and Sway have native Wayland support; all other compositors require both mpv and SubMiner to run under X11 or Xwayland (`xdotool`, `xprop`, and `xwininfo` must be installed).
 - On macOS, grant Accessibility permission to SubMiner in System Settings > Privacy & Security > Accessibility.
 
 **Overlay appears but clicks pass through / cannot interact**
@@ -177,7 +177,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 
 - Renderer errors now trigger an automatic recovery path. You should see a short toast ("Renderer error recovered. Overlay is still running.").
 - Recovery closes any open modal and restores click-through/shortcuts automatically without interrupting mpv playback.
-- If errors keep recurring, toggle the overlay's DevTools using overlay chord `y` then `d` (or global `F12`) and inspect the `renderer overlay recovery` error payload for stack trace + modal/subtitle context.
+- If errors keep recurring, toggle the overlay's DevTools using overlay chord `y` then `d` (`F12` also works in dev builds) and inspect the `renderer overlay recovery` error payload for stack trace + modal/subtitle context.
 
 **Overlay is on the wrong monitor or position**
 
@@ -258,22 +258,22 @@ Without FFmpeg, card creation still works but audio and image fields will be emp
 Media generation has a 30-second timeout (60 seconds for animated AVIF). If your video file is on a slow network mount or the codec requires software decoding, generation may time out. Try:
 
 - Using a local copy of the video file.
-- Reducing `media.imageQuality` or switching from `avif` to `static` image type.
-- Checking that `media.maxMediaDuration` is not set too high.
+- Reducing `ankiConnect.media.imageQuality` or switching from `avif` to `static` image type.
+- Checking that `ankiConnect.media.maxMediaDuration` is not set too high.
 
 ## Shortcuts
 
 **"Failed to register global shortcut"**
 
-Global shortcuts (`Alt+Shift+O`, `Alt+Shift+Y`) may conflict with other applications or desktop environment keybindings.
+This warning refers to the OS-registered shortcut `Alt+Shift+Y` (Yomitan settings), which is fixed and may conflict with other applications or desktop environment keybindings.
 
-- Check your DE/WM keybinding settings for conflicts.
-- Change the shortcut in your config under `shortcuts.toggleVisibleOverlayGlobal`.
+- Check your DE/WM keybinding settings for conflicts and free up `Alt+Shift+Y` there.
+- `Alt+Shift+O` (`shortcuts.toggleVisibleOverlayGlobal`) is not OS-registered - it is handled by the overlay window and the mpv plugin, so it does not trigger this warning and only needs those windows focused.
 - On Wayland, global shortcut registration has limitations depending on the compositor. Only Hyprland and Sway are supported natively - see the [Hyprland](#hyprland) section below for shortcut passthrough rules. Other Wayland compositors require X11/Xwayland.
 
 **Overlay keybindings not working**
 
-Overlay-local shortcuts (Space, arrow keys, etc.) only work when the overlay window has focus. Click on the overlay or use the global shortcut to toggle it to give it focus.
+Overlay-local shortcuts (Space, arrow keys, etc.) only work when the overlay window has focus. Click on the overlay or use `Alt+Shift+O` (with the overlay or mpv focused) to toggle it and give it focus.
 
 ## Subtitle Timing
 
@@ -307,9 +307,9 @@ Install ffsubsync or configure the path:
 - **pip**: `pip install ffsubsync`
 - Must be on `PATH` or configured via `subsync.ffsubsync_path` in your config.
 
-**"Subtitle synchronization failed"**
+**"alass synchronization failed" / "ffsubsync synchronization failed"**
 
-If subtitle sync fails:
+If subtitle sync fails (the error message is prefixed with the engine name):
 
 - Ensure the reference subtitle track exists in the video (alass requires a source track).
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).

@@ -60,13 +60,20 @@ The mpv plugin is always available - it's bundled with SubMiner and injected at 
 
 While SubMiner is running, it watches your active config file and applies safe updates automatically.
 
-Live-updated settings:
+Live-updated settings include:
 
 - `subtitleStyle`
 - `keybindings`
 - `shortcuts`
 - `secondarySub.defaultMode`
-- `ankiConnect.ai`
+- `subtitleSidebar`
+- `notifications`
+- `logging`
+- `jimaku`, `subsync`
+- `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`
+- `stats.toggleKey`, `stats.markWatchedKey`
+- `youtube.primarySubLanguages`
+- most `ankiConnect.*` settings (including `ankiConnect.ai`)
 
 Invalid config edits are rejected; SubMiner keeps the previous valid runtime config and shows an error notification.
 For restart-required sections, SubMiner shows a restart-needed notification.
@@ -82,12 +89,13 @@ subminer -R                       # Use rofi instead of fzf
 subminer -d ~/Videos              # Specific directory
 subminer -r -d ~/Anime            # Recursive search
 subminer video.mkv                # Play specific file (overlay auto-starts)
-subminer --start video.mkv        # Explicit overlay start (use when auto_start=no in config)
-subminer -S video.mkv             # Same as above via --start-overlay
+subminer --start video.mkv        # Explicit overlay start (use when mpv.autoStartSubMiner is false in config)
+subminer -S video.mkv             # Also force the visible overlay on start (--start-overlay)
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
-subminer --setup                  # Open first-run setup popup
-subminer --version                # Print installed SubMiner version
+subminer -H                       # Browse watch history (replay/continue episodes, fzf or rofi picker)
+subminer app --setup              # Open first-run setup popup
+subminer --version                # Print the launcher's version
 subminer -v                       # Same as above
 subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
 subminer --log-level warn video.mkv  # Set logging level explicitly
@@ -121,6 +129,9 @@ subminer dictionary --candidates /path/to/file.mkv
 subminer dictionary --select 21355 /path/to/file.mkv
 subminer texthooker               # Launch texthooker-only mode
 subminer texthooker -o            # Launch texthooker and open it in your browser
+subminer stats                    # Start the local stats server (see Immersion Tracking)
+subminer stats -b                 # Start/reuse the background stats daemon
+subminer stats -s                 # Stop the background stats daemon
 subminer app --anilist-setup      # Pass args directly to SubMiner binary (example: AniList login flow)
 
 # Direct packaged app control
@@ -134,6 +145,7 @@ SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
 SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
 SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
 SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle bar visibility
+SubMiner.AppImage --toggle-subtitle-sidebar           # Toggle the subtitle sidebar
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
@@ -213,7 +225,7 @@ Setup popup appears on first launch, or when setup has not been completed.
 You can also open it manually:
 
 ```bash
-subminer --setup
+subminer app --setup
 SubMiner.AppImage --setup
 ```
 
@@ -249,6 +261,7 @@ Top-level launcher flags like `--jellyfin-*` are intentionally rejected.
 - `--sub-file-paths=.;subs;subtitles`
 - `--sid=auto`
 - `--secondary-sid=auto`
+- `--sub-visibility=no` (the overlay renders subtitles instead of mpv)
 - `--secondary-sub-visibility=no`
 
 You can append additional MPV arguments with launcher `-a/--args`, for example `--args "--ao=alsa --volume=80"`.
@@ -294,8 +307,8 @@ Notes:
 - Press `Ctrl+Alt+C` during active YouTube playback to open the manual YouTube subtitle picker and retry track selection.
 - For YouTube URLs, `subminer` probes available YouTube subtitle tracks, reuses existing authoritative tracks when available, and downloads only missing sides.
 - Native mpv secondary subtitle rendering stays hidden so the overlay remains the visible secondary subtitle surface.
-- Primary subtitle target languages come from `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`).
-- Secondary target languages come from `secondarySub.secondarySubLanguages` (empty by default; when empty, no language-based secondary track is auto-selected, though mpv's `--slang` list above still prefers English variants). When multiple matching secondary tracks exist, SubMiner prefers a non-Signs/Songs track.
+- YouTube auto-selection always targets a Japanese primary track and an English secondary track (manual uploads preferred over auto-generated captions). `youtube.primarySubLanguages` (defaults to `["ja","jpn"]`) defines which loaded track counts as a satisfactory primary for the missing-subtitle notification and for managed local/playlist selection.
+- When multiple matching secondary tracks exist, SubMiner prefers a non-Signs/Songs track.
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
 For local video files, SubMiner uses the same config-driven language priorities to auto-select the primary and secondary subtitle tracks from internal and external subtitle sources.
@@ -330,6 +343,8 @@ By default SubMiner uses the first connected controller after controller support
 | `Select` / `Minus`      | Quit mpv                                |
 | `L2` / `R2`             | Unbound (available for custom bindings) |
 
+Note: the default quit binding uses gamepad button index 6. Pads that follow the W3C standard gamepad layout report L2 as index 6 (Select is index 8), so on those controllers the quit action may fire on L2 instead - use `Alt+C` learn mode to remap it for your pad.
+
 ### Analog Controls
 
 | Input                 | Action                                        |
@@ -347,18 +362,18 @@ All button and axis mappings are configurable under the `controller` config bloc
 
 See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining shortcuts, overlay controls, and customization.
 
-**Global shortcuts** (work system-wide):
+**App-wide shortcuts:**
 
-| Keybind       | Action                 |
-| ------------- | ---------------------- |
-| `Alt+Shift+O` | Toggle visible overlay |
-| `Alt+Shift+Y` | Open Yomitan settings  |
+| Keybind       | Action                 | Scope                                                                                              |
+| ------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus (configurable via `shortcuts.toggleVisibleOverlayGlobal`) |
+| `Alt+Shift+Y` | Open Yomitan settings  | OS-global - registered with the system, works from any window                                       |
 
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
 
 Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser for the current video's parent directory and the live mpv queue so you can append, reorder, remove, or jump between episodes without leaving playback.
 
-Press `V` to hide or restore the primary SubMiner subtitle bar. The bundled mpv plugin also binds bare `v` to the same action (injected at runtime).
+Press `V` to cycle the primary SubMiner subtitle bar through hidden → visible → hover modes. The bundled mpv plugin also binds bare `v` to the same action (injected at runtime).
 
 `Ctrl/Cmd+/` opens the session help modal with the current overlay and mpv keybindings. The same help view is also available through the `y-h` chord in mpv.
 
@@ -368,5 +383,6 @@ Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan p
 
 - Drop video files onto the overlay to replace current playback.
 - Hold `Shift` while dropping to append to the playlist instead.
+- Drop subtitle files onto the overlay to load them as a new subtitle track.
 
 Next: [Mining Workflow](/mining-workflow) - word lookup, card creation, and the full mining loop.

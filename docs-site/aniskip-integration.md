@@ -6,12 +6,12 @@ Intro detection runs in the SubMiner app over the mpv IPC socket. It is availabl
 
 ## Setup
 
-AniSkip is opt-in. Enable it in your config:
+AniSkip is enabled by default. Disable it or change the skip key in your config:
 
 ```jsonc
 {
   "mpv": {
-    "aniskipEnabled": true,
+    "aniskipEnabled": true, // default: true
     "aniskipButtonKey": "TAB",
   },
 }
@@ -37,7 +37,9 @@ On each local file load:
 4. If an interval is found, SubMiner adds `AniSkip Intro Start` and `AniSkip Intro End` chapter markers to the current file and binds the skip key (`mpv.aniskipButtonKey`, default `TAB`).
 5. At the start of the intro, an OSD prompt appears for 3 seconds: `You can skip by pressing TAB` (reflects your configured key). Pressing the key at any point during the intro seeks to the intro end.
 
-Results are cached per file for the app session. Reload detection is also handled: if mpv reloads the same file, SubMiner re-applies the chapter markers without a new API lookup.
+When a custom key (other than `TAB` or `y-k`) is configured, the legacy `y-k` chord is also bound as a fallback skip trigger.
+
+Results are cached per file for the app session; only definitive "no intro found" results are cached, so transient lookup failures are retried on the next file load. Reload detection is also handled: if mpv reloads the same file, SubMiner re-applies the chapter markers without a new API lookup.
 
 ## Triggering from mpv
 

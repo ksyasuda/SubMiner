@@ -64,7 +64,7 @@ For full details on dictionary generation, name variant expansion, auto-sync lif
 
 ## Frequency Highlighting
 
-Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance. Frequency ranks are sourced from the **highest-ranked frequency dictionary** installed in Yomitan - other frequency dictionaries are not consulted.
+Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance. For each token, ranks from the installed Yomitan frequency dictionaries are consulted in priority order: the highest-priority dictionary that has the term wins, lower-priority dictionaries fill in terms it lacks, and occurrence-based dictionaries are skipped.
 
 **Modes:**
 
@@ -126,13 +126,15 @@ All colors are customizable via the `subtitleStyle.jlptColors` object.
 
 ## Runtime Toggles
 
-All annotation layers can be toggled at runtime via the mpv command menu without restarting:
+These annotation layers can be toggled at runtime via the runtime options palette (`Ctrl/Cmd+Shift+O`) without restarting:
 
 - `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
-- `subtitleStyle.nameMatchEnabled` (`On` / `Off`)
-- `subtitleStyle.nameMatchImagesEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.matchMode`
+- `ankiConnect.nPlusOne.enabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
 - `subtitleStyle.frequencyDictionary.enabled` (`On` / `Off`)
+
+(Character-name matching, `subtitleStyle.nameMatchEnabled`, is toggled through config or the Settings window, not the runtime palette.)
 
 Toggles only apply to new subtitle lines after the change - the currently displayed line is not re-tokenized in place.
 
@@ -140,8 +142,8 @@ Toggles only apply to new subtitle lines after the change - the currently displa
 
 When multiple annotations apply to the same token, the visual priority is:
 
-1. **N+1 target** (highest) - the single unknown word in an N+1 sentence
-2. **Character-name match** - dictionary-driven character-name token styling
+1. **Character-name match** (highest) - dictionary-driven character-name token styling; it clears the token's N+1, frequency, and JLPT annotations
+2. **N+1 target** - the single unknown word in an N+1 sentence
 3. **Known-word color** - already-learned token tint
-4. **Frequency highlight** - common-word coloring (not applied when N+1/character-name/known-word already matched)
-5. **JLPT underline** - level-based underline (stacks with the above since it uses underline rather than text color)
+4. **Frequency highlight** - common-word coloring (not applied when a higher layer already matched)
+5. **JLPT underline** - level-based underline (stacks with N+1/known/frequency since it uses underline rather than text color, but not with a character-name match)
