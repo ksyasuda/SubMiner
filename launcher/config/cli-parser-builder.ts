@@ -46,7 +46,11 @@ export interface CliInvocations {
   syncRemoteCmd: string | null;
   syncDbPath: string | null;
   syncForce: boolean;
+  syncJson: boolean;
+  syncCheck: boolean;
   syncLogLevel: string | null;
+  syncUiTriggered: boolean;
+  syncUiLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
   doctorRefreshKnownWords: boolean;
@@ -178,7 +182,11 @@ export function parseCliPrograms(
   let syncRemoteCmd: string | null = null;
   let syncDbPath: string | null = null;
   let syncForce = false;
+  let syncJson = false;
+  let syncCheck = false;
   let syncLogLevel: string | null = null;
+  let syncUiTriggered = false;
+  let syncUiLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let doctorRefreshKnownWords = false;
   let logsTriggered = false;
@@ -319,6 +327,9 @@ export function parseCliPrograms(
     .option('--db <file>', 'Override the local stats database path')
     .option('--remote-cmd <cmd>', 'subminer command to run on the remote host')
     .option('-f, --force', 'Skip the running-app safety check')
+    .option('--check', 'Test the SSH connection and remote subminer availability')
+    .option('--json', 'Emit machine-readable NDJSON progress output')
+    .option('--ui', 'Open the SubMiner sync window')
     .option('--log-level <level>', 'Log level')
     .action((rawHost: string | undefined, options: Record<string, unknown>) => {
       const host = typeof rawHost === 'string' ? rawHost.trim() : '';
@@ -326,11 +337,26 @@ export function parseCliPrograms(
       const merge = typeof options.merge === 'string' ? options.merge.trim() : '';
       const push = options.push === true;
       const pull = options.pull === true;
+      const check = options.check === true;
+      if (options.ui === true) {
+        if (host || snapshot || merge || push || pull || check || options.force === true) {
+          throw new Error('Sync --ui cannot be combined with other sync options.');
+        }
+        syncUiTriggered = true;
+        syncUiLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+        return;
+      }
       if (push && pull) {
         throw new Error('Sync --push and --pull cannot be combined.');
       }
       if ((push || pull) && !host) {
         throw new Error('Sync --push and --pull require a host.');
+      }
+      if (check && !host) {
+        throw new Error('Sync --check requires a host.');
+      }
+      if (check && (push || pull || snapshot || merge)) {
+        throw new Error('Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.');
       }
       const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
       if (modes === 0) {
@@ -348,6 +374,8 @@ export function parseCliPrograms(
         typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
       syncDbPath = typeof options.db === 'string' ? options.db.trim() || null : null;
       syncForce = options.force === true;
+      syncJson = options.json === true;
+      syncCheck = check;
       syncLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
@@ -470,7 +498,11 @@ export function parseCliPrograms(
       syncRemoteCmd,
       syncDbPath,
       syncForce,
+      syncJson,
+      syncCheck,
       syncLogLevel,
+      syncUiTriggered,
+      syncUiLogLevel,
       doctorTriggered,
       doctorLogLevel,
       doctorRefreshKnownWords,

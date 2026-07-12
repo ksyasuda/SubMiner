@@ -8,22 +8,8 @@ import { resolveConfigDir } from '../../src/config/path-resolution.js';
 
 export { SCHEMA_VERSION };
 
-export interface SyncMergeSummary {
-  sessionsMerged: number;
-  sessionsAlreadyPresent: number;
-  activeSessionsSkipped: number;
-  animeAdded: number;
-  videosAdded: number;
-  wordsAdded: number;
-  kanjiAdded: number;
-  subtitleLinesAdded: number;
-  telemetryRowsAdded: number;
-  eventsAdded: number;
-  excludedWordsAdded: number;
-  dailyRollupsCopied: number;
-  monthlyRollupsCopied: number;
-  rollupGroupsRecomputed: number;
-}
+export type { SyncMergeSummary } from '../../src/shared/sync/sync-events.js';
+import type { SyncMergeSummary } from '../../src/shared/sync/sync-events.js';
 
 export function createEmptyMergeSummary(): SyncMergeSummary {
   return {

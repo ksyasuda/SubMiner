@@ -207,6 +207,9 @@ export function createDefaultArgs(
     syncRemoteCmd: '',
     syncDbPath: '',
     syncForce: false,
+    syncJson: false,
+    syncCheck: false,
+    syncUi: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
     passwordStore: '',
@@ -281,7 +284,13 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.syncRemoteCmd = invocations.syncRemoteCmd ?? '';
     parsed.syncDbPath = invocations.syncDbPath ?? '';
     parsed.syncForce = invocations.syncForce;
+    parsed.syncJson = invocations.syncJson;
+    parsed.syncCheck = invocations.syncCheck;
     if (invocations.syncLogLevel) parsed.logLevel = parseLogLevel(invocations.syncLogLevel);
+  }
+  if (invocations.syncUiTriggered) {
+    parsed.syncUi = true;
+    if (invocations.syncUiLogLevel) parsed.logLevel = parseLogLevel(invocations.syncUiLogLevel);
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;

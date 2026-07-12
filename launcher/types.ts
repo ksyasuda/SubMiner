@@ -121,6 +121,9 @@ export interface Args {
   syncRemoteCmd: string;
   syncDbPath: string;
   syncForce: boolean;
+  syncJson: boolean;
+  syncCheck: boolean;
+  syncUi: boolean;
   logLevel: LogLevel;
   logRotation: LogRotation;
   passwordStore: string;

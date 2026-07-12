@@ -36,6 +36,12 @@ function ok(stdout = ''): { status: number; stdout: string; stderr: string } {
   return { status: 0, stdout, stderr: '' };
 }
 
+// Every host-sync test must stub recordHostSyncResult: the default writes the
+// real sync-hosts.json in the user's config directory.
+const noRecord: Pick<SyncCommandDeps, 'recordHostSyncResult'> = {
+  recordHostSyncResult: () => {},
+};
+
 test('ensureTrackerQuiescent ignores stale sockets but rejects live sockets', async () => {
   const context = makeContext({ syncDbPath: '/tmp/local.sqlite' });
   context.mpvSocketPath = '/tmp/subminer-socket';
@@ -61,6 +67,7 @@ test('ensureTrackerQuiescent ignores stale sockets but rejects live sockets', as
 test('runSyncCommand dispatches snapshot, merge, host, and missing-target modes', async () => {
   const calls: string[] = [];
   const deps: Partial<SyncCommandDeps> = {
+    ...noRecord,
     createDbSnapshot: (dbPath: string, outPath: string) => {
       calls.push(`snapshot:${dbPath}->${outPath}`);
     },
@@ -120,6 +127,7 @@ test('runHostSync keeps tracker quiescent through local and remote merge and cle
   const calls: string[] = [];
   let localTmpDir = '';
   const deps: Partial<SyncCommandDeps> = {
+    ...noRecord,
     createDbSnapshot: (_dbPath: string, outPath: string) => {
       calls.push(`snapshot:${outPath}`);
       fs.writeFileSync(outPath, 'snapshot');
@@ -167,6 +175,7 @@ test('runHostSync keeps tracker quiescent through local and remote merge and cle
 
 test('runHostSync includes remote snapshot stderr in failures', async () => {
   const deps: Partial<SyncCommandDeps> = {
+    ...noRecord,
     createDbSnapshot: (_dbPath: string, outPath: string) => {
       fs.writeFileSync(outPath, 'snapshot');
     },
@@ -192,6 +201,7 @@ test('runHostSync includes remote snapshot stderr in failures', async () => {
 
 function makeDirectionDeps(calls: string[]): Partial<SyncCommandDeps> {
   return {
+    ...noRecord,
     createDbSnapshot: (_dbPath: string, outPath: string) => {
       calls.push(`snapshot:${outPath}`);
       fs.writeFileSync(outPath, 'snapshot');
@@ -254,4 +264,196 @@ test('runHostSync pull only snapshots remotely and merges locally', async () => 
   assert.ok(calls.includes('local-merge'));
   assert.ok(!calls.some((call) => call.startsWith('snapshot:')));
   assert.ok(!calls.some((call) => call.includes(' sync --merge ')));
+});
+
+test('runSyncCommand --json emits NDJSON progress events for a two-way host sync', async () => {
+  const lines: string[] = [];
+  const deps: Partial<SyncCommandDeps> = {
+    ...makeDirectionDeps([]),
+    consoleLog: (line: string) => {
+      lines.push(line);
+    },
+    writeStdout: ((chunk: string) => {
+      lines.push(`stdout:${chunk}`);
+      return true;
+    }) as unknown as typeof process.stdout.write,
+    runSsh: (_host: string, command: string) => {
+      if (command.startsWith('mktemp ')) return ok('/tmp/subminer-sync.remote\n');
+      if (command.includes(' sync --merge ')) return ok('remote summary text\n');
+      return ok();
+    },
+    recordHostSyncResult: () => {},
+  };
+
+  await runSyncCommand(
+    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box', syncJson: true }),
+    deps,
+  );
+
+  const events = lines.map((line) => JSON.parse(line));
+  const types = events.map((event) => event.type);
+  assert.ok(types.includes('stage'));
+  assert.ok(
+    events.some((event) => event.type === 'stage' && event.stage === 'snapshot-local'),
+  );
+  assert.ok(
+    events.some((event) => event.type === 'merge-summary' && event.target === 'local'),
+  );
+  assert.ok(
+    events.some(
+      (event) => event.type === 'remote-output' && event.text.includes('remote summary text'),
+    ),
+  );
+  const last = events[events.length - 1];
+  assert.deepEqual(last, { type: 'result', ok: true, error: null });
+  assert.ok(!lines.some((line) => line.startsWith('stdout:')));
+});
+
+test('runSyncCommand --json emits an error result when the sync fails', async () => {
+  const lines: string[] = [];
+  const deps: Partial<SyncCommandDeps> = {
+    ...makeDirectionDeps([]),
+    consoleLog: (line: string) => {
+      lines.push(line);
+    },
+    writeStdout: (() => true) as unknown as typeof process.stdout.write,
+    runSsh: (_host: string, command: string) => {
+      if (command.startsWith('mktemp ')) return ok('/tmp/subminer-sync.remote\n');
+      if (command.includes(' sync --merge ')) {
+        return { status: 9, stdout: '', stderr: 'remote merge exploded' };
+      }
+      return ok();
+    },
+    recordHostSyncResult: () => {},
+  };
+
+  await assert.rejects(() =>
+    runSyncCommand(
+      makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box', syncJson: true }),
+      deps,
+    ),
+  );
+
+  const events = lines.map((line) => JSON.parse(line));
+  const last = events[events.length - 1];
+  assert.equal(last.type, 'result');
+  assert.equal(last.ok, false);
+  assert.match(last.error, /Remote merge failed/);
+});
+
+test('runSyncCommand records host sync results for saved-host bookkeeping', async () => {
+  const recorded: Array<{ host: string; status: string; detail: string | null }> = [];
+  const baseDeps = makeDirectionDeps([]);
+  const deps: Partial<SyncCommandDeps> = {
+    ...baseDeps,
+    recordHostSyncResult: (host: string, status: 'success' | 'error', detail: string | null) => {
+      recorded.push({ host, status, detail });
+    },
+  };
+
+  await runSyncCommand(
+    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+    deps,
+  );
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0]!.host, 'media-box');
+  assert.equal(recorded[0]!.status, 'success');
+
+  const failingDeps: Partial<SyncCommandDeps> = {
+    ...deps,
+    runSsh: (_host: string, command: string) => {
+      if (command.startsWith('mktemp ')) return ok('/tmp/subminer-sync.remote\n');
+      if (command.includes(' sync --merge ')) {
+        return { status: 9, stdout: '', stderr: 'boom' };
+      }
+      return ok();
+    },
+  };
+  await assert.rejects(() =>
+    runSyncCommand(
+      makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+      failingDeps,
+    ),
+  );
+  assert.equal(recorded.length, 2);
+  assert.equal(recorded[1]!.status, 'error');
+});
+
+test('runSyncCommand --check --json reports ssh and remote launcher status', async () => {
+  const lines: string[] = [];
+  const deps: Partial<SyncCommandDeps> = {
+    ensureTrackerQuiescent: async () => {},
+    assertSafeSshHost: () => {},
+    resolveRemoteSubminerCommand: () => 'subminer',
+    consoleLog: (line: string) => {
+      lines.push(line);
+    },
+    runSsh: (_host: string, command: string) => {
+      if (command.includes('--version')) return ok('SubMiner 0.18.0\n');
+      return ok('subminer-check-ok\n');
+    },
+    fail: (message: string): never => {
+      throw new Error(message);
+    },
+  };
+
+  assert.equal(
+    await runSyncCommand(
+      makeContext({
+        syncDbPath: '/tmp/local.sqlite',
+        syncHost: 'media-box',
+        syncCheck: true,
+        syncJson: true,
+      }),
+      deps,
+    ),
+    true,
+  );
+
+  const events = lines.map((line) => JSON.parse(line));
+  const check = events.find((event) => event.type === 'check-result');
+  assert.ok(check);
+  assert.equal(check.host, 'media-box');
+  assert.equal(check.sshOk, true);
+  assert.equal(check.remoteCommand, 'subminer');
+  assert.equal(check.remoteVersion, 'SubMiner 0.18.0');
+  assert.equal(check.ok, true);
+  assert.equal(check.error, null);
+});
+
+test('runSyncCommand --check --json reports failures without throwing early', async () => {
+  const lines: string[] = [];
+  const deps: Partial<SyncCommandDeps> = {
+    ensureTrackerQuiescent: async () => {},
+    assertSafeSshHost: () => {},
+    resolveRemoteSubminerCommand: () => {
+      throw new Error('Could not find a runnable "subminer" on media-box.');
+    },
+    consoleLog: (line: string) => {
+      lines.push(line);
+    },
+    runSsh: () => ok('subminer-check-ok\n'),
+    fail: (message: string): never => {
+      throw new Error(message);
+    },
+  };
+
+  await assert.rejects(() =>
+    runSyncCommand(
+      makeContext({
+        syncDbPath: '/tmp/local.sqlite',
+        syncHost: 'media-box',
+        syncCheck: true,
+        syncJson: true,
+      }),
+      deps,
+    ),
+  );
+
+  const events = lines.map((line) => JSON.parse(line));
+  const check = events.find((event) => event.type === 'check-result');
+  assert.ok(check);
+  assert.equal(check.sshOk, true);
+  assert.equal(check.ok, false);
+  assert.match(check.error, /Could not find a runnable/);
 });

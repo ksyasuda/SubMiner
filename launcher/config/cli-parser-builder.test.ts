@@ -61,3 +61,36 @@ test('parseCliPrograms rejects conflicting or hostless one-way sync directions',
     /--push and --pull require a host/,
   );
 });
+
+test('parseCliPrograms captures sync --json and --check flags', () => {
+  const json = parseCliPrograms(['sync', 'media-box', '--json'], 'subminer');
+  assert.equal(json.invocations.syncJson, true);
+  assert.equal(json.invocations.syncCheck, false);
+
+  const check = parseCliPrograms(['sync', 'media-box', '--check', '--json'], 'subminer');
+  assert.equal(check.invocations.syncCheck, true);
+  assert.equal(check.invocations.syncJson, true);
+  assert.equal(check.invocations.syncHost, 'media-box');
+});
+
+test('parseCliPrograms rejects invalid sync --check combinations', () => {
+  assert.throws(
+    () => parseCliPrograms(['sync', '--check'], 'subminer'),
+    /--check requires a host/,
+  );
+  assert.throws(
+    () => parseCliPrograms(['sync', 'media-box', '--check', '--push'], 'subminer'),
+    /--check cannot be combined/,
+  );
+});
+
+test('parseCliPrograms captures sync --ui', () => {
+  const result = parseCliPrograms(['sync', '--ui'], 'subminer');
+  assert.equal(result.invocations.syncUiTriggered, true);
+  assert.equal(result.invocations.syncTriggered, false);
+
+  assert.throws(
+    () => parseCliPrograms(['sync', 'media-box', '--ui'], 'subminer'),
+    /--ui cannot be combined/,
+  );
+});
