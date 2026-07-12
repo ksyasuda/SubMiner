@@ -34,7 +34,7 @@ export interface SyncResultUpdate {
   detail: string | null;
 }
 
-const DEFAULT_AUTO_SYNC_INTERVAL_MINUTES = 30;
+const DEFAULT_AUTO_SYNC_INTERVAL_MINUTES = 60;
 
 export function createDefaultSyncHostsState(): SyncHostsState {
   return {

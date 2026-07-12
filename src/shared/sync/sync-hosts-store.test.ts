@@ -27,7 +27,7 @@ function withTempDir(fn: (dir: string) => void): void {
 test('createDefaultSyncHostsState returns empty v1 state', () => {
   assert.deepEqual(createDefaultSyncHostsState(), {
     version: 1,
-    autoSyncIntervalMinutes: 30,
+    autoSyncIntervalMinutes: 60,
     hosts: [],
   });
 });

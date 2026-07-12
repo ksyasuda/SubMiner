@@ -119,7 +119,7 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 - **Activity** — live stage-by-stage progress, remote output, and a merge summary (sessions, words, kanji, rollups) when a run finishes. Runs can be cancelled, and guard failures offer a one-click `--force` retry.
 - **Snapshots** — create manual database snapshots (stored in `/tmp/subminer-db-snapshots/` by default), merge a snapshot file into the local database, or reveal/delete existing snapshots.
 
-Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 30 minutes) whenever no mpv session or stats server is using the database; results surface as overlay notifications. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
+Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 60 minutes) whenever no mpv session or stats server is using the database; results surface as overlay notifications. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
 
 ## Common Commands
 
