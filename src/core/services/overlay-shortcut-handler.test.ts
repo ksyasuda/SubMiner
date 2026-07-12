@@ -33,6 +33,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
     toggleNotificationHistory: null,
+    appendClipboardVideoToQueue: null,
     ...overrides,
   };
 }

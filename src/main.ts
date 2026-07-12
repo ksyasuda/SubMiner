@@ -5416,6 +5416,9 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     toggleSecondarySub: () => handleCycleSecondarySubMode(),
     toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
     toggleNotificationHistory: () => toggleNotificationHistoryPanel(),
+    appendClipboardVideoToQueue: () => {
+      appendClipboardVideoToQueue();
+    },
     markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
     markActiveVideoWatched: async () => {
       ensureImmersionTrackerStarted();

@@ -15,6 +15,7 @@ export interface SessionActionExecutorDeps {
   toggleSecondarySub: () => void;
   toggleSubtitleSidebar: () => void;
   toggleNotificationHistory: () => void;
+  appendClipboardVideoToQueue: () => void;
   markLastCardAsAudioCard: () => Promise<void>;
   markActiveVideoWatched: () => Promise<boolean>;
   openRuntimeOptionsPalette: () => void;
@@ -81,6 +82,9 @@ export async function dispatchSessionAction(
       return;
     case 'toggleNotificationHistory':
       deps.toggleNotificationHistory();
+      return;
+    case 'appendClipboardVideoToQueue':
+      deps.appendClipboardVideoToQueue();
       return;
     case 'markAudioCard':
       await deps.markLastCardAsAudioCard();

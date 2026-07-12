@@ -127,6 +127,7 @@ export interface ShortcutsConfig {
   openControllerDebug?: string | null;
   toggleSubtitleSidebar?: string | null;
   toggleNotificationHistory?: string | null;
+  appendClipboardVideoToQueue?: string | null;
 }
 
 export interface Config {

@@ -26,6 +26,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     toggleSecondarySub: () => calls.push('secondary'),
     toggleSubtitleSidebar: () => calls.push('sidebar'),
     toggleNotificationHistory: () => calls.push('notification-history'),
+    appendClipboardVideoToQueue: () => calls.push('append-clipboard-video'),
     markLastCardAsAudioCard: async () => {
       calls.push('audio');
     },

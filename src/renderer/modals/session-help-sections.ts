@@ -203,6 +203,8 @@ function describeSessionAction(
       return 'Toggle subtitle sidebar';
     case 'toggleNotificationHistory':
       return 'Toggle notification history';
+    case 'appendClipboardVideoToQueue':
+      return 'Append clipboard video path to playlist';
     case 'markAudioCard':
       return 'Mark audio card';
     case 'markWatched':
@@ -267,6 +269,7 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
       return 'Modals and tools';
     case 'replayCurrentSubtitle':
     case 'playNextSubtitle':
+    case 'appendClipboardVideoToQueue':
       return 'Playback and navigation';
     case 'cycleRuntimeOption':
       return 'Runtime settings';
@@ -346,7 +349,6 @@ function buildFixedOverlaySections(): SessionHelpSection[] {
       title: 'Fixed overlay controls',
       rows: [
         { shortcut: 'V', action: 'Toggle primary subtitle bar visibility' },
-        { shortcut: 'Ctrl/Cmd + A', action: 'Append clipboard video path to playlist' },
         { shortcut: 'Right-click', action: 'Toggle playback outside subtitle area' },
         { shortcut: 'Right-click + drag', action: 'Reposition subtitles on subtitle area' },
       ],

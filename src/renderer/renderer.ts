@@ -215,9 +215,6 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
       window.electronAPI.notifyOverlayModalOpened('controller-debug');
     }
   },
-  appendClipboardVideoToQueue: () => {
-    void window.electronAPI.appendClipboardVideoToQueue();
-  },
   getPlaybackPaused: () => window.electronAPI.getPlaybackPaused(),
   toggleSubtitleSidebarModal: () => {
     void subtitleSidebarModal.toggleSubtitleSidebarModal();

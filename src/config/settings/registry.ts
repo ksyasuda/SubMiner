@@ -600,7 +600,7 @@ function subsectionForPath(path: string): string | undefined {
     ) {
       return 'Open Panels';
     }
-    if (leaf === 'triggerSubsync') return 'Playback';
+    if (leaf === 'triggerSubsync' || leaf === 'appendClipboardVideoToQueue') return 'Playback';
     return undefined;
   }
   return undefined;

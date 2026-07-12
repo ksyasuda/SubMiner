@@ -236,7 +236,12 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
+      'openSessionHelp',
+      'openControllerSelect',
+      'openControllerDebug',
+      'toggleSubtitleSidebar',
       'toggleNotificationHistory',
+      'appendClipboardVideoToQueue',
     ] as const;
 
     for (const key of shortcutKeys) {

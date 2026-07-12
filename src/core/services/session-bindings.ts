@@ -60,6 +60,7 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'openControllerDebug', actionId: 'openControllerDebug' },
   { key: 'toggleSubtitleSidebar', actionId: 'toggleSubtitleSidebar' },
   { key: 'toggleNotificationHistory', actionId: 'toggleNotificationHistory' },
+  { key: 'appendClipboardVideoToQueue', actionId: 'appendClipboardVideoToQueue' },
 ];
 
 function normalizeModifiers(modifiers: SessionKeyModifier[]): SessionKeyModifier[] {
