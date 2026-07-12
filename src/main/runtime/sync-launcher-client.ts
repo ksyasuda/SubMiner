@@ -1,8 +1,6 @@
 import { spawn as nodeSpawn } from 'node:child_process';
-import fs from 'node:fs';
 import { parseSyncProgressLine, type SyncProgressEvent } from '../../shared/sync/sync-events';
-import { findCommand } from './command-line-launcher-deps';
-import { resolveLauncherResourcePath } from './command-line-launcher';
+import { SYNC_CLI_FLAG } from '../../core/services/stats-sync/cli-args';
 
 export interface SyncLauncherChildLike {
   stdout: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
@@ -29,33 +27,21 @@ export interface SyncLauncherResolution {
   error: string | null;
 }
 
-// The launcher is a bun script. Prefer the bundled launcher resource (it
-// always matches this app version's sync protocol) and only fall back to a
-// PATH-installed `subminer`, which may be older.
+// Sync runs in a child copy of this app in headless --sync-cli mode: same
+// engine and NDJSON protocol as `subminer sync --json`, with no dependency on
+// bun or an installed command-line launcher. In dev runs process.execPath is
+// a bare electron binary, so the app path is passed as its entry argument.
 export function resolveSyncLauncherCommand(
   deps: {
-    findCommand?: typeof findCommand;
-    resolveResourcePath?: () => string;
-    existsSync?: (candidate: string) => boolean;
+    execPath?: string;
+    appPath?: string | null;
   } = {},
 ): SyncLauncherResolution {
-  const find = deps.findCommand ?? findCommand;
-  const exists = deps.existsSync ?? fs.existsSync;
-  const resourcePath = deps.resolveResourcePath
-    ? deps.resolveResourcePath()
-    : resolveLauncherResourcePath({});
-  const bunPath = find('bun', {});
-  if (bunPath && resourcePath && exists(resourcePath)) {
-    return { command: [bunPath, resourcePath], error: null };
-  }
-
-  const installed = find('subminer', {});
-  if (installed) return { command: [installed], error: null };
-
+  const execPath = deps.execPath ?? process.execPath;
+  const appPath = deps.appPath ?? null;
   return {
-    command: null,
-    error:
-      'Could not find the subminer launcher. Install the command-line launcher from SubMiner setup (or install bun).',
+    command: appPath ? [execPath, appPath, SYNC_CLI_FLAG] : [execPath, SYNC_CLI_FLAG],
+    error: null,
   };
 }
 
@@ -66,7 +52,15 @@ export function runSyncLauncher(options: {
   onStderr?: (text: string) => void;
   spawn?: SyncLauncherSpawn;
 }): SyncLauncherRunHandle {
-  const spawn = options.spawn ?? ((command, args) => nodeSpawn(command, args, { stdio: 'pipe' }));
+  const spawn =
+    options.spawn ??
+    ((command, args) => {
+      // The child must boot as a full Electron app (its entry handles
+      // --sync-cli); a leaked ELECTRON_RUN_AS_NODE would turn it into node.
+      const env = { ...process.env };
+      delete env.ELECTRON_RUN_AS_NODE;
+      return nodeSpawn(command, args, { stdio: 'pipe', env });
+    });
   const [executable, ...prefixArgs] = options.command;
   const child = spawn(executable!, [...prefixArgs, ...options.args]);
 

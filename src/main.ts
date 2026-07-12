@@ -2257,7 +2257,11 @@ const syncUiRuntime = createSyncUiRuntime({
     const configured = getResolvedConfig().immersionTracking?.dbPath?.trim();
     return configured || DEFAULT_IMMERSION_DB_PATH;
   },
-  resolveLauncherCommand: () => resolveSyncLauncherCommand(),
+  resolveLauncherCommand: () =>
+    resolveSyncLauncherCommand({
+      execPath: process.execPath,
+      appPath: app.isPackaged ? null : app.getAppPath(),
+    }),
   runLauncher: runSyncLauncher,
   getWindow: () => appState.syncUiWindow,
   pickSnapshotFile: async () => {

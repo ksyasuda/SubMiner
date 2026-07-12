@@ -120,28 +120,18 @@ test('runSyncLauncher surfaces spawn errors', async () => {
   assert.match(result.error ?? '', /ENOENT/);
 });
 
-test('resolveSyncLauncherCommand prefers the bundled launcher over PATH', async () => {
+test('resolveSyncLauncherCommand self-spawns the app in --sync-cli mode', async () => {
   const { resolveSyncLauncherCommand } = await import('./sync-launcher-client');
-  const bundled = resolveSyncLauncherCommand({
-    findCommand: (name: string) =>
-      name === 'bun' ? '/usr/bin/bun' : name === 'subminer' ? '/home/u/.local/bin/subminer' : null,
-    resolveResourcePath: () => '/opt/app/resources/launcher/subminer',
-    existsSync: () => true,
+  const packaged = resolveSyncLauncherCommand({
+    execPath: '/opt/SubMiner/subminer-app',
+    appPath: null,
   });
-  assert.deepEqual(bundled.command, ['/usr/bin/bun', '/opt/app/resources/launcher/subminer']);
+  assert.deepEqual(packaged.command, ['/opt/SubMiner/subminer-app', '--sync-cli']);
+  assert.equal(packaged.error, null);
 
-  const fallback = resolveSyncLauncherCommand({
-    findCommand: (name: string) => (name === 'subminer' ? '/home/u/.local/bin/subminer' : null),
-    resolveResourcePath: () => '/missing',
-    existsSync: () => false,
+  const dev = resolveSyncLauncherCommand({
+    execPath: '/usr/bin/electron',
+    appPath: '/home/u/SubMiner',
   });
-  assert.deepEqual(fallback.command, ['/home/u/.local/bin/subminer']);
-
-  const none = resolveSyncLauncherCommand({
-    findCommand: () => null,
-    resolveResourcePath: () => '/missing',
-    existsSync: () => false,
-  });
-  assert.equal(none.command, null);
-  assert.match(none.error ?? '', /launcher/i);
+  assert.deepEqual(dev.command, ['/usr/bin/electron', '/home/u/SubMiner', '--sync-cli']);
 });
