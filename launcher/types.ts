@@ -123,6 +123,8 @@ export interface Args {
   syncForce: boolean;
   syncJson: boolean;
   syncCheck: boolean;
+  syncMakeTemp: boolean;
+  syncRemoveTempPath: string;
   syncUi: boolean;
   logLevel: LogLevel;
   logRotation: LogRotation;

@@ -581,6 +581,8 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     syncForce: false,
     syncJson: false,
     syncCheck: false,
+    syncMakeTemp: false,
+    syncRemoveTempPath: '',
     syncUi: false,
     logLevel: 'error',
     logRotation: 7,

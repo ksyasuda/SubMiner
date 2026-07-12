@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
-import { shellQuote } from './ssh';
-import type { RemoteRunResult } from './ssh';
+import { quoteForRemoteShell } from './ssh';
+import type { RemoteRunResult, RemoteShellFlavor } from './ssh';
 import type { SyncMergeSummary, SyncProgressEvent } from '../../../shared/sync/sync-events';
 import type { SyncResultStatus } from '../../../shared/sync/sync-hosts-store';
 
@@ -16,6 +16,8 @@ export interface SyncFlowArgs {
   syncForce: boolean;
   syncJson: boolean;
   syncCheck: boolean;
+  syncMakeTemp: boolean;
+  syncRemoveTempPath: string;
   logLevel: string;
 }
 
@@ -35,7 +37,15 @@ export interface SyncFlowDeps {
   formatMergeSummary: (summary: SyncMergeSummary) => string;
   findLiveStatsDaemonPid: (dbPath: string) => number | null;
   assertSafeSshHost: (host: string) => void;
-  resolveRemoteSubminerCommand: (host: string, preferred: string | null) => string;
+  detectRemoteShellFlavor: (
+    host: string,
+    runRemote: (host: string, remoteCommand: string) => RemoteRunResult,
+  ) => RemoteShellFlavor;
+  resolveRemoteSubminerCommand: (
+    host: string,
+    preferred: string | null,
+    flavor: RemoteShellFlavor,
+  ) => string;
   runScp: (from: string, to: string) => void;
   runSsh: (host: string, remoteCommand: string) => RemoteRunResult;
   fail: (message: string) => never;
@@ -51,6 +61,40 @@ export interface SyncFlowDeps {
   recordHostSyncResult: (host: string, status: SyncResultStatus, detail: string | null) => void;
   resolveDefaultDbPath: () => string;
   resolvePath: (value: string) => string;
+}
+
+/**
+ * Prefix shared by every sync temp dir, local or remote. Remote temp dirs are
+ * created and removed by the remote SubMiner itself (sync --make-temp /
+ * --remove-temp) so the flow never depends on mktemp/rm existing in the
+ * remote shell — that is what makes Windows remotes work.
+ */
+export const SYNC_TEMP_PREFIX = 'subminer-sync-';
+
+export function makeSyncTempDir(mkdtempSync: SyncFlowDeps['mkdtempSync']): string {
+  return mkdtempSync(path.join(os.tmpdir(), SYNC_TEMP_PREFIX));
+}
+
+/** Only dirs directly under os.tmpdir() with the sync prefix may be removed. */
+export function assertRemovableSyncTempDir(target: string): string {
+  const resolved = path.resolve(target.trim());
+  const normalizeCase = (value: string) =>
+    process.platform === 'win32' ? value.toLowerCase() : value;
+  const insideTmp =
+    normalizeCase(path.dirname(resolved)) === normalizeCase(path.resolve(os.tmpdir()));
+  if (!insideTmp || !path.basename(resolved).startsWith(SYNC_TEMP_PREFIX)) {
+    throw new Error(`Refusing to remove a directory outside the sync temp area: ${target}`);
+  }
+  return resolved;
+}
+
+export function runMakeTempMode(deps: SyncFlowDeps): void {
+  deps.consoleLog(makeSyncTempDir(deps.mkdtempSync));
+}
+
+export function runRemoveTempMode(context: SyncFlowContext, deps: SyncFlowDeps): void {
+  const target = assertRemovableSyncTempDir(context.args.syncRemoveTempPath);
+  deps.rmSync(target, { recursive: true, force: true });
 }
 
 export function resolveSyncDbPath(context: SyncFlowContext, deps: SyncFlowDeps): string {
@@ -160,7 +204,9 @@ export async function runCheckMode(context: SyncFlowContext, deps: SyncFlowDeps)
   } else {
     deps.consoleLog('SSH connection: ok');
     try {
-      remoteCommand = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null);
+      const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
+      if (flavor !== 'posix') deps.consoleLog(`Remote platform: Windows (${flavor})`);
+      remoteCommand = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
       const version = deps.runSsh(host, `${remoteCommand} --version`);
       remoteVersion = version.status === 0 ? version.stdout.trim() || null : null;
       deps.consoleLog(
@@ -187,9 +233,32 @@ export async function runCheckMode(context: SyncFlowContext, deps: SyncFlowDeps)
   deps.consoleLog('Check passed.');
 }
 
-function cleanupRemote(host: string, remoteTmpDir: string, deps: SyncFlowDeps): void {
-  if (!remoteTmpDir.startsWith('/tmp/')) return;
-  deps.runSsh(host, `rm -rf ${shellQuote(remoteTmpDir)}`);
+// The remote validates --remove-temp against its own tmpdir; this guard only
+// keeps garbage output from an earlier failure out of the remote command.
+function cleanupRemote(
+  host: string,
+  remoteCmd: string,
+  remoteTmpDir: string,
+  quote: (value: string) => string,
+  deps: SyncFlowDeps,
+): void {
+  if (!path.posix.basename(remoteTmpDir).startsWith(SYNC_TEMP_PREFIX)) return;
+  deps.runSsh(host, `${remoteCmd} sync --remove-temp ${quote(remoteTmpDir)}`);
+}
+
+/**
+ * `sync --make-temp` prints the created dir as its last stdout line (a
+ * launcher wrapper may log above it). Backslashes are normalized to forward
+ * slashes: scp, the remote SubMiner, and Windows itself all accept them, and
+ * it keeps the later `${dir}/file` compositions valid on every platform.
+ */
+function parseRemoteTempDir(stdout: string): string {
+  const lines = stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const candidate = (lines[lines.length - 1] ?? '').replaceAll('\\', '/');
+  return path.posix.basename(candidate).startsWith(SYNC_TEMP_PREFIX) ? candidate : '';
 }
 
 function formatRemoteRunError(message: string, run: RemoteRunResult): string {
@@ -211,20 +280,24 @@ export async function runHostSync(
 
   await deps.ensureTrackerQuiescent(context, dbPath);
 
-  const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null);
-  deps.log('debug', args.logLevel, `Remote subminer command: ${remoteCmd}`);
+  const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
+  const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
+  const quote = (value: string) => quoteForRemoteShell(flavor, value);
+  deps.log('debug', args.logLevel, `Remote subminer command (${flavor}): ${remoteCmd}`);
 
-  const localTmpDir = deps.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-'));
+  const localTmpDir = makeSyncTempDir(deps.mkdtempSync);
   let remoteTmpDir = '';
   let pulledSummary: SyncMergeSummary | null = null;
   try {
     // Signal failures by throwing (not fail(), which exits synchronously and
     // would skip the finally cleanup, leaking temp dirs holding snapshot data).
     // main().catch() reports the message the same way fail() would.
-    const mktemp = deps.runSsh(host, 'mktemp -d /tmp/subminer-sync.XXXXXX');
-    remoteTmpDir = mktemp.stdout.trim();
-    if (mktemp.status !== 0 || !remoteTmpDir.startsWith('/tmp/')) {
-      throw new Error(`Could not create a temporary directory on ${host}.`);
+    const mktemp = deps.runSsh(host, `${remoteCmd} sync --make-temp`);
+    remoteTmpDir = mktemp.status === 0 ? parseRemoteTempDir(mktemp.stdout) : '';
+    if (!remoteTmpDir) {
+      throw new Error(
+        formatRemoteRunError(`Could not create a temporary directory on ${host}.`, mktemp),
+      );
     }
 
     const forceFlag = args.syncForce ? ' --force' : '';
@@ -246,7 +319,7 @@ export async function runHostSync(
       deps.emitEvent({ type: 'stage', stage: 'snapshot-remote', message: `Snapshotting ${host}` });
       const snapshotRun = deps.runSsh(
         host,
-        `${remoteCmd} sync --snapshot ${shellQuote(remoteSnapshot)}${forceFlag}`,
+        `${remoteCmd} sync --snapshot ${quote(remoteSnapshot)}${forceFlag}`,
       );
       if (snapshotRun.status !== 0) {
         throw new Error(formatRemoteRunError(`Remote snapshot failed on ${host}.`, snapshotRun));
@@ -292,7 +365,7 @@ export async function runHostSync(
       await deps.ensureTrackerQuiescent(context, dbPath);
       const mergeRun = deps.runSsh(
         host,
-        `${remoteCmd} sync --merge ${shellQuote(incomingSnapshot)}${forceFlag}`,
+        `${remoteCmd} sync --merge ${quote(incomingSnapshot)}${forceFlag}`,
       );
       deps.writeStdout(mergeRun.stdout);
       if (mergeRun.stdout.trim()) {
@@ -328,7 +401,7 @@ export async function runHostSync(
     deps.rmSync(localTmpDir, { recursive: true, force: true });
     if (remoteTmpDir) {
       try {
-        cleanupRemote(host, remoteTmpDir, deps);
+        cleanupRemote(host, remoteCmd, remoteTmpDir, quote, deps);
       } catch {
         // best effort
       }
@@ -342,8 +415,18 @@ export async function runSyncFlow(context: SyncFlowContext, inputDeps: SyncFlowD
   if (!args.sync) return false;
   if (args.syncJson) deps = withJsonEvents(deps);
 
-  const dbPath = resolveSyncDbPath(context, deps);
   try {
+    if (args.syncMakeTemp) {
+      runMakeTempMode(deps);
+      if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
+      return true;
+    }
+    if (args.syncRemoveTempPath) {
+      runRemoveTempMode(context, deps);
+      if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
+      return true;
+    }
+    const dbPath = resolveSyncDbPath(context, deps);
     if (args.syncCheck) {
       await runCheckMode(context, deps);
     } else if (args.syncSnapshotPath) {

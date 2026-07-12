@@ -209,6 +209,8 @@ export function createDefaultArgs(
     syncForce: false,
     syncJson: false,
     syncCheck: false,
+    syncMakeTemp: false,
+    syncRemoveTempPath: '',
     syncUi: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
@@ -286,6 +288,8 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
     parsed.syncForce = invocations.syncForce;
     parsed.syncJson = invocations.syncJson;
     parsed.syncCheck = invocations.syncCheck;
+    parsed.syncMakeTemp = invocations.syncMakeTemp;
+    parsed.syncRemoveTempPath = invocations.syncRemoveTempPath ?? '';
     if (invocations.syncLogLevel) parsed.logLevel = parseLogLevel(invocations.syncLogLevel);
   }
   if (invocations.syncUiTriggered) {

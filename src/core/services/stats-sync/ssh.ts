@@ -71,6 +71,48 @@ export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
+/**
+ * The shell that Windows OpenSSH hands remote commands to (cmd.exe by
+ * default, PowerShell when DefaultShell is changed) — it decides quoting,
+ * environment-variable expansion, and which SubMiner install paths to probe.
+ */
+export type RemoteShellFlavor = 'posix' | 'windows-cmd' | 'windows-powershell';
+
+/**
+ * Identify the remote shell with probes that are harmless everywhere:
+ * `uname -s` only succeeds on a POSIX shell, `echo %OS%` only expands under
+ * cmd.exe, and `echo $env:OS` only expands under PowerShell. Defaults to
+ * posix so unreachable/odd hosts fail with the familiar POSIX errors.
+ */
+export function detectRemoteShellFlavor(
+  host: string,
+  runRemote: typeof runSsh = runSsh,
+): RemoteShellFlavor {
+  const posixProbe = runRemote(host, 'uname -s');
+  if (posixProbe.status === 0 && posixProbe.stdout.trim().length > 0) return 'posix';
+  const cmdProbe = runRemote(host, 'echo %OS%');
+  if (cmdProbe.status === 0 && cmdProbe.stdout.includes('Windows_NT')) return 'windows-cmd';
+  const powershellProbe = runRemote(host, 'echo $env:OS');
+  if (powershellProbe.status === 0 && powershellProbe.stdout.includes('Windows_NT')) {
+    return 'windows-powershell';
+  }
+  return 'posix';
+}
+
+/**
+ * Quote one argument for the detected remote shell. Windows shells have no
+ * safe single-quote escaping (cmd treats ' literally; PowerShell and cmd
+ * disagree on embedded double quotes), so quote-containing values are
+ * rejected instead of escaped — sync only ever quotes paths it composed.
+ */
+export function quoteForRemoteShell(flavor: RemoteShellFlavor, value: string): string {
+  if (flavor === 'posix') return shellQuote(value);
+  if (value.includes('"') || /[\r\n]/.test(value)) {
+    throw new Error(`Refusing to quote a value with quotes or newlines for a Windows shell: ${value}`);
+  }
+  return `"${value}"`;
+}
+
 const REMOTE_RUNTIME_PATH =
   'PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"';
 
@@ -83,7 +125,27 @@ interface RemoteCandidate {
   invocation: string;
 }
 
-function defaultRemoteCandidates(): RemoteCandidate[] {
+function defaultRemoteCandidates(flavor: RemoteShellFlavor): RemoteCandidate[] {
+  if (flavor === 'windows-cmd' || flavor === 'windows-powershell') {
+    // cmd.exe expands %VAR% inside double quotes; PowerShell needs $env: and
+    // the & call operator to run a quoted path.
+    const launcherShim =
+      flavor === 'windows-cmd'
+        ? `"%LOCALAPPDATA%\\SubMiner\\bin\\subminer.cmd"`
+        : `& "$env:LOCALAPPDATA\\SubMiner\\bin\\subminer.cmd"`;
+    const appInstall =
+      flavor === 'windows-cmd'
+        ? `"%LOCALAPPDATA%\\Programs\\SubMiner\\SubMiner.exe"`
+        : `& "$env:LOCALAPPDATA\\Programs\\SubMiner\\SubMiner.exe"`;
+    return [
+      // Command-line launcher shim on PATH or in its default install dir.
+      { invocation: 'subminer' },
+      { invocation: launcherShim },
+      // The app binary itself in sync-CLI mode (default NSIS install dir).
+      { invocation: `${appInstall} ${APP_SYNC_CLI_FLAG}` },
+      { invocation: `SubMiner ${APP_SYNC_CLI_FLAG}` },
+    ];
+  }
   return [
     // Command-line launcher (bun script) on PATH or in its default install dir.
     { invocation: 'subminer' },
@@ -95,29 +157,38 @@ function defaultRemoteCandidates(): RemoteCandidate[] {
   ];
 }
 
+function preferredCandidates(flavor: RemoteShellFlavor, preferred: string): RemoteCandidate[] {
+  const quoted = quoteForRemoteShell(flavor, preferred);
+  const invocation = flavor === 'windows-powershell' ? `& ${quoted}` : quoted;
+  // App binaries also answer plain --help by opening the GUI-oriented help
+  // path, so probe the sync-CLI shape first.
+  return [{ invocation: `${invocation} ${APP_SYNC_CLI_FLAG}` }, { invocation }];
+}
+
 /**
- * Non-interactive SSH shells often miss user-installed launchers and Bun.
- * Probe candidates under the same deterministic PATH used by sync itself.
- * Trusted defaults stay unquoted so the remote shell expands `~`; a
- * user-supplied override is shell-quoted to prevent command injection and
- * probed both as an app binary (--sync-cli) and as a launcher.
+ * Non-interactive POSIX SSH shells often miss user-installed launchers and
+ * Bun, so those candidates are probed under the same deterministic PATH sync
+ * itself uses; Windows shells get their default install locations instead.
+ * Trusted defaults stay unquoted so the remote shell expands `~`/%VAR%; a
+ * user-supplied override is quoted to prevent command injection and probed
+ * both as an app binary (--sync-cli) and as a launcher.
  */
 export function resolveRemoteSubminerCommand(
   host: string,
   preferred: string | null,
+  flavor: RemoteShellFlavor = 'posix',
   runRemote: typeof runSsh = runSsh,
 ): string {
-  const candidates: RemoteCandidate[] = preferred
-    ? [
-        // App binaries also answer plain --help by opening the GUI-oriented
-        // help path, so probe the sync-CLI shape first.
-        { invocation: `${shellQuote(preferred)} ${APP_SYNC_CLI_FLAG}` },
-        { invocation: shellQuote(preferred) },
-      ]
-    : defaultRemoteCandidates();
+  const candidates = preferred
+    ? preferredCandidates(flavor, preferred)
+    : defaultRemoteCandidates(flavor);
   for (const candidate of candidates) {
-    const command = `${REMOTE_RUNTIME_PATH} ${candidate.invocation}`;
-    const probe = runRemote(host, `${command} --help >/dev/null 2>&1`);
+    const command =
+      flavor === 'posix' ? `${REMOTE_RUNTIME_PATH} ${candidate.invocation}` : candidate.invocation;
+    const probe = runRemote(
+      host,
+      flavor === 'posix' ? `${command} --help >/dev/null 2>&1` : `${command} --help`,
+    );
     if (probe.status === 0) {
       return command;
     }
@@ -125,6 +196,6 @@ export function resolveRemoteSubminerCommand(
   throw new Error(
     preferred
       ? `Remote command not found on ${host}: ${preferred}`
-      : `SubMiner not found on ${host} (tried the subminer launcher on PATH and ~/.local/bin, and the SubMiner app binary). Pass --remote-cmd <path> pointing at the SubMiner app or launcher.`,
+      : `SubMiner not found on ${host} (tried the subminer launcher and the SubMiner app binary in their default install locations). Pass --remote-cmd <path> pointing at the SubMiner app or launcher.`,
   );
 }

@@ -40,6 +40,8 @@ function createArgs(): Args {
     syncForce: false,
     syncJson: false,
     syncCheck: false,
+    syncMakeTemp: false,
+    syncRemoveTempPath: '',
     syncUi: false,
     logLevel: 'info',
     logRotation: 7,

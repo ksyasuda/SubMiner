@@ -4,6 +4,7 @@
 
 ### Added
 - Stats Sync Without the Launcher: The stats sync engine now runs inside the app. The sync window no longer needs bun or the `subminer` command-line launcher installed, and a remote machine only needs SubMiner itself — the app answers `SubMiner --sync-cli sync ...` headless (works over SSH with no display), and remote lookup finds the app binary or the launcher automatically.
+- Stats Sync With Windows Remotes: Sync now detects the remote shell (POSIX, cmd, or PowerShell) and manages remote temp files through SubMiner itself (`sync --make-temp`/`--remove-temp`) instead of `mktemp`/`rm`, so a Windows machine with the built-in OpenSSH Server works as a sync remote; SubMiner is found in its default Windows install location automatically.
 
 ## v0.18.0 (2026-07-10)
 

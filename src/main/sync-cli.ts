@@ -17,6 +17,7 @@ import {
 import { formatMergeSummary, mergeSnapshotIntoDb } from '../core/services/stats-sync/merge';
 import {
   assertSafeSshHost,
+  detectRemoteShellFlavor,
   resolveRemoteSubminerCommand,
   runScp,
   runSsh,
@@ -122,6 +123,7 @@ function buildSyncCliDeps(): SyncFlowDeps {
     formatMergeSummary,
     findLiveStatsDaemonPid,
     assertSafeSshHost,
+    detectRemoteShellFlavor,
     resolveRemoteSubminerCommand,
     runScp,
     runSsh,

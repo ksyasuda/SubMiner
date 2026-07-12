@@ -36,6 +36,21 @@ test('parseSyncCliTokens handles help, version, and run modes', () => {
   }
 });
 
+test('parseSyncCliTokens handles the temp-dir protocol modes', () => {
+  const makeTemp = parseSyncCliTokens(['sync', '--make-temp']);
+  assert.equal(makeTemp.kind, 'run');
+  if (makeTemp.kind === 'run') assert.equal(makeTemp.args.syncMakeTemp, true);
+
+  const removeTemp = parseSyncCliTokens(['sync', '--remove-temp', '/tmp/subminer-sync-x']);
+  assert.equal(removeTemp.kind, 'run');
+  if (removeTemp.kind === 'run') {
+    assert.equal(removeTemp.args.syncRemoveTempPath, '/tmp/subminer-sync-x');
+  }
+
+  assert.equal(parseSyncCliTokens(['sync', '--make-temp', 'host']).kind, 'error');
+  assert.equal(parseSyncCliTokens(['sync', '--make-temp', '--remove-temp', '/tmp/x']).kind, 'error');
+});
+
 test('parseSyncCliTokens mirrors launcher sync validation', () => {
   assert.equal(parseSyncCliTokens([]).kind, 'error');
   assert.equal(parseSyncCliTokens(['sync']).kind, 'error');

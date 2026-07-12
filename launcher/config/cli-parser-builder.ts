@@ -48,6 +48,8 @@ export interface CliInvocations {
   syncForce: boolean;
   syncJson: boolean;
   syncCheck: boolean;
+  syncMakeTemp: boolean;
+  syncRemoveTempPath: string | null;
   syncLogLevel: string | null;
   syncUiTriggered: boolean;
   syncUiLogLevel: string | null;
@@ -188,6 +190,8 @@ export function parseCliPrograms(
   let syncForce = false;
   let syncJson = false;
   let syncCheck = false;
+  let syncMakeTemp = false;
+  let syncRemoveTempPath: string | null = null;
   let syncLogLevel: string | null = null;
   let syncUiTriggered = false;
   let syncUiLogLevel: string | null = null;
@@ -333,6 +337,8 @@ export function parseCliPrograms(
     .option('-f, --force', 'Skip the running-app safety check')
     .option('--check', 'Test the SSH connection and remote subminer availability')
     .option('--json', 'Emit machine-readable NDJSON progress output')
+    .option('--make-temp', 'Create a sync temp directory and print its path (used over SSH)')
+    .option('--remove-temp <dir>', 'Remove a sync temp directory created by --make-temp')
     .option('--ui', 'Open the SubMiner sync window')
     .option('--log-level <level>', 'Log level')
     .action((rawHost: string | undefined, options: Record<string, unknown>) => {
@@ -342,6 +348,8 @@ export function parseCliPrograms(
       const push = options.push === true;
       const pull = options.pull === true;
       const check = options.check === true;
+      const makeTemp = options.makeTemp === true;
+      const removeTemp = typeof options.removeTemp === 'string' ? options.removeTemp.trim() : '';
       if (options.ui === true) {
         if (host || snapshot || merge || push || pull || check || options.force === true) {
           throw new Error('Sync --ui cannot be combined with other sync options.');
@@ -364,12 +372,21 @@ export function parseCliPrograms(
           'Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.',
         );
       }
-      const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
+      if ((makeTemp || removeTemp) && (push || pull || check)) {
+        throw new Error('Sync --make-temp/--remove-temp cannot be combined with other sync options.');
+      }
+      const modes = [
+        Boolean(host),
+        Boolean(snapshot),
+        Boolean(merge),
+        makeTemp,
+        Boolean(removeTemp),
+      ].filter(Boolean).length;
       if (modes === 0) {
         throw new Error('Sync requires a host, --snapshot <file>, or --merge <file>.');
       }
       if (modes > 1) {
-        throw new Error('Sync host, --snapshot, and --merge cannot be combined.');
+        throw new Error('Sync host, --snapshot, --merge, --make-temp, and --remove-temp cannot be combined.');
       }
       syncTriggered = true;
       syncHost = host || null;
@@ -382,6 +399,8 @@ export function parseCliPrograms(
       syncForce = options.force === true;
       syncJson = options.json === true;
       syncCheck = check;
+      syncMakeTemp = makeTemp;
+      syncRemoveTempPath = removeTemp || null;
       syncLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
@@ -506,6 +525,8 @@ export function parseCliPrograms(
       syncForce,
       syncJson,
       syncCheck,
+      syncMakeTemp,
+      syncRemoveTempPath,
       syncLogLevel,
       syncUiTriggered,
       syncUiLogLevel,

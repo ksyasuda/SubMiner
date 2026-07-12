@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertSafeSshHost, resolveRemoteSubminerCommand, runScp, shellQuote } from './ssh.js';
+import {
+  assertSafeSshHost,
+  detectRemoteShellFlavor,
+  quoteForRemoteShell,
+  resolveRemoteSubminerCommand,
+  runScp,
+  shellQuote,
+  type RemoteRunResult,
+} from './ssh.js';
+
+function remoteResult(status: number, stdout = ''): RemoteRunResult {
+  return { status, stdout, stderr: '' };
+}
 
 test('assertSafeSshHost rejects option-like hosts', () => {
   assert.throws(() => assertSafeSshHost('-oProxyCommand=touch pwned'), /looks like an option/);
@@ -32,9 +44,9 @@ test('runScp rejects option-like remote host components', () => {
 
 test('resolveRemoteSubminerCommand verifies the launcher under the remote runtime PATH', () => {
   const calls: Array<{ host: string; remoteCommand: string }> = [];
-  const command = resolveRemoteSubminerCommand('macbook', null, (host, remoteCommand) => {
+  const command = resolveRemoteSubminerCommand('macbook', null, 'posix', (host, remoteCommand) => {
     calls.push({ host, remoteCommand });
-    return { status: 0, stdout: '', stderr: '' };
+    return remoteResult(0);
   });
 
   assert.equal(
@@ -52,9 +64,9 @@ test('resolveRemoteSubminerCommand verifies the launcher under the remote runtim
 
 test('resolveRemoteSubminerCommand falls back to the app binary in --sync-cli mode', () => {
   const probed: string[] = [];
-  const command = resolveRemoteSubminerCommand('media-box', null, (_host, remoteCommand) => {
+  const command = resolveRemoteSubminerCommand('media-box', null, 'posix', (_host, remoteCommand) => {
     probed.push(remoteCommand);
-    return { status: remoteCommand.includes('SubMiner --sync-cli') ? 0 : 1, stdout: '', stderr: '' };
+    return remoteResult(remoteCommand.includes('SubMiner --sync-cli') ? 0 : 1);
   });
 
   assert.match(command, / SubMiner --sync-cli$/);
@@ -65,25 +77,86 @@ test('resolveRemoteSubminerCommand falls back to the app binary in --sync-cli mo
 });
 
 test('resolveRemoteSubminerCommand probes a user override as app first, then launcher', () => {
-  const probed: string[] = [];
-  const asApp = resolveRemoteSubminerCommand('media-box', '/opt/SubMiner.AppImage', (_host, cmd) => {
-    probed.push(cmd);
-    return { status: cmd.includes('--sync-cli') ? 0 : 1, stdout: '', stderr: '' };
-  });
+  const asApp = resolveRemoteSubminerCommand('media-box', '/opt/SubMiner.AppImage', 'posix', (_host, cmd) =>
+    remoteResult(cmd.includes('--sync-cli') ? 0 : 1),
+  );
   assert.match(asApp, /'\/opt\/SubMiner\.AppImage' --sync-cli$/);
 
-  const asLauncher = resolveRemoteSubminerCommand('media-box', '/opt/subminer', (_host, cmd) => {
-    return { status: cmd.includes('--sync-cli') ? 1 : 0, stdout: '', stderr: '' };
-  });
+  const asLauncher = resolveRemoteSubminerCommand('media-box', '/opt/subminer', 'posix', (_host, cmd) =>
+    remoteResult(cmd.includes('--sync-cli') ? 1 : 0),
+  );
   assert.match(asLauncher, /'\/opt\/subminer'$/);
 
   assert.throws(
-    () =>
-      resolveRemoteSubminerCommand('media-box', '/missing', () => ({
-        status: 127,
-        stdout: '',
-        stderr: '',
-      })),
+    () => resolveRemoteSubminerCommand('media-box', '/missing', 'posix', () => remoteResult(127)),
     /Remote command not found on media-box: \/missing/,
   );
+});
+
+test('resolveRemoteSubminerCommand probes Windows install locations without a PATH prefix', () => {
+  const probed: string[] = [];
+  const command = resolveRemoteSubminerCommand('win-box', null, 'windows-cmd', (_host, cmd) => {
+    probed.push(cmd);
+    return remoteResult(cmd.includes('Programs\\SubMiner\\SubMiner.exe') ? 0 : 1);
+  });
+
+  assert.equal(command, '"%LOCALAPPDATA%\\Programs\\SubMiner\\SubMiner.exe" --sync-cli');
+  assert.equal(probed[0], 'subminer --help');
+  assert.equal(probed[1], '"%LOCALAPPDATA%\\SubMiner\\bin\\subminer.cmd" --help');
+
+  const powershell = resolveRemoteSubminerCommand('win-box', null, 'windows-powershell', (_host, cmd) =>
+    remoteResult(cmd.includes('Programs\\SubMiner\\SubMiner.exe') ? 0 : 1),
+  );
+  assert.equal(powershell, '& "$env:LOCALAPPDATA\\Programs\\SubMiner\\SubMiner.exe" --sync-cli');
+});
+
+test('resolveRemoteSubminerCommand quotes Windows overrides with double quotes', () => {
+  const command = resolveRemoteSubminerCommand(
+    'win-box',
+    'C:/Apps/SubMiner/SubMiner.exe',
+    'windows-cmd',
+    (_host, cmd) => remoteResult(cmd.includes('--sync-cli') ? 0 : 1),
+  );
+  assert.equal(command, '"C:/Apps/SubMiner/SubMiner.exe" --sync-cli');
+});
+
+test('detectRemoteShellFlavor identifies posix, cmd, and powershell remotes', () => {
+  assert.equal(
+    detectRemoteShellFlavor('linux-box', (_host, cmd) =>
+      cmd === 'uname -s' ? remoteResult(0, 'Linux\n') : remoteResult(1),
+    ),
+    'posix',
+  );
+  assert.equal(
+    detectRemoteShellFlavor('win-box', (_host, cmd) => {
+      if (cmd === 'uname -s') return remoteResult(1);
+      if (cmd === 'echo %OS%') return remoteResult(0, 'Windows_NT\r\n');
+      return remoteResult(1);
+    }),
+    'windows-cmd',
+  );
+  assert.equal(
+    detectRemoteShellFlavor('ps-box', (_host, cmd) => {
+      if (cmd === 'uname -s') return remoteResult(1);
+      if (cmd === 'echo %OS%') return remoteResult(0, '%OS%\r\n');
+      if (cmd === 'echo $env:OS') return remoteResult(0, 'Windows_NT\r\n');
+      return remoteResult(1);
+    }),
+    'windows-powershell',
+  );
+  // Unidentifiable remotes keep the pre-detection POSIX behavior.
+  assert.equal(
+    detectRemoteShellFlavor('odd-box', () => remoteResult(1)),
+    'posix',
+  );
+});
+
+test('quoteForRemoteShell quotes per flavor and rejects unsafe Windows values', () => {
+  assert.equal(quoteForRemoteShell('posix', "/tmp/it's"), `'/tmp/it'\\''s'`);
+  assert.equal(
+    quoteForRemoteShell('windows-cmd', 'C:/Users/First Last/AppData/Local/Temp/subminer-sync-ab'),
+    '"C:/Users/First Last/AppData/Local/Temp/subminer-sync-ab"',
+  );
+  assert.throws(() => quoteForRemoteShell('windows-cmd', 'a"b'), /Refusing to quote/);
+  assert.throws(() => quoteForRemoteShell('windows-powershell', 'a\nb'), /Refusing to quote/);
 });

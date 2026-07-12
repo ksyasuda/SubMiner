@@ -101,6 +101,8 @@ Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on bo
 
 On the remote, sync looks for the `subminer` launcher first (PATH and `~/.local/bin`), then the app binary in `--sync-cli` mode (`SubMiner` on PATH, then the standard macOS `/Applications` and `~/Applications` installs), checking standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`. An AppImage in a custom location can be addressed with `--remote-cmd /path/to/SubMiner.AppImage` (or symlink it as `SubMiner` somewhere on the remote PATH).
 
+Windows remotes are supported: enable Windows' built-in **OpenSSH Server** and sync detects the remote shell (cmd or PowerShell) automatically, finding SubMiner in its default install location (`%LOCALAPPDATA%\Programs\SubMiner`), the launcher shim (`%LOCALAPPDATA%\SubMiner\bin`), or on PATH. Temp files on the remote are created and removed by SubMiner itself (`sync --make-temp` / `--remove-temp`), so no POSIX tools are required on the remote side.
+
 Two lower-level modes are used internally over SSH and also work standalone for manual transfers (e.g. via a USB drive):
 
 ```bash

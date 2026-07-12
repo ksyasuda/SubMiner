@@ -10,6 +10,7 @@ import {
 } from '../sync/sync-db.js';
 import {
   assertSafeSshHost,
+  detectRemoteShellFlavor,
   resolveRemoteSubminerCommand,
   runScp,
   runSsh,
@@ -40,6 +41,7 @@ const defaultSyncCommandDeps: SyncCommandDeps = {
   formatMergeSummary,
   findLiveStatsDaemonPid,
   assertSafeSshHost,
+  detectRemoteShellFlavor,
   resolveRemoteSubminerCommand,
   runScp,
   runSsh,

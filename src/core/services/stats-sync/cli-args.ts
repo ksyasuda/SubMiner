@@ -40,6 +40,8 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   let check = false;
   let force = false;
   let json = false;
+  let makeTemp = false;
+  let removeTemp = '';
   let remoteCmd = '';
   let dbPath = '';
   let logLevel = 'warn';
@@ -47,6 +49,7 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   const valueFlags = new Map<string, (value: string) => void>([
     ['--snapshot', (value) => (snapshot = value.trim())],
     ['--merge', (value) => (merge = value.trim())],
+    ['--remove-temp', (value) => (removeTemp = value.trim())],
     ['--remote-cmd', (value) => (remoteCmd = value.trim())],
     ['--db', (value) => (dbPath = value.trim())],
     ['--log-level', (value) => (logLevel = value.trim() || 'warn')],
@@ -73,6 +76,7 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
     else if (token === '--check') check = true;
     else if (token === '--force' || token === '-f') force = true;
     else if (token === '--json') json = true;
+    else if (token === '--make-temp') makeTemp = true;
     else if (token.startsWith('-')) {
       return { kind: 'error', message: `Unknown sync option: ${token}` };
     } else if (host) {
@@ -93,12 +97,21 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
       message: 'Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.',
     };
   }
-  const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
+  const modes = [
+    Boolean(host),
+    Boolean(snapshot),
+    Boolean(merge),
+    makeTemp,
+    Boolean(removeTemp),
+  ].filter(Boolean).length;
   if (modes === 0) {
     return { kind: 'error', message: 'Sync requires a host, --snapshot <file>, or --merge <file>.' };
   }
   if (modes > 1) {
-    return { kind: 'error', message: 'Sync host, --snapshot, and --merge cannot be combined.' };
+    return {
+      kind: 'error',
+      message: 'Sync host, --snapshot, --merge, --make-temp, and --remove-temp cannot be combined.',
+    };
   }
 
   return {
@@ -114,6 +127,8 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
       syncForce: force,
       syncJson: json,
       syncCheck: check,
+      syncMakeTemp: makeTemp,
+      syncRemoveTempPath: removeTemp,
       logLevel,
     },
   };
@@ -138,6 +153,8 @@ export function syncCliUsage(): string {
     '  --remote-cmd <cmd>   SubMiner app or launcher command to run on the remote host',
     '  -f, --force          Skip the running-app safety check',
     '  --json               Emit machine-readable NDJSON progress output',
+    '  --make-temp          Create a sync temp directory and print its path (used over SSH)',
+    '  --remove-temp <dir>  Remove a sync temp directory created by --make-temp',
     '  --log-level <level>  Log level',
     '  --help               Show this help',
     '  --version            Show the SubMiner version',
