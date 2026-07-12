@@ -222,7 +222,7 @@ function renderHostCard(entry: SyncHostEntry): HTMLDivElement {
   statusText.textContent =
     entry.lastSyncStatus === null
       ? 'never synced'
-      : `${when}${entry.lastSyncDetail ? ` — ${entry.lastSyncDetail}` : ''}`;
+      : `${when}${entry.lastSyncDetail ? ` · ${entry.lastSyncDetail}` : ''}`;
   statusText.title = entry.lastSyncDetail ?? '';
   status.append(dot, statusText);
   top.append(id, status);
