@@ -38,6 +38,7 @@ test('tray menu template contains expected entries and handlers', () => {
     showWindowsMpvLauncherSetup: true,
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettings: () => calls.push('configuration'),
+    openSyncUi: () => calls.push('sync-ui'),
     exportLogs: () => calls.push('export-logs'),
     openJellyfinSetup: () => calls.push('jellyfin'),
     showJellyfinDiscovery: true,
@@ -48,7 +49,7 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 13);
+  assert.equal(template.length, 14);
   assert.equal(
     template.some((entry) => entry.label === 'Open Runtime Options'),
     false,
@@ -67,16 +68,19 @@ test('tray menu template contains expected entries and handlers', () => {
   assert.equal(template[1]!.label, 'Open Texthooker');
   template[1]!.click?.();
   assert.equal(template[5]!.label, 'Open SubMiner Settings');
-  assert.equal(template[6]!.label, 'Export Logs');
+  assert.equal(template[6]!.label, 'Sync Stats && History');
   template[6]!.click?.();
-  assert.equal(template[10]!.label, 'Check for Updates');
-  template[10]!.click?.();
-  template[11]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[12]!.click?.();
+  assert.equal(template[7]!.label, 'Export Logs');
+  template[7]!.click?.();
+  assert.equal(template[11]!.label, 'Check for Updates');
+  template[11]!.click?.();
+  template[12]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[13]!.click?.();
   assert.deepEqual(calls, [
     'jellyfin-discovery:true',
     'help',
     'texthooker',
+    'sync-ui',
     'export-logs',
     'updates',
     'separator',
@@ -95,6 +99,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
+    openSyncUi: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
@@ -123,6 +128,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
+    openSyncUi: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: false,
@@ -149,6 +155,7 @@ test('tray menu template renders active jellyfin discovery checkbox', () => {
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
+    openSyncUi: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: true,
@@ -176,6 +183,7 @@ test('tray menu template renders a visible linux discovery check mark when activ
     showWindowsMpvLauncherSetup: false,
     openYomitanSettings: () => undefined,
     openConfigSettings: () => undefined,
+    openSyncUi: () => undefined,
     exportLogs: () => undefined,
     openJellyfinSetup: () => undefined,
     showJellyfinDiscovery: true,

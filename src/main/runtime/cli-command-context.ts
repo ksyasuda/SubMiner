@@ -53,6 +53,7 @@ export type CliCommandContextFactoryDeps = {
   ensureBackgroundStatsServer?: CliCommandRuntimeServiceContext['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
+  openSyncUiWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -134,6 +135,7 @@ export function createCliCommandContext(
     ensureBackgroundStatsServer: deps.ensureBackgroundStatsServer,
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,
+    openSyncUiWindow: deps.openSyncUiWindow,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
     printHelp: deps.printHelp,

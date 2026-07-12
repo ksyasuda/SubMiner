@@ -14,6 +14,7 @@ export interface CliArgs {
   togglePrimarySubtitleBar: boolean;
   yomitan: boolean;
   settings: boolean;
+  syncWindow: boolean;
   setup: boolean;
   show: boolean;
   hide: boolean;
@@ -122,6 +123,7 @@ export function parseArgs(argv: string[]): CliArgs {
     togglePrimarySubtitleBar: false,
     yomitan: false,
     settings: false,
+    syncWindow: false,
     setup: false,
     show: false,
     hide: false,
@@ -269,6 +271,7 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--toggle-primary-subtitle-bar') args.togglePrimarySubtitleBar = true;
     else if (arg === '--yomitan') args.yomitan = true;
     else if (arg === '--settings') args.settings = true;
+    else if (arg === '--sync-window') args.syncWindow = true;
     else if (arg === '--setup') args.setup = true;
     else if (arg === '--show') args.show = true;
     else if (arg === '--hide') args.hide = true;
@@ -541,6 +544,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.togglePrimarySubtitleBar ||
     args.yomitan ||
     args.settings ||
+    args.syncWindow ||
     args.setup ||
     args.show ||
     args.hide ||
@@ -618,6 +622,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.togglePrimarySubtitleBar &&
     !args.yomitan &&
     !args.settings &&
+    !args.syncWindow &&
     !args.setup &&
     !args.show &&
     !args.hide &&
@@ -688,6 +693,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.togglePrimarySubtitleBar ||
     args.yomitan ||
     args.settings ||
+    args.syncWindow ||
     args.setup ||
     args.copySubtitle ||
     args.copySubtitleMultiple ||
@@ -744,6 +750,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.toggleVisibleOverlay &&
     !args.togglePrimarySubtitleBar &&
     !args.settings &&
+    !args.syncWindow &&
     !args.show &&
     !args.hide &&
     !args.setup &&

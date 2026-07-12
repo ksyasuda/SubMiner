@@ -153,7 +153,7 @@ export async function detectBun(options: CommonOptions = {}): Promise<BunSnapsho
   };
 }
 
-function resolveLauncherResourcePath(options: CommonOptions): string {
+export function resolveLauncherResourcePath(options: CommonOptions): string {
   const platformPath = pathModuleFor(platformOf(options));
   if (options.launcherResourcePath) return options.launcherResourcePath;
   const resourcesPath =

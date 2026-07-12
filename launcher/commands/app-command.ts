@@ -30,6 +30,10 @@ export function runAppPassthroughCommand(
     deps.runAppCommandWithInherit(appPath, ['--settings']);
     return true;
   }
+  if (args.syncUi) {
+    deps.runAppCommandWithInherit(appPath, ['--sync-window']);
+    return true;
+  }
   if (!args.appPassthrough) {
     return false;
   }

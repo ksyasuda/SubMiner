@@ -529,8 +529,16 @@ import {
   createCreateConfigSettingsWindowHandler,
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
+  createCreateSyncUiWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
+import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
+import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
+import { createSyncAutoScheduler } from './main/runtime/sync-auto-scheduler';
+import {
+  resolveSyncLauncherCommand,
+  runSyncLauncher,
+} from './main/runtime/sync-launcher-client';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -902,6 +910,7 @@ const configSettingsFields = buildConfigSettingsRegistry(DEFAULT_CONFIG);
 function getOverlayForegroundSeparateWindows(): BrowserWindow[] {
   return [
     appState.configSettingsWindow,
+    appState.syncUiWindow,
     appState.yomitanSettingsWindow,
     appState.anilistSetupWindow,
     appState.jellyfinSetupWindow,
@@ -2226,6 +2235,68 @@ const configSettingsRuntime = createConfigSettingsRuntime({
 
 configSettingsRuntime.registerHandlers();
 const openConfigSettingsWindow = () => configSettingsRuntime.openWindow();
+
+const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
+  getSettingsWindow: () => appState.syncUiWindow,
+  setSettingsWindow: (window) => {
+    appState.syncUiWindow = window as BrowserWindow | null;
+  },
+  createSettingsWindow: createCreateSyncUiWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-syncui.js'),
+  }),
+  settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
+  promoteSettingsWindowAboveOverlay: (window) =>
+    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  log: (message) => logger.error(message),
+});
+const openSyncUiWindow = () => openSyncUiWindowHandler();
+
+const syncUiRuntime = createSyncUiRuntime({
+  ipcMain,
+  hostsFilePath: path.join(USER_DATA_PATH, 'sync-hosts.json'),
+  snapshotsDir: path.join(USER_DATA_PATH, 'sync-snapshots'),
+  getDbPath: () => {
+    const configured = getResolvedConfig().immersionTracking?.dbPath?.trim();
+    return configured || DEFAULT_IMMERSION_DB_PATH;
+  },
+  resolveLauncherCommand: () => resolveSyncLauncherCommand(),
+  runLauncher: runSyncLauncher,
+  getWindow: () => appState.syncUiWindow,
+  pickSnapshotFile: async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Choose a SubMiner stats snapshot',
+      filters: [{ name: 'SQLite snapshots', extensions: ['sqlite'] }],
+      properties: ['openFile'],
+    });
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  },
+  revealPath: (targetPath) => shell.showItemInFolder(targetPath),
+  nowMs: () => Date.now(),
+  log: (message) => logger.info(message),
+  notify: (payload) =>
+    showOverlayNotification({
+      title: payload.title,
+      body: payload.body,
+      variant: payload.variant,
+    }),
+});
+syncUiRuntime.registerHandlers();
+
+// Auto-sync only runs while no mpv session or app-owned stats server could be
+// writing the immersion database; the launcher's quiescence guard covers
+// writers this process does not know about.
+const syncAutoScheduler = createSyncAutoScheduler({
+  readState: () => syncUiRuntime.readState(),
+  isRunning: () => syncUiRuntime.isRunning(),
+  canAutoSync: () => appState.mpvClient === null && appState.statsServer === null,
+  triggerHostSync: (host, direction) => {
+    void syncUiRuntime.runHostSync({ host, direction }, { notify: true });
+  },
+  nowMs: () => Date.now(),
+  log: (message) => logger.info(message),
+});
+syncAutoScheduler.start();
 
 const buildDictionaryRootsHandler = createBuildDictionaryRootsMainHandler({
   platform: process.platform,
@@ -5983,6 +6054,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => openConfigSettingsWindow(),
+    openSyncUiWindow: () => openSyncUiWindow(),
     cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -6231,6 +6303,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => openConfigSettingsWindow(),
+      openSyncUiWindow: () => openSyncUiWindow(),
       exportLogs: () => {
         void exportLogsFromTray();
       },
