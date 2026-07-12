@@ -1,7 +1,6 @@
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { fail, log } from '../log.js';
+import type { LogLevel } from '../types.js';
 import { resolveImmersionDbPath } from '../history-db.js';
 import {
   createDbSnapshot,
@@ -14,74 +13,26 @@ import {
   resolveRemoteSubminerCommand,
   runScp,
   runSsh,
-  shellQuote,
 } from '../sync/ssh.js';
 import { resolvePathMaybe } from '../util.js';
 import { canConnectUnixSocket } from '../mpv.js';
 import { recordHostSyncResultToDisk } from '../sync/sync-hosts.js';
+import {
+  ensureTrackerQuiescentFlow,
+  runSyncFlow,
+  runCheckMode as runCheckModeFlow,
+  runHostSync as runHostSyncFlow,
+  runMergeMode as runMergeModeFlow,
+  runSnapshotMode as runSnapshotModeFlow,
+  type SyncFlowContext,
+  type SyncFlowDeps,
+} from '../../src/core/services/stats-sync/sync-flow.js';
 import type { LauncherCommandContext } from './context.js';
-import type { RemoteRunResult } from '../sync/ssh.js';
-import type { SyncMergeSummary, SyncProgressEvent } from '../../src/shared/sync/sync-events.js';
-import type { SyncResultStatus } from '../../src/shared/sync/sync-hosts-store.js';
 
-export interface SyncCommandDeps {
-  createDbSnapshot: typeof createDbSnapshot;
-  mergeSnapshotIntoDb: typeof mergeSnapshotIntoDb;
-  formatMergeSummary: typeof formatMergeSummary;
-  findLiveStatsDaemonPid: typeof findLiveStatsDaemonPid;
-  assertSafeSshHost: typeof assertSafeSshHost;
-  resolveRemoteSubminerCommand: typeof resolveRemoteSubminerCommand;
-  runScp: typeof runScp;
-  runSsh: typeof runSsh;
-  fail: typeof fail;
-  log: typeof log;
-  canConnectUnixSocket: typeof canConnectUnixSocket;
-  realpathSync: typeof fs.realpathSync;
-  mkdtempSync: typeof fs.mkdtempSync;
-  rmSync: typeof fs.rmSync;
-  consoleLog: typeof console.log;
-  writeStdout: typeof process.stdout.write;
-  ensureTrackerQuiescent: (context: LauncherCommandContext, dbPath: string) => Promise<void>;
-  emitEvent: (event: SyncProgressEvent) => void;
-  recordHostSyncResult: (host: string, status: SyncResultStatus, detail: string | null) => void;
-}
-
-function resolveDbPath(context: LauncherCommandContext): string {
-  const override = context.args.syncDbPath.trim();
-  return override ? resolvePathMaybe(override) : resolveImmersionDbPath();
-}
-
-function isTrackerDb(dbPath: string, deps: SyncCommandDeps): boolean {
-  const trackerDbPath = resolveImmersionDbPath();
-  try {
-    return deps.realpathSync(dbPath) === deps.realpathSync(trackerDbPath);
-  } catch {
-    return dbPath === trackerDbPath;
-  }
-}
-
-export async function ensureTrackerQuiescent(
-  context: LauncherCommandContext,
-  dbPath: string,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): Promise<void> {
-  const deps = resolveSyncCommandDeps(inputDeps);
-  if (context.args.syncForce) return;
-  // A running SubMiner only holds the tracker's own database; --db pointed
-  // elsewhere needs no guard.
-  if (!isTrackerDb(dbPath, deps)) return;
-  const daemonPid = deps.findLiveStatsDaemonPid(dbPath);
-  if (daemonPid !== null) {
-    deps.fail(
-      `The SubMiner stats server is running (pid ${daemonPid}). Stop it with "subminer stats -s" (or close SubMiner) before syncing, or pass --force.`,
-    );
-  }
-  if (context.mpvSocketPath && (await deps.canConnectUnixSocket(context.mpvSocketPath))) {
-    deps.fail(
-      `An mpv/SubMiner session appears to be running (socket ${context.mpvSocketPath}). Close it before syncing, or pass --force.`,
-    );
-  }
-}
+// The sync flow itself lives in src/core/services/stats-sync (shared with the
+// app's --sync-cli mode); this module binds it to the launcher's bun:sqlite
+// engine, logger, and config paths.
+export type SyncCommandDeps = SyncFlowDeps;
 
 const defaultSyncCommandDeps: SyncCommandDeps = {
   createDbSnapshot,
@@ -93,7 +44,7 @@ const defaultSyncCommandDeps: SyncCommandDeps = {
   runScp,
   runSsh,
   fail,
-  log,
+  log: (level, configured, message) => log(level as LogLevel, configured as LogLevel, message),
   canConnectUnixSocket,
   realpathSync: fs.realpathSync,
   mkdtempSync: fs.mkdtempSync,
@@ -103,22 +54,20 @@ const defaultSyncCommandDeps: SyncCommandDeps = {
   ensureTrackerQuiescent: async (context, dbPath) => ensureTrackerQuiescent(context, dbPath),
   emitEvent: () => {},
   recordHostSyncResult: recordHostSyncResultToDisk,
+  resolveDefaultDbPath: resolveImmersionDbPath,
+  resolvePath: resolvePathMaybe,
 };
 
 function resolveSyncCommandDeps(inputDeps: Partial<SyncCommandDeps> = {}): SyncCommandDeps {
   return { ...defaultSyncCommandDeps, ...inputDeps };
 }
 
-// In --json mode every line on stdout is an NDJSON event: human console output
-// is silenced and events are written through the original console logger.
-function withJsonEvents(deps: SyncCommandDeps): SyncCommandDeps {
-  const writeLine = deps.consoleLog;
-  return {
-    ...deps,
-    consoleLog: () => {},
-    writeStdout: (() => true) as typeof process.stdout.write,
-    emitEvent: (event) => writeLine(JSON.stringify(event)),
-  };
+export async function ensureTrackerQuiescent(
+  context: SyncFlowContext,
+  dbPath: string,
+  inputDeps: Partial<SyncCommandDeps> = {},
+): Promise<void> {
+  await ensureTrackerQuiescentFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
 }
 
 export function runSnapshotMode(
@@ -126,16 +75,7 @@ export function runSnapshotMode(
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): void {
-  const deps = resolveSyncCommandDeps(inputDeps);
-  const outPath = resolvePathMaybe(context.args.syncSnapshotPath);
-  deps.emitEvent({
-    type: 'stage',
-    stage: 'snapshot-local',
-    message: `Snapshotting local database (${dbPath})`,
-  });
-  deps.createDbSnapshot(dbPath, outPath);
-  deps.emitEvent({ type: 'snapshot-created', path: outPath });
-  deps.consoleLog(outPath);
+  runSnapshotModeFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
 }
 
 export async function runMergeMode(
@@ -143,84 +83,14 @@ export async function runMergeMode(
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): Promise<void> {
-  const deps = resolveSyncCommandDeps(inputDeps);
-  await deps.ensureTrackerQuiescent(context, dbPath);
-  const snapshotPath = resolvePathMaybe(context.args.syncMergePath);
-  deps.emitEvent({
-    type: 'stage',
-    stage: 'merge-local',
-    message: `Merging ${snapshotPath} into the local database`,
-  });
-  const summary = deps.mergeSnapshotIntoDb(dbPath, snapshotPath);
-  deps.emitEvent({ type: 'merge-summary', target: 'local', summary });
-  deps.consoleLog(deps.formatMergeSummary(summary));
-}
-
-function formatHostSyncDetail(
-  direction: 'both' | 'push' | 'pull',
-  pulledSummary: SyncMergeSummary | null,
-): string {
-  if (!pulledSummary) return direction === 'push' ? 'Pushed local stats' : 'Sync complete';
-  const merged = `${pulledSummary.sessionsMerged} session${pulledSummary.sessionsMerged === 1 ? '' : 's'} merged`;
-  return direction === 'pull' ? merged : `${merged}; pushed local stats`;
+  await runMergeModeFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
 }
 
 export async function runCheckMode(
   context: LauncherCommandContext,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): Promise<void> {
-  const deps = resolveSyncCommandDeps(inputDeps);
-  const { args } = context;
-  const host = args.syncHost;
-  deps.assertSafeSshHost(host);
-
-  deps.consoleLog(`Checking SSH connection to ${host}...`);
-  let remoteCommand: string | null = null;
-  let remoteVersion: string | null = null;
-  let error: string | null = null;
-
-  const probe = deps.runSsh(host, 'echo subminer-check-ok');
-  const sshOk = probe.status === 0 && probe.stdout.includes('subminer-check-ok');
-  if (!sshOk) {
-    error = formatRemoteRunError(`Could not reach ${host} over SSH.`, probe);
-  } else {
-    deps.consoleLog('SSH connection: ok');
-    try {
-      remoteCommand = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null);
-      const version = deps.runSsh(host, `${remoteCommand} --version`);
-      remoteVersion = version.status === 0 ? version.stdout.trim() || null : null;
-      deps.consoleLog(
-        `Remote subminer: ${remoteCommand}${remoteVersion ? ` (${remoteVersion})` : ''}`,
-      );
-    } catch (resolveError) {
-      error = resolveError instanceof Error ? resolveError.message : String(resolveError);
-    }
-  }
-
-  const ok = sshOk && remoteCommand !== null;
-  deps.emitEvent({
-    type: 'check-result',
-    host,
-    sshOk,
-    remoteCommand,
-    remoteVersion,
-    ok,
-    error,
-  });
-  if (!ok) {
-    throw new Error(error ?? `Connection check failed for ${host}.`);
-  }
-  deps.consoleLog('Check passed.');
-}
-
-function cleanupRemote(host: string, remoteTmpDir: string, deps: SyncCommandDeps): void {
-  if (!remoteTmpDir.startsWith('/tmp/')) return;
-  deps.runSsh(host, `rm -rf ${shellQuote(remoteTmpDir)}`);
-}
-
-function formatRemoteRunError(message: string, run: RemoteRunResult): string {
-  const stderr = run.stderr.trim();
-  return stderr ? `${message}\n${stderr}` : message;
+  await runCheckModeFlow(context, resolveSyncCommandDeps(inputDeps));
 }
 
 export async function runHostSync(
@@ -228,173 +98,12 @@ export async function runHostSync(
   dbPath: string,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): Promise<void> {
-  const deps = resolveSyncCommandDeps(inputDeps);
-  const { args } = context;
-  const host = args.syncHost;
-  const direction = args.syncDirection ?? 'both';
-  const shouldPull = direction !== 'push';
-  const shouldPush = direction !== 'pull';
-  deps.assertSafeSshHost(host);
-
-  await deps.ensureTrackerQuiescent(context, dbPath);
-
-  const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null);
-  deps.log('debug', args.logLevel, `Remote subminer command: ${remoteCmd}`);
-
-  const localTmpDir = deps.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-'));
-  let remoteTmpDir = '';
-  let pulledSummary: SyncMergeSummary | null = null;
-  try {
-    // Signal failures by throwing (not fail(), which exits synchronously and
-    // would skip the finally cleanup, leaking temp dirs holding snapshot data).
-    // main().catch() reports the message the same way fail() would.
-    const mktemp = deps.runSsh(host, 'mktemp -d /tmp/subminer-sync.XXXXXX');
-    remoteTmpDir = mktemp.stdout.trim();
-    if (mktemp.status !== 0 || !remoteTmpDir.startsWith('/tmp/')) {
-      throw new Error(`Could not create a temporary directory on ${host}.`);
-    }
-
-    const forceFlag = args.syncForce ? ' --force' : '';
-
-    const localSnapshot = path.join(localTmpDir, 'local.sqlite');
-    if (shouldPush) {
-      deps.consoleLog(`Snapshotting local database (${dbPath})...`);
-      deps.emitEvent({
-        type: 'stage',
-        stage: 'snapshot-local',
-        message: `Snapshotting local database (${dbPath})`,
-      });
-      deps.createDbSnapshot(dbPath, localSnapshot);
-    }
-
-    const remoteSnapshot = `${remoteTmpDir}/snapshot.sqlite`;
-    if (shouldPull) {
-      deps.consoleLog(`Snapshotting ${host}...`);
-      deps.emitEvent({ type: 'stage', stage: 'snapshot-remote', message: `Snapshotting ${host}` });
-      const snapshotRun = deps.runSsh(
-        host,
-        `${remoteCmd} sync --snapshot ${shellQuote(remoteSnapshot)}${forceFlag}`,
-      );
-      if (snapshotRun.status !== 0) {
-        throw new Error(formatRemoteRunError(`Remote snapshot failed on ${host}.`, snapshotRun));
-      }
-    }
-
-    const pulledSnapshot = path.join(localTmpDir, 'remote.sqlite');
-    if (shouldPull) {
-      deps.emitEvent({
-        type: 'stage',
-        stage: 'download',
-        message: `Copying snapshot from ${host}`,
-      });
-      deps.runScp(`${host}:${remoteSnapshot}`, pulledSnapshot);
-    }
-    const incomingSnapshot = `${remoteTmpDir}/incoming.sqlite`;
-    if (shouldPush) {
-      deps.emitEvent({ type: 'stage', stage: 'upload', message: `Copying snapshot to ${host}` });
-      deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
-    }
-
-    if (shouldPull) {
-      deps.consoleLog(`\nMerging ${host} -> local:`);
-      deps.emitEvent({
-        type: 'stage',
-        stage: 'merge-local',
-        message: `Merging ${host} into the local database`,
-      });
-      await deps.ensureTrackerQuiescent(context, dbPath);
-      const summary = deps.mergeSnapshotIntoDb(dbPath, pulledSnapshot);
-      pulledSummary = summary;
-      deps.emitEvent({ type: 'merge-summary', target: 'local', summary });
-      deps.consoleLog(deps.formatMergeSummary(summary));
-    }
-
-    if (shouldPush) {
-      deps.consoleLog(`\nMerging local -> ${host}:`);
-      deps.emitEvent({
-        type: 'stage',
-        stage: 'merge-remote',
-        message: `Merging the local database into ${host}`,
-      });
-      await deps.ensureTrackerQuiescent(context, dbPath);
-      const mergeRun = deps.runSsh(
-        host,
-        `${remoteCmd} sync --merge ${shellQuote(incomingSnapshot)}${forceFlag}`,
-      );
-      deps.writeStdout(mergeRun.stdout);
-      if (mergeRun.stdout.trim()) {
-        deps.emitEvent({ type: 'remote-output', text: mergeRun.stdout });
-      }
-      if (mergeRun.status !== 0) {
-        const retryCommand =
-          direction === 'push' ? `subminer sync ${host} --push` : `subminer sync ${host}`;
-        const localUpdate = shouldPull ? ' The local database was updated;' : '';
-        throw new Error(
-          formatRemoteRunError(
-            `Remote merge failed on ${host}.${localUpdate} re-run "${retryCommand}" once the remote issue is fixed.`,
-            mergeRun,
-          ),
-        );
-      }
-    }
-
-    deps.consoleLog('\nSync complete.');
-    deps.recordHostSyncResult(host, 'success', formatHostSyncDetail(direction, pulledSummary));
-  } catch (error) {
-    try {
-      deps.recordHostSyncResult(
-        host,
-        'error',
-        error instanceof Error ? error.message : String(error),
-      );
-    } catch {
-      // best effort
-    }
-    throw error;
-  } finally {
-    deps.rmSync(localTmpDir, { recursive: true, force: true });
-    if (remoteTmpDir) {
-      try {
-        cleanupRemote(host, remoteTmpDir, deps);
-      } catch {
-        // best effort
-      }
-    }
-  }
+  await runHostSyncFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
 }
 
 export async function runSyncCommand(
   context: LauncherCommandContext,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): Promise<boolean> {
-  let deps = resolveSyncCommandDeps(inputDeps);
-  const { args } = context;
-  if (!args.sync) return false;
-  if (args.syncJson) deps = withJsonEvents(deps);
-
-  const dbPath = resolveDbPath(context);
-  try {
-    if (args.syncCheck) {
-      await runCheckMode(context, deps);
-    } else if (args.syncSnapshotPath) {
-      runSnapshotMode(context, dbPath, deps);
-    } else if (args.syncMergePath) {
-      await runMergeMode(context, dbPath, deps);
-    } else if (args.syncHost) {
-      await runHostSync(context, dbPath, deps);
-    } else {
-      deps.fail('sync requires a host, --snapshot <file>, or --merge <file>.');
-    }
-  } catch (error) {
-    if (args.syncJson) {
-      deps.emitEvent({
-        type: 'result',
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-    throw error;
-  }
-  if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
-  return true;
+  return runSyncFlow(context, resolveSyncCommandDeps(inputDeps));
 }

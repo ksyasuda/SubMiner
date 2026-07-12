@@ -1,7 +1,5 @@
-import { Database } from 'bun:sqlite';
-import { nowDbTimestamp, tableExists, type SyncMergeSummary } from './sync-shared.js';
-
-type SqlRow = Record<string, unknown>;
+import { selectAll, type SqlRow, type SyncDb } from './driver';
+import { nowDbTimestamp, tableExists, type SyncMergeSummary } from './shared';
 
 const LOCAL_DAY_EXPR = `CAST(julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER)`;
 const LOCAL_MONTH_EXPR = `CAST(strftime('%Y%m', CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER)`;
@@ -125,7 +123,7 @@ const MONTHLY_ROLLUP_UPSERT = `
  * the app later, which is idempotent.
  */
 export function refreshRollupsForNewSessions(
-  local: Database,
+  local: SyncDb,
   newSessionIds: number[],
   summary: SyncMergeSummary,
 ): void {
@@ -134,12 +132,12 @@ export function refreshRollupsForNewSessions(
   const groups = new Map<string, { day: number; month: number; videoId: number }>();
   for (let offset = 0; offset < newSessionIds.length; offset += 500) {
     const chunk = newSessionIds.slice(offset, offset + 500);
-    const rows = local
-      .query<SqlRow>(
-        `SELECT DISTINCT ${LOCAL_DAY_EXPR} AS rollup_day, ${LOCAL_MONTH_EXPR} AS rollup_month, video_id
-         FROM imm_sessions WHERE session_id IN (${chunk.map(() => '?').join(',')})`,
-      )
-      .all(...chunk);
+    const rows = selectAll(
+      local,
+      `SELECT DISTINCT ${LOCAL_DAY_EXPR} AS rollup_day, ${LOCAL_MONTH_EXPR} AS rollup_month, video_id
+       FROM imm_sessions WHERE session_id IN (${chunk.map(() => '?').join(',')})`,
+      chunk,
+    );
     for (const row of rows) {
       const day = Number(row.rollup_day);
       const month = Number(row.rollup_month);
@@ -149,14 +147,12 @@ export function refreshRollupsForNewSessions(
   }
 
   const stampMs = nowDbTimestamp();
-  const deleteDaily = local.prepare(
-    'DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?',
-  );
-  const deleteMonthly = local.prepare(
+  const deleteDaily = local.query('DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?');
+  const deleteMonthly = local.query(
     'DELETE FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ?',
   );
-  const upsertDaily = local.prepare(DAILY_ROLLUP_UPSERT);
-  const upsertMonthly = local.prepare(MONTHLY_ROLLUP_UPSERT);
+  const upsertDaily = local.query(DAILY_ROLLUP_UPSERT);
+  const upsertMonthly = local.query(MONTHLY_ROLLUP_UPSERT);
 
   const monthlyGroups = new Set<string>();
   for (const { day, month, videoId } of groups.values()) {
@@ -181,36 +177,36 @@ export function refreshRollupsForNewSessions(
  * double-counting sessions that earlier syncs already shared.
  */
 export function copyRemoteOnlyRollups(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   videoIdMap: Map<number, number>,
   summary: SyncMergeSummary,
 ): void {
   if (!tableExists(remote, 'imm_daily_rollups') || !tableExists(local, 'imm_daily_rollups')) return;
 
-  const localDailyExists = local.prepare(
+  const localDailyExists = local.query(
     'SELECT 1 FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ? LIMIT 1',
   );
-  const localDaySessions = local.prepare(
+  const localDaySessions = local.query(
     `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_DAY_EXPR} = ? LIMIT 1`,
   );
-  const localMonthSessions = local.prepare(
+  const localMonthSessions = local.query(
     `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_MONTH_EXPR} = ? LIMIT 1`,
   );
-  const localMonthSessionsForDay = local.prepare(
+  const localMonthSessionsForDay = local.query(
     `SELECT 1 FROM imm_sessions
      WHERE video_id = ?
        AND ${LOCAL_MONTH_EXPR} = CAST(strftime('%Y%m', CAST(? AS INTEGER) * 86400, 'unixepoch', 'localtime') AS INTEGER)
      LIMIT 1`,
   );
-  const insertDaily = local.prepare(
+  const insertDaily = local.query(
     `INSERT INTO imm_daily_rollups (
        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
        total_tokens_seen, total_cards, cards_per_hour, tokens_per_min, lookup_hit_rate,
        CREATED_DATE, LAST_UPDATE_DATE
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  for (const row of remote.query<SqlRow>('SELECT * FROM imm_daily_rollups').all()) {
+  for (const row of selectAll(remote, 'SELECT * FROM imm_daily_rollups')) {
     if (row.video_id === null) continue;
     const localVideoId = videoIdMap.get(Number(row.video_id));
     if (localVideoId === undefined) continue;
@@ -234,16 +230,16 @@ export function copyRemoteOnlyRollups(
     summary.dailyRollupsCopied += 1;
   }
 
-  const localMonthlyExists = local.prepare(
+  const localMonthlyExists = local.query(
     'SELECT 1 FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ? LIMIT 1',
   );
-  const insertMonthly = local.prepare(
+  const insertMonthly = local.query(
     `INSERT INTO imm_monthly_rollups (
        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
        total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  for (const row of remote.query<SqlRow>('SELECT * FROM imm_monthly_rollups').all()) {
+  for (const row of selectAll(remote, 'SELECT * FROM imm_monthly_rollups')) {
     if (row.video_id === null) continue;
     const localVideoId = videoIdMap.get(Number(row.video_id));
     if (localVideoId === undefined) continue;

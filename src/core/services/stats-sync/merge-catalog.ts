@@ -1,5 +1,5 @@
-import { Database } from 'bun:sqlite';
-import { insertRow, tableExists, type SyncMergeSummary } from './sync-shared.js';
+import { selectAll, selectOne, type SqlRow, type SyncDb } from './driver';
+import { insertRow, tableExists, type SyncMergeSummary } from './shared';
 
 const ANIME_COPY_COLUMNS = [
   'normalized_title_key',
@@ -90,23 +90,15 @@ const WORD_COPY_COLUMNS = [
   'frequency_rank',
 ] as const;
 
-type SqlRow = Record<string, unknown>;
-
-function selectAll(db: Database, sql: string, params: unknown[] = []): SqlRow[] {
-  return db.query<SqlRow>(sql).all(...params);
-}
-
 export function mergeAnime(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   summary: SyncMergeSummary,
 ): Map<number, number> {
   const map = new Map<number, number>();
-  const byAnilist = local.prepare<SqlRow>('SELECT anime_id FROM imm_anime WHERE anilist_id = ?');
-  const byTitleKey = local.prepare<SqlRow>(
-    'SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?',
-  );
-  const fillMissing = local.prepare(
+  const byAnilist = local.query('SELECT anime_id FROM imm_anime WHERE anilist_id = ?');
+  const byTitleKey = local.query('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?');
+  const fillMissing = local.query(
     `UPDATE imm_anime
      SET
        title_romaji = COALESCE(title_romaji, ?),
@@ -122,9 +114,8 @@ export function mergeAnime(
     `SELECT anime_id, ${ANIME_COPY_COLUMNS.join(', ')} FROM imm_anime`,
   )) {
     const remoteId = Number(row.anime_id);
-    const existing =
-      (row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
-      byTitleKey.get(row.normalized_title_key);
+    const existing = ((row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
+      byTitleKey.get(row.normalized_title_key)) as SqlRow | undefined;
     if (existing) {
       const localId = Number(existing.anime_id);
       map.set(remoteId, localId);
@@ -153,17 +144,15 @@ export interface VideoMergeResult {
 }
 
 export function mergeVideos(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   animeIdMap: Map<number, number>,
   summary: SyncMergeSummary,
 ): VideoMergeResult {
   const videoIdMap = new Map<number, number>();
   const addedVideoIds = new Set<number>();
-  const byKey = local.prepare<SqlRow>(
-    'SELECT video_id, watched FROM imm_videos WHERE video_key = ?',
-  );
-  const setWatched = local.prepare('UPDATE imm_videos SET watched = 1 WHERE video_id = ?');
+  const byKey = local.query('SELECT video_id, watched FROM imm_videos WHERE video_key = ?');
+  const setWatched = local.query('UPDATE imm_videos SET watched = 1 WHERE video_id = ?');
 
   for (const row of selectAll(
     remote,
@@ -172,7 +161,7 @@ export function mergeVideos(
     const remoteId = Number(row.video_id);
     const mappedAnimeId =
       row.anime_id === null ? null : (animeIdMap.get(Number(row.anime_id)) ?? null);
-    const existing = byKey.get(row.video_key);
+    const existing = byKey.get(row.video_key) as SqlRow | undefined;
     if (existing) {
       const localId = Number(existing.video_id);
       videoIdMap.set(remoteId, localId);
@@ -192,8 +181,8 @@ export function mergeVideos(
 }
 
 export function mergeMediaMetadata(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   videoIdMap: Map<number, number>,
   addedVideoIds: Set<number>,
 ): void {
@@ -203,31 +192,29 @@ export function mergeMediaMetadata(
   const hasBlobStore =
     tableExists(local, 'imm_cover_art_blobs') && tableExists(remote, 'imm_cover_art_blobs');
   const copyBlob = hasBlobStore
-    ? local.prepare(
+    ? local.query(
         `INSERT INTO imm_cover_art_blobs (blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(blob_hash) DO NOTHING`,
       )
     : null;
   const readBlob = hasBlobStore
-    ? remote.prepare<SqlRow>('SELECT * FROM imm_cover_art_blobs WHERE blob_hash = ?')
+    ? remote.query('SELECT * FROM imm_cover_art_blobs WHERE blob_hash = ?')
     : null;
 
   if (tableExists(remote, 'imm_media_art') && tableExists(local, 'imm_media_art')) {
-    const localArtExists = local.prepare<SqlRow>(
-      'SELECT 1 FROM imm_media_art WHERE video_id = ? LIMIT 1',
-    );
+    const localArtExists = local.query('SELECT 1 FROM imm_media_art WHERE video_id = ? LIMIT 1');
     for (const remoteVideoId of metadataVideoIds) {
       const localVideoId = videoIdMap.get(remoteVideoId)!;
       if (localArtExists.get(localVideoId)) continue;
-      const row = remote
-        .query<SqlRow>(
-          `SELECT ${MEDIA_ART_COPY_COLUMNS.join(', ')} FROM imm_media_art WHERE video_id = ?`,
-        )
-        .get(remoteVideoId);
+      const row = selectOne(
+        remote,
+        `SELECT ${MEDIA_ART_COPY_COLUMNS.join(', ')} FROM imm_media_art WHERE video_id = ?`,
+        [remoteVideoId],
+      );
       if (!row) continue;
       if (row.cover_blob_hash && copyBlob && readBlob) {
-        const blob = readBlob.get(row.cover_blob_hash);
+        const blob = readBlob.get(row.cover_blob_hash) as SqlRow | undefined;
         if (blob) {
           copyBlob.run(blob.blob_hash, blob.cover_blob, blob.CREATED_DATE, blob.LAST_UPDATE_DATE);
         }
@@ -242,17 +229,17 @@ export function mergeMediaMetadata(
   }
 
   if (tableExists(remote, 'imm_youtube_videos') && tableExists(local, 'imm_youtube_videos')) {
-    const localYoutubeExists = local.prepare<SqlRow>(
+    const localYoutubeExists = local.query(
       'SELECT 1 FROM imm_youtube_videos WHERE video_id = ? LIMIT 1',
     );
     for (const remoteVideoId of metadataVideoIds) {
       const localVideoId = videoIdMap.get(remoteVideoId)!;
       if (localYoutubeExists.get(localVideoId)) continue;
-      const row = remote
-        .query<SqlRow>(
-          `SELECT ${YOUTUBE_COPY_COLUMNS.join(', ')} FROM imm_youtube_videos WHERE video_id = ?`,
-        )
-        .get(remoteVideoId);
+      const row = selectOne(
+        remote,
+        `SELECT ${YOUTUBE_COPY_COLUMNS.join(', ')} FROM imm_youtube_videos WHERE video_id = ?`,
+        [remoteVideoId],
+      );
       if (!row) continue;
       insertRow(
         local,
@@ -265,8 +252,8 @@ export function mergeMediaMetadata(
 }
 
 export function mergeExcludedWords(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   summary: SyncMergeSummary,
 ): void {
   if (
@@ -275,7 +262,7 @@ export function mergeExcludedWords(
   ) {
     return;
   }
-  const insert = local.prepare(
+  const insert = local.query(
     `INSERT INTO imm_stats_excluded_words (headword, word, reading, CREATED_DATE, LAST_UPDATE_DATE)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(headword, word, reading) DO NOTHING`,
@@ -309,8 +296,8 @@ export class LexiconResolver {
   readonly kanjiFrequencyDeltas = new Map<number, number>();
 
   constructor(
-    private readonly local: Database,
-    private readonly remote: Database,
+    private readonly local: SyncDb,
+    private readonly remote: SyncDb,
     private readonly summary: SyncMergeSummary,
   ) {}
 
@@ -318,19 +305,23 @@ export class LexiconResolver {
     const cached = this.wordMap.get(remoteWordId);
     if (cached) return cached.localId;
 
-    const row = this.remote
-      .query<SqlRow>(`SELECT ${WORD_COPY_COLUMNS.join(', ')} FROM imm_words WHERE id = ?`)
-      .get(remoteWordId);
+    const row = selectOne(
+      this.remote,
+      `SELECT ${WORD_COPY_COLUMNS.join(', ')} FROM imm_words WHERE id = ?`,
+      [remoteWordId],
+    );
     if (!row) throw new Error(`Snapshot references missing imm_words row ${remoteWordId}`);
 
-    const existing = this.local
-      .query<SqlRow>('SELECT id FROM imm_words WHERE headword IS ? AND word IS ? AND reading IS ?')
-      .get(row.headword, row.word, row.reading);
+    const existing = selectOne(
+      this.local,
+      'SELECT id FROM imm_words WHERE headword IS ? AND word IS ? AND reading IS ?',
+      [row.headword, row.word, row.reading],
+    );
     let entry: { localId: number; isNew: boolean };
     if (existing) {
       entry = { localId: Number(existing.id), isNew: false };
       this.local
-        .prepare(
+        .query(
           `UPDATE imm_words
            SET first_seen = MIN(COALESCE(first_seen, ?), COALESCE(?, first_seen)),
                last_seen = MAX(COALESCE(last_seen, ?), COALESCE(?, last_seen))
@@ -355,19 +346,21 @@ export class LexiconResolver {
     const cached = this.kanjiMap.get(remoteKanjiId);
     if (cached) return cached.localId;
 
-    const row = this.remote
-      .query<SqlRow>('SELECT kanji, first_seen, last_seen, frequency FROM imm_kanji WHERE id = ?')
-      .get(remoteKanjiId);
+    const row = selectOne(
+      this.remote,
+      'SELECT kanji, first_seen, last_seen, frequency FROM imm_kanji WHERE id = ?',
+      [remoteKanjiId],
+    );
     if (!row) throw new Error(`Snapshot references missing imm_kanji row ${remoteKanjiId}`);
 
-    const existing = this.local
-      .query<SqlRow>('SELECT id FROM imm_kanji WHERE kanji IS ?')
-      .get(row.kanji);
+    const existing = selectOne(this.local, 'SELECT id FROM imm_kanji WHERE kanji IS ?', [
+      row.kanji,
+    ]);
     let entry: { localId: number; isNew: boolean };
     if (existing) {
       entry = { localId: Number(existing.id), isNew: false };
       this.local
-        .prepare(
+        .query(
           `UPDATE imm_kanji
            SET first_seen = MIN(COALESCE(first_seen, ?), COALESCE(?, first_seen)),
                last_seen = MAX(COALESCE(last_seen, ?), COALESCE(?, last_seen))
@@ -407,13 +400,13 @@ export class LexiconResolver {
   }
 
   applyFrequencyDeltas(): void {
-    const updateWord = this.local.prepare(
+    const updateWord = this.local.query(
       'UPDATE imm_words SET frequency = COALESCE(frequency, 0) + ? WHERE id = ?',
     );
     for (const [localId, delta] of this.wordFrequencyDeltas) {
       updateWord.run(delta, localId);
     }
-    const updateKanji = this.local.prepare(
+    const updateKanji = this.local.query(
       'UPDATE imm_kanji SET frequency = COALESCE(frequency, 0) + ? WHERE id = ?',
     );
     for (const [localId, delta] of this.kanjiFrequencyDeltas) {

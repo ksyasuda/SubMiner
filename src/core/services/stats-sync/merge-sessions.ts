@@ -1,6 +1,6 @@
-import { Database } from 'bun:sqlite';
-import type { LexiconResolver } from './merge-catalog.js';
-import { insertRow, nowDbTimestamp, type SyncMergeSummary } from './sync-shared.js';
+import type { LexiconResolver } from './merge-catalog';
+import { selectAll, selectOne, type SqlRow, type SyncDb } from './driver';
+import { insertRow, nowDbTimestamp, type SyncMergeSummary } from './shared';
 
 const SESSION_COPY_COLUMNS = [
   'session_uuid',
@@ -71,32 +71,27 @@ const LINE_COPY_COLUMNS = [
   'LAST_UPDATE_DATE',
 ] as const;
 
-type SqlRow = Record<string, unknown>;
-
 export interface SessionMergeResult {
   newSessionIds: number[];
 }
 
 export function mergeSessions(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   videoIdMap: Map<number, number>,
   animeIdMap: Map<number, number>,
   lexicon: LexiconResolver,
   summary: SyncMergeSummary,
 ): SessionMergeResult {
   const newSessionIds: number[] = [];
-  const uuidExists = local.prepare<SqlRow>(
-    'SELECT session_id FROM imm_sessions WHERE session_uuid = ?',
-  );
+  const uuidExists = local.query('SELECT session_id FROM imm_sessions WHERE session_uuid = ?');
 
-  const remoteSessions = remote
-    .query<SqlRow>(
-      `SELECT session_id, video_id, ${SESSION_COPY_COLUMNS.join(', ')}
-       FROM imm_sessions
-       ORDER BY CAST(started_at_ms AS REAL) ASC, session_id ASC`,
-    )
-    .all();
+  const remoteSessions = selectAll(
+    remote,
+    `SELECT session_id, video_id, ${SESSION_COPY_COLUMNS.join(', ')}
+     FROM imm_sessions
+     ORDER BY CAST(started_at_ms AS REAL) ASC, session_id ASC`,
+  );
 
   for (const session of remoteSessions) {
     if (session.ended_at_ms === null) {
@@ -111,7 +106,9 @@ export function mergeSessions(
     }
     const localVideoId = videoIdMap.get(Number(session.video_id));
     if (localVideoId === undefined) {
-      throw new Error(`Snapshot session ${String(session.session_uuid)} references missing video row`);
+      throw new Error(
+        `Snapshot session ${String(session.session_uuid)} references missing video row`,
+      );
     }
 
     const localSessionId = insertRow(
@@ -144,18 +141,18 @@ export function mergeSessions(
 }
 
 function copyTelemetry(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   remoteSessionId: number,
   localSessionId: number,
   summary: SyncMergeSummary,
 ): void {
-  const rows = remote
-    .query<SqlRow>(
-      `SELECT ${TELEMETRY_COPY_COLUMNS.join(', ')} FROM imm_session_telemetry
-       WHERE session_id = ? ORDER BY telemetry_id ASC`,
-    )
-    .all(remoteSessionId);
+  const rows = selectAll(
+    remote,
+    `SELECT ${TELEMETRY_COPY_COLUMNS.join(', ')} FROM imm_session_telemetry
+     WHERE session_id = ? ORDER BY telemetry_id ASC`,
+    [remoteSessionId],
+  );
   for (const row of rows) {
     insertRow(
       local,
@@ -168,19 +165,19 @@ function copyTelemetry(
 }
 
 function copyEvents(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   remoteSessionId: number,
   localSessionId: number,
   summary: SyncMergeSummary,
 ): Map<number, number> {
   const eventIdMap = new Map<number, number>();
-  const rows = remote
-    .query<SqlRow>(
-      `SELECT event_id, ${EVENT_COPY_COLUMNS.join(', ')} FROM imm_session_events
-       WHERE session_id = ? ORDER BY event_id ASC`,
-    )
-    .all(remoteSessionId);
+  const rows = selectAll(
+    remote,
+    `SELECT event_id, ${EVENT_COPY_COLUMNS.join(', ')} FROM imm_session_events
+     WHERE session_id = ? ORDER BY event_id ASC`,
+    [remoteSessionId],
+  );
   for (const row of rows) {
     const localEventId = insertRow(
       local,
@@ -195,8 +192,8 @@ function copyEvents(
 }
 
 function copySubtitleLines(
-  local: Database,
-  remote: Database,
+  local: SyncDb,
+  remote: SyncDb,
   remoteSessionId: number,
   localSessionId: number,
   localVideoId: number,
@@ -205,30 +202,32 @@ function copySubtitleLines(
   lexicon: LexiconResolver,
   summary: SyncMergeSummary,
 ): void {
-  const rows = remote
-    .query<SqlRow>(
-      `SELECT line_id, event_id, anime_id, ${LINE_COPY_COLUMNS.join(', ')} FROM imm_subtitle_lines
-       WHERE session_id = ? ORDER BY line_id ASC`,
-    )
-    .all(remoteSessionId);
-  const wordOccurrences = remote.prepare<SqlRow>(
+  const rows = selectAll(
+    remote,
+    `SELECT line_id, event_id, anime_id, ${LINE_COPY_COLUMNS.join(', ')} FROM imm_subtitle_lines
+     WHERE session_id = ? ORDER BY line_id ASC`,
+    [remoteSessionId],
+  );
+  const wordOccurrences = remote.query(
     'SELECT word_id, occurrence_count FROM imm_word_line_occurrences WHERE line_id = ?',
   );
-  const kanjiOccurrences = remote.prepare<SqlRow>(
+  const kanjiOccurrences = remote.query(
     'SELECT kanji_id, occurrence_count FROM imm_kanji_line_occurrences WHERE line_id = ?',
   );
-  const insertWordOccurrence = local.prepare(
+  const insertWordOccurrence = local.query(
     `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count) VALUES (?, ?, ?)
      ON CONFLICT(line_id, word_id) DO UPDATE SET occurrence_count = occurrence_count + excluded.occurrence_count`,
   );
-  const insertKanjiOccurrence = local.prepare(
+  const insertKanjiOccurrence = local.query(
     `INSERT INTO imm_kanji_line_occurrences (line_id, kanji_id, occurrence_count) VALUES (?, ?, ?)
      ON CONFLICT(line_id, kanji_id) DO UPDATE SET occurrence_count = occurrence_count + excluded.occurrence_count`,
   );
 
   for (const row of rows) {
-    const localEventId = row.event_id === null ? null : (eventIdMap.get(Number(row.event_id)) ?? null);
-    const localAnimeId = row.anime_id === null ? null : (animeIdMap.get(Number(row.anime_id)) ?? null);
+    const localEventId =
+      row.event_id === null ? null : (eventIdMap.get(Number(row.event_id)) ?? null);
+    const localAnimeId =
+      row.anime_id === null ? null : (animeIdMap.get(Number(row.anime_id)) ?? null);
     const localLineId = insertRow(
       local,
       'imm_subtitle_lines',
@@ -243,13 +242,13 @@ function copySubtitleLines(
     );
     summary.subtitleLinesAdded += 1;
 
-    for (const occurrence of wordOccurrences.all(row.line_id)) {
+    for (const occurrence of wordOccurrences.all(row.line_id) as SqlRow[]) {
       const localWordId = lexicon.resolveWord(Number(occurrence.word_id));
       const count = Number(occurrence.occurrence_count);
       insertWordOccurrence.run(localLineId, localWordId, count);
       lexicon.addWordOccurrences(Number(occurrence.word_id), count);
     }
-    for (const occurrence of kanjiOccurrences.all(row.line_id)) {
+    for (const occurrence of kanjiOccurrences.all(row.line_id) as SqlRow[]) {
       const localKanjiId = lexicon.resolveKanji(Number(occurrence.kanji_id));
       const count = Number(occurrence.occurrence_count);
       insertKanjiOccurrence.run(localLineId, localKanjiId, count);
@@ -267,14 +266,14 @@ function copySubtitleLines(
  * applied, even if the merged session started earlier that day.
  */
 function applyMergedSessionLifetime(
-  local: Database,
+  local: SyncDb,
   sessionId: number,
   videoId: number,
   session: SqlRow,
 ): void {
   const updatedAtMs = nowDbTimestamp();
   const applied = local
-    .prepare(
+    .query(
       `INSERT INTO imm_lifetime_applied_sessions (session_id, applied_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
        VALUES (?, ?, ?, ?)
        ON CONFLICT(session_id) DO NOTHING`,
@@ -282,15 +281,15 @@ function applyMergedSessionLifetime(
     .run(sessionId, session.ended_at_ms, updatedAtMs, updatedAtMs);
   if (applied.changes <= 0) return;
 
-  const telemetry = local
-    .query<SqlRow>(
-      `SELECT active_watched_ms, cards_mined, lines_seen, tokens_seen
-       FROM imm_session_telemetry
-       WHERE session_id = ?
-       ORDER BY sample_ms DESC, telemetry_id DESC
-       LIMIT 1`,
-    )
-    .get(sessionId);
+  const telemetry = selectOne(
+    local,
+    `SELECT active_watched_ms, cards_mined, lines_seen, tokens_seen
+     FROM imm_session_telemetry
+     WHERE session_id = ?
+     ORDER BY sample_ms DESC, telemetry_id DESC
+     LIMIT 1`,
+    [sessionId],
+  );
 
   const metric = (telemetryValue: unknown, sessionValue: unknown): number => {
     const fromTelemetry = telemetry ? Number(telemetryValue) : Number.NaN;
@@ -302,15 +301,18 @@ function applyMergedSessionLifetime(
   const linesSeen = metric(telemetry?.lines_seen, session.lines_seen);
   const tokensSeen = metric(telemetry?.tokens_seen, session.tokens_seen);
 
-  const video = local
-    .query<SqlRow>('SELECT anime_id, watched FROM imm_videos WHERE video_id = ?')
-    .get(videoId);
+  const video = selectOne(local, 'SELECT anime_id, watched FROM imm_videos WHERE video_id = ?', [
+    videoId,
+  ]);
   const watched = Number(video?.watched ?? 0);
-  const animeId = video?.anime_id === null || video?.anime_id === undefined ? null : Number(video.anime_id);
+  const animeId =
+    video?.anime_id === null || video?.anime_id === undefined ? null : Number(video.anime_id);
 
-  const mediaLifetime = local
-    .query<SqlRow>('SELECT completed FROM imm_lifetime_media WHERE video_id = ?')
-    .get(videoId);
+  const mediaLifetime = selectOne(
+    local,
+    'SELECT completed FROM imm_lifetime_media WHERE video_id = ?',
+    [videoId],
+  );
   const hasOtherSessionForVideo = Boolean(
     local
       .query('SELECT 1 FROM imm_sessions WHERE video_id = ? AND session_id != ? LIMIT 1')
@@ -333,16 +335,19 @@ function applyMergedSessionLifetime(
 
   let animeCompletedDelta = 0;
   if (animeId !== null && watched > 0 && isFirstCompletedSessionForVideoRun) {
-    const animeLifetime = local
-      .query<SqlRow>('SELECT episodes_completed FROM imm_lifetime_anime WHERE anime_id = ?')
-      .get(animeId);
-    const anime = local
-      .query<SqlRow>('SELECT episodes_total FROM imm_anime WHERE anime_id = ?')
-      .get(animeId);
+    const animeLifetime = selectOne(
+      local,
+      'SELECT episodes_completed FROM imm_lifetime_anime WHERE anime_id = ?',
+      [animeId],
+    );
+    const anime = selectOne(local, 'SELECT episodes_total FROM imm_anime WHERE anime_id = ?', [
+      animeId,
+    ]);
     const episodesCompletedBefore = Number(animeLifetime?.episodes_completed ?? 0);
-    const episodesTotal = anime?.episodes_total === null || anime?.episodes_total === undefined
-      ? null
-      : Number(anime.episodes_total);
+    const episodesTotal =
+      anime?.episodes_total === null || anime?.episodes_total === undefined
+        ? null
+        : Number(anime.episodes_total);
     if (
       episodesTotal !== null &&
       episodesTotal > 0 &&
@@ -354,7 +359,7 @@ function applyMergedSessionLifetime(
   }
 
   local
-    .prepare(
+    .query(
       `UPDATE imm_lifetime_global
        SET total_sessions = total_sessions + 1,
            total_active_ms = total_active_ms + ?,
@@ -377,7 +382,7 @@ function applyMergedSessionLifetime(
     );
 
   local
-    .prepare(
+    .query(
       `INSERT INTO imm_lifetime_media(
          video_id, total_sessions, total_active_ms, total_cards, total_lines_seen,
          total_tokens_seen, completed, first_watched_ms, last_watched_ms, CREATED_DATE, LAST_UPDATE_DATE
@@ -419,7 +424,7 @@ function applyMergedSessionLifetime(
 
   if (animeId !== null) {
     local
-      .prepare(
+      .query(
         `INSERT INTO imm_lifetime_anime(
            anime_id, total_sessions, total_active_ms, total_cards, total_lines_seen,
            total_tokens_seen, episodes_started, episodes_completed, first_watched_ms,
