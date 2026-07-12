@@ -193,10 +193,13 @@ export function copyRemoteOnlyRollups(
   const localMonthSessions = local.query(
     `SELECT 1 FROM imm_sessions WHERE video_id = ? AND ${LOCAL_MONTH_EXPR} = ? LIMIT 1`,
   );
+  // rollup_day is a *local* epoch day, so anchor it at local noon (+43200)
+  // before reading its month back: plain UTC midnight lands in the previous
+  // civil month for the 1st of a month at any negative UTC offset.
   const localMonthSessionsForDay = local.query(
     `SELECT 1 FROM imm_sessions
      WHERE video_id = ?
-       AND ${LOCAL_MONTH_EXPR} = CAST(strftime('%Y%m', CAST(? AS INTEGER) * 86400, 'unixepoch', 'localtime') AS INTEGER)
+       AND ${LOCAL_MONTH_EXPR} = CAST(strftime('%Y%m', CAST(? AS INTEGER) * 86400 + 43200, 'unixepoch', 'localtime') AS INTEGER)
      LIMIT 1`,
   );
   const insertDaily = local.query(
