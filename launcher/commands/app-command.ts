@@ -1,12 +1,14 @@
 import {
   launchAppBackgroundDetached,
   launchTexthookerOnly,
+  runAppCommandInteractive,
   runAppCommandWithInherit,
 } from '../mpv.js';
 import type { LauncherCommandContext } from './context.js';
 
 type AppCommandDeps = {
   runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
+  runAppCommandInteractive: (appPath: string, appArgs: string[]) => void;
   launchAppBackgroundDetached: (
     appPath: string,
     logLevel: LauncherCommandContext['args']['logLevel'],
@@ -15,6 +17,7 @@ type AppCommandDeps = {
 
 const defaultAppCommandDeps: AppCommandDeps = {
   runAppCommandWithInherit,
+  runAppCommandInteractive,
   launchAppBackgroundDetached,
 };
 
@@ -31,7 +34,7 @@ export function runAppPassthroughCommand(
     return true;
   }
   if (args.syncUi) {
-    deps.runAppCommandWithInherit(appPath, ['--sync-window']);
+    deps.runAppCommandInteractive(appPath, ['--sync-window']);
     return true;
   }
   if (!args.appPassthrough) {

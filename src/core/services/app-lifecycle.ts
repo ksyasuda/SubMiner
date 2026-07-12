@@ -183,7 +183,10 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   deps.onWindowAllClosed(() => {
     if (
       deps.shouldQuitOnWindowAllClosed() &&
-      (!deps.isDarwinPlatform() || initialArgs.settings || initialArgs.setup)
+      (!deps.isDarwinPlatform() ||
+        initialArgs.settings ||
+        initialArgs.setup ||
+        initialArgs.syncWindow)
     ) {
       deps.quitApp();
     }
@@ -199,7 +202,13 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
       event.preventDefault();
       return;
     }
-    const cleanup = deps.onWillQuitCleanup();
+    let cleanup: void | Promise<void>;
+    try {
+      cleanup = deps.onWillQuitCleanup();
+    } catch (error) {
+      logger.error('App quit cleanup failed:', error);
+      return;
+    }
     if (!(cleanup instanceof Promise)) return;
     quitCleanupPending = true;
     event.preventDefault();

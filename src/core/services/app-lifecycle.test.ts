@@ -172,6 +172,26 @@ test('startAppLifecycle defers quit until async cleanup settles', async () => {
   assert.deepEqual(calls, ['quitApp']);
 });
 
+test('startAppLifecycle contains synchronous quit cleanup failures', () => {
+  let willQuit: ((event: { preventDefault(): void }) => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    onWillQuit: (handler) => {
+      willQuit = handler;
+    },
+    onWillQuitCleanup: () => {
+      throw new Error('cleanup exploded');
+    },
+  });
+
+  startAppLifecycle(makeArgs({ start: true }), deps);
+  assert.ok(willQuit);
+  assert.doesNotThrow(() =>
+    (willQuit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} }),
+  );
+  assert.deepEqual(calls, []);
+});
+
 test('startAppLifecycle app ping exits non-zero immediately when no running instance owns the lock', () => {
   const { deps, calls, getLockCalls } = createDeps({
     shouldStartApp: () => false,
@@ -379,6 +399,25 @@ test('startAppLifecycle quits macOS setup-only launch when all windows close', (
   });
 
   startAppLifecycle(makeArgs({ setup: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
+});
+
+test('startAppLifecycle quits macOS sync-window launch when its window closes', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ syncWindow: true }), deps);
 
   const handler = windowAllClosedHandler as (() => void) | null;
   assert.ok(handler);
