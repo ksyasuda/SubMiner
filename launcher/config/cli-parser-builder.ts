@@ -79,7 +79,11 @@ function applyRootOptions(program: Command): void {
     .option('-R, --rofi', 'Use rofi picker')
     .option('-H, --history', 'Browse local watch history')
     .option('-S, --start-overlay', 'Auto-start overlay')
-    .option('-T, --no-texthooker', 'Disable texthooker-ui server');
+    .option('-T, --no-texthooker', 'Disable texthooker-ui server')
+    // The SubMiner app answers sync commands when invoked with --sync-cli.
+    // Remote-command resolution may address the launcher the same way, so
+    // accept the flag as a no-op to keep both invocation shapes equivalent.
+    .option('--sync-cli', 'Compatibility no-op (sync commands work with or without it)');
 }
 
 function buildSubcommandHelpText(program: Command): string {
