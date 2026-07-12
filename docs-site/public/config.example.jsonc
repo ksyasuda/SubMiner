@@ -615,13 +615,13 @@
 
   // ==========================================
   // Animetosho
-  // Animetosho English subtitle search configuration. No API key required.
+  // Animetosho subtitle search configuration (English and Japanese). No API key required.
   // Hot-reload: Animetosho changes apply to the next Animetosho request.
   // ==========================================
   "animetosho": {
     "apiBaseUrl": "https://feed.animetosho.org", // Base URL of the Animetosho JSON feed API. No API key required.
     "maxSearchResults": 10 // Maximum Animetosho search results returned.
-  }, // Animetosho English subtitle search configuration. No API key required.
+  }, // Animetosho subtitle search configuration (English and Japanese). No API key required.
 
   // ==========================================
   // YouTube Playback Settings
