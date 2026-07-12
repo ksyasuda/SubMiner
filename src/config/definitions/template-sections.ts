@@ -149,7 +149,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   },
   {
     title: 'Animetosho',
-    description: ['Animetosho English subtitle search configuration. No API key required.'],
+    description: [
+      'Animetosho subtitle search configuration (English and Japanese). No API key required.',
+    ],
     notes: ['Hot-reload: Animetosho changes apply to the next Animetosho request.'],
     key: 'animetosho',
   },

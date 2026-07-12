@@ -233,6 +233,8 @@ export function createAnimetoshoModal(
 
     const response: AnimetoshoApiResponse<AnimetoshoSubtitleFile[]> =
       await window.electronAPI.animetoshoListFiles({ entryId });
+    // The user may have picked another release while this was in flight.
+    if (ctx.state.currentAnimetoshoEntryId !== entryId) return;
     if (!response.ok) {
       setAnimetoshoStatus(response.error.error, true);
       return;
@@ -479,6 +481,7 @@ export function createAnimetoshoModal(
     closeAnimetoshoModal,
     handleAnimetoshoKeydown,
     openAnimetoshoModal,
+    selectAnimetoshoEntry: selectEntry,
     wireDomEvents,
   };
 }

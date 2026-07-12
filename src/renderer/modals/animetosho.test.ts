@@ -95,9 +95,14 @@ interface ModalHarness {
 
 function createModalHarness(
   files: AnimetoshoSubtitleFile[],
-  options: { secondaryLanguages?: string[] } = {},
+  options: {
+    secondaryLanguages?: string[];
+    listFiles?: (entryId: number) => Promise<unknown>;
+  } = {},
 ): ModalHarness {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+  const hadDocument = Object.prototype.hasOwnProperty.call(globalThis, 'document');
   const previousWindow = globals.window;
   const previousDocument = globals.document;
 
@@ -110,6 +115,8 @@ function createModalHarness(
       return { ok: true, path: '/tmp/subtitles/episode01.en.ass' };
     },
     animetoshoGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
+    animetoshoListFiles: async ({ entryId }: { entryId: number }) =>
+      options.listFiles ? options.listFiles(entryId) : { ok: true, data: [] },
     getJimakuMediaInfo: async () => ({
       title: '',
       season: null,
@@ -186,11 +193,20 @@ function createModalHarness(
     overlayClassList,
     animetoshoModalClassList,
     restoreGlobals: () => {
-      Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
-      Object.defineProperty(globalThis, 'document', {
-        configurable: true,
-        value: previousDocument,
-      });
+      const target = globalThis as unknown as Record<string, unknown>;
+      if (hadWindow) {
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+      } else {
+        delete target.window;
+      }
+      if (hadDocument) {
+        Object.defineProperty(globalThis, 'document', {
+          configurable: true,
+          value: previousDocument,
+        });
+      } else {
+        delete target.document;
+      }
     },
   };
 }
@@ -299,6 +315,61 @@ test('secondary tab follows configured secondarySub languages', async () => {
         lang: 'ger',
       },
     ]);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('a slow release response does not overwrite the newly selected release', async () => {
+  const STALE_TRACK: AnimetoshoSubtitleFile = {
+    ...ENGLISH_TRACK,
+    attachmentId: 999,
+    filename: 'stale.eng.ass',
+  };
+  const SECOND_ENGLISH_TRACK: AnimetoshoSubtitleFile = {
+    ...ENGLISH_TRACK,
+    attachmentId: 1955357,
+    filename: 'episode01.eng.sdh.ass',
+  };
+  const resolvers: Array<(value: unknown) => void> = [];
+
+  const harness = createModalHarness([], {
+    listFiles: (entryId) =>
+      new Promise((resolve) => {
+        if (entryId === 1) {
+          // Entry 1 answers late, after the user has moved on to entry 2.
+          resolvers.push(() => resolve({ ok: true, data: [STALE_TRACK] }));
+        } else {
+          // Two tracks, so the modal does not auto-download a lone match.
+          resolve({ ok: true, data: [ENGLISH_TRACK, SECOND_ENGLISH_TRACK] });
+        }
+      }),
+  });
+
+  try {
+    harness.state.animetoshoEntries = [
+      { id: 1, title: 'slow release', timestamp: null, totalSize: null, numFiles: 1 },
+      { id: 2, title: 'fast release', timestamp: null, totalSize: null, numFiles: 1 },
+    ];
+
+    harness.modal.selectAnimetoshoEntry(0);
+    harness.modal.selectAnimetoshoEntry(1);
+    await flushAsyncWork();
+
+    // Entry 2's tracks are on screen; now entry 1 finally answers.
+    assert.deepEqual(
+      harness.state.animetoshoFiles.map((file) => file.attachmentId),
+      [ENGLISH_TRACK.attachmentId, SECOND_ENGLISH_TRACK.attachmentId],
+    );
+
+    resolvers.forEach((resolve) => resolve(undefined));
+    await flushAsyncWork();
+
+    assert.equal(harness.state.currentAnimetoshoEntryId, 2);
+    assert.deepEqual(
+      harness.state.animetoshoFiles.map((file) => file.attachmentId),
+      [ENGLISH_TRACK.attachmentId, SECOND_ENGLISH_TRACK.attachmentId],
+    );
   } finally {
     harness.restoreGlobals();
   }
