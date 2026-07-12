@@ -20,6 +20,7 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import { resolveAppImageMountKeepaliveInvocation } from './main/appimage-mount-keepalive';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import { isAppControlServerAvailable, sendAppControlCommand } from './shared/app-control-client';
 import {
@@ -289,11 +290,18 @@ async function runEntryProcess(): Promise<void> {
 
   if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
     const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
-    const child = spawn(process.execPath, childArgs, {
-      detached: true,
-      stdio: 'ignore',
-      env: sanitizeBackgroundEnv(process.env),
-    });
+    const keepalive = resolveAppImageMountKeepaliveInvocation(process.env);
+    const child = keepalive
+      ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
+          detached: true,
+          stdio: 'ignore',
+          env: sanitizeBackgroundEnv(process.env),
+        })
+      : spawn(process.execPath, childArgs, {
+          detached: true,
+          stdio: 'ignore',
+          env: sanitizeBackgroundEnv(process.env),
+        });
     child.unref();
     process.exit(0);
     return;
