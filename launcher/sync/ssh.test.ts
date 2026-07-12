@@ -49,3 +49,41 @@ test('resolveRemoteSubminerCommand verifies the launcher under the remote runtim
     },
   ]);
 });
+
+test('resolveRemoteSubminerCommand falls back to the app binary in --sync-cli mode', () => {
+  const probed: string[] = [];
+  const command = resolveRemoteSubminerCommand('media-box', null, (_host, remoteCommand) => {
+    probed.push(remoteCommand);
+    return { status: remoteCommand.includes('SubMiner --sync-cli') ? 0 : 1, stdout: '', stderr: '' };
+  });
+
+  assert.match(command, / SubMiner --sync-cli$/);
+  // Launcher candidates (PATH + ~/.local/bin) are tried before app binaries.
+  assert.equal(probed.length, 3);
+  assert.match(probed[0]!, / subminer --help /);
+  assert.match(probed[1]!, / ~\/\.local\/bin\/subminer --help /);
+});
+
+test('resolveRemoteSubminerCommand probes a user override as app first, then launcher', () => {
+  const probed: string[] = [];
+  const asApp = resolveRemoteSubminerCommand('media-box', '/opt/SubMiner.AppImage', (_host, cmd) => {
+    probed.push(cmd);
+    return { status: cmd.includes('--sync-cli') ? 0 : 1, stdout: '', stderr: '' };
+  });
+  assert.match(asApp, /'\/opt\/SubMiner\.AppImage' --sync-cli$/);
+
+  const asLauncher = resolveRemoteSubminerCommand('media-box', '/opt/subminer', (_host, cmd) => {
+    return { status: cmd.includes('--sync-cli') ? 1 : 0, stdout: '', stderr: '' };
+  });
+  assert.match(asLauncher, /'\/opt\/subminer'$/);
+
+  assert.throws(
+    () =>
+      resolveRemoteSubminerCommand('media-box', '/missing', () => ({
+        status: 127,
+        stdout: '',
+        stderr: '',
+      })),
+    /Remote command not found on media-box: \/missing/,
+  );
+});

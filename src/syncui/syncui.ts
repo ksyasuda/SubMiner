@@ -25,7 +25,6 @@ function el<T extends HTMLElement>(id: string): T {
 
 const runPill = el<HTMLDivElement>('runPill');
 const dbPathEl = el<HTMLDivElement>('dbPath');
-const launcherWarning = el<HTMLDivElement>('launcherWarning');
 const hostList = el<HTMLDivElement>('hostList');
 const hostListEmpty = el<HTMLDivElement>('hostListEmpty');
 const autoIntervalInput = el<HTMLInputElement>('autoIntervalInput');
@@ -384,12 +383,6 @@ async function refresh(): Promise<void> {
   dbPathEl.title = snapshot.dbPath;
   if (document.activeElement !== autoIntervalInput) {
     autoIntervalInput.value = String(snapshot.hosts.autoSyncIntervalMinutes);
-  }
-  launcherWarning.classList.toggle('hidden', snapshot.launcherPath !== null);
-  if (snapshot.launcherPath === null) {
-    launcherWarning.textContent =
-      'The subminer command-line launcher was not found. Install it from SubMiner setup ' +
-      '(or install bun). Syncing runs through the launcher.';
   }
   setRunPill();
   renderHosts();

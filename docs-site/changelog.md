@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+**Added**
+- Stats Sync Without the Launcher: The stats sync engine now runs inside the app. The sync window no longer needs bun or the `subminer` command-line launcher installed, and a remote machine only needs SubMiner itself — the app answers `SubMiner --sync-cli sync ...` headless (works over SSH with no display), and remote lookup finds the app binary or the launcher automatically.
+
 ## v0.18.0 (2026-07-10)
 
 **Added**

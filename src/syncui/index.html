@@ -24,8 +24,6 @@
       </header>
 
       <div class="sync-scroll">
-        <div id="launcherWarning" class="banner banner-warn hidden"></div>
-
         <section class="panel" aria-labelledby="devicesTitle">
           <div class="panel-head">
             <h2 id="devicesTitle">Devices</h2>
@@ -71,14 +69,13 @@
                 <code>ssh-copy-id user@hostname</code> (no password prompts).
               </li>
               <li>
-                The remote machine needs SubMiner's command-line launcher installed (<code
-                  >subminer</code
-                >
-                on its PATH, or in <code>~/.local/bin</code>).
+                The remote machine just needs SubMiner installed. It is found automatically as
+                <code>SubMiner</code> on the remote PATH, a macOS <code>/Applications</code>
+                install, or the optional <code>subminer</code> command-line launcher.
               </li>
               <li>
-                Use <em>Test connection</em> to verify both. It checks SSH and the remote launcher
-                in one go.
+                Use <em>Test connection</em> to verify both. It checks SSH and finds SubMiner on
+                the remote in one go.
               </li>
             </ol>
           </details>

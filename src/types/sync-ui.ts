@@ -26,7 +26,6 @@ export interface SyncUiSnapshot {
   snapshotsDir: string;
   snapshots: SyncUiSnapshotFile[];
   run: SyncUiRunState;
-  launcherPath: string | null;
 }
 
 export interface SyncUiRunRequest {

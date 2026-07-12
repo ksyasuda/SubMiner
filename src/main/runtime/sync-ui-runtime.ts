@@ -123,14 +123,12 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
   }
 
   function getSnapshot(): SyncUiSnapshot {
-    const resolution = deps.resolveLauncherCommand();
     return {
       dbPath: deps.getDbPath(),
       hosts: readState(),
       snapshotsDir: deps.snapshotsDir,
       snapshots: listSnapshots(),
       run: runState(),
-      launcherPath: resolution.command ? resolution.command.join(' ') : null,
     };
   }
 

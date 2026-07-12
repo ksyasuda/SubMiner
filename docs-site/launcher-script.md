@@ -81,15 +81,15 @@ Series whose directories are not currently accessible (e.g. an unmounted network
 
 ## Sync Between Machines
 
-`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version.
+`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version. The command-line launcher is optional on both sides: the app itself answers sync commands (`SubMiner --sync-cli sync ...`), the sync window runs the engine in-app, and the remote side is found automatically whether it has the launcher or just the app.
 
 ```bash
 subminer sync macbook                  # two-way sync with the host "macbook"
 subminer sync macbook --push           # merge local data into macbook only
 subminer sync macbook --pull           # merge macbook data into local only
 subminer sync user@192.168.1.20       # explicit user@host
-subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote launcher path
-subminer sync macbook --check          # test SSH + remote launcher without syncing
+subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote SubMiner/launcher path
+subminer sync macbook --check          # test SSH + remote SubMiner without syncing
 subminer sync --ui                     # open the sync window (also in the tray menu)
 ```
 
@@ -97,7 +97,9 @@ How it works: each side takes a consistent snapshot of its database (`VACUUM INT
 
 For a one-way transfer, `--push` snapshots the local database and merges it into the host without changing the local database. `--pull` snapshots the host and merges it into the local database without changing the host. These modes add missing data; they do not delete destination-only data or make the destination an exact mirror.
 
-Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on both machines before syncing; the command refuses to run while a SubMiner process may be writing the database (`--force` overrides). The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block sync. Both machines must be on the same SubMiner version — the sync aborts on a stats schema mismatch. Remote sync checks standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`.
+Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on both machines before syncing; the command refuses to run while a SubMiner process may be writing the database (`--force` overrides). The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block sync. Both machines must be on the same SubMiner version — the sync aborts on a stats schema mismatch.
+
+On the remote, sync looks for the `subminer` launcher first (PATH and `~/.local/bin`), then the app binary in `--sync-cli` mode (`SubMiner` on PATH, then the standard macOS `/Applications` and `~/Applications` installs), checking standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`. An AppImage in a custom location can be addressed with `--remote-cmd /path/to/SubMiner.AppImage` (or symlink it as `SubMiner` somewhere on the remote PATH).
 
 Two lower-level modes are used internally over SSH and also work standalone for manual transfers (e.g. via a USB drive):
 
@@ -108,14 +110,14 @@ subminer sync --merge /tmp/stats.sqlite      # merge a snapshot file into the lo
 
 Unfinished sessions (a crash mid-playback) are skipped until the app finalizes them; they sync on the next run. Word/kanji "known" state from Anki is not part of the database and does not sync — each machine derives it from its own Anki collection.
 
-`subminer sync <host> --check` verifies a host without touching any data: it probes the SSH connection, locates the remote `subminer` launcher, and reports its version. `--json` switches any sync mode to machine-readable NDJSON progress output (this is what the sync window consumes).
+`subminer sync <host> --check` verifies a host without touching any data: it probes the SSH connection, locates SubMiner on the remote (launcher or app binary), and reports its version. `--json` switches any sync mode to machine-readable NDJSON progress output (this is what the sync window consumes).
 
 ### Sync window
 
 `subminer sync --ui` (or **Sync Stats & History** in the tray menu) opens a dedicated window for the same engine:
 
 - **Devices** — saved hosts with a per-host direction (two-way / push / pull), an auto-sync toggle, last-sync status, and one-click **Sync now** / **Test** / **Remove**. Hosts synced from the command line appear here automatically.
-- **Add a device** — test SSH + remote launcher availability before saving, with a setup checklist for first-time SSH configuration.
+- **Add a device** — test SSH + remote SubMiner availability before saving, with a setup checklist for first-time SSH configuration.
 - **Activity** — live stage-by-stage progress, remote output, and a merge summary (sessions, words, kanji, rollups) when a run finishes. Runs can be cancelled, and guard failures offer a one-click `--force` retry.
 - **Snapshots** — create manual database snapshots (stored in `/tmp/subminer-db-snapshots/` by default), merge a snapshot file into the local database, or reveal/delete existing snapshots.
 

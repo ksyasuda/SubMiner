@@ -181,6 +181,13 @@ test('entry-only and internal commands do not forward through app control', () =
   assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe'], {}), false);
   assert.equal(shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--help'], {}), false);
   assert.equal(
+    shouldForwardStartupArgvViaAppControl(
+      ['SubMiner.exe', '--sync-cli', 'sync', 'media-box', '--json'],
+      {},
+    ),
+    false,
+  );
+  assert.equal(
     shouldForwardStartupArgvViaAppControl(['SubMiner.exe', '--generate-config'], {}),
     false,
   );
