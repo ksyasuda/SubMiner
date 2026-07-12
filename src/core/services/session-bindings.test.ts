@@ -27,6 +27,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
     toggleNotificationHistory: null,
+    appendClipboardVideoToQueue: null,
     ...overrides,
   };
 }
@@ -515,6 +516,8 @@ test('compileSessionBindings wires every configured shortcut key into the shared
     'openControllerSelect',
     'openControllerDebug',
     'toggleSubtitleSidebar',
+    'toggleNotificationHistory',
+    'appendClipboardVideoToQueue',
   ];
   const shortcuts = createShortcuts();
   shortcutKeys.forEach((key, index) => {
@@ -579,6 +582,42 @@ test('buildPluginSessionBindingsArtifact emits CLI args for plugin-bound session
       runtimeOptionId: 'anki.autoUpdateNewCards',
       direction: -1,
     },
+  });
+});
+
+test('appendClipboardVideoToQueue shortcut compiles to a session action with plugin CLI args', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts({
+      appendClipboardVideoToQueue: 'CommandOrControl+A',
+    }),
+    keybindings: [],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  const binding = result.bindings.find(
+    (candidate) =>
+      candidate.actionType === 'session-action' &&
+      candidate.actionId === 'appendClipboardVideoToQueue',
+  );
+  assert.ok(binding);
+  assert.deepEqual(binding.key, { code: 'KeyA', modifiers: ['ctrl'] });
+
+  const artifact = buildPluginSessionBindingsArtifact({
+    bindings: result.bindings,
+    warnings: result.warnings,
+    numericSelectionTimeoutMs: 2500,
+    now: new Date('2026-05-26T00:00:00.000Z'),
+  });
+  const pluginBinding = artifact.bindings.find(
+    (candidate) =>
+      candidate.actionType === 'session-action' &&
+      candidate.actionId === 'appendClipboardVideoToQueue',
+  );
+  assert.ok(pluginBinding && 'cliArgs' in pluginBinding);
+  assert.equal(pluginBinding.cliArgs?.[0], '--session-action');
+  assert.deepEqual(JSON.parse(pluginBinding.cliArgs?.[1] ?? ''), {
+    actionId: 'appendClipboardVideoToQueue',
   });
 });
 

@@ -33,6 +33,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'markAudioCard',
   'toggleSubtitleSidebar',
   'toggleNotificationHistory',
+  'appendClipboardVideoToQueue',
   'openRuntimeOptions',
   'openSessionHelp',
   'openCharacterDictionaryManager',

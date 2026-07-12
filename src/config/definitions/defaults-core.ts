@@ -103,6 +103,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openControllerDebug: 'Alt+Shift+C',
     toggleSubtitleSidebar: 'Backslash',
     toggleNotificationHistory: 'CommandOrControl+N',
+    appendClipboardVideoToQueue: 'CommandOrControl+A',
   },
   secondarySub: {
     secondarySubLanguages: [],

@@ -646,5 +646,11 @@ export function buildCoreConfigOptionRegistry(
       defaultValue: defaultConfig.shortcuts.toggleNotificationHistory,
       description: 'Accelerator that toggles the overlay notification history panel.',
     },
+    {
+      path: 'shortcuts.appendClipboardVideoToQueue',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.appendClipboardVideoToQueue,
+      description: 'Accelerator that appends a video path from the clipboard to the mpv playlist.',
+    },
   ];
 }

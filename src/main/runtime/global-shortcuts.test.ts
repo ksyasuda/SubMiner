@@ -28,6 +28,7 @@ function createShortcuts(): ConfiguredShortcuts {
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
     toggleNotificationHistory: null,
+    appendClipboardVideoToQueue: null,
   };
 }
 

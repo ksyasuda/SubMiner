@@ -28,7 +28,6 @@ export function createKeyboardHandlers(
     }) => void;
     openControllerSelectModal?: () => void;
     openControllerDebugModal?: () => void;
-    appendClipboardVideoToQueue: () => void;
     getPlaybackPaused: () => Promise<boolean | null>;
     toggleSubtitleSidebarModal?: () => void;
   },
@@ -1218,12 +1217,6 @@ export function createKeyboardHandlers(
         ctx.state.chordTimeout = setTimeout(() => {
           resetChord();
         }, CHORD_TIMEOUT_MS);
-        return;
-      }
-
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyA' && !e.repeat) {
-        e.preventDefault();
-        options.appendClipboardVideoToQueue();
         return;
       }
 

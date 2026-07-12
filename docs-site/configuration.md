@@ -655,6 +655,7 @@ See `config.example.jsonc` for detailed configuration options.
     "openJimaku": "Ctrl+Shift+J",
     "toggleSubtitleSidebar": "Backslash",
     "toggleNotificationHistory": "CommandOrControl+N",
+    "appendClipboardVideoToQueue": "CommandOrControl+A",
     "multiCopyTimeoutMs": 3000
   }
 }
@@ -681,6 +682,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `openJimaku`                     | string \| `null` | Opens the Jimaku search modal (default: `"Ctrl+Shift+J"`)                                                                                                                          |
 | `toggleSubtitleSidebar`          | string \| `null` | Dispatches the subtitle sidebar toggle action (default: `"Backslash"`). `subtitleSidebar.toggleKey` remains the primary bare-key setting.                                          |
 | `toggleNotificationHistory`      | string \| `null` | Toggles the overlay notification history panel (default: `"CommandOrControl+N"`). The panel slides in from the same edge as notifications (right when notifications are centered). |
+| `appendClipboardVideoToQueue`    | string \| `null` | Appends a video file path from the clipboard to the mpv playlist (default: `"CommandOrControl+A"`). Works whether the overlay or mpv has focus.                                    |
 
 **See `config.example.jsonc`** for the complete list of shortcut configuration options.
 
@@ -820,7 +822,7 @@ When automatic card updates are disabled, new cards are detected but not automat
 | `Ctrl+Shift+A` | Mark the last added Anki card as an audio card (sets IsAudioCard, SentenceAudio, Sentence, Picture)           |
 | `Ctrl+D`       | Open loaded character dictionary manager                                                                      |
 | `Ctrl+Shift+O` | Open runtime options palette (session-only live toggles)                                                      |
-| `Ctrl/Cmd+A`   | Append clipboard video path to MPV playlist (fixed, not currently configurable)                               |
+| `Ctrl/Cmd+A`   | Append clipboard video path to MPV playlist (configurable via `shortcuts.appendClipboardVideoToQueue`)        |
 
 **Multi-line copy workflow:**
 

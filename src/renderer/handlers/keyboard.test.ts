@@ -95,6 +95,7 @@ function createEmptyShortcuts(): ConfiguredShortcuts {
     openControllerDebug: null,
     toggleSubtitleSidebar: null,
     toggleNotificationHistory: null,
+    appendClipboardVideoToQueue: null,
   };
 }
 
@@ -508,7 +509,6 @@ function createKeyboardHandlerHarness() {
     openControllerDebugModal: () => {
       openControllerDebugCount += 1;
     },
-    appendClipboardVideoToQueue: () => {},
     getPlaybackPaused: () => testGlobals.getPlaybackPaused(),
   });
 

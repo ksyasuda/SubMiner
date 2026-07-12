@@ -14,6 +14,7 @@ export type SessionActionId =
   | 'toggleSecondarySub'
   | 'toggleSubtitleSidebar'
   | 'toggleNotificationHistory'
+  | 'appendClipboardVideoToQueue'
   | 'markAudioCard'
   | 'openRuntimeOptions'
   | 'openSessionHelp'
