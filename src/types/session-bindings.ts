@@ -22,6 +22,7 @@ export type SessionActionId =
   | 'openControllerSelect'
   | 'openControllerDebug'
   | 'openJimaku'
+  | 'openAnimetosho'
   | 'openYoutubePicker'
   | 'openPlaylistBrowser'
   | 'replayCurrentSubtitle'

@@ -55,6 +55,7 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'openCharacterDictionaryManager', actionId: 'openCharacterDictionaryManager' },
   { key: 'openRuntimeOptions', actionId: 'openRuntimeOptions' },
   { key: 'openJimaku', actionId: 'openJimaku' },
+  { key: 'openAnimetosho', actionId: 'openAnimetosho' },
   { key: 'openSessionHelp', actionId: 'openSessionHelp' },
   { key: 'openControllerSelect', actionId: 'openControllerSelect' },
   { key: 'openControllerDebug', actionId: 'openControllerDebug' },
@@ -303,6 +304,10 @@ function resolveCommandBinding(
   if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) {
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openJimaku' };
+  }
+  if (first === SPECIAL_COMMANDS.ANIMETOSHO_OPEN) {
+    if (command.length !== 1) return null;
+    return { actionType: 'session-action', actionId: 'openAnimetosho' };
   }
   if (first === SPECIAL_COMMANDS.YOUTUBE_PICKER_OPEN) {
     if (command.length !== 1) return null;

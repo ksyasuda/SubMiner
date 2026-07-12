@@ -22,6 +22,19 @@ export type RendererDom = {
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
 
+  animetoshoModal: HTMLDivElement;
+  animetoshoTitleInput: HTMLInputElement;
+  animetoshoEpisodeInput: HTMLInputElement;
+  animetoshoSearchButton: HTMLButtonElement;
+  animetoshoCloseButton: HTMLButtonElement;
+  animetoshoTabEnglishButton: HTMLButtonElement;
+  animetoshoTabJapaneseButton: HTMLButtonElement;
+  animetoshoStatus: HTMLDivElement;
+  animetoshoEntriesSection: HTMLDivElement;
+  animetoshoEntriesList: HTMLUListElement;
+  animetoshoFilesSection: HTMLDivElement;
+  animetoshoFilesList: HTMLUListElement;
+
   youtubePickerModal: HTMLDivElement;
   youtubePickerTitle: HTMLDivElement;
   youtubePickerPrimarySelect: HTMLSelectElement;
@@ -153,6 +166,19 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesSection: getRequiredElement<HTMLDivElement>('jimakuFilesSection'),
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
+
+    animetoshoModal: getRequiredElement<HTMLDivElement>('animetoshoModal'),
+    animetoshoTitleInput: getRequiredElement<HTMLInputElement>('animetoshoTitle'),
+    animetoshoEpisodeInput: getRequiredElement<HTMLInputElement>('animetoshoEpisode'),
+    animetoshoSearchButton: getRequiredElement<HTMLButtonElement>('animetoshoSearch'),
+    animetoshoCloseButton: getRequiredElement<HTMLButtonElement>('animetoshoClose'),
+    animetoshoTabEnglishButton: getRequiredElement<HTMLButtonElement>('animetoshoTabEnglish'),
+    animetoshoTabJapaneseButton: getRequiredElement<HTMLButtonElement>('animetoshoTabJapanese'),
+    animetoshoStatus: getRequiredElement<HTMLDivElement>('animetoshoStatus'),
+    animetoshoEntriesSection: getRequiredElement<HTMLDivElement>('animetoshoEntriesSection'),
+    animetoshoEntriesList: getRequiredElement<HTMLUListElement>('animetoshoEntries'),
+    animetoshoFilesSection: getRequiredElement<HTMLDivElement>('animetoshoFilesSection'),
+    animetoshoFilesList: getRequiredElement<HTMLUListElement>('animetoshoFiles'),
 
     youtubePickerModal: getRequiredElement<HTMLDivElement>('youtubePickerModal'),
     youtubePickerTitle: getRequiredElement<HTMLDivElement>('youtubePickerTitle'),

@@ -32,6 +32,7 @@ import { createControllerStatusIndicator } from './controller-status-indicator.j
 import { createControllerDebugModal } from './modals/controller-debug.js';
 import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
+import { createAnimetoshoModal } from './modals/animetosho.js';
 import { createKikuModal } from './modals/kiku.js';
 import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
@@ -93,6 +94,7 @@ function isAnyModalOpen(): boolean {
     ctx.state.controllerSelectModalOpen ||
     ctx.state.controllerDebugModalOpen ||
     ctx.state.jimakuModalOpen ||
+    ctx.state.animetoshoModalOpen ||
     ctx.state.kikuModalOpen ||
     ctx.state.runtimeOptionsModalOpen ||
     ctx.state.characterDictionaryModalOpen ||
@@ -172,6 +174,10 @@ const jimakuModal = createJimakuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const animetoshoModal = createAnimetoshoModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const mouseHandlers = createMouseHandlers(ctx, {
   modalStateReader: { isAnySettingsModalOpen, isAnyModalOpen },
   applyYPercent: positioning.applyYPercent,
@@ -199,6 +205,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
+  handleAnimetoshoKeydown: animetoshoModal.handleAnimetoshoKeydown,
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
   handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
@@ -271,6 +278,9 @@ function dismissActiveUiAfterError(): void {
   }
   if (ctx.state.jimakuModalOpen) {
     jimakuModal.closeJimakuModal();
+  }
+  if (ctx.state.animetoshoModalOpen) {
+    animetoshoModal.closeAnimetoshoModal();
   }
   if (ctx.state.youtubePickerModalOpen) {
     youtubePickerModal.closeYoutubePickerModal();
@@ -527,6 +537,12 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('jimaku');
     });
   });
+  window.electronAPI.onOpenAnimetosho(() => {
+    runGuarded('animetosho:open', () => {
+      animetoshoModal.openAnimetoshoModal();
+      window.electronAPI.notifyOverlayModalOpened('animetosho');
+    });
+  });
   window.electronAPI.onOpenYoutubeTrackPicker((payload) => {
     runGuarded('youtube:picker-open', () => {
       youtubePickerModal.openYoutubePickerModal(payload);
@@ -761,6 +777,7 @@ async function init(): Promise<void> {
   });
 
   jimakuModal.wireDomEvents();
+  animetoshoModal.wireDomEvents();
   youtubePickerModal.wireDomEvents();
   playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();

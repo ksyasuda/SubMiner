@@ -15,6 +15,7 @@ export interface ConfiguredShortcuts {
   openCharacterDictionaryManager: string | null | undefined;
   openRuntimeOptions: string | null | undefined;
   openJimaku: string | null | undefined;
+  openAnimetosho: string | null | undefined;
   openSessionHelp: string | null | undefined;
   openControllerSelect: string | null | undefined;
   openControllerDebug: string | null | undefined;
@@ -65,6 +66,7 @@ export function resolveConfiguredShortcuts(
     ),
     openRuntimeOptions: normalizeShortcut(shortcutValue('openRuntimeOptions')),
     openJimaku: normalizeShortcut(shortcutValue('openJimaku')),
+    openAnimetosho: normalizeShortcut(shortcutValue('openAnimetosho')),
     openSessionHelp: normalizeShortcut(shortcutValue('openSessionHelp')),
     openControllerSelect: normalizeShortcut(shortcutValue('openControllerSelect')),
     openControllerDebug: normalizeShortcut(shortcutValue('openControllerDebug')),

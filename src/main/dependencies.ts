@@ -228,6 +228,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   triggerSubsyncFromConfig: HandleMpvCommandFromIpcOptions['triggerSubsyncFromConfig'];
   openRuntimeOptionsPalette: HandleMpvCommandFromIpcOptions['openRuntimeOptionsPalette'];
   openJimaku: HandleMpvCommandFromIpcOptions['openJimaku'];
+  openAnimetosho: HandleMpvCommandFromIpcOptions['openAnimetosho'];
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
@@ -434,6 +435,7 @@ export function createMpvCommandRuntimeServiceDeps(
     triggerSubsyncFromConfig: params.triggerSubsyncFromConfig,
     openRuntimeOptionsPalette: params.openRuntimeOptionsPalette,
     openJimaku: params.openJimaku,
+    openAnimetosho: params.openAnimetosho,
     openYoutubeTrackPicker: params.openYoutubeTrackPicker,
     openPlaylistBrowser: params.openPlaylistBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,

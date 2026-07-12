@@ -18,6 +18,7 @@ test('overlay shortcuts runtime main deps builder maps lifecycle and action call
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     openCharacterDictionaryManager: () => calls.push('character-dictionary-manager'),
     openJimaku: () => calls.push('jimaku'),
+    openAnimetosho: () => calls.push('animetosho'),
     markAudioCard: async () => {
       calls.push('mark-audio');
     },

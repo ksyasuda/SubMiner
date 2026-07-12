@@ -11,6 +11,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
       triggerSubsyncFromConfig: async () => {},
       openRuntimeOptionsPalette: () => {},
       openJimaku: () => {},
+      openAnimetosho: () => {},
       openYoutubeTrackPicker: () => {},
       openPlaylistBrowser: () => {},
       cycleRuntimeOption: () => ({ ok: true }),

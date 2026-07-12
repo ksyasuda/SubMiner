@@ -594,6 +594,7 @@ function subsectionForPath(path: string): string | undefined {
       leaf === 'openCharacterDictionaryManager' ||
       leaf === 'openRuntimeOptions' ||
       leaf === 'openJimaku' ||
+      leaf === 'openAnimetosho' ||
       leaf === 'openSessionHelp' ||
       leaf === 'openControllerSelect' ||
       leaf === 'openControllerDebug'

@@ -10,6 +10,7 @@ import type {
   ImmersionTrackingConfig,
   ImmersionTrackingRetentionMode,
   ImmersionTrackingRetentionPreset,
+  AnimetoshoConfig,
   JellyfinConfig,
   JimakuConfig,
   JimakuLanguagePreference,
@@ -122,6 +123,7 @@ export interface ShortcutsConfig {
   openCharacterDictionaryManager?: string | null;
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
+  openAnimetosho?: string | null;
   openSessionHelp?: string | null;
   openControllerSelect?: string | null;
   openControllerDebug?: string | null;
@@ -147,6 +149,7 @@ export interface Config {
   subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
+  animetosho?: AnimetoshoConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;
   jellyfin?: JellyfinConfig;
@@ -302,6 +305,10 @@ export interface ResolvedConfig {
     apiBaseUrl: string;
     languagePreference: JimakuLanguagePreference;
     maxEntryResults: number;
+  };
+  animetosho: AnimetoshoConfig & {
+    apiBaseUrl: string;
+    maxSearchResults: number;
   };
   anilist: {
     enabled: boolean;

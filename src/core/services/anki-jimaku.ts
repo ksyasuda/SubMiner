@@ -1,7 +1,10 @@
+import * as fs from 'fs';
 import { AnkiIntegration } from '../../anki-integration';
 import { mergeAiConfig } from '../../ai/config';
 import {
   AiConfig,
+  AnimetoshoApiResponse,
+  AnimetoshoConfig,
   AnkiConnectConfig,
   JimakuApiResponse,
   JimakuEntry,
@@ -13,6 +16,14 @@ import {
   OverlayNotificationPayload,
 } from '../../types';
 import { sortJimakuFiles } from '../../jimaku/utils';
+import {
+  ANIMETOSHO_FEED_BASE_URL,
+  animetoshoFetchJson as animetoshoFetchJsonRequest,
+  decompressXzFile,
+  extractAnimetoshoSubtitleFiles,
+  isAnimetoshoDownloadUrl,
+  mapAnimetoshoSearchResults,
+} from '../../animetosho/utils';
 import type { AnkiJimakuIpcDeps } from './anki-jimaku-ipc';
 import { createLogger } from '../../logger';
 
@@ -20,7 +31,8 @@ export type RegisterAnkiJimakuIpcRuntimeHandler = (deps: AnkiJimakuIpcDeps) => v
 
 interface MpvClientLike {
   connected: boolean;
-  send: (payload: { command: string[] }) => void;
+  send: (payload: { command: (string | number)[] }) => void;
+  request?: (command: unknown[]) => Promise<{ data?: unknown }>;
 }
 
 interface RuntimeOptionsManagerLike {
@@ -33,7 +45,12 @@ interface SubtitleTimingTrackerLike {
 
 export interface AnkiJimakuIpcRuntimeOptions {
   patchAnkiConnectEnabled: (enabled: boolean) => void;
-  getResolvedConfig: () => { ankiConnect?: AnkiConnectConfig; ai?: AiConfig };
+  getResolvedConfig: () => {
+    ankiConnect?: AnkiConnectConfig;
+    ai?: AiConfig;
+    animetosho?: AnimetoshoConfig;
+    secondarySub?: { secondarySubLanguages?: string[] };
+  };
   getRuntimeOptionsManager: () => RuntimeOptionsManagerLike | null;
   getSubtitleTimingTracker: () => SubtitleTimingTrackerLike | null;
   getMpvClient: () => MpvClientLike | null;
@@ -60,6 +77,10 @@ export interface AnkiJimakuIpcRuntimeOptions {
     endpoint: string,
     query?: Record<string, string | number | boolean | null | undefined>,
   ) => Promise<JimakuApiResponse<T>>;
+  animetoshoFetchJson?: <T>(
+    endpoint: string,
+    query?: Record<string, string | number | boolean | null | undefined>,
+  ) => Promise<AnimetoshoApiResponse<T>>;
   getJimakuMaxEntryResults: () => number;
   getJimakuLanguagePreference: () => JimakuLanguagePreference;
   resolveJimakuApiKey: () => Promise<string | null>;
@@ -68,6 +89,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
     url: string,
     destPath: string,
     headers: Record<string, string>,
+    downloadOptions?: { isAllowedRedirect?: (url: URL) => boolean },
   ) => Promise<
     | { ok: true; path: string }
     | {
@@ -78,6 +100,34 @@ export interface AnkiJimakuIpcRuntimeOptions {
 }
 
 const logger = createLogger('main:anki-jimaku');
+
+const DEFAULT_ANIMETOSHO_MAX_SEARCH_RESULTS = 10;
+const SECONDARY_TRACK_LOOKUP_ATTEMPTS = 5;
+const SECONDARY_TRACK_LOOKUP_RETRY_MS = 100;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getAnimetoshoMaxSearchResults(options: AnkiJimakuIpcRuntimeOptions): number {
+  const value = options.getResolvedConfig().animetosho?.maxSearchResults;
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  return DEFAULT_ANIMETOSHO_MAX_SEARCH_RESULTS;
+}
+
+function animetoshoFetch<T>(
+  options: AnkiJimakuIpcRuntimeOptions,
+  endpoint: string,
+  query: Record<string, string | number | boolean | null | undefined>,
+): Promise<AnimetoshoApiResponse<T>> {
+  if (options.animetoshoFetchJson) {
+    return options.animetoshoFetchJson<T>(endpoint, query);
+  }
+  const baseUrl = options.getResolvedConfig().animetosho?.apiBaseUrl || ANIMETOSHO_FEED_BASE_URL;
+  return animetoshoFetchJsonRequest<T>(endpoint, query, { baseUrl });
+}
 
 export function registerAnkiJimakuIpcRuntime(
   options: AnkiJimakuIpcRuntimeOptions,
@@ -191,11 +241,84 @@ export function registerAnkiJimakuIpcRuntime(
     getCurrentMediaPath: () => options.getCurrentMediaPath(),
     isRemoteMediaPath: (mediaPath) => options.isRemoteMediaPath(mediaPath),
     downloadToFile: (url, destPath, headers) => options.downloadToFile(url, destPath, headers),
+
+    searchAnimetoshoEntries: async (query) => {
+      logger.info(`[animetosho] search-entries query: "${query.query}"`);
+      const response = await animetoshoFetch<unknown>(options, '/json', {
+        q: query.query,
+        qx: 1,
+      });
+      if (!response.ok) return response;
+      const maxResults = getAnimetoshoMaxSearchResults(options);
+      const entries = mapAnimetoshoSearchResults(response.data, maxResults);
+      logger.info(`[animetosho] search-entries returned ${entries.length} results`);
+      return { ok: true, data: entries };
+    },
+    listAnimetoshoFiles: async (query) => {
+      logger.info(`[animetosho] list-files entryId=${query.entryId}`);
+      const response = await animetoshoFetch<unknown>(options, '/json', {
+        show: 'torrent',
+        id: query.entryId,
+      });
+      if (!response.ok) return response;
+      const files = extractAnimetoshoSubtitleFiles(response.data);
+      logger.info(`[animetosho] list-files returned ${files.length} subtitle attachments`);
+      return { ok: true, data: files };
+    },
+    getAnimetoshoSecondaryLanguages: () =>
+      options.getResolvedConfig().secondarySub?.secondarySubLanguages ?? [],
+    downloadAnimetoshoSubtitle: async (url, destPath) => {
+      const tempXzPath = `${destPath}.xz`;
+      const downloaded = await options.downloadToFile(
+        url,
+        tempXzPath,
+        { 'User-Agent': 'SubMiner' },
+        // animetosho.org redirects to storage.animetosho.org; keep the hop in-domain.
+        { isAllowedRedirect: (redirectUrl) => isAnimetoshoDownloadUrl(redirectUrl) },
+      );
+      if (!downloaded.ok) return downloaded;
+      const result = await decompressXzFile(tempXzPath, destPath);
+      fs.promises.unlink(tempXzPath).catch(() => {});
+      return result;
+    },
     onDownloadedSubtitle: (pathToSubtitle) => {
       const mpvClient = options.getMpvClient();
       if (mpvClient && mpvClient.connected) {
         mpvClient.send({ command: ['sub-add', pathToSubtitle, 'select'] });
       }
+    },
+    onDownloadedSecondarySubtitle: async (pathToSubtitle) => {
+      const mpvClient = options.getMpvClient();
+      if (!mpvClient || !mpvClient.connected) return;
+      mpvClient.send({ command: ['sub-add', pathToSubtitle, 'auto'] });
+      const request = mpvClient.request;
+      if (!request) return;
+
+      // sub-add is queued, so the track may not appear in the first track-list
+      // reply; poll briefly before giving up.
+      for (let attempt = 0; attempt < SECONDARY_TRACK_LOOKUP_ATTEMPTS; attempt += 1) {
+        try {
+          const response = await request(['get_property', 'track-list']);
+          const tracks = Array.isArray(response?.data)
+            ? (response.data as Array<Record<string, unknown>>)
+            : [];
+          const added = tracks.find(
+            (track) => track?.type === 'sub' && track['external-filename'] === pathToSubtitle,
+          );
+          if (added && typeof added.id === 'number') {
+            mpvClient.send({ command: ['set_property', 'secondary-sid', added.id] });
+            return;
+          }
+        } catch (error) {
+          logger.warn('[animetosho] failed to select downloaded subtitle as secondary:', error);
+          return;
+        }
+        await delay(SECONDARY_TRACK_LOOKUP_RETRY_MS);
+      }
+
+      logger.warn(
+        `[animetosho] could not find downloaded subtitle in track-list: ${pathToSubtitle}`,
+      );
     },
   });
 }

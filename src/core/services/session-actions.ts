@@ -24,6 +24,7 @@ export interface SessionActionExecutorDeps {
   openControllerSelect: () => void;
   openControllerDebug: () => void;
   openJimaku: () => void;
+  openAnimetosho: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
   replayCurrentSubtitle: () => void;
@@ -114,6 +115,9 @@ export async function dispatchSessionAction(
       return;
     case 'openJimaku':
       deps.openJimaku();
+      return;
+    case 'openAnimetosho':
+      deps.openAnimetosho();
       return;
     case 'openYoutubePicker':
       await deps.openYoutubeTrackPicker();

@@ -240,3 +240,45 @@ export type JimakuApiResponse<T> = { ok: true; data: T } | { ok: false; error: J
 export type JimakuDownloadResult =
   | { ok: true; path: string }
   | { ok: false; error: JimakuApiError };
+
+export interface AnimetoshoSearchQuery {
+  query: string;
+}
+
+export interface AnimetoshoEntry {
+  id: number;
+  title: string;
+  timestamp: number | null;
+  totalSize: number | null;
+  numFiles: number | null;
+}
+
+export interface AnimetoshoFilesQuery {
+  entryId: number;
+}
+
+export interface AnimetoshoSubtitleFile {
+  attachmentId: number;
+  filename: string;
+  lang: string;
+  trackName: string | null;
+  size: number;
+  url: string;
+  sourceFilename: string;
+}
+
+export interface AnimetoshoDownloadQuery {
+  entryId: number;
+  url: string;
+  name: string;
+  lang?: string;
+}
+
+export type AnimetoshoApiResponse<T> = JimakuApiResponse<T>;
+
+export type AnimetoshoDownloadResult = JimakuDownloadResult;
+
+export interface AnimetoshoConfig {
+  apiBaseUrl?: string;
+  maxSearchResults?: number;
+}

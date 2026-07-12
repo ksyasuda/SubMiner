@@ -1,5 +1,8 @@
 import type { KikuFieldGroupingChoice, KikuMergePreviewRequest } from '../../types/anki';
 import type {
+  AnimetoshoDownloadQuery,
+  AnimetoshoFilesQuery,
+  AnimetoshoSearchQuery,
   JimakuDownloadQuery,
   JimakuFilesQuery,
   JimakuSearchQuery,
@@ -40,6 +43,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openControllerSelect',
   'openControllerDebug',
   'openJimaku',
+  'openAnimetosho',
   'openYoutubePicker',
   'openPlaylistBrowser',
   'replayCurrentSubtitle',
@@ -399,6 +403,36 @@ export function parseJimakuDownloadQuery(value: unknown): JimakuDownloadQuery | 
     entryId: value.entryId,
     url: value.url,
     name: value.name,
+  };
+}
+
+export function parseAnimetoshoSearchQuery(value: unknown): AnimetoshoSearchQuery | null {
+  if (!isObject(value) || typeof value.query !== 'string') return null;
+  return { query: value.query };
+}
+
+export function parseAnimetoshoFilesQuery(value: unknown): AnimetoshoFilesQuery | null {
+  if (!isObject(value) || !isInteger(value.entryId)) return null;
+  return { entryId: value.entryId };
+}
+
+export function parseAnimetoshoDownloadQuery(value: unknown): AnimetoshoDownloadQuery | null {
+  if (!isObject(value)) return null;
+  if (
+    !isInteger(value.entryId) ||
+    typeof value.url !== 'string' ||
+    typeof value.name !== 'string'
+  ) {
+    return null;
+  }
+  if (value.lang !== undefined && typeof value.lang !== 'string') {
+    return null;
+  }
+  return {
+    entryId: value.entryId,
+    url: value.url,
+    name: value.name,
+    lang: value.lang,
   };
 }
 

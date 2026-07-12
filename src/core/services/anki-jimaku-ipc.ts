@@ -4,6 +4,12 @@ import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from '../../logger';
 import {
+  AnimetoshoApiResponse,
+  AnimetoshoDownloadResult,
+  AnimetoshoEntry,
+  AnimetoshoFilesQuery,
+  AnimetoshoSearchQuery,
+  AnimetoshoSubtitleFile,
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuEntry,
@@ -17,6 +23,9 @@ import {
 } from '../../types';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import {
+  parseAnimetoshoDownloadQuery,
+  parseAnimetoshoFilesQuery,
+  parseAnimetoshoSearchQuery,
   parseJimakuDownloadQuery,
   parseJimakuFilesQuery,
   parseJimakuSearchQuery,
@@ -24,6 +33,7 @@ import {
   parseKikuMergePreviewRequest,
 } from '../../shared/ipc/validators';
 import { buildJimakuSubtitleFilenameFromMediaPath } from './jimaku-download-path';
+import { animetoshoLangToFilenameSuffix, isAnimetoshoDownloadUrl } from '../../animetosho/utils';
 
 const { ipcMain } = electron;
 
@@ -47,6 +57,15 @@ export interface AnkiJimakuIpcDeps {
     headers: Record<string, string>,
   ) => Promise<JimakuDownloadResult>;
   onDownloadedSubtitle: (pathToSubtitle: string) => void;
+  searchAnimetoshoEntries: (
+    query: AnimetoshoSearchQuery,
+  ) => Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>>;
+  listAnimetoshoFiles: (
+    query: AnimetoshoFilesQuery,
+  ) => Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>>;
+  downloadAnimetoshoSubtitle: (url: string, destPath: string) => Promise<AnimetoshoDownloadResult>;
+  getAnimetoshoSecondaryLanguages: () => string[];
+  onDownloadedSecondarySubtitle: (pathToSubtitle: string) => void | Promise<void>;
 }
 
 interface IpcMainRegistrar {
@@ -181,6 +200,111 @@ export function registerAnkiJimakuIpcHandlers(
         deps.onDownloadedSubtitle(result.path);
       } else {
         logger.error(`[jimaku] download-file failed: ${result.error?.error ?? 'unknown error'}`);
+      }
+
+      return result;
+    },
+  );
+
+  ipc.handle(IPC_CHANNELS.request.animetoshoGetSecondaryLanguages, (): string[] => {
+    return deps.getAnimetoshoSecondaryLanguages();
+  });
+
+  ipc.handle(
+    IPC_CHANNELS.request.animetoshoSearchEntries,
+    async (_event, query: unknown): Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>> => {
+      const parsedQuery = parseAnimetoshoSearchQuery(query);
+      if (!parsedQuery) {
+        return {
+          ok: false,
+          error: { error: 'Invalid Animetosho search query payload', code: 400 },
+        };
+      }
+      return deps.searchAnimetoshoEntries(parsedQuery);
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.animetoshoListFiles,
+    async (_event, query: unknown): Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>> => {
+      const parsedQuery = parseAnimetoshoFilesQuery(query);
+      if (!parsedQuery) {
+        return { ok: false, error: { error: 'Invalid Animetosho files query payload', code: 400 } };
+      }
+      return deps.listAnimetoshoFiles(parsedQuery);
+    },
+  );
+
+  ipc.handle(
+    IPC_CHANNELS.request.animetoshoDownloadFile,
+    async (_event, query: unknown): Promise<AnimetoshoDownloadResult> => {
+      const parsedQuery = parseAnimetoshoDownloadQuery(query);
+      if (!parsedQuery) {
+        return {
+          ok: false,
+          error: { error: 'Invalid Animetosho download query payload', code: 400 },
+        };
+      }
+
+      if (!isAnimetoshoDownloadUrl(parsedQuery.url)) {
+        return {
+          ok: false,
+          error: { error: 'Refusing to download subtitle from a non-Animetosho URL.', code: 400 },
+        };
+      }
+
+      const currentMediaPath = deps.getCurrentMediaPath();
+      if (!currentMediaPath) {
+        return { ok: false, error: { error: 'No media file loaded in MPV.' } };
+      }
+
+      const mediaDir = deps.isRemoteMediaPath(currentMediaPath)
+        ? fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-animetosho-'))
+        : path.dirname(path.resolve(currentMediaPath));
+      const safeName = path.basename(parsedQuery.name);
+      if (!safeName) {
+        return { ok: false, error: { error: 'Invalid subtitle filename.' } };
+      }
+      const languageSuffix = animetoshoLangToFilenameSuffix(parsedQuery.lang);
+      const subtitleFilename = buildJimakuSubtitleFilenameFromMediaPath(
+        currentMediaPath,
+        safeName,
+        languageSuffix,
+      );
+
+      const ext = path.extname(subtitleFilename);
+      const baseName = ext ? subtitleFilename.slice(0, -ext.length) : subtitleFilename;
+      let targetPath = path.join(mediaDir, subtitleFilename);
+      if (fs.existsSync(targetPath)) {
+        targetPath = path.join(mediaDir, `${baseName} (animetosho-${parsedQuery.entryId})${ext}`);
+        let counter = 2;
+        while (fs.existsSync(targetPath)) {
+          targetPath = path.join(
+            mediaDir,
+            `${baseName} (animetosho-${parsedQuery.entryId}-${counter})${ext}`,
+          );
+          counter += 1;
+        }
+      }
+
+      logger.info(
+        `[animetosho] download-file name="${parsedQuery.name}" entryId=${parsedQuery.entryId}`,
+      );
+      const result = await deps.downloadAnimetoshoSubtitle(parsedQuery.url, targetPath);
+
+      if (result.ok) {
+        logger.info(`[animetosho] download-file saved to ${result.path}`);
+        // Japanese tracks take the primary slot; anything else loads as the
+        // secondary subtitle so the Japanese primary stays in place.
+        if (languageSuffix === 'ja') {
+          deps.onDownloadedSubtitle(result.path);
+        } else {
+          await deps.onDownloadedSecondarySubtitle(result.path);
+        }
+      } else {
+        logger.error(
+          `[animetosho] download-file failed: ${result.error?.error ?? 'unknown error'}`,
+        );
       }
 
       return result;
