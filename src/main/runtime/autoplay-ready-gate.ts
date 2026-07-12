@@ -26,6 +26,7 @@ export type AutoplayReadyGateDeps = {
   getPlaybackPaused: () => boolean | null;
   getMpvClient: () => MpvClientLike | null;
   signalPluginAutoplayReady: () => void;
+  isTokenizationReady?: () => boolean;
   requestOverlayPointerRecovery?: () => void;
   onAutoplayReadyReleased?: (signal: AutoplayReadySignal) => void;
   isSignalTargetReady?: (signal: AutoplayReadySignal) => boolean;
@@ -215,6 +216,15 @@ export function createAutoplayReadyGate(deps: AutoplayReadyGateDeps) {
       return;
     }
     if (!payload.text.trim()) {
+      return;
+    }
+    // Untokenized payloads (startup subtitle priming, tokenizer fallbacks) must
+    // not release the startup pause gate while tokenization warmup is pending —
+    // the tokenized delivery or the post-warmup release signals readiness later.
+    if (payload.tokens === null && deps.isTokenizationReady && !deps.isTokenizationReady()) {
+      deps.logDebug(
+        '[autoplay-ready] ignored untokenized signal while tokenization warmup is pending',
+      );
       return;
     }
 

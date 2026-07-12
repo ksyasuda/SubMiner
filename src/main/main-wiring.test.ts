@@ -278,7 +278,15 @@ test('startup autoplay release is tied to visible overlay measurement readiness'
 
   assert.ok(gateBlock);
   assert.match(gateBlock, /isSignalTargetReady:\s*\(signal\) =>/);
-  assert.doesNotMatch(gateBlock, /isTokenizationWarmupReady\(\)/);
+  // Untokenized signals are filtered by the gate's isTokenizationReady dep, not
+  // by the target-readiness predicate (which must stay warmup-free so warm and
+  // tokenized releases are never deferred behind the global warmup flag).
+  assert.match(gateBlock, /isTokenizationReady:\s*\(\) => isTokenizationWarmupReady\(\)/);
+  const signalTargetReadyBlock = gateBlock.match(
+    /isSignalTargetReady:\s*\(signal\) =>(?<body>[\s\S]*?)\n  schedule:/,
+  )?.groups?.body;
+  assert.ok(signalTargetReadyBlock);
+  assert.doesNotMatch(signalTargetReadyBlock, /isTokenizationWarmupReady\(\)/);
   assert.match(gateBlock, /isVisibleOverlayAutoplayTargetReady\(/);
   assert.match(gateBlock, /getLatestVisibleMeasurement:/);
 

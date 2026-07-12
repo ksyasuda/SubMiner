@@ -542,3 +542,79 @@ test('autoplay ready gate passes the pending subtitle signal to the readiness pr
     [['script-message', 'subminer-autoplay-ready']],
   );
 });
+
+function createTokenizationGateHarness(deps: { isTokenizationReady: () => boolean }) {
+  const commands: Array<Array<string | boolean>> = [];
+  const gate = createAutoplayReadyGate({
+    isAppOwnedFlowInFlight: () => false,
+    getCurrentMediaPath: () => '/media/video.mkv',
+    getCurrentVideoPath: () => null,
+    getPlaybackPaused: () => true,
+    getMpvClient: () =>
+      ({
+        connected: true,
+        requestProperty: async () => true,
+        send: ({ command }: { command: Array<string | boolean> }) => {
+          commands.push(command);
+        },
+      }) as never,
+    signalPluginAutoplayReady: () => {
+      commands.push(['script-message', 'subminer-autoplay-ready']);
+    },
+    isTokenizationReady: deps.isTokenizationReady,
+    schedule: (callback) => {
+      queueMicrotask(callback);
+      return 1 as never;
+    },
+    logDebug: () => {},
+  });
+  return { gate, commands };
+}
+
+test('autoplay ready gate ignores untokenized signals while tokenization warmup is pending', async () => {
+  const { gate, commands } = createTokenizationGateHarness({
+    isTokenizationReady: () => false,
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(commands, []);
+});
+
+test('autoplay ready gate releases tokenized signals while tokenization warmup is pending', async () => {
+  const { gate, commands } = createTokenizationGateHarness({
+    isTokenizationReady: () => false,
+  });
+
+  gate.maybeSignalPluginAutoplayReady(
+    { text: '字幕', tokens: [{ surface: '字幕' }] as never },
+    { forceWhilePaused: true },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'script-message'),
+    [['script-message', 'subminer-autoplay-ready']],
+  );
+});
+
+test('autoplay ready gate releases untokenized signals once tokenization warmup is ready', async () => {
+  let tokenizationReady = false;
+  const { gate, commands } = createTokenizationGateHarness({
+    isTokenizationReady: () => tokenizationReady,
+  });
+
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(commands, []);
+
+  tokenizationReady = true;
+  gate.maybeSignalPluginAutoplayReady({ text: '字幕', tokens: null }, { forceWhilePaused: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(
+    commands.filter((command) => command[0] === 'script-message'),
+    [['script-message', 'subminer-autoplay-ready']],
+  );
+});

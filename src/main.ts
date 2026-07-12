@@ -1275,6 +1275,8 @@ const autoplayReadyGate = createAutoplayReadyGate({
   signalPluginAutoplayReady: () => {
     sendMpvCommandRuntime(appState.mpvClient, ['script-message', 'subminer-autoplay-ready']);
   },
+  // Deferred: isTokenizationWarmupReady is assigned during composeMpvRuntimeHandlers below.
+  isTokenizationReady: () => isTokenizationWarmupReady(),
   requestOverlayPointerRecovery: () => {
     if (process.platform !== 'darwin' || !overlayManager.getVisibleOverlayVisible()) {
       return;
