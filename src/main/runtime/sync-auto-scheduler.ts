@@ -30,7 +30,13 @@ export function createSyncAutoScheduler(deps: SyncAutoSchedulerDeps) {
     );
     if (!due) return;
     deps.log?.(`Auto-sync starting for ${due.host} (${due.direction})`);
-    deps.triggerHostSync(due.host, due.direction);
+    try {
+      deps.triggerHostSync(due.host, due.direction);
+    } catch (error) {
+      deps.log?.(
+        `Auto-sync failed to start: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   function start(): void {

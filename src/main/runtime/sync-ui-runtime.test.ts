@@ -14,7 +14,7 @@ interface LauncherCall {
   cancelled: boolean;
 }
 
-function makeTestRig(root: string) {
+function makeTestRig(root: string, overrides: Partial<SyncUiRuntimeDeps> = {}) {
   const launcherCalls: LauncherCall[] = [];
   const sent: Array<{ channel: string; payload: unknown }> = [];
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -59,6 +59,7 @@ function makeTestRig(root: string) {
     pickSnapshotFile: async () => null,
     revealPath: () => {},
     nowMs: () => 1700000000000,
+    ...overrides,
   };
 
   const runtime = createSyncUiRuntime(deps);
@@ -228,6 +229,53 @@ test('check-host resolves with the check-result event', () =>
     const result = await pending;
     assert.equal(result.ok, true);
     assert.equal(result.sshOk, true);
+  }));
+
+test('check-host participates in active-run coordination and can be cancelled', () =>
+  withTempDir(async (root) => {
+    const { invoke, launcherCalls } = makeTestRig(root);
+    const pending = invoke('sync-ui:check-host', 'media-box') as Promise<{ ok: boolean }>;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const blocked = (await invoke('sync-ui:run-sync', { host: 'other' })) as {
+      started: boolean;
+      reason: string | null;
+    };
+    assert.equal(blocked.started, false);
+    assert.match(blocked.reason ?? '', /already running/i);
+
+    assert.equal(await invoke('sync-ui:cancel-run'), true);
+    assert.equal(launcherCalls[0]!.cancelled, true);
+    assert.equal((await pending).ok, false);
+  }));
+
+test('shutdown cancels and awaits the active launcher run', () =>
+  withTempDir(async (root) => {
+    const { runtime, invoke, launcherCalls } = makeTestRig(root);
+    await invoke('sync-ui:create-snapshot');
+    await runtime.shutdown();
+    assert.equal(launcherCalls[0]!.cancelled, true);
+    assert.equal(runtime.isRunning(), false);
+  }));
+
+test('post-run side-effect failures are logged without rejecting cleanup', () =>
+  withTempDir(async (root) => {
+    const logs: string[] = [];
+    const { invoke, launcherCalls } = makeTestRig(root, {
+      getWindow: () => ({
+        isDestroyed: () => false,
+        webContents: {
+          send: () => {
+            throw new Error('window gone');
+          },
+        },
+      }),
+      log: (message) => logs.push(message),
+    });
+    await invoke('sync-ui:create-snapshot');
+    launcherCalls[0]!.finish({ ok: true, error: null });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.ok(logs.some((message) => message.includes('window gone')));
   }));
 
 test('cancel-run cancels the active run', () =>

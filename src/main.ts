@@ -3951,7 +3951,10 @@ const {
       annotationSubtitleWsService.stop();
     },
     stopTexthookerService: () => texthookerService.stop(),
-    stopSyncAutoScheduler: () => syncAutoScheduler.stop(),
+    stopSyncAutoScheduler: async () => {
+      syncAutoScheduler.stop();
+      await syncUiRuntime.shutdown();
+    },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       clearWindowsVisibleOverlayForegroundPollLoop(),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {

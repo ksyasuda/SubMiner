@@ -122,8 +122,13 @@ subminer mpv idle                 # Launch detached idle mpv with SubMiner defau
 subminer sync media-box           # Sync stats/watch history with an SSH host
 subminer sync media-box --push    # Merge this machine's stats into the host only
 subminer sync media-box --pull    # Merge the host's stats into this machine only
+subminer sync media-box --check   # Verify SSH and remote SubMiner without syncing
+subminer sync media-box --json    # Emit machine-readable NDJSON progress
+subminer sync --ui                # Open the Sync Stats & History window
 subminer sync --snapshot ~/subminer-snapshot.sqlite  # Write a local DB snapshot
 subminer sync --merge ~/subminer-snapshot.sqlite     # Merge a snapshot into the local DB
+subminer sync --make-temp         # Create an internal sync temp directory
+subminer sync --remove-temp /tmp/subminer-sync-123   # Remove an internal sync temp directory
 subminer dictionary /path/to/file-or-directory  # Generate character dictionary ZIP from target (manual Yomitan import)
 subminer dictionary --candidates /path/to/file.mkv
 subminer dictionary --select 21355 /path/to/file.mkv
@@ -159,11 +164,15 @@ SubMiner.AppImage --jellyfin-libraries
 SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-search anime --jellyfin-limit 20
 SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start)
 SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability announce + visibility check
+SubMiner.AppImage --sync-cli --help           # Show the packaged app's headless sync help
+SubMiner.AppImage --sync-cli sync media-box   # Run the sync engine directly in headless mode
 SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
 SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
 SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin correct AniList media for series
 SubMiner.AppImage --help                  # Show all options
 ```
+
+`--check` performs connection and version checks without changing data. `--json` emits the NDJSON event protocol used by the sync window. `--ui` opens that window. `--make-temp` and `--remove-temp` are internal remote-transfer helpers and should normally be left to SubMiner. The packaged app's `--sync-cli` flag selects its headless sync-compatible entrypoint; the `subminer sync` launcher command proxies to it automatically.
 
 The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL query strings. The exported copy is sanitized; source log files remain unredacted on disk.
 
@@ -367,7 +376,7 @@ See [Keyboard Shortcuts](/shortcuts) for the full reference, including mining sh
 | Keybind       | Action                 | Scope                                                                                              |
 | ------------- | ---------------------- | -------------------------------------------------------------------------------------------------- |
 | `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus (configurable via `shortcuts.toggleVisibleOverlayGlobal`) |
-| `Alt+Shift+Y` | Open Yomitan settings  | OS-global - registered with the system, works from any window                                       |
+| `Alt+Shift+Y` | Open Yomitan settings  | OS-global - registered with the system, works from any window                                      |
 
 `Alt+Shift+Y` is fixed and not configurable. All other shortcuts can be changed under `shortcuts` in your config.
 

@@ -145,11 +145,12 @@ export function withJsonEvents(deps: SyncFlowDeps): SyncFlowDeps {
   };
 }
 
-export function runSnapshotMode(
+export async function runSnapshotMode(
   context: SyncFlowContext,
   dbPath: string,
   deps: SyncFlowDeps,
-): void {
+): Promise<void> {
+  await deps.ensureTrackerQuiescent(context, dbPath);
   const outPath = deps.resolvePath(context.args.syncSnapshotPath);
   deps.emitEvent({
     type: 'stage',
@@ -409,7 +410,10 @@ export async function runHostSync(
   }
 }
 
-export async function runSyncFlow(context: SyncFlowContext, inputDeps: SyncFlowDeps): Promise<boolean> {
+export async function runSyncFlow(
+  context: SyncFlowContext,
+  inputDeps: SyncFlowDeps,
+): Promise<boolean> {
   let deps = inputDeps;
   const { args } = context;
   if (!args.sync) return false;
@@ -430,7 +434,7 @@ export async function runSyncFlow(context: SyncFlowContext, inputDeps: SyncFlowD
     if (args.syncCheck) {
       await runCheckMode(context, deps);
     } else if (args.syncSnapshotPath) {
-      runSnapshotMode(context, dbPath, deps);
+      await runSnapshotMode(context, dbPath, deps);
     } else if (args.syncMergePath) {
       await runMergeMode(context, dbPath, deps);
     } else if (args.syncHost) {

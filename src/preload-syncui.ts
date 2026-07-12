@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { IPC_CHANNELS } from './shared/ipc/contracts';
 import type {
   SyncHostsState,
   SyncUiAPI,
@@ -11,55 +12,39 @@ import type {
   SyncUiStartResult,
 } from './types/sync-ui';
 
-const SYNC_UI_IPC_CHANNELS = {
-  getSnapshot: 'sync-ui:get-snapshot',
-  saveHost: 'sync-ui:save-host',
-  removeHost: 'sync-ui:remove-host',
-  setAutoSyncInterval: 'sync-ui:set-auto-sync-interval',
-  runSync: 'sync-ui:run-sync',
-  cancelRun: 'sync-ui:cancel-run',
-  checkHost: 'sync-ui:check-host',
-  createSnapshot: 'sync-ui:create-snapshot',
-  mergeSnapshotFile: 'sync-ui:merge-snapshot-file',
-  deleteSnapshot: 'sync-ui:delete-snapshot',
-  revealSnapshot: 'sync-ui:reveal-snapshot',
-  pickSnapshotFile: 'sync-ui:pick-snapshot-file',
-  progress: 'sync-ui:progress',
-  stateChanged: 'sync-ui:state-changed',
-} as const;
-
 const syncUiAPI: SyncUiAPI = {
-  getSnapshot: (): Promise<SyncUiSnapshot> => ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.getSnapshot),
+  getSnapshot: (): Promise<SyncUiSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiGetSnapshot),
   saveHost: (update: SyncUiHostUpdateRequest): Promise<SyncHostsState> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.saveHost, update),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiSaveHost, update),
   removeHost: (host: string): Promise<SyncHostsState> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.removeHost, host),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRemoveHost, host),
   setAutoSyncInterval: (minutes: number): Promise<SyncHostsState> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.setAutoSyncInterval, minutes),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiSetAutoSyncInterval, minutes),
   runSync: (request: SyncUiRunRequest): Promise<SyncUiStartResult> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.runSync, request),
-  cancelRun: (): Promise<boolean> => ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.cancelRun),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRunSync, request),
+  cancelRun: (): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.request.syncUiCancelRun),
   checkHost: (host: string): Promise<SyncUiCheckResult> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.checkHost, host),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiCheckHost, host),
   createSnapshot: (): Promise<SyncUiStartResult> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.createSnapshot),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiCreateSnapshot),
   mergeSnapshotFile: (path: string, force?: boolean): Promise<SyncUiStartResult> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.mergeSnapshotFile, path, force === true),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiMergeSnapshotFile, path, force === true),
   deleteSnapshot: (path: string): Promise<SyncUiSnapshotFile[]> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.deleteSnapshot, path),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiDeleteSnapshot, path),
   revealSnapshot: (path: string): Promise<boolean> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.revealSnapshot, path),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRevealSnapshot, path),
   pickSnapshotFile: (): Promise<string | null> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.pickSnapshotFile),
+    ipcRenderer.invoke(IPC_CHANNELS.request.syncUiPickSnapshotFile),
   onProgress: (listener: (payload: SyncUiProgressPayload) => void): (() => void) => {
     const handler = (_event: unknown, payload: SyncUiProgressPayload): void => listener(payload);
-    ipcRenderer.on(SYNC_UI_IPC_CHANNELS.progress, handler);
-    return () => ipcRenderer.removeListener(SYNC_UI_IPC_CHANNELS.progress, handler);
+    ipcRenderer.on(IPC_CHANNELS.event.syncUiProgress, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.event.syncUiProgress, handler);
   },
   onStateChanged: (listener: () => void): (() => void) => {
     const handler = (): void => listener();
-    ipcRenderer.on(SYNC_UI_IPC_CHANNELS.stateChanged, handler);
-    return () => ipcRenderer.removeListener(SYNC_UI_IPC_CHANNELS.stateChanged, handler);
+    ipcRenderer.on(IPC_CHANNELS.event.syncUiStateChanged, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.event.syncUiStateChanged, handler);
   },
 };
 

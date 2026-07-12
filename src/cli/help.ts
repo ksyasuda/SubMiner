@@ -82,7 +82,7 @@ ${B}Jellyfin${R}
 ${B}Stats sync${R}
   --sync-window                  Open the stats sync window
   --sync-cli sync ${D}[host] [opts]${R}   Headless stats sync ${D}(same commands as "subminer sync";${R}
-                                 ${D}run --sync-cli --help for details)${R}
+                                 ${D}run SubMiner --sync-cli --help for details)${R}
 
 ${B}Options${R}
   --socket ${D}PATH${R}                  mpv IPC socket path

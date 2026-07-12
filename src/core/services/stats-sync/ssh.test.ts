@@ -64,10 +64,15 @@ test('resolveRemoteSubminerCommand verifies the launcher under the remote runtim
 
 test('resolveRemoteSubminerCommand falls back to the app binary in --sync-cli mode', () => {
   const probed: string[] = [];
-  const command = resolveRemoteSubminerCommand('media-box', null, 'posix', (_host, remoteCommand) => {
-    probed.push(remoteCommand);
-    return remoteResult(remoteCommand.includes('SubMiner --sync-cli') ? 0 : 1);
-  });
+  const command = resolveRemoteSubminerCommand(
+    'media-box',
+    null,
+    'posix',
+    (_host, remoteCommand) => {
+      probed.push(remoteCommand);
+      return remoteResult(remoteCommand.includes('SubMiner --sync-cli') ? 0 : 1);
+    },
+  );
 
   assert.match(command, / SubMiner --sync-cli$/);
   // Launcher candidates (PATH + ~/.local/bin) are tried before app binaries.
@@ -77,13 +82,19 @@ test('resolveRemoteSubminerCommand falls back to the app binary in --sync-cli mo
 });
 
 test('resolveRemoteSubminerCommand probes a user override as app first, then launcher', () => {
-  const asApp = resolveRemoteSubminerCommand('media-box', '/opt/SubMiner.AppImage', 'posix', (_host, cmd) =>
-    remoteResult(cmd.includes('--sync-cli') ? 0 : 1),
+  const asApp = resolveRemoteSubminerCommand(
+    'media-box',
+    '/opt/SubMiner.AppImage',
+    'posix',
+    (_host, cmd) => remoteResult(cmd.includes('--sync-cli') ? 0 : 1),
   );
   assert.match(asApp, /'\/opt\/SubMiner\.AppImage' --sync-cli$/);
 
-  const asLauncher = resolveRemoteSubminerCommand('media-box', '/opt/subminer', 'posix', (_host, cmd) =>
-    remoteResult(cmd.includes('--sync-cli') ? 1 : 0),
+  const asLauncher = resolveRemoteSubminerCommand(
+    'media-box',
+    '/opt/subminer',
+    'posix',
+    (_host, cmd) => remoteResult(cmd.includes('--sync-cli') ? 1 : 0),
   );
   assert.match(asLauncher, /'\/opt\/subminer'$/);
 
@@ -104,8 +115,11 @@ test('resolveRemoteSubminerCommand probes Windows install locations without a PA
   assert.equal(probed[0], 'subminer --help');
   assert.equal(probed[1], '"%LOCALAPPDATA%\\SubMiner\\bin\\subminer.cmd" --help');
 
-  const powershell = resolveRemoteSubminerCommand('win-box', null, 'windows-powershell', (_host, cmd) =>
-    remoteResult(cmd.includes('Programs\\SubMiner\\SubMiner.exe') ? 0 : 1),
+  const powershell = resolveRemoteSubminerCommand(
+    'win-box',
+    null,
+    'windows-powershell',
+    (_host, cmd) => remoteResult(cmd.includes('Programs\\SubMiner\\SubMiner.exe') ? 0 : 1),
   );
   assert.equal(powershell, '& "$env:LOCALAPPDATA\\Programs\\SubMiner\\SubMiner.exe" --sync-cli');
 });
@@ -158,6 +172,7 @@ test('quoteForRemoteShell quotes per flavor and rejects unsafe Windows values', 
     '"C:/Users/First Last/AppData/Local/Temp/subminer-sync-ab"',
   );
   assert.throws(() => quoteForRemoteShell('windows-cmd', 'a"b'), /Refusing to quote/);
+  assert.throws(() => quoteForRemoteShell('windows-cmd', 'C:/tmp/%TEMP%/db.sqlite'), /percent/);
   assert.throws(() => quoteForRemoteShell('windows-powershell', 'a\nb'), /Refusing to quote/);
 });
 

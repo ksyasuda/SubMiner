@@ -35,6 +35,7 @@ export function runSsh(host: string, remoteCommand: string): RemoteRunResult {
 }
 
 function assertSafeScpEndpoint(endpoint: string): void {
+  if (/^[A-Za-z]:[\\/]/.test(endpoint)) return;
   const colon = endpoint.indexOf(':');
   const slash = endpoint.indexOf('/');
   if (colon <= 0 || (slash !== -1 && slash < colon)) {
@@ -115,6 +116,9 @@ export function quoteForRemoteShell(flavor: RemoteShellFlavor, value: string): s
   }
   if (value.includes('"')) {
     throw new Error(`Refusing to quote a value with quotes for a Windows shell: ${value}`);
+  }
+  if (value.includes('%')) {
+    throw new Error(`Refusing to quote a value with percent signs for cmd.exe: ${value}`);
   }
   return `"${value}"`;
 }

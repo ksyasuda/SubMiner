@@ -16,11 +16,11 @@ export interface AppLifecycleServiceDeps {
   startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   whenReady: (handler: () => Promise<void>) => void;
   onWindowAllClosed: (handler: () => void) => void;
-  onWillQuit: (handler: () => void) => void;
+  onWillQuit: (handler: (event: { preventDefault(): void }) => void) => void;
   onActivate: (handler: () => void) => void;
   isDarwinPlatform: () => boolean;
   onReady: () => Promise<void>;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => void | Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
   shouldQuitOnWindowAllClosed: () => boolean;
@@ -44,7 +44,7 @@ export interface AppLifecycleDepsRuntimeOptions {
   logNoRunningInstance: () => void;
   startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => void | Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
   shouldQuitOnWindowAllClosed: () => boolean;
@@ -189,10 +189,29 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
     }
   });
 
-  deps.onWillQuit(() => {
+  let quitCleanupPending = false;
+  let quitCleanupComplete = false;
+  deps.onWillQuit((event) => {
+    if (quitCleanupComplete) return;
     stopControlServer?.();
     stopControlServer = null;
-    deps.onWillQuitCleanup();
+    if (quitCleanupPending) {
+      event.preventDefault();
+      return;
+    }
+    const cleanup = deps.onWillQuitCleanup();
+    if (!(cleanup instanceof Promise)) return;
+    quitCleanupPending = true;
+    event.preventDefault();
+    void cleanup
+      .catch((error) => {
+        logger.error('App quit cleanup failed:', error);
+      })
+      .finally(() => {
+        quitCleanupPending = false;
+        quitCleanupComplete = true;
+        deps.quitApp();
+      });
   });
 
   deps.onActivate(() => {

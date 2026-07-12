@@ -35,6 +35,8 @@ const MERGE_COUNT_FIELDS: Array<{ key: keyof SyncMergeSummary; label: string }> 
   { key: 'wordsAdded', label: 'Words added' },
   { key: 'kanjiAdded', label: 'Kanji added' },
   { key: 'subtitleLinesAdded', label: 'Subtitle lines' },
+  { key: 'telemetryRowsAdded', label: 'Telemetry rows' },
+  { key: 'eventsAdded', label: 'Events' },
   { key: 'excludedWordsAdded', label: 'Excluded words' },
   { key: 'dailyRollupsCopied', label: 'Daily rollups' },
   { key: 'monthlyRollupsCopied', label: 'Monthly rollups' },

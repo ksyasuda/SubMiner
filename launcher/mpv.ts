@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
+import type { StdioOptions } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import { buildMpvLoggingArgs } from '../src/shared/mpv-logging-args.js';
 import {
@@ -1444,22 +1445,7 @@ function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget 
 }
 
 export function runAppCommandWithInherit(appPath: string, appArgs: string[]): void {
-  if (maybeCaptureAppArgs(appArgs)) {
-    process.exit(0);
-  }
-
-  const target = resolveAppSpawnTarget(appPath, appArgs);
-  const proc = spawn(target.command, target.args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: buildAppEnv(process.env, target.env),
-  });
-  attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
-  proc.once('error', (error) => {
-    fail(`Failed to run app command: ${error.message}`);
-  });
-  proc.once('close', (code) => {
-    process.exit(code ?? 0);
-  });
+  runAppCommand(appPath, appArgs, ['ignore', 'pipe', 'pipe'], true);
 }
 
 /**
@@ -1469,15 +1455,27 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
  * Used for `subminer sync`, which proxies to the app's --sync-cli mode.
  */
 export function runAppCommandInteractive(appPath: string, appArgs: string[]): void {
+  runAppCommand(appPath, appArgs, ['inherit', 'inherit', 'inherit'], false);
+}
+
+function runAppCommand(
+  appPath: string,
+  appArgs: string[],
+  stdio: StdioOptions,
+  attachLogging: boolean,
+): void {
   if (maybeCaptureAppArgs(appArgs)) {
     process.exit(0);
   }
 
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
-    stdio: ['inherit', 'inherit', 'inherit'],
+    stdio,
     env: buildAppEnv(process.env, target.env),
   });
+  if (attachLogging) {
+    attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
+  }
   proc.once('error', (error) => {
     fail(`Failed to run app command: ${error.message}`);
   });

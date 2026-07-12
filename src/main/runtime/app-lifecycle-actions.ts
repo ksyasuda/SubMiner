@@ -6,7 +6,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
-  stopSyncAutoScheduler: () => void;
+  stopSyncAutoScheduler: () => void | Promise<void>;
   clearWindowsVisibleOverlayForegroundPollLoop: () => void;
   clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => void;
   destroyMainOverlayWindow: () => void;
@@ -34,7 +34,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
-  return (): void => {
+  return (): Promise<void> => {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
@@ -42,7 +42,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
-    deps.stopSyncAutoScheduler();
+    const stopSyncAutoScheduler = deps.stopSyncAutoScheduler();
     deps.clearWindowsVisibleOverlayForegroundPollLoop();
     deps.clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     deps.destroyMainOverlayWindow();
@@ -72,6 +72,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.cleanupYoutubeSubtitleTempDirs();
     deps.cleanupYoutubeMediaCache();
     deps.stopDiscordPresenceService();
+    return Promise.resolve(stopSyncAutoScheduler);
   };
 }
 

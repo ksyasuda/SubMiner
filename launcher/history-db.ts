@@ -6,6 +6,12 @@ import { resolveConfigDir } from '../src/config/path-resolution.js';
 import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import type { HistoryVideoRow } from './history-types.js';
 import { resolvePathMaybe } from './util.js';
+import {
+  isReadonlyWalRetryError,
+  withReadonlyWalRetry,
+} from '../src/core/services/stats-sync/wal-retry.js';
+
+export { isReadonlyWalRetryError, withReadonlyWalRetry };
 
 export function resolveImmersionDbPath(): string {
   const root = readLauncherMainConfigObject();
@@ -42,12 +48,6 @@ interface RawHistoryRow {
 export function queryLocalWatchHistory(dbPath: string): HistoryVideoRow[] {
   return withReadonlyWalRetry(dbPath, (options) => readHistoryRows(dbPath, options));
 }
-
-export {
-  withReadonlyWalRetry,
-  isReadonlyWalRetryError,
-} from '../src/core/services/stats-sync/wal-retry.js';
-import { withReadonlyWalRetry } from '../src/core/services/stats-sync/wal-retry.js';
 
 function tableExists(db: Database, tableName: string): boolean {
   return Boolean(

@@ -19,7 +19,9 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
-    stopSyncAutoScheduler: () => calls.push('stop-sync-auto-scheduler'),
+    stopSyncAutoScheduler: () => {
+      calls.push('stop-sync-auto-scheduler');
+    },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       calls.push('clear-windows-visible-overlay-foreground-poll-loop'),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>

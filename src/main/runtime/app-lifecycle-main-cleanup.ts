@@ -26,7 +26,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   unregisterAllGlobalShortcuts: () => void;
   stopSubtitleWebsocket: () => void;
   stopTexthookerService: () => void;
-  stopSyncAutoScheduler: () => void;
+  stopSyncAutoScheduler: () => void | Promise<void>;
   clearWindowsVisibleOverlayForegroundPollLoop: () => void;
   clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => void;
   getMainOverlayWindow: () => DestroyableWindow | null;

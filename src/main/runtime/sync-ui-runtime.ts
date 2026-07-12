@@ -56,6 +56,7 @@ interface ActiveRun {
   host: string | null;
   handle: SyncLauncherRunHandle;
   resultSeen: boolean;
+  completion?: Promise<void>;
 }
 
 // Milliseconds are part of the stamp so two snapshots taken in the same second
@@ -169,32 +170,38 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
       }),
     };
     currentRun = run;
-    void run.handle.done.then((result: SyncLauncherRunResult) => {
-      if (currentRun?.id === runId) currentRun = null;
-      // If the launcher died without emitting a result event (spawn failure,
-      // kill), synthesize one so the renderer can settle its progress view.
-      if (!run.resultSeen) {
-        sendToWindow(IPC_CHANNELS.event.syncUiProgress, {
-          runId,
-          kind,
-          host,
-          event: { type: 'result', ok: result.ok, error: result.error },
-        });
-      }
-      broadcastStateChanged();
-      if (options.notify && deps.notify) {
-        const target = host ?? 'local database';
-        deps.notify(
-          result.ok
-            ? { title: 'Sync complete', body: `Synced with ${target}`, variant: 'success' }
-            : {
-                title: 'Sync failed',
-                body: `${target}: ${result.error ?? 'unknown error'}`,
-                variant: 'error',
-              },
+    run.completion = run.handle.done
+      .then((result: SyncLauncherRunResult) => {
+        if (currentRun?.id === runId) currentRun = null;
+        // If the launcher died without emitting a result event (spawn failure,
+        // kill), synthesize one so the renderer can settle its progress view.
+        if (!run.resultSeen) {
+          sendToWindow(IPC_CHANNELS.event.syncUiProgress, {
+            runId,
+            kind,
+            host,
+            event: { type: 'result', ok: result.ok, error: result.error },
+          });
+        }
+        broadcastStateChanged();
+        if (options.notify && deps.notify) {
+          const target = host ?? 'local database';
+          deps.notify(
+            result.ok
+              ? { title: 'Sync complete', body: `Synced with ${target}`, variant: 'success' }
+              : {
+                  title: 'Sync failed',
+                  body: `${target}: ${result.error ?? 'unknown error'}`,
+                  variant: 'error',
+                },
+          );
+        }
+      })
+      .catch((error) => {
+        deps.log?.(
+          `[sync-ui] Post-run cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
         );
-      }
-    });
+      });
     return { started: true, runId, reason: null };
   }
 
@@ -231,12 +238,17 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     if (!isValidSyncHost(trimmed)) {
       return Promise.resolve(failed(`Invalid sync host: ${host}`));
     }
+    if (currentRun) {
+      return Promise.resolve(failed('A sync operation is already running.'));
+    }
     const resolution = deps.resolveLauncherCommand();
     if (!resolution.command) {
       return Promise.resolve(failed(resolution.error ?? 'Launcher unavailable.'));
     }
     return new Promise((resolve) => {
       let checkResult: SyncUiCheckResult | null = null;
+      runCounter += 1;
+      const runId = runCounter;
       const handle = deps.runLauncher({
         command: resolution.command!,
         args: ['sync', trimmed, '--check', '--json'],
@@ -254,9 +266,27 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
         },
         onStderr: (text) => deps.log?.(`[sync-ui check] ${text.trimEnd()}`),
       });
-      void handle.done.then((result) => {
-        resolve(checkResult ?? failed(result.error ?? 'Connection check failed.'));
-      });
+      const run: ActiveRun = {
+        id: runId,
+        kind: 'check',
+        host: trimmed,
+        handle,
+        resultSeen: false,
+      };
+      currentRun = run;
+      run.completion = handle.done
+        .then((result) => {
+          if (currentRun?.id === runId) currentRun = null;
+          resolve(checkResult ?? failed(result.error ?? 'Connection check failed.'));
+          broadcastStateChanged();
+        })
+        .catch((error) => {
+          if (currentRun?.id === runId) currentRun = null;
+          resolve(failed(error instanceof Error ? error.message : String(error)));
+          deps.log?.(
+            `[sync-ui check] Cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
     });
   }
 
@@ -290,6 +320,13 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     if (!currentRun) return false;
     currentRun.handle.cancel();
     return true;
+  }
+
+  async function shutdown(): Promise<void> {
+    const run = currentRun;
+    if (!run) return;
+    run.handle.cancel();
+    await (run.completion ?? run.handle.done.then(() => undefined));
   }
 
   function registerHandlers(): void {
@@ -334,6 +371,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     runHostSync,
     checkHost,
     cancelRun,
+    shutdown,
     isRunning: () => currentRun !== null,
   };
 }

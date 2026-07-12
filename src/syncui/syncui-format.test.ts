@@ -29,20 +29,24 @@ test('summarizeMergeCounts lists only non-zero counts', () => {
     wordsAdded: 0,
     kanjiAdded: 0,
     subtitleLinesAdded: 450,
-    telemetryRowsAdded: 0,
-    eventsAdded: 0,
+    telemetryRowsAdded: 3,
+    eventsAdded: 4,
     excludedWordsAdded: 0,
     dailyRollupsCopied: 0,
     monthlyRollupsCopied: 0,
     rollupGroupsRecomputed: 4,
   };
   const lines = summarizeMergeCounts(summary);
+  assert.ok(lines.some((line) => line.label === 'Telemetry rows' && line.value === 3));
+  assert.ok(lines.some((line) => line.label === 'Events' && line.value === 4));
   assert.deepEqual(lines, [
     { label: 'Sessions merged', value: 3 },
     { label: 'Already present', value: 12 },
     { label: 'Series added', value: 1 },
     { label: 'Videos added', value: 2 },
     { label: 'Subtitle lines', value: 450 },
+    { label: 'Telemetry rows', value: 3 },
+    { label: 'Events', value: 4 },
     { label: 'Rollups recomputed', value: 4 },
   ]);
 
@@ -53,6 +57,8 @@ test('summarizeMergeCounts lists only non-zero counts', () => {
     animeAdded: 0,
     videosAdded: 0,
     subtitleLinesAdded: 0,
+    telemetryRowsAdded: 0,
+    eventsAdded: 0,
     rollupGroupsRecomputed: 0,
   });
   assert.deepEqual(empty, [{ label: 'Sessions merged', value: 0 }]);

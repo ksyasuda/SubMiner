@@ -136,6 +136,9 @@ test('runSyncFlow dispatches snapshot, merge, host, and missing-target modes', a
     true,
   );
   assert.ok(calls.includes('snapshot:/tmp/local.sqlite->/tmp/out.sqlite'));
+  assert.ok(
+    calls.indexOf('quiescent') < calls.indexOf('snapshot:/tmp/local.sqlite->/tmp/out.sqlite'),
+  );
 
   await runSyncFlow(
     makeContext({ syncDbPath: '/tmp/local.sqlite', syncMergePath: '/tmp/in.sqlite' }),
@@ -200,7 +203,8 @@ test('runHostSync keeps tracker quiescent through both merges and cleans up afte
   });
 
   await assert.rejects(
-    () => runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
+    () =>
+      runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
     /Remote merge failed on media-box[\s\S]*remote merge exploded/,
   );
   assert.equal(calls.filter((call) => call === 'quiescent').length, 3);
@@ -222,7 +226,8 @@ test('runHostSync includes remote snapshot stderr in failures', async () => {
   });
 
   await assert.rejects(
-    () => runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
+    () =>
+      runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }), deps),
     /Remote snapshot failed on media-box[\s\S]*snapshot permission denied/,
   );
 });
@@ -357,7 +362,12 @@ test('runCheckMode --json reports ssh and remote SubMiner status', async () => {
   });
 
   await runSyncFlow(
-    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box', syncCheck: true, syncJson: true }),
+    makeContext({
+      syncDbPath: '/tmp/local.sqlite',
+      syncHost: 'media-box',
+      syncCheck: true,
+      syncJson: true,
+    }),
     deps,
   );
 
@@ -374,7 +384,12 @@ test('runCheckMode --json reports ssh and remote SubMiner status', async () => {
   const failLines: string[] = [];
   await assert.rejects(() =>
     runSyncFlow(
-      makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box', syncCheck: true, syncJson: true }),
+      makeContext({
+        syncDbPath: '/tmp/local.sqlite',
+        syncHost: 'media-box',
+        syncCheck: true,
+        syncJson: true,
+      }),
       makeDeps({
         consoleLog: (line) => {
           failLines.push(line);
@@ -424,7 +439,9 @@ test('runHostSync speaks Windows shells: app command, double quotes, temp protoc
   assert.ok(scpCalls.some((call) => call.startsWith(`win-box:${expectedDir}/snapshot.sqlite->`)));
   assert.ok(scpCalls.some((call) => call.endsWith(`->win-box:${expectedDir}/incoming.sqlite`)));
   // No POSIX shell-isms reach a Windows remote.
-  assert.ok(!sshCommands.some((command) => command.startsWith('mktemp') || command.startsWith('rm ')));
+  assert.ok(
+    !sshCommands.some((command) => command.startsWith('mktemp') || command.startsWith('rm ')),
+  );
   assert.ok(!sshCommands.some((command) => command.includes('PATH="$HOME')));
 });
 

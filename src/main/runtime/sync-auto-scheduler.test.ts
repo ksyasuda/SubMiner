@@ -91,6 +91,28 @@ test('tick triggers at most one host per tick', () => {
   assert.equal(triggered.length, 1);
 });
 
+test('tick logs a synchronous trigger failure and remains usable', () => {
+  const state = makeState();
+  const logs: string[] = [];
+  let attempts = 0;
+  const scheduler = createSyncAutoScheduler({
+    readState: () => state,
+    isRunning: () => false,
+    canAutoSync: () => true,
+    triggerHostSync: () => {
+      attempts += 1;
+      throw new Error('spawn exploded');
+    },
+    nowMs: () => 100 * 60_000,
+    log: (message) => logs.push(message),
+  });
+
+  assert.doesNotThrow(() => scheduler.tick());
+  assert.doesNotThrow(() => scheduler.tick());
+  assert.equal(attempts, 2);
+  assert.ok(logs.some((message) => message.includes('spawn exploded')));
+});
+
 test('start/stop manage the interval timer', () => {
   const state = makeState();
   let setCalls = 0;

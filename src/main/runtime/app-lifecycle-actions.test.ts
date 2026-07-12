@@ -16,7 +16,9 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
-    stopSyncAutoScheduler: () => calls.push('stop-sync-auto-scheduler'),
+    stopSyncAutoScheduler: () => {
+      calls.push('stop-sync-auto-scheduler');
+    },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       calls.push('clear-windows-visible-overlay-poll'),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>

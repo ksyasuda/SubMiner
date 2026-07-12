@@ -8,8 +8,8 @@ import { selectOne, type OpenSyncDb, type SyncDb } from './driver';
 
 export { SCHEMA_VERSION };
 
-export type { SyncMergeSummary } from '../../../shared/sync/sync-events';
 import type { SyncMergeSummary } from '../../../shared/sync/sync-events';
+export type { SyncMergeSummary };
 
 export function createEmptyMergeSummary(): SyncMergeSummary {
   return {
