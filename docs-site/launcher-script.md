@@ -81,7 +81,7 @@ Series whose directories are not currently accessible (e.g. an unmounted network
 
 ## Sync Between Machines
 
-`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version. The command-line launcher is optional on both sides: the app itself answers sync commands (`SubMiner --sync-cli sync ...`), the sync window runs the engine in-app, and the remote side is found automatically whether it has the launcher or just the app.
+`subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version. The sync engine runs only inside the app (`SubMiner --sync-cli sync ...`): the sync window spawns it that way, `subminer sync` is a thin proxy that forwards to the installed app, and the remote side is found automatically whether it has the launcher or just the app — so the command-line launcher is optional everywhere.
 
 ```bash
 subminer sync macbook                  # two-way sync with the host "macbook"

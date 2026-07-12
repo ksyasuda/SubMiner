@@ -1462,6 +1462,30 @@ export function runAppCommandWithInherit(appPath: string, appArgs: string[]): vo
   });
 }
 
+/**
+ * Like runAppCommandWithInherit, but with the terminal fully attached: the
+ * child owns stdin (ssh password/host-key prompts must reach the user) and
+ * writes stdout/stderr directly (NDJSON --json output must stay unwrapped).
+ * Used for `subminer sync`, which proxies to the app's --sync-cli mode.
+ */
+export function runAppCommandInteractive(appPath: string, appArgs: string[]): void {
+  if (maybeCaptureAppArgs(appArgs)) {
+    process.exit(0);
+  }
+
+  const target = resolveAppSpawnTarget(appPath, appArgs);
+  const proc = spawn(target.command, target.args, {
+    stdio: ['inherit', 'inherit', 'inherit'],
+    env: buildAppEnv(process.env, target.env),
+  });
+  proc.once('error', (error) => {
+    fail(`Failed to run app command: ${error.message}`);
+  });
+  proc.once('close', (code) => {
+    process.exit(code ?? 0);
+  });
+}
+
 export function runAppCommandSilently(appPath: string, appArgs: string[]): void {
   if (maybeCaptureAppArgs(appArgs)) {
     process.exit(0);

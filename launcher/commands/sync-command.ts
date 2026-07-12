@@ -1,111 +1,73 @@
-import fs from 'node:fs';
-import { fail, log } from '../log.js';
-import type { LogLevel } from '../types.js';
-import { resolveImmersionDbPath } from '../history-db.js';
-import {
-  createDbSnapshot,
-  findLiveStatsDaemonPid,
-  formatMergeSummary,
-  mergeSnapshotIntoDb,
-} from '../sync/sync-db.js';
-import {
-  assertSafeSshHost,
-  detectRemoteShellFlavor,
-  resolveRemoteSubminerCommand,
-  runScp,
-  runSsh,
-} from '../sync/ssh.js';
-import { resolvePathMaybe } from '../util.js';
-import { canConnectUnixSocket } from '../mpv.js';
-import { recordHostSyncResultToDisk } from '../sync/sync-hosts.js';
-import {
-  ensureTrackerQuiescentFlow,
-  runSyncFlow,
-  runCheckMode as runCheckModeFlow,
-  runHostSync as runHostSyncFlow,
-  runMergeMode as runMergeModeFlow,
-  runSnapshotMode as runSnapshotModeFlow,
-  type SyncFlowContext,
-  type SyncFlowDeps,
-} from '../../src/core/services/stats-sync/sync-flow.js';
+import { fail } from '../log.js';
+import { runAppCommandInteractive } from '../mpv.js';
+import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
-// The sync flow itself lives in src/core/services/stats-sync (shared with the
-// app's --sync-cli mode); this module binds it to the launcher's bun:sqlite
-// engine, logger, and config paths.
-export type SyncCommandDeps = SyncFlowDeps;
+export interface SyncCommandDeps {
+  runAppCommand: (appPath: string, appArgs: string[]) => void;
+  fail: (message: string) => never;
+}
 
 const defaultSyncCommandDeps: SyncCommandDeps = {
-  createDbSnapshot,
-  mergeSnapshotIntoDb,
-  formatMergeSummary,
-  findLiveStatsDaemonPid,
-  assertSafeSshHost,
-  detectRemoteShellFlavor,
-  resolveRemoteSubminerCommand,
-  runScp,
-  runSsh,
+  runAppCommand: runAppCommandInteractive,
   fail,
-  log: (level, configured, message) => log(level as LogLevel, configured as LogLevel, message),
-  canConnectUnixSocket,
-  realpathSync: fs.realpathSync,
-  mkdtempSync: fs.mkdtempSync,
-  rmSync: fs.rmSync,
-  consoleLog: console.log,
-  writeStdout: process.stdout.write.bind(process.stdout),
-  ensureTrackerQuiescent: async (context, dbPath) => ensureTrackerQuiescent(context, dbPath),
-  emitEvent: () => {},
-  recordHostSyncResult: recordHostSyncResultToDisk,
-  resolveDefaultDbPath: resolveImmersionDbPath,
-  resolvePath: resolvePathMaybe,
 };
 
-function resolveSyncCommandDeps(inputDeps: Partial<SyncCommandDeps> = {}): SyncCommandDeps {
-  return { ...defaultSyncCommandDeps, ...inputDeps };
+type SyncArgs = Pick<
+  Args,
+  | 'syncHost'
+  | 'syncSnapshotPath'
+  | 'syncMergePath'
+  | 'syncDirection'
+  | 'syncRemoteCmd'
+  | 'syncDbPath'
+  | 'syncForce'
+  | 'syncJson'
+  | 'syncCheck'
+  | 'syncMakeTemp'
+  | 'syncRemoveTempPath'
+  | 'logLevel'
+>;
+
+/** Rebuild the app's --sync-cli argv from the launcher's parsed sync args. */
+export function buildSyncCliArgv(args: SyncArgs): string[] {
+  const argv = ['--sync-cli', 'sync'];
+  if (args.syncHost) argv.push(args.syncHost);
+  if (args.syncSnapshotPath) argv.push('--snapshot', args.syncSnapshotPath);
+  if (args.syncMergePath) argv.push('--merge', args.syncMergePath);
+  if (args.syncMakeTemp) argv.push('--make-temp');
+  if (args.syncRemoveTempPath) argv.push('--remove-temp', args.syncRemoveTempPath);
+  if (args.syncDirection === 'push') argv.push('--push');
+  if (args.syncDirection === 'pull') argv.push('--pull');
+  if (args.syncCheck) argv.push('--check');
+  if (args.syncRemoteCmd) argv.push('--remote-cmd', args.syncRemoteCmd);
+  if (args.syncDbPath) argv.push('--db', args.syncDbPath);
+  if (args.syncForce) argv.push('--force');
+  if (args.syncJson) argv.push('--json');
+  argv.push('--log-level', args.logLevel);
+  return argv;
 }
 
-export async function ensureTrackerQuiescent(
-  context: SyncFlowContext,
-  dbPath: string,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): Promise<void> {
-  await ensureTrackerQuiescentFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
-}
-
-export function runSnapshotMode(
-  context: LauncherCommandContext,
-  dbPath: string,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): void {
-  runSnapshotModeFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
-}
-
-export async function runMergeMode(
-  context: LauncherCommandContext,
-  dbPath: string,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): Promise<void> {
-  await runMergeModeFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
-}
-
-export async function runCheckMode(
-  context: LauncherCommandContext,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): Promise<void> {
-  await runCheckModeFlow(context, resolveSyncCommandDeps(inputDeps));
-}
-
-export async function runHostSync(
-  context: LauncherCommandContext,
-  dbPath: string,
-  inputDeps: Partial<SyncCommandDeps> = {},
-): Promise<void> {
-  await runHostSyncFlow(context, dbPath, resolveSyncCommandDeps(inputDeps));
-}
-
+/**
+ * `subminer sync` is a thin proxy: the sync engine only executes inside the
+ * SubMiner app (--sync-cli mode, libsql), so the launcher and the app cannot
+ * drift apart. The launcher contributes its parser/help and app discovery;
+ * the child owns the terminal and its exit code becomes the launcher's.
+ */
 export async function runSyncCommand(
   context: LauncherCommandContext,
   inputDeps: Partial<SyncCommandDeps> = {},
 ): Promise<boolean> {
-  return runSyncFlow(context, resolveSyncCommandDeps(inputDeps));
+  const deps = { ...defaultSyncCommandDeps, ...inputDeps };
+  if (!context.args.sync) return false;
+  if (!context.appPath) {
+    deps.fail(
+      context.processAdapter.platform() === 'darwin'
+        ? 'SubMiner app binary not found (sync runs inside the app). Install SubMiner.app to /Applications or ~/Applications, or set SUBMINER_APPIMAGE_PATH.'
+        : 'SubMiner app binary not found (sync runs inside the app). Install the SubMiner app, or set SUBMINER_APPIMAGE_PATH.',
+    );
+    return true; // fail() never returns; this only satisfies control-flow analysis
+  }
+  deps.runAppCommand(context.appPath, buildSyncCliArgv(context.args));
+  return true;
 }

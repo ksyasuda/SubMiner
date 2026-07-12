@@ -8,7 +8,7 @@ import {
   runScp,
   shellQuote,
   type RemoteRunResult,
-} from './ssh.js';
+} from './ssh';
 
 function remoteResult(status: number, stdout = ''): RemoteRunResult {
   return { status, stdout, stderr: '' };
