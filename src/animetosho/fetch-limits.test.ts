@@ -70,6 +70,33 @@ test('animetoshoFetchJson rejects an oversized response', async () => {
   }
 });
 
+test('animetoshoFetchJson decodes multi-byte characters split across chunks', async () => {
+  const title = '葬送のフリーレン';
+  const body = Buffer.from(JSON.stringify([{ id: 1, title }]), 'utf8');
+  // Split inside the first Japanese character's 3-byte UTF-8 sequence.
+  const splitAt = body.indexOf(Buffer.from(title, 'utf8')) + 1;
+
+  const server = await startServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.write(body.subarray(0, splitAt));
+    setTimeout(() => res.end(body.subarray(splitAt)), 10);
+  });
+
+  try {
+    const result = await animetoshoFetchJson<Array<{ id: number; title: string }>>(
+      '/json',
+      {},
+      { baseUrl: server.baseUrl },
+    );
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.data[0]!.title, title);
+    }
+  } finally {
+    await server.close();
+  }
+});
+
 test('animetoshoFetchJson still parses a normal response', async () => {
   const server = await startServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
