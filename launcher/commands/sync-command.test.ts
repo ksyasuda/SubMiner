@@ -293,12 +293,8 @@ test('runSyncCommand --json emits NDJSON progress events for a two-way host sync
   const events = lines.map((line) => JSON.parse(line));
   const types = events.map((event) => event.type);
   assert.ok(types.includes('stage'));
-  assert.ok(
-    events.some((event) => event.type === 'stage' && event.stage === 'snapshot-local'),
-  );
-  assert.ok(
-    events.some((event) => event.type === 'merge-summary' && event.target === 'local'),
-  );
+  assert.ok(events.some((event) => event.type === 'stage' && event.stage === 'snapshot-local'));
+  assert.ok(events.some((event) => event.type === 'merge-summary' && event.target === 'local'));
   assert.ok(
     events.some(
       (event) => event.type === 'remote-output' && event.text.includes('remote summary text'),

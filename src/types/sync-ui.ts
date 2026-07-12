@@ -73,7 +73,7 @@ export interface SyncUiAPI {
   cancelRun: () => Promise<boolean>;
   checkHost: (host: string) => Promise<SyncUiCheckResult>;
   createSnapshot: () => Promise<SyncUiStartResult>;
-  mergeSnapshotFile: (path: string) => Promise<SyncUiStartResult>;
+  mergeSnapshotFile: (path: string, force?: boolean) => Promise<SyncUiStartResult>;
   deleteSnapshot: (path: string) => Promise<SyncUiSnapshotFile[]>;
   revealSnapshot: (path: string) => Promise<boolean>;
   pickSnapshotFile: () => Promise<string | null>;

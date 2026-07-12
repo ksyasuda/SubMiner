@@ -89,6 +89,8 @@ subminer sync macbook --push           # merge local data into macbook only
 subminer sync macbook --pull           # merge macbook data into local only
 subminer sync user@192.168.1.20       # explicit user@host
 subminer sync macbook --remote-cmd ~/bin/subminer  # custom remote launcher path
+subminer sync macbook --check          # test SSH + remote launcher without syncing
+subminer sync --ui                     # open the sync window (also in the tray menu)
 ```
 
 How it works: each side takes a consistent snapshot of its database (`VACUUM INTO`), the snapshots are exchanged over `scp`, and each machine merges the other's snapshot into its own database. The merge is an insert-only union keyed on stable identifiers (session UUIDs, video keys, series title keys, word/kanji identity), so it is safe to re-run at any time — syncing twice changes nothing, and nothing is ever overwritten or summed twice. Lifetime totals and rollup charts are updated incrementally, so history older than the session retention window is preserved on both sides.
@@ -106,6 +108,19 @@ subminer sync --merge /tmp/stats.sqlite      # merge a snapshot file into the lo
 
 Unfinished sessions (a crash mid-playback) are skipped until the app finalizes them; they sync on the next run. Word/kanji "known" state from Anki is not part of the database and does not sync — each machine derives it from its own Anki collection.
 
+`subminer sync <host> --check` verifies a host without touching any data: it probes the SSH connection, locates the remote `subminer` launcher, and reports its version. `--json` switches any sync mode to machine-readable NDJSON progress output (this is what the sync window consumes).
+
+### Sync window
+
+`subminer sync --ui` (or **Sync Stats & History** in the tray menu) opens a dedicated window for the same engine:
+
+- **Devices** — saved hosts with a per-host direction (two-way / push / pull), an auto-sync toggle, last-sync status, and one-click **Sync now** / **Test** / **Remove**. Hosts synced from the command line appear here automatically.
+- **Add a device** — test SSH + remote launcher availability before saving, with a setup checklist for first-time SSH configuration.
+- **Activity** — live stage-by-stage progress, remote output, and a merge summary (sessions, words, kanji, rollups) when a run finishes. Runs can be cancelled, and guard failures offer a one-click `--force` retry.
+- **Snapshots** — create manual database snapshots (stored in `/tmp/subminer-db-snapshots/` by default), merge a snapshot file into the local database, or reveal/delete existing snapshots.
+
+Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 30 minutes) whenever no mpv session or stats server is using the database; results surface as overlay notifications. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
+
 ## Common Commands
 
 ```bash
@@ -120,51 +135,53 @@ subminer stats -b                       # start background stats daemon
 
 ## Subcommands
 
-| Subcommand                                 | Purpose                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------ |
-| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login, `--logout`, `--setup`) |
-| `subminer stats`                           | Start the stats server (opens the dashboard when `stats.autoOpenBrowser` is on)  |
-| `subminer stats -b` / `-s`                 | Start/reuse or stop the background stats daemon                    |
-| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (`-v` vocab, `-l` lifetime summaries) |
-| `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                    |
+| Subcommand                                 | Purpose                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `subminer jellyfin` / `jf`                 | Jellyfin workflows (`-d` discovery, `-p` play, `-l` login, `--logout`, `--setup`)                 |
+| `subminer stats`                           | Start the stats server (opens the dashboard when `stats.autoOpenBrowser` is on)                   |
+| `subminer stats -b` / `-s`                 | Start/reuse or stop the background stats daemon                                                   |
+| `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (`-v` vocab, `-l` lifetime summaries)           |
+| `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                                                   |
 | `subminer doctor`                          | Dependency + config + socket diagnostics (`--refresh-known-words` refreshes the known-word cache) |
-| `subminer settings`                        | Open the SubMiner settings window                                  |
-| `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path           |
-| `subminer config path`                     | Print active config file path                                      |
-| `subminer config show`                     | Print active config contents                                       |
-| `subminer mpv status`                      | Check mpv socket readiness                                         |
-| `subminer mpv socket`                      | Print active socket path                                           |
-| `subminer mpv idle`                        | Launch detached idle mpv instance                                  |
-| `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH           |
-| `subminer sync <host> --push`              | Merge local stats/history into another machine only                |
-| `subminer sync <host> --pull`              | Merge another machine's stats/history into the local database only |
-| `subminer dictionary <path>` / `dict`      | Generate character dictionary ZIP from file/dir target             |
-| `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction |
-| `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                     |
-| `subminer texthooker`                      | Launch texthooker-only mode                                        |
-| `subminer texthooker -o`                   | Launch texthooker and open it in the default browser               |
-| `subminer app` / `bin`                     | Pass arguments directly to SubMiner binary (e.g. `subminer app --setup`) |
+| `subminer settings`                        | Open the SubMiner settings window                                                                 |
+| `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path                                          |
+| `subminer config path`                     | Print active config file path                                                                     |
+| `subminer config show`                     | Print active config contents                                                                      |
+| `subminer mpv status`                      | Check mpv socket readiness                                                                        |
+| `subminer mpv socket`                      | Print active socket path                                                                          |
+| `subminer mpv idle`                        | Launch detached idle mpv instance                                                                 |
+| `subminer sync <host>`                     | Two-way stats/history sync with another machine over SSH                                          |
+| `subminer sync <host> --push`              | Merge local stats/history into another machine only                                               |
+| `subminer sync <host> --pull`              | Merge another machine's stats/history into the local database only                                |
+| `subminer sync <host> --check`             | Test SSH connection and remote launcher availability                                              |
+| `subminer sync --ui`                       | Open the sync window (saved devices, auto-sync, snapshots)                                        |
+| `subminer dictionary <path>` / `dict`      | Generate character dictionary ZIP from file/dir target                                            |
+| `subminer dictionary --candidates <path>`  | List AniList candidate matches for character dictionary correction                                |
+| `subminer dictionary --select <id> <path>` | Pin an AniList media ID for that target series                                                    |
+| `subminer texthooker`                      | Launch texthooker-only mode                                                                       |
+| `subminer texthooker -o`                   | Launch texthooker and open it in the default browser                                              |
+| `subminer app` / `bin`                     | Pass arguments directly to SubMiner binary (e.g. `subminer app --setup`)                          |
 
 Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                  | Description                                                          |
-| --------------------- | -------------------------------------------------------------------- |
-| `-d, --directory`     | Video search directory (default: cwd)                                |
-| `-r, --recursive`     | Search directories recursively                                       |
-| `-R, --rofi`          | Use rofi instead of fzf                                              |
-| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))     |
+| Flag                  | Description                                                                 |
+| --------------------- | --------------------------------------------------------------------------- |
+| `-d, --directory`     | Video search directory (default: cwd)                                       |
+| `-r, --recursive`     | Search directories recursively                                              |
+| `-R, --rofi`          | Use rofi instead of fzf                                                     |
+| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))            |
 | `-v, --version`       | Print the launcher's own version (can differ from the installed app binary) |
-| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible |
-| `--start`             | Explicitly start overlay after mpv launches                          |
-| `-S, --start-overlay` | Force the visible overlay on start                                   |
-| `-T, --no-texthooker` | Disable texthooker server                                            |
-| `-p, --profile`       | mpv profile name (no default; omitted unless set)                    |
-| `-a, --args`          | Pass additional mpv arguments as a quoted string                     |
-| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`) |
-| `--settings`          | Open the SubMiner settings window                                    |
-| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                  |
+| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible        |
+| `--start`             | Explicitly start overlay after mpv launches                                 |
+| `-S, --start-overlay` | Force the visible overlay on start                                          |
+| `-T, --no-texthooker` | Disable texthooker server                                                   |
+| `-p, --profile`       | mpv profile name (no default; omitted unless set)                           |
+| `-a, --args`          | Pass additional mpv arguments as a quoted string                            |
+| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`)        |
+| `--settings`          | Open the SubMiner settings window                                           |
+| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                         |
 
 App-binary flags such as `--setup`, `--dev`, and `--debug` are not launcher flags - pass them through with `subminer app`, for example `subminer app --setup`.
 

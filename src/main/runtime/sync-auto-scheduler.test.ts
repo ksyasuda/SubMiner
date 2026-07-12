@@ -33,7 +33,11 @@ test('tick triggers a due auto-sync host with its saved direction', () => {
 
 test('tick skips hosts synced more recently than the interval', () => {
   let state = makeState();
-  state = recordSyncResult(state, 'auto-box', { atMs: 90 * 60_000, status: 'success', detail: null });
+  state = recordSyncResult(state, 'auto-box', {
+    atMs: 90 * 60_000,
+    status: 'success',
+    detail: null,
+  });
   const triggered: string[] = [];
   const scheduler = createSyncAutoScheduler({
     readState: () => state,

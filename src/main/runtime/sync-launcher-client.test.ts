@@ -119,3 +119,29 @@ test('runSyncLauncher surfaces spawn errors', async () => {
   assert.equal(result.ok, false);
   assert.match(result.error ?? '', /ENOENT/);
 });
+
+test('resolveSyncLauncherCommand prefers the bundled launcher over PATH', async () => {
+  const { resolveSyncLauncherCommand } = await import('./sync-launcher-client');
+  const bundled = resolveSyncLauncherCommand({
+    findCommand: (name: string) =>
+      name === 'bun' ? '/usr/bin/bun' : name === 'subminer' ? '/home/u/.local/bin/subminer' : null,
+    resolveResourcePath: () => '/opt/app/resources/launcher/subminer',
+    existsSync: () => true,
+  });
+  assert.deepEqual(bundled.command, ['/usr/bin/bun', '/opt/app/resources/launcher/subminer']);
+
+  const fallback = resolveSyncLauncherCommand({
+    findCommand: (name: string) => (name === 'subminer' ? '/home/u/.local/bin/subminer' : null),
+    resolveResourcePath: () => '/missing',
+    existsSync: () => false,
+  });
+  assert.deepEqual(fallback.command, ['/home/u/.local/bin/subminer']);
+
+  const none = resolveSyncLauncherCommand({
+    findCommand: () => null,
+    resolveResourcePath: () => '/missing',
+    existsSync: () => false,
+  });
+  assert.equal(none.command, null);
+  assert.match(none.error ?? '', /launcher/i);
+});

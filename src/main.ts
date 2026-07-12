@@ -535,10 +535,7 @@ import { createConfigSettingsRuntime } from './main/runtime/config-settings-runt
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
 import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
 import { createSyncAutoScheduler } from './main/runtime/sync-auto-scheduler';
-import {
-  resolveSyncLauncherCommand,
-  runSyncLauncher,
-} from './main/runtime/sync-launcher-client';
+import { resolveSyncLauncherCommand, runSyncLauncher } from './main/runtime/sync-launcher-client';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -2255,7 +2252,7 @@ const openSyncUiWindow = () => openSyncUiWindowHandler();
 const syncUiRuntime = createSyncUiRuntime({
   ipcMain,
   hostsFilePath: path.join(USER_DATA_PATH, 'sync-hosts.json'),
-  snapshotsDir: path.join(USER_DATA_PATH, 'sync-snapshots'),
+  snapshotsDir: path.join(os.tmpdir(), 'subminer-db-snapshots'),
   getDbPath: () => {
     const configured = getResolvedConfig().immersionTracking?.dbPath?.trim();
     return configured || DEFAULT_IMMERSION_DB_PATH;

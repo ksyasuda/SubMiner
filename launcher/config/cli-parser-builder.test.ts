@@ -74,10 +74,7 @@ test('parseCliPrograms captures sync --json and --check flags', () => {
 });
 
 test('parseCliPrograms rejects invalid sync --check combinations', () => {
-  assert.throws(
-    () => parseCliPrograms(['sync', '--check'], 'subminer'),
-    /--check requires a host/,
-  );
+  assert.throws(() => parseCliPrograms(['sync', '--check'], 'subminer'), /--check requires a host/);
   assert.throws(
     () => parseCliPrograms(['sync', 'media-box', '--check', '--push'], 'subminer'),
     /--check cannot be combined/,

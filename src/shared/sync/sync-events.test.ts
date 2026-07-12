@@ -14,10 +14,11 @@ test('parseSyncProgressLine parses known event types', () => {
   });
   const parsed = parseSyncProgressLine(summaryLine);
   assert.equal(parsed?.type, 'merge-summary');
-  assert.deepEqual(
-    parseSyncProgressLine('{"type":"result","ok":true,"error":null}'),
-    { type: 'result', ok: true, error: null },
-  );
+  assert.deepEqual(parseSyncProgressLine('{"type":"result","ok":true,"error":null}'), {
+    type: 'result',
+    ok: true,
+    error: null,
+  });
 });
 
 test('parseSyncProgressLine rejects non-events and garbage', () => {

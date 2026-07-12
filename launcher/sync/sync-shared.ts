@@ -43,9 +43,9 @@ export function tableExists(db: Database, tableName: string): boolean {
 export function readSchemaVersion(db: Database): number | null {
   if (!tableExists(db, 'imm_schema_version')) return null;
   const row = db
-    .query<{ schema_version: number }>(
-      'SELECT MAX(schema_version) AS schema_version FROM imm_schema_version',
-    )
+    .query<{
+      schema_version: number;
+    }>('SELECT MAX(schema_version) AS schema_version FROM imm_schema_version')
     .get();
   return typeof row?.schema_version === 'number' ? row.schema_version : null;
 }
@@ -126,7 +126,9 @@ function statsDaemonStateCandidates(dbPath: string): string[] {
   });
   candidates.add(path.join(configDir, 'stats-daemon.json'));
   if (process.platform === 'darwin') {
-    candidates.add(path.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'stats-daemon.json'));
+    candidates.add(
+      path.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'stats-daemon.json'),
+    );
   }
   return [...candidates];
 }

@@ -356,7 +356,9 @@ export function parseCliPrograms(
         throw new Error('Sync --check requires a host.');
       }
       if (check && (push || pull || snapshot || merge)) {
-        throw new Error('Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.');
+        throw new Error(
+          'Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.',
+        );
       }
       const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
       if (modes === 0) {

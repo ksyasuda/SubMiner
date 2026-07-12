@@ -9,6 +9,8 @@ const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
 const settingsSourceDir = path.join(repoRoot, 'src', 'settings');
 const settingsOutputDir = path.join(repoRoot, 'dist', 'settings');
+const syncUiSourceDir = path.join(repoRoot, 'src', 'syncui');
+const syncUiOutputDir = path.join(repoRoot, 'dist', 'syncui');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
 const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
 const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
@@ -39,6 +41,10 @@ function copyRendererAssets() {
 
 function copySettingsAssets() {
   copyAssets(settingsSourceDir, settingsOutputDir, 'settings');
+}
+
+function copySyncUiAssets() {
+  copyAssets(syncUiSourceDir, syncUiOutputDir, 'syncui');
 }
 
 function fallbackToMacosSource() {
@@ -83,6 +89,7 @@ function buildMacosHelper() {
 function main() {
   copyRendererAssets();
   copySettingsAssets();
+  copySyncUiAssets();
   buildMacosHelper();
 }
 

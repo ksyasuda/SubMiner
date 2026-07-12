@@ -29,8 +29,7 @@ const SYNC_UI_IPC_CHANNELS = {
 } as const;
 
 const syncUiAPI: SyncUiAPI = {
-  getSnapshot: (): Promise<SyncUiSnapshot> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.getSnapshot),
+  getSnapshot: (): Promise<SyncUiSnapshot> => ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.getSnapshot),
   saveHost: (update: SyncUiHostUpdateRequest): Promise<SyncHostsState> =>
     ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.saveHost, update),
   removeHost: (host: string): Promise<SyncHostsState> =>
@@ -44,8 +43,8 @@ const syncUiAPI: SyncUiAPI = {
     ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.checkHost, host),
   createSnapshot: (): Promise<SyncUiStartResult> =>
     ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.createSnapshot),
-  mergeSnapshotFile: (path: string): Promise<SyncUiStartResult> =>
-    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.mergeSnapshotFile, path),
+  mergeSnapshotFile: (path: string, force?: boolean): Promise<SyncUiStartResult> =>
+    ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.mergeSnapshotFile, path, force === true),
   deleteSnapshot: (path: string): Promise<SyncUiSnapshotFile[]> =>
     ipcRenderer.invoke(SYNC_UI_IPC_CHANNELS.deleteSnapshot, path),
   revealSnapshot: (path: string): Promise<boolean> =>

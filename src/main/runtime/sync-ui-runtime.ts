@@ -213,9 +213,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     if (result.started) {
       // Remember the host (and the direction used) before the launcher's own
       // bookkeeping lands, so it shows up in the UI immediately.
-      writeState(
-        upsertSyncHost(readState(), { host, direction: request.direction }, deps.nowMs()),
-      );
+      writeState(upsertSyncHost(readState(), { host, direction: request.direction }, deps.nowMs()));
     }
     return result;
   }
@@ -298,9 +296,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     const channels = IPC_CHANNELS.request;
     deps.ipcMain.handle(channels.syncUiGetSnapshot, () => getSnapshot());
     deps.ipcMain.handle(channels.syncUiSaveHost, (_event, update) =>
-      writeState(
-        upsertSyncHost(readState(), update as SyncUiHostUpdateRequest, deps.nowMs()),
-      ),
+      writeState(upsertSyncHost(readState(), update as SyncUiHostUpdateRequest, deps.nowMs())),
     );
     deps.ipcMain.handle(channels.syncUiRemoveHost, (_event, host) =>
       writeState(removeSyncHost(readState(), String(host))),

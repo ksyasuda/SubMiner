@@ -138,13 +138,7 @@ test('run-sync spawns the launcher, forwards progress, and rejects concurrent ru
       force: true,
     })) as { started: boolean; runId: number };
     assert.equal(start.started, true);
-    assert.deepEqual(launcherCalls[0]!.args, [
-      'sync',
-      'media-box',
-      '--push',
-      '--force',
-      '--json',
-    ]);
+    assert.deepEqual(launcherCalls[0]!.args, ['sync', 'media-box', '--push', '--force', '--json']);
 
     const second = (await invoke('sync-ui:run-sync', { host: 'other' })) as {
       started: boolean;

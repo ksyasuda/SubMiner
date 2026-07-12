@@ -1,4 +1,5 @@
 import { spawn as nodeSpawn } from 'node:child_process';
+import fs from 'node:fs';
 import { parseSyncProgressLine, type SyncProgressEvent } from '../../shared/sync/sync-events';
 import { findCommand } from './command-line-launcher-deps';
 import { resolveLauncherResourcePath } from './command-line-launcher';
@@ -28,8 +29,9 @@ export interface SyncLauncherResolution {
   error: string | null;
 }
 
-// The launcher is a bun script: prefer the PATH-installed `subminer`, fall
-// back to running the bundled resource through bun directly.
+// The launcher is a bun script. Prefer the bundled launcher resource (it
+// always matches this app version's sync protocol) and only fall back to a
+// PATH-installed `subminer`, which may be older.
 export function resolveSyncLauncherCommand(
   deps: {
     findCommand?: typeof findCommand;
@@ -38,14 +40,17 @@ export function resolveSyncLauncherCommand(
   } = {},
 ): SyncLauncherResolution {
   const find = deps.findCommand ?? findCommand;
-  const installed = find('subminer', {});
-  if (installed) return { command: [installed], error: null };
-
+  const exists = deps.existsSync ?? fs.existsSync;
   const resourcePath = deps.resolveResourcePath
     ? deps.resolveResourcePath()
     : resolveLauncherResourcePath({});
   const bunPath = find('bun', {});
-  if (bunPath && resourcePath) return { command: [bunPath, resourcePath], error: null };
+  if (bunPath && resourcePath && exists(resourcePath)) {
+    return { command: [bunPath, resourcePath], error: null };
+  }
+
+  const installed = find('subminer', {});
+  if (installed) return { command: [installed], error: null };
 
   return {
     command: null,
