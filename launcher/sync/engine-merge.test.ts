@@ -606,3 +606,61 @@ test('createDbSnapshot produces a mergeable copy', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('adopted word frequency excludes active-session counts that merge later', () => {
+  const { dir, localPath, remotePath } = makeDbPair();
+  try {
+    // Remote has an ended session and a stale ACTIVE one (e.g. app crashed).
+    // The remote tracker increments frequency live, so the word's frequency (5)
+    // already includes the active session's 4 occurrences even though that
+    // session's lines are skipped by the merge.
+    insertFixtureSession(remotePath, {
+      uuid: 'remote-ended',
+      videoKey: 'showb-e1',
+      animeTitleKey: 'showb',
+      startedAtMs: BASE_MS,
+      applyLifetime: true,
+      words: [{ headword: '食べる', word: '食べた', reading: 'たべた', count: 1 }],
+    });
+    insertFixtureSession(remotePath, {
+      uuid: 'remote-active',
+      videoKey: 'showb-e2',
+      animeTitleKey: 'showb',
+      startedAtMs: BASE_MS + DAY_MS,
+      endedAtMs: null,
+      words: [{ headword: '食べる', word: '食べた', reading: 'たべた', count: 4 }],
+    });
+
+    const first = mergeSnapshotIntoDb(localPath, remotePath);
+    assert.equal(first.sessionsMerged, 1);
+    assert.equal(first.activeSessionsSkipped, 1);
+    assert.equal(first.wordsAdded, 1);
+    // Only the ended session's count is adopted; the active session's slice
+    // is re-added when that session finalizes and syncs.
+    assert.equal(
+      queryOne<{ frequency: number }>(localPath, `SELECT frequency FROM imm_words WHERE word = '食べた'`)
+        ?.frequency,
+      1,
+    );
+
+    // The remote app restarts and finalizes the stale session.
+    withWritableDb(remotePath, (db) => {
+      db.prepare(
+        `UPDATE imm_sessions SET ended_at_ms = ?, status = 2
+         WHERE session_uuid = 'remote-active'`,
+      ).run(String(BASE_MS + DAY_MS + 1_500_000));
+    });
+
+    const second = mergeSnapshotIntoDb(localPath, remotePath);
+    assert.equal(second.sessionsMerged, 1);
+    assert.equal(second.sessionsAlreadyPresent, 1);
+    // 1 (ended session) + 4 (finalized session), not 5 + 4 = 9.
+    assert.equal(
+      queryOne<{ frequency: number }>(localPath, `SELECT frequency FROM imm_words WHERE word = '食べた'`)
+        ?.frequency,
+      5,
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

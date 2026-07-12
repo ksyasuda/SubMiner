@@ -285,9 +285,11 @@ export function mergeExcludedWords(
 /**
  * Lazily maps remote imm_words / imm_kanji ids onto local rows by natural key
  * ((headword, word, reading) / kanji). New rows are copied with the remote's
- * accumulated frequency; rows that already exist locally get their frequency
- * incremented later with only the occurrence counts this merge adds (the
- * remote total would double-count lines merged in earlier syncs).
+ * accumulated frequency minus any counts owed to skipped ACTIVE sessions
+ * (those merge later and re-add their counts); rows that already exist locally
+ * get their frequency incremented later with only the occurrence counts this
+ * merge adds (the remote total would double-count lines merged in earlier
+ * syncs).
  */
 export class LexiconResolver {
   private readonly wordMap = new Map<number, { localId: number; isNew: boolean }>();
@@ -300,6 +302,35 @@ export class LexiconResolver {
     private readonly remote: SyncDb,
     private readonly summary: SyncMergeSummary,
   ) {}
+
+  /**
+   * Occurrence counts the remote's live tracker already baked into `frequency`
+   * but that belong to skipped ACTIVE sessions. Those lines are not copied this
+   * merge; they are re-added via addWordOccurrences/addKanjiOccurrences when
+   * the session finalizes and syncs, so a newly adopted row must not carry them
+   * or that slice would be counted twice.
+   */
+  private pendingActiveSessionOccurrences(
+    occurrenceTable: 'imm_word_line_occurrences' | 'imm_kanji_line_occurrences',
+    idColumn: 'word_id' | 'kanji_id',
+    remoteId: number,
+  ): number {
+    const row = selectOne(
+      this.remote,
+      `SELECT COALESCE(SUM(o.occurrence_count), 0) AS pending
+       FROM ${occurrenceTable} o
+       JOIN imm_subtitle_lines l ON l.line_id = o.line_id
+       JOIN imm_sessions s ON s.session_id = l.session_id
+       WHERE o.${idColumn} = ? AND s.ended_at_ms IS NULL`,
+      [remoteId],
+    );
+    return Number(row?.pending ?? 0);
+  }
+
+  private adoptedFrequency(frequency: unknown, pending: number): unknown {
+    if (pending <= 0 || typeof frequency !== 'number') return frequency;
+    return Math.max(0, frequency - pending);
+  }
 
   resolveWord(remoteWordId: number): number {
     const cached = this.wordMap.get(remoteWordId);
@@ -329,11 +360,18 @@ export class LexiconResolver {
         )
         .run(row.first_seen, row.first_seen, row.last_seen, row.last_seen, entry.localId);
     } else {
+      const pending = this.pendingActiveSessionOccurrences(
+        'imm_word_line_occurrences',
+        'word_id',
+        remoteWordId,
+      );
       const localId = insertRow(
         this.local,
         'imm_words',
         WORD_COPY_COLUMNS,
-        WORD_COPY_COLUMNS.map((column) => row[column]),
+        WORD_COPY_COLUMNS.map((column) =>
+          column === 'frequency' ? this.adoptedFrequency(row[column], pending) : row[column],
+        ),
       );
       entry = { localId, isNew: true };
       this.summary.wordsAdded += 1;
@@ -368,11 +406,16 @@ export class LexiconResolver {
         )
         .run(row.first_seen, row.first_seen, row.last_seen, row.last_seen, entry.localId);
     } else {
+      const pending = this.pendingActiveSessionOccurrences(
+        'imm_kanji_line_occurrences',
+        'kanji_id',
+        remoteKanjiId,
+      );
       const localId = insertRow(
         this.local,
         'imm_kanji',
         ['kanji', 'first_seen', 'last_seen', 'frequency'],
-        [row.kanji, row.first_seen, row.last_seen, row.frequency],
+        [row.kanji, row.first_seen, row.last_seen, this.adoptedFrequency(row.frequency, pending)],
       );
       entry = { localId, isNew: true };
       this.summary.kanjiAdded += 1;
