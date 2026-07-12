@@ -389,7 +389,7 @@ async function refresh(): Promise<void> {
   if (snapshot.launcherPath === null) {
     launcherWarning.textContent =
       'The subminer command-line launcher was not found. Install it from SubMiner setup ' +
-      '(or install bun) — syncing runs through the launcher.';
+      '(or install bun). Syncing runs through the launcher.';
   }
   setRunPill();
   renderHosts();
