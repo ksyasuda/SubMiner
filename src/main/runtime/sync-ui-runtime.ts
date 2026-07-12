@@ -58,9 +58,11 @@ interface ActiveRun {
   resultSeen: boolean;
 }
 
-function formatSnapshotName(nowMs: number): string {
+// Milliseconds are part of the stamp so two snapshots taken in the same second
+// do not land on the same path and silently overwrite each other.
+export function formatSnapshotName(nowMs: number): string {
   const iso = new Date(nowMs).toISOString();
-  const stamp = iso.slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+  const stamp = iso.slice(0, 23).replace(/[-:.]/g, '').replace('T', '-');
   return `immersion-${stamp}.sqlite`;
 }
 

@@ -180,16 +180,34 @@ export function readSyncHostsState(
   }
 }
 
+// Written via a sibling temp file + rename so an interrupted write cannot leave
+// a truncated sync-hosts.json behind (readSyncHostsState would silently fall
+// back to defaults, dropping every configured host).
 export function writeSyncHostsState(
   filePath: string,
   state: SyncHostsState,
   deps?: {
     mkdirSync?: (candidate: string, options: { recursive: true }) => void;
     writeFileSync?: (candidate: string, content: string, encoding: BufferEncoding) => void;
+    renameSync?: (from: string, to: string) => void;
+    rmSync?: (target: string, options: { force: true }) => void;
   },
 ): void {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
   const writeFileSync = deps?.writeFileSync ?? fs.writeFileSync;
+  const renameSync = deps?.renameSync ?? fs.renameSync;
+  const rmSync = deps?.rmSync ?? fs.rmSync;
   mkdirSync(path.dirname(filePath), { recursive: true });
-  writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  const tempPath = `${filePath}.tmp`;
+  writeFileSync(tempPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  try {
+    renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      rmSync(tempPath, { force: true });
+    } catch {
+      // best effort: the temp file is disposable
+    }
+    throw error;
+  }
 }

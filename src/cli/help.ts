@@ -80,6 +80,7 @@ ${B}Jellyfin${R}
   --jellyfin-subtitle-stream-index ${D}N${R}    Subtitle stream override
 
 ${B}Stats sync${R}
+  --sync-window                  Open the stats sync window
   --sync-cli sync ${D}[host] [opts]${R}   Headless stats sync ${D}(same commands as "subminer sync";${R}
                                  ${D}run --sync-cli --help for details)${R}
 

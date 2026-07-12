@@ -62,3 +62,20 @@ test('parseSyncCliTokens mirrors launcher sync validation', () => {
   assert.equal(parseSyncCliTokens(['sync', 'h', 'extra']).kind, 'error');
   assert.equal(parseSyncCliTokens(['sync', '--snapshot']).kind, 'error');
 });
+
+test('parseSyncCliTokens rejects an option-like token where a value is required', () => {
+  // Without this guard `--snapshot --force` writes a snapshot to a file literally
+  // named "--force" and silently drops the flag.
+  assert.deepEqual(parseSyncCliTokens(['sync', '--snapshot', '--force']), {
+    kind: 'error',
+    message: 'Missing value for --snapshot.',
+  });
+  assert.deepEqual(parseSyncCliTokens(['sync', '--remove-temp', '--force']), {
+    kind: 'error',
+    message: 'Missing value for --remove-temp.',
+  });
+  // The `--flag=<value>` form still accepts values that begin with "-".
+  const parsed = parseSyncCliTokens(['sync', '--snapshot=-weird-name.sqlite']);
+  assert.equal(parsed.kind, 'run');
+  assert.equal(parsed.kind === 'run' && parsed.args.syncSnapshotPath, '-weird-name.sqlite');
+});

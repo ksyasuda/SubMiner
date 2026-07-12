@@ -160,3 +160,17 @@ test('quoteForRemoteShell quotes per flavor and rejects unsafe Windows values', 
   assert.throws(() => quoteForRemoteShell('windows-cmd', 'a"b'), /Refusing to quote/);
   assert.throws(() => quoteForRemoteShell('windows-powershell', 'a\nb'), /Refusing to quote/);
 });
+
+test('quoteForRemoteShell does not let PowerShell expand a quoted value', () => {
+  // PowerShell expands $(...) and $var inside double quotes, so a single-quoted
+  // literal is the only safe form; '' is the escape for an embedded quote.
+  assert.equal(
+    quoteForRemoteShell('windows-powershell', 'C:/tmp/$(calc.exe)'),
+    `'C:/tmp/$(calc.exe)'`,
+  );
+  assert.equal(quoteForRemoteShell('windows-powershell', "C:/tmp/it's"), `'C:/tmp/it''s'`);
+  assert.equal(
+    quoteForRemoteShell('windows-powershell', 'C:/Users/First Last/Temp/subminer-sync-ab'),
+    `'C:/Users/First Last/Temp/subminer-sync-ab'`,
+  );
+});

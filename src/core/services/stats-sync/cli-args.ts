@@ -64,7 +64,10 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
         continue;
       }
       const value = rest[i + 1];
-      if (value === undefined) {
+      // An option-like token is never a value: `--snapshot --force` must fail
+      // loudly instead of writing a snapshot to a file named "--force". Paths
+      // that really do start with "-" can still be passed as `--snapshot=-x`.
+      if (value === undefined || value.startsWith('-')) {
         return { kind: 'error', message: `Missing value for ${token}.` };
       }
       assignValue(value);
@@ -144,6 +147,8 @@ export function syncCliUsage(): string {
     '  <host>               Sync stats with an SSH destination (user@host or ssh alias)',
     '  --snapshot <file>    Write a consistent snapshot of the local stats database',
     '  --merge <file>       Merge a snapshot database file into the local stats database',
+    '  --make-temp          Create a sync temp directory and print its path (used over SSH)',
+    '  --remove-temp <dir>  Remove a sync temp directory created by --make-temp',
     '',
     'Options:',
     '  --push               Only merge local stats into the SSH host',
@@ -153,8 +158,6 @@ export function syncCliUsage(): string {
     '  --remote-cmd <cmd>   SubMiner app or launcher command to run on the remote host',
     '  -f, --force          Skip the running-app safety check',
     '  --json               Emit machine-readable NDJSON progress output',
-    '  --make-temp          Create a sync temp directory and print its path (used over SSH)',
-    '  --remove-temp <dir>  Remove a sync temp directory created by --make-temp',
     '  --log-level <level>  Log level',
     '  --help               Show this help',
     '  --version            Show the SubMiner version',

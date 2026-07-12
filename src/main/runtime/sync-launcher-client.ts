@@ -2,6 +2,9 @@ import { spawn as nodeSpawn } from 'node:child_process';
 import { parseSyncProgressLine, type SyncProgressEvent } from '../../shared/sync/sync-events';
 import { SYNC_CLI_FLAG } from '../../core/services/stats-sync/cli-args';
 
+/** How long a cancelled sync child gets to exit on SIGTERM before SIGKILL. */
+const CANCEL_GRACE_MS = 5000;
+
 export interface SyncLauncherChildLike {
   stdout: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
   stderr: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
@@ -114,14 +117,35 @@ export function runSyncLauncher(options: {
     });
   });
 
+  // A sync child blocked on an ssh password prompt ignores SIGTERM, so escalate
+  // to SIGKILL if it is still alive after a grace period. The timer is cleared
+  // on close so a cancelled run cannot hold the process open.
+  let killTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearKillTimer = (): void => {
+    if (killTimer === null) return;
+    clearTimeout(killTimer);
+    killTimer = null;
+  };
+  child.on('close', clearKillTimer);
+
   return {
     cancel: () => {
+      if (cancelled) return;
       cancelled = true;
       try {
         child.kill('SIGTERM');
       } catch {
         // process may already be gone
       }
+      killTimer = setTimeout(() => {
+        killTimer = null;
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // process may already be gone
+        }
+      }, CANCEL_GRACE_MS);
+      killTimer.unref?.();
     },
     done,
   };

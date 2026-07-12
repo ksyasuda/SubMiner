@@ -100,15 +100,21 @@ export function detectRemoteShellFlavor(
 }
 
 /**
- * Quote one argument for the detected remote shell. Windows shells have no
- * safe single-quote escaping (cmd treats ' literally; PowerShell and cmd
- * disagree on embedded double quotes), so quote-containing values are
- * rejected instead of escaped — sync only ever quotes paths it composed.
+ * Quote one argument for the detected remote shell. PowerShell expands $(...)
+ * and $var inside double quotes, so it gets a single-quoted literal ('' escapes
+ * a quote). cmd.exe has no single-quote form and treats ' literally, so it keeps
+ * double quotes and rejects values carrying a double quote of their own.
  */
 export function quoteForRemoteShell(flavor: RemoteShellFlavor, value: string): string {
   if (flavor === 'posix') return shellQuote(value);
-  if (value.includes('"') || /[\r\n]/.test(value)) {
-    throw new Error(`Refusing to quote a value with quotes or newlines for a Windows shell: ${value}`);
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`Refusing to quote a value with newlines for a Windows shell: ${value}`);
+  }
+  if (flavor === 'windows-powershell') {
+    return `'${value.replaceAll("'", "''")}'`;
+  }
+  if (value.includes('"')) {
+    throw new Error(`Refusing to quote a value with quotes for a Windows shell: ${value}`);
   }
   return `"${value}"`;
 }

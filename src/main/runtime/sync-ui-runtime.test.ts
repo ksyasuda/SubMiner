@@ -21,7 +21,7 @@ function makeTestRig(root: string) {
   const windowStub = {
     isDestroyed: () => false,
     webContents: {
-      send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
+      send: (channel: string, payload?: unknown) => sent.push({ channel, payload }),
     },
   };
 

@@ -180,3 +180,25 @@ test('writeSyncHostsState creates parent directories', () => {
     assert.deepEqual(readSyncHostsState(filePath), createDefaultSyncHostsState());
   });
 });
+
+test('writeSyncHostsState leaves the previous file intact when the write fails', () => {
+  withTempDir((root) => {
+    const filePath = getSyncHostsPath(root);
+    let state = createDefaultSyncHostsState();
+    state = upsertSyncHost(state, { host: 'user@laptop', label: 'Laptop' }, 42);
+    writeSyncHostsState(filePath, state);
+
+    // A crash mid-write must not truncate the live file: readSyncHostsState
+    // falls back to defaults on a corrupt file, which would drop every host.
+    let next = upsertSyncHost(state, { host: 'user@desktop' }, 43);
+    assert.throws(() =>
+      writeSyncHostsState(filePath, next, {
+        renameSync: () => {
+          throw new Error('disk full');
+        },
+      }),
+    );
+    assert.deepEqual(readSyncHostsState(filePath), state);
+    assert.equal(fs.existsSync(`${filePath}.tmp`), false);
+  });
+});

@@ -16,6 +16,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     unregisterAllGlobalShortcuts: () => calls.push('unregister-shortcuts'),
     stopSubtitleWebsocket: () => calls.push('stop-ws'),
     stopTexthookerService: () => calls.push('stop-texthooker'),
+    stopSyncAutoScheduler: () => calls.push('stop-sync-auto-scheduler'),
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       calls.push('clear-windows-visible-overlay-poll'),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () =>
@@ -47,7 +48,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 33);
+  assert.equal(calls.length, 34);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
@@ -68,6 +69,7 @@ test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping 
     unregisterAllGlobalShortcuts: () => {},
     stopSubtitleWebsocket: () => {},
     stopTexthookerService: () => {},
+    stopSyncAutoScheduler: () => {},
     clearWindowsVisibleOverlayForegroundPollLoop: () => {},
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
     destroyMainOverlayWindow: () => {},

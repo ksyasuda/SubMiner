@@ -351,7 +351,18 @@ export function parseCliPrograms(
       const makeTemp = options.makeTemp === true;
       const removeTemp = typeof options.removeTemp === 'string' ? options.removeTemp.trim() : '';
       if (options.ui === true) {
-        if (host || snapshot || merge || push || pull || check || options.force === true) {
+        if (
+          host ||
+          snapshot ||
+          merge ||
+          push ||
+          pull ||
+          check ||
+          makeTemp ||
+          removeTemp ||
+          options.json === true ||
+          options.force === true
+        ) {
           throw new Error('Sync --ui cannot be combined with other sync options.');
         }
         syncUiTriggered = true;
