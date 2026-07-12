@@ -539,6 +539,12 @@ export function handleCliCommand(
     );
   } else if (args.openJimaku) {
     dispatchCliSessionAction({ actionId: 'openJimaku' }, 'openJimaku', 'Open jimaku failed');
+  } else if (args.openAnimetosho) {
+    dispatchCliSessionAction(
+      { actionId: 'openAnimetosho' },
+      'openAnimetosho',
+      'Open animetosho failed',
+    );
   } else if (args.openYoutubePicker) {
     dispatchCliSessionAction(
       { actionId: 'openYoutubePicker' },

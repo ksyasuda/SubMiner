@@ -811,6 +811,50 @@ body:focus-visible,
   z-index: 1100;
 }
 
+#animetoshoModal {
+  z-index: 1100;
+}
+
+#animetoshoModal .jimaku-form {
+  grid-template-columns: 1fr 120px auto;
+}
+
+.animetosho-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.animetosho-tab {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(110, 115, 141, 0.22);
+  background: rgba(49, 50, 68, 0.76);
+  color: var(--ctp-subtext1);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.animetosho-tab:hover,
+.animetosho-tab:focus-visible {
+  border-color: rgba(138, 173, 244, 0.48);
+  color: var(--ctp-text);
+  outline: none;
+}
+
+.animetosho-tab.active {
+  border-color: rgba(238, 212, 159, 0.62);
+  background: rgba(238, 212, 159, 0.16);
+  color: var(--ctp-yellow);
+}
+
 #youtubePickerModal {
   z-index: 1110;
 }

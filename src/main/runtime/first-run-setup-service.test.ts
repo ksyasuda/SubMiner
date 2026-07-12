@@ -54,6 +54,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
+    openAnimetosho: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
     replayCurrentSubtitle: false,

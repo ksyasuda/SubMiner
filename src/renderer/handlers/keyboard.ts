@@ -16,6 +16,7 @@ export function createKeyboardHandlers(
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
+    handleAnimetoshoKeydown: (e: KeyboardEvent) => boolean;
     handleYoutubePickerKeydown: (e: KeyboardEvent) => boolean;
     handlePlaylistBrowserKeydown: (e: KeyboardEvent) => boolean;
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
@@ -1117,6 +1118,10 @@ export function createKeyboardHandlers(
       }
       if (ctx.state.jimakuModalOpen) {
         options.handleJimakuKeydown(e);
+        return;
+      }
+      if (ctx.state.animetoshoModalOpen) {
+        options.handleAnimetoshoKeydown(e);
         return;
       }
       if (ctx.state.youtubePickerModalOpen) {

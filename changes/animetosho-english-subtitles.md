@@ -1,0 +1,4 @@
+type: added
+area: overlay
+
+- Added an Animetosho integration for downloading English (and Japanese) subtitles, mirroring the Jimaku flow: `Ctrl+Shift+T` (configurable via `shortcuts.openAnimetosho`) opens an in-overlay modal with two language tabs (the first follows `secondarySub.secondarySubLanguages`, defaulting to English; the second is Japanese) that parses the current video filename, searches Animetosho releases, lists extracted text subtitle tracks filtered by the active tab, then downloads the chosen track, decompresses it (requires the `xz` binary), saves it next to the video with a language suffix (`<video>.en.<ext>`, `.ja` for Japanese tracks, etc.), and loads it into mpv immediately - Japanese tracks as the primary subtitle, other languages as the secondary subtitle. No API key is required; also reachable via `subminer --open-animetosho`, the `__animetosho-open` keybinding command, and configurable under a new `animetosho` config section.

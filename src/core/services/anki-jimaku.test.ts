@@ -11,7 +11,8 @@ interface RuntimeHarness {
     patches: boolean[];
     broadcasts: number;
     fetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
-    sentCommands: Array<{ command: string[] }>;
+    animetoshoFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
+    sentCommands: Array<{ command: (string | number)[] }>;
   };
 }
 
@@ -25,20 +26,74 @@ function createHarness(): RuntimeHarness {
       endpoint: string;
       query?: Record<string, unknown>;
     }>,
-    sentCommands: [] as Array<{ command: string[] }>,
+    animetoshoFetchCalls: [] as Array<{
+      endpoint: string;
+      query?: Record<string, unknown>;
+    }>,
+    sentCommands: [] as Array<{ command: (string | number)[] }>,
   };
 
   const options: AnkiJimakuIpcRuntimeOptions = {
     patchAnkiConnectEnabled: (enabled) => {
       state.patches.push(enabled);
     },
-    getResolvedConfig: () => ({}),
+    getResolvedConfig: () => ({ animetosho: { maxSearchResults: 2 } }),
     getRuntimeOptionsManager: () => null,
+    animetoshoFetchJson: async (endpoint, query) => {
+      state.animetoshoFetchCalls.push({
+        endpoint,
+        query: query as Record<string, unknown>,
+      });
+      if ((query as Record<string, unknown>)?.show === 'torrent') {
+        return {
+          ok: true,
+          data: {
+            files: [
+              {
+                id: 9,
+                filename: 'episode.mkv',
+                attachments: [
+                  {
+                    id: 1955356,
+                    type: 'subtitle',
+                    info: { codec: 'ASS', lang: 'eng', name: 'English subs' },
+                    size: 33075,
+                  },
+                ],
+              },
+            ],
+          } as never,
+        };
+      }
+      return {
+        ok: true,
+        data: [
+          { id: 1, title: 'release a' },
+          { id: 2, title: 'release b' },
+          { id: 3, title: 'release c' },
+        ] as never,
+      };
+    },
     getSubtitleTimingTracker: () => null,
     getMpvClient: () => ({
       connected: true,
       send: (payload) => {
         state.sentCommands.push(payload);
+      },
+      request: async (command: unknown[]) => {
+        state.sentCommands.push({ command } as never);
+        return {
+          data: [
+            { id: 1, type: 'sub', selected: true },
+            {
+              id: 3,
+              type: 'sub',
+              lang: 'en',
+              external: true,
+              'external-filename': '/tmp/video.en.ass',
+            },
+          ],
+        };
       },
     }),
     getAnkiIntegration: () => state.ankiIntegration as never,
@@ -117,6 +172,10 @@ test('registerAnkiJimakuIpcRuntime provides full handler surface', () => {
     'isRemoteMediaPath',
     'downloadToFile',
     'onDownloadedSubtitle',
+    'searchAnimetoshoEntries',
+    'listAnimetoshoFiles',
+    'downloadAnimetoshoSubtitle',
+    'onDownloadedSecondarySubtitle',
   ];
 
   for (const key of expected) {
@@ -252,4 +311,93 @@ test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to
 
   registered.onDownloadedSubtitle!('/tmp/subtitle.ass');
   assert.deepEqual(state.sentCommands, [{ command: ['sub-add', '/tmp/subtitle.ass', 'select'] }]);
+});
+
+test('onDownloadedSecondarySubtitle loads without stealing the primary track', async () => {
+  const { registered, state } = createHarness();
+
+  await registered.onDownloadedSecondarySubtitle!('/tmp/video.en.ass');
+
+  assert.deepEqual(state.sentCommands[0], { command: ['sub-add', '/tmp/video.en.ass', 'auto'] });
+  assert.deepEqual(state.sentCommands[1], { command: ['get_property', 'track-list'] });
+  assert.deepEqual(state.sentCommands[2], { command: ['set_property', 'secondary-sid', 3] });
+});
+
+test('onDownloadedSecondarySubtitle retries until mpv reports the new track', async () => {
+  const state = {
+    sentCommands: [] as Array<{ command: (string | number)[] }>,
+    trackListCalls: 0,
+  };
+
+  const options = {
+    ...createHarness().options,
+    getMpvClient: () => ({
+      connected: true,
+      send: (payload: { command: (string | number)[] }) => {
+        state.sentCommands.push(payload);
+      },
+      request: async () => {
+        state.trackListCalls += 1;
+        // mpv has not registered the external file yet on the first poll.
+        if (state.trackListCalls < 2) {
+          return { data: [{ id: 1, type: 'sub', selected: true }] };
+        }
+        return {
+          data: [
+            { id: 1, type: 'sub', selected: true },
+            { id: 4, type: 'sub', external: true, 'external-filename': '/tmp/video.en.ass' },
+          ],
+        };
+      },
+    }),
+  } as unknown as AnkiJimakuIpcRuntimeOptions;
+
+  let registered: Record<string, (...args: unknown[]) => unknown> = {};
+  registerAnkiJimakuIpcRuntime(options, (deps) => {
+    registered = deps as unknown as Record<string, (...args: unknown[]) => unknown>;
+  });
+
+  await registered.onDownloadedSecondarySubtitle!('/tmp/video.en.ass');
+
+  assert.equal(state.trackListCalls, 2);
+  assert.deepEqual(state.sentCommands.at(-1), {
+    command: ['set_property', 'secondary-sid', 4],
+  });
+});
+
+test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', async () => {
+  const { registered, state } = createHarness();
+
+  const searchResult = await registered.searchAnimetoshoEntries!({ query: 'frieren 28' });
+  assert.deepEqual(state.animetoshoFetchCalls, [
+    {
+      endpoint: '/json',
+      query: { q: 'frieren 28', qx: 1 },
+    },
+  ]);
+  assert.equal((searchResult as { ok: boolean }).ok, true);
+  const entries = (searchResult as { data: Array<{ id: number }> }).data;
+  assert.equal(entries.length, 2);
+  assert.deepEqual(
+    entries.map((entry) => entry.id),
+    [1, 2],
+  );
+});
+
+test('listAnimetoshoFiles extracts subtitle attachments from torrent detail', async () => {
+  const { registered, state } = createHarness();
+
+  const filesResult = await registered.listAnimetoshoFiles!({ entryId: 606713 });
+  assert.deepEqual(state.animetoshoFetchCalls, [
+    {
+      endpoint: '/json',
+      query: { show: 'torrent', id: 606713 },
+    },
+  ]);
+  assert.equal((filesResult as { ok: boolean }).ok, true);
+  const files = (filesResult as { data: Array<Record<string, unknown>> }).data;
+  assert.equal(files.length, 1);
+  assert.equal(files[0]!.attachmentId, 1955356);
+  assert.equal(files[0]!.filename, 'episode.eng.ass');
+  assert.equal(files[0]!.url, 'https://animetosho.org/storage/attach/001dd61c/1955356.xz');
 });

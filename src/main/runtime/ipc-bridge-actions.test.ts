@@ -11,6 +11,7 @@ test('handle mpv command handler forwards command and built deps', () => {
     triggerSubsyncFromConfig: () => {},
     openRuntimeOptionsPalette: () => {},
     openJimaku: () => {},
+    openAnimetosho: () => {},
     openYoutubeTrackPicker: () => {},
     openPlaylistBrowser: () => {},
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),

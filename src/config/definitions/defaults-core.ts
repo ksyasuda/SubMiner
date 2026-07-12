@@ -98,6 +98,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openCharacterDictionaryManager: 'CommandOrControl+D',
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
+    openAnimetosho: 'Ctrl+Shift+T',
     openSessionHelp: 'CommandOrControl+Slash',
     openControllerSelect: 'Alt+C',
     openControllerDebug: 'Alt+Shift+C',

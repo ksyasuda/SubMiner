@@ -40,6 +40,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openControllerSelect: () => calls.push('controller-select'),
     openControllerDebug: () => calls.push('controller-debug'),
     openJimaku: () => calls.push('jimaku'),
+    openAnimetosho: () => calls.push('animetosho'),
     openYoutubeTrackPicker: () => {
       calls.push('youtube');
     },

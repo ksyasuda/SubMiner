@@ -8,6 +8,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     triggerSubsyncFromConfig: () => calls.push('subsync'),
     openRuntimeOptionsPalette: () => calls.push('palette'),
     openJimaku: () => calls.push('jimaku'),
+    openAnimetosho: () => calls.push('animetosho'),
     openYoutubeTrackPicker: () => {
       calls.push('youtube-picker');
     },

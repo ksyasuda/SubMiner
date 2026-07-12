@@ -401,6 +401,18 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Maximum Jimaku search results returned.',
     },
     {
+      path: 'animetosho.apiBaseUrl',
+      kind: 'string',
+      defaultValue: defaultConfig.animetosho.apiBaseUrl,
+      description: 'Base URL of the Animetosho JSON feed API. No API key required.',
+    },
+    {
+      path: 'animetosho.maxSearchResults',
+      kind: 'number',
+      defaultValue: defaultConfig.animetosho.maxSearchResults,
+      description: 'Maximum Animetosho search results returned.',
+    },
+    {
       path: 'anilist.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.anilist.enabled,

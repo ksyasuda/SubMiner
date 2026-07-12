@@ -80,6 +80,23 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     }
   }
 
+  if (isObject(src.animetosho)) {
+    const apiBaseUrl = asString(src.animetosho.apiBaseUrl);
+    if (apiBaseUrl !== undefined) resolved.animetosho.apiBaseUrl = apiBaseUrl;
+
+    const maxSearchResults = asNumber(src.animetosho.maxSearchResults);
+    if (maxSearchResults !== undefined && Math.floor(maxSearchResults) > 0) {
+      resolved.animetosho.maxSearchResults = Math.floor(maxSearchResults);
+    } else if (src.animetosho.maxSearchResults !== undefined) {
+      warn(
+        'animetosho.maxSearchResults',
+        src.animetosho.maxSearchResults,
+        resolved.animetosho.maxSearchResults,
+        'Expected positive number.',
+      );
+    }
+  }
+
   if (isObject(src.youtubeSubgen)) {
     const whisperBin = asString(src.youtubeSubgen.whisperBin);
     if (whisperBin !== undefined) {

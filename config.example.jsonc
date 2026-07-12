@@ -205,6 +205,7 @@
     "openCharacterDictionaryManager": "CommandOrControl+D", // Accelerator that opens the character dictionary manager modal.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
+    "openAnimetosho": "Ctrl+Shift+T", // Accelerator that opens the Animetosho subtitle search modal (English/Japanese tabs).
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.
@@ -611,6 +612,16 @@
     "languagePreference": "ja", // Preferred language used in Jimaku search. Values: ja | en | none
     "maxEntryResults": 10 // Maximum Jimaku search results returned.
   }, // Jimaku API configuration and defaults.
+
+  // ==========================================
+  // Animetosho
+  // Animetosho English subtitle search configuration. No API key required.
+  // Hot-reload: Animetosho changes apply to the next Animetosho request.
+  // ==========================================
+  "animetosho": {
+    "apiBaseUrl": "https://feed.animetosho.org", // Base URL of the Animetosho JSON feed API. No API key required.
+    "maxSearchResults": 10 // Maximum Animetosho search results returned.
+  }, // Animetosho English subtitle search configuration. No API key required.
 
   // ==========================================
   // YouTube Playback Settings

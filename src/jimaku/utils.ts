@@ -306,12 +306,35 @@ export function isRemoteMediaPath(mediaPath: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(mediaPath);
 }
 
+export function describeDownloadError(err: unknown): string {
+  if (err instanceof AggregateError) {
+    const parts = err.errors
+      .map((inner) => describeDownloadError(inner))
+      .filter((part) => part && part !== 'Error');
+    if (parts.length > 0) return parts.join('; ');
+  }
+  if (err instanceof Error) {
+    if (err.message) return err.message;
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code) return code;
+    return err.name || 'Error';
+  }
+  return String(err) || 'Unknown error';
+}
+
+export interface DownloadToFileOptions {
+  // Guards where a redirect may land. Without it any Location header is followed.
+  isAllowedRedirect?: (url: URL) => boolean;
+  redirectCount?: number;
+}
+
 export async function downloadToFile(
   url: string,
   destPath: string,
   headers: Record<string, string>,
-  redirectCount = 0,
+  options: DownloadToFileOptions = {},
 ): Promise<JimakuDownloadResult> {
+  const redirectCount = options.redirectCount ?? 0;
   if (redirectCount > 3) {
     return {
       ok: false,
@@ -326,9 +349,23 @@ export async function downloadToFile(
     const req = transport.get(parsedUrl, { headers }, (res) => {
       const status = res.statusCode || 0;
       if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
-        const redirectUrl = new URL(res.headers.location, parsedUrl).toString();
+        const redirectUrl = new URL(res.headers.location, parsedUrl);
         res.resume();
-        downloadToFile(redirectUrl, destPath, headers, redirectCount + 1).then(resolve);
+        if (options.isAllowedRedirect && !options.isAllowedRedirect(redirectUrl)) {
+          logger.error(`Refusing redirect to disallowed host: ${redirectUrl.href}`);
+          resolve({
+            ok: false,
+            error: {
+              error: `Refusing to follow subtitle redirect to ${redirectUrl.host}.`,
+              code: status,
+            },
+          });
+          return;
+        }
+        downloadToFile(redirectUrl.toString(), destPath, headers, {
+          ...options,
+          redirectCount: redirectCount + 1,
+        }).then(resolve);
         return;
       }
 
@@ -362,9 +399,11 @@ export async function downloadToFile(
     });
 
     req.on('error', (err) => {
+      const reason = describeDownloadError(err);
+      logger.error(`Download request failed for ${url}: ${reason}`);
       resolve({
         ok: false,
-        error: { error: `Download request failed: ${(err as Error).message}` },
+        error: { error: `Download request failed: ${reason}` },
       });
     });
   });

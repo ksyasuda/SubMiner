@@ -12,6 +12,13 @@ import type {
   SessionBindingWarning,
 } from './session-bindings';
 import type {
+  AnimetoshoApiResponse,
+  AnimetoshoDownloadQuery,
+  AnimetoshoDownloadResult,
+  AnimetoshoEntry,
+  AnimetoshoFilesQuery,
+  AnimetoshoSearchQuery,
+  AnimetoshoSubtitleFile,
   JimakuApiResponse,
   JimakuDownloadQuery,
   JimakuDownloadResult,
@@ -454,6 +461,14 @@ export interface ElectronAPI {
   jimakuSearchEntries: (query: JimakuSearchQuery) => Promise<JimakuApiResponse<JimakuEntry[]>>;
   jimakuListFiles: (query: JimakuFilesQuery) => Promise<JimakuApiResponse<JimakuFileEntry[]>>;
   jimakuDownloadFile: (query: JimakuDownloadQuery) => Promise<JimakuDownloadResult>;
+  animetoshoSearchEntries: (
+    query: AnimetoshoSearchQuery,
+  ) => Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>>;
+  animetoshoListFiles: (
+    query: AnimetoshoFilesQuery,
+  ) => Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>>;
+  animetoshoDownloadFile: (query: AnimetoshoDownloadQuery) => Promise<AnimetoshoDownloadResult>;
+  animetoshoGetSecondaryLanguages: () => Promise<string[]>;
   quitApp: () => void;
   toggleDevTools: () => void;
   toggleOverlay: () => void;
@@ -486,6 +501,7 @@ export interface ElectronAPI {
   onOpenControllerSelect: (callback: () => void) => void;
   onOpenControllerDebug: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
+  onOpenAnimetosho: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenPlaylistBrowser: (callback: () => void) => void;
   onOpenCharacterDictionaryManager: (callback: () => void) => void;
@@ -530,6 +546,7 @@ export interface ElectronAPI {
       | 'runtime-options'
       | 'subsync'
       | 'jimaku'
+      | 'animetosho'
       | 'youtube-track-picker'
       | 'playlist-browser'
       | 'kiku'
@@ -544,6 +561,7 @@ export interface ElectronAPI {
       | 'runtime-options'
       | 'subsync'
       | 'jimaku'
+      | 'animetosho'
       | 'youtube-track-picker'
       | 'playlist-browser'
       | 'kiku'

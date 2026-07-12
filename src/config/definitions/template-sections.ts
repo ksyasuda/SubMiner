@@ -148,6 +148,12 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'jimaku',
   },
   {
+    title: 'Animetosho',
+    description: ['Animetosho English subtitle search configuration. No API key required.'],
+    notes: ['Hot-reload: Animetosho changes apply to the next Animetosho request.'],
+    key: 'animetosho',
+  },
+  {
     title: 'YouTube Playback Settings',
     description: [
       'Defaults for managed subtitle language preferences and YouTube subtitle loading.',

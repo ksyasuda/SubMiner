@@ -616,6 +616,13 @@ export function buildCoreConfigOptionRegistry(
       description: 'Accelerator that opens the Jimaku subtitle search modal.',
     },
     {
+      path: 'shortcuts.openAnimetosho',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openAnimetosho,
+      description:
+        'Accelerator that opens the Animetosho subtitle search modal (English/Japanese tabs).',
+    },
+    {
       path: 'shortcuts.openSessionHelp',
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openSessionHelp,

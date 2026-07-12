@@ -467,6 +467,7 @@ import { createOverlayModalInputState } from './main/runtime/overlay-modal-input
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
+import { openAnimetoshoModal as openAnimetoshoModalRuntime } from './main/runtime/animetosho-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
 import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
@@ -2058,6 +2059,9 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openJimaku: () => {
       openJimakuOverlay();
     },
+    openAnimetosho: () => {
+      openAnimetoshoOverlay();
+    },
     markAudioCard: () => markLastCardAsAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => {
       startPendingMultiCopy(timeoutMs);
@@ -2916,6 +2920,14 @@ function openJimakuOverlay(): void {
     openJimakuModalRuntime,
     'Jimaku overlay unavailable.',
     'Failed to open Jimaku overlay.',
+  );
+}
+
+function openAnimetoshoOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openAnimetoshoModalRuntime,
+    'Animetosho overlay unavailable.',
+    'Failed to open Animetosho overlay.',
   );
 }
 
@@ -5434,6 +5446,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     },
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
+    openAnimetosho: () => openAnimetoshoOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
@@ -5467,6 +5480,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
+    openAnimetosho: () => openAnimetoshoOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {
@@ -5896,8 +5910,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getJimakuLanguagePreference: () => configDerivedRuntime.getJimakuLanguagePreference(),
       resolveJimakuApiKey: () => configDerivedRuntime.resolveJimakuApiKey(),
       isRemoteMediaPath: (mediaPath: string) => isRemoteMediaPath(mediaPath),
-      downloadToFile: (url: string, destPath: string, headers: Record<string, string>) =>
-        downloadToFile(url, destPath, headers),
+      downloadToFile: (
+        url: string,
+        destPath: string,
+        headers: Record<string, string>,
+        downloadOptions?: { isAllowedRedirect?: (url: URL) => boolean },
+      ) => downloadToFile(url, destPath, headers, downloadOptions),
     }),
     registerIpcRuntimeServices,
   },

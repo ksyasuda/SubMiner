@@ -23,6 +23,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
+    openAnimetosho: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,
@@ -48,6 +49,7 @@ test('registerOverlayShortcuts reports active overlay shortcuts when configured'
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
+      openAnimetosho: () => {},
     }),
     true,
   );
@@ -68,6 +70,7 @@ test('registerOverlayShortcuts stays inactive when overlay shortcuts are absent'
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
+      openAnimetosho: () => {},
     }),
     false,
   );
@@ -90,6 +93,7 @@ test('syncOverlayShortcutsRuntime deactivates cleanly when shortcuts were active
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
+      openAnimetosho: () => {},
     }),
     cancelPendingMultiCopy: () => {
       calls.push('cancel-multi-copy');

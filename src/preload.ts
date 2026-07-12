@@ -34,6 +34,13 @@ import type {
   JimakuFileEntry,
   JimakuApiResponse,
   JimakuDownloadResult,
+  AnimetoshoSearchQuery,
+  AnimetoshoFilesQuery,
+  AnimetoshoDownloadQuery,
+  AnimetoshoEntry,
+  AnimetoshoSubtitleFile,
+  AnimetoshoApiResponse,
+  AnimetoshoDownloadResult,
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
@@ -167,6 +174,7 @@ const onOpenControllerSelectEvent = createQueuedIpcListener(
 );
 const onOpenControllerDebugEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerDebugOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
+const onOpenAnimetoshoEvent = createQueuedIpcListener(IPC_CHANNELS.event.animetoshoOpen);
 const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(
   IPC_CHANNELS.event.youtubePickerOpen,
   (payload) => payload as YoutubePickerOpenPayload,
@@ -350,6 +358,19 @@ const electronAPI: ElectronAPI = {
   jimakuDownloadFile: (query: JimakuDownloadQuery): Promise<JimakuDownloadResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuDownloadFile, query),
 
+  animetoshoSearchEntries: (
+    query: AnimetoshoSearchQuery,
+  ): Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoSearchEntries, query),
+  animetoshoListFiles: (
+    query: AnimetoshoFilesQuery,
+  ): Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoListFiles, query),
+  animetoshoDownloadFile: (query: AnimetoshoDownloadQuery): Promise<AnimetoshoDownloadResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoDownloadFile, query),
+  animetoshoGetSecondaryLanguages: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoGetSecondaryLanguages),
+
   quitApp: () => {
     ipcRenderer.send(IPC_CHANNELS.command.quitApp);
   },
@@ -429,6 +450,7 @@ const electronAPI: ElectronAPI = {
   onOpenControllerSelect: onOpenControllerSelectEvent,
   onOpenControllerDebug: onOpenControllerDebugEvent,
   onOpenJimaku: onOpenJimakuEvent,
+  onOpenAnimetosho: onOpenAnimetoshoEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,
