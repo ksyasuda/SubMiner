@@ -135,13 +135,12 @@ test('save-host rejects invalid hosts', () =>
     );
   }));
 
-test('run-sync spawns the launcher, forwards progress, and rejects concurrent runs', () =>
+test('run-sync uses live mode, forwards progress, and rejects concurrent runs', () =>
   withTempDir(async (root) => {
     const { invoke, launcherCalls, sent } = makeTestRig(root);
     const start = (await invoke('sync-ui:run-sync', {
       host: 'media-box',
       direction: 'push',
-      force: true,
     })) as { started: boolean; runId: number };
     assert.equal(start.started, true);
     assert.deepEqual(launcherCalls[0]!.args, ['sync', 'media-box', '--push', '--force', '--json']);

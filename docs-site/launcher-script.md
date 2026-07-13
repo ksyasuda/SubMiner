@@ -97,7 +97,7 @@ How it works: each side takes a consistent snapshot of its database (`VACUUM INT
 
 For a one-way transfer, `--push` snapshots the local database and merges it into the host without changing the local database. `--pull` snapshots the host and merges it into the local database without changing the host. These modes add missing data; they do not delete destination-only data or make the destination an exact mirror.
 
-Close SubMiner (and stop the background stats daemon, `subminer stats -s`) on both machines before syncing; the command refuses to run while a SubMiner process may be writing the database (`--force` overrides). The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block sync. Both machines must be on the same SubMiner version; otherwise, the sync aborts on a stats schema mismatch.
+Command-line sync defaults to a cold-start safety check: close SubMiner (and stop the background stats daemon with `subminer stats -s`) on both machines before running it, or pass `--force`. Syncs started from the Sync window use live mode automatically, including scheduled auto-syncs while SubMiner or playback is active. SQLite WAL provides a consistent snapshot, the transactional merge serializes with live writes, and each machine's unfinished session is excluded from the transfer; that session syncs normally after it finishes. The mpv safety check requires a live socket connection, so a stale socket file left after mpv exits does not block command-line sync. Both machines must be on the same SubMiner version; otherwise, the sync aborts on a stats schema mismatch.
 
 On the remote, sync looks for the `subminer` launcher first (PATH and `~/.local/bin`), then the app binary in `--sync-cli` mode (`SubMiner` on PATH, then the standard macOS `/Applications` and `~/Applications` installs), checking standard SubMiner and Bun locations (`~/.local/bin`, `~/.bun/bin`, Homebrew, `/usr/local/bin`, `/usr/bin`, and `/bin`) even when the non-interactive SSH shell omits them from `PATH`. An AppImage in a custom location can be addressed with `--remote-cmd /path/to/SubMiner.AppImage` (or symlink it as `SubMiner` somewhere on the remote PATH).
 
@@ -122,10 +122,10 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 
 - **Devices:** saved hosts with a per-host direction (two-way / push / pull), an auto-sync toggle, last-sync status, and one-click **Sync now** / **Test** / **Remove**. Hosts synced from the command line appear here automatically.
 - **Add a device:** test SSH + remote SubMiner availability before saving, with a setup checklist for first-time SSH configuration.
-- **Activity:** live stage-by-stage progress, remote output, and separate merge summaries (sessions, words, kanji, rollups) for each machine updated by the run. Runs can be cancelled, and guard failures offer a one-click `--force` retry.
+- **Activity:** live stage-by-stage progress, remote output, and separate merge summaries (sessions, words, kanji, rollups) for each machine updated by the run. Runs can be cancelled and can proceed while the app, stats server, or playback is active.
 - **Snapshots:** create manual database snapshots (stored in `/tmp/subminer-db-snapshots/` by default), merge a snapshot file into the local database, or reveal/delete existing snapshots.
 
-Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 60 minutes) whenever no mpv session or stats server is using the database; results surface as overlay notifications. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
+Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 60 minutes), including during active playback; results surface as overlay notifications. The unfinished playback session is skipped until a later sync sees it finalized. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
 
 ## Common Commands
 

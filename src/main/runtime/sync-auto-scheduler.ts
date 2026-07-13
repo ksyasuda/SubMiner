@@ -3,7 +3,6 @@ import type { SyncDirection, SyncHostsState } from '../../shared/sync/sync-hosts
 export interface SyncAutoSchedulerDeps {
   readState: () => SyncHostsState;
   isRunning: () => boolean;
-  canAutoSync: () => boolean;
   triggerHostSync: (host: string, direction: SyncDirection) => void;
   nowMs: () => number;
   log?: (message: string) => void;
@@ -18,7 +17,7 @@ export function createSyncAutoScheduler(deps: SyncAutoSchedulerDeps) {
   let timer: NodeJS.Timeout | null = null;
 
   function tick(): void {
-    if (deps.isRunning() || !deps.canAutoSync()) return;
+    if (deps.isRunning()) return;
     const state = deps.readState();
     const intervalMs = state.autoSyncIntervalMinutes * 60_000;
     const now = deps.nowMs();

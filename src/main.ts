@@ -2290,13 +2290,11 @@ const syncUiRuntime = createSyncUiRuntime({
 });
 syncUiRuntime.registerHandlers();
 
-// Auto-sync only runs while no mpv session or app-owned stats server could be
-// writing the immersion database; the launcher's quiescence guard covers
-// writers this process does not know about.
+// Live sync uses a consistent WAL snapshot plus a transactional merge, and it
+// skips unfinished sessions, so resident stats writers do not block scheduling.
 const syncAutoScheduler = createSyncAutoScheduler({
   readState: () => syncUiRuntime.readState(),
   isRunning: () => syncUiRuntime.isRunning(),
-  canAutoSync: () => appState.mpvClient === null && appState.statsServer === null,
   triggerHostSync: (host, direction) => {
     void syncUiRuntime.runHostSync({ host, direction }, { notify: true });
   },

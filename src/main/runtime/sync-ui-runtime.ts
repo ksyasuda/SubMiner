@@ -82,8 +82,11 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     const args = ['sync', host];
     if (direction === 'push') args.push('--push');
     if (direction === 'pull') args.push('--pull');
-    if (request.force) args.push('--force');
-    args.push('--json');
+    // The sync window runs inside the resident app, so waiting for all app
+    // writers to disappear would make manual and automatic sync impossible.
+    // WAL keeps snapshots consistent, transactional merges serialize with live
+    // writes, and unfinished sessions wait for a later sync after finalization.
+    args.push('--force', '--json');
     const result = runLifecycle.startRun('host-sync', host, args, options);
     if (result.started) {
       // Persist before launcher bookkeeping lands so the host appears immediately.

@@ -22,13 +22,26 @@ test('tick triggers a due auto-sync host with its saved direction', () => {
   const scheduler = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => false,
-    canAutoSync: () => true,
     triggerHostSync: (host, direction) => triggered.push({ host, direction }),
     nowMs: () => 100 * 60_000,
   });
 
   scheduler.tick();
   assert.deepEqual(triggered, [{ host: 'auto-box', direction: 'pull' }]);
+});
+
+test('tick does not require the resident app and stats writer to stop', () => {
+  const state = makeState();
+  const triggered: string[] = [];
+  const scheduler = createSyncAutoScheduler({
+    readState: () => state,
+    isRunning: () => false,
+    triggerHostSync: (host) => triggered.push(host),
+    nowMs: () => 100 * 60_000,
+  });
+
+  assert.doesNotThrow(() => scheduler.tick());
+  assert.deepEqual(triggered, ['auto-box']);
 });
 
 test('tick skips hosts synced more recently than the interval', () => {
@@ -42,7 +55,6 @@ test('tick skips hosts synced more recently than the interval', () => {
   const scheduler = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => false,
-    canAutoSync: () => true,
     triggerHostSync: (host) => triggered.push(host),
     nowMs: () => 100 * 60_000, // 10 minutes later, default interval 30
   });
@@ -51,26 +63,16 @@ test('tick skips hosts synced more recently than the interval', () => {
   assert.deepEqual(triggered, []);
 });
 
-test('tick does nothing while a run is active or auto sync is blocked', () => {
+test('tick does nothing while a run is active', () => {
   const state = makeState();
   const triggered: string[] = [];
   const running = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => true,
-    canAutoSync: () => true,
     triggerHostSync: (host) => triggered.push(host),
     nowMs: () => 100 * 60_000,
   });
   running.tick();
-
-  const blocked = createSyncAutoScheduler({
-    readState: () => state,
-    isRunning: () => false,
-    canAutoSync: () => false,
-    triggerHostSync: (host) => triggered.push(host),
-    nowMs: () => 100 * 60_000,
-  });
-  blocked.tick();
 
   assert.deepEqual(triggered, []);
 });
@@ -82,7 +84,6 @@ test('tick triggers at most one host per tick', () => {
   const scheduler = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => false,
-    canAutoSync: () => true,
     triggerHostSync: (host) => triggered.push(host),
     nowMs: () => 100 * 60_000,
   });
@@ -98,7 +99,6 @@ test('tick logs a synchronous trigger failure and remains usable', () => {
   const scheduler = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => false,
-    canAutoSync: () => true,
     triggerHostSync: () => {
       attempts += 1;
       throw new Error('spawn exploded');
@@ -120,7 +120,6 @@ test('start/stop manage the interval timer', () => {
   const scheduler = createSyncAutoScheduler({
     readState: () => state,
     isRunning: () => false,
-    canAutoSync: () => true,
     triggerHostSync: () => {},
     nowMs: () => 0,
     setIntervalFn: ((): NodeJS.Timeout => {
