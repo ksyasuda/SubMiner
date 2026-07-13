@@ -250,13 +250,24 @@ test('runHostSync pull only snapshots remotely and merges locally', async () => 
 
 test('runSyncFlow --json emits NDJSON progress events and a final result', async () => {
   const lines: string[] = [];
+  const remoteSummary = {
+    ...createEmptyMergeSummary(),
+    sessionsMerged: 2,
+    videosAdded: 1,
+  };
   const deps = makeHostDeps([], {
     consoleLog: (line) => {
       lines.push(line);
     },
     runSsh: (_host, command) => {
       if (command.includes(' sync --make-temp')) return ok('/tmp/subminer-sync-remote\n');
-      if (command.includes(' sync --merge ')) return ok('remote summary text\n');
+      if (command.includes(' sync --merge ')) {
+        assert.match(command, / --json(?: |$)/);
+        return ok(
+          `${JSON.stringify({ type: 'merge-summary', target: 'local', summary: remoteSummary })}\n` +
+            `${JSON.stringify({ type: 'result', ok: true, error: null })}\n`,
+        );
+      }
       return ok();
     },
   });
@@ -269,10 +280,9 @@ test('runSyncFlow --json emits NDJSON progress events and a final result', async
   const events = lines.map((line) => JSON.parse(line));
   assert.ok(events.some((event) => event.type === 'stage' && event.stage === 'snapshot-local'));
   assert.ok(events.some((event) => event.type === 'merge-summary' && event.target === 'local'));
-  assert.ok(
-    events.some(
-      (event) => event.type === 'remote-output' && event.text.includes('remote summary text'),
-    ),
+  assert.deepEqual(
+    events.find((event) => event.type === 'merge-summary' && event.target === 'remote'),
+    { type: 'merge-summary', target: 'remote', summary: remoteSummary },
   );
   assert.deepEqual(events[events.length - 1], { type: 'result', ok: true, error: null });
 });

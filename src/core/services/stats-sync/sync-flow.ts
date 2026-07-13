@@ -3,7 +3,11 @@ import path from 'node:path';
 import { formatMergeSummary } from './merge';
 import { quoteForRemoteShell } from './ssh';
 import type { RemoteRunResult, RemoteShellFlavor, RunSshOptions } from './ssh';
-import type { SyncMergeSummary, SyncProgressEvent } from '../../../shared/sync/sync-events';
+import {
+  parseSyncProgressLine,
+  type SyncMergeSummary,
+  type SyncProgressEvent,
+} from '../../../shared/sync/sync-events';
 import type { SyncResultStatus } from '../../../shared/sync/sync-hosts-store';
 
 export interface SyncFlowArgs {
@@ -276,6 +280,14 @@ function parseRemoteTempDir(stdout: string): string {
   return path.posix.basename(candidate).startsWith(SYNC_TEMP_PREFIX) ? candidate : '';
 }
 
+function parseRemoteMergeSummary(stdout: string): SyncMergeSummary | null {
+  for (const line of stdout.split('\n')) {
+    const event = parseSyncProgressLine(line);
+    if (event?.type === 'merge-summary' && event.target === 'local') return event.summary;
+  }
+  return null;
+}
+
 function formatRemoteRunError(message: string, run: RemoteRunResult): string {
   const stderr = run.stderr.trim();
   return stderr ? `${message}\n${stderr}` : message;
@@ -382,10 +394,13 @@ export async function runHostSync(
       await deps.ensureTrackerQuiescent(context, dbPath);
       const mergeRun = deps.runSsh(
         host,
-        `${remoteCmd} sync --merge ${quote(incomingSnapshot)}${forceFlag}`,
+        `${remoteCmd} sync --merge ${quote(incomingSnapshot)}${forceFlag}${args.syncJson ? ' --json' : ''}`,
       );
       deps.writeStdout(mergeRun.stdout);
-      if (mergeRun.stdout.trim()) {
+      const remoteSummary = args.syncJson ? parseRemoteMergeSummary(mergeRun.stdout) : null;
+      if (remoteSummary) {
+        deps.emitEvent({ type: 'merge-summary', target: 'remote', summary: remoteSummary });
+      } else if (mergeRun.stdout.trim()) {
         deps.emitEvent({ type: 'remote-output', text: mergeRun.stdout });
       }
       if (mergeRun.status !== 0) {
