@@ -572,7 +572,7 @@ export class ImmersionTrackerService {
     range: '7d' | '30d' | '90d' | '365d' | 'all' = '30d',
     groupBy: 'day' | 'month' = 'day',
     fillEmptyBuckets = true,
-  ): Promise<unknown> {
+  ) {
     return getTrendsDashboard(this.db, range, groupBy, fillEmptyBuckets);
   }
 

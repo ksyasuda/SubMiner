@@ -1,23 +1,11 @@
-import type { SentenceSearchResult } from '../types/stats';
+import type {
+  SentenceSearchResult,
+  StatsMineCardParams,
+  StatsMineCardResponse,
+  StatsMineMode,
+} from '../types/stats';
 
-export type StatsMineMode = 'word' | 'sentence' | 'audio';
-
-export interface StatsMineCardParams {
-  sourcePath: string;
-  startMs: number;
-  endMs: number;
-  sentence: string;
-  word: string;
-  secondaryText?: string | null;
-  videoTitle: string;
-  mode: StatsMineMode;
-}
-
-export interface StatsMineCardResponse {
-  noteId?: number;
-  error?: string;
-  errors?: string[];
-}
+export type { StatsMineCardParams, StatsMineCardResponse, StatsMineMode } from '../types/stats';
 
 export function getStatsMineCardUnavailableReason(
   result: Pick<SentenceSearchResult, 'sourcePath' | 'segmentStartMs' | 'segmentEndMs'>,

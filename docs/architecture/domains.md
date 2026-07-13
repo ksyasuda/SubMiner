@@ -39,6 +39,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Runtime-option contracts: `src/types/runtime-options.ts`
 - Settings UI contracts: `src/types/settings.ts`
 - Session-binding contracts: `src/types/session-bindings.ts`
+- Stats HTTP wire contracts: `src/types/stats-wire.ts`, `src/types/stats-http-contract.ts`
 - Compatibility-only barrel: `src/types.ts`
 
 ## Ownership Heuristics

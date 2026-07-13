@@ -1,15 +1,10 @@
 import type { Hono } from 'hono';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
+import { statsJson, type StatsCoverImagesRequest } from '../../types/stats-http-contract.js';
+import type { StatsCoverImage } from '../../types/stats-wire.js';
 
-type StatsCoverImagePayload = {
-  contentType: string;
-  dataUrl: string;
-} | null;
-
-type StatsCoverBatchBody = {
-  animeIds?: unknown;
-  videoIds?: unknown;
-};
+type StatsCoverImagePayload = StatsCoverImage | null;
+type StatsCoverBatchBody = Partial<Record<keyof StatsCoverImagesRequest, unknown>>;
 
 const MAX_BACKGROUND_ANIME_COVER_FETCHES = 3;
 
@@ -130,7 +125,7 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
       }),
     );
 
-    return c.json({ anime, media });
+    return c.json(statsJson('coverImages', { anime, media }));
   });
 
   app.get('/api/stats/anime/:animeId/cover', async (c) => {

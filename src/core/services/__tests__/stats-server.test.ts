@@ -170,6 +170,8 @@ const TRENDS_DASHBOARD = {
   },
   ratios: {
     lookupsPerHundred: [{ label: 'Mar 1', value: 5 }],
+    cardsPerHour: [{ label: 'Mar 1', value: 12 }],
+    readingSpeed: [{ label: 'Mar 1', value: 180 }],
   },
   librarySummary: [
     {
