@@ -1,0 +1,71 @@
+- generic [active] [ref=f1e1]:
+  - img
+  - generic [ref=f1e3]:
+    - generic:
+      - img
+    - generic [ref=f1e5]:
+      - generic [ref=f1e9]:
+        - generic [ref=f1e10]:
+          - heading "TsukiHime API 1.0.0" [level=2] [ref=f1e11]:
+            - text: TsukiHime API
+            - generic [ref=f1e13]: 1.0.0
+          - generic [ref=f1e14]: "[ Base URL: /v1 ]"
+          - link "/v1/swagger.json" [ref=f1e15] [cursor=pointer]:
+            - /url: /v1/swagger.json
+            - generic [ref=f1e16]: /v1/swagger.json
+        - generic [ref=f1e18]:
+          - paragraph [ref=f1e19]:
+            - strong [ref=f1e20]: Rate limits (per IP address)
+          - table [ref=f1e21]:
+            - rowgroup [ref=f1e22]:
+              - row "Scope Limit" [ref=f1e23]:
+                - columnheader "Scope" [ref=f1e24]
+                - columnheader "Limit" [ref=f1e25]
+            - rowgroup [ref=f1e26]:
+              - row "Default (all endpoints) 120 req / min" [ref=f1e27]:
+                - cell "Default (all endpoints)" [ref=f1e28]
+                - cell "120 req / min" [ref=f1e29]
+              - row "GET /v1/search/torrents 50 req / min" [ref=f1e30]:
+                - cell "GET /v1/search/torrents" [ref=f1e31]:
+                  - code [ref=f1e32]: GET /v1/search/torrents
+                - cell "50 req / min" [ref=f1e33]
+          - paragraph [ref=f1e34]:
+            - text: Limits are enforced with a fixed window strategy. Responses include
+            - code [ref=f1e35]: X-RateLimit-Limit
+            - text: ","
+            - code [ref=f1e36]: X-RateLimit-Remaining
+            - text: ", and"
+            - code [ref=f1e37]: X-RateLimit-Reset
+            - text: headers.
+          - paragraph [ref=f1e38]:
+            - text: Exceeded limits return
+            - code [ref=f1e39]: 429 Too Many Requests
+            - text: with a
+            - code [ref=f1e40]: Retry-After
+            - text: header.
+      - generic [ref=f1e43]:
+        - heading "torrents Get Torrents Expand operation" [level=3] [ref=f1e46] [cursor=pointer]:
+          - generic [ref=f1e47]: torrents
+          - paragraph [ref=f1e50]: Get Torrents
+          - button "Expand operation" [ref=f1e51]:
+            - img [ref=f1e52]
+        - heading "search Search Torrents Expand operation" [level=3] [ref=f1e56] [cursor=pointer]:
+          - generic [ref=f1e57]: search
+          - paragraph [ref=f1e60]: Search Torrents
+          - button "Expand operation" [ref=f1e61]:
+            - img [ref=f1e62]
+        - heading "animes Get Animes Expand operation" [level=3] [ref=f1e66] [cursor=pointer]:
+          - generic [ref=f1e67]: animes
+          - paragraph [ref=f1e70]: Get Animes
+          - button "Expand operation" [ref=f1e71]:
+            - img [ref=f1e72]
+        - heading "groups Get Groups Expand operation" [level=3] [ref=f1e76] [cursor=pointer]:
+          - generic [ref=f1e77]: groups
+          - paragraph [ref=f1e80]: Get Groups
+          - button "Expand operation" [ref=f1e81]:
+            - img [ref=f1e82]
+        - heading "stats Get Stats Expand operation" [level=3] [ref=f1e86] [cursor=pointer]:
+          - generic [ref=f1e87]: stats
+          - paragraph [ref=f1e90]: Get Stats
+          - button "Expand operation" [ref=f1e91]:
+            - img [ref=f1e92]

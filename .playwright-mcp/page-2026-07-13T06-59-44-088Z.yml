@@ -1,0 +1,75 @@
+- generic [active] [ref=f3e1]:
+  - banner [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - generic [ref=f3e4]:
+        - link "TsukiHime" [ref=f3e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=f3e6]
+          - generic [ref=f3e8]: TsukiHime
+        - navigation [ref=f3e9]:
+          - link "Browse" [ref=f3e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=f3e11]
+            - text: Browse
+          - link "News" [ref=f3e14] [cursor=pointer]:
+            - /url: /news
+            - img [ref=f3e15]
+            - text: News
+          - link "Animes" [ref=f3e18] [cursor=pointer]:
+            - /url: /animes
+            - img [ref=f3e19]
+            - text: Animes
+          - link "Groups" [ref=f3e22] [cursor=pointer]:
+            - /url: /groups
+            - img [ref=f3e23]
+            - text: Groups
+          - link "Feedback" [ref=f3e28] [cursor=pointer]:
+            - /url: /feedback
+            - img [ref=f3e29]
+            - text: Feedback
+          - link "Wiki" [ref=f3e31] [cursor=pointer]:
+            - /url: /wiki
+            - img [ref=f3e32]
+            - text: Wiki
+          - link "API" [ref=f3e34] [cursor=pointer]:
+            - /url: https://api.tsukihime.org/v1/docs
+            - img [ref=f3e35]
+            - text: API
+          - link "Donate" [ref=f3e38] [cursor=pointer]:
+            - /url: /donate
+            - img [ref=f3e39]
+            - text: Donate
+      - generic [ref=f3e41]:
+        - link [ref=f3e42] [cursor=pointer]:
+          - /url: /search
+          - button [ref=f3e43]:
+            - img
+        - link "Login" [ref=f3e44] [cursor=pointer]:
+          - /url: /login
+          - button "Login" [ref=f3e45]:
+            - img
+            - text: Login
+  - main [ref=f3e46]:
+    - generic [ref=f3e47]:
+      - generic [ref=f3e48]:
+        - img [ref=f3e49]
+        - img [ref=f3e52]
+      - generic [ref=f3e57]:
+        - heading "404" [level=1] [ref=f3e58]
+        - heading "Lost in the Void" [level=2] [ref=f3e59]
+        - paragraph [ref=f3e60]: The princess couldn't find the page you were looking for. It might have been moved, deleted, or never existed in this timeline.
+      - link "Return to Home" [ref=f3e62] [cursor=pointer]:
+        - /url: /
+        - img
+        - text: Return to Home
+  - contentinfo [ref=f3e63]:
+    - generic [ref=f3e64]:
+      - generic [ref=f3e65]:
+        - img [ref=f3e66]
+        - generic [ref=f3e68]: TsukiHime
+        - generic [ref=f3e69]: © 2026
+      - link "Donate" [ref=f3e71] [cursor=pointer]:
+        - /url: /donate
+        - text: Donate
+        - img [ref=f3e72]
+  - alert [ref=f3e74]

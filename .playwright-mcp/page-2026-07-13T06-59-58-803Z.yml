@@ -1,0 +1,1501 @@
+- generic [active] [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - generic [ref=f4e3]:
+      - generic [ref=f4e4]:
+        - link "TsukiHime" [ref=f4e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=f4e6]
+          - generic [ref=f4e8]: TsukiHime
+        - navigation [ref=f4e9]:
+          - link "Browse" [ref=f4e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=f4e11]
+            - text: Browse
+          - link "News" [ref=f4e15] [cursor=pointer]:
+            - /url: /news
+            - img [ref=f4e16]
+            - text: News
+          - link "Animes" [ref=f4e19] [cursor=pointer]:
+            - /url: /animes
+            - img [ref=f4e20]
+            - text: Animes
+          - link "Groups" [ref=f4e23] [cursor=pointer]:
+            - /url: /groups
+            - img [ref=f4e24]
+            - text: Groups
+          - link "Feedback" [ref=f4e29] [cursor=pointer]:
+            - /url: /feedback
+            - img [ref=f4e30]
+            - text: Feedback
+          - link "Wiki" [ref=f4e32] [cursor=pointer]:
+            - /url: /wiki
+            - img [ref=f4e33]
+            - text: Wiki
+          - link "API" [ref=f4e35] [cursor=pointer]:
+            - /url: https://api.tsukihime.org/v1/docs
+            - img [ref=f4e36]
+            - text: API
+          - link "Donate" [ref=f4e39] [cursor=pointer]:
+            - /url: /donate
+            - img [ref=f4e40]
+            - text: Donate
+      - generic [ref=f4e42]:
+        - link [ref=f4e43] [cursor=pointer]:
+          - /url: /search
+          - button [ref=f4e44]:
+            - img
+        - link "Login" [ref=f4e45] [cursor=pointer]:
+          - /url: /login
+          - button "Login" [ref=f4e46]:
+            - img
+            - text: Login
+  - main [ref=f4e47]:
+    - generic [ref=f4e48]:
+      - generic [ref=f4e78]:
+        - generic [ref=f4e79]:
+          - text: Showing
+          - generic [ref=f4e80]: "1"
+          - text: "-"
+          - generic [ref=f4e81]: "30"
+          - text: of
+          - generic [ref=f4e82]: "657036"
+          - text: releases
+        - generic [ref=f4e83]:
+          - button "Prev" [disabled]:
+            - generic:
+              - img
+              - text: Prev
+          - link "Next" [ref=f4e84] [cursor=pointer]:
+            - /url: /?offset=30
+            - text: Next
+            - img
+      - generic [ref=f4e85]:
+        - generic [ref=f4e86]:
+          - generic [ref=f4e87]: Cover
+          - generic [ref=f4e88]: Torrent Name & Info
+          - generic [ref=f4e89]: Size
+          - generic [ref=f4e90]: Download
+          - generic [ref=f4e91]: Source
+        - generic [ref=f4e92]:
+          - generic [ref=f4e93]:
+            - generic [ref=f4e94]:
+              - img "cover" [ref=f4e95]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e96]:
+              - generic [ref=f4e97]:
+                - link "Beyblade X - Episode 113 [English Dub][720p]" [ref=f4e98] [cursor=pointer]:
+                  - /url: /view/12257-beyblade-x-episode-113-english-dub-720p
+                - generic [ref=f4e99]:
+                  - link "BEYBLADE X" [ref=f4e100] [cursor=pointer]:
+                    - /url: /anime/166-beyblade-x
+                    - img [ref=f4e101]
+                    - generic [ref=f4e104]: BEYBLADE X
+                  - link "Ep 113" [ref=f4e105] [cursor=pointer]:
+                    - /url: /anime/166-beyblade-x/episode/113
+                    - generic [ref=f4e106]: Ep 113
+              - generic [ref=f4e107]:
+                - generic [ref=f4e108]: 300.9 MB
+                - generic [ref=f4e109]:
+                  - link [ref=f4e110] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12257/Beyblade%20X%20-%20Episode%20113%20%5BEnglish%20Dub%5D%5B720p%5D.torrent
+                    - img
+                  - link [ref=f4e111] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12257/Beyblade%20X%20-%20Episode%20113%20%5BEnglish%20Dub%5D%5B720p%5D.nzb.gz
+                    - img
+                - generic [ref=f4e112]:
+                  - generic [ref=f4e113]:
+                    - generic [ref=f4e114]: Unknown
+                    - img [ref=f4e115]
+                  - generic [ref=f4e118]:
+                    - img [ref=f4e119]
+                    - text: about 2 hours ago
+                  - link "Nyaa" [ref=f4e123] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131923
+                    - text: Nyaa
+                    - img [ref=f4e124]
+          - generic [ref=f4e128]:
+            - generic [ref=f4e129]:
+              - img "cover" [ref=f4e130]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e131]:
+              - generic [ref=f4e132]:
+                - link "Sword Art Online-Unanswered Butterfly" [ref=f4e133] [cursor=pointer]:
+                  - /url: /view/12256-sword-art-online-unanswered-butterfly
+                - 'link "Unanswered//butterfly: Sword Art Online" [ref=f4e135] [cursor=pointer]':
+                  - /url: /anime/9609-unanswered-butterfly-sword-art-online
+                  - img [ref=f4e136]
+                  - generic [ref=f4e139]: "Unanswered//butterfly: Sword Art Online"
+              - generic [ref=f4e140]:
+                - generic [ref=f4e141]: 34.82 GB
+                - link [ref=f4e143] [cursor=pointer]:
+                  - /url: https://nyaa.si/download/2131916.torrent
+                  - img
+                - generic [ref=f4e144]:
+                  - generic [ref=f4e145]:
+                    - generic [ref=f4e146]: Unknown
+                    - img [ref=f4e147]
+                  - generic [ref=f4e150]:
+                    - img [ref=f4e151]
+                    - text: about 3 hours ago
+                  - link "Nyaa" [ref=f4e155] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131916
+                    - text: Nyaa
+                    - img [ref=f4e156]
+          - generic [ref=f4e160]:
+            - generic [ref=f4e161]:
+              - img "cover" [ref=f4e162]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e163]:
+              - generic [ref=f4e164]:
+                - 'link "[DKB] Futsutsuka na Akujo dewa Gozaimasu ga: Suuguu Chouso Torikae Den - S01E01 [1080p][HEVC x265 10bit][Multi-Subs][weekly]" [ref=f4e165] [cursor=pointer]':
+                  - /url: /view/12255-dkb-futsutsuka-na-akujo-dewa-gozaimasu-ga-suuguu
+                - generic [ref=f4e166]:
+                  - link "Though I Am an Inept Villainess" [ref=f4e167] [cursor=pointer]:
+                    - /url: /anime/9620-though-i-am-an-inept-villainess
+                    - img [ref=f4e168]
+                    - generic [ref=f4e171]: Though I Am an Inept Villainess
+                  - link "Ep 1" [ref=f4e172] [cursor=pointer]:
+                    - /url: /anime/9620-though-i-am-an-inept-villainess/episode/1
+                    - generic [ref=f4e173]: Ep 1
+                - generic [ref=f4e174]:
+                  - generic [ref=f4e175]:
+                    - img [ref=f4e176]
+                    - img "Japanese language flag" [ref=f4e180] [cursor=pointer]
+                  - generic [ref=f4e181]:
+                    - img [ref=f4e182]
+                    - img "English language flag" [ref=f4e185] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e186] [cursor=pointer]
+                    - img "German language flag" [ref=f4e187] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e188] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e189] [cursor=pointer]
+                    - img "French language flag" [ref=f4e190] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e191] [cursor=pointer]
+                    - img "Malay language flag" [ref=f4e192] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e193] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e194] [cursor=pointer]
+                    - img "Chinese (Simplified) language flag" [ref=f4e195] [cursor=pointer]
+                    - img "Chinese (Traditional) language flag" [ref=f4e196] [cursor=pointer]
+              - generic [ref=f4e197]:
+                - generic [ref=f4e198]: 404.23 MB
+                - generic [ref=f4e199]:
+                  - link [ref=f4e200] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12255/%5BDKB%5D%20Futsutsuka%20na%20Akujo%20dewa%20Gozaimasu%20ga%3A%20Suuguu%20Chouso%20Torikae%20Den%20-%20S01E01%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BMulti-Subs%5D%5Bweekly%5D.torrent
+                    - img
+                  - link [ref=f4e201] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12255/%5BDKB%5D%20Futsutsuka%20na%20Akujo%20dewa%20Gozaimasu%20ga%3A%20Suuguu%20Chouso%20Torikae%20Den%20-%20S01E01%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BMulti-Subs%5D%5Bweekly%5D.nzb.gz
+                    - img
+                - generic [ref=f4e202]:
+                  - generic [ref=f4e203]:
+                    - link "DKB" [ref=f4e205] [cursor=pointer]:
+                      - /url: /group/5-dkb
+                    - img [ref=f4e206]
+                  - generic [ref=f4e209]:
+                    - img [ref=f4e210]
+                    - text: about 4 hours ago
+                  - link "Nyaa" [ref=f4e214] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131908
+                    - text: Nyaa
+                    - img [ref=f4e215]
+          - generic [ref=f4e219]:
+            - generic [ref=f4e220]:
+              - img "cover" [ref=f4e221]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e222]:
+              - generic [ref=f4e223]:
+                - link "[BlackRose] The Ghost in the Shell (2026) - S01E01v2 (WEB 1080p HEVC 10-bit EAC-3) [Dual Audio] | Koukaku Kidoutai" [ref=f4e224] [cursor=pointer]:
+                  - /url: /view/12254-blackrose-the-ghost-in-the-shell-2026-s01e01v2
+                - generic [ref=f4e225]:
+                  - link "THE GHOST IN THE SHELL" [ref=f4e226] [cursor=pointer]:
+                    - /url: /anime/9584-the-ghost-in-the-shell
+                    - img [ref=f4e227]
+                    - generic [ref=f4e230]: THE GHOST IN THE SHELL
+                  - link "Ep 1" [ref=f4e231] [cursor=pointer]:
+                    - /url: /anime/9584-the-ghost-in-the-shell/episode/1
+                    - generic [ref=f4e232]: Ep 1
+                - generic [ref=f4e233]:
+                  - generic [ref=f4e234]:
+                    - img [ref=f4e235]
+                    - img "Japanese language flag" [ref=f4e239] [cursor=pointer]
+                    - img "English language flag" [ref=f4e240] [cursor=pointer]
+                  - generic [ref=f4e241]:
+                    - img [ref=f4e242]
+                    - img "English language flag" [ref=f4e245] [cursor=pointer]
+              - generic [ref=f4e246]:
+                - generic [ref=f4e247]: 4.48 GB
+                - generic [ref=f4e248]:
+                  - link [ref=f4e249] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12254/%5BBlackRose%5D%20The%20Ghost%20in%20the%20Shell%20(2026)%20-%20S01E01v2%20(WEB%201080p%20HEVC%2010-bit%20EAC-3)%20%5BDual%20Audio%5D%20%7C%20Koukaku%20Kidoutai.torrent
+                    - img
+                  - link [ref=f4e250] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12254/%5BBlackRose%5D%20The%20Ghost%20in%20the%20Shell%20(2026)%20-%20S01E01v2%20(WEB%201080p%20HEVC%2010-bit%20EAC-3)%20%5BDual%20Audio%5D%20%7C%20Koukaku%20Kidoutai.nzb.gz
+                    - img
+                - generic [ref=f4e251]:
+                  - generic [ref=f4e252]:
+                    - link "BlackRose" [ref=f4e254] [cursor=pointer]:
+                      - /url: /group/35-blackrose
+                    - img [ref=f4e255]
+                  - generic [ref=f4e258]:
+                    - img [ref=f4e259]
+                    - text: about 4 hours ago
+                  - link "NekoBT" [ref=f4e263] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12344376825866
+                    - text: NekoBT
+                    - img [ref=f4e264]
+          - generic [ref=f4e268]:
+            - generic [ref=f4e269]:
+              - img "cover" [ref=f4e270]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e271]:
+              - generic [ref=f4e272]:
+                - link "[ToonsHub] One Piece EP1169 2160p BILI WEB-DL AAC2.0 H.264 (Multi-Subs)" [ref=f4e273] [cursor=pointer]:
+                  - /url: /view/12251-toonshub-one-piece-ep1169-2160p-bili-web-dl
+                - generic [ref=f4e274]:
+                  - link "ONE PIECE" [ref=f4e275] [cursor=pointer]:
+                    - /url: /anime/111-one-piece
+                    - img [ref=f4e276]
+                    - generic [ref=f4e279]: ONE PIECE
+                  - link "Ep 1169" [ref=f4e280] [cursor=pointer]:
+                    - /url: /anime/111-one-piece/episode/1169
+                    - generic [ref=f4e281]: Ep 1169
+                - generic [ref=f4e282]:
+                  - generic [ref=f4e283]:
+                    - img [ref=f4e284]
+                    - img "Japanese language flag" [ref=f4e288] [cursor=pointer]
+                  - generic [ref=f4e289]:
+                    - img [ref=f4e290]
+                    - img "English language flag" [ref=f4e293] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e294] [cursor=pointer]
+                    - img "Thai language flag" [ref=f4e295] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e296] [cursor=pointer]
+              - generic [ref=f4e297]:
+                - generic [ref=f4e298]: 1.09 GB
+                - generic [ref=f4e299]:
+                  - link [ref=f4e300] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12251/%5BToonsHub%5D%20One%20Piece%20EP1169%202160p%20BILI%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).torrent
+                    - img
+                  - link [ref=f4e301] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12251/%5BToonsHub%5D%20One%20Piece%20EP1169%202160p%20BILI%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).nzb.gz
+                    - img
+                - generic [ref=f4e302]:
+                  - generic [ref=f4e303]:
+                    - link "ToonsHub" [ref=f4e305] [cursor=pointer]:
+                      - /url: /group/1-toonshub
+                    - img [ref=f4e306]
+                  - generic [ref=f4e309]:
+                    - img [ref=f4e310]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e314] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343938133511
+                    - text: NekoBT
+                    - img [ref=f4e315]
+          - generic [ref=f4e319]:
+            - generic [ref=f4e320]:
+              - img "cover" [ref=f4e321]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e322]:
+              - generic [ref=f4e323]:
+                - link "[HuangSubs] Shrouding the Heavens Episodes 1-169 + The Imperial Path Movie (4K)" [ref=f4e324] [cursor=pointer]:
+                  - /url: /view/12253-huangsubs-shrouding-the-heavens-episodes-1-169-the
+                - link "Shrouding the Heavens" [ref=f4e326] [cursor=pointer]:
+                  - /url: /anime/8206-shrouding-the-heavens
+                  - img [ref=f4e327]
+                  - generic [ref=f4e330]: Shrouding the Heavens
+              - generic [ref=f4e331]:
+                - generic [ref=f4e332]: 189.25 GB
+                - link [ref=f4e334] [cursor=pointer]:
+                  - /url: https://nyaa.si/download/2131901.torrent
+                  - img
+                - generic [ref=f4e335]:
+                  - generic [ref=f4e336]:
+                    - link "HuangSubs" [ref=f4e338] [cursor=pointer]:
+                      - /url: /group/929-huangsubs
+                    - img [ref=f4e339]
+                  - generic [ref=f4e342]:
+                    - img [ref=f4e343]
+                    - text: about 5 hours ago
+                  - link "Nyaa" [ref=f4e347] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131901
+                    - text: Nyaa
+                    - img [ref=f4e348]
+          - generic [ref=f4e352]:
+            - generic [ref=f4e353]:
+              - img "cover" [ref=f4e354]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e355]:
+              - generic [ref=f4e356]:
+                - link "[HuangSubs] Shrouding the Heavens Episodes 1-169 + The Imperial Path Movie (1080p)" [ref=f4e357] [cursor=pointer]:
+                  - /url: /view/12252-huangsubs-shrouding-the-heavens-episodes-1-169-the
+                - link "Shrouding the Heavens" [ref=f4e359] [cursor=pointer]:
+                  - /url: /anime/8206-shrouding-the-heavens
+                  - img [ref=f4e360]
+                  - generic [ref=f4e363]: Shrouding the Heavens
+              - generic [ref=f4e364]:
+                - generic [ref=f4e365]: 58.37 GB
+                - link [ref=f4e367] [cursor=pointer]:
+                  - /url: https://nyaa.si/download/2131900.torrent
+                  - img
+                - generic [ref=f4e368]:
+                  - generic [ref=f4e369]:
+                    - link "HuangSubs" [ref=f4e371] [cursor=pointer]:
+                      - /url: /group/929-huangsubs
+                    - img [ref=f4e372]
+                  - generic [ref=f4e375]:
+                    - img [ref=f4e376]
+                    - text: about 5 hours ago
+                  - link "Nyaa" [ref=f4e380] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131900
+                    - text: Nyaa
+                    - img [ref=f4e381]
+          - generic [ref=f4e385]:
+            - generic [ref=f4e386]:
+              - img "cover" [ref=f4e387]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e388]:
+              - generic [ref=f4e389]:
+                - link "[ToonsHub] One Piece EP1169 1080p BILI WEB-DL AAC2.0 H.265 (Multi-Subs)" [ref=f4e390] [cursor=pointer]:
+                  - /url: /view/12250-toonshub-one-piece-ep1169-1080p-bili-web-dl
+                - generic [ref=f4e391]:
+                  - link "ONE PIECE" [ref=f4e392] [cursor=pointer]:
+                    - /url: /anime/111-one-piece
+                    - img [ref=f4e393]
+                    - generic [ref=f4e396]: ONE PIECE
+                  - link "Ep 1169" [ref=f4e397] [cursor=pointer]:
+                    - /url: /anime/111-one-piece/episode/1169
+                    - generic [ref=f4e398]: Ep 1169
+                - generic [ref=f4e399]:
+                  - generic [ref=f4e400]:
+                    - img [ref=f4e401]
+                    - img "Japanese language flag" [ref=f4e405] [cursor=pointer]
+                  - generic [ref=f4e406]:
+                    - img [ref=f4e407]
+                    - img "English language flag" [ref=f4e410] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e411] [cursor=pointer]
+                    - img "Thai language flag" [ref=f4e412] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e413] [cursor=pointer]
+              - generic [ref=f4e414]:
+                - generic [ref=f4e415]: 295.1 MB
+                - generic [ref=f4e416]:
+                  - link [ref=f4e417] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12250/%5BToonsHub%5D%20One%20Piece%20EP1169%201080p%20BILI%20WEB-DL%20AAC2.0%20H.265%20(Multi-Subs).torrent
+                    - img
+                  - link [ref=f4e418] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12250/%5BToonsHub%5D%20One%20Piece%20EP1169%201080p%20BILI%20WEB-DL%20AAC2.0%20H.265%20(Multi-Subs).nzb.gz
+                    - img
+                - generic [ref=f4e419]:
+                  - generic [ref=f4e420]:
+                    - link "ToonsHub" [ref=f4e422] [cursor=pointer]:
+                      - /url: /group/1-toonshub
+                    - img [ref=f4e423]
+                  - generic [ref=f4e426]:
+                    - img [ref=f4e427]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e431] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343923628038
+                    - text: NekoBT
+                    - img [ref=f4e432]
+          - generic [ref=f4e436]:
+            - generic [ref=f4e437]:
+              - img "cover" [ref=f4e438]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e439]:
+              - generic [ref=f4e440]:
+                - link "[Erai-raws] Meitantei Precure - 24 [1080p CR WEBRip HEVC AAC][MultiSub][5237E6AE]" [ref=f4e441] [cursor=pointer]:
+                  - /url: /view/12249-erai-raws-meitantei-precure-24-1080p-cr-webrip
+                - generic [ref=f4e442]:
+                  - link "Star Detective Precure!" [ref=f4e443] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure
+                    - img [ref=f4e444]
+                    - generic [ref=f4e447]: Star Detective Precure!
+                  - link "Ep 24" [ref=f4e448] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure/episode/24
+                    - generic [ref=f4e449]: Ep 24
+                - generic [ref=f4e450]:
+                  - generic [ref=f4e451]:
+                    - img [ref=f4e452]
+                    - img "Japanese language flag" [ref=f4e456] [cursor=pointer]
+                  - generic [ref=f4e457]:
+                    - img [ref=f4e458]
+                    - img "English language flag" [ref=f4e461] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e462] [cursor=pointer]
+                    - img "German language flag" [ref=f4e463] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e464] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e465] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e466] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e467] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e468] [cursor=pointer]
+              - generic [ref=f4e469]:
+                - generic [ref=f4e470]: 639.67 MB
+                - generic [ref=f4e471]:
+                  - link [ref=f4e472] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12249/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B1080p%20CR%20WEBRip%20HEVC%20AAC%5D%5BMultiSub%5D%5B5237E6AE%5D.torrent
+                    - img
+                  - link [ref=f4e473] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12249/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B1080p%20CR%20WEBRip%20HEVC%20AAC%5D%5BMultiSub%5D%5B5237E6AE%5D.nzb.gz
+                    - img
+                - generic [ref=f4e474]:
+                  - generic [ref=f4e475]:
+                    - link "Erai-raws" [ref=f4e477] [cursor=pointer]:
+                      - /url: /group/3-erai-raws
+                    - img [ref=f4e478]
+                  - generic [ref=f4e481]:
+                    - img [ref=f4e482]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e486] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343704410125
+                    - text: NekoBT
+                    - img [ref=f4e487]
+          - generic [ref=f4e491]:
+            - generic [ref=f4e492]:
+              - img "cover" [ref=f4e493]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e494]:
+              - generic [ref=f4e495]:
+                - link "[Erai-raws] Meitantei Precure - 24 [1080p CR WEB-DL AVC AAC][MultiSub][06922F5A]" [ref=f4e496] [cursor=pointer]:
+                  - /url: /view/12248-erai-raws-meitantei-precure-24-1080p-cr-web
+                - generic [ref=f4e497]:
+                  - link "Star Detective Precure!" [ref=f4e498] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure
+                    - img [ref=f4e499]
+                    - generic [ref=f4e502]: Star Detective Precure!
+                  - link "Ep 24" [ref=f4e503] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure/episode/24
+                    - generic [ref=f4e504]: Ep 24
+                - generic [ref=f4e505]:
+                  - generic [ref=f4e506]:
+                    - img [ref=f4e507]
+                    - img "Japanese language flag" [ref=f4e511] [cursor=pointer]
+                  - generic [ref=f4e512]:
+                    - img [ref=f4e513]
+                    - img "English language flag" [ref=f4e516] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e517] [cursor=pointer]
+                    - img "German language flag" [ref=f4e518] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e519] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e520] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e521] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e522] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e523] [cursor=pointer]
+              - generic [ref=f4e524]:
+                - generic [ref=f4e525]: 1.38 GB
+                - generic [ref=f4e526]:
+                  - link [ref=f4e527] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12248/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B1080p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5B06922F5A%5D.torrent
+                    - img
+                  - link [ref=f4e528] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12248/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B1080p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5B06922F5A%5D.nzb.gz
+                    - img
+                - generic [ref=f4e529]:
+                  - generic [ref=f4e530]:
+                    - link "Erai-raws" [ref=f4e532] [cursor=pointer]:
+                      - /url: /group/3-erai-raws
+                    - img [ref=f4e533]
+                  - generic [ref=f4e536]:
+                    - img [ref=f4e537]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e541] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343688288521
+                    - text: NekoBT
+                    - img [ref=f4e542]
+          - generic [ref=f4e546]:
+            - generic [ref=f4e547]:
+              - img "cover" [ref=f4e548]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e549]:
+              - generic [ref=f4e550]:
+                - link "[Erai-raws] Meitantei Precure - 24 [720p CR WEB-DL AVC AAC][MultiSub][0E43F4E9]" [ref=f4e551] [cursor=pointer]:
+                  - /url: /view/12247-erai-raws-meitantei-precure-24-720p-cr-web
+                - generic [ref=f4e552]:
+                  - link "Star Detective Precure!" [ref=f4e553] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure
+                    - img [ref=f4e554]
+                    - generic [ref=f4e557]: Star Detective Precure!
+                  - link "Ep 24" [ref=f4e558] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure/episode/24
+                    - generic [ref=f4e559]: Ep 24
+                - generic [ref=f4e560]:
+                  - generic [ref=f4e561]:
+                    - img [ref=f4e562]
+                    - img "Japanese language flag" [ref=f4e566] [cursor=pointer]
+                  - generic [ref=f4e567]:
+                    - img [ref=f4e568]
+                    - img "English language flag" [ref=f4e571] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e572] [cursor=pointer]
+                    - img "German language flag" [ref=f4e573] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e574] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e575] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e576] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e577] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e578] [cursor=pointer]
+              - generic [ref=f4e579]:
+                - generic [ref=f4e580]: 473.2 MB
+                - generic [ref=f4e581]:
+                  - link [ref=f4e582] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12247/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B720p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5B0E43F4E9%5D.torrent
+                    - img
+                  - link [ref=f4e583] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12247/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B720p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5B0E43F4E9%5D.nzb.gz
+                    - img
+                - generic [ref=f4e584]:
+                  - generic [ref=f4e585]:
+                    - link "Erai-raws" [ref=f4e587] [cursor=pointer]:
+                      - /url: /group/3-erai-raws
+                    - img [ref=f4e588]
+                  - generic [ref=f4e591]:
+                    - img [ref=f4e592]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e596] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343687428358
+                    - text: NekoBT
+                    - img [ref=f4e597]
+          - generic [ref=f4e601]:
+            - generic [ref=f4e602]:
+              - img "cover" [ref=f4e603]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e604]:
+              - generic [ref=f4e605]:
+                - link "[Erai-raws] Meitantei Precure - 24 [480p CR WEB-DL AVC AAC][MultiSub][BD88C2EC]" [ref=f4e606] [cursor=pointer]:
+                  - /url: /view/12246-erai-raws-meitantei-precure-24-480p-cr-web
+                - generic [ref=f4e607]:
+                  - link "Star Detective Precure!" [ref=f4e608] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure
+                    - img [ref=f4e609]
+                    - generic [ref=f4e612]: Star Detective Precure!
+                  - link "Ep 24" [ref=f4e613] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure/episode/24
+                    - generic [ref=f4e614]: Ep 24
+                - generic [ref=f4e615]:
+                  - generic [ref=f4e616]:
+                    - img [ref=f4e617]
+                    - img "Japanese language flag" [ref=f4e621] [cursor=pointer]
+                  - generic [ref=f4e622]:
+                    - img [ref=f4e623]
+                    - img "English language flag" [ref=f4e626] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e627] [cursor=pointer]
+                    - img "German language flag" [ref=f4e628] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e629] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e630] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e631] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e632] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e633] [cursor=pointer]
+              - generic [ref=f4e634]:
+                - generic [ref=f4e635]: 266.88 MB
+                - generic [ref=f4e636]:
+                  - link [ref=f4e637] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12246/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B480p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5BBD88C2EC%5D.torrent
+                    - img
+                  - link [ref=f4e638] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12246/%5BErai-raws%5D%20Meitantei%20Precure%20-%2024%20%5B480p%20CR%20WEB-DL%20AVC%20AAC%5D%5BMultiSub%5D%5BBD88C2EC%5D.nzb.gz
+                    - img
+                - generic [ref=f4e639]:
+                  - generic [ref=f4e640]:
+                    - link "Erai-raws" [ref=f4e642] [cursor=pointer]:
+                      - /url: /group/3-erai-raws
+                    - img [ref=f4e643]
+                  - generic [ref=f4e646]:
+                    - img [ref=f4e647]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e651] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343686986501
+                    - text: NekoBT
+                    - img [ref=f4e652]
+          - generic [ref=f4e656]:
+            - generic [ref=f4e657]:
+              - img "cover" [ref=f4e658]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e659]:
+              - generic [ref=f4e660]:
+                - link "[FSP] Douluo Dalu II - Soul Land 2 - 161 [1080p]" [ref=f4e661] [cursor=pointer]:
+                  - /url: /view/12245-fsp-douluo-dalu-ii-soul-land-2-161
+                - generic [ref=f4e662]:
+                  - 'link "Soul Land 2: The Peerless Tang Clan" [ref=f4e663] [cursor=pointer]':
+                    - /url: /anime/155-soul-land-2-the-peerless-tang-clan
+                    - img [ref=f4e664]
+                    - generic [ref=f4e667]: "Soul Land 2: The Peerless Tang Clan"
+                  - link "Ep 161" [ref=f4e668] [cursor=pointer]:
+                    - /url: /anime/155-soul-land-2-the-peerless-tang-clan/episode/161
+                    - generic [ref=f4e669]: Ep 161
+                - generic [ref=f4e670]:
+                  - generic [ref=f4e671]:
+                    - img [ref=f4e672]
+                    - img "Mandarin Chinese language flag" [ref=f4e676] [cursor=pointer]
+                  - generic [ref=f4e677]:
+                    - img [ref=f4e678]
+                    - img "English language flag" [ref=f4e681] [cursor=pointer]
+              - generic [ref=f4e682]:
+                - generic [ref=f4e683]: 426.95 MB
+                - generic [ref=f4e684]:
+                  - link [ref=f4e685] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12245/%5BFSP%5D%20Douluo%20Dalu%20II%20-%20Soul%20Land%202%20-%20161%20%5B1080p%5D.torrent
+                    - img
+                  - link [ref=f4e686] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12245/%5BFSP%5D%20Douluo%20Dalu%20II%20-%20Soul%20Land%202%20-%20161%20%5B1080p%5D.nzb.gz
+                    - img
+                - generic [ref=f4e687]:
+                  - generic [ref=f4e688]:
+                    - link "FSP" [ref=f4e690] [cursor=pointer]:
+                      - /url: /group/85-fsp
+                    - img [ref=f4e691]
+                  - generic [ref=f4e694]:
+                    - img [ref=f4e695]
+                    - text: about 5 hours ago
+                  - link "Nyaa" [ref=f4e699] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131893
+                    - text: Nyaa
+                    - img [ref=f4e700]
+          - generic [ref=f4e704]:
+            - generic [ref=f4e705]:
+              - img "cover" [ref=f4e706]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e707]:
+              - generic [ref=f4e708]:
+                - link "[ToonsHub] Star Detective Precure S01E24 1080p CR WEB-DL AAC2.0 H.264 (Multi-Subs)" [ref=f4e709] [cursor=pointer]:
+                  - /url: /view/12244-toonshub-star-detective-precure-s01e24-1080p-cr-web
+                - generic [ref=f4e710]:
+                  - link "Star Detective Precure!" [ref=f4e711] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure
+                    - img [ref=f4e712]
+                    - generic [ref=f4e715]: Star Detective Precure!
+                  - link "Ep 24" [ref=f4e716] [cursor=pointer]:
+                    - /url: /anime/133-star-detective-precure/episode/24
+                    - generic [ref=f4e717]: Ep 24
+                - generic [ref=f4e718]:
+                  - generic [ref=f4e719]:
+                    - img [ref=f4e720]
+                    - img "Japanese language flag" [ref=f4e724] [cursor=pointer]
+                  - generic [ref=f4e725]:
+                    - img [ref=f4e726]
+                    - img "English language flag" [ref=f4e729] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e730] [cursor=pointer]
+                    - img "German language flag" [ref=f4e731] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e732] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e733] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e734] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e735] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e736] [cursor=pointer]
+              - generic [ref=f4e737]:
+                - generic [ref=f4e738]: 1.38 GB
+                - generic [ref=f4e739]:
+                  - link [ref=f4e740] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12244/%5BToonsHub%5D%20Star%20Detective%20Precure%20S01E24%201080p%20CR%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).torrent
+                    - img
+                  - link [ref=f4e741] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12244/%5BToonsHub%5D%20Star%20Detective%20Precure%20S01E24%201080p%20CR%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).nzb.gz
+                    - img
+                - generic [ref=f4e742]:
+                  - generic [ref=f4e743]:
+                    - link "ToonsHub" [ref=f4e745] [cursor=pointer]:
+                      - /url: /group/1-toonshub
+                    - img [ref=f4e746]
+                  - generic [ref=f4e749]:
+                    - img [ref=f4e750]
+                    - text: about 5 hours ago
+                  - link "NekoBT" [ref=f4e754] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12343483586568
+                    - text: NekoBT
+                    - img [ref=f4e755]
+          - generic [ref=f4e759]:
+            - generic [ref=f4e760]:
+              - img "cover" [ref=f4e761]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e762]:
+              - generic [ref=f4e763]:
+                - link "[Breeze] Mushoku Tensei S03E03 v0 [1080p AV1] Jobless Reincarnation (weekly)" [ref=f4e764] [cursor=pointer]:
+                  - /url: /view/12242-breeze-mushoku-tensei-s03e03-v0-1080p-av1-jobless
+                - generic [ref=f4e765]:
+                  - 'link "Mushoku Tensei: Jobless Reincarnation Season 3" [ref=f4e766] [cursor=pointer]':
+                    - /url: /anime/9531-mushoku-tensei-jobless-reincarnation-season-3
+                    - img [ref=f4e767]
+                    - generic [ref=f4e770]: "Mushoku Tensei: Jobless Reincarnation Season 3"
+                  - link "Ep 3" [ref=f4e771] [cursor=pointer]:
+                    - /url: /anime/9531-mushoku-tensei-jobless-reincarnation-season-3/episode/3
+                    - generic [ref=f4e772]: Ep 3
+                - generic [ref=f4e773]:
+                  - generic [ref=f4e774]:
+                    - img [ref=f4e775]
+                    - img "Japanese language flag" [ref=f4e779] [cursor=pointer]
+                  - generic [ref=f4e780]:
+                    - img [ref=f4e781]
+                    - img "English language flag" [ref=f4e784] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e785] [cursor=pointer]
+                    - img "German language flag" [ref=f4e786] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e787] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e788] [cursor=pointer]
+                    - img "French language flag" [ref=f4e789] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e790] [cursor=pointer]
+                    - img "Polish language flag" [ref=f4e791] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e792] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e793] [cursor=pointer]
+              - generic [ref=f4e794]:
+                - generic [ref=f4e795]: 769 MB
+                - generic [ref=f4e796]:
+                  - link [ref=f4e797] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12242/%5BBreeze%5D%20Mushoku%20Tensei%20S03E03%20v0%20%5B1080p%20AV1%5D%20Jobless%20Reincarnation%20(weekly).torrent
+                    - img
+                  - link [ref=f4e798] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12242/%5BBreeze%5D%20Mushoku%20Tensei%20S03E03%20v0%20%5B1080p%20AV1%5D%20Jobless%20Reincarnation%20(weekly).nzb.gz
+                    - img
+                - generic [ref=f4e799]:
+                  - generic [ref=f4e800]:
+                    - link "Breeze" [ref=f4e802] [cursor=pointer]:
+                      - /url: /group/117-breeze
+                    - img [ref=f4e803]
+                  - generic [ref=f4e806]:
+                    - img [ref=f4e807]
+                    - text: about 6 hours ago
+                  - link "Nyaa" [ref=f4e811] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131891
+                    - text: Nyaa
+                    - img [ref=f4e812]
+          - generic [ref=f4e816]:
+            - generic [ref=f4e817]:
+              - img "cover" [ref=f4e818]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e819]:
+              - generic [ref=f4e820]:
+                - link "[ToonsHub] LOCA (2025) 1080p YT WEB-DL AAC2.0 H.264 (English-Sub)" [ref=f4e821] [cursor=pointer]:
+                  - /url: /view/12241-toonshub-loca-2025-1080p-yt-web-dl-aac2
+                - link "LOCA!" [ref=f4e823] [cursor=pointer]:
+                  - /url: /anime/9621-loca
+                  - img [ref=f4e824]
+                  - generic [ref=f4e827]: LOCA!
+                - generic [ref=f4e828]:
+                  - generic [ref=f4e829]:
+                    - img [ref=f4e830]
+                    - img "Japanese language flag" [ref=f4e834] [cursor=pointer]
+                  - generic [ref=f4e835]:
+                    - img [ref=f4e836]
+                    - img "English language flag" [ref=f4e839] [cursor=pointer]
+              - generic [ref=f4e840]:
+                - generic [ref=f4e841]: 241.8 MB
+                - generic [ref=f4e842]:
+                  - link [ref=f4e843] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12241/%5BToonsHub%5D%20LOCA%20(2025)%201080p%20YT%20WEB-DL%20AAC2.0%20H.264%20(English-Sub).torrent
+                    - img
+                  - link [ref=f4e844] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12241/%5BToonsHub%5D%20LOCA%20(2025)%201080p%20YT%20WEB-DL%20AAC2.0%20H.264%20(English-Sub).nzb.gz
+                    - img
+                - generic [ref=f4e845]:
+                  - generic [ref=f4e846]:
+                    - link "ToonsHub" [ref=f4e848] [cursor=pointer]:
+                      - /url: /group/1-toonshub
+                    - img [ref=f4e849]
+                  - generic [ref=f4e852]:
+                    - img [ref=f4e853]
+                    - text: about 6 hours ago
+                  - link "NekoBT" [ref=f4e857] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12342959957511
+                    - text: NekoBT
+                    - img [ref=f4e858]
+          - generic [ref=f4e862]:
+            - generic [ref=f4e863]:
+              - img "cover" [ref=f4e864]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e865]:
+              - generic [ref=f4e866]:
+                - link "[One Pace][1011-1012] Wano 61 [1080p][1EF3F26C].mkv" [ref=f4e867] [cursor=pointer]:
+                  - /url: /view/12243-one-pace-1011-1012-wano-61-1080p-1ef3f26c
+                - link "ONE PIECE" [ref=f4e869] [cursor=pointer]:
+                  - /url: /anime/111-one-piece
+                  - img [ref=f4e870]
+                  - generic [ref=f4e873]: ONE PIECE
+                - generic [ref=f4e874]:
+                  - generic [ref=f4e875]:
+                    - img [ref=f4e876]
+                    - img "Japanese language flag" [ref=f4e880] [cursor=pointer]
+                    - img "English language flag" [ref=f4e881] [cursor=pointer]
+                  - generic [ref=f4e882]:
+                    - img [ref=f4e883]
+                    - img "English language flag" [ref=f4e886] [cursor=pointer]
+                    - img "German language flag" [ref=f4e887] [cursor=pointer]
+                    - img "French language flag" [ref=f4e888] [cursor=pointer]
+                    - img "Turkish language flag" [ref=f4e889] [cursor=pointer]
+              - generic [ref=f4e890]:
+                - generic [ref=f4e891]: 1.27 GB
+                - generic [ref=f4e892]:
+                  - link [ref=f4e893] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12243/%5BOne%20Pace%5D%5B1011-1012%5D%20Wano%2061%20%5B1080p%5D%5B1EF3F26C%5D.mkv.torrent
+                    - img
+                  - link [ref=f4e894] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12243/%5BOne%20Pace%5D%5B1011-1012%5D%20Wano%2061%20%5B1080p%5D%5B1EF3F26C%5D.mkv.nzb.gz
+                    - img
+                - generic [ref=f4e895]:
+                  - generic [ref=f4e896]:
+                    - link "One Pace" [ref=f4e898] [cursor=pointer]:
+                      - /url: /group/179-one-pace
+                    - img [ref=f4e899]
+                  - generic [ref=f4e902]:
+                    - img [ref=f4e903]
+                    - text: about 6 hours ago
+                  - link "Nyaa" [ref=f4e907] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131887
+                    - text: Nyaa
+                    - img [ref=f4e908]
+          - generic [ref=f4e912]:
+            - generic [ref=f4e913]:
+              - img "cover" [ref=f4e914]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e915]:
+              - generic [ref=f4e916]:
+                - link "[Yameii] Goodbye, Lara - S01E02 [English Dub] [CR WEB-DL 720p H264 AAC] [1B5B5A61] (Sayonara Lara)" [ref=f4e917] [cursor=pointer]:
+                  - /url: /view/12240-yameii-goodbye-lara-s01e02-english-dub-cr-web
+                - generic [ref=f4e918]:
+                  - link "Goodbye, Lara" [ref=f4e919] [cursor=pointer]:
+                    - /url: /anime/9552-goodbye-lara
+                    - img [ref=f4e920]
+                    - generic [ref=f4e923]: Goodbye, Lara
+                  - link "Ep 2" [ref=f4e924] [cursor=pointer]:
+                    - /url: /anime/9552-goodbye-lara/episode/2
+                    - generic [ref=f4e925]: Ep 2
+                - generic [ref=f4e926]:
+                  - generic [ref=f4e927]:
+                    - img [ref=f4e928]
+                    - img "English language flag" [ref=f4e932] [cursor=pointer]
+                  - generic [ref=f4e933]:
+                    - img [ref=f4e934]
+                    - img "English language flag" [ref=f4e937] [cursor=pointer]
+              - generic [ref=f4e938]:
+                - generic [ref=f4e939]: 721.5 MB
+                - generic [ref=f4e940]:
+                  - link [ref=f4e941] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12240/%5BYameii%5D%20Goodbye%2C%20Lara%20-%20S01E02%20%5BEnglish%20Dub%5D%20%5BCR%20WEB-DL%20720p%20H264%20AAC%5D%20%5B1B5B5A61%5D%20(Sayonara%20Lara).torrent
+                    - img
+                  - link [ref=f4e942] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12240/%5BYameii%5D%20Goodbye%2C%20Lara%20-%20S01E02%20%5BEnglish%20Dub%5D%20%5BCR%20WEB-DL%20720p%20H264%20AAC%5D%20%5B1B5B5A61%5D%20(Sayonara%20Lara).nzb.gz
+                    - img
+                - generic [ref=f4e943]:
+                  - generic [ref=f4e944]:
+                    - link "Yameii" [ref=f4e946] [cursor=pointer]:
+                      - /url: /group/12-yameii
+                    - img [ref=f4e947]
+                  - generic [ref=f4e950]:
+                    - img [ref=f4e951]
+                    - text: about 7 hours ago
+                  - link "NekoBT" [ref=f4e955] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12342257715458
+                    - text: NekoBT
+                    - img [ref=f4e956]
+          - generic [ref=f4e960]:
+            - generic [ref=f4e961]:
+              - img "cover" [ref=f4e962]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e963]:
+              - generic [ref=f4e964]:
+                - link "[Reza] Smoking Behind the Supermarket with You - S01E01 [WEBRip 1080p AAC] Super no Ura de Yani Suu Futari" [ref=f4e965] [cursor=pointer]:
+                  - /url: /view/12239-reza-smoking-behind-the-supermarket-with-you-s01e01
+                - generic [ref=f4e966]:
+                  - link "Smoking Behind the Supermarket with You" [ref=f4e967] [cursor=pointer]:
+                    - /url: /anime/259-smoking-behind-the-supermarket-with-you
+                    - img [ref=f4e968]
+                    - generic [ref=f4e971]: Smoking Behind the Supermarket with You
+                  - link "Ep 1" [ref=f4e972] [cursor=pointer]:
+                    - /url: /anime/259-smoking-behind-the-supermarket-with-you/episode/1
+                    - generic [ref=f4e973]: Ep 1
+                - generic [ref=f4e974]:
+                  - generic [ref=f4e975]:
+                    - img [ref=f4e976]
+                    - img "Japanese language flag" [ref=f4e980] [cursor=pointer]
+                  - generic [ref=f4e981]:
+                    - img [ref=f4e982]
+                    - img "English language flag" [ref=f4e985] [cursor=pointer]
+              - generic [ref=f4e986]:
+                - generic [ref=f4e987]: 1.05 GB
+                - generic [ref=f4e988]:
+                  - link [ref=f4e989] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12239/%5BReza%5D%20Smoking%20Behind%20the%20Supermarket%20with%20You%20-%20S01E01%20%5BWEBRip%201080p%20AAC%5D%20Super%20no%20Ura%20de%20Yani%20Suu%20Futari.torrent
+                    - img
+                  - link [ref=f4e990] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12239/%5BReza%5D%20Smoking%20Behind%20the%20Supermarket%20with%20You%20-%20S01E01%20%5BWEBRip%201080p%20AAC%5D%20Super%20no%20Ura%20de%20Yani%20Suu%20Futari.nzb.gz
+                    - img
+                - generic [ref=f4e991]:
+                  - generic [ref=f4e992]:
+                    - link "Reza" [ref=f4e994] [cursor=pointer]:
+                      - /url: /group/89-reza
+                    - img [ref=f4e995]
+                  - generic [ref=f4e998]:
+                    - img [ref=f4e999]
+                    - text: about 8 hours ago
+                  - link "Nyaa" [ref=f4e1003] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131876
+                    - text: Nyaa
+                    - img [ref=f4e1004]
+          - generic [ref=f4e1008]:
+            - generic [ref=f4e1009]:
+              - img "cover" [ref=f4e1010]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1011]:
+              - generic [ref=f4e1012]:
+                - link "[ASW] Tsuihou sareta Tensei Juukishi wa Game Chishiki de Musou suru - 02v2 [1080p HEVC x265 10Bit][AAC]" [ref=f4e1013] [cursor=pointer]:
+                  - /url: /view/12238-asw-tsuihou-sareta-tensei-juukishi-wa-game-chishiki
+                - generic [ref=f4e1014]:
+                  - link "The Exiled Heavy Knight Knows How to Game the System" [ref=f4e1015] [cursor=pointer]:
+                    - /url: /anime/9519-the-exiled-heavy-knight-knows-how-to-game-the-system
+                    - img [ref=f4e1016]
+                    - generic [ref=f4e1019]: The Exiled Heavy Knight Knows How to Game the System
+                  - link "Ep 2" [ref=f4e1020] [cursor=pointer]:
+                    - /url: /anime/9519-the-exiled-heavy-knight-knows-how-to-game-the-system/episode/2
+                    - generic [ref=f4e1021]: Ep 2
+                - generic [ref=f4e1022]:
+                  - generic [ref=f4e1023]:
+                    - img [ref=f4e1024]
+                    - img "Japanese language flag" [ref=f4e1028] [cursor=pointer]
+                  - generic [ref=f4e1029]:
+                    - img [ref=f4e1030]
+                    - img "English language flag" [ref=f4e1033] [cursor=pointer]
+              - generic [ref=f4e1034]:
+                - generic [ref=f4e1035]: 1.13 GB
+                - generic [ref=f4e1036]:
+                  - link [ref=f4e1037] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12238/%5BASW%5D%20Tsuihou%20sareta%20Tensei%20Juukishi%20wa%20Game%20Chishiki%20de%20Musou%20suru%20-%2002v2%20%5B1080p%20HEVC%20x265%2010Bit%5D%5BAAC%5D.torrent
+                    - img
+                  - link [ref=f4e1038] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12238/%5BASW%5D%20Tsuihou%20sareta%20Tensei%20Juukishi%20wa%20Game%20Chishiki%20de%20Musou%20suru%20-%2002v2%20%5B1080p%20HEVC%20x265%2010Bit%5D%5BAAC%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1039]:
+                  - generic [ref=f4e1040]:
+                    - link "ASW" [ref=f4e1042] [cursor=pointer]:
+                      - /url: /group/9-asw
+                    - img [ref=f4e1043]
+                  - generic [ref=f4e1046]:
+                    - img [ref=f4e1047]
+                    - text: about 9 hours ago
+                  - link "Nyaa" [ref=f4e1051] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131873
+                    - text: Nyaa
+                    - img [ref=f4e1052]
+          - generic [ref=f4e1056]:
+            - generic [ref=f4e1057]:
+              - img "cover" [ref=f4e1058]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1059]:
+              - generic [ref=f4e1060]:
+                - link "Welcome To Demon School! Iruma-Kun S01-S03 1080p BDRip AV1 10bit FLAC-Anon" [ref=f4e1061] [cursor=pointer]:
+                  - /url: /view/12237-welcome-to-demon-school-iruma-kun-s01-s03
+                - link "Welcome to Demon School! Iruma-kun" [ref=f4e1063] [cursor=pointer]:
+                  - /url: /anime/6206-welcome-to-demon-school-iruma-kun
+                  - img [ref=f4e1064]
+                  - generic [ref=f4e1067]: Welcome to Demon School! Iruma-kun
+              - generic [ref=f4e1068]:
+                - generic [ref=f4e1069]: 105.69 GB
+                - link [ref=f4e1071] [cursor=pointer]:
+                  - /url: https://nyaa.si/download/2131872.torrent
+                  - img
+                - generic [ref=f4e1072]:
+                  - generic [ref=f4e1073]:
+                    - link "Anon" [ref=f4e1075] [cursor=pointer]:
+                      - /url: /group/315-anon
+                    - img [ref=f4e1076]
+                  - generic [ref=f4e1079]:
+                    - img [ref=f4e1080]
+                    - text: about 9 hours ago
+                  - link "Nyaa" [ref=f4e1084] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131872
+                    - text: Nyaa
+                    - img [ref=f4e1085]
+          - generic [ref=f4e1089]:
+            - generic [ref=f4e1090]:
+              - img "cover" [ref=f4e1091]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1092]:
+              - generic [ref=f4e1093]:
+                - 'link "[DKB] Nijusseiki Denki Mokuroku: Eureka Evrika - S01E02 [1080p][HEVC x265 10bit][Dual-Audio][Multi-Subs][weekly]" [ref=f4e1094] [cursor=pointer]':
+                  - /url: /view/12236-dkb-nijusseiki-denki-mokuroku-eureka-evrika-s01e02-1080p
+                - generic [ref=f4e1095]:
+                  - link "Sparks of Tomorrow" [ref=f4e1096] [cursor=pointer]:
+                    - /url: /anime/9550-sparks-of-tomorrow
+                    - img [ref=f4e1097]
+                    - generic [ref=f4e1100]: Sparks of Tomorrow
+                  - link "Ep 2" [ref=f4e1101] [cursor=pointer]:
+                    - /url: /anime/9550-sparks-of-tomorrow/episode/2
+                    - generic [ref=f4e1102]: Ep 2
+                - generic [ref=f4e1103]:
+                  - generic [ref=f4e1104]:
+                    - img [ref=f4e1105]
+                    - img "Japanese language flag" [ref=f4e1109] [cursor=pointer]
+                    - img "English language flag" [ref=f4e1110] [cursor=pointer]
+                  - generic [ref=f4e1111]:
+                    - img [ref=f4e1112]
+                    - img "English language flag" [ref=f4e1115] [cursor=pointer]
+                    - img "Japanese language flag" [ref=f4e1116] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e1117] [cursor=pointer]
+                    - img "Czech language flag" [ref=f4e1118] [cursor=pointer]
+                    - img "Danish language flag" [ref=f4e1119] [cursor=pointer]
+                    - img "German language flag" [ref=f4e1120] [cursor=pointer]
+                    - img "Greek language flag" [ref=f4e1121] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e1122] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e1123] [cursor=pointer]
+                    - img "Finnish language flag" [ref=f4e1124] [cursor=pointer]
+                    - img "Filipino language flag" [ref=f4e1125] [cursor=pointer]
+                    - img "French language flag" [ref=f4e1126] [cursor=pointer]
+                    - img "Hebrew language flag" [ref=f4e1127] [cursor=pointer]
+                    - img "Croatian language flag" [ref=f4e1128] [cursor=pointer]
+                    - img "Hungarian language flag" [ref=f4e1129] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e1130] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e1131] [cursor=pointer]
+                    - img "Korean language flag" [ref=f4e1132] [cursor=pointer]
+                    - img "Malay language flag" [ref=f4e1133] [cursor=pointer]
+                    - img "Dutch language flag" [ref=f4e1134] [cursor=pointer]
+                    - img "Norwegian language flag" [ref=f4e1135] [cursor=pointer]
+                    - img "Polish language flag" [ref=f4e1136] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e1137] [cursor=pointer]
+                    - img "Portuguese (Portugal) language flag" [ref=f4e1138] [cursor=pointer]
+                    - img "Romanian language flag" [ref=f4e1139] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e1140] [cursor=pointer]
+                    - img "Swedish language flag" [ref=f4e1141] [cursor=pointer]
+                    - img "Thai language flag" [ref=f4e1142] [cursor=pointer]
+                    - img "Turkish language flag" [ref=f4e1143] [cursor=pointer]
+                    - img "Ukrainian language flag" [ref=f4e1144] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e1145] [cursor=pointer]
+                    - img "Chinese (Simplified) language flag" [ref=f4e1146] [cursor=pointer]
+                    - img "Chinese (Traditional) language flag" [ref=f4e1147] [cursor=pointer]
+              - generic [ref=f4e1148]:
+                - generic [ref=f4e1149]: 628.93 MB
+                - generic [ref=f4e1150]:
+                  - link [ref=f4e1151] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12236/%5BDKB%5D%20Nijusseiki%20Denki%20Mokuroku%3A%20Eureka%20Evrika%20-%20S01E02%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BDual-Audio%5D%5BMulti-Subs%5D%5Bweekly%5D.torrent
+                    - img
+                  - link [ref=f4e1152] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12236/%5BDKB%5D%20Nijusseiki%20Denki%20Mokuroku%3A%20Eureka%20Evrika%20-%20S01E02%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BDual-Audio%5D%5BMulti-Subs%5D%5Bweekly%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1153]:
+                  - generic [ref=f4e1154]:
+                    - link "DKB" [ref=f4e1156] [cursor=pointer]:
+                      - /url: /group/5-dkb
+                    - img [ref=f4e1157]
+                  - generic [ref=f4e1160]:
+                    - img [ref=f4e1161]
+                    - text: about 9 hours ago
+                  - link "Nyaa" [ref=f4e1165] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131871
+                    - text: Nyaa
+                    - img [ref=f4e1166]
+          - generic [ref=f4e1170]:
+            - generic [ref=f4e1171]:
+              - img "cover" [ref=f4e1172]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1173]:
+              - generic [ref=f4e1174]:
+                - link "[CrappySubs] Sparks of Tomorrow - S01E02 (NF WEB 1080p H.264 AAC) [Dual Audio] [E00BEC70]" [ref=f4e1175] [cursor=pointer]:
+                  - /url: /view/12235-crappysubs-sparks-of-tomorrow-s01e02-nf-web-1080p
+                - generic [ref=f4e1176]:
+                  - link "Sparks of Tomorrow" [ref=f4e1177] [cursor=pointer]:
+                    - /url: /anime/9550-sparks-of-tomorrow
+                    - img [ref=f4e1178]
+                    - generic [ref=f4e1181]: Sparks of Tomorrow
+                  - link "Ep 2" [ref=f4e1182] [cursor=pointer]:
+                    - /url: /anime/9550-sparks-of-tomorrow/episode/2
+                    - generic [ref=f4e1183]: Ep 2
+                - generic [ref=f4e1184]:
+                  - generic [ref=f4e1185]:
+                    - img [ref=f4e1186]
+                    - img "Japanese language flag" [ref=f4e1190] [cursor=pointer]
+                    - img "English language flag" [ref=f4e1191] [cursor=pointer]
+                  - generic [ref=f4e1192]:
+                    - img [ref=f4e1193]
+                    - img "English language flag" [ref=f4e1196] [cursor=pointer]
+                    - img "English (Weeb) language flag" [ref=f4e1197] [cursor=pointer]
+              - generic [ref=f4e1198]:
+                - generic [ref=f4e1199]: 913.06 MB
+                - generic [ref=f4e1200]:
+                  - link [ref=f4e1201] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12235/%5BCrappySubs%5D%20Sparks%20of%20Tomorrow%20-%20S01E02%20(NF%20WEB%201080p%20H.264%20AAC)%20%5BDual%20Audio%5D%20%5BE00BEC70%5D.torrent
+                    - img
+                  - link [ref=f4e1202] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12235/%5BCrappySubs%5D%20Sparks%20of%20Tomorrow%20-%20S01E02%20(NF%20WEB%201080p%20H.264%20AAC)%20%5BDual%20Audio%5D%20%5BE00BEC70%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1203]:
+                  - generic [ref=f4e1204]:
+                    - link "CrappySubs" [ref=f4e1206] [cursor=pointer]:
+                      - /url: /group/839-crappysubs
+                    - img [ref=f4e1207]
+                  - generic [ref=f4e1210]:
+                    - img [ref=f4e1211]
+                    - text: about 10 hours ago
+                  - link "NekoBT" [ref=f4e1215] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12339343748353
+                    - text: NekoBT
+                    - img [ref=f4e1216]
+          - generic [ref=f4e1220]:
+            - generic [ref=f4e1221]:
+              - img "cover" [ref=f4e1222]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1223]:
+              - generic [ref=f4e1224]:
+                - link "[Erai-raws] Futsutsuka na Akujo dewa Gozaimasu ga - 01 [1080p CR WEBRip HEVC AAC][MultiSub][B30A8443]" [ref=f4e1225] [cursor=pointer]:
+                  - /url: /view/12234-erai-raws-futsutsuka-na-akujo-dewa-gozaimasu-ga
+                - generic [ref=f4e1226]:
+                  - link "Though I Am an Inept Villainess" [ref=f4e1227] [cursor=pointer]:
+                    - /url: /anime/9620-though-i-am-an-inept-villainess
+                    - img [ref=f4e1228]
+                    - generic [ref=f4e1231]: Though I Am an Inept Villainess
+                  - link "Ep 1" [ref=f4e1232] [cursor=pointer]:
+                    - /url: /anime/9620-though-i-am-an-inept-villainess/episode/1
+                    - generic [ref=f4e1233]: Ep 1
+                - generic [ref=f4e1234]:
+                  - generic [ref=f4e1235]:
+                    - img [ref=f4e1236]
+                    - img "Japanese language flag" [ref=f4e1240] [cursor=pointer]
+                  - generic [ref=f4e1241]:
+                    - img [ref=f4e1242]
+                    - img "English language flag" [ref=f4e1245] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e1246] [cursor=pointer]
+                    - img "German language flag" [ref=f4e1247] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e1248] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e1249] [cursor=pointer]
+                    - img "French language flag" [ref=f4e1250] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e1251] [cursor=pointer]
+                    - img "Malay language flag" [ref=f4e1252] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e1253] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e1254] [cursor=pointer]
+                    - img "Chinese (Simplified) language flag" [ref=f4e1255] [cursor=pointer]
+                    - img "Chinese (Traditional) language flag" [ref=f4e1256] [cursor=pointer]
+              - generic [ref=f4e1257]:
+                - generic [ref=f4e1258]: 625.23 MB
+                - generic [ref=f4e1259]:
+                  - link [ref=f4e1260] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12234/%5BErai-raws%5D%20Futsutsuka%20na%20Akujo%20dewa%20Gozaimasu%20ga%20-%2001%20%5B1080p%20CR%20WEBRip%20HEVC%20AAC%5D%5BMultiSub%5D%5BB30A8443%5D.torrent
+                    - img
+                  - link [ref=f4e1261] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12234/%5BErai-raws%5D%20Futsutsuka%20na%20Akujo%20dewa%20Gozaimasu%20ga%20-%2001%20%5B1080p%20CR%20WEBRip%20HEVC%20AAC%5D%5BMultiSub%5D%5BB30A8443%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1262]:
+                  - generic [ref=f4e1263]:
+                    - link "Erai-raws" [ref=f4e1265] [cursor=pointer]:
+                      - /url: /group/3-erai-raws
+                    - img [ref=f4e1266]
+                  - generic [ref=f4e1269]:
+                    - img [ref=f4e1270]
+                    - text: about 10 hours ago
+                  - link "NekoBT" [ref=f4e1274] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12338889870082
+                    - text: NekoBT
+                    - img [ref=f4e1275]
+          - generic [ref=f4e1279]:
+            - generic [ref=f4e1280]:
+              - img "cover" [ref=f4e1281]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1282]:
+              - generic [ref=f4e1283]:
+                - 'link "[VARYG] Mushoku Tensei Jobless Reincarnation S03E03 1080p NF WEB-DL AAC2.0 H.264 (Mushoku Tensei: Isekai Ittara Honki Dasu, Multi-Subs)" [ref=f4e1284] [cursor=pointer]':
+                  - /url: /view/12233-varyg-mushoku-tensei-jobless-reincarnation-s03e03-1080p-nf
+                - generic [ref=f4e1285]:
+                  - 'link "Mushoku Tensei: Jobless Reincarnation Season 3" [ref=f4e1286] [cursor=pointer]':
+                    - /url: /anime/9531-mushoku-tensei-jobless-reincarnation-season-3
+                    - img [ref=f4e1287]
+                    - generic [ref=f4e1290]: "Mushoku Tensei: Jobless Reincarnation Season 3"
+                  - link "Ep 3" [ref=f4e1291] [cursor=pointer]:
+                    - /url: /anime/9531-mushoku-tensei-jobless-reincarnation-season-3/episode/3
+                    - generic [ref=f4e1292]: Ep 3
+                - generic [ref=f4e1293]:
+                  - generic [ref=f4e1294]:
+                    - img [ref=f4e1295]
+                    - img "Japanese language flag" [ref=f4e1299] [cursor=pointer]
+                  - generic [ref=f4e1300]:
+                    - img [ref=f4e1301]
+                    - img "English language flag" [ref=f4e1304] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e1305] [cursor=pointer]
+                    - img "Malay language flag" [ref=f4e1306] [cursor=pointer]
+                    - img "Thai language flag" [ref=f4e1307] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e1308] [cursor=pointer]
+                    - img "Chinese (Simplified) language flag" [ref=f4e1309] [cursor=pointer]
+                    - img "Chinese (Traditional) language flag" [ref=f4e1310] [cursor=pointer]
+              - generic [ref=f4e1311]:
+                - generic [ref=f4e1312]: 867.03 MB
+                - generic [ref=f4e1313]:
+                  - link [ref=f4e1314] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12233/%5BVARYG%5D%20Mushoku%20Tensei%20Jobless%20Reincarnation%20S03E03%201080p%20NF%20WEB-DL%20AAC2.0%20H.264%20(Mushoku%20Tensei%3A%20Isekai%20Ittara%20Honki%20Dasu%2C%20Multi-Subs).torrent
+                    - img
+                  - link [ref=f4e1315] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12233/%5BVARYG%5D%20Mushoku%20Tensei%20Jobless%20Reincarnation%20S03E03%201080p%20NF%20WEB-DL%20AAC2.0%20H.264%20(Mushoku%20Tensei%3A%20Isekai%20Ittara%20Honki%20Dasu%2C%20Multi-Subs).nzb.gz
+                    - img
+                - generic [ref=f4e1316]:
+                  - generic [ref=f4e1317]:
+                    - link "VARYG" [ref=f4e1319] [cursor=pointer]:
+                      - /url: /group/7-varyg
+                    - img [ref=f4e1320]
+                  - generic [ref=f4e1323]:
+                    - img [ref=f4e1324]
+                    - text: about 10 hours ago
+                  - link "NekoBT" [ref=f4e1328] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12338849945097
+                    - text: NekoBT
+                    - img [ref=f4e1329]
+          - generic [ref=f4e1333]:
+            - generic [ref=f4e1334]:
+              - img "cover" [ref=f4e1335]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1336]:
+              - generic [ref=f4e1337]:
+                - link "[kikuri] Oshi no Ko 3rd Season (BD 1080p HEVC Opus) | Oshi no Ko S03" [ref=f4e1338] [cursor=pointer]:
+                  - /url: /view/12232-kikuri-oshi-no-ko-3rd-season-bd-1080p
+                - link "【OSHI NO KO】Season 3" [ref=f4e1340] [cursor=pointer]:
+                  - /url: /anime/13-oshi-no-ko-season-3
+                  - img [ref=f4e1341]
+                  - generic [ref=f4e1344]: 【OSHI NO KO】Season 3
+              - generic [ref=f4e1345]:
+                - generic [ref=f4e1346]: 16.2 GB
+                - link [ref=f4e1348] [cursor=pointer]:
+                  - /url: https://nekobt.to/api/v1/torrents/12338449921283/download?public=true
+                  - img
+                - generic [ref=f4e1349]:
+                  - generic [ref=f4e1350]:
+                    - link "kikuri" [ref=f4e1352] [cursor=pointer]:
+                      - /url: /group/49-kikuri
+                    - img [ref=f4e1353]
+                  - generic [ref=f4e1356]:
+                    - img [ref=f4e1357]
+                    - text: about 11 hours ago
+                  - link "NekoBT" [ref=f4e1361] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12338449921283
+                    - text: NekoBT
+                    - img [ref=f4e1362]
+          - generic [ref=f4e1366]:
+            - generic [ref=f4e1367]:
+              - img "cover" [ref=f4e1368]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1369]:
+              - generic [ref=f4e1370]:
+                - link "[VARYG] Digimon Beatbreak S01E38 Hollow Thirst REPACK 1080p CR WEB-DL AAC2.0 H.264 (Multi-Subs)" [ref=f4e1371] [cursor=pointer]:
+                  - /url: /view/12231-varyg-digimon-beatbreak-s01e38-hollow-thirst-repack-1080p
+                - generic [ref=f4e1372]:
+                  - link "Digimon Beatbreak" [ref=f4e1373] [cursor=pointer]:
+                    - /url: /anime/114-digimon-beatbreak
+                    - img [ref=f4e1374]
+                    - generic [ref=f4e1377]: Digimon Beatbreak
+                  - link "Ep 38" [ref=f4e1378] [cursor=pointer]:
+                    - /url: /anime/114-digimon-beatbreak/episode/38
+                    - generic [ref=f4e1379]: Ep 38
+                - generic [ref=f4e1380]:
+                  - generic [ref=f4e1381]:
+                    - img [ref=f4e1382]
+                    - img "Japanese language flag" [ref=f4e1386] [cursor=pointer]
+                  - generic [ref=f4e1387]:
+                    - img [ref=f4e1388]
+                    - img "English language flag" [ref=f4e1391] [cursor=pointer]
+                    - img "French language flag" [ref=f4e1392] [cursor=pointer]
+              - generic [ref=f4e1393]:
+                - generic [ref=f4e1394]: 1.35 GB
+                - generic [ref=f4e1395]:
+                  - link [ref=f4e1396] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12231/%5BVARYG%5D%20Digimon%20Beatbreak%20S01E38%20Hollow%20Thirst%20REPACK%201080p%20CR%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).torrent
+                    - img
+                  - link [ref=f4e1397] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12231/%5BVARYG%5D%20Digimon%20Beatbreak%20S01E38%20Hollow%20Thirst%20REPACK%201080p%20CR%20WEB-DL%20AAC2.0%20H.264%20(Multi-Subs).nzb.gz
+                    - img
+                - generic [ref=f4e1398]:
+                  - generic [ref=f4e1399]:
+                    - link "VARYG" [ref=f4e1401] [cursor=pointer]:
+                      - /url: /group/7-varyg
+                    - img [ref=f4e1402]
+                  - generic [ref=f4e1405]:
+                    - img [ref=f4e1406]
+                    - text: about 11 hours ago
+                  - link "NekoBT" [ref=f4e1410] [cursor=pointer]:
+                    - /url: https://nekobt.to/torrents/12338449566465
+                    - text: NekoBT
+                    - img [ref=f4e1411]
+          - generic [ref=f4e1415]:
+            - generic [ref=f4e1416]:
+              - img "cover" [ref=f4e1417]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1418]:
+              - generic [ref=f4e1419]:
+                - link "[Anime Time] Wistoria Wand And Sword - S02E12 (Tsue to Tsurugi no Wistoria) [1080p][HEVC 10bit x265][AAC][Dual-Audio] [Multi Sub] [Weekly]" [ref=f4e1420] [cursor=pointer]:
+                  - /url: /view/12230-anime-time-wistoria-wand-and-sword-s02e12-tsue
+                - generic [ref=f4e1421]:
+                  - 'link "Wistoria: Wand and Sword Season 2" [ref=f4e1422] [cursor=pointer]':
+                    - /url: /anime/75-wistoria-wand-and-sword-season-2
+                    - img [ref=f4e1423]
+                    - generic [ref=f4e1426]: "Wistoria: Wand and Sword Season 2"
+                  - link "Ep 12" [ref=f4e1427] [cursor=pointer]:
+                    - /url: /anime/75-wistoria-wand-and-sword-season-2/episode/12
+                    - generic [ref=f4e1428]: Ep 12
+                - generic [ref=f4e1429]:
+                  - generic [ref=f4e1430]:
+                    - img [ref=f4e1431]
+                    - img "Japanese language flag" [ref=f4e1435] [cursor=pointer]
+                    - img "English language flag" [ref=f4e1436] [cursor=pointer]
+                  - generic [ref=f4e1437]:
+                    - img [ref=f4e1438]
+                    - img "English language flag" [ref=f4e1441] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e1442] [cursor=pointer]
+                    - img "German language flag" [ref=f4e1443] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e1444] [cursor=pointer]
+                    - img "French language flag" [ref=f4e1445] [cursor=pointer]
+                    - img "Indonesian language flag" [ref=f4e1446] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e1447] [cursor=pointer]
+                    - img "Malay language flag" [ref=f4e1448] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e1449] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e1450] [cursor=pointer]
+                    - img "Thai language flag" [ref=f4e1451] [cursor=pointer]
+                    - img "Vietnamese language flag" [ref=f4e1452] [cursor=pointer]
+                    - img "Mandarin Chinese language flag" [ref=f4e1453] [cursor=pointer]
+              - generic [ref=f4e1454]:
+                - generic [ref=f4e1455]: 563.41 MB
+                - generic [ref=f4e1456]:
+                  - link [ref=f4e1457] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12230/%5BAnime%20Time%5D%20Wistoria%20Wand%20And%20Sword%20-%20S02E12%20(Tsue%20to%20Tsurugi%20no%20Wistoria)%20%5B1080p%5D%5BHEVC%2010bit%20x265%5D%5BAAC%5D%5BDual-Audio%5D%20%5BMulti%20Sub%5D%20%5BWeekly%5D.torrent
+                    - img
+                  - link [ref=f4e1458] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12230/%5BAnime%20Time%5D%20Wistoria%20Wand%20And%20Sword%20-%20S02E12%20(Tsue%20to%20Tsurugi%20no%20Wistoria)%20%5B1080p%5D%5BHEVC%2010bit%20x265%5D%5BAAC%5D%5BDual-Audio%5D%20%5BMulti%20Sub%5D%20%5BWeekly%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1459]:
+                  - generic [ref=f4e1460]:
+                    - link "Anime Time" [ref=f4e1462] [cursor=pointer]:
+                      - /url: /group/2-anime-time
+                    - img [ref=f4e1463]
+                  - generic [ref=f4e1466]:
+                    - img [ref=f4e1467]
+                    - text: about 11 hours ago
+                  - link "Nyaa" [ref=f4e1471] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131860
+                    - text: Nyaa
+                    - img [ref=f4e1472]
+          - generic [ref=f4e1476]:
+            - generic [ref=f4e1477]:
+              - img "cover" [ref=f4e1478]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1479]:
+              - generic [ref=f4e1480]:
+                - 'link "[DKB] Azur Lane: Bisoku Zenshin! - S02E02 [1080p][HEVC x265 10bit][Multi-Subs][weekly]" [ref=f4e1481] [cursor=pointer]':
+                  - /url: /view/12229-dkb-azur-lane-bisoku-zenshin-s02e02-1080p-hevc
+                - generic [ref=f4e1482]:
+                  - 'link "Anime AzurLane: Slow Ahead! Season 2" [ref=f4e1483] [cursor=pointer]':
+                    - /url: /anime/9554-anime-azurlane-slow-ahead-season-2
+                    - img [ref=f4e1484]
+                    - generic [ref=f4e1487]: "Anime AzurLane: Slow Ahead! Season 2"
+                  - link "Ep 2" [ref=f4e1488] [cursor=pointer]:
+                    - /url: /anime/9554-anime-azurlane-slow-ahead-season-2/episode/2
+                    - generic [ref=f4e1489]: Ep 2
+                - generic [ref=f4e1490]:
+                  - generic [ref=f4e1491]:
+                    - img [ref=f4e1492]
+                    - img "Japanese language flag" [ref=f4e1496] [cursor=pointer]
+                  - generic [ref=f4e1497]:
+                    - img [ref=f4e1498]
+                    - img "English language flag" [ref=f4e1501] [cursor=pointer]
+                    - img "Arabic language flag" [ref=f4e1502] [cursor=pointer]
+                    - img "German language flag" [ref=f4e1503] [cursor=pointer]
+                    - img "Spanish (Latin American) language flag" [ref=f4e1504] [cursor=pointer]
+                    - img "Spanish (Spain) language flag" [ref=f4e1505] [cursor=pointer]
+                    - img "French language flag" [ref=f4e1506] [cursor=pointer]
+                    - img "Italian language flag" [ref=f4e1507] [cursor=pointer]
+                    - img "Portuguese (Brazil) language flag" [ref=f4e1508] [cursor=pointer]
+                    - img "Russian language flag" [ref=f4e1509] [cursor=pointer]
+              - generic [ref=f4e1510]:
+                - generic [ref=f4e1511]: 129.69 MB
+                - generic [ref=f4e1512]:
+                  - link [ref=f4e1513] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12229/%5BDKB%5D%20Azur%20Lane%3A%20Bisoku%20Zenshin!%20-%20S02E02%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BMulti-Subs%5D%5Bweekly%5D.torrent
+                    - img
+                  - link [ref=f4e1514] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12229/%5BDKB%5D%20Azur%20Lane%3A%20Bisoku%20Zenshin!%20-%20S02E02%20%5B1080p%5D%5BHEVC%20x265%2010bit%5D%5BMulti-Subs%5D%5Bweekly%5D.nzb.gz
+                    - img
+                - generic [ref=f4e1515]:
+                  - generic [ref=f4e1516]:
+                    - link "DKB" [ref=f4e1518] [cursor=pointer]:
+                      - /url: /group/5-dkb
+                    - img [ref=f4e1519]
+                  - generic [ref=f4e1522]:
+                    - img [ref=f4e1523]
+                    - text: about 11 hours ago
+                  - link "Nyaa" [ref=f4e1527] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131859
+                    - text: Nyaa
+                    - img [ref=f4e1528]
+          - generic [ref=f4e1532]:
+            - generic [ref=f4e1533]:
+              - img "cover" [ref=f4e1534]
+              - generic:
+                - img "large cover"
+            - generic [ref=f4e1535]:
+              - generic [ref=f4e1536]:
+                - link "短編アニメ映画『LOCA! (ロカ)』本編映像／Short Animated Film ＂LOCA!＂ (WebRip 1920x1080)" [ref=f4e1537] [cursor=pointer]:
+                  - /url: /view/12228-loca-short-animated-film-loca-webrip-1920x1080
+                - link "LOCA!" [ref=f4e1539] [cursor=pointer]:
+                  - /url: /anime/9621-loca
+                  - img [ref=f4e1540]
+                  - generic [ref=f4e1543]: LOCA!
+                - generic [ref=f4e1544]:
+                  - generic [ref=f4e1545]:
+                    - img [ref=f4e1546]
+                    - img "Japanese language flag" [ref=f4e1550] [cursor=pointer]
+                  - generic [ref=f4e1551]:
+                    - img [ref=f4e1552]
+                    - img "English language flag" [ref=f4e1555] [cursor=pointer]
+              - generic [ref=f4e1556]:
+                - generic [ref=f4e1557]: 184.5 MB
+                - generic [ref=f4e1558]:
+                  - link [ref=f4e1559] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/torrent/12228/%E7%9F%AD%E7%B7%A8%E3%82%A2%E3%83%8B%E3%83%A1%E6%98%A0%E7%94%BB%E3%80%8ELOCA!%20(%E3%83%AD%E3%82%AB)%E3%80%8F%E6%9C%AC%E7%B7%A8%E6%98%A0%E5%83%8F%EF%BC%8FShort%20Animated%20Film%20%EF%BC%82LOCA!%EF%BC%82%20(WebRip%201920x1080).torrent
+                    - img
+                  - link [ref=f4e1560] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/nzbs/12228/%E7%9F%AD%E7%B7%A8%E3%82%A2%E3%83%8B%E3%83%A1%E6%98%A0%E7%94%BB%E3%80%8ELOCA!%20(%E3%83%AD%E3%82%AB)%E3%80%8F%E6%9C%AC%E7%B7%A8%E6%98%A0%E5%83%8F%EF%BC%8FShort%20Animated%20Film%20%EF%BC%82LOCA!%EF%BC%82%20(WebRip%201920x1080).nzb.gz
+                    - img
+                - generic [ref=f4e1561]:
+                  - generic [ref=f4e1562]:
+                    - generic [ref=f4e1563]: Unknown
+                    - img [ref=f4e1564]
+                  - generic [ref=f4e1567]:
+                    - img [ref=f4e1568]
+                    - text: about 11 hours ago
+                  - link "Nyaa" [ref=f4e1572] [cursor=pointer]:
+                    - /url: https://nyaa.si/view/2131858
+                    - text: Nyaa
+                    - img [ref=f4e1573]
+      - generic [ref=f4e1577]:
+        - generic [ref=f4e1578]:
+          - text: Showing
+          - generic [ref=f4e1579]: "1"
+          - text: "-"
+          - generic [ref=f4e1580]: "30"
+          - text: of
+          - generic [ref=f4e1581]: "657036"
+          - text: releases
+        - generic [ref=f4e1582]:
+          - button "Prev" [disabled]:
+            - generic:
+              - img
+              - text: Prev
+          - link "Next" [ref=f4e1583] [cursor=pointer]:
+            - /url: /?offset=30
+            - text: Next
+            - img
+  - contentinfo [ref=f4e66]:
+    - generic [ref=f4e67]:
+      - generic [ref=f4e68]:
+        - img [ref=f4e69]
+        - generic [ref=f4e71]: TsukiHime
+        - generic [ref=f4e72]: © 2026
+      - link "Donate" [ref=f4e74] [cursor=pointer]:
+        - /url: /donate
+        - text: Donate
+        - img [ref=f4e75]
+  - alert [ref=f4e77]

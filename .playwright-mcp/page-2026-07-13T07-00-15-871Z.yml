@@ -1,0 +1,68 @@
+- generic [active] [ref=f5e1]:
+  - banner [ref=f5e2]:
+    - generic [ref=f5e3]:
+      - generic [ref=f5e4]:
+        - link "TsukiHime" [ref=f5e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=f5e6]
+          - generic [ref=f5e8]: TsukiHime
+        - navigation [ref=f5e9]:
+          - link "Browse" [ref=f5e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=f5e11]
+            - text: Browse
+          - link "News" [ref=f5e14] [cursor=pointer]:
+            - /url: /news
+            - img [ref=f5e15]
+            - text: News
+          - link "Animes" [ref=f5e18] [cursor=pointer]:
+            - /url: /animes
+            - img [ref=f5e19]
+            - text: Animes
+          - link "Groups" [ref=f5e22] [cursor=pointer]:
+            - /url: /groups
+            - img [ref=f5e23]
+            - text: Groups
+          - link "Feedback" [ref=f5e28] [cursor=pointer]:
+            - /url: /feedback
+            - img [ref=f5e29]
+            - text: Feedback
+          - link "Wiki" [ref=f5e31] [cursor=pointer]:
+            - /url: /wiki
+            - img [ref=f5e32]
+            - text: Wiki
+          - link "API" [ref=f5e34] [cursor=pointer]:
+            - /url: https://api.tsukihime.org/v1/docs
+            - img [ref=f5e35]
+            - text: API
+          - link "Donate" [ref=f5e38] [cursor=pointer]:
+            - /url: /donate
+            - img [ref=f5e39]
+            - text: Donate
+      - generic [ref=f5e41]:
+        - link [ref=f5e42] [cursor=pointer]:
+          - /url: /search
+          - button [ref=f5e43]:
+            - img
+        - link "Login" [ref=f5e44] [cursor=pointer]:
+          - /url: /login
+          - button "Login" [ref=f5e45]:
+            - img
+            - text: Login
+  - main [ref=f5e46]:
+    - generic [ref=f5e47]:
+      - generic [ref=f5e48]:
+        - img [ref=f5e49]
+        - img [ref=f5e51]
+      - paragraph [ref=f5e53]: Loading...
+  - contentinfo [ref=f5e54]:
+    - generic [ref=f5e55]:
+      - generic [ref=f5e56]:
+        - img [ref=f5e57]
+        - generic [ref=f5e59]: TsukiHime
+        - generic [ref=f5e60]: © 2026
+      - link "Donate" [ref=f5e62] [cursor=pointer]:
+        - /url: /donate
+        - text: Donate
+        - img [ref=f5e63]
+  - alert [ref=f5e65]

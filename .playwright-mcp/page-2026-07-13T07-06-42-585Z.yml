@@ -1,0 +1,194 @@
+- generic [active] [ref=f8e1]:
+  - banner [ref=f8e2]:
+    - generic [ref=f8e3]:
+      - generic [ref=f8e4]:
+        - link "TsukiHime" [ref=f8e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=f8e6]
+          - generic [ref=f8e8]: TsukiHime
+        - navigation [ref=f8e9]:
+          - link "Browse" [ref=f8e10] [cursor=pointer]:
+            - /url: /
+            - img [ref=f8e11]
+            - text: Browse
+          - link "News" [ref=f8e14] [cursor=pointer]:
+            - /url: /news
+            - img [ref=f8e15]
+            - text: News
+          - link "Animes" [ref=f8e18] [cursor=pointer]:
+            - /url: /animes
+            - img [ref=f8e19]
+            - text: Animes
+          - link "Groups" [ref=f8e22] [cursor=pointer]:
+            - /url: /groups
+            - img [ref=f8e23]
+            - text: Groups
+          - link "Feedback" [ref=f8e28] [cursor=pointer]:
+            - /url: /feedback
+            - img [ref=f8e29]
+            - text: Feedback
+          - link "Wiki" [ref=f8e31] [cursor=pointer]:
+            - /url: /wiki
+            - img [ref=f8e32]
+            - text: Wiki
+          - link "API" [ref=f8e34] [cursor=pointer]:
+            - /url: https://api.tsukihime.org/v1/docs
+            - img [ref=f8e35]
+            - text: API
+          - link "Donate" [ref=f8e38] [cursor=pointer]:
+            - /url: /donate
+            - img [ref=f8e39]
+            - text: Donate
+      - generic [ref=f8e41]:
+        - link [ref=f8e42] [cursor=pointer]:
+          - /url: /search
+          - button [ref=f8e43]:
+            - img
+        - link "Login" [ref=f8e44] [cursor=pointer]:
+          - /url: /login
+          - button "Login" [ref=f8e45]:
+            - img
+            - text: Login
+  - main [ref=f8e46]:
+    - generic [ref=f8e47]:
+      - link "Back to Browse" [ref=f8e48] [cursor=pointer]:
+        - /url: /
+        - img [ref=f8e49]
+        - text: Back to Browse
+      - generic [ref=f8e51]:
+        - generic [ref=f8e52]:
+          - img [ref=f8e53]
+          - paragraph [ref=f8e55]:
+            - strong [ref=f8e56]: "Note:"
+            - text: This release was imported from AnimeTosho.org, so download links and some metadata may not be available.
+        - heading "[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E].mkv" [level=1] [ref=f8e57]
+        - generic [ref=f8e59]:
+          - generic [ref=f8e60]:
+            - img [ref=f8e61]
+            - link "SubsPlease" [ref=f8e64] [cursor=pointer]:
+              - /url: /group/10-subsplease
+          - generic [ref=f8e65]:
+            - img [ref=f8e66]
+            - text: 27/03/2026 16:02
+          - generic [ref=f8e69]:
+            - img [ref=f8e70]
+            - text: 1.36 GB
+          - link "Nyaa" [ref=f8e73] [cursor=pointer]:
+            - /url: https://nyaa.si/view/2090650
+            - text: Nyaa
+            - img [ref=f8e74]
+      - generic [ref=f8e78]:
+        - generic [ref=f8e79]:
+          - generic [ref=f8e80]:
+            - link "Download Torrent" [ref=f8e81] [cursor=pointer]:
+              - /url: https://storage.tsukihime.org/tosho/torrent/67e65563abf71184990a54c8d3a111e349dd672f/%5BSubsPlease%5D%20Sousou%20no%20Frieren%20S2%20-%2010%20(1080p)%20%5B7D35515E%5D.mkv.torrent
+              - img
+              - text: Download Torrent
+            - link "Download NZB" [ref=f8e82] [cursor=pointer]:
+              - /url: https://storage.tsukihime.org/tosho/nzbs/1000752022/%5BSubsPlease%5D%20Sousou%20no%20Frieren%20S2%20-%2010%20(1080p)%20%5B7D35515E%5D.mkv.nzb.gz
+              - img
+              - text: Download NZB
+          - generic [ref=f8e83]:
+            - generic [ref=f8e84]:
+              - generic [ref=f8e85]:
+                - generic [ref=f8e86]:
+                  - img [ref=f8e87]
+                  - text: Info Hash (BTIH)
+                - link "Magnet" [ref=f8e90] [cursor=pointer]:
+                  - /url: magnet:?xt=urn:btih:67e65563abf71184990a54c8d3a111e349dd672f&dn=%5BSubsPlease%5D%20Sousou%20no%20Frieren%20S2%20-%2010%20(1080p)%20%5B7D35515E%5D.mkv&tr=http%3A%2F%2Fnyaa.tracker.wf%3A7777%2Fannounce
+                  - img
+                  - text: Magnet
+              - generic [ref=f8e91]:
+                - code [ref=f8e92]: 67e65563abf71184990a54c8d3a111e349dd672f
+                - button [ref=f8e93] [cursor=pointer]:
+                  - img
+            - heading "Trackers" [level=3] [ref=f8e95]:
+              - img [ref=f8e96]
+              - text: Trackers
+            - generic [ref=f8e100]:
+              - img [ref=f8e101]
+              - paragraph [ref=f8e105]: No tracker statistics were found.
+              - paragraph [ref=f8e106]: You can try downloading the torrent directly.
+        - generic [ref=f8e107]:
+          - generic [ref=f8e108]:
+            - generic [ref=f8e109]:
+              - generic "Click to View File Info" [ref=f8e110] [cursor=pointer]
+              - generic:
+                - img
+                - generic: "[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E].mkv"
+              - generic [ref=f8e111]:
+                - generic [ref=f8e112]: 1.36 GB
+                - button "Info" [ref=f8e115] [cursor=pointer]:
+                  - img
+                  - generic [ref=f8e116]: Info
+            - generic [ref=f8e117]:
+              - heading "Extractions" [level=3] [ref=f8e118]:
+                - img [ref=f8e119]
+                - text: Extractions
+              - generic [ref=f8e123]:
+                - generic [ref=f8e124]:
+                  - heading "Subtitles" [level=4] [ref=f8e125]:
+                    - img [ref=f8e126]
+                    - text: Subtitles
+                  - link "All Attachments (.7z)" [ref=f8e129] [cursor=pointer]:
+                    - /url: https://storage.tsukihime.org/tosho/attachpack/1000752022_1001361385/[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E]_attachments.7z
+                    - img
+                    - text: All Attachments (.7z)
+                - link "English language flag English subs ASS" [ref=f8e131] [cursor=pointer]:
+                  - /url: https://storage.tsukihime.org/tosho/attach/002B205C/[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E]_track3.en.ass.xz
+                  - img "English language flag" [ref=f8e132]
+                  - generic [ref=f8e133]: English subs
+                  - generic [ref=f8e134]: ASS
+                  - img [ref=f8e135]
+            - generic [ref=f8e138]:
+              - generic [ref=f8e139]:
+                - generic [ref=f8e140]:
+                  - heading "Screenshots" [level=3] [ref=f8e141]:
+                    - img [ref=f8e142]
+                    - text: Screenshots
+                  - img [ref=f8e146]
+                - button "No Subtitle" [ref=f8e149] [cursor=pointer]:
+                  - generic [ref=f8e150]: No Subtitle
+                  - img [ref=f8e151]
+              - generic [ref=f8e153]:
+                - img "Screenshot 0" [ref=f8e155] [cursor=pointer]
+                - img "Screenshot 1" [ref=f8e157] [cursor=pointer]
+                - img "Screenshot 2" [ref=f8e159] [cursor=pointer]
+                - img "Screenshot 3" [ref=f8e161] [cursor=pointer]
+                - img "Screenshot 4" [ref=f8e163] [cursor=pointer]
+              - heading [level=2]
+          - generic [ref=f8e164]:
+            - img
+            - img "Cover" [ref=f8e166]
+            - generic [ref=f8e167]:
+              - generic [ref=f8e169]:
+                - 'heading "Frieren: Beyond Journey’s End Season 2" [level=2] [ref=f8e170]':
+                  - 'link "Frieren: Beyond Journey’s End Season 2" [ref=f8e171] [cursor=pointer]':
+                    - /url: /anime/284-frieren-beyond-journey-s-end-season-2
+                - paragraph [ref=f8e172]: MADHOUSE • 2026
+              - generic [ref=f8e173]:
+                - generic [ref=f8e174]: Adventure
+                - generic [ref=f8e175]: Drama
+                - generic [ref=f8e176]: Fantasy
+              - generic [ref=f8e179]: The second season of Sousou no Frieren.
+          - generic [ref=f8e180]:
+            - heading "Discussion 0" [level=3] [ref=f8e181]:
+              - img [ref=f8e182]
+              - text: Discussion
+              - generic [ref=f8e184]: "0"
+            - generic [ref=f8e185]:
+              - textbox "Please log in to leave a comment." [disabled] [ref=f8e186]
+              - generic [ref=f8e187]:
+                - button "Post Comment" [disabled]
+            - generic [ref=f8e203]: No comments yet. Be the first to start the discussion!
+  - contentinfo [ref=f8e191]:
+    - generic [ref=f8e192]:
+      - generic [ref=f8e193]:
+        - img [ref=f8e194]
+        - generic [ref=f8e196]: TsukiHime
+        - generic [ref=f8e197]: © 2026
+      - link "Donate" [ref=f8e199] [cursor=pointer]:
+        - /url: /donate
+        - text: Donate
+        - img [ref=f8e200]
+  - alert [ref=f8e202]
