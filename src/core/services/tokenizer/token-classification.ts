@@ -50,6 +50,30 @@ export function isKanaOnlyText(text: string | null | undefined): boolean {
   return normalized.length > 0 && [...normalized].every(isKanaChar);
 }
 
+export function isKanaCandidateIgnorableChar(char: string): boolean {
+  return /^[\s.,!?;:()[\]{}"'`、。！？…‥・「」『』（）［］｛｝〈〉《》【】―-]$/u.test(char);
+}
+
+export function isKanaCandidateText(text: string): boolean {
+  const normalized = text.trim();
+  if (normalized.length === 0) {
+    return false;
+  }
+
+  let hasKana = false;
+  for (const char of normalized) {
+    if (isKanaChar(char)) {
+      hasKana = true;
+      continue;
+    }
+    if (!isKanaCandidateIgnorableChar(char)) {
+      return false;
+    }
+  }
+
+  return hasKana;
+}
+
 export function normalizePosTag(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : '';
 }

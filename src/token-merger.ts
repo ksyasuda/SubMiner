@@ -20,7 +20,7 @@ import { PartOfSpeech, Token, MergedToken } from './types';
 import { DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG } from './token-pos1-exclusions';
 import { DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG } from './token-pos2-exclusions';
 import { shouldExcludeTokenFromSubtitleAnnotations } from './core/services/tokenizer/subtitle-annotation-filter';
-import { isContentTokenByPos, isKanaChar } from './core/services/tokenizer/token-classification';
+import { isKanaCandidateText } from './core/services/tokenizer/token-classification';
 
 export function isNoun(tok: Token): boolean {
   return tok.partOfSpeech === PartOfSpeech.noun;
@@ -262,30 +262,6 @@ const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…'
 const N_PLUS_ONE_IGNORED_POS1 = new Set(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG.defaults);
 const N_PLUS_ONE_IGNORED_POS2 = new Set(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG.defaults);
 
-function isKanaCandidateIgnorableChar(char: string): boolean {
-  return /^[\s.,!?;:()[\]{}"'`、。！？…‥・「」『』（）［］｛｝〈〉《》【】―-]$/u.test(char);
-}
-
-function isKanaCandidateText(text: string): boolean {
-  const normalized = text.trim();
-  if (normalized.length === 0) {
-    return false;
-  }
-
-  let hasKana = false;
-  for (const char of normalized) {
-    if (isKanaChar(char)) {
-      hasKana = true;
-      continue;
-    }
-    if (!isKanaCandidateIgnorableChar(char)) {
-      return false;
-    }
-  }
-
-  return hasKana;
-}
-
 function normalizeSourceTextForTokenOffsets(sourceText: string | undefined): string | undefined {
   return typeof sourceText === 'string' ? sourceText.replace(/\r?\n/g, ' ').trim() : undefined;
 }
@@ -310,10 +286,6 @@ function isNPlusOneWordCountToken(
   pos2Exclusions: ReadonlySet<string> = N_PLUS_ONE_IGNORED_POS2,
 ): boolean {
   if (shouldExcludeTokenFromSubtitleAnnotations(token, { pos1Exclusions, pos2Exclusions })) {
-    return false;
-  }
-
-  if (!isContentTokenByPos(token, pos1Exclusions, pos2Exclusions)) {
     return false;
   }
 
