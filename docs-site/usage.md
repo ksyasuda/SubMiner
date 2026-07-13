@@ -151,6 +151,7 @@ SubMiner.AppImage --show-visible-overlay              # Force show visible overl
 SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
 SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle bar visibility
 SubMiner.AppImage --toggle-subtitle-sidebar           # Toggle the subtitle sidebar
+SubMiner.AppImage --open-tsukihime                    # Open TsukiHime subtitle search
 SubMiner.AppImage --start --dev                         # Enable app/dev mode only
 SubMiner.AppImage --start --debug                       # Alias for --dev
 SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
@@ -173,6 +174,8 @@ SubMiner.AppImage --help                  # Show all options
 ```
 
 `--check` performs connection and version checks without changing data. `--json` emits the NDJSON event protocol used by the sync window. `--ui` opens that window in a detached app process and returns the shell immediately; closing a standalone-launched Sync window exits that app instance. `--make-temp` and `--remove-temp` are internal remote-transfer helpers and should normally be left to SubMiner. The packaged app's `--sync-cli` flag selects its headless sync-compatible entrypoint; the `subminer sync` launcher command proxies to it automatically.
+
+The previous `--open-animetosho` flag remains accepted as a deprecated alias for `--open-tsukihime`.
 
 The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL query strings. The exported copy is sanitized; source log files remain unredacted on disk.
 

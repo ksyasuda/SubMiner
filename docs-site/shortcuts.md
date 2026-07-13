@@ -91,6 +91,8 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                          |
 | `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                     |
 
+`shortcuts.openAnimetosho` remains accepted as a deprecated alias for `shortcuts.openTsukihime`. The current name takes precedence when both are configured.
+
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 
 The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.

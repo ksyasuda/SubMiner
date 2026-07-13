@@ -305,7 +305,7 @@ function resolveCommandBinding(
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openJimaku' };
   }
-  if (first === SPECIAL_COMMANDS.TSUKIHIME_OPEN) {
+  if (first === SPECIAL_COMMANDS.TSUKIHIME_OPEN || first === SPECIAL_COMMANDS.ANIMETOSHO_OPEN) {
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openTsukihime' };
   }

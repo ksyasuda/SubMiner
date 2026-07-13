@@ -148,6 +148,14 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(shouldStartApp(args), true);
 });
 
+test('parseArgs keeps the legacy Animetosho open flag as a TsukiHime alias', () => {
+  const args = parseArgs(['--open-animetosho']);
+
+  assert.equal(args.openTsukihime, true);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+});
+
 test('parseArgs ignores retired subtitle delay shift flags', () => {
   const args = parseArgs(['--shift-sub-delay-prev-line', '--shift-sub-delay-next-line']);
 

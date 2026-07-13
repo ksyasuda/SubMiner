@@ -132,6 +132,11 @@ export interface ShortcutsConfig {
   appendClipboardVideoToQueue?: string | null;
 }
 
+export interface RawShortcutsConfig extends ShortcutsConfig {
+  /** @deprecated Use openTsukihime. */
+  openAnimetosho?: string | null;
+}
+
 export interface Config {
   subtitlePosition?: SubtitlePosition;
   keybindings?: Keybinding[];
@@ -141,7 +146,7 @@ export interface Config {
   mpv?: MpvConfig;
   controller?: ControllerConfig;
   ankiConnect?: AnkiConnectConfig;
-  shortcuts?: ShortcutsConfig;
+  shortcuts?: RawShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
   startupWarmups?: StartupWarmupsConfig;
@@ -149,6 +154,8 @@ export interface Config {
   subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
+  /** @deprecated Use tsukihime. */
+  animetosho?: TsukihimeConfig;
   tsukihime?: TsukihimeConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;

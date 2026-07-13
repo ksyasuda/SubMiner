@@ -320,6 +320,21 @@ test('compileSessionBindings wires every default keybinding to an overlay or mpv
   }
 });
 
+test('compileSessionBindings maps the legacy Animetosho command to the TsukiHime action', () => {
+  const result = compileSessionBindings({
+    shortcuts: createShortcuts(),
+    keybindings: [createKeybinding('Ctrl+Alt+T', ['__animetosho-open'])],
+    platform: 'linux',
+  });
+
+  assert.deepEqual(result.warnings, []);
+  assert.equal(result.bindings[0]?.actionType, 'session-action');
+  assert.equal(
+    result.bindings[0]?.actionType === 'session-action' ? result.bindings[0].actionId : null,
+    'openTsukihime',
+  );
+});
+
 test('compileSessionBindings leaves retired subtitle-delay shift tokens as mpv commands', () => {
   const result = compileSessionBindings({
     shortcuts: createShortcuts(),

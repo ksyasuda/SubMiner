@@ -254,6 +254,20 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       }
     }
 
+    if (src.shortcuts.openTsukihime === undefined) {
+      const legacyOpenTsukihime = src.shortcuts.openAnimetosho;
+      if (typeof legacyOpenTsukihime === 'string' || legacyOpenTsukihime === null) {
+        resolved.shortcuts.openTsukihime = legacyOpenTsukihime;
+      } else if (legacyOpenTsukihime !== undefined) {
+        warn(
+          'shortcuts.openAnimetosho',
+          legacyOpenTsukihime,
+          resolved.shortcuts.openTsukihime,
+          'Expected string or null.',
+        );
+      }
+    }
+
     const timeout = asNumber(src.shortcuts.multiCopyTimeoutMs);
     if (timeout !== undefined && timeout > 0) {
       resolved.shortcuts.multiCopyTimeoutMs = Math.floor(timeout);

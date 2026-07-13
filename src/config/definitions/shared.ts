@@ -53,6 +53,8 @@ export const SPECIAL_COMMANDS = {
   SUBSYNC_TRIGGER: '__subsync-trigger',
   RUNTIME_OPTIONS_OPEN: '__runtime-options-open',
   JIMAKU_OPEN: '__jimaku-open',
+  /** @deprecated Use TSUKIHIME_OPEN. */
+  ANIMETOSHO_OPEN: '__animetosho-open',
   TSUKIHIME_OPEN: '__tsukihime-open',
   RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
   REPLAY_SUBTITLE: '__replay-subtitle',

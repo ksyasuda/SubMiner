@@ -10,6 +10,7 @@ export interface HandleMpvCommandFromIpcOptions {
     SUBSYNC_TRIGGER: string;
     RUNTIME_OPTIONS_OPEN: string;
     JIMAKU_OPEN: string;
+    ANIMETOSHO_OPEN: string;
     TSUKIHIME_OPEN: string;
     RUNTIME_OPTION_CYCLE_PREFIX: string;
     REPLAY_SUBTITLE: string;
@@ -114,7 +115,10 @@ export function handleMpvCommandFromIpc(
     return;
   }
 
-  if (first === options.specialCommands.TSUKIHIME_OPEN) {
+  if (
+    first === options.specialCommands.TSUKIHIME_OPEN ||
+    first === options.specialCommands.ANIMETOSHO_OPEN
+  ) {
     options.openTsukihime();
     return;
   }

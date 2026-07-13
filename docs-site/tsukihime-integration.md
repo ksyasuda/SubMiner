@@ -64,10 +64,14 @@ The keyboard shortcut is configured separately under `shortcuts`:
 }
 ```
 
+Existing Animetosho configuration remains compatible. SubMiner treats the old `animetosho` section and `shortcuts.openAnimetosho` setting as deprecated aliases. When old and current names are both present, `tsukihime` and `shortcuts.openTsukihime` take precedence.
+
 ## Other Ways to Open It
 
 - CLI: `subminer --open-tsukihime`
 - Keybinding command: bind any key to `["__tsukihime-open"]` in the `keybindings` array
+
+The previous `--open-animetosho` flag and `__animetosho-open` keybinding command remain accepted as deprecated aliases.
 
 ## Troubleshooting
 

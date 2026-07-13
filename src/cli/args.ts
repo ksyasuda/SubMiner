@@ -297,8 +297,9 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--open-controller-select') args.openControllerSelect = true;
     else if (arg === '--open-controller-debug') args.openControllerDebug = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
-    else if (arg === '--open-tsukihime') args.openTsukihime = true;
-    else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
+    else if (arg === '--open-tsukihime' || arg === '--open-animetosho') {
+      args.openTsukihime = true;
+    } else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
     else if (arg === '--open-playlist-browser') args.openPlaylistBrowser = true;
     else if (arg === '--replay-current-subtitle') args.replayCurrentSubtitle = true;
     else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
