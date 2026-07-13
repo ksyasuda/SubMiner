@@ -90,6 +90,10 @@ interface ModalHarness {
   modalCloseNotifications: string[];
   overlayClassList: ReturnType<typeof createClassList>;
   animetoshoModalClassList: ReturnType<typeof createClassList>;
+  titleInput: { value: string };
+  status: { textContent: string; style: { color: string } };
+  entriesList: ReturnType<typeof createListStub>;
+  filesList: ReturnType<typeof createListStub>;
   restoreGlobals: () => void;
 }
 
@@ -98,6 +102,7 @@ function createModalHarness(
   options: {
     secondaryLanguages?: string[];
     listFiles?: (entryId: number) => Promise<unknown>;
+    searchEntries?: (query: unknown) => Promise<unknown>;
   } = {},
 ): ModalHarness {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
@@ -117,6 +122,8 @@ function createModalHarness(
     animetoshoGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
     animetoshoListFiles: async ({ entryId }: { entryId: number }) =>
       options.listFiles ? options.listFiles(entryId) : { ok: true, data: [] },
+    animetoshoSearchEntries: async (query: unknown) =>
+      options.searchEntries ? options.searchEntries(query) : { ok: true, data: [] },
     getJimakuMediaInfo: async () => ({
       title: '',
       season: null,
@@ -192,6 +199,10 @@ function createModalHarness(
     modalCloseNotifications,
     overlayClassList,
     animetoshoModalClassList,
+    titleInput: ctx.dom.animetoshoTitleInput,
+    status: ctx.dom.animetoshoStatus,
+    entriesList: ctx.dom.animetoshoEntriesList,
+    filesList: ctx.dom.animetoshoFilesList,
     restoreGlobals: () => {
       const target = globalThis as unknown as Record<string, unknown>;
       if (hadWindow) {
@@ -348,8 +359,8 @@ test('a slow release response does not overwrite the newly selected release', as
 
   try {
     harness.state.animetoshoEntries = [
-      { id: 1, title: 'slow release', timestamp: null, totalSize: null, numFiles: 1 },
-      { id: 2, title: 'fast release', timestamp: null, totalSize: null, numFiles: 1 },
+      { id: 1, title: 'slow release', timestamp: null, totalSize: null, numFiles: 1, sublangs: [] },
+      { id: 2, title: 'fast release', timestamp: null, totalSize: null, numFiles: 1, sublangs: [] },
     ];
 
     harness.modal.selectAnimetoshoEntry(0);
@@ -382,6 +393,86 @@ test('ArrowLeft switches back to the English tab', () => {
     assert.equal(harness.state.animetoshoActiveTab, 'ja');
     pressKey(harness, 'ArrowLeft');
     assert.equal(harness.state.animetoshoActiveTab, 'en');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('searching reports TsukiHime as the backend and lists sublangs per release', async () => {
+  const harness = createModalHarness([], {
+    searchEntries: async () => ({
+      ok: true,
+      data: [
+        {
+          id: 12255,
+          title: '[DKB] Futsutsuka na Akujo - S01E01 [Multi-Subs]',
+          timestamp: null,
+          totalSize: 423868898,
+          numFiles: 1,
+          sublangs: ['en-US', 'ja'],
+        },
+        {
+          id: 12256,
+          title: 'release without langs',
+          timestamp: null,
+          totalSize: null,
+          numFiles: null,
+          sublangs: [],
+        },
+      ],
+    }),
+  });
+  try {
+    harness.state.animetoshoFiles = [];
+    harness.state.currentAnimetoshoEntryId = null;
+    harness.titleInput.value = 'Futsutsuka na Akujo';
+
+    const seenStatuses: string[] = [];
+    const status = harness.status;
+    Object.defineProperty(status, 'textContent', {
+      get: () => seenStatuses.at(-1) ?? '',
+      set: (value: string) => {
+        seenStatuses.push(value);
+      },
+    });
+
+    pressKey(harness, 'Enter');
+    await flushAsyncWork();
+
+    assert.equal(
+      seenStatuses.some((message) => message.includes('TsukiHime')),
+      true,
+    );
+    assert.equal(
+      seenStatuses.some((message) => message.includes('Animetosho')),
+      false,
+    );
+
+    const firstEntry = harness.entriesList.children[0] as {
+      children: Array<{ textContent: string }>;
+    };
+    assert.equal(firstEntry.children.length, 1);
+    assert.match(firstEntry.children[0]!.textContent, /en-US, ja/);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('renderFiles omits the size detail when the API does not report one', () => {
+  const zeroSizeTrack: AnimetoshoSubtitleFile = {
+    ...ENGLISH_TRACK,
+    size: 0,
+  };
+  const harness = createModalHarness([zeroSizeTrack, JAPANESE_TRACK]);
+  try {
+    pressKey(harness, 'ArrowDown');
+
+    const firstFile = harness.filesList.children[0] as {
+      children: Array<{ textContent: string }>;
+    };
+    assert.equal(firstFile.children.length, 1);
+    assert.equal(firstFile.children[0]!.textContent.includes('0 B'), false);
+    assert.match(firstFile.children[0]!.textContent, /English subs/);
   } finally {
     harness.restoreGlobals();
   }

@@ -126,6 +126,7 @@ export function createAnimetoshoModal(
       if (entry.numFiles !== null) {
         details.push(`${entry.numFiles} file${entry.numFiles === 1 ? '' : 's'}`);
       }
+      if (entry.sublangs?.length) details.push(`subs: ${entry.sublangs.join(', ')}`);
       if (details.length > 0) {
         const sub = document.createElement('div');
         sub.className = 'jimaku-subtext';
@@ -161,7 +162,8 @@ export function createAnimetoshoModal(
       const details: string[] = [];
       if (file.lang) details.push(file.lang);
       if (file.trackName) details.push(file.trackName);
-      details.push(formatBytes(file.size));
+      // TsukiHime does not report attachment sizes; skip a meaningless "0 B".
+      if (file.size > 0) details.push(formatBytes(file.size));
       const sub = document.createElement('div');
       sub.className = 'jimaku-subtext';
       sub.textContent = details.filter(Boolean).join(' • ');
@@ -199,7 +201,7 @@ export function createAnimetoshoModal(
     }
 
     resetAnimetoshoLists();
-    setAnimetoshoStatus('Searching Animetosho...');
+    setAnimetoshoStatus('Searching TsukiHime...');
 
     const response: AnimetoshoApiResponse<AnimetoshoEntry[]> =
       await window.electronAPI.animetoshoSearchEntries({ query });

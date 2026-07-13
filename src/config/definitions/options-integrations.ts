@@ -404,13 +404,14 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'animetosho.apiBaseUrl',
       kind: 'string',
       defaultValue: defaultConfig.animetosho.apiBaseUrl,
-      description: 'Base URL of the Animetosho JSON feed API. No API key required.',
+      description:
+        'Base URL of the TsukiHime API (Animetosho successor). No API key required.',
     },
     {
       path: 'animetosho.maxSearchResults',
       kind: 'number',
       defaultValue: defaultConfig.animetosho.maxSearchResults,
-      description: 'Maximum Animetosho search results returned.',
+      description: 'Maximum TsukiHime search results returned.',
     },
     {
       path: 'anilist.enabled',

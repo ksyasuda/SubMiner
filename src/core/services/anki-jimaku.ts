@@ -17,7 +17,7 @@ import {
 } from '../../types';
 import { sortJimakuFiles } from '../../jimaku/utils';
 import {
-  ANIMETOSHO_FEED_BASE_URL,
+  TSUKIHIME_API_BASE_URL,
   animetoshoFetchJson as animetoshoFetchJsonRequest,
   decompressXzFile,
   extractAnimetoshoSubtitleFiles,
@@ -125,7 +125,7 @@ function animetoshoFetch<T>(
   if (options.animetoshoFetchJson) {
     return options.animetoshoFetchJson<T>(endpoint, query);
   }
-  const baseUrl = options.getResolvedConfig().animetosho?.apiBaseUrl || ANIMETOSHO_FEED_BASE_URL;
+  const baseUrl = options.getResolvedConfig().animetosho?.apiBaseUrl || TSUKIHIME_API_BASE_URL;
   return animetoshoFetchJsonRequest<T>(endpoint, query, { baseUrl });
 }
 
@@ -244,22 +244,24 @@ export function registerAnkiJimakuIpcRuntime(
 
     searchAnimetoshoEntries: async (query) => {
       logger.info(`[animetosho] search-entries query: "${query.query}"`);
-      const response = await animetoshoFetch<unknown>(options, '/json', {
+      const maxResults = getAnimetoshoMaxSearchResults(options);
+      const response = await animetoshoFetch<unknown>(options, '/search/torrents', {
         q: query.query,
-        qx: 1,
+        // The API caps limit at 100.
+        limit: Math.min(maxResults, 100),
       });
       if (!response.ok) return response;
-      const maxResults = getAnimetoshoMaxSearchResults(options);
       const entries = mapAnimetoshoSearchResults(response.data, maxResults);
       logger.info(`[animetosho] search-entries returned ${entries.length} results`);
       return { ok: true, data: entries };
     },
     listAnimetoshoFiles: async (query) => {
       logger.info(`[animetosho] list-files entryId=${query.entryId}`);
-      const response = await animetoshoFetch<unknown>(options, '/json', {
-        show: 'torrent',
-        id: query.entryId,
-      });
+      const response = await animetoshoFetch<unknown>(
+        options,
+        `/torrents/${encodeURIComponent(query.entryId)}`,
+        {},
+      );
       if (!response.ok) return response;
       const files = extractAnimetoshoSubtitleFiles(response.data);
       logger.info(`[animetosho] list-files returned ${files.length} subtitle attachments`);

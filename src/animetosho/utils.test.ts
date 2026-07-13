@@ -10,13 +10,21 @@ import {
   buildAnimetoshoAttachmentUrl,
   decompressXzFile,
   extractAnimetoshoSubtitleFiles,
+  isAnimetoshoDownloadUrl,
   mapAnimetoshoSearchResults,
 } from './utils.js';
 
 test('buildAnimetoshoAttachmentUrl pads the attachment id to 8 hex digits', () => {
   assert.equal(
-    buildAnimetoshoAttachmentUrl(1955356),
-    'https://animetosho.org/storage/attach/001dd61c/1955356.xz',
+    buildAnimetoshoAttachmentUrl(96412),
+    'https://storage.tsukihime.org/attach/0001789c/96412.xz',
+  );
+});
+
+test('buildAnimetoshoAttachmentUrl uses the tosho mirror path for imported entries', () => {
+  assert.equal(
+    buildAnimetoshoAttachmentUrl(2826332, { imported: true }),
+    'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz',
   );
 });
 
@@ -26,6 +34,13 @@ test('animetoshoLangToFilenameSuffix maps common ISO 639-2 codes to two-letter s
   assert.equal(animetoshoLangToFilenameSuffix('ger'), 'de');
   assert.equal(animetoshoLangToFilenameSuffix('spa'), 'es');
   assert.equal(animetoshoLangToFilenameSuffix('POR'), 'pt');
+});
+
+test('animetoshoLangToFilenameSuffix handles TsukiHime BCP-47 style codes', () => {
+  assert.equal(animetoshoLangToFilenameSuffix('en-US'), 'en');
+  assert.equal(animetoshoLangToFilenameSuffix('es-419'), 'es');
+  assert.equal(animetoshoLangToFilenameSuffix('zh-Hant'), 'zh');
+  assert.equal(animetoshoLangToFilenameSuffix('ja'), 'ja');
 });
 
 test('animetoshoLangToFilenameSuffix falls back to the raw code, and to en when unknown', () => {
@@ -42,59 +57,88 @@ test('buildAnimetoshoAttachmentUrl rejects non-positive and non-integer ids', ()
   assert.equal(buildAnimetoshoAttachmentUrl(Number.NaN), null);
 });
 
-test('mapAnimetoshoSearchResults maps valid entries and caps to maxResults', () => {
-  const payload = [
-    {
-      id: 606713,
-      title: '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].mkv',
-      timestamp: 1710000000,
-      total_size: 1490354395,
-      num_files: 1,
-    },
-    { id: 'bogus', title: 'missing numeric id' },
-    { id: 606714, title: '[Erai-raws] Sousou no Frieren - 28 [1080p].mkv' },
-    { id: 606715, title: 'capped away' },
-  ];
+test('isAnimetoshoDownloadUrl accepts tsukihime.org and animetosho.org hosts only', () => {
+  assert.equal(isAnimetoshoDownloadUrl('https://storage.tsukihime.org/attach/0001789c/1.xz'), true);
+  assert.equal(isAnimetoshoDownloadUrl('https://tsukihime.org/view/1'), true);
+  // The tosho mirror currently 302s to storage.animetosho.org; the hop must stay allowed.
+  assert.equal(
+    isAnimetoshoDownloadUrl('https://storage.animetosho.org/attach/002b205c/2826332.xz'),
+    true,
+  );
+  assert.equal(isAnimetoshoDownloadUrl('http://storage.tsukihime.org/attach/1/1.xz'), false);
+  assert.equal(isAnimetoshoDownloadUrl('https://eviltsukihime.org/attach/1/1.xz'), false);
+  assert.equal(isAnimetoshoDownloadUrl('https://example.com/1.xz'), false);
+  assert.equal(isAnimetoshoDownloadUrl('not a url'), false);
+});
+
+test('mapAnimetoshoSearchResults maps valid results and caps to maxResults', () => {
+  const payload = {
+    total: 4,
+    start: 0,
+    limit: 50,
+    error: false,
+    results: [
+      {
+        id: 1000752022,
+        state: 'completed',
+        name: '[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E].mkv',
+        totalsize: 1457009569,
+        filecount: 1,
+        sublangs: ['en'],
+        audiolangs: ['ja'],
+        source_date: 1774623761,
+        added_date: 1774624861,
+        animetosho: true,
+      },
+      { id: 'bogus', name: 'missing numeric id' },
+      { id: 12255, name: '[DKB] Futsutsuka na Akujo - S01E01 [Multi-Subs]' },
+      { id: 12256, name: 'capped away' },
+    ],
+  };
 
   const entries = mapAnimetoshoSearchResults(payload, 2);
   assert.equal(entries.length, 2);
   assert.deepEqual(entries[0], {
-    id: 606713,
-    title: '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].mkv',
-    timestamp: 1710000000,
-    totalSize: 1490354395,
+    id: 1000752022,
+    title: '[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E].mkv',
+    timestamp: 1774624861,
+    totalSize: 1457009569,
     numFiles: 1,
+    sublangs: ['en'],
   });
-  assert.equal(entries[1]!.id, 606714);
+  assert.equal(entries[1]!.id, 12255);
   assert.equal(entries[1]!.totalSize, null);
   assert.equal(entries[1]!.numFiles, null);
+  assert.deepEqual(entries[1]!.sublangs, []);
 });
 
-test('mapAnimetoshoSearchResults returns empty list for non-array payloads', () => {
+test('mapAnimetoshoSearchResults returns empty list for malformed payloads', () => {
   assert.deepEqual(mapAnimetoshoSearchResults({ error: 'nope' }, 10), []);
+  assert.deepEqual(mapAnimetoshoSearchResults({ results: 'nope' }, 10), []);
   assert.deepEqual(mapAnimetoshoSearchResults(null, 10), []);
+  assert.deepEqual(mapAnimetoshoSearchResults([], 10), []);
 });
 
+// Trimmed from a real /v1/torrents/{id} response (native entry).
 const DETAIL_PAYLOAD = {
-  id: 606713,
-  title: '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].mkv',
+  id: 12255,
+  name: '[DKB] Futsutsuka na Akujo dewa Gozaimasu ga - S01E01 [Multi-Subs]',
   files: [
     {
-      id: 1151711,
-      filename: '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].mkv',
+      id: 16179,
+      filename: '[DKB] Futsutsuka na Akujo dewa Gozaimasu ga - S01E01 [Multi-Subs].mkv',
       attachments: [
         {
-          id: 1955355,
-          type: 'font',
-          info: { name: 'arial.ttf' },
-          size: 300000,
+          id: 96400,
+          type: 0,
+          info: { name: 'arial.ttf', mime: 'application/x-truetype-font' },
         },
         {
-          id: 1955356,
-          type: 'subtitle',
-          info: { codec: 'ASS', lang: 'eng', name: 'English subs', trackid: 2 },
-          size: 33075,
+          id: 96412,
+          type: 1,
+          info: { codec: 'ASS', lang: 'en-US', name: 'English subs', trackid: 2, tracknum: 3 },
         },
+        { id: 96499, type: 3 },
       ],
     },
   ],
@@ -104,25 +148,64 @@ test('extractAnimetoshoSubtitleFiles keeps only text subtitle attachments with d
   const files = extractAnimetoshoSubtitleFiles(DETAIL_PAYLOAD);
   assert.equal(files.length, 1);
   const file = files[0]!;
-  assert.equal(file.attachmentId, 1955356);
-  assert.equal(file.lang, 'eng');
+  assert.equal(file.attachmentId, 96412);
+  assert.equal(file.lang, 'en-us');
   assert.equal(file.trackName, 'English subs');
-  assert.equal(file.size, 33075);
-  assert.equal(file.url, 'https://animetosho.org/storage/attach/001dd61c/1955356.xz');
-  assert.equal(file.sourceFilename, '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].mkv');
-  assert.equal(file.filename, '[SubsPlease] Sousou no Frieren - 28 (1080p) [8BBBC28C].eng.ass');
+  assert.equal(file.size, 0);
+  assert.equal(file.url, 'https://storage.tsukihime.org/attach/0001789c/96412.xz');
+  assert.equal(
+    file.sourceFilename,
+    '[DKB] Futsutsuka na Akujo dewa Gozaimasu ga - S01E01 [Multi-Subs].mkv',
+  );
+  assert.equal(
+    file.filename,
+    '[DKB] Futsutsuka na Akujo dewa Gozaimasu ga - S01E01 [Multi-Subs].en-us.ass',
+  );
+});
+
+test('extractAnimetoshoSubtitleFiles uses the tosho mirror for animetosho-imported entries', () => {
+  const files = extractAnimetoshoSubtitleFiles({
+    id: 1000752022,
+    animetosho: true,
+    files: [
+      {
+        id: 1001361385,
+        filename: '[SubsPlease] Sousou no Frieren S2 - 10 (1080p) [7D35515E].mkv',
+        attachments: [
+          { id: 2826332, type: 1, info: { codec: 'ASS', lang: 'en', name: 'English subs' } },
+        ],
+      },
+    ],
+  });
+  assert.equal(files.length, 1);
+  assert.equal(files[0]!.url, 'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz');
+});
+
+test('extractAnimetoshoSubtitleFiles detects imported entries by id when the flag is absent', () => {
+  const files = extractAnimetoshoSubtitleFiles({
+    id: 1000752022,
+    files: [
+      {
+        id: 1001361385,
+        filename: 'episode.mkv',
+        attachments: [{ id: 2826332, type: 1, info: { codec: 'ASS', lang: 'en' } }],
+      },
+    ],
+  });
+  assert.equal(files[0]!.url, 'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz');
 });
 
 test('extractAnimetoshoSubtitleFiles skips image-based subtitle codecs', () => {
   const files = extractAnimetoshoSubtitleFiles({
+    id: 1,
     files: [
       {
         id: 1,
         filename: 'movie.mkv',
         attachments: [
-          { id: 10, type: 'subtitle', info: { codec: 'PGS', lang: 'eng' }, size: 100 },
-          { id: 11, type: 'subtitle', info: { codec: 'VobSub', lang: 'eng' }, size: 100 },
-          { id: 12, type: 'subtitle', info: { codec: 'SRT', lang: 'eng' }, size: 100 },
+          { id: 10, type: 1, info: { codec: 'PGS', lang: 'en' } },
+          { id: 11, type: 1, info: { codec: 'VobSub', lang: 'en' } },
+          { id: 12, type: 1, info: { codec: 'SRT', lang: 'en' } },
         ],
       },
     ],
@@ -131,34 +214,20 @@ test('extractAnimetoshoSubtitleFiles skips image-based subtitle codecs', () => {
     files.map((f) => f.attachmentId),
     [12],
   );
-  assert.equal(files[0]!.filename, 'movie.eng.srt');
+  assert.equal(files[0]!.filename, 'movie.en.srt');
 });
 
 test('extractAnimetoshoSubtitleFiles sorts English tracks first and disambiguates duplicates', () => {
   const files = extractAnimetoshoSubtitleFiles({
+    id: 1,
     files: [
       {
         id: 1,
         filename: 'episode.mkv',
         attachments: [
-          {
-            id: 21,
-            type: 'subtitle',
-            info: { codec: 'ASS', lang: 'ger', name: 'Deutsch' },
-            size: 1,
-          },
-          {
-            id: 22,
-            type: 'subtitle',
-            info: { codec: 'ASS', lang: 'eng', name: 'Signs & Songs' },
-            size: 2,
-          },
-          {
-            id: 23,
-            type: 'subtitle',
-            info: { codec: 'ASS', lang: 'eng', name: 'Full Subtitles' },
-            size: 3,
-          },
+          { id: 21, type: 1, info: { codec: 'ASS', lang: 'de', name: 'Deutsch' } },
+          { id: 22, type: 1, info: { codec: 'ASS', lang: 'en', name: 'Signs & Songs' } },
+          { id: 23, type: 1, info: { codec: 'ASS', lang: 'en', name: 'Full Subtitles' } },
         ],
       },
     ],
@@ -168,17 +237,18 @@ test('extractAnimetoshoSubtitleFiles sorts English tracks first and disambiguate
     files.map((f) => f.attachmentId),
     [22, 23, 21],
   );
-  assert.equal(files[0]!.filename, 'episode.eng.signs-songs.ass');
-  assert.equal(files[1]!.filename, 'episode.eng.full-subtitles.ass');
-  assert.equal(files[2]!.filename, 'episode.ger.ass');
+  assert.equal(files[0]!.filename, 'episode.en.signs-songs.ass');
+  assert.equal(files[1]!.filename, 'episode.en.full-subtitles.ass');
+  assert.equal(files[2]!.filename, 'episode.de.ass');
 });
 
 test('extractAnimetoshoSubtitleFiles tolerates missing info fields', () => {
   const files = extractAnimetoshoSubtitleFiles({
+    id: 1,
     files: [
       {
         id: 1,
-        attachments: [{ id: 31, type: 'subtitle', info: { codec: 'ASS' }, size: 5 }],
+        attachments: [{ id: 31, type: 1, info: { codec: 'ASS' } }],
       },
     ],
   });

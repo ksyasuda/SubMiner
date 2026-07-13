@@ -103,7 +103,7 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   const invalidAnimetoshoSearch = await animetoshoSearchHandler!({}, { query: 12 });
   assert.deepEqual(invalidAnimetoshoSearch, {
     ok: false,
-    error: { error: 'Invalid Animetosho search query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime search query payload', code: 400 },
   });
 
   const animetoshoFilesHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoListFiles);
@@ -111,7 +111,7 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   const invalidAnimetoshoFiles = await animetoshoFilesHandler!({}, { entryId: 'x' });
   assert.deepEqual(invalidAnimetoshoFiles, {
     ok: false,
-    error: { error: 'Invalid Animetosho files query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime files query payload', code: 400 },
   });
 
   const animetoshoDownloadHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoDownloadFile);
@@ -119,7 +119,7 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   const invalidAnimetoshoDownload = await animetoshoDownloadHandler!({}, { entryId: 1, url: '/x' });
   assert.deepEqual(invalidAnimetoshoDownload, {
     ok: false,
-    error: { error: 'Invalid Animetosho download query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime download query payload', code: 400 },
   });
 
   const foreignUrlDownload = await animetoshoDownloadHandler!(
@@ -128,7 +128,7 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   );
   assert.deepEqual(foreignUrlDownload, {
     ok: false,
-    error: { error: 'Refusing to download subtitle from a non-Animetosho URL.', code: 400 },
+    error: { error: 'Refusing to download subtitle from a non-TsukiHime URL.', code: 400 },
   });
 });
 
@@ -177,7 +177,7 @@ test('animetosho downloads route by language: secondary for eng, primary for jpn
     {},
     {
       entryId: 1,
-      url: 'https://animetosho.org/storage/attach/00000001/1.xz',
+      url: 'https://storage.tsukihime.org/attach/00000001/1.xz',
       name: 'episode.eng.ass',
       lang: 'eng',
     },
@@ -191,7 +191,7 @@ test('animetosho downloads route by language: secondary for eng, primary for jpn
     {},
     {
       entryId: 1,
-      url: 'https://animetosho.org/storage/attach/00000002/2.xz',
+      url: 'https://storage.tsukihime.org/attach/00000002/2.xz',
       name: 'episode.jpn.ass',
       lang: 'jpn',
     },

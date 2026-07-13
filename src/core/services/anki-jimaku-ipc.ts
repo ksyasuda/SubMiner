@@ -217,7 +217,7 @@ export function registerAnkiJimakuIpcHandlers(
       if (!parsedQuery) {
         return {
           ok: false,
-          error: { error: 'Invalid Animetosho search query payload', code: 400 },
+          error: { error: 'Invalid TsukiHime search query payload', code: 400 },
         };
       }
       return deps.searchAnimetoshoEntries(parsedQuery);
@@ -229,7 +229,7 @@ export function registerAnkiJimakuIpcHandlers(
     async (_event, query: unknown): Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>> => {
       const parsedQuery = parseAnimetoshoFilesQuery(query);
       if (!parsedQuery) {
-        return { ok: false, error: { error: 'Invalid Animetosho files query payload', code: 400 } };
+        return { ok: false, error: { error: 'Invalid TsukiHime files query payload', code: 400 } };
       }
       return deps.listAnimetoshoFiles(parsedQuery);
     },
@@ -242,14 +242,14 @@ export function registerAnkiJimakuIpcHandlers(
       if (!parsedQuery) {
         return {
           ok: false,
-          error: { error: 'Invalid Animetosho download query payload', code: 400 },
+          error: { error: 'Invalid TsukiHime download query payload', code: 400 },
         };
       }
 
       if (!isAnimetoshoDownloadUrl(parsedQuery.url)) {
         return {
           ok: false,
-          error: { error: 'Refusing to download subtitle from a non-Animetosho URL.', code: 400 },
+          error: { error: 'Refusing to download subtitle from a non-TsukiHime URL.', code: 400 },
         };
       }
 

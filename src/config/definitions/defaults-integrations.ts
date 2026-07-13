@@ -98,7 +98,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     maxEntryResults: 10,
   },
   animetosho: {
-    apiBaseUrl: 'https://feed.animetosho.org',
+    apiBaseUrl: 'https://api.tsukihime.org/v1',
     maxSearchResults: 10,
   },
   mpv: {

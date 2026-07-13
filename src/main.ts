@@ -3004,8 +3004,8 @@ function openJimakuOverlay(): void {
 function openAnimetoshoOverlay(): void {
   openOverlayHostedModalWithOsd(
     openAnimetoshoModalRuntime,
-    'Animetosho overlay unavailable.',
-    'Failed to open Animetosho overlay.',
+    'TsukiHime overlay unavailable.',
+    'Failed to open TsukiHime overlay.',
   );
 }
 

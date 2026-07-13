@@ -251,6 +251,7 @@ export interface AnimetoshoEntry {
   timestamp: number | null;
   totalSize: number | null;
   numFiles: number | null;
+  sublangs: string[];
 }
 
 export interface AnimetoshoFilesQuery {

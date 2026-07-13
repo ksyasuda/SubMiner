@@ -44,10 +44,11 @@ function createHarness(): RuntimeHarness {
         endpoint,
         query: query as Record<string, unknown>,
       });
-      if ((query as Record<string, unknown>)?.show === 'torrent') {
+      if (endpoint.startsWith('/torrents/')) {
         return {
           ok: true,
           data: {
+            id: 606713,
             files: [
               {
                 id: 9,
@@ -55,9 +56,8 @@ function createHarness(): RuntimeHarness {
                 attachments: [
                   {
                     id: 1955356,
-                    type: 'subtitle',
-                    info: { codec: 'ASS', lang: 'eng', name: 'English subs' },
-                    size: 33075,
+                    type: 1,
+                    info: { codec: 'ASS', lang: 'en', name: 'English subs' },
                   },
                 ],
               },
@@ -67,11 +67,13 @@ function createHarness(): RuntimeHarness {
       }
       return {
         ok: true,
-        data: [
-          { id: 1, title: 'release a' },
-          { id: 2, title: 'release b' },
-          { id: 3, title: 'release c' },
-        ] as never,
+        data: {
+          results: [
+            { id: 1, name: 'release a' },
+            { id: 2, name: 'release b' },
+            { id: 3, name: 'release c' },
+          ],
+        } as never,
       };
     },
     getSubtitleTimingTracker: () => null,
@@ -371,8 +373,8 @@ test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', a
   const searchResult = await registered.searchAnimetoshoEntries!({ query: 'frieren 28' });
   assert.deepEqual(state.animetoshoFetchCalls, [
     {
-      endpoint: '/json',
-      query: { q: 'frieren 28', qx: 1 },
+      endpoint: '/search/torrents',
+      query: { q: 'frieren 28', limit: 2 },
     },
   ]);
   assert.equal((searchResult as { ok: boolean }).ok, true);
@@ -390,14 +392,14 @@ test('listAnimetoshoFiles extracts subtitle attachments from torrent detail', as
   const filesResult = await registered.listAnimetoshoFiles!({ entryId: 606713 });
   assert.deepEqual(state.animetoshoFetchCalls, [
     {
-      endpoint: '/json',
-      query: { show: 'torrent', id: 606713 },
+      endpoint: '/torrents/606713',
+      query: {},
     },
   ]);
   assert.equal((filesResult as { ok: boolean }).ok, true);
   const files = (filesResult as { data: Array<Record<string, unknown>> }).data;
   assert.equal(files.length, 1);
   assert.equal(files[0]!.attachmentId, 1955356);
-  assert.equal(files[0]!.filename, 'episode.eng.ass');
-  assert.equal(files[0]!.url, 'https://animetosho.org/storage/attach/001dd61c/1955356.xz');
+  assert.equal(files[0]!.filename, 'episode.en.ass');
+  assert.equal(files[0]!.url, 'https://storage.tsukihime.org/attach/001dd61c/1955356.xz');
 });

@@ -620,7 +620,7 @@ export function buildCoreConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openAnimetosho,
       description:
-        'Accelerator that opens the Animetosho subtitle search modal (English/Japanese tabs).',
+        'Accelerator that opens the TsukiHime subtitle search modal (English/Japanese tabs).',
     },
     {
       path: 'shortcuts.openSessionHelp',

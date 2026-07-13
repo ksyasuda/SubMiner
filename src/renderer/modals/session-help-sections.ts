@@ -104,7 +104,7 @@ function describeCommand(command: (string | number)[]): string {
   if (first === SPECIAL_COMMANDS.SUBSYNC_TRIGGER) return 'Open subtitle sync controls';
   if (first === SPECIAL_COMMANDS.RUNTIME_OPTIONS_OPEN) return 'Open runtime options';
   if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) return 'Open jimaku';
-  if (first === SPECIAL_COMMANDS.ANIMETOSHO_OPEN) return 'Open animetosho';
+  if (first === SPECIAL_COMMANDS.ANIMETOSHO_OPEN) return 'Open TsukiHime';
   if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) return 'Open playlist browser';
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return 'Replay current subtitle';
   if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return 'Play next subtitle';
@@ -224,7 +224,7 @@ function describeSessionAction(
     case 'openJimaku':
       return 'Open jimaku';
     case 'openAnimetosho':
-      return 'Open animetosho';
+      return 'Open TsukiHime';
     case 'openYoutubePicker':
       return 'Open YouTube subtitle picker';
     case 'openPlaylistBrowser':
