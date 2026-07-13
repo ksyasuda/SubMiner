@@ -185,8 +185,11 @@ export function extractTsukihimeSubtitleFiles(payload: unknown): TsukihimeSubtit
       : 'subtitle';
     const langPart = attachment.lang ? `.${attachment.lang}` : '';
     const key = `${attachment.sourceFilename} ${attachment.lang}`;
-    const needsTrackSuffix = (duplicateKeyCounts.get(key) ?? 0) > 1 && attachment.trackName;
-    const trackPart = needsTrackSuffix ? `.${slugifyTrackName(attachment.trackName!)}` : '';
+    // A CJK-only track name (e.g. 日本語字幕) slugifies to an empty string, which
+    // would leave a bare dot in the filename.
+    const trackSlug = attachment.trackName ? slugifyTrackName(attachment.trackName) : '';
+    const needsTrackSuffix = (duplicateKeyCounts.get(key) ?? 0) > 1 && trackSlug;
+    const trackPart = needsTrackSuffix ? `.${trackSlug}` : '';
     return {
       attachmentId: attachment.attachmentId,
       filename: `${base}${langPart}${trackPart}${attachment.extension}`,

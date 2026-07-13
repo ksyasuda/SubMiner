@@ -301,3 +301,31 @@ test('decompressXzFile reports an error for corrupt input', { skip: !hasXz }, as
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('extractTsukihimeSubtitleFiles does not emit a bare dot when a track name has no slug characters', () => {
+  const files = extractTsukihimeSubtitleFiles({
+    id: 1,
+    files: [
+      {
+        id: 1,
+        filename: 'episode.mkv',
+        // Two ja tracks trigger the disambiguating suffix, but a CJK-only track
+        // name slugifies to an empty string.
+        attachments: [
+          { id: 41, type: 1, info: { codec: 'ASS', lang: 'ja', name: '日本語字幕' } },
+          { id: 42, type: 1, info: { codec: 'ASS', lang: 'ja', name: 'Full Subtitles' } },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(files.length, 2);
+  for (const file of files) {
+    assert.doesNotMatch(file.filename, /\.\./, `double dot in ${file.filename}`);
+  }
+  assert.equal(files.find((f) => f.attachmentId === 41)!.filename, 'episode.ja.ass');
+  assert.equal(
+    files.find((f) => f.attachmentId === 42)!.filename,
+    'episode.ja.full-subtitles.ass',
+  );
+});
