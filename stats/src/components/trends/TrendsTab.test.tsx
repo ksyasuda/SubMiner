@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AnimeVisibilityFilter } from './TrendsTab';
@@ -81,7 +82,7 @@ test('AnimeVisibilityFilter keeps the ranking mode selectable even when showing 
 });
 
 test('TrendsTab source labels words per minute without reading speed wording', async () => {
-  const source = await Bun.file(new URL('./TrendsTab.tsx', import.meta.url)).text();
+  const source = await readFile(new URL('./TrendsTab.tsx', import.meta.url), 'utf8');
 
   assert.match(source, /title="Words \/ Min"/);
   assert.doesNotMatch(source, /Reading Speed/);
