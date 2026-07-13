@@ -236,7 +236,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
-      'openAnimetosho',
+      'openTsukihime',
       'openSessionHelp',
       'openControllerSelect',
       'openControllerDebug',

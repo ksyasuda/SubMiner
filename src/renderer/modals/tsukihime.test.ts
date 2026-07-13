@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { AnimetoshoSubtitleFile, ElectronAPI } from '../../types';
+import type { TsukihimeSubtitleFile, ElectronAPI } from '../../types';
 import { createRendererState } from '../state.js';
-import { createAnimetoshoModal } from './animetosho.js';
+import { createTsukihimeModal } from './tsukihime.js';
 
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
@@ -53,43 +53,43 @@ function flushAsyncWork(): Promise<void> {
   });
 }
 
-const ENGLISH_TRACK: AnimetoshoSubtitleFile = {
+const ENGLISH_TRACK: TsukihimeSubtitleFile = {
   attachmentId: 1955356,
   filename: 'episode01.eng.ass',
   lang: 'eng',
   trackName: 'English subs',
   size: 33075,
-  url: 'https://animetosho.org/storage/attach/001dd61c/1955356.xz',
+  url: 'https://storage.tsukihime.org/attach/001dd61c/1955356.xz',
   sourceFilename: 'episode01.mkv',
 };
 
-const JAPANESE_TRACK: AnimetoshoSubtitleFile = {
+const JAPANESE_TRACK: TsukihimeSubtitleFile = {
   attachmentId: 1955400,
   filename: 'episode01.jpn.ass',
   lang: 'jpn',
   trackName: 'Japanese subs',
   size: 41000,
-  url: 'https://animetosho.org/storage/attach/001dd648/1955400.xz',
+  url: 'https://storage.tsukihime.org/attach/001dd648/1955400.xz',
   sourceFilename: 'episode01.mkv',
 };
 
-const GERMAN_TRACK: AnimetoshoSubtitleFile = {
+const GERMAN_TRACK: TsukihimeSubtitleFile = {
   attachmentId: 1955500,
   filename: 'episode01.ger.ass',
   lang: 'ger',
   trackName: 'Deutsch',
   size: 28000,
-  url: 'https://animetosho.org/storage/attach/001dd6ac/1955500.xz',
+  url: 'https://storage.tsukihime.org/attach/001dd6ac/1955500.xz',
   sourceFilename: 'episode01.mkv',
 };
 
 interface ModalHarness {
-  modal: ReturnType<typeof createAnimetoshoModal>;
+  modal: ReturnType<typeof createTsukihimeModal>;
   state: ReturnType<typeof createRendererState>;
   downloadQueries: unknown[];
   modalCloseNotifications: string[];
   overlayClassList: ReturnType<typeof createClassList>;
-  animetoshoModalClassList: ReturnType<typeof createClassList>;
+  tsukihimeModalClassList: ReturnType<typeof createClassList>;
   titleInput: { value: string };
   status: { textContent: string; style: { color: string } };
   entriesList: ReturnType<typeof createListStub>;
@@ -98,7 +98,7 @@ interface ModalHarness {
 }
 
 function createModalHarness(
-  files: AnimetoshoSubtitleFile[],
+  files: TsukihimeSubtitleFile[],
   options: {
     secondaryLanguages?: string[];
     listFiles?: (entryId: number) => Promise<unknown>;
@@ -115,14 +115,14 @@ function createModalHarness(
   const downloadQueries: unknown[] = [];
 
   const electronAPI = {
-    animetoshoDownloadFile: async (query: unknown) => {
+    tsukihimeDownloadFile: async (query: unknown) => {
       downloadQueries.push(query);
       return { ok: true, path: '/tmp/subtitles/episode01.en.ass' };
     },
-    animetoshoGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
-    animetoshoListFiles: async ({ entryId }: { entryId: number }) =>
+    tsukihimeGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
+    tsukihimeListFiles: async ({ entryId }: { entryId: number }) =>
       options.listFiles ? options.listFiles(entryId) : { ok: true, data: [] },
-    animetoshoSearchEntries: async (query: unknown) =>
+    tsukihimeSearchEntries: async (query: unknown) =>
       options.searchEntries ? options.searchEntries(query) : { ok: true, data: [] },
     getJimakuMediaInfo: async () => ({
       title: '',
@@ -150,44 +150,44 @@ function createModalHarness(
   });
 
   const overlayClassList = createClassList(['interactive']);
-  const animetoshoModalClassList = createClassList();
+  const tsukihimeModalClassList = createClassList();
   const state = createRendererState();
-  state.animetoshoModalOpen = true;
-  state.currentAnimetoshoEntryId = 606713;
-  state.selectedAnimetoshoFileIndex = 0;
-  state.animetoshoFiles = files;
+  state.tsukihimeModalOpen = true;
+  state.currentTsukihimeEntryId = 606713;
+  state.selectedTsukihimeFileIndex = 0;
+  state.tsukihimeFiles = files;
 
   const ctx = {
     dom: {
       overlay: { classList: overlayClassList },
-      animetoshoModal: {
-        classList: animetoshoModalClassList,
+      tsukihimeModal: {
+        classList: tsukihimeModalClassList,
         setAttribute: () => {},
       },
-      animetoshoTitleInput: { value: '' },
-      animetoshoEpisodeInput: { value: '' },
-      animetoshoSearchButton: { addEventListener: () => {} },
-      animetoshoCloseButton: { addEventListener: () => {} },
-      animetoshoTabEnglishButton: {
+      tsukihimeTitleInput: { value: '' },
+      tsukihimeEpisodeInput: { value: '' },
+      tsukihimeSearchButton: { addEventListener: () => {} },
+      tsukihimeCloseButton: { addEventListener: () => {} },
+      tsukihimeTabEnglishButton: {
         textContent: 'English',
         classList: createClassList(['active']),
         addEventListener: () => {},
       },
-      animetoshoTabJapaneseButton: {
+      tsukihimeTabJapaneseButton: {
         textContent: 'Japanese',
         classList: createClassList(),
         addEventListener: () => {},
       },
-      animetoshoStatus: { textContent: '', style: { color: '' } },
-      animetoshoEntriesSection: { classList: createClassList(['hidden']) },
-      animetoshoEntriesList: createListStub(),
-      animetoshoFilesSection: { classList: createClassList() },
-      animetoshoFilesList: createListStub(),
+      tsukihimeStatus: { textContent: '', style: { color: '' } },
+      tsukihimeEntriesSection: { classList: createClassList(['hidden']) },
+      tsukihimeEntriesList: createListStub(),
+      tsukihimeFilesSection: { classList: createClassList() },
+      tsukihimeFilesList: createListStub(),
     },
     state,
   };
 
-  const modal = createAnimetoshoModal(ctx as never, {
+  const modal = createTsukihimeModal(ctx as never, {
     modalStateReader: { isAnyModalOpen: () => false },
     syncSettingsModalSubtitleSuppression: () => {},
   });
@@ -198,11 +198,11 @@ function createModalHarness(
     downloadQueries,
     modalCloseNotifications,
     overlayClassList,
-    animetoshoModalClassList,
-    titleInput: ctx.dom.animetoshoTitleInput,
-    status: ctx.dom.animetoshoStatus,
-    entriesList: ctx.dom.animetoshoEntriesList,
-    filesList: ctx.dom.animetoshoFilesList,
+    tsukihimeModalClassList,
+    titleInput: ctx.dom.tsukihimeTitleInput,
+    status: ctx.dom.tsukihimeStatus,
+    entriesList: ctx.dom.tsukihimeEntriesList,
+    filesList: ctx.dom.tsukihimeFilesList,
     restoreGlobals: () => {
       const target = globalThis as unknown as Record<string, unknown>;
       if (hadWindow) {
@@ -224,7 +224,7 @@ function createModalHarness(
 
 function pressKey(harness: ModalHarness, key: string): boolean {
   let prevented = false;
-  harness.modal.handleAnimetoshoKeydown({
+  harness.modal.handleTsukihimeKeydown({
     key,
     preventDefault: () => {
       prevented = true;
@@ -233,17 +233,17 @@ function pressKey(harness: ModalHarness, key: string): boolean {
   return prevented;
 }
 
-test('successful Animetosho subtitle selection closes modal', async () => {
+test('successful Tsukihime subtitle selection closes modal', async () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
     const prevented = pressKey(harness, 'Enter');
     await flushAsyncWork();
 
     assert.equal(prevented, true);
-    assert.equal(harness.state.animetoshoModalOpen, false);
-    assert.equal(harness.animetoshoModalClassList.contains('hidden'), true);
+    assert.equal(harness.state.tsukihimeModalOpen, false);
+    assert.equal(harness.tsukihimeModalClassList.contains('hidden'), true);
     assert.equal(harness.overlayClassList.contains('interactive'), false);
-    assert.deepEqual(harness.modalCloseNotifications, ['animetosho']);
+    assert.deepEqual(harness.modalCloseNotifications, ['tsukihime']);
     assert.deepEqual(harness.downloadQueries, [
       {
         entryId: 606713,
@@ -282,9 +282,9 @@ test('English tab hides non-English languages, not just Japanese', async () => {
 test('Japanese tab filters tracks so Enter downloads the Japanese one', async () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
-    assert.equal(harness.state.animetoshoActiveTab, 'en');
+    assert.equal(harness.state.tsukihimeActiveTab, 'en');
     pressKey(harness, 'ArrowRight');
-    assert.equal(harness.state.animetoshoActiveTab, 'ja');
+    assert.equal(harness.state.tsukihimeActiveTab, 'ja');
 
     pressKey(harness, 'Enter');
     await flushAsyncWork();
@@ -308,12 +308,12 @@ test('secondary tab follows configured secondarySub languages', async () => {
   });
   try {
     // Re-open through the API so the modal fetches the configured languages.
-    harness.state.animetoshoModalOpen = false;
-    harness.modal.openAnimetoshoModal();
+    harness.state.tsukihimeModalOpen = false;
+    harness.modal.openTsukihimeModal();
     await flushAsyncWork();
 
-    harness.state.animetoshoFiles = [GERMAN_TRACK, ENGLISH_TRACK, JAPANESE_TRACK];
-    harness.state.currentAnimetoshoEntryId = 606713;
+    harness.state.tsukihimeFiles = [GERMAN_TRACK, ENGLISH_TRACK, JAPANESE_TRACK];
+    harness.state.currentTsukihimeEntryId = 606713;
 
     pressKey(harness, 'Enter');
     await flushAsyncWork();
@@ -332,12 +332,12 @@ test('secondary tab follows configured secondarySub languages', async () => {
 });
 
 test('a slow release response does not overwrite the newly selected release', async () => {
-  const STALE_TRACK: AnimetoshoSubtitleFile = {
+  const STALE_TRACK: TsukihimeSubtitleFile = {
     ...ENGLISH_TRACK,
     attachmentId: 999,
     filename: 'stale.eng.ass',
   };
-  const SECOND_ENGLISH_TRACK: AnimetoshoSubtitleFile = {
+  const SECOND_ENGLISH_TRACK: TsukihimeSubtitleFile = {
     ...ENGLISH_TRACK,
     attachmentId: 1955357,
     filename: 'episode01.eng.sdh.ass',
@@ -358,27 +358,27 @@ test('a slow release response does not overwrite the newly selected release', as
   });
 
   try {
-    harness.state.animetoshoEntries = [
+    harness.state.tsukihimeEntries = [
       { id: 1, title: 'slow release', timestamp: null, totalSize: null, numFiles: 1, sublangs: [] },
       { id: 2, title: 'fast release', timestamp: null, totalSize: null, numFiles: 1, sublangs: [] },
     ];
 
-    harness.modal.selectAnimetoshoEntry(0);
-    harness.modal.selectAnimetoshoEntry(1);
+    harness.modal.selectTsukihimeEntry(0);
+    harness.modal.selectTsukihimeEntry(1);
     await flushAsyncWork();
 
     // Entry 2's tracks are on screen; now entry 1 finally answers.
     assert.deepEqual(
-      harness.state.animetoshoFiles.map((file) => file.attachmentId),
+      harness.state.tsukihimeFiles.map((file) => file.attachmentId),
       [ENGLISH_TRACK.attachmentId, SECOND_ENGLISH_TRACK.attachmentId],
     );
 
     resolvers.forEach((resolve) => resolve(undefined));
     await flushAsyncWork();
 
-    assert.equal(harness.state.currentAnimetoshoEntryId, 2);
+    assert.equal(harness.state.currentTsukihimeEntryId, 2);
     assert.deepEqual(
-      harness.state.animetoshoFiles.map((file) => file.attachmentId),
+      harness.state.tsukihimeFiles.map((file) => file.attachmentId),
       [ENGLISH_TRACK.attachmentId, SECOND_ENGLISH_TRACK.attachmentId],
     );
   } finally {
@@ -390,9 +390,9 @@ test('ArrowLeft switches back to the English tab', () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
     pressKey(harness, 'ArrowRight');
-    assert.equal(harness.state.animetoshoActiveTab, 'ja');
+    assert.equal(harness.state.tsukihimeActiveTab, 'ja');
     pressKey(harness, 'ArrowLeft');
-    assert.equal(harness.state.animetoshoActiveTab, 'en');
+    assert.equal(harness.state.tsukihimeActiveTab, 'en');
   } finally {
     harness.restoreGlobals();
   }
@@ -423,8 +423,8 @@ test('searching reports TsukiHime as the backend and lists sublangs per release'
     }),
   });
   try {
-    harness.state.animetoshoFiles = [];
-    harness.state.currentAnimetoshoEntryId = null;
+    harness.state.tsukihimeFiles = [];
+    harness.state.currentTsukihimeEntryId = null;
     harness.titleInput.value = 'Futsutsuka na Akujo';
 
     const seenStatuses: string[] = [];
@@ -444,7 +444,7 @@ test('searching reports TsukiHime as the backend and lists sublangs per release'
       true,
     );
     assert.equal(
-      seenStatuses.some((message) => message.includes('Animetosho')),
+      seenStatuses.some((message) => message.includes('Tsukihime')),
       false,
     );
 
@@ -459,7 +459,7 @@ test('searching reports TsukiHime as the backend and lists sublangs per release'
 });
 
 test('renderFiles omits the size detail when the API does not report one', () => {
-  const zeroSizeTrack: AnimetoshoSubtitleFile = {
+  const zeroSizeTrack: TsukihimeSubtitleFile = {
     ...ENGLISH_TRACK,
     size: 0,
   };

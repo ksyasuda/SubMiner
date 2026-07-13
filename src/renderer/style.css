@@ -811,21 +811,21 @@ body:focus-visible,
   z-index: 1100;
 }
 
-#animetoshoModal {
+#tsukihimeModal {
   z-index: 1100;
 }
 
-#animetoshoModal .jimaku-form {
+#tsukihimeModal .jimaku-form {
   grid-template-columns: 1fr 120px auto;
 }
 
-.animetosho-tabs {
+.tsukihime-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
-.animetosho-tab {
+.tsukihime-tab {
   min-width: 0;
   min-height: 34px;
   padding: 7px 8px;
@@ -842,14 +842,14 @@ body:focus-visible,
   text-overflow: ellipsis;
 }
 
-.animetosho-tab:hover,
-.animetosho-tab:focus-visible {
+.tsukihime-tab:hover,
+.tsukihime-tab:focus-visible {
   border-color: rgba(138, 173, 244, 0.48);
   color: var(--ctp-text);
   outline: none;
 }
 
-.animetosho-tab.active {
+.tsukihime-tab.active {
   border-color: rgba(238, 212, 159, 0.62);
   background: rgba(238, 212, 159, 0.16);
   color: var(--ctp-yellow);

@@ -151,10 +151,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     title: 'TsukiHime',
     description: [
       'TsukiHime subtitle search configuration (English and Japanese). No API key required.',
-      'TsukiHime is the successor to Animetosho; the config key keeps the legacy name.',
     ],
     notes: ['Hot-reload: TsukiHime changes apply to the next TsukiHime request.'],
-    key: 'animetosho',
+    key: 'tsukihime',
   },
   {
     title: 'YouTube Playback Settings',

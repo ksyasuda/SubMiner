@@ -80,18 +80,18 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     }
   }
 
-  if (isObject(src.animetosho)) {
-    const apiBaseUrl = asString(src.animetosho.apiBaseUrl);
-    if (apiBaseUrl !== undefined) resolved.animetosho.apiBaseUrl = apiBaseUrl;
+  if (isObject(src.tsukihime)) {
+    const apiBaseUrl = asString(src.tsukihime.apiBaseUrl);
+    if (apiBaseUrl !== undefined) resolved.tsukihime.apiBaseUrl = apiBaseUrl;
 
-    const maxSearchResults = asNumber(src.animetosho.maxSearchResults);
+    const maxSearchResults = asNumber(src.tsukihime.maxSearchResults);
     if (maxSearchResults !== undefined && Math.floor(maxSearchResults) > 0) {
-      resolved.animetosho.maxSearchResults = Math.floor(maxSearchResults);
-    } else if (src.animetosho.maxSearchResults !== undefined) {
+      resolved.tsukihime.maxSearchResults = Math.floor(maxSearchResults);
+    } else if (src.tsukihime.maxSearchResults !== undefined) {
       warn(
-        'animetosho.maxSearchResults',
-        src.animetosho.maxSearchResults,
-        resolved.animetosho.maxSearchResults,
+        'tsukihime.maxSearchResults',
+        src.tsukihime.maxSearchResults,
+        resolved.tsukihime.maxSearchResults,
         'Expected positive number.',
       );
     }

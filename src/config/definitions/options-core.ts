@@ -616,9 +616,9 @@ export function buildCoreConfigOptionRegistry(
       description: 'Accelerator that opens the Jimaku subtitle search modal.',
     },
     {
-      path: 'shortcuts.openAnimetosho',
+      path: 'shortcuts.openTsukihime',
       kind: 'string',
-      defaultValue: defaultConfig.shortcuts.openAnimetosho,
+      defaultValue: defaultConfig.shortcuts.openTsukihime,
       description:
         'Accelerator that opens the TsukiHime subtitle search modal (English/Japanese tabs).',
     },

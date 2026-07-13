@@ -241,11 +241,11 @@ export type JimakuDownloadResult =
   | { ok: true; path: string }
   | { ok: false; error: JimakuApiError };
 
-export interface AnimetoshoSearchQuery {
+export interface TsukihimeSearchQuery {
   query: string;
 }
 
-export interface AnimetoshoEntry {
+export interface TsukihimeEntry {
   id: number;
   title: string;
   timestamp: number | null;
@@ -254,11 +254,11 @@ export interface AnimetoshoEntry {
   sublangs: string[];
 }
 
-export interface AnimetoshoFilesQuery {
+export interface TsukihimeFilesQuery {
   entryId: number;
 }
 
-export interface AnimetoshoSubtitleFile {
+export interface TsukihimeSubtitleFile {
   attachmentId: number;
   filename: string;
   lang: string;
@@ -268,18 +268,18 @@ export interface AnimetoshoSubtitleFile {
   sourceFilename: string;
 }
 
-export interface AnimetoshoDownloadQuery {
+export interface TsukihimeDownloadQuery {
   entryId: number;
   url: string;
   name: string;
   lang?: string;
 }
 
-export type AnimetoshoApiResponse<T> = JimakuApiResponse<T>;
+export type TsukihimeApiResponse<T> = JimakuApiResponse<T>;
 
-export type AnimetoshoDownloadResult = JimakuDownloadResult;
+export type TsukihimeDownloadResult = JimakuDownloadResult;
 
-export interface AnimetoshoConfig {
+export interface TsukihimeConfig {
   apiBaseUrl?: string;
   maxSearchResults?: number;
 }

@@ -40,7 +40,7 @@ const {
 const {
   ankiConnect,
   jimaku,
-  animetosho,
+  tsukihime,
   anilist,
   mpv,
   yomitan,
@@ -73,7 +73,7 @@ export const DEFAULT_CONFIG: ResolvedConfig = {
   subtitleSidebar,
   auto_start_overlay,
   jimaku,
-  animetosho,
+  tsukihime,
   anilist,
   mpv,
   yomitan,

@@ -6,72 +6,72 @@ import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 import {
-  animetoshoLangToFilenameSuffix,
-  buildAnimetoshoAttachmentUrl,
+  tsukihimeLangToFilenameSuffix,
+  buildTsukihimeAttachmentUrl,
   decompressXzFile,
-  extractAnimetoshoSubtitleFiles,
-  isAnimetoshoDownloadUrl,
-  mapAnimetoshoSearchResults,
+  extractTsukihimeSubtitleFiles,
+  isTsukihimeDownloadUrl,
+  mapTsukihimeSearchResults,
 } from './utils.js';
 
-test('buildAnimetoshoAttachmentUrl pads the attachment id to 8 hex digits', () => {
+test('buildTsukihimeAttachmentUrl pads the attachment id to 8 hex digits', () => {
   assert.equal(
-    buildAnimetoshoAttachmentUrl(96412),
+    buildTsukihimeAttachmentUrl(96412),
     'https://storage.tsukihime.org/attach/0001789c/96412.xz',
   );
 });
 
-test('buildAnimetoshoAttachmentUrl uses the tosho mirror path for imported entries', () => {
+test('buildTsukihimeAttachmentUrl uses the tosho mirror path for imported entries', () => {
   assert.equal(
-    buildAnimetoshoAttachmentUrl(2826332, { imported: true }),
+    buildTsukihimeAttachmentUrl(2826332, { imported: true }),
     'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz',
   );
 });
 
-test('animetoshoLangToFilenameSuffix maps common ISO 639-2 codes to two-letter suffixes', () => {
-  assert.equal(animetoshoLangToFilenameSuffix('eng'), 'en');
-  assert.equal(animetoshoLangToFilenameSuffix('jpn'), 'ja');
-  assert.equal(animetoshoLangToFilenameSuffix('ger'), 'de');
-  assert.equal(animetoshoLangToFilenameSuffix('spa'), 'es');
-  assert.equal(animetoshoLangToFilenameSuffix('POR'), 'pt');
+test('tsukihimeLangToFilenameSuffix maps common ISO 639-2 codes to two-letter suffixes', () => {
+  assert.equal(tsukihimeLangToFilenameSuffix('eng'), 'en');
+  assert.equal(tsukihimeLangToFilenameSuffix('jpn'), 'ja');
+  assert.equal(tsukihimeLangToFilenameSuffix('ger'), 'de');
+  assert.equal(tsukihimeLangToFilenameSuffix('spa'), 'es');
+  assert.equal(tsukihimeLangToFilenameSuffix('POR'), 'pt');
 });
 
-test('animetoshoLangToFilenameSuffix handles TsukiHime BCP-47 style codes', () => {
-  assert.equal(animetoshoLangToFilenameSuffix('en-US'), 'en');
-  assert.equal(animetoshoLangToFilenameSuffix('es-419'), 'es');
-  assert.equal(animetoshoLangToFilenameSuffix('zh-Hant'), 'zh');
-  assert.equal(animetoshoLangToFilenameSuffix('ja'), 'ja');
+test('tsukihimeLangToFilenameSuffix handles TsukiHime BCP-47 style codes', () => {
+  assert.equal(tsukihimeLangToFilenameSuffix('en-US'), 'en');
+  assert.equal(tsukihimeLangToFilenameSuffix('es-419'), 'es');
+  assert.equal(tsukihimeLangToFilenameSuffix('zh-Hant'), 'zh');
+  assert.equal(tsukihimeLangToFilenameSuffix('ja'), 'ja');
 });
 
-test('animetoshoLangToFilenameSuffix falls back to the raw code, and to en when unknown', () => {
-  assert.equal(animetoshoLangToFilenameSuffix('vie'), 'vie');
-  assert.equal(animetoshoLangToFilenameSuffix(''), 'en');
-  assert.equal(animetoshoLangToFilenameSuffix(undefined), 'en');
-  assert.equal(animetoshoLangToFilenameSuffix('und'), 'en');
+test('tsukihimeLangToFilenameSuffix falls back to the raw code, and to en when unknown', () => {
+  assert.equal(tsukihimeLangToFilenameSuffix('vie'), 'vie');
+  assert.equal(tsukihimeLangToFilenameSuffix(''), 'en');
+  assert.equal(tsukihimeLangToFilenameSuffix(undefined), 'en');
+  assert.equal(tsukihimeLangToFilenameSuffix('und'), 'en');
 });
 
-test('buildAnimetoshoAttachmentUrl rejects non-positive and non-integer ids', () => {
-  assert.equal(buildAnimetoshoAttachmentUrl(0), null);
-  assert.equal(buildAnimetoshoAttachmentUrl(-5), null);
-  assert.equal(buildAnimetoshoAttachmentUrl(1.5), null);
-  assert.equal(buildAnimetoshoAttachmentUrl(Number.NaN), null);
+test('buildTsukihimeAttachmentUrl rejects non-positive and non-integer ids', () => {
+  assert.equal(buildTsukihimeAttachmentUrl(0), null);
+  assert.equal(buildTsukihimeAttachmentUrl(-5), null);
+  assert.equal(buildTsukihimeAttachmentUrl(1.5), null);
+  assert.equal(buildTsukihimeAttachmentUrl(Number.NaN), null);
 });
 
-test('isAnimetoshoDownloadUrl accepts tsukihime.org and animetosho.org hosts only', () => {
-  assert.equal(isAnimetoshoDownloadUrl('https://storage.tsukihime.org/attach/0001789c/1.xz'), true);
-  assert.equal(isAnimetoshoDownloadUrl('https://tsukihime.org/view/1'), true);
+test('isTsukihimeDownloadUrl accepts tsukihime.org and animetosho.org hosts only', () => {
+  assert.equal(isTsukihimeDownloadUrl('https://storage.tsukihime.org/attach/0001789c/1.xz'), true);
+  assert.equal(isTsukihimeDownloadUrl('https://tsukihime.org/view/1'), true);
   // The tosho mirror currently 302s to storage.animetosho.org; the hop must stay allowed.
   assert.equal(
-    isAnimetoshoDownloadUrl('https://storage.animetosho.org/attach/002b205c/2826332.xz'),
+    isTsukihimeDownloadUrl('https://storage.animetosho.org/attach/002b205c/2826332.xz'),
     true,
   );
-  assert.equal(isAnimetoshoDownloadUrl('http://storage.tsukihime.org/attach/1/1.xz'), false);
-  assert.equal(isAnimetoshoDownloadUrl('https://eviltsukihime.org/attach/1/1.xz'), false);
-  assert.equal(isAnimetoshoDownloadUrl('https://example.com/1.xz'), false);
-  assert.equal(isAnimetoshoDownloadUrl('not a url'), false);
+  assert.equal(isTsukihimeDownloadUrl('http://storage.tsukihime.org/attach/1/1.xz'), false);
+  assert.equal(isTsukihimeDownloadUrl('https://eviltsukihime.org/attach/1/1.xz'), false);
+  assert.equal(isTsukihimeDownloadUrl('https://example.com/1.xz'), false);
+  assert.equal(isTsukihimeDownloadUrl('not a url'), false);
 });
 
-test('mapAnimetoshoSearchResults maps valid results and caps to maxResults', () => {
+test('mapTsukihimeSearchResults maps valid results and caps to maxResults', () => {
   const payload = {
     total: 4,
     start: 0,
@@ -96,7 +96,7 @@ test('mapAnimetoshoSearchResults maps valid results and caps to maxResults', () 
     ],
   };
 
-  const entries = mapAnimetoshoSearchResults(payload, 2);
+  const entries = mapTsukihimeSearchResults(payload, 2);
   assert.equal(entries.length, 2);
   assert.deepEqual(entries[0], {
     id: 1000752022,
@@ -112,11 +112,11 @@ test('mapAnimetoshoSearchResults maps valid results and caps to maxResults', () 
   assert.deepEqual(entries[1]!.sublangs, []);
 });
 
-test('mapAnimetoshoSearchResults returns empty list for malformed payloads', () => {
-  assert.deepEqual(mapAnimetoshoSearchResults({ error: 'nope' }, 10), []);
-  assert.deepEqual(mapAnimetoshoSearchResults({ results: 'nope' }, 10), []);
-  assert.deepEqual(mapAnimetoshoSearchResults(null, 10), []);
-  assert.deepEqual(mapAnimetoshoSearchResults([], 10), []);
+test('mapTsukihimeSearchResults returns empty list for malformed payloads', () => {
+  assert.deepEqual(mapTsukihimeSearchResults({ error: 'nope' }, 10), []);
+  assert.deepEqual(mapTsukihimeSearchResults({ results: 'nope' }, 10), []);
+  assert.deepEqual(mapTsukihimeSearchResults(null, 10), []);
+  assert.deepEqual(mapTsukihimeSearchResults([], 10), []);
 });
 
 // Trimmed from a real /v1/torrents/{id} response (native entry).
@@ -144,8 +144,8 @@ const DETAIL_PAYLOAD = {
   ],
 };
 
-test('extractAnimetoshoSubtitleFiles keeps only text subtitle attachments with download urls', () => {
-  const files = extractAnimetoshoSubtitleFiles(DETAIL_PAYLOAD);
+test('extractTsukihimeSubtitleFiles keeps only text subtitle attachments with download urls', () => {
+  const files = extractTsukihimeSubtitleFiles(DETAIL_PAYLOAD);
   assert.equal(files.length, 1);
   const file = files[0]!;
   assert.equal(file.attachmentId, 96412);
@@ -163,8 +163,8 @@ test('extractAnimetoshoSubtitleFiles keeps only text subtitle attachments with d
   );
 });
 
-test('extractAnimetoshoSubtitleFiles uses the tosho mirror for animetosho-imported entries', () => {
-  const files = extractAnimetoshoSubtitleFiles({
+test('extractTsukihimeSubtitleFiles uses the tosho mirror for animetosho-imported entries', () => {
+  const files = extractTsukihimeSubtitleFiles({
     id: 1000752022,
     animetosho: true,
     files: [
@@ -181,8 +181,8 @@ test('extractAnimetoshoSubtitleFiles uses the tosho mirror for animetosho-import
   assert.equal(files[0]!.url, 'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz');
 });
 
-test('extractAnimetoshoSubtitleFiles detects imported entries by id when the flag is absent', () => {
-  const files = extractAnimetoshoSubtitleFiles({
+test('extractTsukihimeSubtitleFiles detects imported entries by id when the flag is absent', () => {
+  const files = extractTsukihimeSubtitleFiles({
     id: 1000752022,
     files: [
       {
@@ -195,8 +195,8 @@ test('extractAnimetoshoSubtitleFiles detects imported entries by id when the fla
   assert.equal(files[0]!.url, 'https://storage.tsukihime.org/tosho/attach/002b205c/2826332.xz');
 });
 
-test('extractAnimetoshoSubtitleFiles skips image-based subtitle codecs', () => {
-  const files = extractAnimetoshoSubtitleFiles({
+test('extractTsukihimeSubtitleFiles skips image-based subtitle codecs', () => {
+  const files = extractTsukihimeSubtitleFiles({
     id: 1,
     files: [
       {
@@ -217,8 +217,8 @@ test('extractAnimetoshoSubtitleFiles skips image-based subtitle codecs', () => {
   assert.equal(files[0]!.filename, 'movie.en.srt');
 });
 
-test('extractAnimetoshoSubtitleFiles sorts English tracks first and disambiguates duplicates', () => {
-  const files = extractAnimetoshoSubtitleFiles({
+test('extractTsukihimeSubtitleFiles sorts English tracks first and disambiguates duplicates', () => {
+  const files = extractTsukihimeSubtitleFiles({
     id: 1,
     files: [
       {
@@ -242,8 +242,8 @@ test('extractAnimetoshoSubtitleFiles sorts English tracks first and disambiguate
   assert.equal(files[2]!.filename, 'episode.de.ass');
 });
 
-test('extractAnimetoshoSubtitleFiles tolerates missing info fields', () => {
-  const files = extractAnimetoshoSubtitleFiles({
+test('extractTsukihimeSubtitleFiles tolerates missing info fields', () => {
+  const files = extractTsukihimeSubtitleFiles({
     id: 1,
     files: [
       {
@@ -268,7 +268,7 @@ const hasXz = (() => {
 })();
 
 test('decompressXzFile round-trips an xz-compressed subtitle', { skip: !hasXz }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-animetosho-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tsukihime-test-'));
   try {
     const plainPath = path.join(dir, 'sub.ass');
     const content = '[Script Info]\nTitle: test\n';
@@ -288,7 +288,7 @@ test('decompressXzFile round-trips an xz-compressed subtitle', { skip: !hasXz },
 });
 
 test('decompressXzFile reports an error for corrupt input', { skip: !hasXz }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-animetosho-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tsukihime-test-'));
   try {
     const srcPath = path.join(dir, 'broken.xz');
     fs.writeFileSync(srcPath, 'not xz data');

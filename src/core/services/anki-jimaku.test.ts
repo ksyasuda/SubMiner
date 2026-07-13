@@ -11,7 +11,7 @@ interface RuntimeHarness {
     patches: boolean[];
     broadcasts: number;
     fetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
-    animetoshoFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
+    tsukihimeFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     sentCommands: Array<{ command: (string | number)[] }>;
   };
 }
@@ -26,7 +26,7 @@ function createHarness(): RuntimeHarness {
       endpoint: string;
       query?: Record<string, unknown>;
     }>,
-    animetoshoFetchCalls: [] as Array<{
+    tsukihimeFetchCalls: [] as Array<{
       endpoint: string;
       query?: Record<string, unknown>;
     }>,
@@ -37,10 +37,10 @@ function createHarness(): RuntimeHarness {
     patchAnkiConnectEnabled: (enabled) => {
       state.patches.push(enabled);
     },
-    getResolvedConfig: () => ({ animetosho: { maxSearchResults: 2 } }),
+    getResolvedConfig: () => ({ tsukihime: { maxSearchResults: 2 } }),
     getRuntimeOptionsManager: () => null,
-    animetoshoFetchJson: async (endpoint, query) => {
-      state.animetoshoFetchCalls.push({
+    tsukihimeFetchJson: async (endpoint, query) => {
+      state.tsukihimeFetchCalls.push({
         endpoint,
         query: query as Record<string, unknown>,
       });
@@ -174,9 +174,9 @@ test('registerAnkiJimakuIpcRuntime provides full handler surface', () => {
     'isRemoteMediaPath',
     'downloadToFile',
     'onDownloadedSubtitle',
-    'searchAnimetoshoEntries',
-    'listAnimetoshoFiles',
-    'downloadAnimetoshoSubtitle',
+    'searchTsukihimeEntries',
+    'listTsukihimeFiles',
+    'downloadTsukihimeSubtitle',
     'onDownloadedSecondarySubtitle',
   ];
 
@@ -367,11 +367,11 @@ test('onDownloadedSecondarySubtitle retries until mpv reports the new track', as
   });
 });
 
-test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', async () => {
+test('searchTsukihimeEntries caps results using tsukihime.maxSearchResults', async () => {
   const { registered, state } = createHarness();
 
-  const searchResult = await registered.searchAnimetoshoEntries!({ query: 'frieren 28' });
-  assert.deepEqual(state.animetoshoFetchCalls, [
+  const searchResult = await registered.searchTsukihimeEntries!({ query: 'frieren 28' });
+  assert.deepEqual(state.tsukihimeFetchCalls, [
     {
       endpoint: '/search/torrents',
       query: { q: 'frieren 28', limit: 2 },
@@ -386,11 +386,11 @@ test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', a
   );
 });
 
-test('listAnimetoshoFiles extracts subtitle attachments from torrent detail', async () => {
+test('listTsukihimeFiles extracts subtitle attachments from torrent detail', async () => {
   const { registered, state } = createHarness();
 
-  const filesResult = await registered.listAnimetoshoFiles!({ entryId: 606713 });
-  assert.deepEqual(state.animetoshoFetchCalls, [
+  const filesResult = await registered.listTsukihimeFiles!({ entryId: 606713 });
+  assert.deepEqual(state.tsukihimeFetchCalls, [
     {
       endpoint: '/torrents/606713',
       query: {},

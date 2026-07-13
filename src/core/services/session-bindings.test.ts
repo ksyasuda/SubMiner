@@ -22,7 +22,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
-    openAnimetosho: null,
+    openTsukihime: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,

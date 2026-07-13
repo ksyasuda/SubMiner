@@ -8,7 +8,7 @@ export interface OverlayShortcutFallbackHandlers {
   openRuntimeOptions: () => void;
   openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   markAudioCard: () => void;
   copySubtitleMultiple: (timeoutMs: number) => void;
   copySubtitle: () => void;
@@ -25,7 +25,7 @@ export interface OverlayShortcutRuntimeDeps {
   openRuntimeOptions: () => void;
   openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   markAudioCard: () => Promise<void>;
   copySubtitleMultiple: (timeoutMs: number) => void;
   copySubtitle: () => void;
@@ -105,8 +105,8 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
     openJimaku: () => {
       deps.openJimaku();
     },
-    openAnimetosho: () => {
-      deps.openAnimetosho();
+    openTsukihime: () => {
+      deps.openTsukihime();
     },
   };
 
@@ -114,7 +114,7 @@ export function createOverlayShortcutRuntimeHandlers(deps: OverlayShortcutRuntim
     openRuntimeOptions: overlayHandlers.openRuntimeOptions,
     openCharacterDictionaryManager: overlayHandlers.openCharacterDictionaryManager,
     openJimaku: overlayHandlers.openJimaku,
-    openAnimetosho: overlayHandlers.openAnimetosho,
+    openTsukihime: overlayHandlers.openTsukihime,
     markAudioCard: overlayHandlers.markAudioCard,
     copySubtitleMultiple: overlayHandlers.copySubtitleMultiple,
     copySubtitle: overlayHandlers.copySubtitle,
@@ -160,9 +160,9 @@ export function runOverlayShortcutLocalFallback(
       allowWhenRegistered: true,
     },
     {
-      accelerator: shortcuts.openAnimetosho,
+      accelerator: shortcuts.openTsukihime,
       run: () => {
-        handlers.openAnimetosho();
+        handlers.openTsukihime();
       },
       allowWhenRegistered: true,
     },

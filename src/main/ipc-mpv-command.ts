@@ -13,7 +13,7 @@ export interface MpvCommandFromIpcRuntimeDeps {
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
@@ -39,7 +39,7 @@ export function handleMpvCommandFromIpcRuntime(
       triggerSubsyncFromConfig: deps.triggerSubsyncFromConfig,
       openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
       openJimaku: deps.openJimaku,
-      openAnimetosho: deps.openAnimetosho,
+      openTsukihime: deps.openTsukihime,
       openYoutubeTrackPicker: deps.openYoutubeTrackPicker,
       openPlaylistBrowser: deps.openPlaylistBrowser,
       runtimeOptionsCycle: deps.cycleRuntimeOption,

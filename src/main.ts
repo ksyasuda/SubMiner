@@ -467,7 +467,7 @@ import { createOverlayModalInputState } from './main/runtime/overlay-modal-input
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
-import { openAnimetoshoModal as openAnimetoshoModalRuntime } from './main/runtime/animetosho-open';
+import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
 import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
@@ -2068,8 +2068,8 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openJimaku: () => {
       openJimakuOverlay();
     },
-    openAnimetosho: () => {
-      openAnimetoshoOverlay();
+    openTsukihime: () => {
+      openTsukihimeOverlay();
     },
     markAudioCard: () => markLastCardAsAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => {
@@ -3001,9 +3001,9 @@ function openJimakuOverlay(): void {
   );
 }
 
-function openAnimetoshoOverlay(): void {
+function openTsukihimeOverlay(): void {
   openOverlayHostedModalWithOsd(
-    openAnimetoshoModalRuntime,
+    openTsukihimeModalRuntime,
     'TsukiHime overlay unavailable.',
     'Failed to open TsukiHime overlay.',
   );
@@ -5528,7 +5528,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     },
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
-    openAnimetosho: () => openAnimetoshoOverlay(),
+    openTsukihime: () => openTsukihimeOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
@@ -5562,7 +5562,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
-    openAnimetosho: () => openAnimetoshoOverlay(),
+    openTsukihime: () => openTsukihimeOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
     cycleRuntimeOption: (id, direction) => {

@@ -10,7 +10,7 @@ export interface HandleMpvCommandFromIpcOptions {
     SUBSYNC_TRIGGER: string;
     RUNTIME_OPTIONS_OPEN: string;
     JIMAKU_OPEN: string;
-    ANIMETOSHO_OPEN: string;
+    TSUKIHIME_OPEN: string;
     RUNTIME_OPTION_CYCLE_PREFIX: string;
     REPLAY_SUBTITLE: string;
     PLAY_NEXT_SUBTITLE: string;
@@ -20,7 +20,7 @@ export interface HandleMpvCommandFromIpcOptions {
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
@@ -114,8 +114,8 @@ export function handleMpvCommandFromIpc(
     return;
   }
 
-  if (first === options.specialCommands.ANIMETOSHO_OPEN) {
-    options.openAnimetosho();
+  if (first === options.specialCommands.TSUKIHIME_OPEN) {
+    options.openTsukihime();
     return;
   }
 
