@@ -51,7 +51,7 @@ export type RendererState = {
   currentEntryId: number | null;
 
   tsukihimeModalOpen: boolean;
-  tsukihimeActiveTab: 'en' | 'ja';
+  tsukihimeActiveTab: 'secondary' | 'primary';
   tsukihimeEntries: TsukihimeEntry[];
   tsukihimeFiles: TsukihimeSubtitleFile[];
   selectedTsukihimeEntryIndex: number;
@@ -175,7 +175,7 @@ export function createRendererState(): RendererState {
     currentEntryId: null,
 
     tsukihimeModalOpen: false,
-    tsukihimeActiveTab: 'en',
+    tsukihimeActiveTab: 'secondary',
     tsukihimeEntries: [],
     tsukihimeFiles: [],
     selectedTsukihimeEntryIndex: 0,

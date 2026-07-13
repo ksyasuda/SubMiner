@@ -150,7 +150,7 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
     title: 'TsukiHime',
     description: [
-      'TsukiHime subtitle search configuration (English and Japanese). No API key required.',
+      'TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.',
     ],
     notes: ['Hot-reload: TsukiHime changes apply to the next TsukiHime request.'],
     key: 'tsukihime',

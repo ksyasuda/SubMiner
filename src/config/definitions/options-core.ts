@@ -620,7 +620,7 @@ export function buildCoreConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openTsukihime,
       description:
-        'Accelerator that opens the TsukiHime subtitle search modal (English/Japanese tabs).',
+        'Accelerator that opens the TsukiHime subtitle search modal (configured secondary/Japanese primary tabs).',
     },
     {
       path: 'shortcuts.openSessionHelp',

@@ -39,40 +39,40 @@ export function createTsukihimeModal(
     ctx.dom.tsukihimeFilesSection.classList.add('hidden');
   }
 
-  // Defaults to English until the configured secondarySub languages arrive.
+  // Defaults to English until the configured secondary languages arrive.
   let secondaryLanguages: string[] = ['en'];
 
   function secondaryTabLabel(): string {
     return describeTsukihimeTabLanguages(secondaryLanguages);
   }
 
-  function isJapaneseTrack(file: TsukihimeSubtitleFile): boolean {
+  function isPrimaryTrack(file: TsukihimeSubtitleFile): boolean {
     return normalizeTsukihimeLangCode(file.lang) === 'ja';
   }
 
   function getVisibleFiles(): TsukihimeSubtitleFile[] {
-    if (ctx.state.tsukihimeActiveTab === 'ja') {
-      return ctx.state.tsukihimeFiles.filter(isJapaneseTrack);
+    if (ctx.state.tsukihimeActiveTab === 'primary') {
+      return ctx.state.tsukihimeFiles.filter(isPrimaryTrack);
     }
     return ctx.state.tsukihimeFiles.filter(
       (file) =>
-        !isJapaneseTrack(file) && tsukihimeTrackMatchesLanguages(file.lang, secondaryLanguages),
+        !isPrimaryTrack(file) && tsukihimeTrackMatchesLanguages(file.lang, secondaryLanguages),
     );
   }
 
   function renderTabs(): void {
-    if (ctx.state.tsukihimeActiveTab === 'ja') {
-      ctx.dom.tsukihimeTabEnglishButton.classList.remove('active');
-      ctx.dom.tsukihimeTabJapaneseButton.classList.add('active');
+    if (ctx.state.tsukihimeActiveTab === 'primary') {
+      ctx.dom.tsukihimeTabSecondaryButton.classList.remove('active');
+      ctx.dom.tsukihimeTabPrimaryButton.classList.add('active');
     } else {
-      ctx.dom.tsukihimeTabEnglishButton.classList.add('active');
-      ctx.dom.tsukihimeTabJapaneseButton.classList.remove('active');
+      ctx.dom.tsukihimeTabSecondaryButton.classList.add('active');
+      ctx.dom.tsukihimeTabPrimaryButton.classList.remove('active');
     }
   }
 
   function describeEmptyTab(): string {
     const hiddenCount = ctx.state.tsukihimeFiles.length;
-    if (ctx.state.tsukihimeActiveTab === 'ja') {
+    if (ctx.state.tsukihimeActiveTab === 'primary') {
       return hiddenCount > 0
         ? `No Japanese tracks in this release. Switch to the ${secondaryTabLabel()} tab.`
         : 'No Japanese tracks in this release.';
@@ -82,7 +82,7 @@ export function createTsukihimeModal(
       : `No ${secondaryTabLabel()} tracks in this release.`;
   }
 
-  function setActiveTab(tab: 'en' | 'ja'): void {
+  function setActiveTab(tab: 'secondary' | 'primary'): void {
     if (ctx.state.tsukihimeActiveTab === tab) return;
     ctx.state.tsukihimeActiveTab = tab;
     ctx.state.selectedTsukihimeFileIndex = 0;
@@ -321,12 +321,13 @@ export function createTsukihimeModal(
 
   async function loadSecondaryLanguages(): Promise<void> {
     try {
-      const languages = await window.electronAPI.tsukihimeGetSecondaryLanguages();
-      secondaryLanguages = languages.length > 0 ? languages : ['en'];
+      const configuredSecondary = await window.electronAPI.tsukihimeGetSecondaryLanguages();
+      secondaryLanguages = configuredSecondary.length > 0 ? configuredSecondary : ['en'];
     } catch {
       secondaryLanguages = ['en'];
     }
-    ctx.dom.tsukihimeTabEnglishButton.textContent = secondaryTabLabel();
+    ctx.dom.tsukihimeTabSecondaryButton.textContent = secondaryTabLabel();
+    ctx.dom.tsukihimeTabPrimaryButton.textContent = 'Japanese';
     // Tracks may already be on screen if the languages arrived late.
     if (ctx.state.tsukihimeFiles.length > 0) {
       renderFiles();
@@ -337,7 +338,7 @@ export function createTsukihimeModal(
     if (ctx.state.tsukihimeModalOpen) return;
 
     ctx.state.tsukihimeModalOpen = true;
-    ctx.state.tsukihimeActiveTab = 'en';
+    ctx.state.tsukihimeActiveTab = 'secondary';
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.tsukihimeModal.classList.remove('hidden');
@@ -402,13 +403,13 @@ export function createTsukihimeModal(
 
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      setActiveTab('en');
+      setActiveTab('secondary');
       return true;
     }
 
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      setActiveTab('ja');
+      setActiveTab('primary');
       return true;
     }
 
@@ -471,11 +472,11 @@ export function createTsukihimeModal(
     ctx.dom.tsukihimeCloseButton.addEventListener('click', () => {
       closeTsukihimeModal();
     });
-    ctx.dom.tsukihimeTabEnglishButton.addEventListener('click', () => {
-      setActiveTab('en');
+    ctx.dom.tsukihimeTabSecondaryButton.addEventListener('click', () => {
+      setActiveTab('secondary');
     });
-    ctx.dom.tsukihimeTabJapaneseButton.addEventListener('click', () => {
-      setActiveTab('ja');
+    ctx.dom.tsukihimeTabPrimaryButton.addEventListener('click', () => {
+      setActiveTab('primary');
     });
   }
 

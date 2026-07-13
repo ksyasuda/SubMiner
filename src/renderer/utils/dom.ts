@@ -27,8 +27,8 @@ export type RendererDom = {
   tsukihimeEpisodeInput: HTMLInputElement;
   tsukihimeSearchButton: HTMLButtonElement;
   tsukihimeCloseButton: HTMLButtonElement;
-  tsukihimeTabEnglishButton: HTMLButtonElement;
-  tsukihimeTabJapaneseButton: HTMLButtonElement;
+  tsukihimeTabSecondaryButton: HTMLButtonElement;
+  tsukihimeTabPrimaryButton: HTMLButtonElement;
   tsukihimeStatus: HTMLDivElement;
   tsukihimeEntriesSection: HTMLDivElement;
   tsukihimeEntriesList: HTMLUListElement;
@@ -172,8 +172,8 @@ export function resolveRendererDom(): RendererDom {
     tsukihimeEpisodeInput: getRequiredElement<HTMLInputElement>('tsukihimeEpisode'),
     tsukihimeSearchButton: getRequiredElement<HTMLButtonElement>('tsukihimeSearch'),
     tsukihimeCloseButton: getRequiredElement<HTMLButtonElement>('tsukihimeClose'),
-    tsukihimeTabEnglishButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabEnglish'),
-    tsukihimeTabJapaneseButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabJapanese'),
+    tsukihimeTabSecondaryButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabSecondary'),
+    tsukihimeTabPrimaryButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabPrimary'),
     tsukihimeStatus: getRequiredElement<HTMLDivElement>('tsukihimeStatus'),
     tsukihimeEntriesSection: getRequiredElement<HTMLDivElement>('tsukihimeEntriesSection'),
     tsukihimeEntriesList: getRequiredElement<HTMLUListElement>('tsukihimeEntries'),

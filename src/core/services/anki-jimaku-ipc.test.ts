@@ -132,7 +132,7 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
   });
 });
 
-test('tsukihime downloads route by language: secondary for eng, primary for jpn', async () => {
+test('tsukihime downloads always route Japanese as primary', async () => {
   const { registrar, handleHandlers } = createFakeRegistrar();
   const primaryLoads: string[] = [];
   const secondaryLoads: string[] = [];
@@ -163,7 +163,7 @@ test('tsukihime downloads route by language: secondary for eng, primary for jpn'
       searchTsukihimeEntries: async () => ({ ok: true, data: [] }),
       listTsukihimeFiles: async () => ({ ok: true, data: [] }),
       downloadTsukihimeSubtitle: async (_url, destPath) => ({ ok: true, path: destPath }),
-      getTsukihimeSecondaryLanguages: () => ['en'],
+      getTsukihimeSecondaryLanguages: () => ['ja'],
       onDownloadedSecondarySubtitle: (path) => {
         secondaryLoads.push(path);
       },

@@ -168,12 +168,12 @@ function createModalHarness(
       tsukihimeEpisodeInput: { value: '' },
       tsukihimeSearchButton: { addEventListener: () => {} },
       tsukihimeCloseButton: { addEventListener: () => {} },
-      tsukihimeTabEnglishButton: {
+      tsukihimeTabSecondaryButton: {
         textContent: 'English',
         classList: createClassList(['active']),
         addEventListener: () => {},
       },
-      tsukihimeTabJapaneseButton: {
+      tsukihimeTabPrimaryButton: {
         textContent: 'Japanese',
         classList: createClassList(),
         addEventListener: () => {},
@@ -257,7 +257,7 @@ test('successful Tsukihime subtitle selection closes modal', async () => {
   }
 });
 
-test('English tab hides non-English languages, not just Japanese', async () => {
+test('secondary tab hides languages outside its configured defaults', async () => {
   const harness = createModalHarness([GERMAN_TRACK, ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
     // With German visible this would move selection onto it; English-only
@@ -279,12 +279,12 @@ test('English tab hides non-English languages, not just Japanese', async () => {
   }
 });
 
-test('Japanese tab filters tracks so Enter downloads the Japanese one', async () => {
+test('primary tab defaults to Japanese tracks', async () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
-    assert.equal(harness.state.tsukihimeActiveTab, 'en');
+    assert.equal(harness.state.tsukihimeActiveTab, 'secondary');
     pressKey(harness, 'ArrowRight');
-    assert.equal(harness.state.tsukihimeActiveTab, 'ja');
+    assert.equal(harness.state.tsukihimeActiveTab, 'primary');
 
     pressKey(harness, 'Enter');
     await flushAsyncWork();
@@ -324,6 +324,35 @@ test('secondary tab follows configured secondarySub languages', async () => {
         url: GERMAN_TRACK.url,
         name: GERMAN_TRACK.filename,
         lang: 'ger',
+      },
+    ]);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('primary tab remains Japanese when the release includes other languages', async () => {
+  const harness = createModalHarness([GERMAN_TRACK, ENGLISH_TRACK, JAPANESE_TRACK], {
+    secondaryLanguages: ['en'],
+  });
+  try {
+    harness.state.tsukihimeModalOpen = false;
+    harness.modal.openTsukihimeModal();
+    await flushAsyncWork();
+
+    harness.state.tsukihimeFiles = [GERMAN_TRACK, ENGLISH_TRACK, JAPANESE_TRACK];
+    harness.state.currentTsukihimeEntryId = 606713;
+
+    pressKey(harness, 'ArrowRight');
+    pressKey(harness, 'Enter');
+    await flushAsyncWork();
+
+    assert.deepEqual(harness.downloadQueries, [
+      {
+        entryId: 606713,
+        url: JAPANESE_TRACK.url,
+        name: JAPANESE_TRACK.filename,
+        lang: 'jpn',
       },
     ]);
   } finally {
@@ -386,13 +415,13 @@ test('a slow release response does not overwrite the newly selected release', as
   }
 });
 
-test('ArrowLeft switches back to the English tab', () => {
+test('ArrowLeft switches back to the secondary-language tab', () => {
   const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
   try {
     pressKey(harness, 'ArrowRight');
-    assert.equal(harness.state.tsukihimeActiveTab, 'ja');
+    assert.equal(harness.state.tsukihimeActiveTab, 'primary');
     pressKey(harness, 'ArrowLeft');
-    assert.equal(harness.state.tsukihimeActiveTab, 'en');
+    assert.equal(harness.state.tsukihimeActiveTab, 'secondary');
   } finally {
     harness.restoreGlobals();
   }
