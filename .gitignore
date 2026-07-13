@@ -61,3 +61,6 @@ tests/*
 favicon.png
 .claude/*
 !stats/public/favicon.png
+
+# Browser-automation session artifacts (page snapshots, console logs, downloads)
+.playwright-mcp/
