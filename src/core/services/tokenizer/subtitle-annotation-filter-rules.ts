@@ -101,7 +101,7 @@ export function createSubtitleAnnotationRuleContext(
   };
 }
 
-function matchesExcludedTermOrPattern(token: MergedToken, terms: readonly string[]): boolean {
+function matchesExcludedTermOrPattern(token: MergedToken, terms: ReadonlySet<string>): boolean {
   const candidates = [token.surface, token.reading, token.headword].filter(
     (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
   );
@@ -116,8 +116,8 @@ function matchesExcludedTermOrPattern(token: MergedToken, terms: readonly string
       continue;
     }
     if (
-      terms.includes(trimmed) ||
-      terms.includes(normalized) ||
+      terms.has(trimmed) ||
+      terms.has(normalized) ||
       isSubtitleGrammarEndingText(trimmed) ||
       isSubtitleGrammarEndingText(normalized) ||
       shouldIgnoreJlptByTerm(trimmed) ||
@@ -133,57 +133,56 @@ function matchesExcludedTermOrPattern(token: MergedToken, terms: readonly string
   return false;
 }
 
+export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set([
+  'あ',
+  'ああ',
+  'ある',
+  'あなた',
+  'あんた',
+  'ええ',
+  'うう',
+  'おお',
+  'おい',
+  'お前',
+  'こいつ',
+  'こっち',
+  'くれ',
+  'じゃない',
+  'そうだ',
+  'たち',
+  'である',
+  'どこか',
+  'なんか',
+  'べき',
+  'って',
+  'はあ',
+  'はぁ',
+  'はは',
+  'へえ',
+  'ふう',
+  'ほう',
+  '何か',
+  '何だ',
+  '何も',
+  '如何した',
+  '有る',
+  '在る',
+  '様',
+  '誰も',
+  '貴方',
+  'もんか',
+  'ものか',
+]);
+
 const excludedTermRule = defineRule({
   id: 'excluded-term-or-pattern',
   description:
     'Exclude legacy subtitle stop terms, grammar endings, JLPT stop terms, and kana sound effects.',
   issueRef: '#19, #33, #57',
-  data: {
-    terms: [
-      'あ',
-      'ああ',
-      'ある',
-      'あなた',
-      'あんた',
-      'ええ',
-      'うう',
-      'おお',
-      'おい',
-      'お前',
-      'こいつ',
-      'こっち',
-      'くれ',
-      'じゃない',
-      'そうだ',
-      'たち',
-      'である',
-      'どこか',
-      'なんか',
-      'べき',
-      'って',
-      'はあ',
-      'はぁ',
-      'はは',
-      'へえ',
-      'ふう',
-      'ほう',
-      '何か',
-      '何だ',
-      '何も',
-      '如何した',
-      '有る',
-      '在る',
-      '様',
-      '誰も',
-      '貴方',
-      'もんか',
-      'ものか',
-    ],
-  },
-  test: ({ token }, { terms }) => (matchesExcludedTermOrPattern(token, terms) ? 'exclude' : 'pass'),
+  data: {},
+  test: ({ token }) =>
+    matchesExcludedTermOrPattern(token, SUBTITLE_ANNOTATION_EXCLUDED_TERMS) ? 'exclude' : 'pass',
 });
-
-export const SUBTITLE_ANNOTATION_EXCLUDED_TERMS = new Set(excludedTermRule.data.terms);
 
 // Ordered, first-match-wins. issueRef records the introducing/fixing PR; early
 // rules are legacy behavior inherited from the original #19 filter.

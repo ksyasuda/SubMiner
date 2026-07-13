@@ -4,6 +4,7 @@ import { MergedToken, PartOfSpeech } from '../../../types';
 import {
   createSubtitleAnnotationRuleContext,
   shouldExcludeTokenFromSubtitleAnnotations,
+  SUBTITLE_ANNOTATION_EXCLUDED_TERMS,
   SUBTITLE_ANNOTATION_RULES,
 } from './subtitle-annotation-filter';
 import { isKanaChar } from './token-classification';
@@ -68,10 +69,49 @@ test('lexical kureru keep rule precedes and overrides the excluded-term rule', (
   );
 
   assert.ok(keepIndex >= 0 && keepIndex < termIndex);
-  assert.ok(SUBTITLE_ANNOTATION_RULES[termIndex]?.data.terms?.includes('くれ'));
+  assert.ok(SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has('くれ'));
   assert.equal(SUBTITLE_ANNOTATION_RULES[keepIndex]?.test(context), 'keep');
   assert.equal(SUBTITLE_ANNOTATION_RULES[termIndex]?.test(context), 'exclude');
   assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
+});
+
+test('adding an exported excluded term changes annotation matching', () => {
+  const term = '超語彙';
+  const token = makeToken({
+    surface: term,
+    headword: term,
+    reading: term,
+    pos1: '名詞',
+    pos2: '一般',
+  });
+
+  SUBTITLE_ANNOTATION_EXCLUDED_TERMS.delete(term);
+  try {
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
+    SUBTITLE_ANNOTATION_EXCLUDED_TERMS.add(term);
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), true);
+  } finally {
+    SUBTITLE_ANNOTATION_EXCLUDED_TERMS.delete(term);
+  }
+});
+
+test('deleting an exported excluded term changes annotation matching', () => {
+  const term = 'あなた';
+  const token = makeToken({
+    surface: term,
+    headword: term,
+    reading: term,
+    pos1: '名詞',
+    pos2: '一般',
+  });
+
+  assert.ok(SUBTITLE_ANNOTATION_EXCLUDED_TERMS.has(term));
+  try {
+    SUBTITLE_ANNOTATION_EXCLUDED_TERMS.delete(term);
+    assert.equal(shouldExcludeTokenFromSubtitleAnnotations(token), false);
+  } finally {
+    SUBTITLE_ANNOTATION_EXCLUDED_TERMS.add(term);
+  }
 });
 
 test('configured POS rules consume the context exclusion sets in table order', () => {
