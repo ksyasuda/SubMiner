@@ -92,7 +92,7 @@ export function shellQuote(value: string): string {
 
 /**
  * The shell that Windows OpenSSH hands remote commands to (cmd.exe by
- * default, PowerShell when DefaultShell is changed) — it decides quoting,
+ * default, PowerShell when DefaultShell is changed); it decides quoting,
  * environment-variable expansion, and which SubMiner install paths to probe.
  */
 export type RemoteShellFlavor = 'posix' | 'windows-cmd' | 'windows-powershell';

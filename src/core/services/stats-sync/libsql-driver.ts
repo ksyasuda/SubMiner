@@ -39,7 +39,7 @@ interface LibsqlDatabase {
 /**
  * libsql (better-sqlite3 API) SQLite connection for the stats-sync engine.
  * prepare() is not cached by libsql, so query() keeps a per-connection
- * statement cache — the merge prepares a handful of statements and runs them
+ * statement cache because the merge prepares a handful of statements and runs them
  * once per copied row, so re-preparing would dominate merge time.
  */
 export function openLibsqlSyncDb(dbPath: string, options: SyncDbOpenOptions): SyncDb {

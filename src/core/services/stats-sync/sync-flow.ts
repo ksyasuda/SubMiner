@@ -70,7 +70,7 @@ function resolveCliPath(input: string): string {
  * Prefix shared by every sync temp dir, local or remote. Remote temp dirs are
  * created and removed by the remote SubMiner itself (sync --make-temp /
  * --remove-temp) so the flow never depends on mktemp/rm existing in the
- * remote shell — that is what makes Windows remotes work.
+ * remote shell. This is what makes Windows remotes work.
  */
 const SYNC_TEMP_PREFIX = 'subminer-sync-';
 

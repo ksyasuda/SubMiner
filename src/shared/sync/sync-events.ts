@@ -1,6 +1,6 @@
 // NDJSON progress protocol emitted by `subminer sync --json` and consumed by
-// the sync UI's launcher client. Keep this file free of Electron/bun imports —
-// it is shared between the launcher (bun) and the app main process (node).
+// the sync UI's launcher client. Avoid Electron/bun imports because this file
+// is shared between the launcher (bun) and the app main process (node).
 
 export interface SyncMergeSummary {
   sessionsMerged: number;
