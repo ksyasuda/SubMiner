@@ -114,7 +114,7 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 
 `subminer sync <host> --check` verifies a host without touching any data: it probes the SSH connection, locates SubMiner on the remote (launcher or app binary), and reports its version. `--json` switches any sync mode to machine-readable NDJSON progress output (this is what the sync window consumes).
 
-`sync --make-temp` creates a restricted temporary directory and prints its path; `sync --remove-temp <dir>` removes one created by that command. They are internal SSH transfer helpers, exposed for compatibility but normally invoked only by sync itself. `SubMiner --sync-cli sync ...` is the packaged app's headless compatibility entrypoint; use `SubMiner --sync-cli --help` for its sync-specific help. The `subminer sync` launcher command selects this entrypoint automatically.
+`sync --make-temp` creates a restricted temporary directory and prints its path; `sync --remove-temp <dir>` removes one created by that command. They are internal SSH transfer helpers, exposed for compatibility but normally invoked only by sync itself. `SubMiner --sync-cli sync ...` is the packaged app's headless compatibility entrypoint; use `SubMiner --sync-cli --help` for its sync-specific help. The `subminer sync` launcher command selects this entrypoint automatically and runs AppImages in Node-only mode, so remote sync does not require a graphical session.
 
 ### Sync window
 

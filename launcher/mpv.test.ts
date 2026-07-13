@@ -119,6 +119,37 @@ test('runAppCommandCaptureOutput transports Linux AppImage args through environm
   }
 });
 
+test('runAppCommandCaptureOutput runs Linux AppImage sync in Node-only mode', () => {
+  const { dir } = createTempSocketPath();
+  const appPath = path.join(dir, 'SubMiner.AppImage');
+  fs.writeFileSync(
+    appPath,
+    [
+      '#!/bin/sh',
+      'printf "args:%s\\n" "$*"',
+      'printf "electron-node:%s\\n" "$ELECTRON_RUN_AS_NODE"',
+      'printf "argc:%s\\n" "$SUBMINER_APP_ARGC"',
+      'printf "arg0:%s\\n" "$SUBMINER_APP_ARG_0"',
+      '',
+    ].join('\n'),
+  );
+  fs.chmodSync(appPath, 0o755);
+
+  try {
+    const result = withPlatform('linux', () =>
+      runAppCommandCaptureOutput(appPath, ['--sync-cli', 'sync', '--snapshot', '/tmp/out']),
+    );
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /^args:-e /m);
+    assert.match(result.stdout, /^electron-node:1$/m);
+    assert.match(result.stdout, /^argc:4$/m);
+    assert.match(result.stdout, /^arg0:--sync-cli$/m);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('parseMpvArgString preserves empty quoted tokens', () => {
   assert.deepEqual(parseMpvArgString('--title "" --force-media-title \'\' --pause'), [
     '--title',

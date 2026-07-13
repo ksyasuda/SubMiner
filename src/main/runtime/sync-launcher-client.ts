@@ -73,6 +73,7 @@ export function runSyncLauncher(options: {
   let stderrTail = '';
   let resultEvent: Extract<SyncProgressEvent, { type: 'result' }> | null = null;
   let terminationError: string | null = null;
+  let settleAfterTerminalEvent: (() => void) | null = null;
 
   child.stdout?.on('data', (chunk) => {
     stdoutBuffer += chunk.toString();
@@ -82,7 +83,10 @@ export function runSyncLauncher(options: {
       stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
       const event = parseSyncProgressLine(line);
       if (event) {
-        if (event.type === 'result') resultEvent = event;
+        if (event.type === 'result') {
+          resultEvent = event;
+          settleAfterTerminalEvent?.();
+        }
         options.onEvent(event);
       }
       newlineIndex = stdoutBuffer.indexOf('\n');
@@ -105,6 +109,8 @@ export function runSyncLauncher(options: {
 
   const done = new Promise<SyncLauncherRunResult>((resolve) => {
     let settled = false;
+    let exitObserved = false;
+    let exitCode: number | null = null;
     const settle = (result: SyncLauncherRunResult): void => {
       if (settled) return;
       settled = true;
@@ -127,10 +133,17 @@ export function runSyncLauncher(options: {
         resultEvent?.error ?? (stderrTail.trim() || `Launcher exited with code ${code ?? 'null'}.`);
       settle({ ok: false, error });
     };
+    settleAfterTerminalEvent = () => {
+      if (exitObserved) settleFromExit(exitCode);
+    };
     // Electron descendants can retain inherited stdio pipes after the main
-    // child exits, delaying `close` indefinitely. `exit` is authoritative for
-    // process completion; keep `close` as a fallback for test/process shims.
-    child.on('exit', settleFromExit);
+    // child exits, delaying `close` indefinitely. Once terminal NDJSON has
+    // arrived, `exit` is authoritative; keep `close` as the fallback.
+    child.on('exit', (code) => {
+      exitObserved = true;
+      exitCode = code;
+      if (resultEvent) settleFromExit(code);
+    });
     child.on('close', settleFromExit);
   });
 

@@ -89,7 +89,7 @@ test('runSyncLauncher falls back to stderr when no result event arrives', async 
   assert.match(result.error ?? '', /boom/);
 });
 
-test('runSyncLauncher settles when the child exits before its stdio pipes close', async () => {
+test('runSyncLauncher settles on exit when the terminal event is already parsed', async () => {
   const { spawn, children } = makeSpawn();
   const handle = runSyncLauncher({
     command: ['subminer'],
@@ -97,6 +97,10 @@ test('runSyncLauncher settles when the child exits before its stdio pipes close'
     onEvent: () => {},
     spawn,
   });
+  children[0]!.stdout.emit(
+    'data',
+    Buffer.from('{"type":"result","ok":true,"error":null}\n'),
+  );
   children[0]!.emit('exit', 0, null);
 
   const result = await Promise.race([
@@ -104,6 +108,31 @@ test('runSyncLauncher settles when the child exits before its stdio pipes close'
     new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
   ]);
   assert.deepEqual(result, { ok: true, error: null });
+});
+
+test('runSyncLauncher waits for terminal NDJSON when exit precedes final stdout data', async () => {
+  const { spawn, children } = makeSpawn();
+  const events: SyncProgressEvent[] = [];
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--json'],
+    onEvent: (event) => events.push(event),
+    spawn,
+  });
+  const child = children[0]!;
+  let settled = false;
+  void handle.done.then(() => {
+    settled = true;
+  });
+
+  child.emit('exit', 0, null);
+  await Promise.resolve();
+  assert.equal(settled, false);
+
+  child.stdout.emit('data', Buffer.from('{"type":"result","ok":true,"error":null}\n'));
+
+  assert.deepEqual(await handle.done, { ok: true, error: null });
+  assert.deepEqual(events.at(-1), { type: 'result', ok: true, error: null });
 });
 
 test('runSyncLauncher cancel kills the child and resolves as cancelled', async () => {

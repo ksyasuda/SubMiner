@@ -1277,6 +1277,15 @@ function shouldTransportAppArgsForAppImage(appPath: string): boolean {
   return process.platform === 'linux' && /\.AppImage$/i.test(appPath);
 }
 
+const APPIMAGE_SYNC_NODE_RUNNER = [
+  'const root=process.env.APPDIR+"/resources/app.asar";',
+  'const {runSyncCliFromProcess}=require(root+"/dist/main/sync-cli.js");',
+  'const count=Number(process.env.SUBMINER_APP_ARGC);',
+  'const argv=[process.execPath,...Array.from({length:count},(_,i)=>process.env["SUBMINER_APP_ARG_"+i]??"")];',
+  'runSyncCliFromProcess(argv,require(root+"/package.json").version)',
+  '.then(code=>process.exit(code),error=>{console.error(error);process.exit(1)});',
+].join('');
+
 function buildAppEnv(
   baseEnv: NodeJS.ProcessEnv = process.env,
   extraEnv: NodeJS.ProcessEnv = {},
@@ -1432,6 +1441,16 @@ function maybeCaptureAppArgs(appArgs: string[]): boolean {
 
 function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
   if (shouldTransportAppArgsForAppImage(appPath)) {
+    if (appArgs[0] === '--sync-cli') {
+      return {
+        command: appPath,
+        args: ['-e', APPIMAGE_SYNC_NODE_RUNNER],
+        env: {
+          ...buildTransportedAppArgsEnv(appArgs),
+          ELECTRON_RUN_AS_NODE: '1',
+        },
+      };
+    }
     return {
       command: appPath,
       args: [],
