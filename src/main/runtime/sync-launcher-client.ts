@@ -75,6 +75,7 @@ export function runSyncLauncher(options: {
   let resultEvent: Extract<SyncProgressEvent, { type: 'result' }> | null = null;
   let terminationError: string | null = null;
   let settleAfterTerminalEvent: (() => void) | null = null;
+  let settleAfterTermination: (() => boolean) | null = null;
 
   child.stdout?.on('data', (chunk) => {
     stdoutBuffer += chunk.toString();
@@ -137,6 +138,11 @@ export function runSyncLauncher(options: {
     settleAfterTerminalEvent = () => {
       if (exitObserved) settleFromExit(exitCode);
     };
+    settleAfterTermination = () => {
+      if (!exitObserved) return false;
+      settleFromExit(exitCode);
+      return true;
+    };
     // Electron descendants can retain inherited stdio pipes after the main
     // child exits, delaying `close` indefinitely. Once terminal NDJSON has
     // arrived, `exit` is authoritative; keep `close` as the fallback.
@@ -153,6 +159,11 @@ export function runSyncLauncher(options: {
   const terminate = (error: string): void => {
     if (terminationError) return;
     terminationError = error;
+    // A child that already exited without terminal NDJSON is still waiting on
+    // `close`, which descendants holding inherited pipes can delay
+    // indefinitely. There is nothing left to signal, so settle now instead of
+    // leaving `done` (and the quit-time shutdown that awaits it) pending.
+    if (settleAfterTermination?.()) return;
     killTimer = setTimeout(() => {
       killTimer = null;
       try {

@@ -2247,7 +2247,9 @@ const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
   onClosed: () => {
-    if (appState.initialArgs?.syncWindow) app.quit();
+    // requestAppQuit (not app.quit) so the forced-exit fallback covers a
+    // stalled quit; a standalone sync window is the app's only reason to live.
+    if (appState.initialArgs?.syncWindow) requestAppQuit();
   },
   log: (message) => logger.error(message),
 });

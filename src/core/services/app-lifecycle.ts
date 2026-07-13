@@ -219,7 +219,11 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
       .finally(() => {
         quitCleanupPending = false;
         quitCleanupComplete = true;
-        deps.quitApp();
+        // A cleanup promise that settles in a microtask would re-quit while
+        // Electron is still unwinding the prevented quit, and that quit call
+        // is silently dropped, leaving a windowless process alive. Re-issue
+        // the quit from a fresh macrotask instead.
+        setImmediate(() => deps.quitApp());
       });
   });
 

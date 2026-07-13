@@ -165,6 +165,56 @@ test('runSyncLauncher cancel kills the child and resolves as cancelled', async (
   assert.match(result.error ?? '', /cancel/i);
 });
 
+test('runSyncLauncher cancel settles a child that already exited without a result', async () => {
+  const { spawn, children } = makeSpawn();
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--json'],
+    onEvent: () => {},
+    spawn,
+  });
+  const child = children[0]!;
+  // The child is gone, but a descendant still holds the inherited stdio pipes,
+  // so `close` never arrives.
+  child.kill = () => {
+    child.killed = true;
+    return true;
+  };
+  child.emit('exit', null, 'SIGTERM');
+
+  handle.cancel();
+
+  const result = await Promise.race([
+    handle.done,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
+  ]);
+  assert.deepEqual(result, { ok: false, error: 'Sync cancelled.' });
+  assert.equal(child.killed, false);
+});
+
+test('runSyncLauncher times out a child that already exited without a result', async () => {
+  const { spawn, children } = makeSpawn();
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--check', '--json'],
+    onEvent: () => {},
+    spawn,
+    timeoutMs: 1,
+  });
+  const child = children[0]!;
+  child.kill = () => {
+    child.killed = true;
+    return true;
+  };
+  child.emit('exit', null, 'SIGTERM');
+
+  const result = await Promise.race([
+    handle.done,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
+  ]);
+  assert.deepEqual(result, { ok: false, error: 'Sync operation timed out.' });
+});
+
 test('runSyncLauncher times out a child that never completes', async () => {
   const { spawn, children } = makeSpawn();
   const handle = runSyncLauncher({

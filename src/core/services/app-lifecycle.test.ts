@@ -168,7 +168,14 @@ test('startAppLifecycle defers quit until async cleanup settles', async () => {
   assert.ok(releaseCleanup);
   (releaseCleanup as () => void)();
   await cleanupDone;
+  // The re-quit must not fire in the microtask turn of the will-quit
+  // dispatch: Electron drops a quit issued while the prevented quit is
+  // still unwinding, leaving a windowless process alive.
   await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(calls, []);
+  await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(calls, ['quitApp']);
 });
 
