@@ -1,25 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 import type {
-  SyncHostsState,
   SyncUiAPI,
   SyncUiCheckResult,
   SyncUiHostUpdateRequest,
   SyncUiProgressPayload,
   SyncUiRunRequest,
   SyncUiSnapshot,
-  SyncUiSnapshotFile,
   SyncUiStartResult,
 } from './types/sync-ui';
 
 const syncUiAPI: SyncUiAPI = {
   getSnapshot: (): Promise<SyncUiSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiGetSnapshot),
-  saveHost: (update: SyncUiHostUpdateRequest): Promise<SyncHostsState> =>
+  saveHost: (update: SyncUiHostUpdateRequest): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiSaveHost, update),
-  removeHost: (host: string): Promise<SyncHostsState> =>
+  removeHost: (host: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRemoveHost, host),
-  setAutoSyncInterval: (minutes: number): Promise<SyncHostsState> =>
+  setAutoSyncInterval: (minutes: number): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiSetAutoSyncInterval, minutes),
   runSync: (request: SyncUiRunRequest): Promise<SyncUiStartResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRunSync, request),
@@ -30,7 +28,7 @@ const syncUiAPI: SyncUiAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiCreateSnapshot),
   mergeSnapshotFile: (path: string, force?: boolean): Promise<SyncUiStartResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiMergeSnapshotFile, path, force === true),
-  deleteSnapshot: (path: string): Promise<SyncUiSnapshotFile[]> =>
+  deleteSnapshot: (path: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiDeleteSnapshot, path),
   revealSnapshot: (path: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.syncUiRevealSnapshot, path),

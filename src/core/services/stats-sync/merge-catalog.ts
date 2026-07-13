@@ -1,4 +1,4 @@
-import { selectAll, selectOne, type SqlRow, type SyncDb } from './driver';
+import { selectAll, selectOne, type SqlRow, type SyncDb } from './libsql-driver';
 import { insertRow, tableExists, type SyncMergeSummary } from './shared';
 
 const ANIME_COPY_COLUMNS = [

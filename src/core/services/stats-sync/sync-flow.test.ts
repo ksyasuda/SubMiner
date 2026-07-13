@@ -14,7 +14,6 @@ import {
 function makeContext(overrides: Partial<SyncFlowContext['args']> = {}): SyncFlowContext {
   return {
     args: {
-      sync: true,
       syncHost: '',
       syncSnapshotPath: '',
       syncMergePath: '',
@@ -43,17 +42,12 @@ function makeDeps(overrides: Partial<SyncFlowDeps> = {}): SyncFlowDeps {
   return {
     createDbSnapshot: () => {},
     mergeSnapshotIntoDb: () => createEmptyMergeSummary(),
-    formatMergeSummary: () => 'summary',
     findLiveStatsDaemonPid: () => null,
     assertSafeSshHost: () => {},
     detectRemoteShellFlavor: () => 'posix',
     resolveRemoteSubminerCommand: () => 'subminer',
     runScp: () => {},
     runSsh: () => ok(),
-    fail: (message: string): never => {
-      throw new Error(message);
-    },
-    log: () => {},
     canConnectUnixSocket: async () => false,
     realpathSync: (candidate) => candidate,
     mkdtempSync: (prefix) => fs.mkdtempSync(prefix),
@@ -64,7 +58,6 @@ function makeDeps(overrides: Partial<SyncFlowDeps> = {}): SyncFlowDeps {
     emitEvent: () => {},
     recordHostSyncResult: () => {},
     resolveDefaultDbPath: () => '/tracker.sqlite',
-    resolvePath: (value) => value,
     ...overrides,
   };
 }
@@ -128,12 +121,9 @@ test('runSyncFlow dispatches snapshot, merge, host, and missing-target modes', a
     },
   });
 
-  assert.equal(
-    await runSyncFlow(
-      makeContext({ syncDbPath: '/tmp/local.sqlite', syncSnapshotPath: '/tmp/out.sqlite' }),
-      deps,
-    ),
-    true,
+  await runSyncFlow(
+    makeContext({ syncDbPath: '/tmp/local.sqlite', syncSnapshotPath: '/tmp/out.sqlite' }),
+    deps,
   );
   assert.ok(calls.includes('snapshot:/tmp/local.sqlite->/tmp/out.sqlite'));
   assert.ok(
@@ -154,8 +144,6 @@ test('runSyncFlow dispatches snapshot, merge, host, and missing-target modes', a
     () => runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite' }), deps),
     /sync requires a host, --snapshot <file>, or --merge <file>/,
   );
-
-  assert.equal(await runSyncFlow(makeContext({ sync: false }), deps), false);
 });
 
 function makeHostDeps(calls: string[], overrides: Partial<SyncFlowDeps> = {}): SyncFlowDeps {

@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { SYNC_CLI_FLAG } from './cli-args';
 
 export interface RemoteRunResult {
   status: number;
@@ -104,7 +105,7 @@ export type RemoteShellFlavor = 'posix' | 'windows-cmd' | 'windows-powershell';
  */
 export function detectRemoteShellFlavor(
   host: string,
-  runRemote: typeof runSsh = runSsh,
+  runRemote: (host: string, remoteCommand: string) => RemoteRunResult,
 ): RemoteShellFlavor {
   const posixProbe = runRemote(host, 'uname -s');
   if (posixProbe.status === 0 && posixProbe.stdout.trim().length > 0) return 'posix';
@@ -144,15 +145,10 @@ const REMOTE_RUNTIME_PATH =
   'PATH="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"';
 
 // The Electron app answers the same launcher-style `sync ...` argv when
-// invoked with --sync-cli, so a remote machine only needs the app installed;
-// the command-line launcher is one candidate, not a requirement.
-const APP_SYNC_CLI_FLAG = '--sync-cli';
-
-interface RemoteCandidate {
-  invocation: string;
-}
-
-function defaultRemoteCandidates(flavor: RemoteShellFlavor): RemoteCandidate[] {
+// invoked with --sync-cli (SYNC_CLI_FLAG), so a remote machine only needs the
+// app installed; the command-line launcher is one candidate, not a
+// requirement. Each candidate is the remote invocation to probe, in order.
+function defaultRemoteCandidates(flavor: RemoteShellFlavor): string[] {
   if (flavor === 'windows-cmd' || flavor === 'windows-powershell') {
     // cmd.exe expands %VAR% inside double quotes; PowerShell needs $env: and
     // the & call operator to run a quoted path.
@@ -166,30 +162,30 @@ function defaultRemoteCandidates(flavor: RemoteShellFlavor): RemoteCandidate[] {
         : `& "$env:LOCALAPPDATA\\Programs\\SubMiner\\SubMiner.exe"`;
     return [
       // Command-line launcher shim on PATH or in its default install dir.
-      { invocation: 'subminer' },
-      { invocation: launcherShim },
+      'subminer',
+      launcherShim,
       // The app binary itself in sync-CLI mode (default NSIS install dir).
-      { invocation: `${appInstall} ${APP_SYNC_CLI_FLAG}` },
-      { invocation: `SubMiner ${APP_SYNC_CLI_FLAG}` },
+      `${appInstall} ${SYNC_CLI_FLAG}`,
+      `SubMiner ${SYNC_CLI_FLAG}`,
     ];
   }
   return [
     // Command-line launcher (bun script) on PATH or in its default install dir.
-    { invocation: 'subminer' },
-    { invocation: '~/.local/bin/subminer' },
+    'subminer',
+    '~/.local/bin/subminer',
     // The app binary itself in sync-CLI mode.
-    { invocation: `SubMiner ${APP_SYNC_CLI_FLAG}` },
-    { invocation: `/Applications/SubMiner.app/Contents/MacOS/SubMiner ${APP_SYNC_CLI_FLAG}` },
-    { invocation: `~/Applications/SubMiner.app/Contents/MacOS/SubMiner ${APP_SYNC_CLI_FLAG}` },
+    `SubMiner ${SYNC_CLI_FLAG}`,
+    `/Applications/SubMiner.app/Contents/MacOS/SubMiner ${SYNC_CLI_FLAG}`,
+    `~/Applications/SubMiner.app/Contents/MacOS/SubMiner ${SYNC_CLI_FLAG}`,
   ];
 }
 
-function preferredCandidates(flavor: RemoteShellFlavor, preferred: string): RemoteCandidate[] {
+function preferredCandidates(flavor: RemoteShellFlavor, preferred: string): string[] {
   const quoted = quoteForRemoteShell(flavor, preferred);
   const invocation = flavor === 'windows-powershell' ? `& ${quoted}` : quoted;
   // App binaries also answer plain --help by opening the GUI-oriented help
   // path, so probe the sync-CLI shape first.
-  return [{ invocation: `${invocation} ${APP_SYNC_CLI_FLAG}` }, { invocation }];
+  return [`${invocation} ${SYNC_CLI_FLAG}`, invocation];
 }
 
 /**
@@ -210,8 +206,7 @@ export function resolveRemoteSubminerCommand(
     ? preferredCandidates(flavor, preferred)
     : defaultRemoteCandidates(flavor);
   for (const candidate of candidates) {
-    const command =
-      flavor === 'posix' ? `${REMOTE_RUNTIME_PATH} ${candidate.invocation}` : candidate.invocation;
+    const command = flavor === 'posix' ? `${REMOTE_RUNTIME_PATH} ${candidate}` : candidate;
     const probe = runRemote(
       host,
       flavor === 'posix' ? `${command} --help >/dev/null 2>&1` : `${command} --help`,

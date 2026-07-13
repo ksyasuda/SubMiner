@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SCHEMA_VERSION } from '../immersion-tracker/types';
-import { resolveConfigDir } from '../../../config/path-resolution';
+import { getDefaultConfigDir } from '../../../shared/setup-state';
 import { withReadonlyWalRetry } from './wal-retry';
-import { selectOne, type OpenSyncDb, type SyncDb } from './driver';
+import { openLibsqlSyncDb, selectOne, type SyncDb } from './libsql-driver';
 
 export { SCHEMA_VERSION };
 
@@ -40,7 +40,7 @@ export function tableExists(db: SyncDb, tableName: string): boolean {
   );
 }
 
-export function readSchemaVersion(db: SyncDb): number | null {
+function readSchemaVersion(db: SyncDb): number | null {
   if (!tableExists(db, 'imm_schema_version')) return null;
   const row = selectOne(db, 'SELECT MAX(schema_version) AS schema_version FROM imm_schema_version');
   return typeof row?.schema_version === 'number' ? row.schema_version : null;
@@ -78,14 +78,14 @@ export function insertRow(
   return Number(result.lastInsertRowid);
 }
 
-export function createDbSnapshot(open: OpenSyncDb, dbPath: string, outPath: string): void {
+export function createDbSnapshot(dbPath: string, outPath: string): void {
   if (!fs.existsSync(dbPath)) {
     throw new Error(`Stats database not found: ${dbPath}`);
   }
   fs.rmSync(outPath, { force: true });
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   withReadonlyWalRetry(dbPath, (options) => {
-    const db = open(dbPath, options);
+    const db = openLibsqlSyncDb(dbPath, options);
     try {
       assertMergeableSchema(db, 'Local');
       db.query('VACUUM INTO ?').run(outPath);
@@ -113,14 +113,7 @@ function isProcessAlive(pid: number): boolean {
 function statsDaemonStateCandidates(dbPath: string): string[] {
   const homeDir = os.homedir();
   const candidates = new Set<string>([path.join(path.dirname(dbPath), 'stats-daemon.json')]);
-  const configDir = resolveConfigDir({
-    platform: process.platform,
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir,
-    existsSync: fs.existsSync,
-  });
-  candidates.add(path.join(configDir, 'stats-daemon.json'));
+  candidates.add(path.join(getDefaultConfigDir(), 'stats-daemon.json'));
   if (process.platform === 'darwin') {
     candidates.add(
       path.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'stats-daemon.json'),

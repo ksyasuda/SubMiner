@@ -65,15 +65,15 @@ export interface SyncUiHostUpdateRequest {
 
 export interface SyncUiAPI {
   getSnapshot: () => Promise<SyncUiSnapshot>;
-  saveHost: (update: SyncUiHostUpdateRequest) => Promise<SyncHostsState>;
-  removeHost: (host: string) => Promise<SyncHostsState>;
-  setAutoSyncInterval: (minutes: number) => Promise<SyncHostsState>;
+  saveHost: (update: SyncUiHostUpdateRequest) => Promise<void>;
+  removeHost: (host: string) => Promise<void>;
+  setAutoSyncInterval: (minutes: number) => Promise<void>;
   runSync: (request: SyncUiRunRequest) => Promise<SyncUiStartResult>;
   cancelRun: () => Promise<boolean>;
   checkHost: (host: string) => Promise<SyncUiCheckResult>;
   createSnapshot: () => Promise<SyncUiStartResult>;
   mergeSnapshotFile: (path: string, force?: boolean) => Promise<SyncUiStartResult>;
-  deleteSnapshot: (path: string) => Promise<SyncUiSnapshotFile[]>;
+  deleteSnapshot: (path: string) => Promise<void>;
   revealSnapshot: (path: string) => Promise<boolean>;
   pickSnapshotFile: () => Promise<string | null>;
   onProgress: (listener: (payload: SyncUiProgressPayload) => void) => () => void;

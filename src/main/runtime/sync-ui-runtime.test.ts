@@ -35,7 +35,7 @@ function makeTestRig(root: string, overrides: Partial<SyncUiRuntimeDeps> = {}) {
     hostsFilePath: path.join(root, 'sync-hosts.json'),
     snapshotsDir: path.join(root, 'snapshots'),
     getDbPath: () => path.join(root, 'immersion.sqlite'),
-    resolveLauncherCommand: () => ({ command: ['subminer'], error: null }),
+    resolveLauncherCommand: () => ['subminer'],
     runLauncher: (options): SyncLauncherRunHandle => {
       let finish: (result: { ok: boolean; error: string | null }) => void = () => {};
       const done = new Promise<{ ok: boolean; error: string | null }>((resolve) => {
@@ -106,21 +106,24 @@ test('registerHandlers registers every sync-ui request channel', () =>
 
 test('save/remove host round-trips through the hosts file', () =>
   withTempDir(async (root) => {
-    const { invoke } = makeTestRig(root);
-    const saved = (await invoke('sync-ui:save-host', {
+    const { invoke, sent } = makeTestRig(root);
+    await invoke('sync-ui:save-host', {
       host: 'user@laptop',
       label: 'Laptop',
       direction: 'pull',
       autoSync: true,
-    })) as { hosts: Array<{ host: string; direction: string; autoSync: boolean }> };
-    assert.equal(saved.hosts.length, 1);
-    assert.equal(saved.hosts[0]!.direction, 'pull');
-    assert.equal(saved.hosts[0]!.autoSync, true);
-
-    const removed = (await invoke('sync-ui:remove-host', 'user@laptop')) as {
-      hosts: unknown[];
+    });
+    assert.ok(sent.some((entry) => entry.channel === 'sync-ui:state-changed'));
+    const saved = (await invoke('sync-ui:get-snapshot')) as {
+      hosts: { hosts: Array<{ host: string; direction: string; autoSync: boolean }> };
     };
-    assert.equal(removed.hosts.length, 0);
+    assert.equal(saved.hosts.hosts.length, 1);
+    assert.equal(saved.hosts.hosts[0]!.direction, 'pull');
+    assert.equal(saved.hosts.hosts[0]!.autoSync, true);
+
+    await invoke('sync-ui:remove-host', 'user@laptop');
+    const removed = (await invoke('sync-ui:get-snapshot')) as { hosts: { hosts: unknown[] } };
+    assert.equal(removed.hosts.hosts.length, 0);
   }));
 
 test('save-host rejects invalid hosts', () =>
@@ -195,7 +198,7 @@ test('create-snapshot runs the launcher with a timestamped path under the snapsh
 
 test('delete-snapshot refuses paths outside the snapshots dir', () =>
   withTempDir(async (root) => {
-    const { invoke } = makeTestRig(root);
+    const { invoke, sent } = makeTestRig(root);
     fs.mkdirSync(path.join(root, 'snapshots'), { recursive: true });
     const inside = path.join(root, 'snapshots', 'immersion-1.sqlite');
     fs.writeFileSync(inside, 'x');
@@ -203,10 +206,13 @@ test('delete-snapshot refuses paths outside the snapshots dir', () =>
     fs.writeFileSync(outside, 'x');
 
     await assert.rejects(async () => invoke('sync-ui:delete-snapshot', outside));
-    const remaining = (await invoke('sync-ui:delete-snapshot', inside)) as unknown[];
-    assert.equal(remaining.length, 0);
+    await invoke('sync-ui:delete-snapshot', inside);
     assert.equal(fs.existsSync(inside), false);
     assert.equal(fs.existsSync(outside), true);
+    // The renderer relies on the state-changed broadcast to refresh its list.
+    assert.ok(sent.some((entry) => entry.channel === 'sync-ui:state-changed'));
+    const snapshot = (await invoke('sync-ui:get-snapshot')) as { snapshots: unknown[] };
+    assert.equal(snapshot.snapshots.length, 0);
   }));
 
 test('check-host resolves with the check-result event', () =>

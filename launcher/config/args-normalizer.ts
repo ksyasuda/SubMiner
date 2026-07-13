@@ -200,17 +200,7 @@ export function createDefaultArgs(
     useRofi: false,
     history: false,
     sync: false,
-    syncHost: '',
-    syncSnapshotPath: '',
-    syncMergePath: '',
-    syncDirection: 'both',
-    syncRemoteCmd: '',
-    syncDbPath: '',
-    syncForce: false,
-    syncJson: false,
-    syncCheck: false,
-    syncMakeTemp: false,
-    syncRemoveTempPath: '',
+    syncCliTokens: [],
     syncUi: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
@@ -279,17 +269,7 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   }
   if (invocations.syncTriggered) {
     parsed.sync = true;
-    parsed.syncHost = invocations.syncHost ?? '';
-    parsed.syncSnapshotPath = invocations.syncSnapshotPath ?? '';
-    parsed.syncMergePath = invocations.syncMergePath ?? '';
-    parsed.syncDirection = invocations.syncDirection;
-    parsed.syncRemoteCmd = invocations.syncRemoteCmd ?? '';
-    parsed.syncDbPath = invocations.syncDbPath ?? '';
-    parsed.syncForce = invocations.syncForce;
-    parsed.syncJson = invocations.syncJson;
-    parsed.syncCheck = invocations.syncCheck;
-    parsed.syncMakeTemp = invocations.syncMakeTemp;
-    parsed.syncRemoveTempPath = invocations.syncRemoveTempPath ?? '';
+    parsed.syncCliTokens = invocations.syncCliTokens;
     if (invocations.syncLogLevel) parsed.logLevel = parseLogLevel(invocations.syncLogLevel);
   }
   if (invocations.syncUiTriggered) {

@@ -16,8 +16,9 @@ export function extractSyncCliTokens(argv: readonly string[]): string[] | null {
 
 /**
  * Parse launcher-style sync argv (`sync [host] [--snapshot f] ...`) for the
- * app's --sync-cli mode. Mirrors the launcher's `subminer sync` validation so
- * both entry points accept the same command lines and fail the same way.
+ * app's --sync-cli mode. This is the single owner of sync CLI validation:
+ * the launcher forwards `subminer sync` tokens verbatim, so both entry
+ * points accept the same command lines and fail the same way.
  */
 export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   if (tokens.includes('--help') || tokens.includes('-h')) return { kind: 'help' };
@@ -120,7 +121,6 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   return {
     kind: 'run',
     args: {
-      sync: true,
       syncHost: host,
       syncSnapshotPath: snapshot,
       syncMergePath: merge,

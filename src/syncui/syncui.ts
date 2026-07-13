@@ -167,8 +167,8 @@ function handleProgress(payload: SyncUiProgressPayload): void {
   } else if (event.type === 'merge-summary') {
     appendMergeSummary(event.target, summarizeMergeCounts(event.summary));
   } else if (event.type === 'result') {
+    // The run's completion handler broadcasts state-changed, which refreshes.
     showResult(event.ok, event.error);
-    void refresh();
   }
 }
 
@@ -240,7 +240,8 @@ function renderHostCard(entry: SyncHostEntry): HTMLDivElement {
     button.title = direction.title;
     button.classList.toggle('active', entry.direction === direction.id);
     button.addEventListener('click', () => {
-      void api.saveHost({ host: entry.host, direction: direction.id }).then(refreshFromState);
+      // Every mutation triggers a state-changed broadcast, which refreshes.
+      void api.saveHost({ host: entry.host, direction: direction.id });
     });
     toggle.appendChild(button);
   }
@@ -251,7 +252,7 @@ function renderHostCard(entry: SyncHostEntry): HTMLDivElement {
   autoBox.type = 'checkbox';
   autoBox.checked = entry.autoSync;
   autoBox.addEventListener('change', () => {
-    void api.saveHost({ host: entry.host, autoSync: autoBox.checked }).then(refreshFromState);
+    void api.saveHost({ host: entry.host, autoSync: autoBox.checked });
   });
   const autoText = document.createElement('span');
   autoText.textContent = 'Auto-sync';
@@ -288,7 +289,7 @@ function renderHostCard(entry: SyncHostEntry): HTMLDivElement {
   removeButton.textContent = 'Remove';
   removeButton.addEventListener('click', () => {
     if (!window.confirm(`Remove ${entry.host} from saved devices?`)) return;
-    void api.removeHost(entry.host).then(refreshFromState);
+    void api.removeHost(entry.host);
   });
   actions.append(syncButton, testButton, removeButton);
 
@@ -367,7 +368,7 @@ function renderSnapshots(): void {
       remove.textContent = 'Delete';
       remove.addEventListener('click', () => {
         if (!window.confirm(`Delete snapshot ${file.name}?`)) return;
-        void api.deleteSnapshot(file.path).then(refreshFromState);
+        void api.deleteSnapshot(file.path);
       });
       actions.append(merge, reveal, remove);
       row.append(name, meta, actions);
@@ -408,7 +409,6 @@ addHostButton.addEventListener('click', () => {
       newHostInput.value = '';
       newLabelInput.value = '';
       checkResultEl.classList.add('hidden');
-      return refresh();
     })
     .catch((error: unknown) => {
       renderCheckResult({
@@ -446,7 +446,7 @@ testHostButton.addEventListener('click', () => {
 autoIntervalInput.addEventListener('change', () => {
   const minutes = Number(autoIntervalInput.value);
   if (!Number.isFinite(minutes) || minutes < 1) return;
-  void api.setAutoSyncInterval(Math.floor(minutes)).then(refreshFromState);
+  void api.setAutoSyncInterval(Math.floor(minutes));
 });
 
 cancelButton.addEventListener('click', () => {

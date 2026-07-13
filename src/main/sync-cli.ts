@@ -1,17 +1,15 @@
 import fs from 'node:fs';
-import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
-import { parse as parseJsonc } from 'jsonc-parser';
-import { resolveConfigDir, resolveConfigFilePath } from '../config/path-resolution';
 import { getDefaultMpvSocketPath } from '../shared/mpv-socket-path';
+import { canConnectSocket } from '../shared/socket-probe';
+import { getDefaultConfigDir } from '../shared/setup-state';
 import {
   extractSyncCliTokens,
   parseSyncCliTokens,
   syncCliUsage,
 } from '../core/services/stats-sync/cli-args';
+import { resolveImmersionDbPath } from '../core/services/stats-sync/db-path';
 import { createDbSnapshot, findLiveStatsDaemonPid } from '../core/services/stats-sync/shared';
-import { formatMergeSummary, mergeSnapshotIntoDb } from '../core/services/stats-sync/merge';
+import { mergeSnapshotIntoDb } from '../core/services/stats-sync/merge';
 import {
   assertSafeSshHost,
   detectRemoteShellFlavor,
@@ -19,7 +17,6 @@ import {
   runScp,
   runSsh,
 } from '../core/services/stats-sync/ssh';
-import { openLibsqlSyncDb } from '../core/services/stats-sync/libsql-driver';
 import {
   ensureTrackerQuiescentFlow,
   runSyncFlow,
@@ -40,75 +37,13 @@ export function shouldHandleSyncCliAtEntry(
   return extractSyncCliTokens(argv) !== null;
 }
 
-function resolveAppConfigDir(): string {
-  return resolveConfigDir({
-    platform: process.platform,
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir: os.homedir(),
-    existsSync: fs.existsSync,
-  });
-}
-
-function resolveTildePath(input: string): string {
-  return input.startsWith('~') ? path.join(os.homedir(), input.slice(1)) : path.resolve(input);
-}
-
-// Same resolution as the launcher: honor a configured immersionTracking.dbPath
-// (raw config read, tolerant of comments), else <configDir>/immersion.sqlite.
-function resolveDefaultDbPath(): string {
-  const configPath = resolveConfigFilePath({
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir: os.homedir(),
-    existsSync: fs.existsSync,
-  });
-  let configured = '';
-  try {
-    const data = fs.readFileSync(configPath, 'utf8');
-    const parsed = configPath.endsWith('.jsonc') ? parseJsonc(data) : JSON.parse(data);
-    const tracking =
-      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>).immersionTracking
-        : null;
-    if (tracking && typeof tracking === 'object' && !Array.isArray(tracking)) {
-      const dbPath = (tracking as Record<string, unknown>).dbPath;
-      if (typeof dbPath === 'string') configured = dbPath.trim();
-    }
-  } catch {
-    // no config or unreadable config → default location
-  }
-  if (configured) return resolveTildePath(configured);
-  return path.join(resolveAppConfigDir(), 'immersion.sqlite');
-}
-
-async function canConnectUnixSocket(socketPath: string): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
-    const socket = net.createConnection(socketPath);
-    let settled = false;
-    const finish = (value: boolean) => {
-      if (settled) return;
-      settled = true;
-      try {
-        socket.destroy();
-      } catch {
-        // ignore
-      }
-      resolve(value);
-    };
-    socket.once('connect', () => finish(true));
-    socket.once('error', () => finish(false));
-    socket.setTimeout(400, () => finish(false));
-  });
-}
-
 function recordHostSyncResultToDisk(
   host: string,
   status: 'success' | 'error',
   detail: string | null,
 ): void {
   try {
-    const filePath = getSyncHostsPath(resolveAppConfigDir());
+    const filePath = getSyncHostsPath(getDefaultConfigDir());
     const state = recordSyncResult(readSyncHostsState(filePath), host, {
       atMs: Date.now(),
       status,
@@ -122,24 +57,15 @@ function recordHostSyncResultToDisk(
 
 function buildSyncCliDeps(): SyncFlowDeps {
   const deps: SyncFlowDeps = {
-    createDbSnapshot: (dbPath, outPath) => createDbSnapshot(openLibsqlSyncDb, dbPath, outPath),
-    mergeSnapshotIntoDb: (localDbPath, snapshotPath) =>
-      mergeSnapshotIntoDb(openLibsqlSyncDb, localDbPath, snapshotPath),
-    formatMergeSummary,
+    createDbSnapshot,
+    mergeSnapshotIntoDb,
     findLiveStatsDaemonPid,
     assertSafeSshHost,
     detectRemoteShellFlavor,
     resolveRemoteSubminerCommand,
     runScp,
     runSsh,
-    fail: (message: string): never => {
-      throw new Error(message);
-    },
-    log: (level, configured, message) => {
-      if (level === 'debug' && configured !== 'debug') return;
-      console.error(message);
-    },
-    canConnectUnixSocket,
+    canConnectUnixSocket: canConnectSocket,
     realpathSync: (candidate) => fs.realpathSync(candidate),
     mkdtempSync: (prefix) => fs.mkdtempSync(prefix),
     rmSync: (target, options) => fs.rmSync(target, options),
@@ -149,8 +75,7 @@ function buildSyncCliDeps(): SyncFlowDeps {
       ensureTrackerQuiescentFlow(context, dbPath, deps),
     emitEvent: () => {},
     recordHostSyncResult: recordHostSyncResultToDisk,
-    resolveDefaultDbPath,
-    resolvePath: resolveTildePath,
+    resolveDefaultDbPath: resolveImmersionDbPath,
   };
   return deps;
 }

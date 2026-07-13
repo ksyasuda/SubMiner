@@ -13,7 +13,7 @@ import {
   createEmptyMergeSummary,
   type SyncMergeSummary,
 } from './shared';
-import type { OpenSyncDb, SyncDb } from './driver';
+import { openLibsqlSyncDb, type SyncDb } from './libsql-driver';
 
 export type { SyncMergeSummary } from './shared';
 
@@ -25,11 +25,7 @@ export type { SyncMergeSummary } from './shared';
  * window is preserved on both sides. Idempotent: re-merging the same
  * snapshot is a no-op.
  */
-export function mergeSnapshotIntoDb(
-  open: OpenSyncDb,
-  localDbPath: string,
-  snapshotPath: string,
-): SyncMergeSummary {
+export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): SyncMergeSummary {
   if (!fs.existsSync(localDbPath)) {
     throw new Error(`Local stats database not found: ${localDbPath}`);
   }
@@ -37,10 +33,10 @@ export function mergeSnapshotIntoDb(
     throw new Error(`Snapshot database not found: ${snapshotPath}`);
   }
 
-  const remote = open(snapshotPath, { readonly: true });
+  const remote = openLibsqlSyncDb(snapshotPath, { readonly: true });
   let local: SyncDb;
   try {
-    local = open(localDbPath, { readwrite: true, create: false });
+    local = openLibsqlSyncDb(localDbPath, { create: false });
   } catch (error) {
     remote.close();
     throw error;

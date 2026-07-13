@@ -143,10 +143,20 @@ test('runSyncLauncher cancel kills the child and resolves as cancelled', async (
     onEvent: () => {},
     spawn,
   });
+  const child = children[0]!;
+  child.kill = () => {
+    child.killed = true;
+    child.emit('exit', null, 'SIGTERM');
+    return true;
+  };
   handle.cancel();
-  assert.equal(children[0]!.killed, true);
+  assert.equal(child.killed, true);
 
-  const result = await handle.done;
+  const result = await Promise.race([
+    handle.done,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
+  ]);
+  assert.ok(result);
   assert.equal(result.ok, false);
   assert.match(result.error ?? '', /cancel/i);
 });
@@ -160,12 +170,18 @@ test('runSyncLauncher times out a child that never completes', async () => {
     spawn,
     timeoutMs: 1,
   });
+  const child = children[0]!;
+  child.kill = () => {
+    child.killed = true;
+    child.emit('exit', null, 'SIGTERM');
+    return true;
+  };
 
   const result = await Promise.race([
     handle.done,
     new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
   ]);
-  assert.equal(children[0]!.killed, true);
+  assert.equal(child.killed, true);
   assert.deepEqual(result, { ok: false, error: 'Sync operation timed out.' });
 });
 
@@ -190,12 +206,11 @@ test('resolveSyncLauncherCommand self-spawns the app in --sync-cli mode', async 
     execPath: '/opt/SubMiner/subminer-app',
     appPath: null,
   });
-  assert.deepEqual(packaged.command, ['/opt/SubMiner/subminer-app', '--sync-cli']);
-  assert.equal(packaged.error, null);
+  assert.deepEqual(packaged, ['/opt/SubMiner/subminer-app', '--sync-cli']);
 
   const dev = resolveSyncLauncherCommand({
     execPath: '/usr/bin/electron',
     appPath: '/home/u/SubMiner',
   });
-  assert.deepEqual(dev.command, ['/usr/bin/electron', '/home/u/SubMiner', '--sync-cli']);
+  assert.deepEqual(dev, ['/usr/bin/electron', '/home/u/SubMiner', '--sync-cli']);
 });

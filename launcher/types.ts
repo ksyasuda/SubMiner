@@ -114,17 +114,8 @@ export interface Args {
   useRofi: boolean;
   history: boolean;
   sync: boolean;
-  syncHost: string;
-  syncSnapshotPath: string;
-  syncMergePath: string;
-  syncDirection: 'both' | 'push' | 'pull';
-  syncRemoteCmd: string;
-  syncDbPath: string;
-  syncForce: boolean;
-  syncJson: boolean;
-  syncCheck: boolean;
-  syncMakeTemp: boolean;
-  syncRemoveTempPath: string;
+  /** App-owned sync argv tokens forwarded verbatim to `--sync-cli sync`. */
+  syncCliTokens: string[];
   syncUi: boolean;
   logLevel: LogLevel;
   logRotation: LogRotation;

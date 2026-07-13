@@ -1,5 +1,16 @@
 import fs from 'node:fs';
-import type { SyncDbOpenOptions } from './driver';
+
+export interface SyncDbOpenOptions {
+  readonly?: boolean;
+  /**
+   * Read-write open. The libsql opener treats "not readonly" as read-write,
+   * but the launcher's bun:sqlite history reader passes these options straight
+   * to `new Database(...)`, where an explicit readwrite flag is what prevents
+   * bun from defaulting to readwrite+create. Keep it.
+   */
+  readwrite?: boolean;
+  create?: boolean;
+}
 
 /**
  * Opening a WAL-mode SQLite database strictly read-only fails when the -shm

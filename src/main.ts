@@ -536,6 +536,7 @@ import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-set
 import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
 import { createSyncAutoScheduler } from './main/runtime/sync-auto-scheduler';
 import { resolveSyncLauncherCommand, runSyncLauncher } from './main/runtime/sync-launcher-client';
+import { getSyncHostsPath } from './shared/sync/sync-hosts-store';
 import { shouldSuppressVisibleOverlayRaiseForSeparateWindow } from './main/runtime/settings-window-z-order';
 import {
   isSameYoutubeMediaPath,
@@ -2254,7 +2255,7 @@ const openSyncUiWindow = () => openSyncUiWindowHandler();
 
 const syncUiRuntime = createSyncUiRuntime({
   ipcMain,
-  hostsFilePath: path.join(USER_DATA_PATH, 'sync-hosts.json'),
+  hostsFilePath: getSyncHostsPath(USER_DATA_PATH),
   snapshotsDir: path.join(os.tmpdir(), 'subminer-db-snapshots'),
   getDbPath: () => {
     const configured = getResolvedConfig().immersionTracking?.dbPath?.trim();

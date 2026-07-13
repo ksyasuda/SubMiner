@@ -21,14 +21,10 @@ import type {
   SyncUiSnapshotFile,
   SyncUiStartResult,
 } from '../../types/sync-ui';
-import type {
-  SyncLauncherResolution,
-  SyncLauncherRunHandle,
-  SyncLauncherRunResult,
-} from './sync-launcher-client';
+import type { SyncLauncherRunHandle, SyncLauncherRunResult } from './sync-launcher-client';
 import { runSyncLauncher } from './sync-launcher-client';
 
-export interface SyncUiWindowLike {
+interface SyncUiWindowLike {
   isDestroyed(): boolean;
   webContents: { send(channel: string, payload?: unknown): void };
 }
@@ -40,7 +36,7 @@ export interface SyncUiRuntimeDeps {
   hostsFilePath: string;
   snapshotsDir: string;
   getDbPath: () => string;
-  resolveLauncherCommand: () => SyncLauncherResolution;
+  resolveLauncherCommand: () => string[];
   runLauncher: typeof runSyncLauncher;
   getWindow: () => SyncUiWindowLike | null;
   pickSnapshotFile: () => Promise<string | null>;
@@ -61,7 +57,7 @@ interface ActiveRun {
 
 // Milliseconds are part of the stamp so two snapshots taken in the same second
 // do not land on the same path and silently overwrite each other.
-export function formatSnapshotName(nowMs: number): string {
+function formatSnapshotName(nowMs: number): string {
   const iso = new Date(nowMs).toISOString();
   const stamp = iso.slice(0, 23).replace(/[-:.]/g, '').replace('T', '-');
   return `immersion-${stamp}.sqlite`;
@@ -85,10 +81,9 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     return readSyncHostsState(deps.hostsFilePath);
   }
 
-  function writeState(state: SyncHostsState): SyncHostsState {
+  function writeState(state: SyncHostsState): void {
     writeSyncHostsState(deps.hostsFilePath, state);
     broadcastStateChanged();
-    return state;
   }
 
   function listSnapshots(): SyncUiSnapshotFile[] {
@@ -135,23 +130,27 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     };
   }
 
-  function startRun(
+  // Shared run lifecycle: single-run mutex, launcher spawn, cleanup + state
+  // broadcast on completion. `emitProgress: false` runs silently (no renderer
+  // progress events); `onEvent` taps every NDJSON event either way.
+  function launchRun(
     kind: SyncUiRunKind,
     host: string | null,
     args: string[],
-    options: { notify?: boolean } = {},
-  ): SyncUiStartResult {
+    options: {
+      notify?: boolean;
+      timeoutMs?: number;
+      emitProgress?: boolean;
+      onEvent?: (event: SyncProgressEvent) => void;
+    } = {},
+  ): { start: SyncUiStartResult; done: Promise<SyncLauncherRunResult> | null } {
     if (currentRun) {
       return {
-        started: false,
-        runId: null,
-        reason: 'A sync operation is already running.',
+        start: { started: false, runId: null, reason: 'A sync operation is already running.' },
+        done: null,
       };
     }
-    const resolution = deps.resolveLauncherCommand();
-    if (!resolution.command) {
-      return { started: false, runId: null, reason: resolution.error };
-    }
+    const emitProgress = options.emitProgress ?? true;
     runCounter += 1;
     const runId = runCounter;
     const run: ActiveRun = {
@@ -160,11 +159,15 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
       host,
       resultSeen: false,
       handle: deps.runLauncher({
-        command: resolution.command,
+        command: deps.resolveLauncherCommand(),
         args,
+        timeoutMs: options.timeoutMs,
         onEvent: (event: SyncProgressEvent) => {
           if (event.type === 'result') run.resultSeen = true;
-          sendToWindow(IPC_CHANNELS.event.syncUiProgress, { runId, kind, host, event });
+          options.onEvent?.(event);
+          if (emitProgress) {
+            sendToWindow(IPC_CHANNELS.event.syncUiProgress, { runId, kind, host, event });
+          }
         },
         onStderr: (text) => deps.log?.(`[sync-ui] ${text.trimEnd()}`),
       }),
@@ -175,7 +178,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
         if (currentRun?.id === runId) currentRun = null;
         // If the launcher died without emitting a result event (spawn failure,
         // kill), synthesize one so the renderer can settle its progress view.
-        if (!run.resultSeen) {
+        if (emitProgress && !run.resultSeen) {
           sendToWindow(IPC_CHANNELS.event.syncUiProgress, {
             runId,
             kind,
@@ -202,7 +205,16 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
           `[sync-ui] Post-run cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
-    return { started: true, runId, reason: null };
+    return { start: { started: true, runId, reason: null }, done: run.handle.done };
+  }
+
+  function startRun(
+    kind: SyncUiRunKind,
+    host: string | null,
+    args: string[],
+    options: { notify?: boolean } = {},
+  ): SyncUiStartResult {
+    return launchRun(kind, host, args, options).start;
   }
 
   function runHostSync(request: SyncUiRunRequest, options: { notify?: boolean } = {}) {
@@ -238,57 +250,27 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     if (!isValidSyncHost(trimmed)) {
       return Promise.resolve(failed(`Invalid sync host: ${host}`));
     }
-    if (currentRun) {
-      return Promise.resolve(failed('A sync operation is already running.'));
-    }
-    const resolution = deps.resolveLauncherCommand();
-    if (!resolution.command) {
-      return Promise.resolve(failed(resolution.error ?? 'Launcher unavailable.'));
-    }
-    return new Promise((resolve) => {
-      let checkResult: SyncUiCheckResult | null = null;
-      runCounter += 1;
-      const runId = runCounter;
-      const handle = deps.runLauncher({
-        command: resolution.command!,
-        args: ['sync', trimmed, '--check', '--json'],
-        timeoutMs: 30_000,
-        onEvent: (event) => {
-          if (event.type === 'check-result') {
-            checkResult = {
-              host: event.host,
-              sshOk: event.sshOk,
-              remoteCommand: event.remoteCommand,
-              remoteVersion: event.remoteVersion,
-              ok: event.ok,
-              error: event.error,
-            };
-          }
-        },
-        onStderr: (text) => deps.log?.(`[sync-ui check] ${text.trimEnd()}`),
-      });
-      const run: ActiveRun = {
-        id: runId,
-        kind: 'check',
-        host: trimmed,
-        handle,
-        resultSeen: false,
-      };
-      currentRun = run;
-      run.completion = handle.done
-        .then((result) => {
-          if (currentRun?.id === runId) currentRun = null;
-          resolve(checkResult ?? failed(result.error ?? 'Connection check failed.'));
-          broadcastStateChanged();
-        })
-        .catch((error) => {
-          if (currentRun?.id === runId) currentRun = null;
-          resolve(failed(error instanceof Error ? error.message : String(error)));
-          deps.log?.(
-            `[sync-ui check] Cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
+    let checkResult: SyncUiCheckResult | null = null;
+    const { start, done } = launchRun('check', trimmed, ['sync', trimmed, '--check', '--json'], {
+      timeoutMs: 30_000,
+      emitProgress: false,
+      onEvent: (event) => {
+        if (event.type === 'check-result') {
+          checkResult = {
+            host: event.host,
+            sshOk: event.sshOk,
+            remoteCommand: event.remoteCommand,
+            remoteVersion: event.remoteVersion,
+            ok: event.ok,
+            error: event.error,
+          };
+        }
+      },
     });
+    if (!start.started || !done) {
+      return Promise.resolve(failed(start.reason ?? 'A sync operation is already running.'));
+    }
+    return done.then((result) => checkResult ?? failed(result.error ?? 'Connection check failed.'));
   }
 
   function createSnapshot(): SyncUiStartResult {
@@ -306,7 +288,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     return startRun('merge', null, args);
   }
 
-  function deleteSnapshot(filePath: string): SyncUiSnapshotFile[] {
+  function deleteSnapshot(filePath: string): void {
     const resolved = path.resolve(filePath);
     const dir = path.resolve(deps.snapshotsDir);
     if (resolved !== path.join(dir, path.basename(resolved)) || !resolved.endsWith('.sqlite')) {
@@ -314,7 +296,6 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     }
     fs.rmSync(resolved, { force: true });
     broadcastStateChanged();
-    return listSnapshots();
   }
 
   function cancelRun(): boolean {
@@ -333,18 +314,18 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
   function registerHandlers(): void {
     const channels = IPC_CHANNELS.request;
     deps.ipcMain.handle(channels.syncUiGetSnapshot, () => getSnapshot());
-    deps.ipcMain.handle(channels.syncUiSaveHost, (_event, update) =>
-      writeState(upsertSyncHost(readState(), update as SyncUiHostUpdateRequest, deps.nowMs())),
-    );
-    deps.ipcMain.handle(channels.syncUiRemoveHost, (_event, host) =>
-      writeState(removeSyncHost(readState(), String(host))),
-    );
+    deps.ipcMain.handle(channels.syncUiSaveHost, (_event, update) => {
+      writeState(upsertSyncHost(readState(), update as SyncUiHostUpdateRequest, deps.nowMs()));
+    });
+    deps.ipcMain.handle(channels.syncUiRemoveHost, (_event, host) => {
+      writeState(removeSyncHost(readState(), String(host)));
+    });
     deps.ipcMain.handle(channels.syncUiSetAutoSyncInterval, (_event, minutes) => {
       const value = Number(minutes);
       if (!Number.isFinite(value) || value < 1 || value > 24 * 60) {
         throw new Error('Auto-sync interval must be between 1 and 1440 minutes.');
       }
-      return writeState({ ...readState(), autoSyncIntervalMinutes: Math.floor(value) });
+      writeState({ ...readState(), autoSyncIntervalMinutes: Math.floor(value) });
     });
     deps.ipcMain.handle(channels.syncUiRunSync, (_event, request) =>
       runHostSync(request as SyncUiRunRequest),
@@ -355,9 +336,9 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
     deps.ipcMain.handle(channels.syncUiMergeSnapshotFile, (_event, filePath, force) =>
       mergeSnapshotFile(String(filePath), force === true),
     );
-    deps.ipcMain.handle(channels.syncUiDeleteSnapshot, (_event, filePath) =>
-      deleteSnapshot(String(filePath)),
-    );
+    deps.ipcMain.handle(channels.syncUiDeleteSnapshot, (_event, filePath) => {
+      deleteSnapshot(String(filePath));
+    });
     deps.ipcMain.handle(channels.syncUiRevealSnapshot, (_event, filePath) => {
       deps.revealPath(String(filePath));
       return true;

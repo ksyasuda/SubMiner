@@ -1,38 +1,12 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { Database } from 'bun:sqlite';
-import { resolveConfigDir } from '../src/config/path-resolution.js';
-import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import type { HistoryVideoRow } from './history-types.js';
-import { resolvePathMaybe } from './util.js';
+import { resolveImmersionDbPath } from '../src/core/services/stats-sync/db-path.js';
 import {
   isReadonlyWalRetryError,
   withReadonlyWalRetry,
 } from '../src/core/services/stats-sync/wal-retry.js';
 
-export { isReadonlyWalRetryError, withReadonlyWalRetry };
-
-export function resolveImmersionDbPath(): string {
-  const root = readLauncherMainConfigObject();
-  const tracking =
-    root?.immersionTracking &&
-    typeof root.immersionTracking === 'object' &&
-    !Array.isArray(root.immersionTracking)
-      ? (root.immersionTracking as Record<string, unknown>)
-      : null;
-  const configured = typeof tracking?.dbPath === 'string' ? tracking.dbPath.trim() : '';
-  if (configured) return resolvePathMaybe(configured);
-
-  const configDir = resolveConfigDir({
-    platform: process.platform,
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir: os.homedir(),
-    existsSync: fs.existsSync,
-  });
-  return path.join(configDir, 'immersion.sqlite');
-}
+export { isReadonlyWalRetryError, resolveImmersionDbPath, withReadonlyWalRetry };
 
 interface RawHistoryRow {
   video_id: number;

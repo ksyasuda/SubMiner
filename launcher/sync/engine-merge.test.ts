@@ -4,17 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Database } from 'bun:sqlite';
-import { openLibsqlSyncDb } from '../../src/core/services/stats-sync/libsql-driver.js';
-import { createDbSnapshot as createDbSnapshotWith } from '../../src/core/services/stats-sync/shared.js';
-import { mergeSnapshotIntoDb as mergeSnapshotIntoDbWith } from '../../src/core/services/stats-sync/merge.js';
-
-// The engine only executes inside the app (libsql driver) in production, so
-// these merge tests run through that same binding; bun:sqlite is used only to
-// build fixtures and inspect results.
-const createDbSnapshot = (dbPath: string, outPath: string) =>
-  createDbSnapshotWith(openLibsqlSyncDb, dbPath, outPath);
-const mergeSnapshotIntoDb = (localDbPath: string, snapshotPath: string) =>
-  mergeSnapshotIntoDbWith(openLibsqlSyncDb, localDbPath, snapshotPath);
+// The engine executes on libsql in production; these merge tests run through
+// that same driver. bun:sqlite is used only to build fixtures and inspect
+// results.
+import { createDbSnapshot } from '../../src/core/services/stats-sync/shared.js';
+import { mergeSnapshotIntoDb } from '../../src/core/services/stats-sync/merge.js';
 import {
   createImmersionDbFixture,
   insertFixtureSession,

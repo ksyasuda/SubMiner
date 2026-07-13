@@ -1,5 +1,5 @@
 import type { LexiconResolver } from './merge-catalog';
-import { selectAll, selectOne, type SqlRow, type SyncDb } from './driver';
+import { selectAll, selectOne, type SqlRow, type SyncDb } from './libsql-driver';
 import { insertRow, nowDbTimestamp, type SyncMergeSummary } from './shared';
 
 const SESSION_COPY_COLUMNS = [

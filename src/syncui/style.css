@@ -278,18 +278,6 @@ input {
   color: var(--muted);
 }
 
-.banner {
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-}
-
-.banner-warn {
-  border: 1px solid rgba(245, 169, 127, 0.4);
-  background: rgba(245, 169, 127, 0.08);
-  color: var(--warn);
-}
-
 .empty-note {
   padding: 14px 4px 4px;
   font-size: 13px;

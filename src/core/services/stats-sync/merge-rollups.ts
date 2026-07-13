@@ -1,4 +1,4 @@
-import { selectAll, type SqlRow, type SyncDb } from './driver';
+import { selectAll, type SqlRow, type SyncDb } from './libsql-driver';
 import { nowDbTimestamp, tableExists, type SyncMergeSummary } from './shared';
 
 const LOCAL_DAY_EXPR = `CAST(julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5 AS INTEGER)`;

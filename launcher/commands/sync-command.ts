@@ -1,6 +1,6 @@
+import { SYNC_CLI_FLAG } from '../../src/core/services/stats-sync/cli-args.js';
 import { fail } from '../log.js';
 import { runAppCommandInteractive } from '../mpv.js';
-import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
 
 export interface SyncCommandDeps {
@@ -13,46 +13,12 @@ const defaultSyncCommandDeps: SyncCommandDeps = {
   fail,
 };
 
-type SyncArgs = Pick<
-  Args,
-  | 'syncHost'
-  | 'syncSnapshotPath'
-  | 'syncMergePath'
-  | 'syncDirection'
-  | 'syncRemoteCmd'
-  | 'syncDbPath'
-  | 'syncForce'
-  | 'syncJson'
-  | 'syncCheck'
-  | 'syncMakeTemp'
-  | 'syncRemoveTempPath'
-  | 'logLevel'
->;
-
-/** Rebuild the app's --sync-cli argv from the launcher's parsed sync args. */
-export function buildSyncCliArgv(args: SyncArgs): string[] {
-  const argv = ['--sync-cli', 'sync'];
-  if (args.syncHost) argv.push(args.syncHost);
-  if (args.syncSnapshotPath) argv.push('--snapshot', args.syncSnapshotPath);
-  if (args.syncMergePath) argv.push('--merge', args.syncMergePath);
-  if (args.syncMakeTemp) argv.push('--make-temp');
-  if (args.syncRemoveTempPath) argv.push('--remove-temp', args.syncRemoveTempPath);
-  if (args.syncDirection === 'push') argv.push('--push');
-  if (args.syncDirection === 'pull') argv.push('--pull');
-  if (args.syncCheck) argv.push('--check');
-  if (args.syncRemoteCmd) argv.push('--remote-cmd', args.syncRemoteCmd);
-  if (args.syncDbPath) argv.push('--db', args.syncDbPath);
-  if (args.syncForce) argv.push('--force');
-  if (args.syncJson) argv.push('--json');
-  argv.push('--log-level', args.logLevel);
-  return argv;
-}
-
 /**
  * `subminer sync` is a thin proxy: the sync engine only executes inside the
- * SubMiner app (--sync-cli mode, libsql), so the launcher and the app cannot
- * drift apart. The launcher contributes its parser/help and app discovery;
- * the child owns the terminal and its exit code becomes the launcher's.
+ * SubMiner app (--sync-cli mode, libsql). The launcher contributes its
+ * parser/help and app discovery; the app's parseSyncCliTokens owns validation,
+ * so its errors reach the terminal through the child's inherited stdio. The
+ * child owns the terminal and its exit code becomes the launcher's.
  */
 export async function runSyncCommand(
   context: LauncherCommandContext,
@@ -68,6 +34,12 @@ export async function runSyncCommand(
     );
     return true; // fail() never returns; this only satisfies control-flow analysis
   }
-  deps.runAppCommand(context.appPath, buildSyncCliArgv(context.args));
+  deps.runAppCommand(context.appPath, [
+    SYNC_CLI_FLAG,
+    'sync',
+    ...context.args.syncCliTokens,
+    '--log-level',
+    context.args.logLevel,
+  ]);
   return true;
 }

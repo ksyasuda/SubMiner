@@ -39,17 +39,7 @@ export interface CliInvocations {
   statsCleanupLifetime: boolean;
   statsLogLevel: string | null;
   syncTriggered: boolean;
-  syncHost: string | null;
-  syncSnapshotPath: string | null;
-  syncMergePath: string | null;
-  syncDirection: 'both' | 'push' | 'pull';
-  syncRemoteCmd: string | null;
-  syncDbPath: string | null;
-  syncForce: boolean;
-  syncJson: boolean;
-  syncCheck: boolean;
-  syncMakeTemp: boolean;
-  syncRemoveTempPath: string | null;
+  syncCliTokens: string[];
   syncLogLevel: string | null;
   syncUiTriggered: boolean;
   syncUiLogLevel: string | null;
@@ -181,17 +171,7 @@ export function parseCliPrograms(
   let statsCleanupLifetime = false;
   let statsLogLevel: string | null = null;
   let syncTriggered = false;
-  let syncHost: string | null = null;
-  let syncSnapshotPath: string | null = null;
-  let syncMergePath: string | null = null;
-  let syncDirection: 'both' | 'push' | 'pull' = 'both';
-  let syncRemoteCmd: string | null = null;
-  let syncDbPath: string | null = null;
-  let syncForce = false;
-  let syncJson = false;
-  let syncCheck = false;
-  let syncMakeTemp = false;
-  let syncRemoveTempPath: string | null = null;
+  let syncCliTokens: string[] = [];
   let syncLogLevel: string | null = null;
   let syncUiTriggered = false;
   let syncUiLogLevel: string | null = null;
@@ -369,49 +349,25 @@ export function parseCliPrograms(
         syncUiLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
         return;
       }
-      if (push && pull) {
-        throw new Error('Sync --push and --pull cannot be combined.');
-      }
-      if ((push || pull) && !host) {
-        throw new Error('Sync --push and --pull require a host.');
-      }
-      if (check && !host) {
-        throw new Error('Sync --check requires a host.');
-      }
-      if (check && (push || pull || snapshot || merge)) {
-        throw new Error(
-          'Sync --check cannot be combined with --push, --pull, --snapshot, or --merge.',
-        );
-      }
-      if ((makeTemp || removeTemp) && (push || pull || check)) {
-        throw new Error('Sync --make-temp/--remove-temp cannot be combined with other sync options.');
-      }
-      const modes = [
-        Boolean(host),
-        Boolean(snapshot),
-        Boolean(merge),
-        makeTemp,
-        Boolean(removeTemp),
-      ].filter(Boolean).length;
-      if (modes === 0) {
-        throw new Error('Sync requires a host, --snapshot <file>, or --merge <file>.');
-      }
-      if (modes > 1) {
-        throw new Error('Sync host, --snapshot, --merge, --make-temp, and --remove-temp cannot be combined.');
-      }
+      // No validation here: the app's parseSyncCliTokens owns the sync rules
+      // and its error text reaches the terminal through the child's stdio.
+      const remoteCmd = typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() : '';
+      const dbPath = typeof options.db === 'string' ? options.db.trim() : '';
+      const tokens: string[] = [];
+      if (host) tokens.push(host);
+      if (snapshot) tokens.push('--snapshot', snapshot);
+      if (merge) tokens.push('--merge', merge);
+      if (makeTemp) tokens.push('--make-temp');
+      if (removeTemp) tokens.push('--remove-temp', removeTemp);
+      if (push) tokens.push('--push');
+      if (pull) tokens.push('--pull');
+      if (check) tokens.push('--check');
+      if (remoteCmd) tokens.push('--remote-cmd', remoteCmd);
+      if (dbPath) tokens.push('--db', dbPath);
+      if (options.force === true) tokens.push('--force');
+      if (options.json === true) tokens.push('--json');
       syncTriggered = true;
-      syncHost = host || null;
-      syncSnapshotPath = snapshot || null;
-      syncMergePath = merge || null;
-      syncDirection = push ? 'push' : pull ? 'pull' : 'both';
-      syncRemoteCmd =
-        typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
-      syncDbPath = typeof options.db === 'string' ? options.db.trim() || null : null;
-      syncForce = options.force === true;
-      syncJson = options.json === true;
-      syncCheck = check;
-      syncMakeTemp = makeTemp;
-      syncRemoveTempPath = removeTemp || null;
+      syncCliTokens = tokens;
       syncLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
@@ -527,17 +483,7 @@ export function parseCliPrograms(
       statsCleanupLifetime,
       statsLogLevel,
       syncTriggered,
-      syncHost,
-      syncSnapshotPath,
-      syncMergePath,
-      syncDirection,
-      syncRemoteCmd,
-      syncDbPath,
-      syncForce,
-      syncJson,
-      syncCheck,
-      syncMakeTemp,
-      syncRemoveTempPath,
+      syncCliTokens,
       syncLogLevel,
       syncUiTriggered,
       syncUiLogLevel,

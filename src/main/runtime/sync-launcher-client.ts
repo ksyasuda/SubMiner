@@ -26,11 +26,6 @@ export interface SyncLauncherRunHandle {
   done: Promise<SyncLauncherRunResult>;
 }
 
-export interface SyncLauncherResolution {
-  command: string[] | null;
-  error: string | null;
-}
-
 // Sync runs in a child copy of this app in headless --sync-cli mode: same
 // engine and NDJSON protocol as `subminer sync --json`, with no dependency on
 // bun or an installed command-line launcher. In dev runs process.execPath is
@@ -40,13 +35,10 @@ export function resolveSyncLauncherCommand(
     execPath?: string;
     appPath?: string | null;
   } = {},
-): SyncLauncherResolution {
+): string[] {
   const execPath = deps.execPath ?? process.execPath;
   const appPath = deps.appPath ?? null;
-  return {
-    command: appPath ? [execPath, appPath, SYNC_CLI_FLAG] : [execPath, SYNC_CLI_FLAG],
-    error: null,
-  };
+  return appPath ? [execPath, appPath, SYNC_CLI_FLAG] : [execPath, SYNC_CLI_FLAG];
 }
 
 export function runSyncLauncher(options: {
@@ -142,7 +134,7 @@ export function runSyncLauncher(options: {
     child.on('exit', (code) => {
       exitObserved = true;
       exitCode = code;
-      if (resultEvent) settleFromExit(code);
+      if (resultEvent || terminationError) settleFromExit(code);
     });
     child.on('close', settleFromExit);
   });

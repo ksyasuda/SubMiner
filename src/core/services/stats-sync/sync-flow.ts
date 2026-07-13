@@ -1,12 +1,12 @@
 import os from 'node:os';
 import path from 'node:path';
+import { formatMergeSummary } from './merge';
 import { quoteForRemoteShell } from './ssh';
 import type { RemoteRunResult, RemoteShellFlavor, RunSshOptions } from './ssh';
 import type { SyncMergeSummary, SyncProgressEvent } from '../../../shared/sync/sync-events';
 import type { SyncResultStatus } from '../../../shared/sync/sync-hosts-store';
 
 export interface SyncFlowArgs {
-  sync: boolean;
   syncHost: string;
   syncSnapshotPath: string;
   syncMergePath: string;
@@ -27,14 +27,14 @@ export interface SyncFlowContext {
 }
 
 /**
- * Everything the sync flow touches outside plain computation. The launcher
- * binds these to bun:sqlite-backed engine functions and its own logger; the
- * app's --sync-cli mode binds libsql and console output. Tests stub freely.
+ * Process/IO seams the sync flow needs stubbed in tests: SSH/scp, the DB
+ * snapshot/merge engine, filesystem, and progress/bookkeeping output. The
+ * app's --sync-cli mode (src/main/sync-cli.ts) provides the only production
+ * binding; pure helpers are imported directly.
  */
 export interface SyncFlowDeps {
   createDbSnapshot: (dbPath: string, outPath: string) => void;
   mergeSnapshotIntoDb: (localDbPath: string, snapshotPath: string) => SyncMergeSummary;
-  formatMergeSummary: (summary: SyncMergeSummary) => string;
   findLiveStatsDaemonPid: (dbPath: string) => number | null;
   assertSafeSshHost: (host: string) => void;
   detectRemoteShellFlavor: (
@@ -49,8 +49,6 @@ export interface SyncFlowDeps {
   ) => string;
   runScp: (from: string, to: string) => void;
   runSsh: (host: string, remoteCommand: string, options?: RunSshOptions) => RemoteRunResult;
-  fail: (message: string) => never;
-  log: (level: string, configuredLevel: string, message: string) => void;
   canConnectUnixSocket: (socketPath: string) => Promise<boolean>;
   realpathSync: (candidate: string) => string;
   mkdtempSync: (prefix: string) => string;
@@ -61,7 +59,11 @@ export interface SyncFlowDeps {
   emitEvent: (event: SyncProgressEvent) => void;
   recordHostSyncResult: (host: string, status: SyncResultStatus, detail: string | null) => void;
   resolveDefaultDbPath: () => string;
-  resolvePath: (value: string) => string;
+}
+
+/** Expand a leading `~` (as ssh users write paths) and make the path absolute. */
+function resolveCliPath(input: string): string {
+  return input.startsWith('~') ? path.join(os.homedir(), input.slice(1)) : path.resolve(input);
 }
 
 /**
@@ -70,14 +72,14 @@ export interface SyncFlowDeps {
  * --remove-temp) so the flow never depends on mktemp/rm existing in the
  * remote shell — that is what makes Windows remotes work.
  */
-export const SYNC_TEMP_PREFIX = 'subminer-sync-';
+const SYNC_TEMP_PREFIX = 'subminer-sync-';
 
-export function makeSyncTempDir(mkdtempSync: SyncFlowDeps['mkdtempSync']): string {
+function makeSyncTempDir(mkdtempSync: SyncFlowDeps['mkdtempSync']): string {
   return mkdtempSync(path.join(os.tmpdir(), SYNC_TEMP_PREFIX));
 }
 
 /** Only dirs directly under os.tmpdir() with the sync prefix may be removed. */
-export function assertRemovableSyncTempDir(target: string): string {
+function assertRemovableSyncTempDir(target: string): string {
   const resolved = path.resolve(target.trim());
   const normalizeCase = (value: string) =>
     process.platform === 'win32' ? value.toLowerCase() : value;
@@ -89,18 +91,18 @@ export function assertRemovableSyncTempDir(target: string): string {
   return resolved;
 }
 
-export function runMakeTempMode(deps: SyncFlowDeps): void {
+function runMakeTempMode(deps: SyncFlowDeps): void {
   deps.consoleLog(makeSyncTempDir(deps.mkdtempSync));
 }
 
-export function runRemoveTempMode(context: SyncFlowContext, deps: SyncFlowDeps): void {
+function runRemoveTempMode(context: SyncFlowContext, deps: SyncFlowDeps): void {
   const target = assertRemovableSyncTempDir(context.args.syncRemoveTempPath);
   deps.rmSync(target, { recursive: true, force: true });
 }
 
-export function resolveSyncDbPath(context: SyncFlowContext, deps: SyncFlowDeps): string {
+function resolveSyncDbPath(context: SyncFlowContext, deps: SyncFlowDeps): string {
   const override = context.args.syncDbPath.trim();
-  return override ? deps.resolvePath(override) : deps.resolveDefaultDbPath();
+  return override ? resolveCliPath(override) : deps.resolveDefaultDbPath();
 }
 
 function isTrackerDb(dbPath: string, deps: SyncFlowDeps): boolean {
@@ -123,12 +125,12 @@ export async function ensureTrackerQuiescentFlow(
   if (!isTrackerDb(dbPath, deps)) return;
   const daemonPid = deps.findLiveStatsDaemonPid(dbPath);
   if (daemonPid !== null) {
-    deps.fail(
+    throw new Error(
       `The SubMiner stats server is running (pid ${daemonPid}). Stop it with "subminer stats -s" (or close SubMiner) before syncing, or pass --force.`,
     );
   }
   if (context.mpvSocketPath && (await deps.canConnectUnixSocket(context.mpvSocketPath))) {
-    deps.fail(
+    throw new Error(
       `An mpv/SubMiner session appears to be running (socket ${context.mpvSocketPath}). Close it before syncing, or pass --force.`,
     );
   }
@@ -136,7 +138,7 @@ export async function ensureTrackerQuiescentFlow(
 
 // In --json mode every line on stdout is an NDJSON event: human console output
 // is silenced and events are written through the original console logger.
-export function withJsonEvents(deps: SyncFlowDeps): SyncFlowDeps {
+function withJsonEvents(deps: SyncFlowDeps): SyncFlowDeps {
   const writeLine = deps.consoleLog;
   return {
     ...deps,
@@ -146,13 +148,13 @@ export function withJsonEvents(deps: SyncFlowDeps): SyncFlowDeps {
   };
 }
 
-export async function runSnapshotMode(
+async function runSnapshotMode(
   context: SyncFlowContext,
   dbPath: string,
   deps: SyncFlowDeps,
 ): Promise<void> {
   await deps.ensureTrackerQuiescent(context, dbPath);
-  const outPath = deps.resolvePath(context.args.syncSnapshotPath);
+  const outPath = resolveCliPath(context.args.syncSnapshotPath);
   deps.emitEvent({
     type: 'stage',
     stage: 'snapshot-local',
@@ -163,13 +165,13 @@ export async function runSnapshotMode(
   deps.consoleLog(outPath);
 }
 
-export async function runMergeMode(
+async function runMergeMode(
   context: SyncFlowContext,
   dbPath: string,
   deps: SyncFlowDeps,
 ): Promise<void> {
   await deps.ensureTrackerQuiescent(context, dbPath);
-  const snapshotPath = deps.resolvePath(context.args.syncMergePath);
+  const snapshotPath = resolveCliPath(context.args.syncMergePath);
   deps.emitEvent({
     type: 'stage',
     stage: 'merge-local',
@@ -177,7 +179,7 @@ export async function runMergeMode(
   });
   const summary = deps.mergeSnapshotIntoDb(dbPath, snapshotPath);
   deps.emitEvent({ type: 'merge-summary', target: 'local', summary });
-  deps.consoleLog(deps.formatMergeSummary(summary));
+  deps.consoleLog(formatMergeSummary(summary));
 }
 
 function formatHostSyncDetail(
@@ -296,7 +298,9 @@ export async function runHostSync(
   const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
   const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
   const quote = (value: string) => quoteForRemoteShell(flavor, value);
-  deps.log('debug', args.logLevel, `Remote subminer command (${flavor}): ${remoteCmd}`);
+  if (args.logLevel === 'debug') {
+    console.error(`Remote subminer command (${flavor}): ${remoteCmd}`);
+  }
 
   const localTmpDir = makeSyncTempDir(deps.mkdtempSync);
   let remoteTmpDir = '';
@@ -365,7 +369,7 @@ export async function runHostSync(
       const summary = deps.mergeSnapshotIntoDb(dbPath, pulledSnapshot);
       pulledSummary = summary;
       deps.emitEvent({ type: 'merge-summary', target: 'local', summary });
-      deps.consoleLog(deps.formatMergeSummary(summary));
+      deps.consoleLog(formatMergeSummary(summary));
     }
 
     if (shouldPush) {
@@ -425,34 +429,29 @@ export async function runHostSync(
 export async function runSyncFlow(
   context: SyncFlowContext,
   inputDeps: SyncFlowDeps,
-): Promise<boolean> {
+): Promise<void> {
   let deps = inputDeps;
   const { args } = context;
-  if (!args.sync) return false;
   if (args.syncJson) deps = withJsonEvents(deps);
 
   try {
     if (args.syncMakeTemp) {
       runMakeTempMode(deps);
-      if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
-      return true;
-    }
-    if (args.syncRemoveTempPath) {
+    } else if (args.syncRemoveTempPath) {
       runRemoveTempMode(context, deps);
-      if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
-      return true;
-    }
-    const dbPath = resolveSyncDbPath(context, deps);
-    if (args.syncCheck) {
-      await runCheckMode(context, deps);
-    } else if (args.syncSnapshotPath) {
-      await runSnapshotMode(context, dbPath, deps);
-    } else if (args.syncMergePath) {
-      await runMergeMode(context, dbPath, deps);
-    } else if (args.syncHost) {
-      await runHostSync(context, dbPath, deps);
     } else {
-      deps.fail('sync requires a host, --snapshot <file>, or --merge <file>.');
+      const dbPath = resolveSyncDbPath(context, deps);
+      if (args.syncCheck) {
+        await runCheckMode(context, deps);
+      } else if (args.syncSnapshotPath) {
+        await runSnapshotMode(context, dbPath, deps);
+      } else if (args.syncMergePath) {
+        await runMergeMode(context, dbPath, deps);
+      } else if (args.syncHost) {
+        await runHostSync(context, dbPath, deps);
+      } else {
+        throw new Error('sync requires a host, --snapshot <file>, or --merge <file>.');
+      }
     }
   } catch (error) {
     if (args.syncJson) {
@@ -465,5 +464,4 @@ export async function runSyncFlow(
     throw error;
   }
   if (args.syncJson) deps.emitEvent({ type: 'result', ok: true, error: null });
-  return true;
 }
