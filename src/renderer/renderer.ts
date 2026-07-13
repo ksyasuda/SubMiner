@@ -25,6 +25,7 @@ import type {
   SubsyncManualPayload,
   ConfigHotReloadPayload,
 } from '../types';
+import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import { createKeyboardHandlers } from './handlers/keyboard.js';
 import { createGamepadController } from './handlers/gamepad-controller.js';
 import { createMouseHandlers } from './handlers/mouse.js';
@@ -53,6 +54,7 @@ import {
 } from './overlay-notifications.js';
 import { createOverlayNotificationHistoryPanel } from './overlay-notification-history.js';
 import { createRendererState } from './state.js';
+import { createModalRegistry, type ModalDescriptor } from './modal-registry.js';
 import { createSubtitleRenderer } from './subtitle-render.js';
 import { isYomitanPopupVisible, registerYomitanLookupListener } from './yomitan-popup.js';
 import {
@@ -74,36 +76,89 @@ const ctx = {
   state: createRendererState(),
 };
 
+const modalDescriptors = [
+  {
+    id: 'controller-select',
+    isOpen: () => ctx.state.controllerSelectModalOpen,
+    close: () => controllerSelectModal.closeControllerSelectModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'controller-debug',
+    isOpen: () => ctx.state.controllerDebugModalOpen,
+    close: () => controllerDebugModal.closeControllerDebugModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'subtitle-sidebar',
+    isOpen: () => ctx.state.subtitleSidebarModalOpen,
+    close: () => subtitleSidebarModal.closeSubtitleSidebarModal(),
+    suppressesSubtitles: false,
+  },
+  {
+    id: 'jimaku',
+    isOpen: () => ctx.state.jimakuModalOpen,
+    close: () => jimakuModal.closeJimakuModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'animetosho',
+    isOpen: () => ctx.state.animetoshoModalOpen,
+    close: () => animetoshoModal.closeAnimetoshoModal(),
+    suppressesSubtitles: false,
+  },
+  {
+    id: 'youtube-track-picker',
+    isOpen: () => ctx.state.youtubePickerModalOpen,
+    close: () => youtubePickerModal.closeYoutubePickerModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'playlist-browser',
+    isOpen: () => ctx.state.playlistBrowserModalOpen,
+    close: () => playlistBrowserModal.closePlaylistBrowserModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'kiku',
+    isOpen: () => ctx.state.kikuModalOpen,
+    close: () => kikuModal.cancelKikuFieldGrouping(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'runtime-options',
+    isOpen: () => ctx.state.runtimeOptionsModalOpen,
+    close: () => runtimeOptionsModal.closeRuntimeOptionsModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'character-dictionary',
+    isOpen: () => ctx.state.characterDictionaryModalOpen,
+    close: () => characterDictionaryModal.closeCharacterDictionaryModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'subsync',
+    isOpen: () => ctx.state.subsyncModalOpen,
+    close: () => subsyncModal.closeSubsyncModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'session-help',
+    isOpen: () => ctx.state.sessionHelpModalOpen,
+    close: () => sessionHelpModal.closeSessionHelpModal(),
+    suppressesSubtitles: true,
+  },
+] satisfies readonly ModalDescriptor<OverlayHostedModal>[];
+
+const modalRegistry = createModalRegistry(modalDescriptors);
+
 function isAnySettingsModalOpen(): boolean {
-  return (
-    ctx.state.controllerSelectModalOpen ||
-    ctx.state.controllerDebugModalOpen ||
-    ctx.state.runtimeOptionsModalOpen ||
-    ctx.state.characterDictionaryModalOpen ||
-    ctx.state.subsyncModalOpen ||
-    ctx.state.kikuModalOpen ||
-    ctx.state.jimakuModalOpen ||
-    ctx.state.youtubePickerModalOpen ||
-    ctx.state.sessionHelpModalOpen ||
-    ctx.state.playlistBrowserModalOpen
-  );
+  return modalRegistry.isAnySuppressingSubtitlesOpen();
 }
 
 function isAnyModalOpen(): boolean {
-  return (
-    ctx.state.controllerSelectModalOpen ||
-    ctx.state.controllerDebugModalOpen ||
-    ctx.state.jimakuModalOpen ||
-    ctx.state.animetoshoModalOpen ||
-    ctx.state.kikuModalOpen ||
-    ctx.state.runtimeOptionsModalOpen ||
-    ctx.state.characterDictionaryModalOpen ||
-    ctx.state.subsyncModalOpen ||
-    ctx.state.youtubePickerModalOpen ||
-    ctx.state.sessionHelpModalOpen ||
-    ctx.state.playlistBrowserModalOpen ||
-    ctx.state.subtitleSidebarModalOpen
-  );
+  return modalRegistry.isAnyOpen();
 }
 
 function isControllerInputBlocked(): boolean {
@@ -251,59 +306,12 @@ function getSubtitleTextForPreview(data: SubtitleData | string): string {
   return '';
 }
 
-function getActiveModal(): string | null {
-  if (ctx.state.controllerSelectModalOpen) return 'controller-select';
-  if (ctx.state.controllerDebugModalOpen) return 'controller-debug';
-  if (ctx.state.subtitleSidebarModalOpen) return 'subtitle-sidebar';
-  if (ctx.state.jimakuModalOpen) return 'jimaku';
-  if (ctx.state.youtubePickerModalOpen) return 'youtube-track-picker';
-  if (ctx.state.playlistBrowserModalOpen) return 'playlist-browser';
-  if (ctx.state.kikuModalOpen) return 'kiku';
-  if (ctx.state.runtimeOptionsModalOpen) return 'runtime-options';
-  if (ctx.state.characterDictionaryModalOpen) return 'character-dictionary';
-  if (ctx.state.subsyncModalOpen) return 'subsync';
-  if (ctx.state.sessionHelpModalOpen) return 'session-help';
-  return null;
+function getActiveModal(): OverlayHostedModal | null {
+  return modalRegistry.getActive();
 }
 
 function dismissActiveUiAfterError(): void {
-  if (ctx.state.controllerSelectModalOpen) {
-    controllerSelectModal.closeControllerSelectModal();
-  }
-  if (ctx.state.controllerDebugModalOpen) {
-    controllerDebugModal.closeControllerDebugModal();
-  }
-  if (ctx.state.subtitleSidebarModalOpen) {
-    subtitleSidebarModal.closeSubtitleSidebarModal();
-  }
-  if (ctx.state.jimakuModalOpen) {
-    jimakuModal.closeJimakuModal();
-  }
-  if (ctx.state.animetoshoModalOpen) {
-    animetoshoModal.closeAnimetoshoModal();
-  }
-  if (ctx.state.youtubePickerModalOpen) {
-    youtubePickerModal.closeYoutubePickerModal();
-  }
-  if (ctx.state.playlistBrowserModalOpen) {
-    playlistBrowserModal.closePlaylistBrowserModal();
-  }
-  if (ctx.state.runtimeOptionsModalOpen) {
-    runtimeOptionsModal.closeRuntimeOptionsModal();
-  }
-  if (ctx.state.characterDictionaryModalOpen) {
-    characterDictionaryModal.closeCharacterDictionaryModal();
-  }
-  if (ctx.state.subsyncModalOpen) {
-    subsyncModal.closeSubsyncModal();
-  }
-  if (ctx.state.kikuModalOpen) {
-    kikuModal.cancelKikuFieldGrouping();
-  }
-  if (ctx.state.sessionHelpModalOpen) {
-    sessionHelpModal.closeSessionHelpModal();
-  }
-
+  modalRegistry.dismissOpen();
   syncSettingsModalSubtitleSuppression();
 }
 
