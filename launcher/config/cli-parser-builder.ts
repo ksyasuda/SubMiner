@@ -340,6 +340,8 @@ export function parseCliPrograms(
           check ||
           makeTemp ||
           removeTemp ||
+          options.remoteCmd !== undefined ||
+          options.db !== undefined ||
           options.json === true ||
           options.force === true
         ) {

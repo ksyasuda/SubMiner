@@ -87,7 +87,10 @@ test('parseCliPrograms lowers sync options into app-owned CLI tokens', () => {
   const makeTemp = parseCliPrograms(['sync', '--make-temp'], 'subminer');
   assert.deepEqual(makeTemp.invocations.syncCliTokens, ['--make-temp']);
 
-  const removeTemp = parseCliPrograms(['sync', '--remove-temp', '/tmp/subminer-sync-x'], 'subminer');
+  const removeTemp = parseCliPrograms(
+    ['sync', '--remove-temp', '/tmp/subminer-sync-x'],
+    'subminer',
+  );
   assert.deepEqual(removeTemp.invocations.syncCliTokens, ['--remove-temp', '/tmp/subminer-sync-x']);
 });
 
@@ -111,4 +114,17 @@ test('parseCliPrograms captures sync --ui', () => {
     () => parseCliPrograms(['sync', 'media-box', '--ui'], 'subminer'),
     /--ui cannot be combined/,
   );
+});
+
+test('parseCliPrograms rejects sync --ui with --remote-cmd', () => {
+  assert.throws(
+    () => parseCliPrograms(['sync', '--ui', '--remote-cmd', '/opt/SubMiner.AppImage'], 'subminer'),
+    { message: 'Sync --ui cannot be combined with other sync options.' },
+  );
+});
+
+test('parseCliPrograms rejects sync --ui with --db', () => {
+  assert.throws(() => parseCliPrograms(['sync', '--ui', '--db', '/tmp/db.sqlite'], 'subminer'), {
+    message: 'Sync --ui cannot be combined with other sync options.',
+  });
 });
