@@ -215,7 +215,18 @@ export async function tsukihimeFetchJson<T>(
 ): Promise<TsukihimeApiResponse<T>> {
   // Concatenate instead of new URL(endpoint, base): the API base ends in a
   // path segment (/v1) that URL resolution would drop for absolute endpoints.
-  const url = new URL(`${options.baseUrl.replace(/\/+$/, '')}${endpoint}`);
+  // baseUrl comes from user config, so a bad value must not throw here.
+  let url: URL;
+  try {
+    url = new URL(`${options.baseUrl.replace(/\/+$/, '')}${endpoint}`);
+  } catch {
+    logger.error(`Invalid TsukiHime API base URL: ${options.baseUrl}`);
+    return { ok: false, error: { error: 'Invalid TsukiHime API base URL.' } };
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    logger.error(`Unsupported TsukiHime API protocol: ${url.protocol}`);
+    return { ok: false, error: { error: 'TsukiHime API URL must use HTTP or HTTPS.' } };
+  }
   for (const [key, value] of Object.entries(query)) {
     if (value === null || value === undefined) continue;
     url.searchParams.set(key, String(value));

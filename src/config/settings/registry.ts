@@ -422,7 +422,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('mpv.') || path.startsWith('youtube.')) {
     return { category: 'behavior', section: topSection(path) };
   }
-  if (path.startsWith('jimaku.')) {
+  if (path.startsWith('jimaku.') || path.startsWith('tsukihime.')) {
     return { category: 'integrations', section: topSection(path) };
   }
   if (path.startsWith('subsync.')) {
@@ -486,6 +486,7 @@ function topSection(path: string): string {
     notifications: 'Notifications',
     subsync: 'Subtitle Sync',
     texthooker: 'Texthooker',
+    tsukihime: 'TsukiHime',
     updates: 'Updates',
     websocket: 'WebSocket server',
     yomitan: 'Yomitan',

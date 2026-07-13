@@ -254,8 +254,8 @@ function M.create(ctx)
 			return { "--open-runtime-options" }
 		elseif action_id == "openJimaku" then
 			return { "--open-jimaku" }
-		elseif action_id == "openAnimetosho" then
-			return { "--open-animetosho" }
+		elseif action_id == "openTsukihime" then
+			return { "--open-tsukihime" }
 		elseif action_id == "openYoutubePicker" then
 			return { "--open-youtube-picker" }
 		elseif action_id == "openSessionHelp" then

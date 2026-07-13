@@ -117,3 +117,19 @@ test('tsukihimeFetchJson still parses a normal response', async () => {
     await server.close();
   }
 });
+
+test('tsukihimeFetchJson reports a structured error for a malformed base URL', async () => {
+  const result = await tsukihimeFetchJson('/search/torrents', {}, { baseUrl: 'not a url' });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.error, /base url/i);
+  }
+});
+
+test('tsukihimeFetchJson rejects non-HTTP(S) base URLs', async () => {
+  const result = await tsukihimeFetchJson('/search/torrents', {}, { baseUrl: 'file:///etc' });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.error, /http/i);
+  }
+});
