@@ -89,6 +89,23 @@ test('runSyncLauncher falls back to stderr when no result event arrives', async 
   assert.match(result.error ?? '', /boom/);
 });
 
+test('runSyncLauncher settles when the child exits before its stdio pipes close', async () => {
+  const { spawn, children } = makeSpawn();
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--check', '--json'],
+    onEvent: () => {},
+    spawn,
+  });
+  children[0]!.emit('exit', 0, null);
+
+  const result = await Promise.race([
+    handle.done,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
+  ]);
+  assert.deepEqual(result, { ok: true, error: null });
+});
+
 test('runSyncLauncher cancel kills the child and resolves as cancelled', async () => {
   const { spawn, children } = makeSpawn();
   const handle = runSyncLauncher({
@@ -103,6 +120,24 @@ test('runSyncLauncher cancel kills the child and resolves as cancelled', async (
   const result = await handle.done;
   assert.equal(result.ok, false);
   assert.match(result.error ?? '', /cancel/i);
+});
+
+test('runSyncLauncher times out a child that never completes', async () => {
+  const { spawn, children } = makeSpawn();
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--check', '--json'],
+    onEvent: () => {},
+    spawn,
+    timeoutMs: 1,
+  });
+
+  const result = await Promise.race([
+    handle.done,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
+  ]);
+  assert.equal(children[0]!.killed, true);
+  assert.deepEqual(result, { ok: false, error: 'Sync operation timed out.' });
 });
 
 test('runSyncLauncher surfaces spawn errors', async () => {

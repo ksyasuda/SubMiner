@@ -9,6 +9,7 @@ import { createSyncUiRuntime, type SyncUiRuntimeDeps } from './sync-ui-runtime';
 
 interface LauncherCall {
   args: string[];
+  timeoutMs: number | undefined;
   onEvent: (event: SyncProgressEvent) => void;
   finish: (result: { ok: boolean; error: string | null }) => void;
   cancelled: boolean;
@@ -42,6 +43,7 @@ function makeTestRig(root: string, overrides: Partial<SyncUiRuntimeDeps> = {}) {
       });
       const call: LauncherCall = {
         args: options.args,
+        timeoutMs: options.timeoutMs,
         onEvent: options.onEvent,
         finish,
         cancelled: false,
@@ -216,6 +218,7 @@ test('check-host resolves with the check-result event', () =>
     }>;
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(launcherCalls[0]!.args, ['sync', 'media-box', '--check', '--json']);
+    assert.equal(launcherCalls[0]!.timeoutMs, 30_000);
     launcherCalls[0]!.onEvent({
       type: 'check-result',
       host: 'media-box',

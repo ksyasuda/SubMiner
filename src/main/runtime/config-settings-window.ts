@@ -13,6 +13,7 @@ export interface OpenConfigSettingsWindowDeps<TWindow extends ConfigSettingsWind
   createSettingsWindow(): TWindow;
   settingsHtmlPath: string;
   promoteSettingsWindowAboveOverlay?: (window: TWindow) => void;
+  onClosed?: () => void;
   log?: (message: string) => void;
 }
 
@@ -42,6 +43,7 @@ export function createOpenConfigSettingsWindowHandler<TWindow extends ConfigSett
     deps.setSettingsWindow(window);
     window.on('closed', () => {
       deps.setSettingsWindow(null);
+      deps.onClosed?.();
     });
     showAndFocus(window);
     return true;

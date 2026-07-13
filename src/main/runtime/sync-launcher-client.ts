@@ -9,6 +9,7 @@ export interface SyncLauncherChildLike {
   stdout: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
   stderr: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
   on(event: 'close', listener: (code: number | null, signal: string | null) => void): unknown;
+  on(event: 'exit', listener: (code: number | null, signal: string | null) => void): unknown;
   on(event: 'error', listener: (error: Error) => void): unknown;
   kill(signal?: NodeJS.Signals): boolean;
 }
@@ -54,6 +55,7 @@ export function runSyncLauncher(options: {
   onEvent: (event: SyncProgressEvent) => void;
   onStderr?: (text: string) => void;
   spawn?: SyncLauncherSpawn;
+  timeoutMs?: number;
 }): SyncLauncherRunHandle {
   const spawn =
     options.spawn ??
@@ -70,7 +72,7 @@ export function runSyncLauncher(options: {
   let stdoutBuffer = '';
   let stderrTail = '';
   let resultEvent: Extract<SyncProgressEvent, { type: 'result' }> | null = null;
-  let cancelled = false;
+  let terminationError: string | null = null;
 
   child.stdout?.on('data', (chunk) => {
     stdoutBuffer += chunk.toString();
@@ -92,19 +94,29 @@ export function runSyncLauncher(options: {
     options.onStderr?.(text);
   });
 
+  let killTimer: ReturnType<typeof setTimeout> | null = null;
+  let operationTimer: ReturnType<typeof setTimeout> | null = null;
+  const clearTimers = (): void => {
+    if (killTimer !== null) clearTimeout(killTimer);
+    if (operationTimer !== null) clearTimeout(operationTimer);
+    killTimer = null;
+    operationTimer = null;
+  };
+
   const done = new Promise<SyncLauncherRunResult>((resolve) => {
     let settled = false;
     const settle = (result: SyncLauncherRunResult): void => {
       if (settled) return;
       settled = true;
+      clearTimers();
       resolve(result);
     };
     child.on('error', (error) => {
       settle({ ok: false, error: error.message });
     });
-    child.on('close', (code) => {
-      if (cancelled) {
-        settle({ ok: false, error: 'Sync cancelled.' });
+    const settleFromExit = (code: number | null) => {
+      if (terminationError) {
+        settle({ ok: false, error: terminationError });
         return;
       }
       if (code === 0) {
@@ -114,39 +126,42 @@ export function runSyncLauncher(options: {
       const error =
         resultEvent?.error ?? (stderrTail.trim() || `Launcher exited with code ${code ?? 'null'}.`);
       settle({ ok: false, error });
-    });
+    };
+    // Electron descendants can retain inherited stdio pipes after the main
+    // child exits, delaying `close` indefinitely. `exit` is authoritative for
+    // process completion; keep `close` as a fallback for test/process shims.
+    child.on('exit', settleFromExit);
+    child.on('close', settleFromExit);
   });
 
-  // A sync child blocked on an ssh password prompt ignores SIGTERM, so escalate
-  // to SIGKILL if it is still alive after a grace period. The timer is cleared
-  // on close so a cancelled run cannot hold the process open.
-  let killTimer: ReturnType<typeof setTimeout> | null = null;
-  const clearKillTimer = (): void => {
-    if (killTimer === null) return;
-    clearTimeout(killTimer);
-    killTimer = null;
-  };
-  child.on('close', clearKillTimer);
-
-  return {
-    cancel: () => {
-      if (cancelled) return;
-      cancelled = true;
+  // A sync child blocked on an ssh password prompt may ignore SIGTERM, so
+  // escalate to SIGKILL after a grace period.
+  const terminate = (error: string): void => {
+    if (terminationError) return;
+    terminationError = error;
+    killTimer = setTimeout(() => {
+      killTimer = null;
       try {
-        child.kill('SIGTERM');
+        child.kill('SIGKILL');
       } catch {
         // process may already be gone
       }
-      killTimer = setTimeout(() => {
-        killTimer = null;
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          // process may already be gone
-        }
-      }, CANCEL_GRACE_MS);
-      killTimer.unref?.();
-    },
+    }, CANCEL_GRACE_MS);
+    killTimer.unref?.();
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      // process may already be gone
+    }
+  };
+
+  if (options.timeoutMs !== undefined) {
+    operationTimer = setTimeout(() => terminate('Sync operation timed out.'), options.timeoutMs);
+    operationTimer.unref?.();
+  }
+
+  return {
+    cancel: () => terminate('Sync cancelled.'),
     done,
   };
 }

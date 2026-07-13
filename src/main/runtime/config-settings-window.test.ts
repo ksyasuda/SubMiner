@@ -45,13 +45,14 @@ test('createOpenConfigSettingsWindowHandler creates window and clears closed sta
     createSettingsWindow: () => created,
     settingsHtmlPath: '/tmp/settings.html',
     promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
+    onClosed: () => calls.push('on-closed'),
   });
 
   assert.equal(open(), true);
   assert.deepEqual(calls, ['load:/tmp/settings.html', 'set:window', 'show', 'focus', 'promote']);
   assert.ok(handlers.closed);
   handlers.closed();
-  assert.equal(calls.at(-1), 'set:null');
+  assert.deepEqual(calls.slice(-2), ['set:null', 'on-closed']);
 });
 
 test('createOpenConfigSettingsWindowHandler clears failed load window state', async () => {

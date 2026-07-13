@@ -351,11 +351,17 @@ test('runHostSync records host sync results for saved-host bookkeeping', async (
 
 test('runCheckMode --json reports ssh and remote SubMiner status', async () => {
   const lines: string[] = [];
+  const sshOptions: unknown[] = [];
   const deps = makeDeps({
     consoleLog: (line) => {
       lines.push(line);
     },
-    runSsh: (_host, command) => {
+    resolveRemoteSubminerCommand: (host, _preferred, _flavor, runRemote) => {
+      runRemote!(host, 'subminer --help');
+      return 'subminer';
+    },
+    runSsh: (_host, command, options) => {
+      sshOptions.push(options);
       if (command.includes('--version')) return ok('SubMiner 0.18.0\n');
       return ok('subminer-check-ok\n');
     },
@@ -380,6 +386,14 @@ test('runCheckMode --json reports ssh and remote SubMiner status', async () => {
   assert.equal(check.remoteVersion, 'SubMiner 0.18.0');
   assert.equal(check.ok, true);
   assert.equal(check.error, null);
+  assert.equal(sshOptions.length, 3);
+  assert.ok(
+    sshOptions.every(
+      (options) =>
+        JSON.stringify(options) ===
+        JSON.stringify({ batchMode: true, connectTimeoutSeconds: 10, timeoutMs: 15_000 }),
+    ),
+  );
 
   const failLines: string[] = [];
   await assert.rejects(() =>

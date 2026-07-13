@@ -172,7 +172,7 @@ SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin corre
 SubMiner.AppImage --help                  # Show all options
 ```
 
-`--check` performs connection and version checks without changing data. `--json` emits the NDJSON event protocol used by the sync window. `--ui` opens that window. `--make-temp` and `--remove-temp` are internal remote-transfer helpers and should normally be left to SubMiner. The packaged app's `--sync-cli` flag selects its headless sync-compatible entrypoint; the `subminer sync` launcher command proxies to it automatically.
+`--check` performs connection and version checks without changing data. `--json` emits the NDJSON event protocol used by the sync window. `--ui` opens that window in a detached app process and returns the shell immediately; closing a standalone-launched Sync window exits that app instance. `--make-temp` and `--remove-temp` are internal remote-transfer helpers and should normally be left to SubMiner. The packaged app's `--sync-cli` flag selects its headless sync-compatible entrypoint; the `subminer sync` launcher command proxies to it automatically.
 
 The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL query strings. The exported copy is sanitized; source log files remain unredacted on disk.
 

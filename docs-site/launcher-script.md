@@ -118,7 +118,7 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 
 ### Sync window
 
-`subminer sync --ui` (or **Sync Stats & History** in the tray menu) opens a dedicated window for the same engine:
+`subminer sync --ui` opens a dedicated window for the same engine in a detached app process, returning the shell immediately. Closing that standalone-launched window exits its app instance. Opening **Sync Stats & History** from the tray keeps the resident app running when the window closes:
 
 - **Devices** — saved hosts with a per-host direction (two-way / push / pull), an auto-sync toggle, last-sync status, and one-click **Sync now** / **Test** / **Remove**. Hosts synced from the command line appear here automatically.
 - **Add a device** — test SSH + remote SubMiner availability before saving, with a setup checklist for first-time SSH configuration.

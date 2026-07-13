@@ -30,7 +30,7 @@ import {
 } from './main/runtime/first-run-setup-plugin';
 import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/windows-mpv-launch';
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
-import { runSyncCliFromProcess, shouldHandleSyncCliAtEntry } from './main/sync-cli';
+import { handleSyncCliAtEntry } from './main/sync-cli';
 import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
 import {
@@ -224,11 +224,7 @@ async function forwardStartupArgvViaAppControlIfAvailable(): Promise<boolean> {
 async function runEntryProcess(): Promise<void> {
   // Headless sync CLI: must run first (its own --help/--version handling) and
   // exit before app.whenReady() so it works over SSH with no display server.
-  if (shouldHandleSyncCliAtEntry(process.argv, process.env)) {
-    const exitCode = await runSyncCliFromProcess(process.argv, app.getVersion());
-    app.exit(exitCode);
-    return;
-  }
+  if (await handleSyncCliAtEntry(process.argv, process.env, app.getVersion())) return;
 
   if (shouldHandleHelpOnlyAtEntry(process.argv, process.env)) {
     const sanitizedEnv = sanitizeHelpEnv(process.env);

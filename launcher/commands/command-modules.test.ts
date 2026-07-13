@@ -206,7 +206,7 @@ test('app command starts default macOS background app detached from launcher', (
     runAppCommandWithInherit: () => {
       calls.push('attached');
     },
-    runAppCommandInteractive: () => calls.push('interactive'),
+    launchSyncUiDetached: () => calls.push('sync-ui'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -226,7 +226,7 @@ test('app command starts default Linux background app detached from launcher', (
     runAppCommandWithInherit: () => {
       calls.push('attached');
     },
-    runAppCommandInteractive: () => calls.push('interactive'),
+    launchSyncUiDetached: () => calls.push('sync-ui'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -247,7 +247,7 @@ test('app command keeps explicit passthrough args attached', () => {
     runAppCommandWithInherit: (_appPath, appArgs) => {
       forwarded.push(appArgs);
     },
-    runAppCommandInteractive: () => detached.push('interactive'),
+    launchSyncUiDetached: () => detached.push('sync-ui'),
     launchAppBackgroundDetached: () => {
       detached.push('detached');
     },
@@ -258,19 +258,19 @@ test('app command keeps explicit passthrough args attached', () => {
   assert.deepEqual(detached, []);
 });
 
-test('sync UI command attaches the app directly to the terminal', () => {
+test('sync UI command launches the app detached from the terminal', () => {
   const context = createContext();
   context.args.syncUi = true;
   const calls: string[] = [];
 
   const handled = runAppPassthroughCommand(context, {
     runAppCommandWithInherit: () => calls.push('piped'),
-    runAppCommandInteractive: (_appPath, appArgs) => calls.push(`direct:${appArgs.join(' ')}`),
+    launchSyncUiDetached: (appPath, logLevel) => calls.push(`sync-ui:${appPath}:${logLevel}`),
     launchAppBackgroundDetached: () => calls.push('detached'),
   });
 
   assert.equal(handled, true);
-  assert.deepEqual(calls, ['direct:--sync-window']);
+  assert.deepEqual(calls, ['sync-ui:/tmp/subminer.app:warn']);
 });
 
 test('mpv pre-app command exits non-zero when socket is not ready', async () => {

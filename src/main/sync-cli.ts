@@ -10,10 +10,7 @@ import {
   parseSyncCliTokens,
   syncCliUsage,
 } from '../core/services/stats-sync/cli-args';
-import {
-  createDbSnapshot,
-  findLiveStatsDaemonPid,
-} from '../core/services/stats-sync/shared';
+import { createDbSnapshot, findLiveStatsDaemonPid } from '../core/services/stats-sync/shared';
 import { formatMergeSummary, mergeSnapshotIntoDb } from '../core/services/stats-sync/merge';
 import {
   assertSafeSshHost,
@@ -28,9 +25,17 @@ import {
   runSyncFlow,
   type SyncFlowDeps,
 } from '../core/services/stats-sync/sync-flow';
-import { recordSyncResult, readSyncHostsState, writeSyncHostsState, getSyncHostsPath } from '../shared/sync/sync-hosts-store';
+import {
+  recordSyncResult,
+  readSyncHostsState,
+  writeSyncHostsState,
+  getSyncHostsPath,
+} from '../shared/sync/sync-hosts-store';
 
-export function shouldHandleSyncCliAtEntry(argv: readonly string[], env: NodeJS.ProcessEnv): boolean {
+export function shouldHandleSyncCliAtEntry(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv,
+): boolean {
   if (env.ELECTRON_RUN_AS_NODE === '1') return false;
   return extractSyncCliTokens(argv) !== null;
 }
@@ -187,4 +192,24 @@ export async function runSyncCliFromProcess(
     console.error(error instanceof Error ? error.message : String(error));
     return 1;
   }
+}
+
+export async function handleSyncCliAtEntry(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv,
+  appVersion: string,
+  deps: {
+    run: typeof runSyncCliFromProcess;
+    exit: (code: number) => void;
+  } = {
+    run: runSyncCliFromProcess,
+    exit: (code) => process.exit(code),
+  },
+): Promise<boolean> {
+  if (!shouldHandleSyncCliAtEntry(argv, env)) return false;
+  const exitCode = await deps.run(argv, appVersion);
+  // This path runs before app readiness and must not call app.exit(): on Linux
+  // that can throw and make the entrypoint fall back to full GUI startup.
+  deps.exit(exitCode);
+  return true;
 }

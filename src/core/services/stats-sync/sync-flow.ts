@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { quoteForRemoteShell } from './ssh';
-import type { RemoteRunResult, RemoteShellFlavor } from './ssh';
+import type { RemoteRunResult, RemoteShellFlavor, RunSshOptions } from './ssh';
 import type { SyncMergeSummary, SyncProgressEvent } from '../../../shared/sync/sync-events';
 import type { SyncResultStatus } from '../../../shared/sync/sync-hosts-store';
 
@@ -45,9 +45,10 @@ export interface SyncFlowDeps {
     host: string,
     preferred: string | null,
     flavor: RemoteShellFlavor,
+    runRemote?: (host: string, remoteCommand: string) => RemoteRunResult,
   ) => string;
   runScp: (from: string, to: string) => void;
-  runSsh: (host: string, remoteCommand: string) => RemoteRunResult;
+  runSsh: (host: string, remoteCommand: string, options?: RunSshOptions) => RemoteRunResult;
   fail: (message: string) => never;
   log: (level: string, configuredLevel: string, message: string) => void;
   canConnectUnixSocket: (socketPath: string) => Promise<boolean>;
@@ -198,17 +199,28 @@ export async function runCheckMode(context: SyncFlowContext, deps: SyncFlowDeps)
   let remoteVersion: string | null = null;
   let error: string | null = null;
 
-  const probe = deps.runSsh(host, 'echo subminer-check-ok');
+  const runCheck = (checkHost: string, command: string) =>
+    deps.runSsh(checkHost, command, {
+      batchMode: true,
+      connectTimeoutSeconds: 10,
+      timeoutMs: 15_000,
+    });
+  const probe = runCheck(host, 'echo subminer-check-ok');
   const sshOk = probe.status === 0 && probe.stdout.includes('subminer-check-ok');
   if (!sshOk) {
     error = formatRemoteRunError(`Could not reach ${host} over SSH.`, probe);
   } else {
     deps.consoleLog('SSH connection: ok');
     try {
-      const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
+      const flavor = deps.detectRemoteShellFlavor(host, runCheck);
       if (flavor !== 'posix') deps.consoleLog(`Remote platform: Windows (${flavor})`);
-      remoteCommand = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
-      const version = deps.runSsh(host, `${remoteCommand} --version`);
+      remoteCommand = deps.resolveRemoteSubminerCommand(
+        host,
+        args.syncRemoteCmd || null,
+        flavor,
+        runCheck,
+      );
+      const version = runCheck(host, `${remoteCommand} --version`);
       remoteVersion = version.status === 0 ? version.stdout.trim() || null : null;
       deps.consoleLog(
         `Remote subminer: ${remoteCommand}${remoteVersion ? ` (${remoteVersion})` : ''}`,

@@ -2245,6 +2245,9 @@ const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  onClosed: () => {
+    if (appState.initialArgs?.syncWindow) app.quit();
+  },
   log: (message) => logger.error(message),
 });
 const openSyncUiWindow = () => openSyncUiWindowHandler();

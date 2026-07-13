@@ -6,6 +6,12 @@ export interface RemoteRunResult {
   stderr: string;
 }
 
+export interface RunSshOptions {
+  batchMode?: boolean;
+  connectTimeoutSeconds?: number;
+  timeoutMs?: number;
+}
+
 /**
  * ssh/scp have no `--` terminator for the destination, so a host that starts
  * with `-` (e.g. `-oProxyCommand=...`) is parsed as an option. Reject those
@@ -22,11 +28,22 @@ export function assertSafeSshHost(host: string): void {
  * can still read from the terminal; stdout/stderr are captured for callers
  * that need actionable remote failure messages.
  */
-export function runSsh(host: string, remoteCommand: string): RemoteRunResult {
+export function runSsh(
+  host: string,
+  remoteCommand: string,
+  options: RunSshOptions = {},
+): RemoteRunResult {
   assertSafeSshHost(host);
-  const result = spawnSync('ssh', [host, remoteCommand], {
+  const args: string[] = [];
+  if (options.batchMode) args.push('-o', 'BatchMode=yes');
+  if (options.connectTimeoutSeconds !== undefined) {
+    args.push('-o', `ConnectTimeout=${options.connectTimeoutSeconds}`);
+  }
+  args.push(host, remoteCommand);
+  const result = spawnSync('ssh', args, {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'pipe'],
+    timeout: options.timeoutMs,
   });
   if (result.error) {
     throw new Error(`Failed to run ssh: ${(result.error as Error).message}`);

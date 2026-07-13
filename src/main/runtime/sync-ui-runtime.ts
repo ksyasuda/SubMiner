@@ -252,6 +252,7 @@ export function createSyncUiRuntime(deps: SyncUiRuntimeDeps) {
       const handle = deps.runLauncher({
         command: resolution.command!,
         args: ['sync', trimmed, '--check', '--json'],
+        timeoutMs: 30_000,
         onEvent: (event) => {
           if (event.type === 'check-result') {
             checkResult = {
