@@ -1,9 +1,16 @@
 import { spawn as nodeSpawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import { parseSyncProgressLine, type SyncProgressEvent } from '../../shared/sync/sync-events';
 import { SYNC_CLI_FLAG } from '../../core/services/stats-sync/cli-args';
 
 /** How long a cancelled sync child gets to exit on SIGTERM before SIGKILL. */
 const CANCEL_GRACE_MS = 5000;
+
+/**
+ * How long a child that exited without terminal NDJSON gets to flush its
+ * remaining stdout before the exit is treated as authoritative.
+ */
+const EXIT_DRAIN_MS = 2000;
 
 export interface SyncLauncherChildLike {
   stdout: { on(event: 'data', listener: (chunk: Buffer | string) => void): unknown } | null;
@@ -77,8 +84,16 @@ export function runSyncLauncher(options: {
   let settleAfterTerminalEvent: (() => void) | null = null;
   let settleAfterTermination: (() => boolean) | null = null;
 
+  // Decode incrementally: a multibyte character can straddle a chunk boundary,
+  // and a per-chunk toString() would corrupt it (sync payloads carry Japanese
+  // media titles and error detail).
+  const stdoutDecoder = new StringDecoder('utf8');
+  const stderrDecoder = new StringDecoder('utf8');
+  const decodeChunk = (decoder: StringDecoder, chunk: Buffer | string): string =>
+    typeof chunk === 'string' ? chunk : decoder.write(chunk);
+
   child.stdout?.on('data', (chunk) => {
-    stdoutBuffer += chunk.toString();
+    stdoutBuffer += decodeChunk(stdoutDecoder, chunk);
     let newlineIndex = stdoutBuffer.indexOf('\n');
     while (newlineIndex !== -1) {
       const line = stdoutBuffer.slice(0, newlineIndex);
@@ -95,18 +110,21 @@ export function runSyncLauncher(options: {
     }
   });
   child.stderr?.on('data', (chunk) => {
-    const text = chunk.toString();
+    const text = decodeChunk(stderrDecoder, chunk);
     stderrTail = `${stderrTail}${text}`.slice(-4000);
     options.onStderr?.(text);
   });
 
   let killTimer: ReturnType<typeof setTimeout> | null = null;
   let operationTimer: ReturnType<typeof setTimeout> | null = null;
+  let drainTimer: ReturnType<typeof setTimeout> | null = null;
   const clearTimers = (): void => {
     if (killTimer !== null) clearTimeout(killTimer);
     if (operationTimer !== null) clearTimeout(operationTimer);
+    if (drainTimer !== null) clearTimeout(drainTimer);
     killTimer = null;
     operationTimer = null;
+    drainTimer = null;
   };
 
   const done = new Promise<SyncLauncherRunResult>((resolve) => {
@@ -149,7 +167,18 @@ export function runSyncLauncher(options: {
     child.on('exit', (code) => {
       exitObserved = true;
       exitCode = code;
-      if (resultEvent || terminationError) settleFromExit(code);
+      if (resultEvent || terminationError) {
+        settleFromExit(code);
+        return;
+      }
+      // No terminal event yet: stdout may still be flushing, so give it a
+      // bounded window rather than waiting on a `close` that retained pipes
+      // can withhold forever.
+      drainTimer = setTimeout(() => {
+        drainTimer = null;
+        settleFromExit(code);
+      }, EXIT_DRAIN_MS);
+      drainTimer.unref?.();
     });
     child.on('close', settleFromExit);
   });

@@ -55,6 +55,52 @@ test('runSyncLauncher parses NDJSON events across chunk boundaries', async () =>
   assert.deepEqual(result, { ok: true, error: null });
 });
 
+test('runSyncLauncher preserves multibyte characters split across chunks', async () => {
+  const { spawn, children } = makeSpawn();
+  const events: SyncProgressEvent[] = [];
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--json'],
+    onEvent: (event) => events.push(event),
+    spawn,
+  });
+
+  const child = children[0]!;
+  const line = Buffer.from('{"type":"result","ok":false,"error":"進捗の同期に失敗"}\n');
+  // Split mid-character: the boundary lands inside a multibyte code point.
+  const boundary = line.indexOf(Buffer.from('進')) + 1;
+  child.stdout.emit('data', line.subarray(0, boundary));
+  child.stdout.emit('data', line.subarray(boundary));
+  child.emit('close', 1, null);
+
+  const result = await handle.done;
+  assert.deepEqual(events.at(-1), {
+    type: 'result',
+    ok: false,
+    error: '進捗の同期に失敗',
+  });
+  assert.equal(result.error, '進捗の同期に失敗');
+});
+
+test('runSyncLauncher settles after exit when close never arrives', async () => {
+  const { spawn, children } = makeSpawn();
+  const handle = runSyncLauncher({
+    command: ['subminer'],
+    args: ['sync', 'media-box', '--json'],
+    onEvent: () => {},
+    spawn,
+  });
+  const child = children[0]!;
+  child.stderr.emit('data', Buffer.from('[ERROR] remote refused\n'));
+  // The child is gone, but a descendant still holds the inherited stdio pipes,
+  // so `close` never fires.
+  child.emit('exit', 1, null);
+
+  const result = await handle.done;
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? '', /remote refused/);
+});
+
 test('runSyncLauncher reports failures with the result event error or stderr tail', async () => {
   const { spawn, children } = makeSpawn();
   const handle = runSyncLauncher({
@@ -213,6 +259,7 @@ test('runSyncLauncher times out a child that already exited without a result', a
     new Promise<null>((resolve) => setTimeout(() => resolve(null), 25)),
   ]);
   assert.deepEqual(result, { ok: false, error: 'Sync operation timed out.' });
+  assert.equal(child.killed, false);
 });
 
 test('runSyncLauncher times out a child that never completes', async () => {
