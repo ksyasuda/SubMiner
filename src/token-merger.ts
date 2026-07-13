@@ -20,6 +20,7 @@ import { PartOfSpeech, Token, MergedToken } from './types';
 import { DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG } from './token-pos1-exclusions';
 import { DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG } from './token-pos2-exclusions';
 import { shouldExcludeTokenFromSubtitleAnnotations } from './core/services/tokenizer/subtitle-annotation-filter';
+import { isContentTokenByPos, isKanaChar } from './core/services/tokenizer/token-classification';
 
 export function isNoun(tok: Token): boolean {
   return tok.partOfSpeech === PartOfSpeech.noun;
@@ -261,48 +262,11 @@ const SENTENCE_BOUNDARY_SURFACES = new Set(['。', '？', '！', '?', '!', '…'
 const N_PLUS_ONE_IGNORED_POS1 = new Set(DEFAULT_ANNOTATION_POS1_EXCLUSION_CONFIG.defaults);
 const N_PLUS_ONE_IGNORED_POS2 = new Set(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG.defaults);
 
-function normalizePos1Tag(pos1: string | undefined): string {
-  return typeof pos1 === 'string' ? pos1.trim() : '';
-}
-
-function normalizePos2Tag(pos2: string | undefined): string {
-  return typeof pos2 === 'string' ? pos2.trim() : '';
-}
-
-function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
-  if (!normalizedTag) {
-    return false;
-  }
-  const parts = normalizedTag
-    .split('|')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-  if (parts.length === 0) {
-    return false;
-  }
-  return parts.every((part) => exclusions.has(part));
-}
-
-function isKanaChar(char: string): boolean {
-  const code = char.codePointAt(0);
-  if (code === undefined) {
-    return false;
-  }
-
-  return (
-    (code >= 0x3041 && code <= 0x3096) ||
-    (code >= 0x309b && code <= 0x309f) ||
-    code === 0x30fc ||
-    (code >= 0x30a0 && code <= 0x30fa) ||
-    (code >= 0x30fd && code <= 0x30ff)
-  );
-}
-
 function isKanaCandidateIgnorableChar(char: string): boolean {
   return /^[\s.,!?;:()[\]{}"'`、。！？…‥・「」『』（）［］｛｝〈〉《》【】―-]$/u.test(char);
 }
 
-function isKanaOnlyText(text: string): boolean {
+function isKanaCandidateText(text: string): boolean {
   const normalized = text.trim();
   if (normalized.length === 0) {
     return false;
@@ -334,7 +298,7 @@ export function isNPlusOneCandidateToken(
   if (token.isKnown) {
     return false;
   }
-  if (isKanaOnlyText(token.surface)) {
+  if (isKanaCandidateText(token.surface)) {
     return false;
   }
   return isNPlusOneWordCountToken(token, pos1Exclusions, pos2Exclusions);
@@ -349,25 +313,7 @@ function isNPlusOneWordCountToken(
     return false;
   }
 
-  const normalizedPos1 = normalizePos1Tag(token.pos1);
-  const hasPos1 = normalizedPos1.length > 0;
-  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
-    return false;
-  }
-
-  const normalizedPos2 = normalizePos2Tag(token.pos2);
-  const hasPos2 = normalizedPos2.length > 0;
-  if (isExcludedByTagSet(normalizedPos2, pos2Exclusions)) {
-    return false;
-  }
-
-  if (
-    !hasPos1 &&
-    !hasPos2 &&
-    (token.partOfSpeech === PartOfSpeech.particle ||
-      token.partOfSpeech === PartOfSpeech.bound_auxiliary ||
-      token.partOfSpeech === PartOfSpeech.symbol)
-  ) {
+  if (!isContentTokenByPos(token, pos1Exclusions, pos2Exclusions)) {
     return false;
   }
 

@@ -6,13 +6,16 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../../token-pos2-exclusions';
-import { MergedToken, PartOfSpeech } from '../../../types';
+import { MergedToken } from '../../../types';
 import { shouldIgnoreJlptByTerm } from '../jlpt-token-filter';
 import { isSubtitleGrammarEndingText } from './grammar-ending';
-
-const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
-const KATAKANA_CODEPOINT_START = 0x30a1;
-const KATAKANA_CODEPOINT_END = 0x30f6;
+import {
+  isContentTokenByPos,
+  isKanaChar,
+  isKanaOnlyText,
+  normalizeKana,
+  splitPosTag,
+} from './token-classification';
 
 const STANDALONE_GRAMMAR_PARTICLE_PHRASES = ['たって', 'だって'] as const;
 const STANDALONE_GRAMMAR_PARTICLE_PHRASES_SET: ReadonlySet<string> = new Set(
@@ -97,30 +100,6 @@ export interface SubtitleAnnotationFilterOptions {
   pos2Exclusions?: ReadonlySet<string>;
 }
 
-function normalizePosTag(pos: string | undefined): string {
-  return typeof pos === 'string' ? pos.trim() : '';
-}
-
-function splitNormalizedTagParts(normalizedTag: string): string[] {
-  if (!normalizedTag) {
-    return [];
-  }
-
-  return normalizedTag
-    .split('|')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-}
-
-function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
-  const parts = splitNormalizedTagParts(normalizedTag);
-  if (parts.length === 0) {
-    return false;
-  }
-
-  return parts.every((part) => exclusions.has(part));
-}
-
 function resolvePos1Exclusions(options: SubtitleAnnotationFilterOptions = {}): ReadonlySet<string> {
   if (options.pos1Exclusions) {
     return options.pos1Exclusions;
@@ -135,85 +114,6 @@ function resolvePos2Exclusions(options: SubtitleAnnotationFilterOptions = {}): R
   }
 
   return resolveAnnotationPos2ExclusionSet(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG);
-}
-
-function hasKanjiChar(text: string): boolean {
-  for (const char of text) {
-    const code = char.codePointAt(0);
-    if (code === undefined) {
-      continue;
-    }
-    if (
-      (code >= 0x3400 && code <= 0x4dbf) ||
-      (code >= 0x4e00 && code <= 0x9fff) ||
-      (code >= 0xf900 && code <= 0xfaff)
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// Kanji-bearing non-independent nouns (日, 方, 上, …) are real vocabulary that
-// Yomitan segments as standalone tokens; MeCab's 非自立 tag exists to suppress
-// kana grammar nouns (こと, もの, とき) and must not hide these.
-export function isKanjiNonIndependentNounToken(
-  token: MergedToken,
-  pos1Exclusions: ReadonlySet<string>,
-): boolean {
-  if (pos1Exclusions.has('名詞')) {
-    return false;
-  }
-
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
-  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
-  if (pos1Parts.length !== 1 || pos2Parts.length !== 1) {
-    return false;
-  }
-  if (pos1Parts[0] !== '名詞' || pos2Parts[0] !== '非自立') {
-    return false;
-  }
-
-  return hasKanjiChar(token.surface) || hasKanjiChar(token.headword);
-}
-
-function normalizeKana(text: string): string {
-  const raw = text.trim();
-  if (!raw) {
-    return '';
-  }
-
-  let normalized = '';
-  for (const char of raw) {
-    const code = char.codePointAt(0);
-    if (code === undefined) {
-      continue;
-    }
-
-    if (code >= KATAKANA_CODEPOINT_START && code <= KATAKANA_CODEPOINT_END) {
-      normalized += String.fromCodePoint(code - KATAKANA_TO_HIRAGANA_OFFSET);
-      continue;
-    }
-
-    normalized += char;
-  }
-
-  return normalized;
-}
-
-function isKanaChar(char: string): boolean {
-  const code = char.codePointAt(0);
-  if (code === undefined) {
-    return false;
-  }
-
-  return (
-    (code >= 0x3041 && code <= 0x3096) ||
-    (code >= 0x309b && code <= 0x309f) ||
-    code === 0x30fc ||
-    (code >= 0x30a0 && code <= 0x30fa) ||
-    (code >= 0x30fd && code <= 0x30ff)
-  );
 }
 
 function isTrailingSmallTsuKanaSfx(text: string): boolean {
@@ -286,7 +186,7 @@ function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   if (pos1Parts.length < 2) {
     return false;
   }
@@ -300,7 +200,7 @@ function isExcludedTrailingParticleMergedToken(token: MergedToken): boolean {
 }
 
 function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   if (
     pos1Parts.length === 0 ||
     !pos1Parts.every((part) => AUXILIARY_STEM_GRAMMAR_TAIL_POS1.has(part))
@@ -308,7 +208,7 @@ function isAuxiliaryStemGrammarTailToken(token: MergedToken): boolean {
     return false;
   }
 
-  const pos3Parts = splitNormalizedTagParts(normalizePosTag(token.pos3));
+  const pos3Parts = splitPosTag(token.pos3);
   return pos3Parts.includes('助動詞語幹');
 }
 
@@ -324,12 +224,12 @@ function isKanaOnlyNonIndependentNounHelperMerge(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   if (pos1Parts.length < 2 || pos1Parts[0] !== '名詞') {
     return false;
   }
 
-  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  const pos2Parts = splitPosTag(token.pos2);
   if (pos2Parts[0] !== '非自立') {
     return false;
   }
@@ -337,16 +237,11 @@ function isKanaOnlyNonIndependentNounHelperMerge(token: MergedToken): boolean {
   return pos1Parts.slice(1).every((part) => NON_INDEPENDENT_NOUN_HELPER_TAIL_POS1.has(part));
 }
 
-function isKanaOnlyText(text: string): boolean {
-  const normalized = normalizeKana(text);
-  return normalized.length > 0 && [...normalized].every(isKanaChar);
-}
-
 function isLexicalKureruVerb(token: MergedToken): boolean {
   const normalizedSurface = normalizeKana(token.surface);
   const normalizedHeadword = normalizeKana(token.headword);
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
-  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  const pos1Parts = splitPosTag(token.pos1);
+  const pos2Parts = splitPosTag(token.pos2);
   return (
     normalizedSurface === 'くれ' &&
     normalizedHeadword === 'くれる' &&
@@ -363,7 +258,7 @@ function isStandaloneAuxiliaryInflectionFragment(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   if (pos1Parts.length === 0) {
     return false;
   }
@@ -372,7 +267,7 @@ function isStandaloneAuxiliaryInflectionFragment(token: MergedToken): boolean {
     return true;
   }
 
-  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  const pos2Parts = splitPosTag(token.pos2);
   return (
     pos1Parts[0] === '動詞' &&
     pos2Parts[0] === '接尾' &&
@@ -387,7 +282,7 @@ function isAuxiliaryOnlyHelperSpan(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   if (
     pos1Parts.length === 0 ||
     !pos1Parts.every((part) => AUXILIARY_HELPER_SPAN_POS1.has(part)) ||
@@ -397,7 +292,7 @@ function isAuxiliaryOnlyHelperSpan(token: MergedToken): boolean {
     return false;
   }
 
-  const pos2Parts = splitNormalizedTagParts(normalizePosTag(token.pos2));
+  const pos2Parts = splitPosTag(token.pos2);
   return !pos2Parts.some((part) => LEXICAL_VERB_POS2.has(part));
 }
 
@@ -408,7 +303,7 @@ function isStandaloneSuruTeGrammarHelper(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePosTag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   return (
     isKanaOnlyText(normalizedSurface) && (pos1Parts.length === 0 || pos1Parts.includes('動詞'))
   );
@@ -483,29 +378,7 @@ export function shouldExcludeTokenFromSubtitleAnnotations(
 
   const pos1Exclusions = resolvePos1Exclusions(options);
   const pos2Exclusions = resolvePos2Exclusions(options);
-  const normalizedPos1 = normalizePosTag(token.pos1);
-  const normalizedPos2 = normalizePosTag(token.pos2);
-  const hasPos1 = normalizedPos1.length > 0;
-  const hasPos2 = normalizedPos2.length > 0;
-
-  if (isExcludedByTagSet(normalizedPos1, pos1Exclusions)) {
-    return true;
-  }
-
-  if (
-    isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
-    !isKanjiNonIndependentNounToken(token, pos1Exclusions)
-  ) {
-    return true;
-  }
-
-  if (
-    !hasPos1 &&
-    !hasPos2 &&
-    (token.partOfSpeech === PartOfSpeech.particle ||
-      token.partOfSpeech === PartOfSpeech.bound_auxiliary ||
-      token.partOfSpeech === PartOfSpeech.symbol)
-  ) {
+  if (!isContentTokenByPos(token, pos1Exclusions, pos2Exclusions)) {
     return true;
   }
 

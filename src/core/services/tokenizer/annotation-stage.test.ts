@@ -1563,6 +1563,7 @@ test('annotateTokens keeps frequency for unknown non-independent kanji noun toke
   );
 
   assert.equal(result[0]?.isKnown, false);
+  assert.equal(result[0]?.isNPlusOneTarget, true);
   assert.equal(result[0]?.frequencyRank, 718);
   assert.equal(result[0]?.jlptLevel, 'N4');
 });
