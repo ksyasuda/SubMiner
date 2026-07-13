@@ -25,6 +25,7 @@ import {
   requestYomitanTermFrequencies,
 } from './tokenizer/yomitan-parser-runtime';
 import type { YomitanTermFrequency } from './tokenizer/yomitan-parser-runtime';
+import { isKanaChar } from './tokenizer/token-classification';
 
 const logger = createLogger('main:tokenizer');
 
@@ -320,20 +321,6 @@ function normalizePositiveFrequencyRank(value: unknown): number | null {
 
 function normalizeFrequencyLookupText(rawText: string): string {
   return rawText.trim().toLowerCase();
-}
-
-function isKanaChar(char: string): boolean {
-  const code = char.codePointAt(0);
-  if (code === undefined) {
-    return false;
-  }
-  return (
-    (code >= 0x3041 && code <= 0x3096) ||
-    (code >= 0x309b && code <= 0x309f) ||
-    code === 0x30fc ||
-    (code >= 0x30a0 && code <= 0x30fa) ||
-    (code >= 0x30fd && code <= 0x30ff)
-  );
 }
 
 function getTrailingKanaSuffix(surface: string): string {

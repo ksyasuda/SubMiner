@@ -1,5 +1,6 @@
 import { MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
 import { isStandaloneGrammarEndingText } from './grammar-ending';
+import { isKanaChar, isKanaOnlyText } from './token-classification';
 
 interface YomitanParseHeadword {
   term?: unknown;
@@ -39,21 +40,6 @@ function resolveKnownWordText(
   matchMode: NPlusOneMatchMode,
 ): string {
   return matchMode === 'surface' ? surface : headword;
-}
-
-function isKanaChar(char: string): boolean {
-  const code = char.codePointAt(0);
-  if (code === undefined) {
-    return false;
-  }
-
-  return (
-    (code >= 0x3041 && code <= 0x3096) ||
-    (code >= 0x309b && code <= 0x309f) ||
-    code === 0x30fc ||
-    (code >= 0x30a0 && code <= 0x30fa) ||
-    (code >= 0x30fd && code <= 0x30ff)
-  );
 }
 
 function isYomitanParseLine(value: unknown): value is YomitanParseLine {
@@ -136,10 +122,6 @@ function selectMergedHeadword(
     return '';
   }
   return firstHeadword;
-}
-
-function isKanaOnlyText(text: string): boolean {
-  return text.length > 0 && Array.from(text).every((char) => isKanaChar(char));
 }
 
 function isStandaloneGrammarEndingSegment(segment: YomitanParseSegment): boolean {

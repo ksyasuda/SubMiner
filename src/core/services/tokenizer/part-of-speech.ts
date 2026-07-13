@@ -1,8 +1,5 @@
 import { PartOfSpeech } from '../../../types';
-
-function normalizePosTag(value: string | null | undefined): string {
-  return typeof value === 'string' ? value.trim() : '';
-}
+import { normalizePosTag, splitPosTag } from './token-classification';
 
 export function isPartOfSpeechValue(value: unknown): value is PartOfSpeech {
   return typeof value === 'string' && Object.values(PartOfSpeech).includes(value as PartOfSpeech);
@@ -35,10 +32,7 @@ export function deriveStoredPartOfSpeech(input: {
   partOfSpeech?: string | null;
   pos1?: string | null;
 }): PartOfSpeech {
-  const pos1Parts = normalizePosTag(input.pos1)
-    .split('|')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
+  const pos1Parts = splitPosTag(input.pos1);
 
   if (pos1Parts.length > 0) {
     const derivedParts = [...new Set(pos1Parts.map((part) => mapMecabPos1ToPartOfSpeech(part)))];

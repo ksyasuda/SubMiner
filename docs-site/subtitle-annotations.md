@@ -10,6 +10,8 @@ SubMiner's primary tokenizer is Yomitan itself - subtitle text is tokenized base
 
 Before any of those layers render, SubMiner strips annotation metadata from tokens that are usually just subtitle glue or annotation noise. Standalone particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, merged trailing quote-particle forms like `...って`, auxiliary-stem grammar tails like `そうだ` (MeCab POS3 `助動詞語幹`), repeated kana interjections, and similar non-lexical helper tokens remain hoverable in the subtitle text, but they render as plain tokens without known-word, N+1, frequency, JLPT, or name-match annotation styling.
 
+Kanji vocabulary that MeCab labels `名詞/非自立`, such as `日` or `以外`, remains content for every annotation layer. The `非自立` exclusion only suppresses kana grammar nouns such as `こと` and `もの`.
+
 ## N+1 Word Highlighting
 
 N+1 highlighting identifies sentences where you know every word except one, making them ideal mining targets. When enabled, SubMiner builds a local cache of your known vocabulary from Anki and highlights tokens accordingly.
@@ -24,16 +26,16 @@ N+1 highlighting identifies sentences where you know every word except one, maki
 
 **Key settings:**
 
-| Option                                    | Default      | Description                                                                                                                                                   |
-| ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ankiConnect.knownWords.highlightEnabled` | `false`      | Enable known-word cache lookups used by N+1 highlighting                                                                                                      |
-| `ankiConnect.knownWords.refreshMinutes`   | `1440`       | Minutes between Anki cache refreshes                                                                                                                          |
-| `ankiConnect.knownWords.decks`            | `{}`         | Deck→fields map for known-word cache queries                                                                                                                  |
-| `ankiConnect.knownWords.matchMode`        | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text)                                                                                                      |
-| `ankiConnect.nPlusOne.enabled`            | `false`      | Enable N+1 target highlighting                                                                                                                               |
-| `ankiConnect.nPlusOne.minSentenceWords`   | `3`          | Minimum tokens in a sentence for N+1 to trigger                                                                                                               |
-| `subtitleStyle.nPlusOneColor`             | `#c6a0f6`    | Color for the single unknown target word                                                                                                                      |
-| `subtitleStyle.knownWordColor`            | `#a6da95`    | Color for already-known tokens                                                                                                                                |
+| Option                                    | Default      | Description                                              |
+| ----------------------------------------- | ------------ | -------------------------------------------------------- |
+| `ankiConnect.knownWords.highlightEnabled` | `false`      | Enable known-word cache lookups used by N+1 highlighting |
+| `ankiConnect.knownWords.refreshMinutes`   | `1440`       | Minutes between Anki cache refreshes                     |
+| `ankiConnect.knownWords.decks`            | `{}`         | Deck→fields map for known-word cache queries             |
+| `ankiConnect.knownWords.matchMode`        | `"headword"` | `"headword"` (dictionary form) or `"surface"` (raw text) |
+| `ankiConnect.nPlusOne.enabled`            | `false`      | Enable N+1 target highlighting                           |
+| `ankiConnect.nPlusOne.minSentenceWords`   | `3`          | Minimum tokens in a sentence for N+1 to trigger          |
+| `subtitleStyle.nPlusOneColor`             | `#c6a0f6`    | Color for the single unknown target word                 |
+| `subtitleStyle.knownWordColor`            | `#a6da95`    | Color for already-known tokens                           |
 
 Prefer expression/word fields for `ankiConnect.knownWords.decks`. Reading-only fields can mark unrelated homophones as known, so only include them when that tradeoff is intentional.
 

@@ -10,14 +10,19 @@ import {
 import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
 import {
-  isKanjiNonIndependentNounToken,
   shouldExcludeTokenFromSubtitleAnnotations as sharedShouldExcludeTokenFromSubtitleAnnotations,
   stripSubtitleAnnotationMetadata as sharedStripSubtitleAnnotationMetadata,
 } from './subtitle-annotation-filter';
+import {
+  isKanaChar,
+  isKanaOnlyText,
+  isPosTagExcluded,
+  isTokenPos2Excluded,
+  normalizeKana,
+  normalizePosTag,
+  splitPosTag,
+} from './token-classification';
 
-const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
-const KATAKANA_CODEPOINT_START = 0x30a1;
-const KATAKANA_CODEPOINT_END = 0x30f6;
 const JLPT_LEVEL_LOOKUP_CACHE_LIMIT = 2048;
 
 const jlptLevelLookupCaches = new WeakMap<
@@ -55,30 +60,6 @@ function resolveKnownWordText(
   return matchMode === 'surface' ? surface : headword;
 }
 
-function normalizePos1Tag(pos1: string | undefined): string {
-  return typeof pos1 === 'string' ? pos1.trim() : '';
-}
-
-function splitNormalizedTagParts(normalizedTag: string): string[] {
-  if (!normalizedTag) {
-    return [];
-  }
-
-  return normalizedTag
-    .split('|')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-}
-
-function isExcludedByTagSet(normalizedTag: string, exclusions: ReadonlySet<string>): boolean {
-  const parts = splitNormalizedTagParts(normalizedTag);
-  if (parts.length === 0) {
-    return false;
-  }
-
-  return parts.every((part) => exclusions.has(part));
-}
-
 function resolvePos1Exclusions(options: AnnotationStageOptions): ReadonlySet<string> {
   if (options.pos1Exclusions) {
     return options.pos1Exclusions;
@@ -93,10 +74,6 @@ function resolvePos2Exclusions(options: AnnotationStageOptions): ReadonlySet<str
   }
 
   return resolveAnnotationPos2ExclusionSet(DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG);
-}
-
-function normalizePos2Tag(pos2: string | undefined): string {
-  return typeof pos2 === 'string' ? pos2.trim() : '';
 }
 
 function isExcludedComponent(
@@ -117,12 +94,12 @@ function shouldAllowContentLedMergedTokenFrequency(
   pos1Exclusions: ReadonlySet<string>,
   pos2Exclusions: ReadonlySet<string>,
 ): boolean {
-  const pos1Parts = splitNormalizedTagParts(normalizedPos1);
+  const pos1Parts = splitPosTag(normalizedPos1);
   if (pos1Parts.length < 2) {
     return false;
   }
 
-  const pos2Parts = splitNormalizedTagParts(normalizedPos2);
+  const pos2Parts = splitPosTag(normalizedPos2);
   if (isExcludedComponent(pos1Parts[0], pos2Parts[0], pos1Exclusions, pos2Exclusions)) {
     return false;
   }
@@ -144,8 +121,8 @@ function shouldAllowOrdinalPrefixNounFrequency(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  const pos1Parts = splitPosTag(token.pos1);
+  const pos2Parts = splitPosTag(token.pos2);
   return (
     pos1Parts.length >= 2 &&
     pos1Parts[0] === '接頭詞' &&
@@ -166,8 +143,8 @@ function shouldAllowHonorificPrefixNounFrequency(token: MergedToken): boolean {
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
-  const pos2Parts = splitNormalizedTagParts(normalizePos2Tag(token.pos2));
+  const pos1Parts = splitPosTag(token.pos1);
+  const pos2Parts = splitPosTag(token.pos2);
   return (
     pos1Parts.length >= 2 &&
     pos1Parts[0] === '接頭詞' &&
@@ -182,12 +159,12 @@ function shouldAllowDeterminerLedNounFrequency(
   pos1Exclusions: ReadonlySet<string>,
   pos2Exclusions: ReadonlySet<string>,
 ): boolean {
-  const pos1Parts = splitNormalizedTagParts(normalizedPos1);
+  const pos1Parts = splitPosTag(normalizedPos1);
   if (pos1Parts.length < 2 || pos1Parts[0] !== '連体詞') {
     return false;
   }
 
-  const pos2Parts = splitNormalizedTagParts(normalizedPos2);
+  const pos2Parts = splitPosTag(normalizedPos2);
   if (!isExcludedComponent(pos1Parts[0], pos2Parts[0], pos1Exclusions, pos2Exclusions)) {
     return false;
   }
@@ -218,9 +195,9 @@ function isFrequencyExcludedByPos(
     return true;
   }
 
-  const normalizedPos1 = normalizePos1Tag(token.pos1);
+  const normalizedPos1 = normalizePosTag(token.pos1);
   const hasPos1 = normalizedPos1.length > 0;
-  const normalizedPos2 = normalizePos2Tag(token.pos2);
+  const normalizedPos2 = normalizePosTag(token.pos2);
   const hasPos2 = normalizedPos2.length > 0;
   const allowContentLedMergedToken = shouldAllowContentLedMergedTokenFrequency(
     normalizedPos1,
@@ -238,7 +215,7 @@ function isFrequencyExcludedByPos(
   const allowHonorificPrefixNounToken = shouldAllowHonorificPrefixNounFrequency(token);
 
   if (
-    isExcludedByTagSet(normalizedPos1, pos1Exclusions) &&
+    isPosTagExcluded(normalizedPos1, pos1Exclusions) &&
     !allowContentLedMergedToken &&
     !allowDeterminerLedNounToken &&
     !allowOrdinalPrefixNounToken &&
@@ -248,7 +225,7 @@ function isFrequencyExcludedByPos(
   }
 
   if (
-    isExcludedByTagSet(normalizedPos2, pos2Exclusions) &&
+    isTokenPos2Excluded(token, pos1Exclusions, pos2Exclusions) &&
     !allowContentLedMergedToken &&
     !allowDeterminerLedNounToken &&
     !allowOrdinalPrefixNounToken &&
@@ -280,8 +257,7 @@ export function shouldExcludeTokenFromVocabularyPersistence(
 
   return (
     sharedShouldExcludeTokenFromSubtitleAnnotations(token, { pos1Exclusions, pos2Exclusions }) ||
-    (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions) &&
-      !isKanjiNonIndependentNounToken(token, pos1Exclusions))
+    isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)
   );
 }
 
@@ -332,45 +308,6 @@ function resolveJlptLookupText(token: MergedToken): string {
   return token.surface;
 }
 
-function normalizeJlptTextForExclusion(text: string): string {
-  const raw = text.trim();
-  if (!raw) {
-    return '';
-  }
-
-  let normalized = '';
-  for (const char of raw) {
-    const code = char.codePointAt(0);
-    if (code === undefined) {
-      continue;
-    }
-
-    if (code >= KATAKANA_CODEPOINT_START && code <= KATAKANA_CODEPOINT_END) {
-      normalized += String.fromCodePoint(code - KATAKANA_TO_HIRAGANA_OFFSET);
-      continue;
-    }
-
-    normalized += char;
-  }
-
-  return normalized;
-}
-
-function isKanaChar(char: string): boolean {
-  const code = char.codePointAt(0);
-  if (code === undefined) {
-    return false;
-  }
-
-  return (
-    (code >= 0x3041 && code <= 0x3096) ||
-    (code >= 0x309b && code <= 0x309f) ||
-    code === 0x30fc ||
-    (code >= 0x30a0 && code <= 0x30fa) ||
-    (code >= 0x30fd && code <= 0x30ff)
-  );
-}
-
 function isRepeatedKanaSfx(text: string): boolean {
   const normalized = text.trim();
   if (!normalized) {
@@ -406,7 +343,7 @@ function isRepeatedKanaSfx(text: string): boolean {
 }
 
 function isTrailingSmallTsuKanaSfx(text: string): boolean {
-  const normalized = normalizeJlptTextForExclusion(text);
+  const normalized = normalizeKana(text);
   if (!normalized) {
     return false;
   }
@@ -424,7 +361,7 @@ function isTrailingSmallTsuKanaSfx(text: string): boolean {
 }
 
 function isReduplicatedKanaSfx(text: string): boolean {
-  const normalized = normalizeJlptTextForExclusion(text);
+  const normalized = normalizeKana(text);
   if (!normalized) {
     return false;
   }
@@ -443,7 +380,7 @@ function isReduplicatedKanaSfx(text: string): boolean {
 }
 
 function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
-  const normalized = normalizeJlptTextForExclusion(text);
+  const normalized = normalizeKana(text);
   if (!normalized) {
     return false;
   }
@@ -460,7 +397,7 @@ function isReduplicatedKanaSfxWithOptionalTrailingTo(text: string): boolean {
 }
 
 function hasAdjacentKanaRepeat(text: string): boolean {
-  const normalized = normalizeJlptTextForExclusion(text);
+  const normalized = normalizeKana(text);
   if (!normalized) {
     return false;
   }
@@ -490,7 +427,7 @@ function isLikelyFrequencyNoiseToken(token: MergedToken): boolean {
       continue;
     }
 
-    const normalizedCandidate = normalizeJlptTextForExclusion(trimmedCandidate);
+    const normalizedCandidate = normalizeKana(trimmedCandidate);
     if (!normalizedCandidate) {
       continue;
     }
@@ -528,19 +465,6 @@ function isSingleKanaFrequencyNoiseToken(text: string | undefined): boolean {
   return chars.length === 1 && isKanaChar(chars[0]!);
 }
 
-function isKanaOnlyText(text: string | undefined): boolean {
-  if (typeof text !== 'string') {
-    return false;
-  }
-
-  const normalized = text.trim();
-  if (!normalized) {
-    return false;
-  }
-
-  return [...normalized].every(isKanaChar);
-}
-
 function isKanaOnlyMixedFunctionContentToken(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -549,7 +473,7 @@ function isKanaOnlyMixedFunctionContentToken(
     return false;
   }
 
-  const pos1Parts = splitNormalizedTagParts(normalizePos1Tag(token.pos1));
+  const pos1Parts = splitPosTag(token.pos1);
   const hasMixedFunctionContentParts =
     pos1Parts.length >= 2 &&
     pos1Parts.some((part) => pos1Exclusions.has(part)) &&
@@ -558,8 +482,8 @@ function isKanaOnlyMixedFunctionContentToken(
     return false;
   }
 
-  const normalizedReading = normalizeJlptTextForExclusion(token.reading);
-  const normalizedHeadwordReading = normalizeJlptTextForExclusion(token.headwordReading ?? '');
+  const normalizedReading = normalizeKana(token.reading);
+  const normalizedHeadwordReading = normalizeKana(token.headwordReading ?? '');
   return (
     !normalizedReading ||
     !normalizedHeadwordReading ||
@@ -577,7 +501,7 @@ function isJlptEligibleToken(token: MergedToken): boolean {
   );
 
   for (const candidate of candidates) {
-    const normalizedCandidate = normalizeJlptTextForExclusion(candidate);
+    const normalizedCandidate = normalizeKana(candidate);
     if (!normalizedCandidate) {
       continue;
     }
@@ -612,8 +536,8 @@ export function stripSubtitleAnnotationMetadata(
 // at least as many characters as the surface, with the surface's kana appearing
 // in order within the reading.
 function isCompleteReadingForSurface(surface: string, reading: string): boolean {
-  const surfaceChars = [...normalizeJlptTextForExclusion(surface)];
-  const readingChars = [...normalizeJlptTextForExclusion(reading)];
+  const surfaceChars = [...normalizeKana(surface)];
+  const readingChars = [...normalizeKana(reading)];
   if (readingChars.length < surfaceChars.length) {
     return false;
   }
@@ -697,10 +621,7 @@ function filterTokenFrequencyRank(
   pos1Exclusions: ReadonlySet<string>,
   pos2Exclusions: ReadonlySet<string>,
 ): number | undefined {
-  if (
-    isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions) &&
-    !isKanjiNonIndependentNounToken(token, pos1Exclusions)
-  ) {
+  if (isFrequencyExcludedByPos(token, pos1Exclusions, pos2Exclusions)) {
     return undefined;
   }
 
