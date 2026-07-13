@@ -105,7 +105,9 @@ function hasKanjiChar(text: string): boolean {
       code !== undefined &&
       ((code >= 0x3400 && code <= 0x4dbf) ||
         (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0xf900 && code <= 0xfaff))
+        (code >= 0xf900 && code <= 0xfaff) ||
+        (code >= 0x20000 && code <= 0x2fa1f) ||
+        (code >= 0x30000 && code <= 0x323af))
     ) {
       return true;
     }
@@ -115,7 +117,7 @@ function hasKanjiChar(text: string): boolean {
 
 // MeCab's 非自立 tag suppresses kana grammar nouns (こと, もの, とき), but
 // Yomitan can segment kanji-bearing nouns (日, 方, 上, …) as real vocabulary.
-function isKanjiNonIndependentNounToken(
+export function isKanjiNonIndependentNounToken(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
 ): boolean {
