@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatBytes, formatRelativeTime, summarizeMergeCounts } from './syncui-format';
+import {
+  formatBytes,
+  formatMergeTargetHeading,
+  formatRelativeTime,
+  summarizeMergeCounts,
+} from './syncui-format';
 
 test('formatBytes renders human readable sizes', () => {
   assert.equal(formatBytes(0), '0 B');
@@ -17,6 +22,11 @@ test('formatRelativeTime renders past timestamps', () => {
   assert.equal(formatRelativeTime(now - 5 * 60_000, now), '5 min ago');
   assert.equal(formatRelativeTime(now - 3 * 3_600_000, now), '3 h ago');
   assert.equal(formatRelativeTime(now - 2 * 86_400_000, now), '2 d ago');
+});
+
+test('formatMergeTargetHeading names the local and remote machines', () => {
+  assert.equal(formatMergeTargetHeading('local'), 'Merged into this machine');
+  assert.equal(formatMergeTargetHeading('remote'), 'Merged into remote machine');
 });
 
 test('summarizeMergeCounts lists only non-zero counts', () => {

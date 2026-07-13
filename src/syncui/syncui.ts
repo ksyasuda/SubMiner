@@ -7,7 +7,12 @@ import type {
   SyncUiSnapshot,
   SyncUiStartResult,
 } from '../types/sync-ui';
-import { formatBytes, formatRelativeTime, summarizeMergeCounts } from './syncui-format';
+import {
+  formatBytes,
+  formatMergeTargetHeading,
+  formatRelativeTime,
+  summarizeMergeCounts,
+} from './syncui-format';
 
 declare global {
   interface Window {
@@ -134,7 +139,7 @@ function appendMergeSummary(
   resultCard.classList.remove('hidden');
   const heading = document.createElement('div');
   heading.className = 'result-title';
-  heading.textContent = target === 'local' ? 'Merged into this machine' : 'Merged into the device';
+  heading.textContent = formatMergeTargetHeading(target);
   const grid = document.createElement('div');
   grid.className = 'count-grid';
   for (const line of lines) {

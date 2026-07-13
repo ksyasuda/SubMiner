@@ -1,5 +1,9 @@
 import type { SyncMergeSummary } from '../shared/sync/sync-events';
 
+export function formatMergeTargetHeading(target: 'local' | 'remote'): string {
+  return target === 'local' ? 'Merged into this machine' : 'Merged into remote machine';
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${Math.round(bytes)} B`;
   const units = ['KB', 'MB', 'GB', 'TB'];
