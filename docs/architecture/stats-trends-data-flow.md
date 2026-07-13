@@ -33,6 +33,10 @@ Trend charts now consume one chart-oriented backend payload from `/api/stats/tre
 
 ## Contract
 
+Stats data crosses the process boundary over HTTP only. Shared JSON models live in `src/types/stats-wire.ts`; endpoint request/response mappings and the client interface live in `src/types/stats-http-contract.ts`. The server and stats client both type-check against those files. `stats/src/types/stats.ts` is a compatibility re-export, not an independent contract copy.
+
+The stats preload bridge remains limited to native window behavior such as confirmation-dialog layering. Do not add stats data request channels back to Electron IPC.
+
 The stats UI should treat the trends payload as chart-ready data. Presentation-only work in the client is fine, but rebuilding the main trend datasets from raw sessions should stay out of the render path.
 
 For session detail timelines, omitting `limit` now means "return the full retained session telemetry/history". Explicit `limit` remains available for bounded callers, but the default stats UI path should not trim long sessions to the newest 200 samples.

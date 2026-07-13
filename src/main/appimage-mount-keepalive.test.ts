@@ -100,7 +100,7 @@ test(
         '#!/bin/sh',
         'if [ "${1:-}" = "--appimage-mount" ]; then',
         `  echo "${mountDir}"`,
-        `  trap 'date +%s%N > "${resultsDir}/holder-released"; exit 0' TERM INT`,
+        `  trap ': > "${resultsDir}/holder-released"; sleep 0.1; date +%s%N > "${resultsDir}/holder-released"; exit 0' TERM INT`,
         '  while :; do sleep 0.05; done',
         'fi',
         `date +%s%N > "${resultsDir}/direct-run"`,
@@ -120,15 +120,20 @@ test(
       // (the real runtime unmounts on its own after the signal), so poll.
       const releasedMarker = path.join(resultsDir, 'holder-released');
       const pollDeadline = Date.now() + 2000;
-      while (!fs.existsSync(releasedMarker) && Date.now() < pollDeadline) {
+      let holderReleased: number | null = null;
+      while (holderReleased === null && Date.now() < pollDeadline) {
+        if (fs.existsSync(releasedMarker)) {
+          const timestamp = fs.readFileSync(releasedMarker, 'utf8').trim();
+          if (/^\d+$/.test(timestamp)) holderReleased = Number(timestamp);
+        }
+        if (holderReleased !== null) break;
         await new Promise((r) => setTimeout(r, 25));
       }
-      assert.ok(fs.existsSync(releasedMarker), 'holder must be released');
+      assert.ok(holderReleased !== null, 'holder release timestamp must be recorded');
 
       const appRunExited = Number(
         fs.readFileSync(path.join(resultsDir, 'apprun-exited'), 'utf8').trim(),
       );
-      const holderReleased = Number(fs.readFileSync(releasedMarker, 'utf8').trim());
       const drainNs = holderReleased - appRunExited;
       assert.ok(
         drainNs >= 0.8e9,
