@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import type { SyncProgressEvent } from '../../shared/sync/sync-events';
-import { runSyncLauncher, type SyncLauncherSpawn } from './sync-launcher-client';
+import {
+  runSyncLauncher,
+  sanitizeSyncLauncherEnv,
+  type SyncLauncherSpawn,
+} from './sync-launcher-client';
 
 class FakeChild extends EventEmitter {
   stdout = new EventEmitter();
@@ -213,4 +217,17 @@ test('resolveSyncLauncherCommand self-spawns the app in --sync-cli mode', async 
     appPath: '/home/u/SubMiner',
   });
   assert.deepEqual(dev, ['/usr/bin/electron', '/home/u/SubMiner', '--sync-cli']);
+});
+
+test('sanitizeSyncLauncherEnv removes transported parent startup arguments', () => {
+  const parentEnv = {
+    PATH: '/usr/bin',
+    ELECTRON_RUN_AS_NODE: '1',
+    SUBMINER_APP_ARGC: '2',
+    SUBMINER_APP_ARG_0: '--start',
+    SUBMINER_APP_ARG_1: '--background',
+  };
+
+  assert.deepEqual(sanitizeSyncLauncherEnv(parentEnv), { PATH: '/usr/bin' });
+  assert.equal(parentEnv.SUBMINER_APP_ARGC, '2');
 });

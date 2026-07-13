@@ -26,6 +26,16 @@ export interface SyncLauncherRunHandle {
   done: Promise<SyncLauncherRunResult>;
 }
 
+export function sanitizeSyncLauncherEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env = { ...baseEnv };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.SUBMINER_APP_ARGC;
+  for (const name of Object.keys(env)) {
+    if (name.startsWith('SUBMINER_APP_ARG_')) delete env[name];
+  }
+  return env;
+}
+
 // Sync runs in a child copy of this app in headless --sync-cli mode: same
 // engine and NDJSON protocol as `subminer sync --json`, with no dependency on
 // bun or an installed command-line launcher. In dev runs process.execPath is
@@ -54,8 +64,7 @@ export function runSyncLauncher(options: {
     ((command, args) => {
       // The child must boot as a full Electron app (its entry handles
       // --sync-cli); a leaked ELECTRON_RUN_AS_NODE would turn it into node.
-      const env = { ...process.env };
-      delete env.ELECTRON_RUN_AS_NODE;
+      const env = sanitizeSyncLauncherEnv(process.env);
       return nodeSpawn(command, args, { stdio: 'pipe', env });
     });
   const [executable, ...prefixArgs] = options.command;
