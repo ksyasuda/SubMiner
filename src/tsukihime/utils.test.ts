@@ -302,18 +302,17 @@ test('decompressXzFile reports an error for corrupt input', { skip: !hasXz }, as
   }
 });
 
-test('extractTsukihimeSubtitleFiles does not emit a bare dot when a track name has no slug characters', () => {
+test('extractTsukihimeSubtitleFiles disambiguates duplicate tracks without slug characters', () => {
   const files = extractTsukihimeSubtitleFiles({
     id: 1,
     files: [
       {
         id: 1,
         filename: 'episode.mkv',
-        // Two ja tracks trigger the disambiguating suffix, but a CJK-only track
-        // name slugifies to an empty string.
+        // Both names slugify to an empty string.
         attachments: [
           { id: 41, type: 1, info: { codec: 'ASS', lang: 'ja', name: '日本語字幕' } },
-          { id: 42, type: 1, info: { codec: 'ASS', lang: 'ja', name: 'Full Subtitles' } },
+          { id: 42, type: 1, info: { codec: 'ASS', lang: 'ja' } },
         ],
       },
     ],
@@ -323,9 +322,28 @@ test('extractTsukihimeSubtitleFiles does not emit a bare dot when a track name h
   for (const file of files) {
     assert.doesNotMatch(file.filename, /\.\./, `double dot in ${file.filename}`);
   }
-  assert.equal(files.find((f) => f.attachmentId === 41)!.filename, 'episode.ja.ass');
-  assert.equal(
-    files.find((f) => f.attachmentId === 42)!.filename,
-    'episode.ja.full-subtitles.ass',
+  assert.notEqual(files[0]!.filename, files[1]!.filename);
+  assert.equal(files.find((f) => f.attachmentId === 41)!.filename, 'episode.ja.41.ass');
+  assert.equal(files.find((f) => f.attachmentId === 42)!.filename, 'episode.ja.42.ass');
+});
+
+test('extractTsukihimeSubtitleFiles disambiguates duplicate identical track names', () => {
+  const files = extractTsukihimeSubtitleFiles({
+    id: 1,
+    files: [
+      {
+        id: 1,
+        filename: 'episode.mkv',
+        attachments: [
+          { id: 51, type: 1, info: { codec: 'ASS', lang: 'ja', name: 'Signs' } },
+          { id: 52, type: 1, info: { codec: 'ASS', lang: 'ja', name: 'Signs' } },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    files.map((file) => file.filename),
+    ['episode.ja.51.ass', 'episode.ja.52.ass'],
   );
 });

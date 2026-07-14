@@ -123,11 +123,25 @@
             <button id="tsukihimeClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
-            <div class="tsukihime-tabs">
-              <button id="tsukihimeTabSecondary" class="tsukihime-tab active" type="button">
+            <div class="tsukihime-tabs" role="tablist">
+              <button
+                id="tsukihimeTabSecondary"
+                class="tsukihime-tab active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
                 English
               </button>
-              <button id="tsukihimeTabPrimary" class="tsukihime-tab" type="button">Japanese</button>
+              <button
+                id="tsukihimeTabPrimary"
+                class="tsukihime-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Japanese
+              </button>
             </div>
             <div class="jimaku-form">
               <label class="jimaku-field">

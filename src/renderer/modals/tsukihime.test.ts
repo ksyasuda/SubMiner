@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import type { TsukihimeSubtitleFile, ElectronAPI } from '../../types';
@@ -44,6 +46,19 @@ function createListStub() {
     appendChild(child: unknown) {
       this.children.push(child);
     },
+  };
+}
+
+function createTabStub(active: boolean) {
+  const attributes = new Map<string, string>();
+  return {
+    textContent: '',
+    classList: createClassList(active ? ['active'] : []),
+    attributes,
+    setAttribute(name: string, value: string) {
+      attributes.set(name, value);
+    },
+    addEventListener: () => {},
   };
 }
 
@@ -94,6 +109,8 @@ interface ModalHarness {
   status: { textContent: string; style: { color: string } };
   entriesList: ReturnType<typeof createListStub>;
   filesList: ReturnType<typeof createListStub>;
+  secondaryTab: ReturnType<typeof createTabStub>;
+  primaryTab: ReturnType<typeof createTabStub>;
   restoreGlobals: () => void;
 }
 
@@ -156,6 +173,10 @@ function createModalHarness(
   state.currentTsukihimeEntryId = 606713;
   state.selectedTsukihimeFileIndex = 0;
   state.tsukihimeFiles = files;
+  const secondaryTab = createTabStub(true);
+  secondaryTab.textContent = 'English';
+  const primaryTab = createTabStub(false);
+  primaryTab.textContent = 'Japanese';
 
   const ctx = {
     dom: {
@@ -168,16 +189,8 @@ function createModalHarness(
       tsukihimeEpisodeInput: { value: '' },
       tsukihimeSearchButton: { addEventListener: () => {} },
       tsukihimeCloseButton: { addEventListener: () => {} },
-      tsukihimeTabSecondaryButton: {
-        textContent: 'English',
-        classList: createClassList(['active']),
-        addEventListener: () => {},
-      },
-      tsukihimeTabPrimaryButton: {
-        textContent: 'Japanese',
-        classList: createClassList(),
-        addEventListener: () => {},
-      },
+      tsukihimeTabSecondaryButton: secondaryTab,
+      tsukihimeTabPrimaryButton: primaryTab,
       tsukihimeStatus: { textContent: '', style: { color: '' } },
       tsukihimeEntriesSection: { classList: createClassList(['hidden']) },
       tsukihimeEntriesList: createListStub(),
@@ -203,6 +216,8 @@ function createModalHarness(
     status: ctx.dom.tsukihimeStatus,
     entriesList: ctx.dom.tsukihimeEntriesList,
     filesList: ctx.dom.tsukihimeFilesList,
+    secondaryTab,
+    primaryTab,
     restoreGlobals: () => {
       const target = globalThis as unknown as Record<string, unknown>;
       if (hadWindow) {
@@ -221,6 +236,33 @@ function createModalHarness(
     },
   };
 }
+
+test('TsukiHime language tabs expose tab semantics in the renderer markup', () => {
+  const html = fs.readFileSync(path.join(process.cwd(), 'src', 'renderer', 'index.html'), 'utf8');
+  const tabs = html.match(/<div class="tsukihime-tabs"[\s\S]*?<\/div>/)?.[0];
+
+  assert.ok(tabs);
+  assert.match(tabs, /<div class="tsukihime-tabs" role="tablist">/);
+  assert.match(tabs, /id="tsukihimeTabSecondary"[\s\S]*?role="tab"[\s\S]*?aria-selected="true"/);
+  assert.match(tabs, /id="tsukihimeTabPrimary"[\s\S]*?role="tab"[\s\S]*?aria-selected="false"/);
+});
+
+test('switching TsukiHime language tabs synchronizes aria-selected', () => {
+  const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
+  try {
+    pressKey(harness, 'ArrowRight');
+
+    assert.equal(harness.secondaryTab.attributes.get('aria-selected'), 'false');
+    assert.equal(harness.primaryTab.attributes.get('aria-selected'), 'true');
+
+    pressKey(harness, 'ArrowLeft');
+
+    assert.equal(harness.secondaryTab.attributes.get('aria-selected'), 'true');
+    assert.equal(harness.primaryTab.attributes.get('aria-selected'), 'false');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
 
 function pressKey(harness: ModalHarness, key: string): boolean {
   let prevented = false;

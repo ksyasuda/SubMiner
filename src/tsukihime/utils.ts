@@ -174,9 +174,13 @@ export function extractTsukihimeSubtitleFiles(payload: unknown): TsukihimeSubtit
   const collected = collectSubtitleAttachments(payload);
 
   const duplicateKeyCounts = new Map<string, number>();
+  const duplicateTrackSlugCounts = new Map<string, number>();
   for (const attachment of collected) {
     const key = `${attachment.sourceFilename} ${attachment.lang}`;
     duplicateKeyCounts.set(key, (duplicateKeyCounts.get(key) ?? 0) + 1);
+    const trackSlug = attachment.trackName ? slugifyTrackName(attachment.trackName) : '';
+    const trackKey = `${key} ${trackSlug}`;
+    duplicateTrackSlugCounts.set(trackKey, (duplicateTrackSlugCounts.get(trackKey) ?? 0) + 1);
   }
 
   const files = collected.map((attachment) => {
@@ -188,8 +192,11 @@ export function extractTsukihimeSubtitleFiles(payload: unknown): TsukihimeSubtit
     // A CJK-only track name (e.g. 日本語字幕) slugifies to an empty string, which
     // would leave a bare dot in the filename.
     const trackSlug = attachment.trackName ? slugifyTrackName(attachment.trackName) : '';
-    const needsTrackSuffix = (duplicateKeyCounts.get(key) ?? 0) > 1 && trackSlug;
-    const trackPart = needsTrackSuffix ? `.${trackSlug}` : '';
+    const needsTrackSuffix = (duplicateKeyCounts.get(key) ?? 0) > 1;
+    const repeatedTrackSlug = (duplicateTrackSlugCounts.get(`${key} ${trackSlug}`) ?? 0) > 1;
+    const trackPart = needsTrackSuffix
+      ? `.${!trackSlug || repeatedTrackSlug ? attachment.attachmentId : trackSlug}`
+      : '';
     return {
       attachmentId: attachment.attachmentId,
       filename: `${base}${langPart}${trackPart}${attachment.extension}`,

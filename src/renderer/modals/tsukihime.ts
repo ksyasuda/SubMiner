@@ -61,7 +61,16 @@ export function createTsukihimeModal(
   }
 
   function renderTabs(): void {
-    if (ctx.state.tsukihimeActiveTab === 'primary') {
+    const primaryActive = ctx.state.tsukihimeActiveTab === 'primary';
+    ctx.dom.tsukihimeTabSecondaryButton.setAttribute(
+      'aria-selected',
+      primaryActive ? 'false' : 'true',
+    );
+    ctx.dom.tsukihimeTabPrimaryButton.setAttribute(
+      'aria-selected',
+      primaryActive ? 'true' : 'false',
+    );
+    if (primaryActive) {
       ctx.dom.tsukihimeTabSecondaryButton.classList.remove('active');
       ctx.dom.tsukihimeTabPrimaryButton.classList.add('active');
     } else {
