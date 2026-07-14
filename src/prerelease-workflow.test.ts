@@ -36,7 +36,7 @@ test('prerelease workflow uses committed prerelease notes and never calls claude
 test('prerelease delegates its quality gate instead of duplicating quality steps', () => {
   assert.match(
     prereleaseWorkflow,
-    /quality-gate:\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
+    /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
   );
   const qualityGateJob = prereleaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
   assert.ok(qualityGateJob);

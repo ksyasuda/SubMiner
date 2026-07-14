@@ -60,6 +60,14 @@ bun run docs:build
 - Every reusable quality-gate run uploads that LCOV file as the
   `coverage-test-src` artifact.
 
+## Dependency Audit Policy
+
+- `bun audit --audit-level high` remains advisory while the maintained
+  dependency graph contains known high-severity advisories that require
+  coordinated dependency upgrades.
+- Treat new audit output as release-maintenance work. Remove
+  `continue-on-error` only after the audit passes against the frozen lockfile.
+
 ## Rules
 
 - Capture exact failing command and error when verification breaks.

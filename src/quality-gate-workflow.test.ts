@@ -7,6 +7,8 @@ const qualityGateWorkflowPath = resolve(__dirname, '../.github/workflows/quality
 const qualityGateWorkflow = existsSync(qualityGateWorkflowPath)
   ? readFileSync(qualityGateWorkflowPath, 'utf8').replace(/\r\n/g, '\n')
   : '';
+const verificationDocPath = resolve(__dirname, '../docs/workflow/verification.md');
+const verificationDoc = readFileSync(verificationDocPath, 'utf8').replace(/\r\n/g, '\n');
 
 test('quality gate is a reusable workflow', () => {
   assert.match(qualityGateWorkflow, /on:\s*\n\s*workflow_call:/);
@@ -47,4 +49,15 @@ test('quality gate keeps pull request changelog enforcement event-aware', () => 
 
 test('quality gate verifies generated config examples', () => {
   assert.match(qualityGateWorkflow, /bun run verify:config-example/);
+});
+
+test('quality gate documents its temporary non-blocking audit policy', () => {
+  assert.match(
+    qualityGateWorkflow,
+    /name: Security audit\s*\n\s*# Dependency audit remains advisory; see docs\/workflow\/verification\.md\.\s*\n\s*run: bun audit --audit-level high\s*\n\s*continue-on-error: true/,
+  );
+  assert.match(
+    verificationDoc,
+    /## Dependency Audit Policy[\s\S]*`bun audit --audit-level high` remains advisory[\s\S]*Remove\s+`continue-on-error` only after the audit passes/,
+  );
 });

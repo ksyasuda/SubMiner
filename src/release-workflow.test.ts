@@ -84,7 +84,7 @@ test('release workflow verifies generated config examples before packaging artif
 test('release delegates its quality gate instead of duplicating quality steps', () => {
   assert.match(
     releaseWorkflow,
-    /quality-gate:\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
+    /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
   );
   const qualityGateJob = releaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
   assert.ok(qualityGateJob);

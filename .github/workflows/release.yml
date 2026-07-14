@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   quality-gate:
+    permissions:
+      contents: read
     uses: ./.github/workflows/quality-gate.yml
 
   build-linux:
