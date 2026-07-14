@@ -33,11 +33,16 @@ test('prerelease workflow uses committed prerelease notes and never calls claude
   assert.doesNotMatch(prereleaseWorkflow, /run: bun run changelog:build/);
 });
 
-test('prerelease workflow includes the environment suite in the gate sequence', () => {
+test('prerelease delegates its quality gate instead of duplicating quality steps', () => {
   assert.match(
     prereleaseWorkflow,
-    /Test suite \(source\)\n\s*run: bun run test:fast\n\s*\n\s*- name: Environment suite(?: \(source\))?\n\s*run: bun run test:env\n\s*\n\s*- name: Coverage suite \(maintained source lane\)/,
+    /quality-gate:\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
   );
+  const qualityGateJob = prereleaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
+  assert.ok(qualityGateJob);
+  assert.doesNotMatch(qualityGateJob, /oven-sh\/setup-bun/);
+  assert.doesNotMatch(qualityGateJob, /bun run test:coverage:src/);
+  assert.doesNotMatch(qualityGateJob, /bun run test:env/);
 });
 
 test('prerelease workflow publishes GitHub prereleases and keeps them off latest', () => {
@@ -46,15 +51,15 @@ test('prerelease workflow publishes GitHub prereleases and keeps them off latest
   assert.match(prereleaseWorkflow, /gh release create[\s\S]*--latest=false/);
 });
 
-test('prerelease workflow scopes dependency caches by runner architecture', () => {
+test('prerelease packaging workflows scope dependency caches by runner architecture', () => {
   const archScopedCacheKeyMatches = prereleaseWorkflow.match(
     /key:\s*\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
   );
   const archScopedRestoreKeyMatches = prereleaseWorkflow.match(
     /\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
   );
-  assert.equal(archScopedCacheKeyMatches?.length, 5);
-  assert.ok((archScopedRestoreKeyMatches?.length ?? 0) >= 10);
+  assert.equal(archScopedCacheKeyMatches?.length, 4);
+  assert.ok((archScopedRestoreKeyMatches?.length ?? 0) >= 8);
 });
 
 test('prerelease workflow builds and uploads all release platforms', () => {

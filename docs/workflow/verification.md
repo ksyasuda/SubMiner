@@ -18,6 +18,11 @@ Read when: selecting the right verification lane for a change
   `--single-process` restores the shared-process mode for debugging.
 - `bun run test:fast` is the full source gate: discovered `src/**`, launcher
   unit, `scripts/**`, and the compiled runtime-compat slice.
+- `.github/workflows/quality-gate.yml` is the reusable `workflow_call` gate for
+  pull requests, stable tags, and prerelease tags. Keep common quality steps
+  there instead of copying them into caller workflows.
+- The reusable gate installs Lua and runs `bun run test:env`, so the shipped mpv
+  plugin tests run for every pull request and tagged release.
 
 ## Default Handoff Gate
 
@@ -52,7 +57,8 @@ bun run docs:build
 
 - `bun run test:coverage:src` runs the maintained `test:src` lane through a sharded coverage runner: one Bun coverage process per test file, then merged LCOV output.
 - Machine-readable output lands at `coverage/test-src/lcov.info`.
-- CI and release quality-gate runs upload that LCOV file as the `coverage-test-src` artifact.
+- Every reusable quality-gate run uploads that LCOV file as the
+  `coverage-test-src` artifact.
 
 ## Rules
 

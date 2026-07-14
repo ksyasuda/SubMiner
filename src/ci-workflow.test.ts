@@ -12,19 +12,6 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
 };
 
-test('ci workflow lints changelog fragments', () => {
-  assert.match(ciWorkflow, /bun run changelog:lint/);
-});
-
-test('ci workflow checks pull requests for required changelog fragments', () => {
-  assert.match(ciWorkflow, /bun run changelog:pr-check/);
-  assert.match(ciWorkflow, /skip-changelog/);
-});
-
-test('ci workflow verifies generated config examples stay in sync', () => {
-  assert.match(ciWorkflow, /bun run verify:config-example/);
-});
-
 test('package scripts expose a sharded maintained source coverage lane with lcov output', () => {
   assert.equal(
     packageJson.scripts['test:coverage:src'],
@@ -32,11 +19,14 @@ test('package scripts expose a sharded maintained source coverage lane with lcov
   );
 });
 
-test('ci workflow runs the maintained source coverage lane and uploads lcov output', () => {
-  assert.match(ciWorkflow, /name: Coverage suite \(maintained source lane\)/);
-  assert.match(ciWorkflow, /run: bun run test:coverage:src/);
-  assert.match(ciWorkflow, /name: Upload coverage artifact/);
-  assert.match(ciWorkflow, /path: coverage\/test-src\/lcov\.info/);
+test('ci delegates its gate instead of duplicating quality steps', () => {
+  assert.match(
+    ciWorkflow,
+    /build-test-audit:\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
+  );
+  assert.doesNotMatch(ciWorkflow, /oven-sh\/setup-bun/);
+  assert.doesNotMatch(ciWorkflow, /bun run test:coverage:src/);
+  assert.doesNotMatch(ciWorkflow, /bun run test:env/);
 });
 
 test('main docs deploy exists, serializes deploys, and uses Cloudflare credentials', () => {
