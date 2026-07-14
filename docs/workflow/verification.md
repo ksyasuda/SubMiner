@@ -62,11 +62,9 @@ bun run docs:build
 
 ## Dependency Audit Policy
 
-- `bun audit --audit-level high` remains advisory while the maintained
-  dependency graph contains known high-severity advisories that require
-  coordinated dependency upgrades.
-- Treat new audit output as release-maintenance work. Remove
-  `continue-on-error` only after the audit passes against the frozen lockfile.
+- `bun audit --audit-level high` blocks the reusable quality gate.
+- Keep security overrides and dependency patches at the minimum fixed version.
+  Remove them after the owning package ships and adopts a compatible fix.
 
 ## Rules
 

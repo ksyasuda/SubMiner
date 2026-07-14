@@ -51,13 +51,16 @@ test('quality gate verifies generated config examples', () => {
   assert.match(qualityGateWorkflow, /bun run verify:config-example/);
 });
 
-test('quality gate documents its temporary non-blocking audit policy', () => {
+test('quality gate blocks on high-severity audit findings', () => {
+  const securityAuditStep =
+    qualityGateWorkflow.match(/- name: Security audit[\s\S]*?(?=\n {6}- name:|\n?$)/)?.[0] ?? '';
+  const dependencyAuditPolicySection =
+    verificationDoc.match(/## Dependency Audit Policy[\s\S]*?(?=\n## |\n?$)/)?.[0] ?? '';
+
+  assert.match(securityAuditStep, /run: bun audit --audit-level high/);
+  assert.doesNotMatch(securityAuditStep, /continue-on-error: true/);
   assert.match(
-    qualityGateWorkflow,
-    /name: Security audit\s*\n\s*# Dependency audit remains advisory; see docs\/workflow\/verification\.md\.\s*\n\s*run: bun audit --audit-level high\s*\n\s*continue-on-error: true/,
-  );
-  assert.match(
-    verificationDoc,
-    /## Dependency Audit Policy[\s\S]*`bun audit --audit-level high` remains advisory[\s\S]*Remove\s+`continue-on-error` only after the audit passes/,
+    dependencyAuditPolicySection,
+    /`bun audit --audit-level high` blocks the reusable quality gate/,
   );
 });

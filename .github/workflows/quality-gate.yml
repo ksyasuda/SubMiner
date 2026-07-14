@@ -105,9 +105,7 @@ jobs:
         run: bun run test:smoke:dist
 
       - name: Security audit
-        # Dependency audit remains advisory; see docs/workflow/verification.md.
         run: bun audit --audit-level high
-        continue-on-error: true
 
       - name: Build Bun subminer wrapper
         run: make build-launcher
