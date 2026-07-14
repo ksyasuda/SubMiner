@@ -148,12 +148,12 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'jimaku',
   },
   {
-    title: 'Animetosho',
+    title: 'TsukiHime',
     description: [
-      'Animetosho subtitle search configuration (English and Japanese). No API key required.',
+      'TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.',
     ],
-    notes: ['Hot-reload: Animetosho changes apply to the next Animetosho request.'],
-    key: 'animetosho',
+    notes: ['Hot-reload: TsukiHime changes apply to the next TsukiHime request.'],
+    key: 'tsukihime',
   },
   {
     title: 'YouTube Playback Settings',

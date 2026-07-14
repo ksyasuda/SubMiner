@@ -11,7 +11,7 @@ interface RuntimeHarness {
     patches: boolean[];
     broadcasts: number;
     fetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
-    animetoshoFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
+    tsukihimeFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     sentCommands: Array<{ command: (string | number)[] }>;
   };
 }
@@ -26,7 +26,7 @@ function createHarness(): RuntimeHarness {
       endpoint: string;
       query?: Record<string, unknown>;
     }>,
-    animetoshoFetchCalls: [] as Array<{
+    tsukihimeFetchCalls: [] as Array<{
       endpoint: string;
       query?: Record<string, unknown>;
     }>,
@@ -37,17 +37,18 @@ function createHarness(): RuntimeHarness {
     patchAnkiConnectEnabled: (enabled) => {
       state.patches.push(enabled);
     },
-    getResolvedConfig: () => ({ animetosho: { maxSearchResults: 2 } }),
+    getResolvedConfig: () => ({ tsukihime: { maxSearchResults: 2 } }),
     getRuntimeOptionsManager: () => null,
-    animetoshoFetchJson: async (endpoint, query) => {
-      state.animetoshoFetchCalls.push({
+    tsukihimeFetchJson: async (endpoint, query) => {
+      state.tsukihimeFetchCalls.push({
         endpoint,
         query: query as Record<string, unknown>,
       });
-      if ((query as Record<string, unknown>)?.show === 'torrent') {
+      if (endpoint.startsWith('/torrents/')) {
         return {
           ok: true,
           data: {
+            id: 606713,
             files: [
               {
                 id: 9,
@@ -55,9 +56,8 @@ function createHarness(): RuntimeHarness {
                 attachments: [
                   {
                     id: 1955356,
-                    type: 'subtitle',
-                    info: { codec: 'ASS', lang: 'eng', name: 'English subs' },
-                    size: 33075,
+                    type: 1,
+                    info: { codec: 'ASS', lang: 'en', name: 'English subs' },
                   },
                 ],
               },
@@ -67,11 +67,13 @@ function createHarness(): RuntimeHarness {
       }
       return {
         ok: true,
-        data: [
-          { id: 1, title: 'release a' },
-          { id: 2, title: 'release b' },
-          { id: 3, title: 'release c' },
-        ] as never,
+        data: {
+          results: [
+            { id: 1, name: 'release a' },
+            { id: 2, name: 'release b' },
+            { id: 3, name: 'release c' },
+          ],
+        } as never,
       };
     },
     getSubtitleTimingTracker: () => null,
@@ -172,9 +174,9 @@ test('registerAnkiJimakuIpcRuntime provides full handler surface', () => {
     'isRemoteMediaPath',
     'downloadToFile',
     'onDownloadedSubtitle',
-    'searchAnimetoshoEntries',
-    'listAnimetoshoFiles',
-    'downloadAnimetoshoSubtitle',
+    'searchTsukihimeEntries',
+    'listTsukihimeFiles',
+    'downloadTsukihimeSubtitle',
     'onDownloadedSecondarySubtitle',
   ];
 
@@ -365,14 +367,14 @@ test('onDownloadedSecondarySubtitle retries until mpv reports the new track', as
   });
 });
 
-test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', async () => {
+test('searchTsukihimeEntries caps results using tsukihime.maxSearchResults', async () => {
   const { registered, state } = createHarness();
 
-  const searchResult = await registered.searchAnimetoshoEntries!({ query: 'frieren 28' });
-  assert.deepEqual(state.animetoshoFetchCalls, [
+  const searchResult = await registered.searchTsukihimeEntries!({ query: 'frieren 28' });
+  assert.deepEqual(state.tsukihimeFetchCalls, [
     {
-      endpoint: '/json',
-      query: { q: 'frieren 28', qx: 1 },
+      endpoint: '/search/torrents',
+      query: { q: 'frieren 28', limit: 2 },
     },
   ]);
   assert.equal((searchResult as { ok: boolean }).ok, true);
@@ -384,20 +386,20 @@ test('searchAnimetoshoEntries caps results using animetosho.maxSearchResults', a
   );
 });
 
-test('listAnimetoshoFiles extracts subtitle attachments from torrent detail', async () => {
+test('listTsukihimeFiles extracts subtitle attachments from torrent detail', async () => {
   const { registered, state } = createHarness();
 
-  const filesResult = await registered.listAnimetoshoFiles!({ entryId: 606713 });
-  assert.deepEqual(state.animetoshoFetchCalls, [
+  const filesResult = await registered.listTsukihimeFiles!({ entryId: 606713 });
+  assert.deepEqual(state.tsukihimeFetchCalls, [
     {
-      endpoint: '/json',
-      query: { show: 'torrent', id: 606713 },
+      endpoint: '/torrents/606713',
+      query: {},
     },
   ]);
   assert.equal((filesResult as { ok: boolean }).ok, true);
   const files = (filesResult as { data: Array<Record<string, unknown>> }).data;
   assert.equal(files.length, 1);
   assert.equal(files[0]!.attachmentId, 1955356);
-  assert.equal(files[0]!.filename, 'episode.eng.ass');
-  assert.equal(files[0]!.url, 'https://animetosho.org/storage/attach/001dd61c/1955356.xz');
+  assert.equal(files[0]!.filename, 'episode.en.ass');
+  assert.equal(files[0]!.url, 'https://storage.tsukihime.org/attach/001dd61c/1955356.xz');
 });

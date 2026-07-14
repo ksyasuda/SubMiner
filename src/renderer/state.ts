@@ -4,8 +4,8 @@ import type {
   ControllerButtonSnapshot,
   ControllerDeviceInfo,
   ResolvedControllerConfig,
-  AnimetoshoEntry,
-  AnimetoshoSubtitleFile,
+  TsukihimeEntry,
+  TsukihimeSubtitleFile,
   JimakuEntry,
   JimakuFileEntry,
   KikuDuplicateCardInfo,
@@ -50,13 +50,13 @@ export type RendererState = {
   currentEpisodeFilter: number | null;
   currentEntryId: number | null;
 
-  animetoshoModalOpen: boolean;
-  animetoshoActiveTab: 'en' | 'ja';
-  animetoshoEntries: AnimetoshoEntry[];
-  animetoshoFiles: AnimetoshoSubtitleFile[];
-  selectedAnimetoshoEntryIndex: number;
-  selectedAnimetoshoFileIndex: number;
-  currentAnimetoshoEntryId: number | null;
+  tsukihimeModalOpen: boolean;
+  tsukihimeActiveTab: 'secondary' | 'primary';
+  tsukihimeEntries: TsukihimeEntry[];
+  tsukihimeFiles: TsukihimeSubtitleFile[];
+  selectedTsukihimeEntryIndex: number;
+  selectedTsukihimeFileIndex: number;
+  currentTsukihimeEntryId: number | null;
 
   youtubePickerModalOpen: boolean;
   youtubePickerPayload: YoutubePickerOpenPayload | null;
@@ -174,13 +174,13 @@ export function createRendererState(): RendererState {
     currentEpisodeFilter: null,
     currentEntryId: null,
 
-    animetoshoModalOpen: false,
-    animetoshoActiveTab: 'en',
-    animetoshoEntries: [],
-    animetoshoFiles: [],
-    selectedAnimetoshoEntryIndex: 0,
-    selectedAnimetoshoFileIndex: 0,
-    currentAnimetoshoEntryId: null,
+    tsukihimeModalOpen: false,
+    tsukihimeActiveTab: 'secondary',
+    tsukihimeEntries: [],
+    tsukihimeFiles: [],
+    selectedTsukihimeEntryIndex: 0,
+    selectedTsukihimeFileIndex: 0,
+    currentTsukihimeEntryId: null,
 
     youtubePickerModalOpen: false,
     youtubePickerPayload: null,

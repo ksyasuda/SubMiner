@@ -13,6 +13,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       RUNTIME_OPTIONS_OPEN: '__runtime-options-open',
       JIMAKU_OPEN: '__jimaku-open',
       ANIMETOSHO_OPEN: '__animetosho-open',
+      TSUKIHIME_OPEN: '__tsukihime-open',
       RUNTIME_OPTION_CYCLE_PREFIX: '__runtime-option-cycle:',
       REPLAY_SUBTITLE: '__replay-subtitle',
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
@@ -28,8 +29,8 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     openJimaku: () => {
       calls.push('jimaku');
     },
-    openAnimetosho: () => {
-      calls.push('animetosho');
+    openTsukihime: () => {
+      calls.push('tsukihime');
     },
     openYoutubeTrackPicker: () => {
       calls.push('youtube-picker');
@@ -150,6 +151,15 @@ test('handleMpvCommandFromIpc dispatches special jimaku open command', () => {
   assert.deepEqual(calls, ['jimaku']);
   assert.deepEqual(sentCommands, []);
   assert.deepEqual(osd, []);
+});
+
+test('handleMpvCommandFromIpc keeps the legacy Animetosho command as a TsukiHime alias', () => {
+  const { options, calls, sentCommands } = createOptions();
+
+  handleMpvCommandFromIpc(['__animetosho-open'], options);
+
+  assert.deepEqual(calls, ['tsukihime']);
+  assert.deepEqual(sentCommands, []);
 });
 
 test('handleMpvCommandFromIpc dispatches special playlist browser open command', async () => {

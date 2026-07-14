@@ -1,8 +1,8 @@
 import type { KikuFieldGroupingChoice, KikuMergePreviewRequest } from '../../types/anki';
 import type {
-  AnimetoshoDownloadQuery,
-  AnimetoshoFilesQuery,
-  AnimetoshoSearchQuery,
+  TsukihimeDownloadQuery,
+  TsukihimeFilesQuery,
+  TsukihimeSearchQuery,
   JimakuDownloadQuery,
   JimakuFilesQuery,
   JimakuSearchQuery,
@@ -43,7 +43,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openControllerSelect',
   'openControllerDebug',
   'openJimaku',
-  'openAnimetosho',
+  'openTsukihime',
   'openYoutubePicker',
   'openPlaylistBrowser',
   'replayCurrentSubtitle',
@@ -406,17 +406,17 @@ export function parseJimakuDownloadQuery(value: unknown): JimakuDownloadQuery | 
   };
 }
 
-export function parseAnimetoshoSearchQuery(value: unknown): AnimetoshoSearchQuery | null {
+export function parseTsukihimeSearchQuery(value: unknown): TsukihimeSearchQuery | null {
   if (!isObject(value) || typeof value.query !== 'string') return null;
   return { query: value.query };
 }
 
-export function parseAnimetoshoFilesQuery(value: unknown): AnimetoshoFilesQuery | null {
+export function parseTsukihimeFilesQuery(value: unknown): TsukihimeFilesQuery | null {
   if (!isObject(value) || !isInteger(value.entryId)) return null;
   return { entryId: value.entryId };
 }
 
-export function parseAnimetoshoDownloadQuery(value: unknown): AnimetoshoDownloadQuery | null {
+export function parseTsukihimeDownloadQuery(value: unknown): TsukihimeDownloadQuery | null {
   if (!isObject(value)) return null;
   if (
     !isInteger(value.entryId) ||

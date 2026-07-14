@@ -55,10 +55,10 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
       isRemoteMediaPath: () => false,
       downloadToFile: async () => ({ ok: true, path: '/tmp/sub.ass' }),
       onDownloadedSubtitle: () => {},
-      searchAnimetoshoEntries: async () => ({ ok: true, data: [] }),
-      listAnimetoshoFiles: async () => ({ ok: true, data: [] }),
-      downloadAnimetoshoSubtitle: async () => ({ ok: true, path: '/tmp/sub.en.ass' }),
-      getAnimetoshoSecondaryLanguages: () => ['en'],
+      searchTsukihimeEntries: async () => ({ ok: true, data: [] }),
+      listTsukihimeFiles: async () => ({ ok: true, data: [] }),
+      downloadTsukihimeSubtitle: async () => ({ ok: true, path: '/tmp/sub.en.ass' }),
+      getTsukihimeSecondaryLanguages: () => ['en'],
       onDownloadedSecondarySubtitle: () => {},
     },
     registrar,
@@ -98,41 +98,41 @@ test('anki/jimaku IPC handlers reject malformed invoke payloads', async () => {
     error: { error: 'Invalid Jimaku download query payload', code: 400 },
   });
 
-  const animetoshoSearchHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoSearchEntries);
-  assert.ok(animetoshoSearchHandler);
-  const invalidAnimetoshoSearch = await animetoshoSearchHandler!({}, { query: 12 });
-  assert.deepEqual(invalidAnimetoshoSearch, {
+  const tsukihimeSearchHandler = handleHandlers.get(IPC_CHANNELS.request.tsukihimeSearchEntries);
+  assert.ok(tsukihimeSearchHandler);
+  const invalidTsukihimeSearch = await tsukihimeSearchHandler!({}, { query: 12 });
+  assert.deepEqual(invalidTsukihimeSearch, {
     ok: false,
-    error: { error: 'Invalid Animetosho search query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime search query payload', code: 400 },
   });
 
-  const animetoshoFilesHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoListFiles);
-  assert.ok(animetoshoFilesHandler);
-  const invalidAnimetoshoFiles = await animetoshoFilesHandler!({}, { entryId: 'x' });
-  assert.deepEqual(invalidAnimetoshoFiles, {
+  const tsukihimeFilesHandler = handleHandlers.get(IPC_CHANNELS.request.tsukihimeListFiles);
+  assert.ok(tsukihimeFilesHandler);
+  const invalidTsukihimeFiles = await tsukihimeFilesHandler!({}, { entryId: 'x' });
+  assert.deepEqual(invalidTsukihimeFiles, {
     ok: false,
-    error: { error: 'Invalid Animetosho files query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime files query payload', code: 400 },
   });
 
-  const animetoshoDownloadHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoDownloadFile);
-  assert.ok(animetoshoDownloadHandler);
-  const invalidAnimetoshoDownload = await animetoshoDownloadHandler!({}, { entryId: 1, url: '/x' });
-  assert.deepEqual(invalidAnimetoshoDownload, {
+  const tsukihimeDownloadHandler = handleHandlers.get(IPC_CHANNELS.request.tsukihimeDownloadFile);
+  assert.ok(tsukihimeDownloadHandler);
+  const invalidTsukihimeDownload = await tsukihimeDownloadHandler!({}, { entryId: 1, url: '/x' });
+  assert.deepEqual(invalidTsukihimeDownload, {
     ok: false,
-    error: { error: 'Invalid Animetosho download query payload', code: 400 },
+    error: { error: 'Invalid TsukiHime download query payload', code: 400 },
   });
 
-  const foreignUrlDownload = await animetoshoDownloadHandler!(
+  const foreignUrlDownload = await tsukihimeDownloadHandler!(
     {},
     { entryId: 1, url: 'https://evil.example/attach/00000001/1.xz', name: 'sub.ass' },
   );
   assert.deepEqual(foreignUrlDownload, {
     ok: false,
-    error: { error: 'Refusing to download subtitle from a non-Animetosho URL.', code: 400 },
+    error: { error: 'Refusing to download subtitle from a non-TsukiHime URL.', code: 400 },
   });
 });
 
-test('animetosho downloads route by language: secondary for eng, primary for jpn', async () => {
+test('tsukihime downloads always route Japanese as primary', async () => {
   const { registrar, handleHandlers } = createFakeRegistrar();
   const primaryLoads: string[] = [];
   const secondaryLoads: string[] = [];
@@ -160,10 +160,10 @@ test('animetosho downloads route by language: secondary for eng, primary for jpn
       onDownloadedSubtitle: (path) => {
         primaryLoads.push(path);
       },
-      searchAnimetoshoEntries: async () => ({ ok: true, data: [] }),
-      listAnimetoshoFiles: async () => ({ ok: true, data: [] }),
-      downloadAnimetoshoSubtitle: async (_url, destPath) => ({ ok: true, path: destPath }),
-      getAnimetoshoSecondaryLanguages: () => ['en'],
+      searchTsukihimeEntries: async () => ({ ok: true, data: [] }),
+      listTsukihimeFiles: async () => ({ ok: true, data: [] }),
+      downloadTsukihimeSubtitle: async (_url, destPath) => ({ ok: true, path: destPath }),
+      getTsukihimeSecondaryLanguages: () => ['ja'],
       onDownloadedSecondarySubtitle: (path) => {
         secondaryLoads.push(path);
       },
@@ -171,13 +171,13 @@ test('animetosho downloads route by language: secondary for eng, primary for jpn
     registrar,
   );
 
-  const downloadHandler = handleHandlers.get(IPC_CHANNELS.request.animetoshoDownloadFile)!;
+  const downloadHandler = handleHandlers.get(IPC_CHANNELS.request.tsukihimeDownloadFile)!;
 
   const engResult = (await downloadHandler!(
     {},
     {
       entryId: 1,
-      url: 'https://animetosho.org/storage/attach/00000001/1.xz',
+      url: 'https://storage.tsukihime.org/attach/00000001/1.xz',
       name: 'episode.eng.ass',
       lang: 'eng',
     },
@@ -191,7 +191,7 @@ test('animetosho downloads route by language: secondary for eng, primary for jpn
     {},
     {
       entryId: 1,
-      url: 'https://animetosho.org/storage/attach/00000002/2.xz',
+      url: 'https://storage.tsukihime.org/attach/00000002/2.xz',
       name: 'episode.jpn.ass',
       lang: 'jpn',
     },
@@ -232,10 +232,10 @@ test('anki/jimaku IPC command handlers ignore malformed payloads', () => {
       isRemoteMediaPath: () => false,
       downloadToFile: async () => ({ ok: true, path: '/tmp/sub.ass' }),
       onDownloadedSubtitle: () => {},
-      searchAnimetoshoEntries: async () => ({ ok: true, data: [] }),
-      listAnimetoshoFiles: async () => ({ ok: true, data: [] }),
-      downloadAnimetoshoSubtitle: async () => ({ ok: true, path: '/tmp/sub.en.ass' }),
-      getAnimetoshoSecondaryLanguages: () => ['en'],
+      searchTsukihimeEntries: async () => ({ ok: true, data: [] }),
+      listTsukihimeFiles: async () => ({ ok: true, data: [] }),
+      downloadTsukihimeSubtitle: async () => ({ ok: true, path: '/tmp/sub.en.ass' }),
+      getTsukihimeSecondaryLanguages: () => ['en'],
       onDownloadedSecondarySubtitle: () => {},
     },
     registrar,

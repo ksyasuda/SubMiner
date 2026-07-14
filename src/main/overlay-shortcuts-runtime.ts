@@ -21,7 +21,7 @@ export interface OverlayShortcutRuntimeServiceInput {
   openRuntimeOptionsPalette: () => void;
   openCharacterDictionaryManager: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   markAudioCard: () => Promise<void>;
   copySubtitleMultiple: (timeoutMs: number) => void;
   copySubtitle: () => void;
@@ -57,8 +57,8 @@ export function createOverlayShortcutsRuntimeService(
     openJimaku: () => {
       input.openJimaku();
     },
-    openAnimetosho: () => {
-      input.openAnimetosho();
+    openTsukihime: () => {
+      input.openTsukihime();
     },
     markAudioCard: () => {
       return input.markAudioCard();

@@ -239,6 +239,14 @@ local ctx = {
 					},
 					{
 						key = {
+							code = "KeyT",
+							modifiers = { "ctrl", "alt" },
+						},
+						actionType = "session-action",
+						actionId = "openAnimetosho",
+					},
+					{
+						key = {
 							code = "KeyH",
 							modifiers = { "ctrl", "shift" },
 						},
@@ -387,6 +395,7 @@ end
 local expected_cli_bindings = {
 	{ keys = "Ctrl+Alt+c", flag = "--open-youtube-picker" },
 	{ keys = "Ctrl+Alt+p", flag = "--open-playlist-browser" },
+	{ keys = "Ctrl+Alt+t", flag = "--open-tsukihime" },
 	{ keys = "Ctrl+H", flag = "--replay-current-subtitle" },
 	{ keys = "Ctrl+L", flag = "--play-next-subtitle" },
 	{ keys = "w", flag = "--mark-watched" },

@@ -10,7 +10,7 @@ import type {
   ImmersionTrackingConfig,
   ImmersionTrackingRetentionMode,
   ImmersionTrackingRetentionPreset,
-  AnimetoshoConfig,
+  TsukihimeConfig,
   JellyfinConfig,
   JimakuConfig,
   JimakuLanguagePreference,
@@ -123,13 +123,18 @@ export interface ShortcutsConfig {
   openCharacterDictionaryManager?: string | null;
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
-  openAnimetosho?: string | null;
+  openTsukihime?: string | null;
   openSessionHelp?: string | null;
   openControllerSelect?: string | null;
   openControllerDebug?: string | null;
   toggleSubtitleSidebar?: string | null;
   toggleNotificationHistory?: string | null;
   appendClipboardVideoToQueue?: string | null;
+}
+
+export interface RawShortcutsConfig extends ShortcutsConfig {
+  /** @deprecated Use openTsukihime. */
+  openAnimetosho?: string | null;
 }
 
 export interface Config {
@@ -141,7 +146,7 @@ export interface Config {
   mpv?: MpvConfig;
   controller?: ControllerConfig;
   ankiConnect?: AnkiConnectConfig;
-  shortcuts?: ShortcutsConfig;
+  shortcuts?: RawShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
   startupWarmups?: StartupWarmupsConfig;
@@ -149,7 +154,9 @@ export interface Config {
   subtitleSidebar?: SubtitleSidebarConfig;
   auto_start_overlay?: boolean;
   jimaku?: JimakuConfig;
-  animetosho?: AnimetoshoConfig;
+  /** @deprecated Use tsukihime. */
+  animetosho?: TsukihimeConfig;
+  tsukihime?: TsukihimeConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;
   jellyfin?: JellyfinConfig;
@@ -306,7 +313,7 @@ export interface ResolvedConfig {
     languagePreference: JimakuLanguagePreference;
     maxEntryResults: number;
   };
-  animetosho: AnimetoshoConfig & {
+  tsukihime: TsukihimeConfig & {
     apiBaseUrl: string;
     maxSearchResults: number;
   };

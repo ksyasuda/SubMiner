@@ -90,7 +90,7 @@ function createEmptyShortcuts(): ConfiguredShortcuts {
     openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
-    openAnimetosho: null,
+    openTsukihime: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,
@@ -492,7 +492,7 @@ function createKeyboardHandlerHarness() {
     handleSubsyncKeydown: () => false,
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,
-    handleAnimetoshoKeydown: () => false,
+    handleTsukihimeKeydown: () => false,
     handleControllerSelectKeydown: () => {
       controllerSelectKeydownCount += 1;
       return true;

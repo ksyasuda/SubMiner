@@ -5,7 +5,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
   | 'ankiConnect'
   | 'jimaku'
-  | 'animetosho'
+  | 'tsukihime'
   | 'anilist'
   | 'mpv'
   | 'yomitan'
@@ -97,8 +97,8 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     languagePreference: 'ja',
     maxEntryResults: 10,
   },
-  animetosho: {
-    apiBaseUrl: 'https://feed.animetosho.org',
+  tsukihime: {
+    apiBaseUrl: 'https://api.tsukihime.org/v1',
     maxSearchResults: 10,
   },
   mpv: {

@@ -13,7 +13,7 @@ export interface OverlayShortcutHandlers {
   openCharacterDictionaryManager: () => void;
   openRuntimeOptions: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
 }
 
 export interface OverlayShortcutLifecycleDeps {
@@ -36,7 +36,7 @@ const OVERLAY_SHORTCUT_KEYS: Array<keyof Omit<ConfiguredShortcuts, 'multiCopyTim
   'openCharacterDictionaryManager',
   'openRuntimeOptions',
   'openJimaku',
-  'openAnimetosho',
+  'openTsukihime',
 ];
 
 function hasConfiguredOverlayShortcuts(shortcuts: ConfiguredShortcuts): boolean {

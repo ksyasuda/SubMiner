@@ -82,7 +82,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`             |
 | `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                     |
-| `Ctrl+Shift+T`     | Open Animetosho subtitle search modal (EN/JA tabs)       | `shortcuts.openAnimetosho`                 |
+| `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)       | `shortcuts.openTsukihime`                 |
 | `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
 | `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                 |
@@ -90,6 +90,8 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey` (overlay) / `shortcuts.toggleSubtitleSidebar` (mpv session binding) |
 | `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                          |
 | `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                     |
+
+`shortcuts.openAnimetosho` remains accepted as a deprecated alias for `shortcuts.openTsukihime`. The current name takes precedence when both are configured.
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
 

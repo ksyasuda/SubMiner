@@ -1,4 +1,4 @@
-// Pure language-code helpers shared between the main-process Animetosho client
+// Pure language-code helpers shared between the main-process Tsukihime client
 // and the overlay renderer. Must stay free of node imports so the renderer
 // bundle can use it.
 
@@ -33,35 +33,35 @@ const LANG_DISPLAY_NAMES: Record<string, string> = {
   ko: 'Korean',
 };
 
-export function normalizeAnimetoshoLangCode(code: string): string {
+export function normalizeTsukihimeLangCode(code: string): string {
   const base = code.trim().toLowerCase().split(/[-_]/)[0] ?? '';
   return LANG_FILENAME_SUFFIXES[base] ?? base;
 }
 
-export function animetoshoLangToFilenameSuffix(lang: string | undefined): string {
-  const normalized = normalizeAnimetoshoLangCode(lang ?? '');
+export function tsukihimeLangToFilenameSuffix(lang: string | undefined): string {
+  const normalized = normalizeTsukihimeLangCode(lang ?? '');
   if (!normalized || normalized === 'und') return 'en';
   return normalized;
 }
 
-export function animetoshoTrackMatchesLanguages(
+export function tsukihimeTrackMatchesLanguages(
   trackLang: string,
   configuredLanguages: string[],
 ): boolean {
-  const normalizedTrack = normalizeAnimetoshoLangCode(trackLang);
+  const normalizedTrack = normalizeTsukihimeLangCode(trackLang);
   // Unlabeled tracks cannot be classified; keep them visible rather than
   // hiding them behind a tab that never shows them.
   if (!normalizedTrack || normalizedTrack === 'und') return true;
   return configuredLanguages.some(
-    (candidate) => normalizeAnimetoshoLangCode(candidate) === normalizedTrack,
+    (candidate) => normalizeTsukihimeLangCode(candidate) === normalizedTrack,
   );
 }
 
-export function describeAnimetoshoTabLanguages(configuredLanguages: string[]): string {
+export function describeTsukihimeTabLanguages(configuredLanguages: string[]): string {
   const normalized = [
     ...new Set(
       configuredLanguages
-        .map((candidate) => normalizeAnimetoshoLangCode(candidate))
+        .map((candidate) => normalizeTsukihimeLangCode(candidate))
         .filter(Boolean),
     ),
   ];

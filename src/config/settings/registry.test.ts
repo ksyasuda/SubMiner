@@ -247,6 +247,8 @@ test('settings registry routes playback-related integrations into integrations',
   assert.equal(field('jimaku.apiBaseUrl').section, 'Jimaku');
   assert.equal(field('subsync.replace').category, 'integrations');
   assert.equal(field('subsync.replace').section, 'Subtitle Sync');
+  assert.equal(field('tsukihime.apiBaseUrl').category, 'integrations');
+  assert.equal(field('tsukihime.apiBaseUrl').section, 'TsukiHime');
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {

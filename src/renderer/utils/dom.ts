@@ -22,18 +22,18 @@ export type RendererDom = {
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
 
-  animetoshoModal: HTMLDivElement;
-  animetoshoTitleInput: HTMLInputElement;
-  animetoshoEpisodeInput: HTMLInputElement;
-  animetoshoSearchButton: HTMLButtonElement;
-  animetoshoCloseButton: HTMLButtonElement;
-  animetoshoTabEnglishButton: HTMLButtonElement;
-  animetoshoTabJapaneseButton: HTMLButtonElement;
-  animetoshoStatus: HTMLDivElement;
-  animetoshoEntriesSection: HTMLDivElement;
-  animetoshoEntriesList: HTMLUListElement;
-  animetoshoFilesSection: HTMLDivElement;
-  animetoshoFilesList: HTMLUListElement;
+  tsukihimeModal: HTMLDivElement;
+  tsukihimeTitleInput: HTMLInputElement;
+  tsukihimeEpisodeInput: HTMLInputElement;
+  tsukihimeSearchButton: HTMLButtonElement;
+  tsukihimeCloseButton: HTMLButtonElement;
+  tsukihimeTabSecondaryButton: HTMLButtonElement;
+  tsukihimeTabPrimaryButton: HTMLButtonElement;
+  tsukihimeStatus: HTMLDivElement;
+  tsukihimeEntriesSection: HTMLDivElement;
+  tsukihimeEntriesList: HTMLUListElement;
+  tsukihimeFilesSection: HTMLDivElement;
+  tsukihimeFilesList: HTMLUListElement;
 
   youtubePickerModal: HTMLDivElement;
   youtubePickerTitle: HTMLDivElement;
@@ -167,18 +167,18 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
 
-    animetoshoModal: getRequiredElement<HTMLDivElement>('animetoshoModal'),
-    animetoshoTitleInput: getRequiredElement<HTMLInputElement>('animetoshoTitle'),
-    animetoshoEpisodeInput: getRequiredElement<HTMLInputElement>('animetoshoEpisode'),
-    animetoshoSearchButton: getRequiredElement<HTMLButtonElement>('animetoshoSearch'),
-    animetoshoCloseButton: getRequiredElement<HTMLButtonElement>('animetoshoClose'),
-    animetoshoTabEnglishButton: getRequiredElement<HTMLButtonElement>('animetoshoTabEnglish'),
-    animetoshoTabJapaneseButton: getRequiredElement<HTMLButtonElement>('animetoshoTabJapanese'),
-    animetoshoStatus: getRequiredElement<HTMLDivElement>('animetoshoStatus'),
-    animetoshoEntriesSection: getRequiredElement<HTMLDivElement>('animetoshoEntriesSection'),
-    animetoshoEntriesList: getRequiredElement<HTMLUListElement>('animetoshoEntries'),
-    animetoshoFilesSection: getRequiredElement<HTMLDivElement>('animetoshoFilesSection'),
-    animetoshoFilesList: getRequiredElement<HTMLUListElement>('animetoshoFiles'),
+    tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
+    tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),
+    tsukihimeEpisodeInput: getRequiredElement<HTMLInputElement>('tsukihimeEpisode'),
+    tsukihimeSearchButton: getRequiredElement<HTMLButtonElement>('tsukihimeSearch'),
+    tsukihimeCloseButton: getRequiredElement<HTMLButtonElement>('tsukihimeClose'),
+    tsukihimeTabSecondaryButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabSecondary'),
+    tsukihimeTabPrimaryButton: getRequiredElement<HTMLButtonElement>('tsukihimeTabPrimary'),
+    tsukihimeStatus: getRequiredElement<HTMLDivElement>('tsukihimeStatus'),
+    tsukihimeEntriesSection: getRequiredElement<HTMLDivElement>('tsukihimeEntriesSection'),
+    tsukihimeEntriesList: getRequiredElement<HTMLUListElement>('tsukihimeEntries'),
+    tsukihimeFilesSection: getRequiredElement<HTMLDivElement>('tsukihimeFilesSection'),
+    tsukihimeFilesList: getRequiredElement<HTMLUListElement>('tsukihimeFiles'),
 
     youtubePickerModal: getRequiredElement<HTMLDivElement>('youtubePickerModal'),
     youtubePickerTitle: getRequiredElement<HTMLDivElement>('youtubePickerTitle'),

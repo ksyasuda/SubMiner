@@ -205,7 +205,7 @@
     "openCharacterDictionaryManager": "CommandOrControl+D", // Accelerator that opens the character dictionary manager modal.
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
-    "openAnimetosho": "Ctrl+Shift+T", // Accelerator that opens the Animetosho subtitle search modal (English/Japanese tabs).
+    "openTsukihime": "Ctrl+Shift+T", // Accelerator that opens the TsukiHime subtitle search modal (configured secondary/Japanese primary tabs).
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.
@@ -614,14 +614,14 @@
   }, // Jimaku API configuration and defaults.
 
   // ==========================================
-  // Animetosho
-  // Animetosho subtitle search configuration (English and Japanese). No API key required.
-  // Hot-reload: Animetosho changes apply to the next Animetosho request.
+  // TsukiHime
+  // TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.
+  // Hot-reload: TsukiHime changes apply to the next TsukiHime request.
   // ==========================================
-  "animetosho": {
-    "apiBaseUrl": "https://feed.animetosho.org", // Base URL of the Animetosho JSON feed API. No API key required.
-    "maxSearchResults": 10 // Maximum Animetosho search results returned.
-  }, // Animetosho subtitle search configuration (English and Japanese). No API key required.
+  "tsukihime": {
+    "apiBaseUrl": "https://api.tsukihime.org/v1", // Base URL of the TsukiHime API (Animetosho successor). No API key required.
+    "maxSearchResults": 10 // Maximum TsukiHime search results returned.
+  }, // TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.
 
   // ==========================================
   // YouTube Playback Settings

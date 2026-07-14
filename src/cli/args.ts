@@ -38,7 +38,7 @@ export interface CliArgs {
   openControllerSelect: boolean;
   openControllerDebug: boolean;
   openJimaku: boolean;
-  openAnimetosho: boolean;
+  openTsukihime: boolean;
   openYoutubePicker: boolean;
   openPlaylistBrowser: boolean;
   replayCurrentSubtitle: boolean;
@@ -148,7 +148,7 @@ export function parseArgs(argv: string[]): CliArgs {
     openControllerSelect: false,
     openControllerDebug: false,
     openJimaku: false,
-    openAnimetosho: false,
+    openTsukihime: false,
     openYoutubePicker: false,
     openPlaylistBrowser: false,
     replayCurrentSubtitle: false,
@@ -297,8 +297,9 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--open-controller-select') args.openControllerSelect = true;
     else if (arg === '--open-controller-debug') args.openControllerDebug = true;
     else if (arg === '--open-jimaku') args.openJimaku = true;
-    else if (arg === '--open-animetosho') args.openAnimetosho = true;
-    else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
+    else if (arg === '--open-tsukihime' || arg === '--open-animetosho') {
+      args.openTsukihime = true;
+    } else if (arg === '--open-youtube-picker') args.openYoutubePicker = true;
     else if (arg === '--open-playlist-browser') args.openPlaylistBrowser = true;
     else if (arg === '--replay-current-subtitle') args.replayCurrentSubtitle = true;
     else if (arg === '--play-next-subtitle') args.playNextSubtitle = true;
@@ -571,7 +572,7 @@ export function hasExplicitCommand(args: CliArgs): boolean {
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
-    args.openAnimetosho ||
+    args.openTsukihime ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
@@ -650,7 +651,7 @@ export function isStandaloneTexthookerCommand(args: CliArgs): boolean {
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
-    !args.openAnimetosho &&
+    !args.openTsukihime &&
     !args.openYoutubePicker &&
     !args.openPlaylistBrowser &&
     !args.replayCurrentSubtitle &&
@@ -718,7 +719,7 @@ export function shouldStartApp(args: CliArgs): boolean {
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
-    args.openAnimetosho ||
+    args.openTsukihime ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||
@@ -780,7 +781,7 @@ export function shouldRunYomitanOnlyStartup(args: CliArgs): boolean {
     !args.openControllerSelect &&
     !args.openControllerDebug &&
     !args.openJimaku &&
-    !args.openAnimetosho &&
+    !args.openTsukihime &&
     !args.openYoutubePicker &&
     !args.openPlaylistBrowser &&
     !args.replayCurrentSubtitle &&
@@ -846,7 +847,7 @@ export function commandNeedsOverlayRuntime(args: CliArgs): boolean {
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
-    args.openAnimetosho ||
+    args.openTsukihime ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||

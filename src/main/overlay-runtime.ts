@@ -49,7 +49,7 @@ export interface OverlayModalRuntime {
   ) => boolean;
   openRuntimeOptionsPalette: () => void;
   openJimaku: () => void;
-  openAnimetosho: () => void;
+  openTsukihime: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
   notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
@@ -433,9 +433,9 @@ export function createOverlayModalRuntimeService(
     });
   };
 
-  const openAnimetosho = (): void => {
-    sendToActiveOverlayWindow('animetosho:open', undefined, {
-      restoreOnModalClose: 'animetosho',
+  const openTsukihime = (): void => {
+    sendToActiveOverlayWindow('tsukihime:open', undefined, {
+      restoreOnModalClose: 'tsukihime',
     });
   };
 
@@ -518,7 +518,7 @@ export function createOverlayModalRuntimeService(
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     openJimaku,
-    openAnimetosho,
+    openTsukihime,
     handleOverlayModalClosed,
     notifyOverlayModalOpened,
     waitForModalOpen,

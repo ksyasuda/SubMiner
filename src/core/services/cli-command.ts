@@ -544,11 +544,11 @@ export function handleCliCommand(
     );
   } else if (args.openJimaku) {
     dispatchCliSessionAction({ actionId: 'openJimaku' }, 'openJimaku', 'Open jimaku failed');
-  } else if (args.openAnimetosho) {
+  } else if (args.openTsukihime) {
     dispatchCliSessionAction(
-      { actionId: 'openAnimetosho' },
-      'openAnimetosho',
-      'Open animetosho failed',
+      { actionId: 'openTsukihime' },
+      'openTsukihime',
+      'Open tsukihime failed',
     );
   } else if (args.openYoutubePicker) {
     dispatchCliSessionAction(

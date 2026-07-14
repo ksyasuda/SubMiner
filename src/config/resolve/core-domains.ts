@@ -236,7 +236,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openCharacterDictionaryManager',
       'openRuntimeOptions',
       'openJimaku',
-      'openAnimetosho',
+      'openTsukihime',
       'openSessionHelp',
       'openControllerSelect',
       'openControllerDebug',
@@ -251,6 +251,20 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
         resolved.shortcuts[key] = value as (typeof resolved.shortcuts)[typeof key];
       } else if (value !== undefined) {
         warn(`shortcuts.${key}`, value, resolved.shortcuts[key], 'Expected string or null.');
+      }
+    }
+
+    if (src.shortcuts.openTsukihime === undefined) {
+      const legacyOpenTsukihime = src.shortcuts.openAnimetosho;
+      if (typeof legacyOpenTsukihime === 'string' || legacyOpenTsukihime === null) {
+        resolved.shortcuts.openTsukihime = legacyOpenTsukihime;
+      } else if (legacyOpenTsukihime !== undefined) {
+        warn(
+          'shortcuts.openAnimetosho',
+          legacyOpenTsukihime,
+          resolved.shortcuts.openTsukihime,
+          'Expected string or null.',
+        );
       }
     }
 

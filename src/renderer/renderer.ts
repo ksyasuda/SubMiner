@@ -33,7 +33,7 @@ import { createControllerStatusIndicator } from './controller-status-indicator.j
 import { createControllerDebugModal } from './modals/controller-debug.js';
 import { createControllerSelectModal } from './modals/controller-select.js';
 import { createJimakuModal } from './modals/jimaku.js';
-import { createAnimetoshoModal } from './modals/animetosho.js';
+import { createTsukihimeModal } from './modals/tsukihime.js';
 import { createKikuModal } from './modals/kiku.js';
 import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
@@ -102,9 +102,9 @@ const modalDescriptors = [
     suppressesSubtitles: true,
   },
   {
-    id: 'animetosho',
-    isOpen: () => ctx.state.animetoshoModalOpen,
-    close: () => animetoshoModal.closeAnimetoshoModal(),
+    id: 'tsukihime',
+    isOpen: () => ctx.state.tsukihimeModalOpen,
+    close: () => tsukihimeModal.closeTsukihimeModal(),
     suppressesSubtitles: false,
   },
   {
@@ -229,7 +229,7 @@ const jimakuModal = createJimakuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
-const animetoshoModal = createAnimetoshoModal(ctx, {
+const tsukihimeModal = createTsukihimeModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
@@ -260,7 +260,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
-  handleAnimetoshoKeydown: animetoshoModal.handleAnimetoshoKeydown,
+  handleTsukihimeKeydown: tsukihimeModal.handleTsukihimeKeydown,
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
   handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
@@ -545,10 +545,10 @@ function registerModalOpenHandlers(): void {
       window.electronAPI.notifyOverlayModalOpened('jimaku');
     });
   });
-  window.electronAPI.onOpenAnimetosho(() => {
-    runGuarded('animetosho:open', () => {
-      animetoshoModal.openAnimetoshoModal();
-      window.electronAPI.notifyOverlayModalOpened('animetosho');
+  window.electronAPI.onOpenTsukihime(() => {
+    runGuarded('tsukihime:open', () => {
+      tsukihimeModal.openTsukihimeModal();
+      window.electronAPI.notifyOverlayModalOpened('tsukihime');
     });
   });
   window.electronAPI.onOpenYoutubeTrackPicker((payload) => {
@@ -785,7 +785,7 @@ async function init(): Promise<void> {
   });
 
   jimakuModal.wireDomEvents();
-  animetoshoModal.wireDomEvents();
+  tsukihimeModal.wireDomEvents();
   youtubePickerModal.wireDomEvents();
   playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();

@@ -34,13 +34,13 @@ import type {
   JimakuFileEntry,
   JimakuApiResponse,
   JimakuDownloadResult,
-  AnimetoshoSearchQuery,
-  AnimetoshoFilesQuery,
-  AnimetoshoDownloadQuery,
-  AnimetoshoEntry,
-  AnimetoshoSubtitleFile,
-  AnimetoshoApiResponse,
-  AnimetoshoDownloadResult,
+  TsukihimeSearchQuery,
+  TsukihimeFilesQuery,
+  TsukihimeDownloadQuery,
+  TsukihimeEntry,
+  TsukihimeSubtitleFile,
+  TsukihimeApiResponse,
+  TsukihimeDownloadResult,
   SubsyncManualPayload,
   SubsyncManualRunRequest,
   SubsyncResult,
@@ -174,7 +174,7 @@ const onOpenControllerSelectEvent = createQueuedIpcListener(
 );
 const onOpenControllerDebugEvent = createQueuedIpcListener(IPC_CHANNELS.event.controllerDebugOpen);
 const onOpenJimakuEvent = createQueuedIpcListener(IPC_CHANNELS.event.jimakuOpen);
-const onOpenAnimetoshoEvent = createQueuedIpcListener(IPC_CHANNELS.event.animetoshoOpen);
+const onOpenTsukihimeEvent = createQueuedIpcListener(IPC_CHANNELS.event.tsukihimeOpen);
 const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(
   IPC_CHANNELS.event.youtubePickerOpen,
   (payload) => payload as YoutubePickerOpenPayload,
@@ -358,18 +358,18 @@ const electronAPI: ElectronAPI = {
   jimakuDownloadFile: (query: JimakuDownloadQuery): Promise<JimakuDownloadResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.jimakuDownloadFile, query),
 
-  animetoshoSearchEntries: (
-    query: AnimetoshoSearchQuery,
-  ): Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoSearchEntries, query),
-  animetoshoListFiles: (
-    query: AnimetoshoFilesQuery,
-  ): Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoListFiles, query),
-  animetoshoDownloadFile: (query: AnimetoshoDownloadQuery): Promise<AnimetoshoDownloadResult> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoDownloadFile, query),
-  animetoshoGetSecondaryLanguages: (): Promise<string[]> =>
-    ipcRenderer.invoke(IPC_CHANNELS.request.animetoshoGetSecondaryLanguages),
+  tsukihimeSearchEntries: (
+    query: TsukihimeSearchQuery,
+  ): Promise<TsukihimeApiResponse<TsukihimeEntry[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.tsukihimeSearchEntries, query),
+  tsukihimeListFiles: (
+    query: TsukihimeFilesQuery,
+  ): Promise<TsukihimeApiResponse<TsukihimeSubtitleFile[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.tsukihimeListFiles, query),
+  tsukihimeDownloadFile: (query: TsukihimeDownloadQuery): Promise<TsukihimeDownloadResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.tsukihimeDownloadFile, query),
+  tsukihimeGetSecondaryLanguages: (): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.tsukihimeGetSecondaryLanguages),
 
   quitApp: () => {
     ipcRenderer.send(IPC_CHANNELS.command.quitApp);
@@ -450,7 +450,7 @@ const electronAPI: ElectronAPI = {
   onOpenControllerSelect: onOpenControllerSelectEvent,
   onOpenControllerDebug: onOpenControllerDebugEvent,
   onOpenJimaku: onOpenJimakuEvent,
-  onOpenAnimetosho: onOpenAnimetoshoEvent,
+  onOpenTsukihime: onOpenTsukihimeEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,

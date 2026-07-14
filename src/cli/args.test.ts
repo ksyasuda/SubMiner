@@ -115,7 +115,7 @@ test('parseArgs captures session action forwarding flags', () => {
     '--toggle-stats-overlay',
     '--mark-watched',
     '--open-jimaku',
-    '--open-animetosho',
+    '--open-tsukihime',
     '--open-youtube-picker',
     '--open-playlist-browser',
     '--toggle-primary-subtitle-bar',
@@ -133,7 +133,7 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.equal(args.toggleStatsOverlay, true);
   assert.equal(args.markWatched, true);
   assert.equal(args.openJimaku, true);
-  assert.equal(args.openAnimetosho, true);
+  assert.equal(args.openTsukihime, true);
   assert.equal(args.openYoutubePicker, true);
   assert.equal(args.openPlaylistBrowser, true);
   assert.equal(args.togglePrimarySubtitleBar, true);
@@ -144,6 +144,14 @@ test('parseArgs captures session action forwarding flags', () => {
   assert.deepEqual(args.sessionAction, { actionId: 'openCharacterDictionaryManager' });
   assert.equal(args.copySubtitleCount, 3);
   assert.equal(args.mineSentenceCount, 2);
+  assert.equal(hasExplicitCommand(args), true);
+  assert.equal(shouldStartApp(args), true);
+});
+
+test('parseArgs keeps the legacy Animetosho open flag as a TsukiHime alias', () => {
+  const args = parseArgs(['--open-animetosho']);
+
+  assert.equal(args.openTsukihime, true);
   assert.equal(hasExplicitCommand(args), true);
   assert.equal(shouldStartApp(args), true);
 });

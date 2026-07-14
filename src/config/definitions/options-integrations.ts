@@ -401,16 +401,17 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Maximum Jimaku search results returned.',
     },
     {
-      path: 'animetosho.apiBaseUrl',
+      path: 'tsukihime.apiBaseUrl',
       kind: 'string',
-      defaultValue: defaultConfig.animetosho.apiBaseUrl,
-      description: 'Base URL of the Animetosho JSON feed API. No API key required.',
+      defaultValue: defaultConfig.tsukihime.apiBaseUrl,
+      description:
+        'Base URL of the TsukiHime API (Animetosho successor). No API key required.',
     },
     {
-      path: 'animetosho.maxSearchResults',
+      path: 'tsukihime.maxSearchResults',
       kind: 'number',
-      defaultValue: defaultConfig.animetosho.maxSearchResults,
-      description: 'Maximum Animetosho search results returned.',
+      defaultValue: defaultConfig.tsukihime.maxSearchResults,
+      description: 'Maximum TsukiHime search results returned.',
     },
     {
       path: 'anilist.enabled',

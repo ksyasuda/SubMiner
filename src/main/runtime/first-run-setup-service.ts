@@ -97,7 +97,7 @@ function hasAnyStartupCommandBeyondSetup(args: CliArgs): boolean {
     args.openControllerSelect ||
     args.openControllerDebug ||
     args.openJimaku ||
-    args.openAnimetosho ||
+    args.openTsukihime ||
     args.openYoutubePicker ||
     args.openPlaylistBrowser ||
     args.replayCurrentSubtitle ||

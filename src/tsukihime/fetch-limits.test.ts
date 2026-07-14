@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { animetoshoFetchJson } from './utils.js';
+import { tsukihimeFetchJson } from './utils.js';
 
 interface TestServer {
   baseUrl: string;
@@ -27,7 +27,7 @@ function startServer(handler: http.RequestListener): Promise<TestServer> {
   });
 }
 
-test('animetoshoFetchJson gives up on a hanging response', async () => {
+test('tsukihimeFetchJson gives up on a hanging response', async () => {
   const server = await startServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     // Never end the response.
@@ -35,7 +35,7 @@ test('animetoshoFetchJson gives up on a hanging response', async () => {
   });
 
   try {
-    const result = await animetoshoFetchJson(
+    const result = await tsukihimeFetchJson(
       '/json',
       {},
       { baseUrl: server.baseUrl, timeoutMs: 150 },
@@ -49,14 +49,14 @@ test('animetoshoFetchJson gives up on a hanging response', async () => {
   }
 });
 
-test('animetoshoFetchJson rejects an oversized response', async () => {
+test('tsukihimeFetchJson rejects an oversized response', async () => {
   const server = await startServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(Array.from({ length: 2000 }, (_, index) => ({ id: index }))));
   });
 
   try {
-    const result = await animetoshoFetchJson(
+    const result = await tsukihimeFetchJson(
       '/json',
       {},
       { baseUrl: server.baseUrl, maxResponseBytes: 512 },
@@ -70,7 +70,7 @@ test('animetoshoFetchJson rejects an oversized response', async () => {
   }
 });
 
-test('animetoshoFetchJson decodes multi-byte characters split across chunks', async () => {
+test('tsukihimeFetchJson decodes multi-byte characters split across chunks', async () => {
   const title = '葬送のフリーレン';
   const body = Buffer.from(JSON.stringify([{ id: 1, title }]), 'utf8');
   // Split inside the first Japanese character's 3-byte UTF-8 sequence.
@@ -83,7 +83,7 @@ test('animetoshoFetchJson decodes multi-byte characters split across chunks', as
   });
 
   try {
-    const result = await animetoshoFetchJson<Array<{ id: number; title: string }>>(
+    const result = await tsukihimeFetchJson<Array<{ id: number; title: string }>>(
       '/json',
       {},
       { baseUrl: server.baseUrl },
@@ -97,14 +97,14 @@ test('animetoshoFetchJson decodes multi-byte characters split across chunks', as
   }
 });
 
-test('animetoshoFetchJson still parses a normal response', async () => {
+test('tsukihimeFetchJson still parses a normal response', async () => {
   const server = await startServer((_req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify([{ id: 1, title: 'ok' }]));
   });
 
   try {
-    const result = await animetoshoFetchJson<Array<{ id: number }>>(
+    const result = await tsukihimeFetchJson<Array<{ id: number }>>(
       '/json',
       { q: 'x' },
       { baseUrl: server.baseUrl },
@@ -115,5 +115,21 @@ test('animetoshoFetchJson still parses a normal response', async () => {
     }
   } finally {
     await server.close();
+  }
+});
+
+test('tsukihimeFetchJson reports a structured error for a malformed base URL', async () => {
+  const result = await tsukihimeFetchJson('/search/torrents', {}, { baseUrl: 'not a url' });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.error, /base url/i);
+  }
+});
+
+test('tsukihimeFetchJson rejects non-HTTP(S) base URLs', async () => {
+  const result = await tsukihimeFetchJson('/search/torrents', {}, { baseUrl: 'file:///etc' });
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.match(result.error.error, /http/i);
   }
 });

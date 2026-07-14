@@ -4,12 +4,12 @@ import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from '../../logger';
 import {
-  AnimetoshoApiResponse,
-  AnimetoshoDownloadResult,
-  AnimetoshoEntry,
-  AnimetoshoFilesQuery,
-  AnimetoshoSearchQuery,
-  AnimetoshoSubtitleFile,
+  TsukihimeApiResponse,
+  TsukihimeDownloadResult,
+  TsukihimeEntry,
+  TsukihimeFilesQuery,
+  TsukihimeSearchQuery,
+  TsukihimeSubtitleFile,
   JimakuApiResponse,
   JimakuDownloadResult,
   JimakuEntry,
@@ -23,9 +23,9 @@ import {
 } from '../../types';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import {
-  parseAnimetoshoDownloadQuery,
-  parseAnimetoshoFilesQuery,
-  parseAnimetoshoSearchQuery,
+  parseTsukihimeDownloadQuery,
+  parseTsukihimeFilesQuery,
+  parseTsukihimeSearchQuery,
   parseJimakuDownloadQuery,
   parseJimakuFilesQuery,
   parseJimakuSearchQuery,
@@ -33,7 +33,7 @@ import {
   parseKikuMergePreviewRequest,
 } from '../../shared/ipc/validators';
 import { buildJimakuSubtitleFilenameFromMediaPath } from './jimaku-download-path';
-import { animetoshoLangToFilenameSuffix, isAnimetoshoDownloadUrl } from '../../animetosho/utils';
+import { tsukihimeLangToFilenameSuffix, isTsukihimeDownloadUrl } from '../../tsukihime/utils';
 
 const { ipcMain } = electron;
 
@@ -57,14 +57,14 @@ export interface AnkiJimakuIpcDeps {
     headers: Record<string, string>,
   ) => Promise<JimakuDownloadResult>;
   onDownloadedSubtitle: (pathToSubtitle: string) => void;
-  searchAnimetoshoEntries: (
-    query: AnimetoshoSearchQuery,
-  ) => Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>>;
-  listAnimetoshoFiles: (
-    query: AnimetoshoFilesQuery,
-  ) => Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>>;
-  downloadAnimetoshoSubtitle: (url: string, destPath: string) => Promise<AnimetoshoDownloadResult>;
-  getAnimetoshoSecondaryLanguages: () => string[];
+  searchTsukihimeEntries: (
+    query: TsukihimeSearchQuery,
+  ) => Promise<TsukihimeApiResponse<TsukihimeEntry[]>>;
+  listTsukihimeFiles: (
+    query: TsukihimeFilesQuery,
+  ) => Promise<TsukihimeApiResponse<TsukihimeSubtitleFile[]>>;
+  downloadTsukihimeSubtitle: (url: string, destPath: string) => Promise<TsukihimeDownloadResult>;
+  getTsukihimeSecondaryLanguages: () => string[];
   onDownloadedSecondarySubtitle: (pathToSubtitle: string) => void | Promise<void>;
 }
 
@@ -206,50 +206,50 @@ export function registerAnkiJimakuIpcHandlers(
     },
   );
 
-  ipc.handle(IPC_CHANNELS.request.animetoshoGetSecondaryLanguages, (): string[] => {
-    return deps.getAnimetoshoSecondaryLanguages();
+  ipc.handle(IPC_CHANNELS.request.tsukihimeGetSecondaryLanguages, (): string[] => {
+    return deps.getTsukihimeSecondaryLanguages();
   });
 
   ipc.handle(
-    IPC_CHANNELS.request.animetoshoSearchEntries,
-    async (_event, query: unknown): Promise<AnimetoshoApiResponse<AnimetoshoEntry[]>> => {
-      const parsedQuery = parseAnimetoshoSearchQuery(query);
+    IPC_CHANNELS.request.tsukihimeSearchEntries,
+    async (_event, query: unknown): Promise<TsukihimeApiResponse<TsukihimeEntry[]>> => {
+      const parsedQuery = parseTsukihimeSearchQuery(query);
       if (!parsedQuery) {
         return {
           ok: false,
-          error: { error: 'Invalid Animetosho search query payload', code: 400 },
+          error: { error: 'Invalid TsukiHime search query payload', code: 400 },
         };
       }
-      return deps.searchAnimetoshoEntries(parsedQuery);
+      return deps.searchTsukihimeEntries(parsedQuery);
     },
   );
 
   ipc.handle(
-    IPC_CHANNELS.request.animetoshoListFiles,
-    async (_event, query: unknown): Promise<AnimetoshoApiResponse<AnimetoshoSubtitleFile[]>> => {
-      const parsedQuery = parseAnimetoshoFilesQuery(query);
+    IPC_CHANNELS.request.tsukihimeListFiles,
+    async (_event, query: unknown): Promise<TsukihimeApiResponse<TsukihimeSubtitleFile[]>> => {
+      const parsedQuery = parseTsukihimeFilesQuery(query);
       if (!parsedQuery) {
-        return { ok: false, error: { error: 'Invalid Animetosho files query payload', code: 400 } };
+        return { ok: false, error: { error: 'Invalid TsukiHime files query payload', code: 400 } };
       }
-      return deps.listAnimetoshoFiles(parsedQuery);
+      return deps.listTsukihimeFiles(parsedQuery);
     },
   );
 
   ipc.handle(
-    IPC_CHANNELS.request.animetoshoDownloadFile,
-    async (_event, query: unknown): Promise<AnimetoshoDownloadResult> => {
-      const parsedQuery = parseAnimetoshoDownloadQuery(query);
+    IPC_CHANNELS.request.tsukihimeDownloadFile,
+    async (_event, query: unknown): Promise<TsukihimeDownloadResult> => {
+      const parsedQuery = parseTsukihimeDownloadQuery(query);
       if (!parsedQuery) {
         return {
           ok: false,
-          error: { error: 'Invalid Animetosho download query payload', code: 400 },
+          error: { error: 'Invalid TsukiHime download query payload', code: 400 },
         };
       }
 
-      if (!isAnimetoshoDownloadUrl(parsedQuery.url)) {
+      if (!isTsukihimeDownloadUrl(parsedQuery.url)) {
         return {
           ok: false,
-          error: { error: 'Refusing to download subtitle from a non-Animetosho URL.', code: 400 },
+          error: { error: 'Refusing to download subtitle from a non-TsukiHime URL.', code: 400 },
         };
       }
 
@@ -259,13 +259,13 @@ export function registerAnkiJimakuIpcHandlers(
       }
 
       const mediaDir = deps.isRemoteMediaPath(currentMediaPath)
-        ? fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-animetosho-'))
+        ? fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tsukihime-'))
         : path.dirname(path.resolve(currentMediaPath));
       const safeName = path.basename(parsedQuery.name);
       if (!safeName) {
         return { ok: false, error: { error: 'Invalid subtitle filename.' } };
       }
-      const languageSuffix = animetoshoLangToFilenameSuffix(parsedQuery.lang);
+      const languageSuffix = tsukihimeLangToFilenameSuffix(parsedQuery.lang);
       const subtitleFilename = buildJimakuSubtitleFilenameFromMediaPath(
         currentMediaPath,
         safeName,
@@ -276,24 +276,24 @@ export function registerAnkiJimakuIpcHandlers(
       const baseName = ext ? subtitleFilename.slice(0, -ext.length) : subtitleFilename;
       let targetPath = path.join(mediaDir, subtitleFilename);
       if (fs.existsSync(targetPath)) {
-        targetPath = path.join(mediaDir, `${baseName} (animetosho-${parsedQuery.entryId})${ext}`);
+        targetPath = path.join(mediaDir, `${baseName} (tsukihime-${parsedQuery.entryId})${ext}`);
         let counter = 2;
         while (fs.existsSync(targetPath)) {
           targetPath = path.join(
             mediaDir,
-            `${baseName} (animetosho-${parsedQuery.entryId}-${counter})${ext}`,
+            `${baseName} (tsukihime-${parsedQuery.entryId}-${counter})${ext}`,
           );
           counter += 1;
         }
       }
 
       logger.info(
-        `[animetosho] download-file name="${parsedQuery.name}" entryId=${parsedQuery.entryId}`,
+        `[tsukihime] download-file name="${parsedQuery.name}" entryId=${parsedQuery.entryId}`,
       );
-      const result = await deps.downloadAnimetoshoSubtitle(parsedQuery.url, targetPath);
+      const result = await deps.downloadTsukihimeSubtitle(parsedQuery.url, targetPath);
 
       if (result.ok) {
-        logger.info(`[animetosho] download-file saved to ${result.path}`);
+        logger.info(`[tsukihime] download-file saved to ${result.path}`);
         // Japanese tracks take the primary slot; anything else loads as the
         // secondary subtitle so the Japanese primary stays in place.
         if (languageSuffix === 'ja') {
@@ -303,7 +303,7 @@ export function registerAnkiJimakuIpcHandlers(
         }
       } else {
         logger.error(
-          `[animetosho] download-file failed: ${result.error?.error ?? 'unknown error'}`,
+          `[tsukihime] download-file failed: ${result.error?.error ?? 'unknown error'}`,
         );
       }
 

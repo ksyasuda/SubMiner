@@ -28,7 +28,7 @@ function makeShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configured
     openCharacterDictionaryManager: null,
     openRuntimeOptions: null,
     openJimaku: null,
-    openAnimetosho: null,
+    openTsukihime: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,
@@ -55,8 +55,8 @@ function createDeps(overrides: Partial<OverlayShortcutRuntimeDeps> = {}) {
     openJimaku: () => {
       calls.push('openJimaku');
     },
-    openAnimetosho: () => {
-      calls.push('openAnimetosho');
+    openTsukihime: () => {
+      calls.push('openTsukihime');
     },
     markAudioCard: async () => {
       calls.push('markAudioCard');
@@ -168,7 +168,7 @@ test('runOverlayShortcutLocalFallback dispatches matching single-step actions', 
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
-      openAnimetosho: () => handled.push('openAnimetosho'),
+      openTsukihime: () => handled.push('openTsukihime'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
       copySubtitle: () => handled.push('copySubtitle'),
@@ -202,7 +202,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
-      openAnimetosho: () => handled.push('openAnimetosho'),
+      openTsukihime: () => handled.push('openTsukihime'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
       copySubtitle: () => handled.push('copySubtitle'),
@@ -223,7 +223,7 @@ test('runOverlayShortcutLocalFallback leaves multi-step numeric shortcuts for re
       openRuntimeOptions: () => handled.push('openRuntimeOptions'),
       openCharacterDictionaryManager: () => handled.push('openCharacterDictionaryManager'),
       openJimaku: () => handled.push('openJimaku'),
-      openAnimetosho: () => handled.push('openAnimetosho'),
+      openTsukihime: () => handled.push('openTsukihime'),
       markAudioCard: () => handled.push('markAudioCard'),
       copySubtitleMultiple: (timeoutMs) => handled.push(`copySubtitleMultiple:${timeoutMs}`),
       copySubtitle: () => handled.push('copySubtitle'),
@@ -261,7 +261,7 @@ test('runOverlayShortcutLocalFallback passes allowWhenRegistered for secondary-s
       openRuntimeOptions: () => {},
       openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
-      openAnimetosho: () => {},
+      openTsukihime: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
       copySubtitle: () => {},
@@ -298,7 +298,7 @@ test('runOverlayShortcutLocalFallback allows registered-global jimaku shortcut',
       openRuntimeOptions: () => {},
       openCharacterDictionaryManager: () => {},
       openJimaku: () => {},
-      openAnimetosho: () => {},
+      openTsukihime: () => {},
       markAudioCard: () => {},
       copySubtitleMultiple: () => {},
       copySubtitle: () => {},
@@ -331,7 +331,7 @@ test('runOverlayShortcutLocalFallback returns false when no action matches', () 
     openJimaku: () => {
       called = true;
     },
-    openAnimetosho: () => {
+    openTsukihime: () => {
       called = true;
     },
     markAudioCard: () => {
@@ -416,7 +416,7 @@ test('registerOverlayShortcutsRuntime reports active shortcuts when configured',
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
-      openAnimetosho: () => {},
+      openTsukihime: () => {},
     }),
     cancelPendingMultiCopy: () => {},
     cancelPendingMineSentenceMultiple: () => {},
@@ -444,7 +444,7 @@ test('unregisterOverlayShortcutsRuntime clears pending shortcut work when active
       openCharacterDictionaryManager: () => {},
       openRuntimeOptions: () => {},
       openJimaku: () => {},
-      openAnimetosho: () => {},
+      openTsukihime: () => {},
     }),
     cancelPendingMultiCopy: () => {
       calls.push('cancel-multi-copy');

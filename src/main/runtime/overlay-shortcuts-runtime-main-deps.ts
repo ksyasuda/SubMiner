@@ -13,7 +13,7 @@ export function createBuildOverlayShortcutsRuntimeMainDepsHandler(
     openRuntimeOptionsPalette: () => deps.openRuntimeOptionsPalette(),
     openCharacterDictionaryManager: () => deps.openCharacterDictionaryManager(),
     openJimaku: () => deps.openJimaku(),
-    openAnimetosho: () => deps.openAnimetosho(),
+    openTsukihime: () => deps.openTsukihime(),
     markAudioCard: () => deps.markAudioCard(),
     copySubtitleMultiple: (timeoutMs: number) => deps.copySubtitleMultiple(timeoutMs),
     copySubtitle: () => deps.copySubtitle(),

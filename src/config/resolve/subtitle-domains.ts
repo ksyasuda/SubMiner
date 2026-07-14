@@ -80,18 +80,27 @@ export function applySubtitleDomainConfig(context: ResolveContext): void {
     }
   }
 
-  if (isObject(src.animetosho)) {
-    const apiBaseUrl = asString(src.animetosho.apiBaseUrl);
-    if (apiBaseUrl !== undefined) resolved.animetosho.apiBaseUrl = apiBaseUrl;
+  const currentTsukihimeSource = isObject(src.tsukihime) ? src.tsukihime : null;
+  if (src.tsukihime !== undefined && !currentTsukihimeSource) {
+    warn('tsukihime', src.tsukihime, resolved.tsukihime, 'Expected object.');
+  }
 
-    const maxSearchResults = asNumber(src.animetosho.maxSearchResults);
+  const legacyTsukihimeSource =
+    src.tsukihime === undefined && isObject(src.animetosho) ? src.animetosho : null;
+  const tsukihimeSource = currentTsukihimeSource ?? legacyTsukihimeSource;
+  const tsukihimeSourcePath = currentTsukihimeSource ? 'tsukihime' : 'animetosho';
+  if (tsukihimeSource) {
+    const apiBaseUrl = asString(tsukihimeSource.apiBaseUrl);
+    if (apiBaseUrl !== undefined) resolved.tsukihime.apiBaseUrl = apiBaseUrl;
+
+    const maxSearchResults = asNumber(tsukihimeSource.maxSearchResults);
     if (maxSearchResults !== undefined && Math.floor(maxSearchResults) > 0) {
-      resolved.animetosho.maxSearchResults = Math.floor(maxSearchResults);
-    } else if (src.animetosho.maxSearchResults !== undefined) {
+      resolved.tsukihime.maxSearchResults = Math.floor(maxSearchResults);
+    } else if (tsukihimeSource.maxSearchResults !== undefined) {
       warn(
-        'animetosho.maxSearchResults',
-        src.animetosho.maxSearchResults,
-        resolved.animetosho.maxSearchResults,
+        `${tsukihimeSourcePath}.maxSearchResults`,
+        tsukihimeSource.maxSearchResults,
+        resolved.tsukihime.maxSearchResults,
         'Expected positive number.',
       );
     }
