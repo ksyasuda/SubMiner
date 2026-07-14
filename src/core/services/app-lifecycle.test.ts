@@ -16,6 +16,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     togglePrimarySubtitleBar: false,
     yomitan: false,
     settings: false,
+    syncWindow: false,
     setup: false,
     show: false,
     hide: false,
@@ -140,6 +141,65 @@ test('startAppLifecycle still acquires lock for startup commands', () => {
   assert.equal(getLockCalls(), 1);
 });
 
+test('startAppLifecycle defers quit until async cleanup settles', async () => {
+  let willQuit: ((event: { preventDefault(): void }) => void) | null = null;
+  let releaseCleanup: (() => void) | null = null;
+  const cleanupDone = new Promise<void>((resolve) => {
+    releaseCleanup = resolve;
+  });
+  let prevented = false;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    onWillQuit: (handler) => {
+      willQuit = handler;
+    },
+    onWillQuitCleanup: () => cleanupDone,
+  });
+
+  startAppLifecycle(makeArgs({ start: true }), deps);
+  assert.ok(willQuit);
+  (willQuit as (event: { preventDefault(): void }) => void)({
+    preventDefault: () => {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.deepEqual(calls, []);
+
+  assert.ok(releaseCleanup);
+  (releaseCleanup as () => void)();
+  await cleanupDone;
+  // The re-quit must not fire in the microtask turn of the will-quit
+  // dispatch: Electron drops a quit issued while the prevented quit is
+  // still unwinding, leaving a windowless process alive.
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.deepEqual(calls, []);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls, ['quitApp']);
+});
+
+test('startAppLifecycle contains synchronous quit cleanup failures', () => {
+  let willQuit: ((event: { preventDefault(): void }) => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    onWillQuit: (handler) => {
+      willQuit = handler;
+    },
+    onWillQuitCleanup: () => {
+      throw new Error('cleanup exploded');
+    },
+  });
+
+  startAppLifecycle(makeArgs({ start: true }), deps);
+  assert.ok(willQuit);
+  assert.doesNotThrow(() =>
+    (willQuit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} }),
+  );
+  assert.deepEqual(calls, []);
+});
+
 test('startAppLifecycle app ping exits non-zero immediately when no running instance owns the lock', () => {
   const { deps, calls, getLockCalls } = createDeps({
     shouldStartApp: () => false,
@@ -252,7 +312,7 @@ test('startAppLifecycle routes control socket commands through the second-instan
     },
   });
 
-  let willQuitHandler: (() => void) | null = null;
+  let willQuitHandler: ((event: { preventDefault(): void }) => void) | null = null;
   deps.onWillQuit = (handler) => {
     willQuitHandler = handler;
   };
@@ -274,7 +334,7 @@ test('startAppLifecycle routes control socket commands through the second-instan
   assert.deepEqual(handled, ['ready', 'second-instance:start']);
 
   assert.ok(willQuitHandler);
-  (willQuitHandler as () => void)();
+  (willQuitHandler as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
   assert.deepEqual(handled, ['ready', 'second-instance:start', 'control-close']);
 });
 
@@ -347,6 +407,25 @@ test('startAppLifecycle quits macOS setup-only launch when all windows close', (
   });
 
   startAppLifecycle(makeArgs({ setup: true }), deps);
+
+  const handler = windowAllClosedHandler as (() => void) | null;
+  assert.ok(handler);
+  handler();
+  assert.deepEqual(calls, ['quitApp']);
+});
+
+test('startAppLifecycle quits macOS sync-window launch when its window closes', () => {
+  let windowAllClosedHandler: (() => void) | null = null;
+  const { deps, calls } = createDeps({
+    shouldStartApp: () => true,
+    isDarwinPlatform: () => true,
+    shouldQuitOnWindowAllClosed: () => true,
+    onWindowAllClosed: (handler) => {
+      windowAllClosedHandler = handler;
+    },
+  });
+
+  startAppLifecycle(makeArgs({ syncWindow: true }), deps);
 
   const handler = windowAllClosedHandler as (() => void) | null;
   assert.ok(handler);

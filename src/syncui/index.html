@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self';"
+    />
+    <title>SubMiner Sync</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="sync-shell">
+      <header class="sync-header">
+        <div class="brand-block">
+          <div class="brand-title">SubMiner</div>
+          <div class="brand-subtitle">Immersion Sync</div>
+        </div>
+        <div class="header-meta">
+          <div id="runPill" class="run-pill idle" role="status">Idle</div>
+          <div id="dbPath" class="db-path" title="Local immersion database"></div>
+        </div>
+      </header>
+
+      <div class="sync-scroll">
+        <section class="panel" aria-labelledby="devicesTitle">
+          <div class="panel-head">
+            <h2 id="devicesTitle">Devices</h2>
+            <div class="auto-interval">
+              <label for="autoIntervalInput">Auto-sync every</label>
+              <input id="autoIntervalInput" type="number" min="1" max="1440" step="1" />
+              <span>min</span>
+            </div>
+          </div>
+          <div id="hostList" class="host-list"></div>
+          <div id="hostListEmpty" class="empty-note hidden">
+            No saved devices yet. Hosts you sync from the command line show up here too.
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="addDeviceTitle">
+          <div class="panel-head">
+            <h2 id="addDeviceTitle">Add a device</h2>
+          </div>
+          <div class="add-host-row">
+            <input
+              id="newHostInput"
+              class="text-input mono"
+              type="text"
+              placeholder="user@hostname or ssh alias"
+              spellcheck="false"
+            />
+            <input
+              id="newLabelInput"
+              class="text-input"
+              type="text"
+              placeholder="Label (optional)"
+            />
+            <button id="testHostButton" class="ghost-button" type="button">Test connection</button>
+            <button id="addHostButton" class="primary-button" type="button">Add device</button>
+          </div>
+          <div id="checkResult" class="check-result hidden"></div>
+          <details class="setup-help">
+            <summary>Setup checklist</summary>
+            <ol>
+              <li>
+                Both machines need SSH key access:
+                <code>ssh-copy-id user@hostname</code> (no password prompts).
+              </li>
+              <li>
+                The remote machine just needs SubMiner installed. It is found automatically in its
+                default install location (Windows), as <code>SubMiner</code> on the remote PATH, a
+                macOS <code>/Applications</code> install, or the optional
+                <code>subminer</code> command-line launcher. Windows remotes need the built-in
+                OpenSSH Server enabled.
+              </li>
+              <li>
+                Use <em>Test connection</em> to verify both. It checks SSH and finds SubMiner on the
+                remote in one go.
+              </li>
+            </ol>
+          </details>
+        </section>
+
+        <section id="activityPanel" class="panel hidden" aria-labelledby="activityTitle">
+          <div class="panel-head">
+            <h2 id="activityTitle">Activity</h2>
+            <button id="cancelButton" class="danger-button hidden" type="button">Cancel</button>
+          </div>
+          <div id="stageList" class="stage-list"></div>
+          <pre id="remoteOutput" class="remote-output hidden"></pre>
+          <div id="resultCard" class="result-card hidden"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="snapshotsTitle">
+          <div class="panel-head">
+            <h2 id="snapshotsTitle">Snapshots</h2>
+            <div class="panel-actions">
+              <button id="mergeFileButton" class="ghost-button" type="button">
+                Merge a snapshot file…
+              </button>
+              <button id="createSnapshotButton" class="primary-button" type="button">
+                Create snapshot
+              </button>
+            </div>
+          </div>
+          <p class="panel-hint">
+            A snapshot is a consistent point-in-time copy of the immersion database, handy as a
+            manual backup before big merges. Stored in
+            <span id="snapshotsDir" class="mono"></span>
+          </p>
+          <div id="snapshotList" class="snapshot-list"></div>
+          <div id="snapshotListEmpty" class="empty-note hidden">No snapshots yet.</div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="syncui.js"></script>
+  </body>
+</html>

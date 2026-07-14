@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
 import { isLogFileEnabled } from '../../shared/log-files';
+import { canConnectSocket } from '../../shared/socket-probe';
 import { buildMpvLaunchModeArgs } from '../../shared/mpv-launch-mode';
 import { buildMpvMsgLevel } from '../../shared/mpv-logging-args';
 import { buildSubminerPluginRuntimeScriptOptParts } from '../../shared/subminer-plugin-script-opts';
@@ -91,28 +91,6 @@ const RUNNING_APP_ATTACH_SOCKET_WAIT_MS = 10000;
 
 async function sleepMs(ms: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
-async function canConnectSocket(socketPath: string): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
-    const socket = net.createConnection(socketPath);
-    let settled = false;
-
-    const finish = (value: boolean): void => {
-      if (settled) return;
-      settled = true;
-      try {
-        socket.destroy();
-      } catch {
-        // ignore
-      }
-      resolve(value);
-    };
-
-    socket.once('connect', () => finish(true));
-    socket.once('error', () => finish(false));
-    socket.setTimeout(400, () => finish(false));
-  });
 }
 
 async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<boolean> {

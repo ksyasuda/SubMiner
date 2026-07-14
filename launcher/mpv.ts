@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
+import type { StdioOptions } from 'node:child_process';
 import { buildMpvLaunchModeArgs } from '../src/shared/mpv-launch-mode.js';
 import { buildMpvLoggingArgs } from '../src/shared/mpv-logging-args.js';
 import {
@@ -1276,6 +1277,15 @@ function shouldTransportAppArgsForAppImage(appPath: string): boolean {
   return process.platform === 'linux' && /\.AppImage$/i.test(appPath);
 }
 
+const APPIMAGE_SYNC_NODE_RUNNER = [
+  'const root=process.env.APPDIR+"/resources/app.asar";',
+  'const {runSyncCliFromProcess}=require(root+"/dist/main/sync-cli.js");',
+  'const count=Number(process.env.SUBMINER_APP_ARGC);',
+  'const argv=[process.execPath,...Array.from({length:count},(_,i)=>process.env["SUBMINER_APP_ARG_"+i]??"")];',
+  'runSyncCliFromProcess(argv,require(root+"/package.json").version)',
+  '.then(code=>process.exit(code),error=>{console.error(error);process.exit(1)});',
+].join('');
+
 function buildAppEnv(
   baseEnv: NodeJS.ProcessEnv = process.env,
   extraEnv: NodeJS.ProcessEnv = {},
@@ -1431,6 +1441,16 @@ function maybeCaptureAppArgs(appArgs: string[]): boolean {
 
 function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget {
   if (shouldTransportAppArgsForAppImage(appPath)) {
+    if (appArgs[0] === '--sync-cli') {
+      return {
+        command: appPath,
+        args: ['-e', APPIMAGE_SYNC_NODE_RUNNER],
+        env: {
+          ...buildTransportedAppArgsEnv(appArgs),
+          ELECTRON_RUN_AS_NODE: '1',
+        },
+      };
+    }
     return {
       command: appPath,
       args: [],
@@ -1444,16 +1464,37 @@ function resolveAppSpawnTarget(appPath: string, appArgs: string[]): SpawnTarget 
 }
 
 export function runAppCommandWithInherit(appPath: string, appArgs: string[]): void {
+  runAppCommand(appPath, appArgs, ['ignore', 'pipe', 'pipe'], true);
+}
+
+/**
+ * Like runAppCommandWithInherit, but with the terminal fully attached: the
+ * child owns stdin (ssh password/host-key prompts must reach the user) and
+ * writes stdout/stderr directly (NDJSON --json output must stay unwrapped).
+ * Used for `subminer sync`, which proxies to the app's --sync-cli mode.
+ */
+export function runAppCommandInteractive(appPath: string, appArgs: string[]): void {
+  runAppCommand(appPath, appArgs, ['inherit', 'inherit', 'inherit'], false);
+}
+
+function runAppCommand(
+  appPath: string,
+  appArgs: string[],
+  stdio: StdioOptions,
+  attachLogging: boolean,
+): void {
   if (maybeCaptureAppArgs(appArgs)) {
     process.exit(0);
   }
 
   const target = resolveAppSpawnTarget(appPath, appArgs);
   const proc = spawn(target.command, target.args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio,
     env: buildAppEnv(process.env, target.env),
   });
-  attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
+  if (attachLogging) {
+    attachAppProcessLogging(proc, { mirrorStdout: true, mirrorStderr: true });
+  }
   proc.once('error', (error) => {
     fail(`Failed to run app command: ${error.message}`);
   });

@@ -84,3 +84,18 @@ export function createCreateConfigSettingsWindowHandler<TWindow>(deps: {
     backgroundColor: '#24273a',
   });
 }
+
+export function createCreateSyncUiWindowHandler<TWindow>(deps: {
+  createBrowserWindow: (options: Electron.BrowserWindowConstructorOptions) => TWindow;
+  preloadPath: string;
+}) {
+  return createSetupWindowHandler(deps, {
+    width: 880,
+    height: 720,
+    title: 'SubMiner Sync',
+    show: false,
+    resizable: true,
+    preloadPath: deps.preloadPath,
+    backgroundColor: '#24273a',
+  });
+}

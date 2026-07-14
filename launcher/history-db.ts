@@ -1,32 +1,12 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { Database } from 'bun:sqlite';
-import { resolveConfigDir } from '../src/config/path-resolution.js';
-import { readLauncherMainConfigObject } from './config/shared-config-reader.js';
 import type { HistoryVideoRow } from './history-types.js';
-import { resolvePathMaybe } from './util.js';
+import { resolveImmersionDbPath } from '../src/core/services/stats-sync/db-path.js';
+import {
+  isReadonlyWalRetryError,
+  withReadonlyWalRetry,
+} from '../src/core/services/stats-sync/wal-retry.js';
 
-export function resolveImmersionDbPath(): string {
-  const root = readLauncherMainConfigObject();
-  const tracking =
-    root?.immersionTracking &&
-    typeof root.immersionTracking === 'object' &&
-    !Array.isArray(root.immersionTracking)
-      ? (root.immersionTracking as Record<string, unknown>)
-      : null;
-  const configured = typeof tracking?.dbPath === 'string' ? tracking.dbPath.trim() : '';
-  if (configured) return resolvePathMaybe(configured);
-
-  const configDir = resolveConfigDir({
-    platform: process.platform,
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir: os.homedir(),
-    existsSync: fs.existsSync,
-  });
-  return path.join(configDir, 'immersion.sqlite');
-}
+export { isReadonlyWalRetryError, resolveImmersionDbPath, withReadonlyWalRetry };
 
 interface RawHistoryRow {
   video_id: number;
@@ -41,49 +21,6 @@ interface RawHistoryRow {
 
 export function queryLocalWatchHistory(dbPath: string): HistoryVideoRow[] {
   return withReadonlyWalRetry(dbPath, (options) => readHistoryRows(dbPath, options));
-}
-
-export function withReadonlyWalRetry<T>(
-  dbPath: string,
-  query: (options: { readonly?: boolean; readwrite?: boolean; create?: boolean }) => T,
-): T {
-  try {
-    return query({ readonly: true });
-  } catch (error) {
-    if (!isReadonlyWalRetryError(error, dbPath)) throw error;
-    return query({ readwrite: true, create: false });
-  }
-}
-
-export function isReadonlyWalRetryError(error: unknown, dbPath: string): boolean {
-  if (!isWalModeSqliteDatabase(dbPath)) return false;
-  const code =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? String((error as { code?: unknown }).code ?? '')
-      : '';
-  const message = error instanceof Error ? error.message : String(error);
-  const text = `${code} ${message}`.toLowerCase();
-  return (
-    text.includes('readonly') ||
-    text.includes('read-only') ||
-    text.includes('attempt to write a readonly database') ||
-    text.includes('sqlite_cantopen') ||
-    text.includes('unable to open database file')
-  );
-}
-
-function isWalModeSqliteDatabase(dbPath: string): boolean {
-  const header = Buffer.alloc(20);
-  let fd: number | null = null;
-  try {
-    fd = fs.openSync(dbPath, 'r');
-    if (fs.readSync(fd, header, 0, header.length, 0) < header.length) return false;
-  } catch {
-    return false;
-  } finally {
-    if (fd !== null) fs.closeSync(fd);
-  }
-  return header.subarray(0, 16).toString('ascii') === 'SQLite format 3\0' && header[18] === 2;
 }
 
 function tableExists(db: Database, tableName: string): boolean {

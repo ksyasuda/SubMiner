@@ -1,22 +1,21 @@
 import fs from 'node:fs';
-import { Database } from 'bun:sqlite';
 import {
   LexiconResolver,
   mergeAnime,
   mergeExcludedWords,
   mergeMediaMetadata,
   mergeVideos,
-} from './merge-catalog.js';
-import { mergeSessions } from './merge-sessions.js';
-import { copyRemoteOnlyRollups, refreshRollupsForNewSessions } from './merge-rollups.js';
+} from './merge-catalog';
+import { mergeSessions } from './merge-sessions';
+import { copyRemoteOnlyRollups, refreshRollupsForNewSessions } from './merge-rollups';
 import {
   assertMergeableSchema,
   createEmptyMergeSummary,
   type SyncMergeSummary,
-} from './sync-shared.js';
+} from './shared';
+import { openLibsqlSyncDb, type SyncDb } from './libsql-driver';
 
-export type { SyncMergeSummary } from './sync-shared.js';
-export { createDbSnapshot, findLiveStatsDaemonPid } from './sync-shared.js';
+export type { SyncMergeSummary } from './shared';
 
 /**
  * Merge a snapshot of another machine's immersion database into the local
@@ -34,10 +33,10 @@ export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): 
     throw new Error(`Snapshot database not found: ${snapshotPath}`);
   }
 
-  const remote = new Database(snapshotPath, { readonly: true });
-  let local: Database;
+  const remote = openLibsqlSyncDb(snapshotPath, { readonly: true });
+  let local: SyncDb;
   try {
-    local = new Database(localDbPath, { readwrite: true, create: false });
+    local = openLibsqlSyncDb(localDbPath, { create: false });
   } catch (error) {
     remote.close();
     throw error;
@@ -47,9 +46,9 @@ export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): 
     assertMergeableSchema(local, 'Local');
 
     const summary = createEmptyMergeSummary();
-    local.run('PRAGMA foreign_keys = ON');
-    local.run('PRAGMA busy_timeout = 5000');
-    local.run('BEGIN IMMEDIATE');
+    local.exec('PRAGMA foreign_keys = ON');
+    local.exec('PRAGMA busy_timeout = 5000');
+    local.exec('BEGIN IMMEDIATE');
     try {
       const animeIdMap = mergeAnime(local, remote, summary);
       const { videoIdMap, addedVideoIds } = mergeVideos(local, remote, animeIdMap, summary);
@@ -69,10 +68,10 @@ export function mergeSnapshotIntoDb(localDbPath: string, snapshotPath: string): 
       refreshRollupsForNewSessions(local, newSessionIds, summary);
       copyRemoteOnlyRollups(local, remote, videoIdMap, summary);
 
-      local.run('COMMIT');
+      local.exec('COMMIT');
       return summary;
     } catch (error) {
-      local.run('ROLLBACK');
+      local.exec('ROLLBACK');
       throw error;
     }
   } finally {

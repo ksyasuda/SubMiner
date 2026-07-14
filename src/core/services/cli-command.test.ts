@@ -21,6 +21,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     toggleVisibleOverlay: false,
     yomitan: false,
     settings: false,
+    syncWindow: false,
     setup: false,
     show: false,
     hide: false,
@@ -137,6 +138,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openConfigSettingsWindow: () => {
       calls.push('openConfigSettingsWindow');
+    },
+    openSyncUiWindow: () => {
+      calls.push('openSyncUiWindow');
     },
     openFirstRunSetup: (force?: boolean) => {
       calls.push(`openFirstRunSetup:${force === true ? 'force' : 'default'}`);
@@ -660,6 +664,7 @@ test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exis
       openFirstRunSetup: () => {},
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
+      openSyncUiWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

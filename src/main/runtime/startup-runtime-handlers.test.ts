@@ -23,7 +23,9 @@ test('startup runtime handlers compose lifecycle runner and startup bootstrap ap
       onReady: async () => {
         calls.push('ready');
       },
-      onWillQuitCleanup: () => calls.push('cleanup'),
+      onWillQuitCleanup: () => {
+        calls.push('cleanup');
+      },
       shouldRestoreWindowsOnActivate: () => true,
       restoreWindowsOnActivate: () => calls.push('restore'),
       shouldQuitOnWindowAllClosed: () => false,

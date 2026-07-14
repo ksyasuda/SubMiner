@@ -79,6 +79,11 @@ ${B}Jellyfin${R}
   --jellyfin-audio-stream-index ${D}N${R}       Audio stream override
   --jellyfin-subtitle-stream-index ${D}N${R}    Subtitle stream override
 
+${B}Stats sync${R}
+  --sync-window                  Open the stats sync window
+  --sync-cli sync ${D}[host] [opts]${R}   Headless stats sync ${D}(same commands as "subminer sync";${R}
+                                 ${D}run SubMiner --sync-cli --help for details)${R}
+
 ${B}Options${R}
   --socket ${D}PATH${R}                  mpv IPC socket path
   --backend ${D}BACKEND${R}              Window tracker ${D}(auto, hyprland, sway, x11, macos, windows)${R}

@@ -1,4 +1,5 @@
 import {
+  launchAppCommandDetached,
   launchAppBackgroundDetached,
   launchTexthookerOnly,
   runAppCommandWithInherit,
@@ -7,6 +8,10 @@ import type { LauncherCommandContext } from './context.js';
 
 type AppCommandDeps = {
   runAppCommandWithInherit: (appPath: string, appArgs: string[]) => void;
+  launchSyncUiDetached: (
+    appPath: string,
+    logLevel: LauncherCommandContext['args']['logLevel'],
+  ) => void;
   launchAppBackgroundDetached: (
     appPath: string,
     logLevel: LauncherCommandContext['args']['logLevel'],
@@ -15,6 +20,8 @@ type AppCommandDeps = {
 
 const defaultAppCommandDeps: AppCommandDeps = {
   runAppCommandWithInherit,
+  launchSyncUiDetached: (appPath, logLevel) =>
+    launchAppCommandDetached(appPath, ['--sync-window'], logLevel, 'sync-ui'),
   launchAppBackgroundDetached,
 };
 
@@ -28,6 +35,10 @@ export function runAppPassthroughCommand(
   }
   if (args.settings) {
     deps.runAppCommandWithInherit(appPath, ['--settings']);
+    return true;
+  }
+  if (args.syncUi) {
+    deps.launchSyncUiDetached(appPath, args.logLevel);
     return true;
   }
   if (!args.appPassthrough) {

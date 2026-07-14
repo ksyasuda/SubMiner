@@ -15,7 +15,9 @@ test('app lifecycle runtime runner main deps builder maps lifecycle callbacks', 
     onReady: async () => {
       calls.push('ready');
     },
-    onWillQuitCleanup: () => calls.push('cleanup'),
+    onWillQuitCleanup: () => {
+      calls.push('cleanup');
+    },
     shouldRestoreWindowsOnActivate: () => true,
     restoreWindowsOnActivate: () => calls.push('restore'),
     shouldQuitOnWindowAllClosed: () => false,

@@ -14,7 +14,7 @@ export interface AppLifecycleRuntimeRunnerParams {
   logNoRunningInstance: () => void;
   startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => void | Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
   shouldQuitOnWindowAllClosed: () => boolean;

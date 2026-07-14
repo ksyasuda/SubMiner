@@ -158,6 +158,8 @@ export function shouldForwardStartupArgvViaAppControl(
   const args = parseCliArgs(argv);
   if (args.help || args.appPing || args.launchMpv || args.generateConfig) return false;
   if (resolveStatsDaemonCommandAction(argv) !== null) return false;
+  // Sync CLI argv is handled headless at entry, never forwarded to a running app.
+  if (argv.includes('--sync-cli')) return false;
 
   return hasExplicitCommand(args);
 }

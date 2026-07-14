@@ -1,29 +1,15 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Database } from 'bun:sqlite';
-import { SCHEMA_VERSION } from '../../src/core/services/immersion-tracker/types.js';
-import { withReadonlyWalRetry } from '../history-db.js';
-import { resolveConfigDir } from '../../src/config/path-resolution.js';
+import { SCHEMA_VERSION } from '../immersion-tracker/types';
+import { getDefaultConfigDir } from '../../../shared/setup-state';
+import { withReadonlyWalRetry } from './wal-retry';
+import { openLibsqlSyncDb, selectOne, type SyncDb } from './libsql-driver';
 
 export { SCHEMA_VERSION };
 
-export interface SyncMergeSummary {
-  sessionsMerged: number;
-  sessionsAlreadyPresent: number;
-  activeSessionsSkipped: number;
-  animeAdded: number;
-  videosAdded: number;
-  wordsAdded: number;
-  kanjiAdded: number;
-  subtitleLinesAdded: number;
-  telemetryRowsAdded: number;
-  eventsAdded: number;
-  excludedWordsAdded: number;
-  dailyRollupsCopied: number;
-  monthlyRollupsCopied: number;
-  rollupGroupsRecomputed: number;
-}
+import type { SyncMergeSummary } from '../../../shared/sync/sync-events';
+export type { SyncMergeSummary };
 
 export function createEmptyMergeSummary(): SyncMergeSummary {
   return {
@@ -48,23 +34,19 @@ export function nowDbTimestamp(): string {
   return String(Date.now());
 }
 
-export function tableExists(db: Database, tableName: string): boolean {
+export function tableExists(db: SyncDb, tableName: string): boolean {
   return Boolean(
     db.query(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(tableName),
   );
 }
 
-export function readSchemaVersion(db: Database): number | null {
+function readSchemaVersion(db: SyncDb): number | null {
   if (!tableExists(db, 'imm_schema_version')) return null;
-  const row = db
-    .query<{ schema_version: number }>(
-      'SELECT MAX(schema_version) AS schema_version FROM imm_schema_version',
-    )
-    .get();
+  const row = selectOne(db, 'SELECT MAX(schema_version) AS schema_version FROM imm_schema_version');
   return typeof row?.schema_version === 'number' ? row.schema_version : null;
 }
 
-export function assertMergeableSchema(db: Database, label: string): void {
+export function assertMergeableSchema(db: SyncDb, label: string): void {
   const version = readSchemaVersion(db);
   if (version === null) {
     throw new Error(
@@ -73,7 +55,7 @@ export function assertMergeableSchema(db: Database, label: string): void {
   }
   if (version !== SCHEMA_VERSION) {
     throw new Error(
-      `${label} database is at schema version ${version} but this launcher expects ${SCHEMA_VERSION}. Update SubMiner on both machines to the same version and run each app once before syncing.`,
+      `${label} database is at schema version ${version} but this SubMiner install expects ${SCHEMA_VERSION}. Update SubMiner on both machines to the same version and run each app once before syncing.`,
     );
   }
   for (const table of ['imm_sessions', 'imm_videos', 'imm_lifetime_global']) {
@@ -84,14 +66,14 @@ export function assertMergeableSchema(db: Database, label: string): void {
 }
 
 export function insertRow(
-  db: Database,
+  db: SyncDb,
   table: string,
   columns: readonly string[],
   values: unknown[],
 ): number {
   const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
-  // db.query() caches the prepared statement per SQL string; this runs once
-  // per copied row, so re-preparing via db.prepare() would dominate merge time.
+  // query() caches the prepared statement per SQL string; this runs once per
+  // copied row, so re-preparing each time would dominate merge time.
   const result = db.query(sql).run(...values);
   return Number(result.lastInsertRowid);
 }
@@ -103,10 +85,10 @@ export function createDbSnapshot(dbPath: string, outPath: string): void {
   fs.rmSync(outPath, { force: true });
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   withReadonlyWalRetry(dbPath, (options) => {
-    const db = new Database(dbPath, options);
+    const db = openLibsqlSyncDb(dbPath, options);
     try {
       assertMergeableSchema(db, 'Local');
-      db.prepare('VACUUM INTO ?').run(outPath);
+      db.query('VACUUM INTO ?').run(outPath);
     } finally {
       db.close();
     }
@@ -131,16 +113,11 @@ function isProcessAlive(pid: number): boolean {
 function statsDaemonStateCandidates(dbPath: string): string[] {
   const homeDir = os.homedir();
   const candidates = new Set<string>([path.join(path.dirname(dbPath), 'stats-daemon.json')]);
-  const configDir = resolveConfigDir({
-    platform: process.platform,
-    appDataDir: process.env.APPDATA,
-    xdgConfigHome: process.env.XDG_CONFIG_HOME,
-    homeDir,
-    existsSync: fs.existsSync,
-  });
-  candidates.add(path.join(configDir, 'stats-daemon.json'));
+  candidates.add(path.join(getDefaultConfigDir(), 'stats-daemon.json'));
   if (process.platform === 'darwin') {
-    candidates.add(path.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'stats-daemon.json'));
+    candidates.add(
+      path.join(homeDir, 'Library', 'Application Support', 'SubMiner', 'stats-daemon.json'),
+    );
   }
   return [...candidates];
 }
@@ -149,7 +126,7 @@ function statsDaemonStateCandidates(dbPath: string): string[] {
  * Best-effort guard against merging while a SubMiner process holds the
  * tracker's write queue in memory. Detects the background stats daemon via
  * its pid state file; the interactive app is caught by the mpv-socket check
- * in the sync command.
+ * in the sync flow.
  */
 export function findLiveStatsDaemonPid(dbPath: string): number | null {
   for (const statePath of statsDaemonStateCandidates(dbPath)) {

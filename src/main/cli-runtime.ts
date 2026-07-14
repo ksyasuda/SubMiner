@@ -50,6 +50,7 @@ export interface CliCommandRuntimeServiceContext {
   ensureBackgroundStatsServer?: CliCommandRuntimeServiceDepsParams['app']['ensureBackgroundStatsServer'];
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
+  openSyncUiWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -135,6 +136,7 @@ function createCliCommandDepsFromContext(
       openFirstRunSetup: context.openFirstRunSetup,
       openYomitanSettings: context.openYomitanSettings,
       openConfigSettingsWindow: context.openConfigSettingsWindow,
+      openSyncUiWindow: context.openSyncUiWindow,
       cycleSecondarySubMode: context.cycleSecondarySubMode,
       openRuntimeOptionsPalette: context.openRuntimeOptionsPalette,
       printHelp: context.printHelp,

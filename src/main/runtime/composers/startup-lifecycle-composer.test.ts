@@ -22,6 +22,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       unregisterAllGlobalShortcuts: () => {},
       stopSubtitleWebsocket: () => {},
       stopTexthookerService: () => {},
+      stopSyncAutoScheduler: () => {},
       clearWindowsVisibleOverlayForegroundPollLoop: () => {},
       clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
       getMainOverlayWindow: () => null,

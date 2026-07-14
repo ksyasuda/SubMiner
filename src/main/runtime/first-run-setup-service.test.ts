@@ -31,6 +31,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     togglePrimarySubtitleBar: false,
     yomitan: false,
     settings: false,
+    syncWindow: false,
     setup: false,
     show: false,
     hide: false,

@@ -200,13 +200,8 @@ export function createDefaultArgs(
     useRofi: false,
     history: false,
     sync: false,
-    syncHost: '',
-    syncSnapshotPath: '',
-    syncMergePath: '',
-    syncDirection: 'both',
-    syncRemoteCmd: '',
-    syncDbPath: '',
-    syncForce: false,
+    syncCliTokens: [],
+    syncUi: false,
     logLevel: loggingConfig.level ?? 'warn',
     logRotation: loggingConfig.rotation ?? 7,
     passwordStore: '',
@@ -274,14 +269,12 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   }
   if (invocations.syncTriggered) {
     parsed.sync = true;
-    parsed.syncHost = invocations.syncHost ?? '';
-    parsed.syncSnapshotPath = invocations.syncSnapshotPath ?? '';
-    parsed.syncMergePath = invocations.syncMergePath ?? '';
-    parsed.syncDirection = invocations.syncDirection;
-    parsed.syncRemoteCmd = invocations.syncRemoteCmd ?? '';
-    parsed.syncDbPath = invocations.syncDbPath ?? '';
-    parsed.syncForce = invocations.syncForce;
+    parsed.syncCliTokens = invocations.syncCliTokens;
     if (invocations.syncLogLevel) parsed.logLevel = parseLogLevel(invocations.syncLogLevel);
+  }
+  if (invocations.syncUiTriggered) {
+    parsed.syncUi = true;
+    if (invocations.syncUiLogLevel) parsed.logLevel = parseLogLevel(invocations.syncUiLogLevel);
   }
   if (invocations.doctorTriggered) parsed.doctor = true;
   if (invocations.doctorRefreshKnownWords) parsed.doctorRefreshKnownWords = true;

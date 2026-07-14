@@ -43,21 +43,88 @@ test('parseCliPrograms captures texthooker browser-open flag', () => {
   assert.equal(result.invocations.texthookerOpenBrowser, true);
 });
 
-test('parseCliPrograms captures one-way sync directions', () => {
+test('parseCliPrograms lowers sync options into app-owned CLI tokens', () => {
   const push = parseCliPrograms(['sync', 'media-box', '--push'], 'subminer');
-  const pull = parseCliPrograms(['sync', 'media-box', '--pull'], 'subminer');
+  assert.equal(push.invocations.syncTriggered, true);
+  assert.deepEqual(push.invocations.syncCliTokens, ['media-box', '--push']);
 
-  assert.equal(push.invocations.syncDirection, 'push');
-  assert.equal(pull.invocations.syncDirection, 'pull');
+  const pull = parseCliPrograms(['sync', 'media-box', '--pull'], 'subminer');
+  assert.deepEqual(pull.invocations.syncCliTokens, ['media-box', '--pull']);
+
+  const check = parseCliPrograms(['sync', 'media-box', '--check', '--json'], 'subminer');
+  assert.deepEqual(check.invocations.syncCliTokens, ['media-box', '--check', '--json']);
+
+  const full = parseCliPrograms(
+    [
+      'sync',
+      'media-box',
+      '--remote-cmd',
+      '/opt/SubMiner.AppImage',
+      '--db',
+      '/tmp/db.sqlite',
+      '--force',
+      '--log-level',
+      'debug',
+    ],
+    'subminer',
+  );
+  assert.deepEqual(full.invocations.syncCliTokens, [
+    'media-box',
+    '--remote-cmd',
+    '/opt/SubMiner.AppImage',
+    '--db',
+    '/tmp/db.sqlite',
+    '--force',
+  ]);
+  assert.equal(full.invocations.syncLogLevel, 'debug');
+
+  const snapshot = parseCliPrograms(['sync', '--snapshot', '/tmp/out.sqlite'], 'subminer');
+  assert.deepEqual(snapshot.invocations.syncCliTokens, ['--snapshot', '/tmp/out.sqlite']);
+
+  const merge = parseCliPrograms(['sync', '--merge', '/tmp/in.sqlite'], 'subminer');
+  assert.deepEqual(merge.invocations.syncCliTokens, ['--merge', '/tmp/in.sqlite']);
+
+  const makeTemp = parseCliPrograms(['sync', '--make-temp'], 'subminer');
+  assert.deepEqual(makeTemp.invocations.syncCliTokens, ['--make-temp']);
+
+  const removeTemp = parseCliPrograms(
+    ['sync', '--remove-temp', '/tmp/subminer-sync-x'],
+    'subminer',
+  );
+  assert.deepEqual(removeTemp.invocations.syncCliTokens, ['--remove-temp', '/tmp/subminer-sync-x']);
 });
 
-test('parseCliPrograms rejects conflicting or hostless one-way sync directions', () => {
+test('parseCliPrograms leaves sync validation to the app parser', () => {
+  // Invalid combinations are forwarded; the app's parseSyncCliTokens rejects them.
+  const invalid = parseCliPrograms(['sync', 'media-box', '--push', '--pull'], 'subminer');
+  assert.equal(invalid.invocations.syncTriggered, true);
+  assert.deepEqual(invalid.invocations.syncCliTokens, ['media-box', '--push', '--pull']);
+
+  const empty = parseCliPrograms(['sync'], 'subminer');
+  assert.equal(empty.invocations.syncTriggered, true);
+  assert.deepEqual(empty.invocations.syncCliTokens, []);
+});
+
+test('parseCliPrograms captures sync --ui', () => {
+  const result = parseCliPrograms(['sync', '--ui'], 'subminer');
+  assert.equal(result.invocations.syncUiTriggered, true);
+  assert.equal(result.invocations.syncTriggered, false);
+
   assert.throws(
-    () => parseCliPrograms(['sync', 'media-box', '--push', '--pull'], 'subminer'),
-    /--push and --pull cannot be combined/,
+    () => parseCliPrograms(['sync', 'media-box', '--ui'], 'subminer'),
+    /--ui cannot be combined/,
   );
+});
+
+test('parseCliPrograms rejects sync --ui with --remote-cmd', () => {
   assert.throws(
-    () => parseCliPrograms(['sync', '--snapshot', '/tmp/stats.sqlite', '--push'], 'subminer'),
-    /--push and --pull require a host/,
+    () => parseCliPrograms(['sync', '--ui', '--remote-cmd', '/opt/SubMiner.AppImage'], 'subminer'),
+    { message: 'Sync --ui cannot be combined with other sync options.' },
   );
+});
+
+test('parseCliPrograms rejects sync --ui with --db', () => {
+  assert.throws(() => parseCliPrograms(['sync', '--ui', '--db', '/tmp/db.sqlite'], 'subminer'), {
+    message: 'Sync --ui cannot be combined with other sync options.',
+  });
 });

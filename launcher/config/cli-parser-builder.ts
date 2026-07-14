@@ -39,14 +39,10 @@ export interface CliInvocations {
   statsCleanupLifetime: boolean;
   statsLogLevel: string | null;
   syncTriggered: boolean;
-  syncHost: string | null;
-  syncSnapshotPath: string | null;
-  syncMergePath: string | null;
-  syncDirection: 'both' | 'push' | 'pull';
-  syncRemoteCmd: string | null;
-  syncDbPath: string | null;
-  syncForce: boolean;
+  syncCliTokens: string[];
   syncLogLevel: string | null;
+  syncUiTriggered: boolean;
+  syncUiLogLevel: string | null;
   doctorTriggered: boolean;
   doctorLogLevel: string | null;
   doctorRefreshKnownWords: boolean;
@@ -75,7 +71,11 @@ function applyRootOptions(program: Command): void {
     .option('-R, --rofi', 'Use rofi picker')
     .option('-H, --history', 'Browse local watch history')
     .option('-S, --start-overlay', 'Auto-start overlay')
-    .option('-T, --no-texthooker', 'Disable texthooker-ui server');
+    .option('-T, --no-texthooker', 'Disable texthooker-ui server')
+    // The SubMiner app answers sync commands when invoked with --sync-cli.
+    // Remote-command resolution may address the launcher the same way, so
+    // accept the flag as a no-op to keep both invocation shapes equivalent.
+    .option('--sync-cli', 'Compatibility no-op (sync commands work with or without it)');
 }
 
 function buildSubcommandHelpText(program: Command): string {
@@ -171,14 +171,10 @@ export function parseCliPrograms(
   let statsCleanupLifetime = false;
   let statsLogLevel: string | null = null;
   let syncTriggered = false;
-  let syncHost: string | null = null;
-  let syncSnapshotPath: string | null = null;
-  let syncMergePath: string | null = null;
-  let syncDirection: 'both' | 'push' | 'pull' = 'both';
-  let syncRemoteCmd: string | null = null;
-  let syncDbPath: string | null = null;
-  let syncForce = false;
+  let syncCliTokens: string[] = [];
   let syncLogLevel: string | null = null;
+  let syncUiTriggered = false;
+  let syncUiLogLevel: string | null = null;
   let doctorLogLevel: string | null = null;
   let doctorRefreshKnownWords = false;
   let logsTriggered = false;
@@ -319,6 +315,11 @@ export function parseCliPrograms(
     .option('--db <file>', 'Override the local stats database path')
     .option('--remote-cmd <cmd>', 'subminer command to run on the remote host')
     .option('-f, --force', 'Skip the running-app safety check')
+    .option('--check', 'Test the SSH connection and remote subminer availability')
+    .option('--json', 'Emit machine-readable NDJSON progress output')
+    .option('--make-temp', 'Create a sync temp directory and print its path (used over SSH)')
+    .option('--remove-temp <dir>', 'Remove a sync temp directory created by --make-temp')
+    .option('--ui', 'Open the SubMiner sync window')
     .option('--log-level <level>', 'Log level')
     .action((rawHost: string | undefined, options: Record<string, unknown>) => {
       const host = typeof rawHost === 'string' ? rawHost.trim() : '';
@@ -326,28 +327,49 @@ export function parseCliPrograms(
       const merge = typeof options.merge === 'string' ? options.merge.trim() : '';
       const push = options.push === true;
       const pull = options.pull === true;
-      if (push && pull) {
-        throw new Error('Sync --push and --pull cannot be combined.');
+      const check = options.check === true;
+      const makeTemp = options.makeTemp === true;
+      const removeTemp = typeof options.removeTemp === 'string' ? options.removeTemp.trim() : '';
+      if (options.ui === true) {
+        if (
+          host ||
+          snapshot ||
+          merge ||
+          push ||
+          pull ||
+          check ||
+          makeTemp ||
+          removeTemp ||
+          options.remoteCmd !== undefined ||
+          options.db !== undefined ||
+          options.json === true ||
+          options.force === true
+        ) {
+          throw new Error('Sync --ui cannot be combined with other sync options.');
+        }
+        syncUiTriggered = true;
+        syncUiLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
+        return;
       }
-      if ((push || pull) && !host) {
-        throw new Error('Sync --push and --pull require a host.');
-      }
-      const modes = [Boolean(host), Boolean(snapshot), Boolean(merge)].filter(Boolean).length;
-      if (modes === 0) {
-        throw new Error('Sync requires a host, --snapshot <file>, or --merge <file>.');
-      }
-      if (modes > 1) {
-        throw new Error('Sync host, --snapshot, and --merge cannot be combined.');
-      }
+      // No validation here: the app's parseSyncCliTokens owns the sync rules
+      // and its error text reaches the terminal through the child's stdio.
+      const remoteCmd = typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() : '';
+      const dbPath = typeof options.db === 'string' ? options.db.trim() : '';
+      const tokens: string[] = [];
+      if (host) tokens.push(host);
+      if (snapshot) tokens.push('--snapshot', snapshot);
+      if (merge) tokens.push('--merge', merge);
+      if (makeTemp) tokens.push('--make-temp');
+      if (removeTemp) tokens.push('--remove-temp', removeTemp);
+      if (push) tokens.push('--push');
+      if (pull) tokens.push('--pull');
+      if (check) tokens.push('--check');
+      if (remoteCmd) tokens.push('--remote-cmd', remoteCmd);
+      if (dbPath) tokens.push('--db', dbPath);
+      if (options.force === true) tokens.push('--force');
+      if (options.json === true) tokens.push('--json');
       syncTriggered = true;
-      syncHost = host || null;
-      syncSnapshotPath = snapshot || null;
-      syncMergePath = merge || null;
-      syncDirection = push ? 'push' : pull ? 'pull' : 'both';
-      syncRemoteCmd =
-        typeof options.remoteCmd === 'string' ? options.remoteCmd.trim() || null : null;
-      syncDbPath = typeof options.db === 'string' ? options.db.trim() || null : null;
-      syncForce = options.force === true;
+      syncCliTokens = tokens;
       syncLogLevel = typeof options.logLevel === 'string' ? options.logLevel : null;
     });
 
@@ -463,14 +485,10 @@ export function parseCliPrograms(
       statsCleanupLifetime,
       statsLogLevel,
       syncTriggered,
-      syncHost,
-      syncSnapshotPath,
-      syncMergePath,
-      syncDirection,
-      syncRemoteCmd,
-      syncDbPath,
-      syncForce,
+      syncCliTokens,
       syncLogLevel,
+      syncUiTriggered,
+      syncUiLogLevel,
       doctorTriggered,
       doctorLogLevel,
       doctorRefreshKnownWords,

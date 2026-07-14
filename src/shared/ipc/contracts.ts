@@ -111,6 +111,18 @@ export const IPC_CHANNELS = {
     getConfigSettingsAnkiModelNames: 'config-settings:anki-model-names',
     getConfigSettingsAnkiModelFieldNames: 'config-settings:anki-model-field-names',
     getConfigSettingsYomitanAnkiDeckName: 'config-settings:yomitan-anki-deck-name',
+    syncUiGetSnapshot: 'sync-ui:get-snapshot',
+    syncUiSaveHost: 'sync-ui:save-host',
+    syncUiRemoveHost: 'sync-ui:remove-host',
+    syncUiSetAutoSyncInterval: 'sync-ui:set-auto-sync-interval',
+    syncUiRunSync: 'sync-ui:run-sync',
+    syncUiCancelRun: 'sync-ui:cancel-run',
+    syncUiCheckHost: 'sync-ui:check-host',
+    syncUiCreateSnapshot: 'sync-ui:create-snapshot',
+    syncUiMergeSnapshotFile: 'sync-ui:merge-snapshot-file',
+    syncUiDeleteSnapshot: 'sync-ui:delete-snapshot',
+    syncUiRevealSnapshot: 'sync-ui:reveal-snapshot',
+    syncUiPickSnapshotFile: 'sync-ui:pick-snapshot-file',
   },
   event: {
     subtitleSet: 'subtitle:set',
@@ -142,6 +154,8 @@ export const IPC_CHANNELS = {
     configHotReload: 'config:hot-reload',
     overlayNotification: 'overlay:notification',
     notificationHistoryToggle: 'notification-history:toggle',
+    syncUiProgress: 'sync-ui:progress',
+    syncUiStateChanged: 'sync-ui:state-changed',
   },
 } as const;
 

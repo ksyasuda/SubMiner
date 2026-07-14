@@ -206,6 +206,7 @@ test('app command starts default macOS background app detached from launcher', (
     runAppCommandWithInherit: () => {
       calls.push('attached');
     },
+    launchSyncUiDetached: () => calls.push('sync-ui'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -225,6 +226,7 @@ test('app command starts default Linux background app detached from launcher', (
     runAppCommandWithInherit: () => {
       calls.push('attached');
     },
+    launchSyncUiDetached: () => calls.push('sync-ui'),
     launchAppBackgroundDetached: (appPath, logLevel) => {
       calls.push(`detached:${appPath}:${logLevel}`);
     },
@@ -245,6 +247,7 @@ test('app command keeps explicit passthrough args attached', () => {
     runAppCommandWithInherit: (_appPath, appArgs) => {
       forwarded.push(appArgs);
     },
+    launchSyncUiDetached: () => detached.push('sync-ui'),
     launchAppBackgroundDetached: () => {
       detached.push('detached');
     },
@@ -253,6 +256,21 @@ test('app command keeps explicit passthrough args attached', () => {
   assert.equal(handled, true);
   assert.deepEqual(forwarded, [['--settings']]);
   assert.deepEqual(detached, []);
+});
+
+test('sync UI command launches the app detached from the terminal', () => {
+  const context = createContext();
+  context.args.syncUi = true;
+  const calls: string[] = [];
+
+  const handled = runAppPassthroughCommand(context, {
+    runAppCommandWithInherit: () => calls.push('piped'),
+    launchSyncUiDetached: (appPath, logLevel) => calls.push(`sync-ui:${appPath}:${logLevel}`),
+    launchAppBackgroundDetached: () => calls.push('detached'),
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(calls, ['sync-ui:/tmp/subminer.app:warn']);
 });
 
 test('mpv pre-app command exits non-zero when socket is not ready', async () => {

@@ -16,11 +16,11 @@ export interface AppLifecycleServiceDeps {
   startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   whenReady: (handler: () => Promise<void>) => void;
   onWindowAllClosed: (handler: () => void) => void;
-  onWillQuit: (handler: () => void) => void;
+  onWillQuit: (handler: (event: { preventDefault(): void }) => void) => void;
   onActivate: (handler: () => void) => void;
   isDarwinPlatform: () => boolean;
   onReady: () => Promise<void>;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => void | Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
   shouldQuitOnWindowAllClosed: () => boolean;
@@ -44,7 +44,7 @@ export interface AppLifecycleDepsRuntimeOptions {
   logNoRunningInstance: () => void;
   startControlServer?: (handleArgv: (argv: string[]) => void) => (() => void) | void;
   onReady: () => Promise<void>;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => void | Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
   shouldQuitOnWindowAllClosed: () => boolean;
@@ -183,16 +183,48 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
   deps.onWindowAllClosed(() => {
     if (
       deps.shouldQuitOnWindowAllClosed() &&
-      (!deps.isDarwinPlatform() || initialArgs.settings || initialArgs.setup)
+      (!deps.isDarwinPlatform() ||
+        initialArgs.settings ||
+        initialArgs.setup ||
+        initialArgs.syncWindow)
     ) {
       deps.quitApp();
     }
   });
 
-  deps.onWillQuit(() => {
+  let quitCleanupPending = false;
+  let quitCleanupComplete = false;
+  deps.onWillQuit((event) => {
+    if (quitCleanupComplete) return;
     stopControlServer?.();
     stopControlServer = null;
-    deps.onWillQuitCleanup();
+    if (quitCleanupPending) {
+      event.preventDefault();
+      return;
+    }
+    let cleanup: void | Promise<void>;
+    try {
+      cleanup = deps.onWillQuitCleanup();
+    } catch (error) {
+      logger.error('App quit cleanup failed:', error);
+      return;
+    }
+    if (!(cleanup instanceof Promise)) return;
+    quitCleanupPending = true;
+    event.preventDefault();
+    void cleanup
+      .catch((error) => {
+        logger.error('App quit cleanup failed:', error);
+      })
+      .finally(() => {
+        quitCleanupPending = false;
+        quitCleanupComplete = true;
+        // A cleanup promise that settles in a microtask would re-quit while
+        // Electron is still unwinding the prevented quit, and that quit call
+        // is silently dropped, leaving a windowless process alive. Re-issue
+        // the quit from a fresh macrotask instead.
+        setImmediate(() => deps.quitApp());
+      });
   });
 
   deps.onActivate(() => {
