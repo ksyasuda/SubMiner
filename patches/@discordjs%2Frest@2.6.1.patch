@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index 02d2d8809a98c5d32b889fceba11458660f1fa6a..72cd7004d92809689daaeec1cd8a274e1cabdff5 100644
+--- a/package.json
++++ b/package.json
+@@ -77,7 +77,7 @@
+     "discord-api-types": "^0.38.40",
+     "magic-bytes.js": "^1.13.0",
+     "tslib": "^2.6.3",
+-    "undici": "6.24.1",
++    "undici": "6.27.0",
+     "@discordjs/collection": "^2.1.1",
+     "@discordjs/util": "^1.2.0"
+   },

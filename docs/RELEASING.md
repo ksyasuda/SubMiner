@@ -85,6 +85,7 @@ Notes:
 - Prerelease tags intentionally keep `changes/*.md` fragments in place so multiple prereleases can reuse the same cumulative pending notes until the final stable cut. `make clean` preserves `release/prerelease-notes.md` while deleting generated build artifacts.
 - If you need to repair a published release body (for example, a prior version’s section was omitted), regenerate notes from `CHANGELOG.md` and re-edit the release with `gh release edit --notes-file`.
 - Prerelease tags are handled by `.github/workflows/prerelease.yml`, which always publishes a GitHub prerelease with all current release platforms and never runs the AUR sync job.
+- CI, stable release, and prerelease workflows call the shared `.github/workflows/quality-gate.yml`; update that reusable workflow when changing common test coverage. Its environment suite includes the Lua mpv plugin tests.
 - Tagged release workflow now also attempts to update `subminer-bin` on the AUR after GitHub Release publication.
 - Stable release tags update `https://docs.subminer.moe/` and `https://docs.subminer.moe/v/<version>/` through `.github/workflows/docs-pages.yml`; `/main/` continues to show development docs from `main`.
 - Keep Cloudflare Pages Git auto-deploy disabled for `docs.subminer.moe`. Production docs are direct-uploaded by Wrangler from GitHub Actions with `--branch main`.

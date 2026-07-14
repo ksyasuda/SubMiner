@@ -81,11 +81,16 @@ test('release workflow verifies generated config examples before packaging artif
   assert.match(releaseWorkflow, /bun run verify:config-example/);
 });
 
-test('release quality gate runs the maintained source coverage lane and uploads lcov output', () => {
-  assert.match(releaseWorkflow, /name: Coverage suite \(maintained source lane\)/);
-  assert.match(releaseWorkflow, /run: bun run test:coverage:src/);
-  assert.match(releaseWorkflow, /name: Upload coverage artifact/);
-  assert.match(releaseWorkflow, /path: coverage\/test-src\/lcov\.info/);
+test('release delegates its quality gate instead of duplicating quality steps', () => {
+  assert.match(
+    releaseWorkflow,
+    /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
+  );
+  const qualityGateJob = releaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
+  assert.ok(qualityGateJob);
+  assert.doesNotMatch(qualityGateJob, /oven-sh\/setup-bun/);
+  assert.doesNotMatch(qualityGateJob, /bun run test:coverage:src/);
+  assert.doesNotMatch(qualityGateJob, /bun run test:env/);
 });
 
 test('release build jobs install and cache stats dependencies before packaging', () => {
