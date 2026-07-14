@@ -66,7 +66,7 @@ export function formatSessionDayLabel(sessionStartedAtMs: number): string {
   if (day === today - 1) return 'Yesterday';
 
   const date = new Date(sessionStartedAtMs);
-  const includeYear = date.getFullYear() !== new Date().getFullYear();
+  const includeYear = date.getFullYear() !== new Date(Date.now()).getFullYear();
   return date.toLocaleDateString(undefined, {
     month: 'long',
     day: 'numeric',
