@@ -5,11 +5,11 @@ import { epochMsFromDbTimestamp, formatRelativeDate, formatSessionDayLabel } fro
 
 const FIXED_NOW = new Date(2026, 2, 16, 12, 0, 0).getTime();
 
-function withFixedNow(run: (now: number) => void): void {
+function withFixedNow(run: (now: number) => void, now = FIXED_NOW): void {
   const realNow = Date.now;
-  Date.now = () => FIXED_NOW;
+  Date.now = () => now;
   try {
-    run(FIXED_NOW);
+    run(now);
   } finally {
     Date.now = realNow;
   }
@@ -117,6 +117,7 @@ test('formatSessionDayLabel formats today and yesterday', () => {
 });
 
 test('formatSessionDayLabel includes year for past-year dates', () => {
+  const fixedNow = new Date(2027, 2, 16, 12, 0, 0).getTime();
   withFixedNow((now) => {
     const current = new Date(now);
     const sameDayLastYear = new Date(
@@ -132,5 +133,5 @@ test('formatSessionDayLabel includes year for past-year dates', () => {
       day: 'numeric',
     });
     assert.notEqual(label, withoutYear);
-  });
+  }, fixedNow);
 });
