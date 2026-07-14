@@ -41,6 +41,7 @@ export function createTsukihimeModal(
 
   // Defaults to English until the configured secondary languages arrive.
   let secondaryLanguages: string[] = ['en'];
+  let activeDownloadToken = 0;
 
   function secondaryTabLabel(): string {
     return describeTsukihimeTabLanguages(secondaryLanguages);
@@ -302,15 +303,20 @@ export function createTsukihimeModal(
       return;
     }
 
+    const entryId = ctx.state.currentTsukihimeEntryId;
     const file = visibleFiles[index]!;
+    const downloadToken = ++activeDownloadToken;
     setTsukihimeStatus('Downloading subtitle...');
 
     const result: TsukihimeDownloadResult = await window.electronAPI.tsukihimeDownloadFile({
-      entryId: ctx.state.currentTsukihimeEntryId,
+      entryId,
       url: file.url,
       name: file.filename,
       lang: file.lang,
     });
+    if (downloadToken !== activeDownloadToken || ctx.state.currentTsukihimeEntryId !== entryId) {
+      return;
+    }
 
     if (result.ok) {
       setTsukihimeStatus(`Downloaded and loaded: ${result.path}`);
@@ -382,6 +388,7 @@ export function createTsukihimeModal(
   function closeTsukihimeModal(): void {
     if (!ctx.state.tsukihimeModalOpen) return;
 
+    activeDownloadToken += 1;
     ctx.state.tsukihimeModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.tsukihimeModal.classList.add('hidden');

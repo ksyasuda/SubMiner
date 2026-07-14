@@ -118,6 +118,7 @@ function createModalHarness(
   files: TsukihimeSubtitleFile[],
   options: {
     secondaryLanguages?: string[];
+    downloadFile?: (query: unknown) => Promise<unknown>;
     listFiles?: (entryId: number) => Promise<unknown>;
     searchEntries?: (query: unknown) => Promise<unknown>;
   } = {},
@@ -134,6 +135,7 @@ function createModalHarness(
   const electronAPI = {
     tsukihimeDownloadFile: async (query: unknown) => {
       downloadQueries.push(query);
+      if (options.downloadFile) return options.downloadFile(query);
       return { ok: true, path: '/tmp/subtitles/episode01.en.ass' };
     },
     tsukihimeGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
@@ -294,6 +296,69 @@ test('successful Tsukihime subtitle selection closes modal', async () => {
         lang: 'eng',
       },
     ]);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('a download from a prior modal session cannot close a reopened modal', async () => {
+  let resolveDownload!: (value: unknown) => void;
+  const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK], {
+    downloadFile: () =>
+      new Promise((resolve) => {
+        resolveDownload = resolve;
+      }),
+  });
+  try {
+    pressKey(harness, 'Enter');
+    harness.modal.closeTsukihimeModal();
+    harness.modal.openTsukihimeModal();
+    await flushAsyncWork();
+    harness.state.currentTsukihimeEntryId = 606713;
+    harness.status.textContent = 'Fresh modal session';
+
+    resolveDownload({ ok: true, path: '/tmp/subtitles/stale.ass' });
+    await flushAsyncWork();
+
+    assert.equal(harness.state.tsukihimeModalOpen, true);
+    assert.equal(harness.status.textContent, 'Fresh modal session');
+    assert.deepEqual(harness.modalCloseNotifications, ['tsukihime']);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('a download cannot affect a newly selected release', async () => {
+  let resolveDownload!: (value: unknown) => void;
+  const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK], {
+    downloadFile: () =>
+      new Promise((resolve) => {
+        resolveDownload = resolve;
+      }),
+  });
+  try {
+    pressKey(harness, 'Enter');
+    harness.state.tsukihimeEntries = [
+      {
+        id: 999,
+        title: 'new release',
+        timestamp: null,
+        totalSize: null,
+        numFiles: 1,
+        sublangs: [],
+      },
+    ];
+    harness.modal.selectTsukihimeEntry(0);
+    await flushAsyncWork();
+    const currentStatus = harness.status.textContent;
+
+    resolveDownload({ ok: false, error: { error: 'stale failure' } });
+    await flushAsyncWork();
+
+    assert.equal(harness.state.tsukihimeModalOpen, true);
+    assert.equal(harness.state.currentTsukihimeEntryId, 999);
+    assert.equal(harness.status.textContent, currentStatus);
+    assert.deepEqual(harness.modalCloseNotifications, []);
   } finally {
     harness.restoreGlobals();
   }
