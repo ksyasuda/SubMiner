@@ -60,9 +60,7 @@ export function tsukihimeTrackMatchesLanguages(
 export function describeTsukihimeTabLanguages(configuredLanguages: string[]): string {
   const normalized = [
     ...new Set(
-      configuredLanguages
-        .map((candidate) => normalizeTsukihimeLangCode(candidate))
-        .filter(Boolean),
+      configuredLanguages.map((candidate) => normalizeTsukihimeLangCode(candidate)).filter(Boolean),
     ),
   ];
   if (normalized.length === 0) return 'English';

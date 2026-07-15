@@ -76,10 +76,7 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function mapTsukihimeSearchResults(
-  payload: unknown,
-  maxResults: number,
-): TsukihimeEntry[] {
+export function mapTsukihimeSearchResults(payload: unknown, maxResults: number): TsukihimeEntry[] {
   if (!isObject(payload) || !Array.isArray(payload.results)) return [];
   const entries: TsukihimeEntry[] = [];
   for (const item of payload.results) {

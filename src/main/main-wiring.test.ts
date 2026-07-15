@@ -446,7 +446,10 @@ test('Linux visible overlay recreation avoids display fallback before tracked ge
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /const trackedGeometry = getCurrentTrackedOverlayGeometry\(\);/);
+  assert.match(
+    actionBlock,
+    /const trackedGeometry = overlayGeometryRuntime\.getCurrentTrackedOverlayGeometry\(\);/,
+  );
   assert.match(actionBlock, /if \(trackedGeometry\) \{/);
   assert.match(actionBlock, /overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/);
   assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
@@ -556,10 +559,10 @@ test('YouTube media cache lifecycle routes through configured status notificatio
   );
   assert.match(cacheBlock, /variant:\s*'success'/);
   assert.match(cacheBlock, /notifyNoQueued:\s*false/);
-  assert.match(startCacheBlock, /mode:\s*getResolvedConfig\(\)\.youtube\.mediaCache\.mode/);
+  assert.match(startCacheBlock, /mode:\s*configService\.getConfig\(\)\.youtube\.mediaCache\.mode/);
   assert.match(
     startCacheBlock,
-    /maxHeight:\s*getResolvedConfig\(\)\.youtube\.mediaCache\.maxHeight/,
+    /maxHeight:\s*configService\.getConfig\(\)\.youtube\.mediaCache\.maxHeight/,
   );
 });
 
@@ -587,11 +590,11 @@ test('manual visible overlay show primes current subtitle from mpv before relyin
   assert.ok(toggleBlock);
   assert.match(
     setBlock,
-    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+startLinuxVisibleOverlayStartupInputGrace\(\);\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void primeCurrentSubtitleForVisibleOverlay\(\);/,
+    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void autoplaySubtitlePrimingRuntime\.primeCurrentSubtitleForVisibleOverlay\(\);/,
   );
   assert.match(
     toggleBlock,
-    /else \{\s+maybeStartOverlayLoadingOsd\(\);\s+resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+startLinuxVisibleOverlayStartupInputGrace\(\);\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void primeCurrentSubtitleForVisibleOverlay\(\);/,
+    /else \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);\s+void autoplaySubtitlePrimingRuntime\.primeCurrentSubtitleForVisibleOverlay\(\);/,
   );
 });
 
@@ -612,7 +615,7 @@ test('Linux visible overlay show/reset does not leave an empty X11 window shape'
   assert.doesNotMatch(runtimeSource, /setShape\?\.\(\[\]\)|setShape\(\[\]\)/);
   assert.match(
     setBlock,
-    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+startLinuxVisibleOverlayStartupInputGrace\(\);\s+restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
+    /if \(visible\) \{\s+maybeStartOverlayLoadingOsd\(\);\s+visibleOverlayInteractionRuntime\.resetLinuxVisibleOverlayStartupInputPrimer\(\);\s+visibleOverlayInteractionRuntime\.startLinuxVisibleOverlayStartupInputGrace\(\);\s+visibleOverlayInteractionRuntime\.restoreVisibleOverlayWindowShapeForShow\(\);\s+void ensureOverlayMpvSubtitlesHidden\(\);/,
   );
 });
 
@@ -663,14 +666,20 @@ test('Linux visible overlay show starts input grace before first measurement', (
 
   for (const block of [setVisibleBlock, toggleBlock, setOverlayBlock]) {
     assert.ok(block);
-    assert.ok(
-      block.indexOf('resetLinuxVisibleOverlayStartupInputPrimer();') <
-        block.indexOf('startLinuxVisibleOverlayStartupInputGrace();'),
+    const resetIndex = block.indexOf(
+      'visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();',
     );
-    assert.ok(
-      block.indexOf('startLinuxVisibleOverlayStartupInputGrace();') <
-        block.indexOf('void primeCurrentSubtitleForVisibleOverlay();'),
+    const graceIndex = block.indexOf(
+      'visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();',
     );
+    const primeIndex = block.indexOf(
+      'void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();',
+    );
+    assert.ok(resetIndex >= 0);
+    assert.ok(graceIndex >= 0);
+    assert.ok(primeIndex >= 0);
+    assert.ok(resetIndex < graceIndex);
+    assert.ok(graceIndex < primeIndex);
   }
 });
 

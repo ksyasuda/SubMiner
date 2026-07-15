@@ -147,10 +147,7 @@ test('runSyncLauncher settles on exit when the terminal event is already parsed'
     onEvent: () => {},
     spawn,
   });
-  children[0]!.stdout.emit(
-    'data',
-    Buffer.from('{"type":"result","ok":true,"error":null}\n'),
-  );
+  children[0]!.stdout.emit('data', Buffer.from('{"type":"result","ok":true,"error":null}\n'));
   children[0]!.emit('exit', 0, null);
 
   const result = await Promise.race([

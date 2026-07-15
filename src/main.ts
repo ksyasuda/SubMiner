@@ -86,14 +86,11 @@ import type {
   KikuFieldGroupingChoice,
   MpvSubtitleRenderMetrics,
   ResolvedConfig,
-  RuntimeOptionState,
   SessionActionDispatchRequest,
   SecondarySubMode,
   SubtitleData,
   SubtitleMiningContext,
   SubtitlePosition,
-  OverlayNotificationPayload,
-  NotificationType,
   WindowGeometry,
 } from './types';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types';
@@ -510,7 +507,6 @@ import {
   UPDATE_AVAILABLE_NOTIFICATION_ID,
 } from './main/runtime/update/update-notifications';
 import { createOverlayNotificationsRuntime } from './main/runtime/overlay-notifications-runtime';
-import { type ConfiguredStatusNotificationOptions } from './main/runtime/configured-status-notification';
 import {
   runUpdateCliCommand,
   writeUpdateCliCommandResponse,
@@ -697,15 +693,9 @@ const applyJellyfinMpvDefaultsHandler = createApplyJellyfinMpvDefaultsHandler(
   applyJellyfinMpvDefaultsMainDeps,
 );
 
-function applyJellyfinMpvDefaults(
-  client: Parameters<typeof applyJellyfinMpvDefaultsHandler>[0],
-): void {
-  applyJellyfinMpvDefaultsHandler(client);
-}
-
 const isDev = process.argv.includes('--dev') || process.argv.includes('--debug');
 const texthookerService = new Texthooker(() => {
-  const config = getResolvedConfig();
+  const config = configService.getConfig();
   const characterDictionaryEnabled =
     config.subtitleStyle.nameMatchEnabled && yomitanProfilePolicy.isCharacterDictionaryEnabled();
   const knownWordColoringEnabled = getRuntimeBooleanOption(
@@ -750,10 +740,6 @@ const buildGetDefaultSocketPathMainDepsHandler = createBuildGetDefaultSocketPath
 const getDefaultSocketPathMainDeps = buildGetDefaultSocketPathMainDepsHandler();
 const getDefaultSocketPathHandler = createGetDefaultSocketPathHandler(getDefaultSocketPathMainDeps);
 
-function getDefaultSocketPath(): string {
-  return getDefaultSocketPathHandler();
-}
-
 type BootServices = MainBootServicesResult<
   ConfigService,
   ReturnType<typeof createAnilistTokenStore>,
@@ -785,7 +771,7 @@ const bootServices = createMainBootServices({
   defaultMpvLogFile: DEFAULT_MPV_LOG_FILE,
   envMpvLog: process.env.SUBMINER_MPV_LOG,
   defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
-  getDefaultSocketPath: () => getDefaultSocketPath(),
+  getDefaultSocketPath: () => getDefaultSocketPathHandler(),
   resolveConfigDir,
   existsSync: fs.existsSync,
   mkdirSync: fs.mkdirSync,
@@ -854,7 +840,7 @@ const bootServices = createMainBootServices({
       getMainWindow: () => overlayManager.getMainWindow(),
       getModalWindow: () => overlayManager.getModalWindow(),
       createModalWindow: () => createModalWindow(),
-      getModalGeometry: () => getCurrentOverlayGeometry(),
+      getModalGeometry: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
       setModalWindowBounds: (geometry) => overlayManager.setModalWindowBounds(geometry),
     });
     return createOverlayModalRuntimeService(buildHandler(), {
@@ -965,7 +951,7 @@ const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
 const statsServerRuntime = createStatsServerRuntime({
   userDataPath: USER_DATA_PATH,
   statsDistPath,
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getImmersionTracker: () => appState.immersionTracker,
   setAppStateStatsServer: (server) => {
     appState.statsServer = server;
@@ -1025,9 +1011,6 @@ process.on('SIGTERM', () => {
   requestAppQuit();
 });
 
-const startBackgroundWarmupsIfAllowed = (): void => {
-  startBackgroundWarmups();
-};
 const youtubeFlowRuntime = createYoutubeFlowRuntime({
   probeYoutubeTracks: (url: string) => probeYoutubeTracks(url),
   acquireYoutubeSubtitleTrack: (input) => acquireYoutubeSubtitleTrack(input),
@@ -1106,7 +1089,7 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
         appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
       const trackerFocused = tracker?.isTargetWindowFocused() ?? false;
       if (tracker && tracker.isTracking() && trackerGeometry && trackerFocused && mediaPath) {
-        if (!geometryMatches(stableGeometry, trackerGeometry)) {
+        if (!overlayGeometryRuntime.geometryMatches(stableGeometry, trackerGeometry)) {
           stableGeometry = trackerGeometry;
           stableSinceMs = Date.now();
         } else if (Date.now() - stableSinceMs >= 200) {
@@ -1129,7 +1112,10 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       const trackerGeometry = tracker?.getGeometry() ?? null;
       if (
         trackerGeometry &&
-        geometryMatches(overlayGeometryRuntime.getLastOverlayWindowGeometry(), trackerGeometry)
+        overlayGeometryRuntime.geometryMatches(
+          overlayGeometryRuntime.getLastOverlayWindowGeometry(),
+          trackerGeometry,
+        )
       ) {
         return;
       }
@@ -1150,7 +1136,7 @@ const youtubeFlowRuntime = createYoutubeFlowRuntime({
       mainWindow.webContents.focus();
     }
   },
-  showMpvOsd: (text: string) => showYoutubeFlowStatusNotification(text),
+  showMpvOsd: (text: string) => overlayNotificationsRuntime.showYoutubeFlowStatusNotification(text),
   reportSubtitleFailure: (message: string) => reportYoutubeSubtitleFailure(message),
   notifyPrimarySubtitleLoaded: () =>
     youtubePrimarySubtitleNotificationRuntime.markCurrentMediaPrimarySubtitleLoaded(),
@@ -1184,16 +1170,19 @@ const prepareYoutubePlaybackInMpv = createPrepareYoutubePlaybackInMpvHandler({
 });
 const youtubeMediaCache = createYoutubeMediaCacheService({
   onDownloadStarted: (event) => {
-    showConfiguredStatusNotification('YouTube media cache is downloading.', {
-      id: 'youtube-media-cache-status',
-      title: 'YouTube media cache',
-      variant: 'progress',
-      persistent: true,
-    });
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
+      'YouTube media cache is downloading.',
+      {
+        id: 'youtube-media-cache-status',
+        title: 'YouTube media cache',
+        variant: 'progress',
+        persistent: true,
+      },
+    );
     logger.info(`YouTube media cache download notification shown for ${event.url}`);
   },
   onReady: (event) => {
-    showConfiguredStatusNotification('YouTube media cache ready.', {
+    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache ready.', {
       id: 'youtube-media-cache-status',
       title: 'YouTube media cache',
       variant: 'success',
@@ -1210,7 +1199,7 @@ const youtubeMediaCache = createYoutubeMediaCacheService({
       });
   },
   onFailed: (event) => {
-    showConfiguredStatusNotification('YouTube media cache failed.', {
+    overlayNotificationsRuntime.showConfiguredStatusNotification('YouTube media cache failed.', {
       id: 'youtube-media-cache-status',
       title: 'YouTube media cache',
       variant: 'error',
@@ -1230,7 +1219,7 @@ const youtubeMediaCache = createYoutubeMediaCacheService({
   logWarn: (message) => logger.warn(message),
 });
 const youtubeMediaCachePlaybackRuntime = createYoutubeMediaCachePlaybackRuntime({
-  getMediaCacheConfig: () => getResolvedConfig().youtube.mediaCache,
+  getMediaCacheConfig: () => configService.getConfig().youtube.mediaCache,
   requestMpvProperty: async (name) => {
     const client = appState.mpvClient;
     if (!client) return null;
@@ -1261,13 +1250,15 @@ function schedulePostWarmAutoplaySubtitlePrime(signal: AutoplayReadySignal): voi
       if (currentMediaPath !== mediaPath || !overlayManager.getVisibleOverlayVisible()) {
         return;
       }
-      void primeCurrentSubtitleForAutoplay(mediaPath).catch((error) => {
-        logger.debug(
-          `[autoplay-subtitle-prime] failed to prime current subtitle after warm readiness: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      });
+      void autoplaySubtitlePrimingRuntime
+        .primeCurrentSubtitleForAutoplay(mediaPath)
+        .catch((error) => {
+          logger.debug(
+            `[autoplay-subtitle-prime] failed to prime current subtitle after warm readiness: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
     }, delayMs);
     timer.unref?.();
   }
@@ -1298,7 +1289,7 @@ const autoplayReadyGate = createAutoplayReadyGate({
       stealAppFocus: () => app.focus({ steal: true }),
       warn: (message, details) => logger.warn(message, details),
     });
-    broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
+    overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.overlayPointerRecoveryRequest);
   },
   onAutoplayReadyReleased: (signal) => {
     schedulePostWarmAutoplaySubtitlePrime(signal);
@@ -1322,8 +1313,8 @@ const autoplayReadyGate = createAutoplayReadyGate({
 const managedLocalSubtitleSelectionRuntime = createManagedLocalSubtitleSelectionRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
   getMpvClient: () => appState.mpvClient,
-  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
-  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => configService.getConfig().secondarySub.secondarySubLanguages,
   sendMpvCommand: (command) => {
     sendMpvCommandRuntime(appState.mpvClient, command);
   },
@@ -1359,7 +1350,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   },
   resolveYoutubePlaybackUrl: (url, format) => resolveYoutubePlaybackUrl(url, format),
   launchWindowsMpv: (playbackUrl, args) => {
-    const config = getResolvedConfig();
+    const config = configService.getConfig();
     setLogFileToggles(config.logging.files);
     const mpvLogPath = isLogFileEnabled('mpv') ? resolveDefaultLogFilePath('mpv') : '';
     if (mpvLogPath) {
@@ -1389,8 +1380,8 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
   startYoutubeMediaCache: (url) => {
     youtubeMediaCache.start(url, {
-      mode: getResolvedConfig().youtube.mediaCache.mode,
-      maxHeight: getResolvedConfig().youtube.mediaCache.maxHeight,
+      mode: configService.getConfig().youtube.mediaCache.mode,
+      maxHeight: configService.getConfig().youtube.mediaCache.maxHeight,
     });
   },
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
@@ -1401,7 +1392,7 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
 });
 
 function getMpvPluginRuntimeConfig() {
-  const config = getResolvedConfig();
+  const config = configService.getConfig();
   return {
     socketPath: appState.mpvSocketPath,
     binaryPath: config.mpv.subminerBinaryPath,
@@ -1444,14 +1435,14 @@ const firstRunSetupService = createFirstRunSetupService({
     return dictionaries.length;
   },
   isExternalYomitanConfigured: () =>
-    getResolvedConfig().yomitan.externalProfilePath.trim().length > 0,
+    configService.getConfig().yomitan.externalProfilePath.trim().length > 0,
   detectPluginInstalled: () => {
     const candidates = detectInstalledFirstRunPluginCandidates({
       platform: process.platform,
       homeDir: os.homedir(),
       xdgConfigHome: process.env.XDG_CONFIG_HOME,
       appDataDir: app.getPath('appData'),
-      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+      mpvExecutablePath: configService.getConfig().mpv.executablePath,
     });
     if (candidates.length > 0) {
       return true;
@@ -1469,7 +1460,7 @@ const firstRunSetupService = createFirstRunSetupService({
       homeDir: os.homedir(),
       xdgConfigHome: process.env.XDG_CONFIG_HOME,
       appDataDir: app.getPath('appData'),
-      mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+      mpvExecutablePath: configService.getConfig().mpv.executablePath,
     }),
   removeLegacyMpvPlugins: (candidates) =>
     removeLegacyMpvPluginCandidates({
@@ -1530,7 +1521,7 @@ const firstRunSetupService = createFirstRunSetupService({
   onStateChanged: (state) => {
     appState.firstRunSetupCompleted = state.status === 'completed';
     if (appTray) {
-      ensureTray();
+      ensureTrayHandler();
     }
   },
 });
@@ -1538,7 +1529,7 @@ const discordPresenceSessionStartedAtMs = Date.now();
 let discordPresenceMediaDurationSec: number | null = null;
 const discordPresenceRuntime = createDiscordPresenceRuntime({
   getDiscordPresenceService: () => appState.discordPresenceService,
-  isDiscordPresenceEnabled: () => getResolvedConfig().discordPresence.enabled === true,
+  isDiscordPresenceEnabled: () => configService.getConfig().discordPresence.enabled === true,
   getMpvClient: () => appState.mpvClient,
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   getCurrentMediaPath: () => appState.currentMediaPath,
@@ -1553,13 +1544,13 @@ const discordPresenceRuntime = createDiscordPresenceRuntime({
 });
 
 async function initializeDiscordPresenceService(): Promise<void> {
-  if (getResolvedConfig().discordPresence.enabled !== true) {
+  if (configService.getConfig().discordPresence.enabled !== true) {
     appState.discordPresenceService = null;
     return;
   }
 
   appState.discordPresenceService = createDiscordPresenceService({
-    config: getResolvedConfig().discordPresence,
+    config: configService.getConfig().discordPresence,
     createClient: () => createDiscordRpcClient(DISCORD_PRESENCE_APP_ID),
     logDebug: (message, meta) => logger.debug(message, meta),
   });
@@ -1593,18 +1584,14 @@ const restoreOverlayMpvSubtitles = createRestoreOverlayMpvSubtitlesHandler({
     appState.overlayMpvSubVisibilityRevision = revision;
   },
   isMpvConnected: () => Boolean(appState.mpvClient?.connected),
-  shouldKeepSuppressedFromVisibleOverlayBinding: () => shouldSuppressMpvSubtitlesForOverlay(),
+  shouldKeepSuppressedFromVisibleOverlayBinding: () => overlayManager.getVisibleOverlayVisible(),
   setMpvSubVisibility: (visible) => {
     setMpvSubVisibilityRuntime(appState.mpvClient, visible);
   },
 });
 
-function shouldSuppressMpvSubtitlesForOverlay(): boolean {
-  return overlayManager.getVisibleOverlayVisible();
-}
-
 function syncOverlayMpvSubtitleSuppression(): void {
-  if (shouldSuppressMpvSubtitlesForOverlay()) {
+  if (overlayManager.getVisibleOverlayVisible()) {
     void ensureOverlayMpvSubtitlesHidden();
     return;
   }
@@ -1613,7 +1600,7 @@ function syncOverlayMpvSubtitleSuppression(): void {
 }
 
 const buildImmersionMediaRuntimeMainDepsHandler = createBuildImmersionMediaRuntimeMainDepsHandler({
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   defaultImmersionDbPath: DEFAULT_IMMERSION_DB_PATH,
   getTracker: () => appState.immersionTracker,
   getMpvClient: () => appState.mpvClient,
@@ -1644,7 +1631,7 @@ const buildAnilistStateRuntimeMainDepsHandler = createBuildAnilistStateRuntimeMa
   },
 });
 const buildConfigDerivedRuntimeMainDepsHandler = createBuildConfigDerivedRuntimeMainDepsHandler({
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
   defaultJimakuLanguagePreference: DEFAULT_CONFIG.jimaku.languagePreference,
   defaultJimakuMaxEntryResults: DEFAULT_CONFIG.jimaku.maxEntryResults,
@@ -1652,12 +1639,12 @@ const buildConfigDerivedRuntimeMainDepsHandler = createBuildConfigDerivedRuntime
 });
 const buildMainSubsyncRuntimeMainDepsHandler = createBuildMainSubsyncRuntimeMainDepsHandler({
   getMpvClient: () => appState.mpvClient,
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getSubsyncInProgress: () => appState.subsyncInProgress,
   setSubsyncInProgress: (inProgress) => {
     appState.subsyncInProgress = inProgress;
   },
-  showMpvOsd: (text) => showSubsyncStatusNotification(text),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showSubsyncStatusNotification(text),
   openManualPicker: (payload) => {
     openOverlayHostedModalWithOsd(
       (deps) => openSubsyncManualModalRuntime(deps, payload),
@@ -1679,13 +1666,14 @@ const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntim
 const subsyncRuntime = createMainSubsyncRuntime(buildMainSubsyncRuntimeMainDepsHandler());
 const currentMediaTokenizationGate = createCurrentMediaTokenizationGate();
 const startupOsdSequencer = createStartupOsdSequencer({
-  getNotificationType: () => getConfiguredStatusNotificationType(),
+  getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
   showOsd: (message) => showMpvOsd(message),
-  showOverlayNotification,
+  showOverlayNotification: (payload) =>
+    overlayNotificationsRuntime.showOverlayNotification(payload),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
 });
 const youtubePrimarySubtitleNotificationRuntime = createYoutubePrimarySubtitleNotificationRuntime({
-  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
+  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
   notifyFailure: (message) => reportYoutubeSubtitleFailure(message),
   schedule: (fn, delayMs) => setTimeout(fn, delayMs),
   clearSchedule: clearYoutubePrimarySubtitleNotificationTimer,
@@ -1739,7 +1727,8 @@ async function getCurrentYoutubeMediaCacheSourceUrl(): Promise<string | null> {
 
 function shouldRequireYoutubeMediaCacheForCurrentPlayback(): boolean {
   return (
-    getResolvedConfig().youtube.mediaCache.mode === 'background' && isYoutubePlaybackActiveNow()
+    configService.getConfig().youtube.mediaCache.mode === 'background' &&
+    isYoutubePlaybackActiveNow()
   );
 }
 
@@ -1747,7 +1736,7 @@ async function getCachedYoutubeMediaPathForCurrentPlayback(
   currentVideoPath: string,
   _kind: 'audio' | 'video',
 ): Promise<string | null> {
-  if (getResolvedConfig().youtube.mediaCache.mode !== 'background') {
+  if (configService.getConfig().youtube.mediaCache.mode !== 'background') {
     return null;
   }
   const cacheSourceUrl = isYoutubeMediaPath(currentVideoPath)
@@ -1765,12 +1754,12 @@ async function getCachedYoutubeMediaPathForCurrentPlayback(
 }
 
 function reportYoutubeSubtitleFailure(message: string): void {
-  const type = getConfiguredStatusNotificationType();
+  const type = overlayNotificationsRuntime.getConfiguredStatusNotificationType();
   if (type === 'none') {
     return;
   }
   if (type === 'overlay' || type === 'both') {
-    showOverlayNotification({
+    overlayNotificationsRuntime.showOverlayNotification({
       title: 'SubMiner',
       body: message,
       variant: 'warning',
@@ -1790,16 +1779,19 @@ function reportYoutubeSubtitleFailure(message: string): void {
 
 async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
   if (youtubeFlowRuntime.hasActiveSession()) {
-    showConfiguredStatusNotification('YouTube subtitle flow already in progress.', {
-      title: 'YouTube subtitles',
-      variant: 'warning',
-    });
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
+      'YouTube subtitle flow already in progress.',
+      {
+        title: 'YouTube subtitles',
+        variant: 'warning',
+      },
+    );
     return;
   }
   const currentMediaPath =
     appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || '';
   if (!isYoutubePlaybackActiveNow() || !currentMediaPath) {
-    showConfiguredStatusNotification(
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
       'YouTube subtitle picker is only available during YouTube playback.',
       {
         title: 'YouTube subtitles',
@@ -1825,16 +1817,16 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
 function emitSubtitlePayload(payload: SubtitleData): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
   appState.currentSubtitleData = timedPayload;
-  broadcastToOverlayWindows('subtitle:set', timedPayload);
+  overlayManager.broadcastToOverlayWindows('subtitle:set', timedPayload);
   subtitleWsService.broadcast(timedPayload, {
-    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+    enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
   });
   annotationSubtitleWsService.broadcast(timedPayload, {
-    enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-    topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-    mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+    enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
+    topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
+    mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
   });
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
   subtitlePrefetchService?.resume();
@@ -1935,7 +1927,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   getLastObservedTimePos: () => lastObservedTimePos,
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   emitSecondarySubtitle: (text) => {
-    broadcastToOverlayWindows('secondary-subtitle:set', text);
+    overlayManager.broadcastToOverlayWindows('secondary-subtitle:set', text);
   },
   initSubtitlePrefetch: (sourcePath, currentTimePos, sourceKey) =>
     subtitlePrefetchInitController.initSubtitlePrefetch(sourcePath, currentTimePos, sourceKey),
@@ -1944,26 +1936,6 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
     logger.debug(message);
   },
 });
-
-function primeCurrentSubtitleForVisibleOverlay(): Promise<void> {
-  return autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
-}
-
-function primeCurrentSubtitleForAutoplay(mediaPath: string): Promise<void> {
-  return autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForAutoplay(mediaPath);
-}
-
-function cancelVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
-  autoplaySubtitlePrimingRuntime.cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
-}
-
-function scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint(): void {
-  autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
-}
-
-function scheduleSubtitlePrefetchRefresh(delayMs = 0): void {
-  autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh(delayMs);
-}
 
 function cancelPendingLinuxMpvFullscreenOverlayRefreshBurst(): void {
   cancelLinuxMpvFullscreenOverlayRefreshBurst?.();
@@ -2008,7 +1980,7 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
   },
 });
 const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
-  getFfmpegPath: () => getResolvedConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
+  getFfmpegPath: () => configService.getConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
     extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
 });
@@ -2058,7 +2030,8 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
 
       return windowTracker.isTargetWindowFocused();
     },
-    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text: string) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     openRuntimeOptionsPalette: () => {
       openRuntimeOptionsPalette();
     },
@@ -2071,18 +2044,18 @@ const overlayShortcutsRuntime = createOverlayShortcutsRuntimeService(
     openTsukihime: () => {
       openTsukihimeOverlay();
     },
-    markAudioCard: () => markLastCardAsAudioCard(),
+    markAudioCard: () => markLastCardAsAudioCardHandler(),
     copySubtitleMultiple: (timeoutMs: number) => {
       startPendingMultiCopy(timeoutMs);
     },
     copySubtitle: () => {
-      copyCurrentSubtitle();
+      copyCurrentSubtitleHandler();
     },
-    toggleSecondarySubMode: () => handleCycleSecondarySubMode(),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-    mineSentenceCard: () => mineSentenceCard(),
+    toggleSecondarySubMode: () => cycleSecondarySubMode(),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
+    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+    triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
+    mineSentenceCard: () => mineSentenceCardHandler(),
     mineSentenceMultiple: (timeoutMs: number) => {
       startPendingMineSentenceMultiple(timeoutMs);
     },
@@ -2104,9 +2077,10 @@ syncOverlayShortcutsForModal = (isActive: boolean): void => {
 
 const buildConfigHotReloadMessageMainDepsHandler = createBuildConfigHotReloadMessageMainDepsHandler(
   {
-    getNotificationType: () => getConfiguredStatusNotificationType(),
+    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
     showMpvOsd: (message) => showMpvOsd(message),
-    showOverlayNotification,
+    showOverlayNotification: (payload) =>
+      overlayNotificationsRuntime.showOverlayNotification(payload),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   },
 );
@@ -2135,7 +2109,7 @@ const buildConfigHotReloadAppliedMainDepsHandler = createBuildConfigHotReloadApp
       setSecondarySubMode(mode);
     },
     broadcastToOverlayWindows: (channel, payload) => {
-      broadcastToOverlayWindows(channel, payload);
+      overlayManager.broadcastToOverlayWindows(channel, payload);
     },
     applyAnkiRuntimeConfigPatch: (patch) => {
       if (appState.ankiIntegration) {
@@ -2170,7 +2144,7 @@ const applyConfigHotReloadDiff = createConfigHotReloadAppliedHandler(
 );
 const buildConfigHotReloadRuntimeMainDepsHandler = createBuildConfigHotReloadRuntimeMainDepsHandler(
   {
-    getCurrentConfig: () => getResolvedConfig(),
+    getCurrentConfig: () => configService.getConfig(),
     reloadConfigStrict: () => configService.reloadConfigStrict(),
     watchConfigPath: (configPath, onChange) => watchConfigPathHandler(configPath, onChange),
     setTimeout: (callback, delayMs) => setTimeout(callback, delayMs),
@@ -2238,7 +2212,6 @@ const configSettingsRuntime = createConfigSettingsRuntime({
 });
 
 configSettingsRuntime.registerHandlers();
-const openConfigSettingsWindow = () => configSettingsRuntime.openWindow();
 
 const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   getSettingsWindow: () => appState.syncUiWindow,
@@ -2259,14 +2232,13 @@ const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   },
   log: (message) => logger.error(message),
 });
-const openSyncUiWindow = () => openSyncUiWindowHandler();
 
 const syncUiRuntime = createSyncUiRuntime({
   ipcMain,
   hostsFilePath: getSyncHostsPath(USER_DATA_PATH),
   snapshotsDir: path.join(os.tmpdir(), 'subminer-db-snapshots'),
   getDbPath: () => {
-    const configured = getResolvedConfig().immersionTracking?.dbPath?.trim();
+    const configured = configService.getConfig().immersionTracking?.dbPath?.trim();
     return configured || DEFAULT_IMMERSION_DB_PATH;
   },
   resolveLauncherCommand: () =>
@@ -2288,7 +2260,7 @@ const syncUiRuntime = createSyncUiRuntime({
   nowMs: () => Date.now(),
   log: (message) => logger.info(message),
   notify: (payload) =>
-    showOverlayNotification({
+    overlayNotificationsRuntime.showOverlayNotification({
       title: payload.title,
       body: payload.body,
       variant: payload.variant,
@@ -2336,7 +2308,7 @@ const buildFrequencyDictionaryRootsHandler = createBuildFrequencyDictionaryRoots
 
 const jlptDictionaryRuntime = createJlptDictionaryRuntimeService(
   createBuildJlptDictionaryRuntimeMainDepsHandler({
-    isJlptEnabled: () => getResolvedConfig().subtitleStyle.enableJlpt,
+    isJlptEnabled: () => configService.getConfig().subtitleStyle.enableJlpt,
     getDictionaryRoots: () => buildDictionaryRootsHandler(),
     getJlptDictionarySearchPaths,
     setJlptLevelLookup: (lookup) => {
@@ -2349,10 +2321,10 @@ const jlptDictionaryRuntime = createJlptDictionaryRuntimeService(
 const frequencyDictionaryRuntime = createFrequencyDictionaryRuntimeService(
   createBuildFrequencyDictionaryRuntimeMainDepsHandler({
     isFrequencyDictionaryEnabled: () =>
-      getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+      configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
     getDictionaryRoots: () => buildFrequencyDictionaryRootsHandler(),
     getFrequencyDictionarySearchPaths,
-    getSourcePath: () => getResolvedConfig().subtitleStyle.frequencyDictionary.sourcePath,
+    getSourcePath: () => configService.getConfig().subtitleStyle.frequencyDictionary.sourcePath,
     setFrequencyRankLookup: (lookup) => {
       appState.frequencyRankLookup = lookup;
     },
@@ -2368,10 +2340,6 @@ const getFieldGroupingResolverMainDeps = buildGetFieldGroupingResolverMainDepsHa
 const getFieldGroupingResolverHandler = createGetFieldGroupingResolverHandler(
   getFieldGroupingResolverMainDeps,
 );
-
-function getFieldGroupingResolver(): ((choice: KikuFieldGroupingChoice) => void) | null {
-  return getFieldGroupingResolverHandler();
-}
 
 const buildSetFieldGroupingResolverMainDepsHandler =
   createBuildSetFieldGroupingResolverMainDepsHandler({
@@ -2389,19 +2357,13 @@ const setFieldGroupingResolverHandler = createSetFieldGroupingResolverHandler(
   setFieldGroupingResolverMainDeps,
 );
 
-function setFieldGroupingResolver(
-  resolver: ((choice: KikuFieldGroupingChoice) => void) | null,
-): void {
-  setFieldGroupingResolverHandler(resolver);
-}
-
 const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHostedModal>(
   createBuildFieldGroupingOverlayMainDepsHandler<OverlayHostedModal>({
     getMainWindow: () => overlayManager.getMainWindow(),
     getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
     setVisibleOverlayVisible: (visible) => setVisibleOverlayVisible(visible),
-    getResolver: () => getFieldGroupingResolver(),
-    setResolver: (resolver) => setFieldGroupingResolver(resolver),
+    getResolver: () => getFieldGroupingResolverHandler(),
+    setResolver: (resolver) => setFieldGroupingResolverHandler(resolver),
     getRestoreVisibleOverlayOnModalClose: () =>
       overlayModalRuntime.getRestoreVisibleOverlayOnModalClose(),
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
@@ -2436,7 +2398,7 @@ const mediaRuntime = createMediaRuntimeService(
       appState.subtitlePosition = position;
     },
     broadcastToOverlayWindows: (channel, payload) => {
-      broadcastToOverlayWindows(channel, payload);
+      overlayManager.broadcastToOverlayWindows(channel, payload);
     },
     getCurrentMediaTitle: () => appState.currentMediaTitle,
     setCurrentMediaTitle: (title) => {
@@ -2452,9 +2414,9 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
   guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
-  getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
+  getNameMatchImagesEnabled: () => configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
   getCollapsibleSectionOpenState: (section) =>
-    getResolvedConfig().anilist.characterDictionary.collapsibleSections[section],
+    configService.getConfig().anilist.characterDictionary.collapsibleSections[section],
   tokenizeJapaneseName: async (text) => (await appState.mecabTokenizer?.tokenize(text)) ?? null,
   getJapaneseNameTokenizerAvailable: () => {
     const status = appState.mecabTokenizer?.getStatus();
@@ -2468,10 +2430,10 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
 const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRuntimeService({
   userDataPath: USER_DATA_PATH,
   getConfig: () => {
-    const config = getResolvedConfig().anilist.characterDictionary;
+    const config = configService.getConfig().anilist.characterDictionary;
     return {
       enabled:
-        getResolvedConfig().subtitleStyle.nameMatchEnabled &&
+        configService.getConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
         !isYoutubePlaybackActiveNow(),
       maxLoaded: config.maxLoaded,
@@ -2543,9 +2505,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
   logWarn: (message) => logger.warn(message),
   onSyncStatus: (event) => {
     notifyCharacterDictionaryAutoSyncStatus(event, {
-      getNotificationType: () => getConfiguredStatusNotificationType(),
+      getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
       showOsd: (message) => showMpvOsd(message),
-      showOverlayNotification,
+      showOverlayNotification: (payload) =>
+        overlayNotificationsRuntime.showOverlayNotification(payload),
       showDesktopNotification: (title, options) => showDesktopNotification(title, options),
       startupOsdSequencer,
     });
@@ -2600,36 +2563,38 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     getLastKnownWindowsForegroundProcessName: () =>
       visibleOverlayInteractionRuntime.getLastWindowsVisibleOverlayForegroundProcessName(),
     getWindowsOverlayProcessName: () => path.parse(process.execPath).name.toLowerCase(),
-    getWindowsFocusHandoffGraceActive: () => hasWindowsVisibleOverlayFocusHandoffGrace(),
+    getWindowsFocusHandoffGraceActive: () =>
+      visibleOverlayInteractionRuntime.hasWindowsVisibleOverlayFocusHandoffGrace(),
     getMacOSForegroundProbeActive: () =>
       visibleOverlayInteractionRuntime.getMacOSVisibleOverlayForegroundProbeActive(),
     getTrackerNotReadyWarningShown: () => appState.trackerNotReadyWarningShown,
     setTrackerNotReadyWarningShown: (shown: boolean) => {
       appState.trackerNotReadyWarningShown = shown;
     },
-    updateVisibleOverlayBounds: (geometry: WindowGeometry) => updateVisibleOverlayBounds(geometry),
+    updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
+      overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
     ensureOverlayWindowLevel: (window) => {
-      ensureOverlayWindowLevel(window);
+      overlayGeometryRuntime.ensureOverlayWindowLevel(window);
     },
     syncWindowsOverlayToMpvZOrder: (_window) => {
-      requestWindowsVisibleOverlayZOrderSync();
+      visibleOverlayInteractionRuntime.requestWindowsVisibleOverlayZOrderSync();
     },
     syncPrimaryOverlayWindowLayer: (layer) => {
-      syncPrimaryOverlayWindowLayer(layer);
+      overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
     },
     enforceOverlayLayerOrder: () => {
-      enforceOverlayLayerOrder();
+      overlayGeometryRuntime.enforceOverlayLayerOrder();
     },
     syncOverlayShortcuts: () => {
       overlayShortcutsRuntime.syncOverlayShortcuts();
     },
     isMacOSPlatform: () => process.platform === 'darwin',
     isWindowsPlatform: () => process.platform === 'win32',
-    showOverlayLoadingOsd: (message: string) => {
-      showOverlayLoadingStatusNotification(message);
+    showOverlayLoadingOsd: (_message: string) => {
+      overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
     },
     dismissOverlayLoadingOsd: () => {
-      dismissOverlayLoadingStatusNotification();
+      overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
     },
     hideNonNativeOverlayWhenTargetUnfocused: () =>
       shouldRunLinuxOverlayZOrderKeepAlive() &&
@@ -2683,125 +2648,21 @@ const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime(
   setLinuxVisibleOverlayOwnerBindingKey: (key) => {
     linuxVisibleOverlayOwnerBindingKey = key;
   },
-  bindVisibleOverlayToTrackedX11Window: (window) => bindVisibleOverlayToTrackedX11Window(window),
-  updateVisibleOverlayBounds: (geometry) => updateVisibleOverlayBounds(geometry),
+  bindVisibleOverlayToTrackedX11Window: (window) =>
+    overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window),
+  updateVisibleOverlayBounds: (geometry) =>
+    overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
   refreshCurrentSubtitle: () => {
     subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
   },
-  getOverlayWindows: () => getOverlayWindows(),
+  getOverlayWindows: () => overlayManager.getOverlayWindows(),
   syncOverlayShortcuts: () => overlayShortcutsRuntime.syncOverlayShortcuts(),
   resetLastOverlayWindowGeometry: () => overlayGeometryRuntime.resetLastOverlayWindowGeometry(),
   enforceOverlayLayerOrder: () => {
-    enforceOverlayLayerOrder();
+    overlayGeometryRuntime.enforceOverlayLayerOrder();
   },
   getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
 });
-
-function handleStatsOverlayVisibilityChanged(visible: boolean): void {
-  visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
-}
-
-function resetVisibleOverlayInputState(): void {
-  visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
-}
-
-function restoreVisibleOverlayWindowShapeForShow(): void {
-  visibleOverlayInteractionRuntime.restoreVisibleOverlayWindowShapeForShow();
-}
-
-function getNativeWindowHandleDecimal(window: BrowserWindow): string {
-  return visibleOverlayInteractionRuntime.getNativeWindowHandleDecimal(window);
-}
-
-function getWindowsNativeWindowHandleNumber(window: BrowserWindow): number {
-  return visibleOverlayInteractionRuntime.getWindowsNativeWindowHandleNumber(window);
-}
-
-function enqueueVisibleOverlayX11OwnerBindingOperation(
-  window: BrowserWindow,
-  args: string[],
-  onError?: (error: Error) => void,
-): void {
-  visibleOverlayInteractionRuntime.enqueueVisibleOverlayX11OwnerBindingOperation(
-    window,
-    args,
-    onError,
-  );
-}
-
-function clearVisibleOverlayX11OwnerBinding(window: BrowserWindow): void {
-  visibleOverlayInteractionRuntime.clearVisibleOverlayX11OwnerBinding(window);
-}
-
-function createOverlayWindowTracker(override?: string | null, targetMpvSocketPath?: string | null) {
-  return visibleOverlayInteractionRuntime.createOverlayWindowTracker(override, targetMpvSocketPath);
-}
-
-function bindVisibleOverlayOwner(): void {
-  visibleOverlayInteractionRuntime.bindVisibleOverlayOwner();
-}
-
-function releaseVisibleOverlayOwner(): void {
-  visibleOverlayInteractionRuntime.releaseVisibleOverlayOwner();
-}
-
-function retargetOverlayWindowTrackerForMpvSocket(
-  nextSocketPath: string,
-  previousSocketPath: string,
-): void {
-  visibleOverlayInteractionRuntime.retargetOverlayWindowTrackerForMpvSocket(
-    nextSocketPath,
-    previousSocketPath,
-  );
-}
-
-function requestWindowsVisibleOverlayZOrderSync(): void {
-  visibleOverlayInteractionRuntime.requestWindowsVisibleOverlayZOrderSync();
-}
-
-function scheduleWindowsVisibleOverlayZOrderSyncBurst(): void {
-  visibleOverlayInteractionRuntime.scheduleWindowsVisibleOverlayZOrderSyncBurst();
-}
-
-function hasWindowsVisibleOverlayFocusHandoffGrace(): boolean {
-  return visibleOverlayInteractionRuntime.hasWindowsVisibleOverlayFocusHandoffGrace();
-}
-
-function clearWindowsVisibleOverlayForegroundPollLoop(): void {
-  visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop();
-}
-
-function tickWindowsOverlayPointerInteractionNow(): void {
-  visibleOverlayInteractionRuntime.tickWindowsOverlayPointerInteractionNow();
-}
-
-function scheduleVisibleOverlayBlurRefresh(): void {
-  visibleOverlayInteractionRuntime.scheduleVisibleOverlayBlurRefresh();
-}
-
-function resetLinuxVisibleOverlayStartupInputPrimer(): void {
-  visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
-}
-
-function startLinuxVisibleOverlayStartupInputGrace(): void {
-  visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();
-}
-
-function applyLinuxOverlayInputShapeFromLatestMeasurement(): boolean {
-  return visibleOverlayInteractionRuntime.applyLinuxOverlayInputShapeFromLatestMeasurement();
-}
-
-function primeLinuxOverlayPointerInteractionAfterFirstMeasurement(): void {
-  visibleOverlayInteractionRuntime.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
-}
-
-function requestLinuxOverlayZOrderFollow(): void {
-  visibleOverlayInteractionRuntime.requestLinuxOverlayZOrderFollow();
-}
-
-function tickLinuxOverlayPointerInteractionNow(): void {
-  visibleOverlayInteractionRuntime.tickLinuxOverlayPointerInteractionNow();
-}
 
 const buildGetRuntimeOptionsStateMainDepsHandler = createBuildGetRuntimeOptionsStateMainDepsHandler(
   {
@@ -2813,14 +2674,6 @@ const getRuntimeOptionsStateHandler = createGetRuntimeOptionsStateHandler(
   getRuntimeOptionsStateMainDeps,
 );
 
-function getRuntimeOptionsState(): RuntimeOptionState[] {
-  return getRuntimeOptionsStateHandler();
-}
-
-function getOverlayWindows(): BrowserWindow[] {
-  return overlayManager.getOverlayWindows();
-}
-
 const buildRestorePreviousSecondarySubVisibilityMainDepsHandler =
   createBuildRestorePreviousSecondarySubVisibilityMainDepsHandler({
     getMpvClient: () => appState.mpvClient,
@@ -2829,15 +2682,12 @@ syncOverlayVisibilityForModal = () => {
   overlayVisibilityRuntime.updateVisibleOverlayVisibility();
 };
 
-function broadcastToOverlayWindows(channel: string, ...args: unknown[]): void {
-  overlayManager.broadcastToOverlayWindows(channel, ...args);
-}
-
 const overlayNotificationsRuntime = createOverlayNotificationsRuntime({
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getMainOverlayWindow: () => overlayManager.getMainWindow(),
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
-  broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+  broadcastToOverlayWindows: (channel, ...args) =>
+    overlayManager.broadcastToOverlayWindows(channel, ...args),
   showMpvOsd: (message) => showMpvOsd(message),
   getMpvClient: () => appState.mpvClient,
   getAnkiIntegration: () => appState.ankiIntegration,
@@ -2852,45 +2702,12 @@ const {
   maybeStartOverlayLoadingOsd,
 } = overlayNotificationsRuntime;
 
-// Hoisted wrappers: these names are referenced (directly or via deps object
-// literals) during module initialization before this point, so they must stay
-// hoisted function declarations that delegate to the runtime lazily.
-function getConfiguredStatusNotificationType(): NotificationType {
-  return overlayNotificationsRuntime.getConfiguredStatusNotificationType();
-}
-
-function showOverlayNotification(payload: OverlayNotificationPayload): void {
-  overlayNotificationsRuntime.showOverlayNotification(payload);
-}
-
-function showConfiguredStatusNotification(
-  message: string,
-  options: ConfiguredStatusNotificationOptions = {},
-): void {
-  overlayNotificationsRuntime.showConfiguredStatusNotification(message, options);
-}
-
-function showSubsyncStatusNotification(message: string): void {
-  overlayNotificationsRuntime.showSubsyncStatusNotification(message);
-}
-
-function showYoutubeFlowStatusNotification(message: string): void {
-  overlayNotificationsRuntime.showYoutubeFlowStatusNotification(message);
-}
-
-function showOverlayLoadingStatusNotification(_message: string): void {
-  overlayNotificationsRuntime.showOverlayLoadingStatusNotification();
-}
-
-function dismissOverlayLoadingStatusNotification(): void {
-  overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
-}
-
 const buildBroadcastRuntimeOptionsChangedMainDepsHandler =
   createBuildBroadcastRuntimeOptionsChangedMainDepsHandler({
     broadcastRuntimeOptionsChangedRuntime,
-    getRuntimeOptionsState: () => getRuntimeOptionsState(),
-    broadcastToOverlayWindows: (channel, ...args) => broadcastToOverlayWindows(channel, ...args),
+    getRuntimeOptionsState: () => getRuntimeOptionsStateHandler(),
+    broadcastToOverlayWindows: (channel, ...args) =>
+      overlayManager.broadcastToOverlayWindows(channel, ...args),
   });
 
 const buildSendToActiveOverlayWindowMainDepsHandler =
@@ -2923,26 +2740,6 @@ const overlayVisibilityComposer = composeOverlayVisibilityRuntime({
   openRuntimeOptionsPaletteMainDeps: buildOpenRuntimeOptionsPaletteMainDepsHandler(),
 });
 
-function restorePreviousSecondarySubVisibility(): void {
-  overlayVisibilityComposer.restorePreviousSecondarySubVisibility();
-}
-
-function broadcastRuntimeOptionsChanged(): void {
-  overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
-}
-
-function sendToActiveOverlayWindow(
-  channel: string,
-  payload?: unknown,
-  runtimeOptions?: { restoreOnModalClose?: OverlayHostedModal },
-): boolean {
-  return overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions);
-}
-
-function setOverlayDebugVisualizationEnabled(enabled: boolean): void {
-  overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled);
-}
-
 function createOverlayHostedModalOpenDeps(): {
   ensureOverlayStartupPrereqs: () => void;
   ensureOverlayWindowsReadyForVisibilityActions: () => void;
@@ -2962,7 +2759,7 @@ function createOverlayHostedModalOpenDeps(): {
     ensureOverlayWindowsReadyForVisibilityActions: () =>
       ensureOverlayWindowsReadyForVisibilityActions(),
     sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
-      sendToActiveOverlayWindow(channel, payload, runtimeOptions),
+      overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
     logWarn: (message) => logger.warn(message),
   };
@@ -2976,12 +2773,16 @@ function openOverlayHostedModalWithOsd(
   void openModal(createOverlayHostedModalOpenDeps())
     .then((opened) => {
       if (!opened) {
-        showConfiguredStatusNotification(unavailableMessage, { variant: 'warning' });
+        overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
+          variant: 'warning',
+        });
       }
     })
     .catch((error) => {
       logger.error(failureLogMessage, error);
-      showConfiguredStatusNotification(unavailableMessage, { variant: 'error' });
+      overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
+        variant: 'error',
+      });
     });
 }
 
@@ -3019,8 +2820,8 @@ function openSessionHelpOverlay(): void {
 
 function openCharacterDictionaryManagerOverlay(): void {
   openCharacterDictionaryManagerWithConfigGate({
-    isCharacterDictionaryEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
-    getNotificationType: () => getConfiguredStatusNotificationType(),
+    isCharacterDictionaryEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
+    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
     openManager: () => {
       openOverlayHostedModalWithOsd(
         openCharacterDictionaryManagerModalRuntime,
@@ -3029,7 +2830,8 @@ function openCharacterDictionaryManagerOverlay(): void {
       );
     },
     showOsd: (message) => showMpvOsd(message),
-    showOverlayNotification,
+    showOverlayNotification: (payload) =>
+      overlayNotificationsRuntime.showOverlayNotification(payload),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     logWarn: (message, error) => logger.warn(message, error),
   });
@@ -3053,10 +2855,13 @@ function openControllerDebugOverlay(): void {
 
 function openPlaylistBrowser(): void {
   if (!appState.mpvClient?.connected) {
-    showConfiguredStatusNotification('Playlist browser requires active playback.', {
-      title: 'Playlist browser',
-      variant: 'warning',
-    });
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
+      'Playlist browser requires active playback.',
+      {
+        title: 'Playlist browser',
+        variant: 'warning',
+      },
+    );
     return;
   }
   openOverlayHostedModalWithOsd(
@@ -3064,10 +2869,6 @@ function openPlaylistBrowser(): void {
     'Playlist browser overlay unavailable.',
     'Failed to open playlist browser overlay.',
   );
-}
-
-function getResolvedConfig() {
-  return configService.getConfig();
 }
 
 function getRuntimeBooleanOption(
@@ -3083,7 +2884,7 @@ function getRuntimeBooleanOption(
 }
 
 function shouldInitializeMecabForAnnotations(): boolean {
-  const config = getResolvedConfig();
+  const config = configService.getConfig();
   const knownWordsEnabled = getRuntimeBooleanOption(
     'subtitle.annotation.knownWords.highlightEnabled',
     config.ankiConnect.knownWords.highlightEnabled,
@@ -3115,7 +2916,7 @@ const {
   getJellyfinClientInfo,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     loadStoredSession: () => jellyfinTokenStore.loadSession(),
     getEnv: (name) => process.env[name],
   },
@@ -3132,7 +2933,7 @@ const {
   },
   launchMpvIdleForJellyfinPlaybackMainDeps: {
     getSocketPath: () => appState.mpvSocketPath,
-    getLaunchMode: () => getResolvedConfig().mpv.launchMode,
+    getLaunchMode: () => configService.getConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
     getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
@@ -3142,7 +2943,7 @@ const {
         homeDir: os.homedir(),
         xdgConfigHome: process.env.XDG_CONFIG_HOME,
         appDataDir: app.getPath('appData'),
-        mpvExecutablePath: getResolvedConfig().mpv.executablePath,
+        mpvExecutablePath: configService.getConfig().mpv.executablePath,
       }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
     getDefaultMpvLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
@@ -3211,7 +3012,7 @@ const {
           subtitleStreamIndex: params.subtitleStreamIndex ?? undefined,
         },
       ),
-    applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaults(mpvClient),
+    applyJellyfinMpvDefaults: (mpvClient) => applyJellyfinMpvDefaultsHandler(mpvClient),
     showVisibleOverlay: () => setVisibleOverlayVisible(true),
     sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
     armQuitOnDisconnect: () => {
@@ -3238,7 +3039,7 @@ const {
       void appState.jellyfinRemoteSession?.reportPlaying(payload);
     },
     showMpvOsd: (text) => {
-      showConfiguredStatusNotification(text, { title: 'Jellyfin' });
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Jellyfin' });
     },
     updateCurrentMediaTitle: (title) => {
       mediaRuntime.updateCurrentMediaTitle(title);
@@ -3347,7 +3148,7 @@ const {
     patchJellyfinConfig: (session) => {
       const recentServers = mergeJellyfinRecentServers(
         session.serverUrl,
-        getResolvedConfig().jellyfin.recentServers || [],
+        configService.getConfig().jellyfin.recentServers || [],
       );
       configService.patchRawConfig({
         jellyfin: {
@@ -3363,7 +3164,7 @@ const {
       persistJellyfinAuthSession({
         session,
         clientInfo,
-        existingRecentServers: getResolvedConfig().jellyfin.recentServers || [],
+        existingRecentServers: configService.getConfig().jellyfin.recentServers || [],
         saveStoredSession: (storedSession) => jellyfinTokenStore.saveSession(storedSession),
         patchRawConfig: (patch) => {
           configService.patchRawConfig(patch);
@@ -3372,7 +3173,8 @@ const {
       }),
     logInfo: (message) => logger.info(message),
     logError: (message, error) => logger.error(message, error),
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
+    showMpvOsd: (message) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
     clearSetupWindow: () => {
       appState.jellyfinSetupWindow = null;
     },
@@ -3413,7 +3215,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
   }),
   getSetupSnapshot: async () => {
     const snapshot = await firstRunSetupService.getSetupStatus();
-    const mpvExecutablePath = getResolvedConfig().mpv.executablePath;
+    const mpvExecutablePath = configService.getConfig().mpv.executablePath;
     return {
       configReady: snapshot.configReady,
       dictionaryCount: snapshot.dictionaryCount,
@@ -3478,7 +3280,7 @@ const openFirstRunSetupWindowHandler = createOpenFirstRunSetupWindowHandler({
       return;
     }
     if (submission.action === 'open-config-settings') {
-      const opened = openConfigSettingsWindow();
+      const opened = configSettingsRuntime.openWindow();
       firstRunSetupMessage = opened
         ? 'Opened SubMiner settings.'
         : 'SubMiner settings are unavailable.';
@@ -3540,10 +3342,12 @@ const {
   registerSubminerProtocolClient,
 } = composeAnilistSetupHandlers({
   notifyDeps: {
-    getNotificationType: () => getConfiguredStatusNotificationType(),
+    getNotificationType: () => overlayNotificationsRuntime.getConfiguredStatusNotificationType(),
     hasMpvClient: () => Boolean(appState.mpvClient),
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
-    showOverlayNotification,
+    showMpvOsd: (message) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
+    showOverlayNotification: (payload) =>
+      overlayNotificationsRuntime.showOverlayNotification(payload),
     showDesktopNotification: (title, options) => showDesktopNotification(title, options),
     logInfo: (message) => logger.info(message),
   },
@@ -3641,9 +3445,9 @@ const buildOpenAnilistSetupWindowMainDepsHandler = createBuildOpenAnilistSetupWi
   },
 );
 
-function openAnilistSetupWindow(): void {
-  createOpenAnilistSetupWindowHandler(buildOpenAnilistSetupWindowMainDepsHandler())();
-}
+const openAnilistSetupWindowHandler = createOpenAnilistSetupWindowHandler(
+  buildOpenAnilistSetupWindowMainDepsHandler(),
+);
 
 const {
   refreshAnilistClientSecretState,
@@ -3659,7 +3463,7 @@ const {
   maybeRunAnilistPostWatchUpdate,
 } = composeAnilistTrackingHandlers({
   refreshClientSecretMainDeps: {
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
     getCachedAccessToken: () => anilistCachedAccessToken,
     setCachedAccessToken: (token) => {
@@ -3677,7 +3481,7 @@ const {
       appState.anilistSetupPageOpened = opened;
     },
     openAnilistSetupWindow: () => {
-      openAnilistSetupWindow();
+      openAnilistSetupWindowHandler();
     },
     now: () => Date.now(),
   },
@@ -3838,7 +3642,7 @@ const {
         value,
       );
     },
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     isAnilistTrackingEnabled: (config) => isAnilistTrackingEnabled(config as ResolvedConfig),
     getCurrentMediaKey: () => getCurrentAnilistMediaKey(),
     hasMpvClient: () => Boolean(appState.mpvClient),
@@ -3870,7 +3674,8 @@ const {
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);
     },
-    showMpvOsd: (message) => showConfiguredStatusNotification(message, { title: 'AniList' }),
+    showMpvOsd: (message) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'AniList' }),
     logInfo: (message) => logger.info(message),
     logWarn: (message) => logger.warn(message),
     minWatchSeconds: ANILIST_UPDATE_MIN_WATCH_SECONDS,
@@ -3882,7 +3687,7 @@ function refreshAnilistClientSecretStateIfEnabled(options?: {
   force?: boolean;
   allowSetupPrompt?: boolean;
 }): Promise<string | null> {
-  if (!isAnilistTrackingEnabled(getResolvedConfig())) {
+  if (!isAnilistTrackingEnabled(configService.getConfig())) {
     return Promise.resolve(null);
   }
   return refreshAnilistClientSecretState(options);
@@ -3900,7 +3705,7 @@ const buildLoadSubtitlePositionMainDepsHandler = createBuildLoadSubtitlePosition
   loadSubtitlePositionCore: () =>
     loadSubtitlePositionCore({
       currentMediaPath: appState.currentMediaPath,
-      fallbackPosition: getResolvedConfig().subtitlePosition,
+      fallbackPosition: configService.getConfig().subtitlePosition,
       subtitlePositionsDir: SUBTITLE_POSITIONS_DIR,
     }),
   setSubtitlePosition: (position) => {
@@ -3956,9 +3761,10 @@ const {
     },
   },
   onWillQuitCleanupMainDeps: {
-    destroyTray: () => destroyTray(),
+    destroyTray: () => destroyTrayHandler(),
     stopConfigHotReload: () => configHotReloadRuntime.stop(),
-    restorePreviousSecondarySubVisibility: () => restorePreviousSecondarySubVisibility(),
+    restorePreviousSecondarySubVisibility: () =>
+      overlayVisibilityComposer.restorePreviousSecondarySubVisibility(),
     restoreMpvSubVisibility: () => {
       restoreOverlayMpvSubtitles({ force: true });
     },
@@ -3974,7 +3780,7 @@ const {
       await syncUiRuntime.shutdown();
     },
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
-      clearWindowsVisibleOverlayForegroundPollLoop(),
+      visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop(),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {
       cancelLinuxMpvFullscreenOverlayRefreshBurst = null;
       clearLinuxMpvFullscreenOverlayRefreshTimeouts();
@@ -4076,7 +3882,7 @@ const resolveLegacyVocabularyPos = async (row: {
 const immersionTrackerStartupMainDeps: Parameters<
   typeof createBuildImmersionTrackerStartupMainDepsHandler
 >[0] = {
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getConfiguredDbPath: () => immersionMediaRuntime.getConfiguredDbPath(),
   createTrackerService: (params) =>
     new ImmersionTrackerService({
@@ -4096,7 +3902,7 @@ const immersionTrackerStartupMainDeps: Parameters<
     if (tracker) {
       // Start HTTP stats server
       if (!appState.statsServer) {
-        const config = getResolvedConfig();
+        const config = configService.getConfig();
         if (config.stats.autoStartServer) {
           ensureStatsServerStarted();
         }
@@ -4107,10 +3913,10 @@ const immersionTrackerStartupMainDeps: Parameters<
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
         getApiBaseUrl: () => ensureStatsServerStarted().url,
-        getToggleKey: () => getResolvedConfig().stats.toggleKey,
-        resolveBounds: () => getCurrentOverlayGeometry(),
+        getToggleKey: () => configService.getConfig().stats.toggleKey,
+        resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
-          handleStatsOverlayVisibilityChanged(visible);
+          visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
         },
       });
     }
@@ -4170,8 +3976,8 @@ const statsStartupRuntime = {
   },
 } as const;
 const ensureBackgroundStatsServer = createEnsureBackgroundStatsServerHandler({
-  isStatsAutoStartEnabled: () => getResolvedConfig().stats.autoStartServer,
-  isImmersionTrackingEnabled: () => getResolvedConfig().immersionTracking?.enabled !== false,
+  isStatsAutoStartEnabled: () => configService.getConfig().stats.autoStartServer,
+  isImmersionTrackingEnabled: () => configService.getConfig().immersionTracking?.enabled !== false,
   ensureBackgroundStatsServerStarted: () =>
     statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   logInfo: (message) => logger.info(message),
@@ -4179,7 +3985,7 @@ const ensureBackgroundStatsServer = createEnsureBackgroundStatsServerHandler({
 });
 
 const runStatsCliCommand = createRunStatsCliCommandHandler({
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   ensureImmersionTrackerStarted: () => statsStartupRuntime.ensureImmersionTrackerStarted(),
   ensureVocabularyCleanupTokenizerReady: async () => {
     await createMecabTokenizerAndCheck();
@@ -4208,7 +4014,7 @@ async function runHeadlessInitialCommand(): Promise<void> {
     return;
   }
 
-  const resolvedConfig = getResolvedConfig();
+  const resolvedConfig = configService.getConfig();
   if (resolvedConfig.ankiConnect.enabled !== true) {
     logger.error('Headless known-word refresh failed: AnkiConnect integration not enabled');
     process.exitCode = 1;
@@ -4281,13 +4087,13 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
     },
     loadSubtitlePosition: () => loadSubtitlePosition(),
     resolveKeybindings: () => {
-      appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+      appState.keybindings = resolveKeybindings(configService.getConfig(), DEFAULT_KEYBINDINGS);
       refreshCurrentSessionBindings();
     },
     createMpvClient: () => {
       appState.mpvClient = createMpvClientRuntimeService();
     },
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     getConfigWarnings: () => configService.getWarnings(),
     logConfigWarning: (warning) => appLogger.logConfigWarning(warning),
     setLogLevel: (level: string, source: LogLevelSource) => setLogLevel(level, source),
@@ -4306,7 +4112,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
           onOptionsChanged: () => {
             subtitleProcessingController.invalidateTokenizationCache();
             subtitlePrefetchService?.onSeek(lastObservedTimePos);
-            broadcastRuntimeOptionsChanged();
+            overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
             refreshOverlayShortcuts();
           },
         },
@@ -4334,9 +4140,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
               }
             : null),
         () => ({
-          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+          enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
         }),
       );
     },
@@ -4354,9 +4160,9 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
               }
             : null),
         () => ({
-          enabled: getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
-          topX: getResolvedConfig().subtitleStyle.frequencyDictionary.topX,
-          mode: getResolvedConfig().subtitleStyle.frequencyDictionary.mode,
+          enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
+          topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
+          mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
         }),
       );
     },
@@ -4397,7 +4203,7 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
       await prewarmSubtitleDictionaries();
     },
     startBackgroundWarmups: () => {
-      startBackgroundWarmupsIfAllowed();
+      startBackgroundWarmups();
     },
     texthookerOnlyMode: appState.texthookerOnlyMode,
     shouldAutoInitializeOverlayRuntimeFromConfig: () =>
@@ -4445,7 +4251,7 @@ function ensureOverlayStartupPrereqs(): void {
     loadSubtitlePosition();
   }
   if (appState.keybindings.length === 0) {
-    appState.keybindings = resolveKeybindings(getResolvedConfig(), DEFAULT_KEYBINDINGS);
+    appState.keybindings = resolveKeybindings(configService.getConfig(), DEFAULT_KEYBINDINGS);
     refreshCurrentSessionBindings();
   } else if (!appState.sessionBindingsInitialized) {
     refreshCurrentSessionBindings();
@@ -4466,7 +4272,7 @@ function ensureOverlayStartupPrereqs(): void {
         onOptionsChanged: () => {
           subtitleProcessingController.invalidateTokenizationCache();
           subtitlePrefetchService?.onSeek(lastObservedTimePos);
-          broadcastRuntimeOptionsChanged();
+          overlayVisibilityComposer.broadcastRuntimeOptionsChanged();
           refreshOverlayShortcuts();
         },
       },
@@ -4534,7 +4340,7 @@ const {
     },
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
-      broadcastToOverlayWindows(channel, payload);
+      overlayManager.broadcastToOverlayWindows(channel, payload);
     },
     getImmediateSubtitlePayload: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
     emitImmediateSubtitle: (payload) => {
@@ -4563,7 +4369,7 @@ const {
       );
       if ((normalizedPath || null) !== previousPath) {
         const resetSubtitlePayload = { text: '', tokens: null };
-        const frequencyDictionary = getResolvedConfig().subtitleStyle.frequencyDictionary;
+        const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
         const frequencyOptions = {
           enabled: frequencyDictionary.enabled,
           topX: frequencyDictionary.topX,
@@ -4580,7 +4386,7 @@ const {
           appState.activeParsedSubtitleMediaPath = null;
         }
         activeJellyfinSubtitleDelayKey = null;
-        broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
+        overlayManager.broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         autoplayReadyGate.invalidatePendingAutoplayReadyFallbacks();
@@ -4627,7 +4433,7 @@ const {
     },
     scheduleCharacterDictionarySync: () => {
       if (
-        !getResolvedConfig().subtitleStyle.nameMatchEnabled ||
+        !configService.getConfig().subtitleStyle.nameMatchEnabled ||
         !yomitanProfilePolicy.isCharacterDictionaryEnabled() ||
         isYoutubePlaybackActiveNow()
       ) {
@@ -4665,7 +4471,8 @@ const {
           getOverlayInteractionActive: () =>
             visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive() ||
             visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
-          ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
+          ensureOverlayWindowLevel: (window) =>
+            overlayGeometryRuntime.ensureOverlayWindowLevel(window),
         },
         cancelLinuxMpvFullscreenOverlayRefreshBurst,
       );
@@ -4673,7 +4480,7 @@ const {
     onSubtitleTrackChange: (sid) => {
       lastObservedPrimarySubtitleTrackId = sid;
       logger.info('[mpv-subtitles] primary subtitle track changed', { sid });
-      scheduleSubtitlePrefetchRefresh();
+      autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
     onSubtitleTrackListChange: (trackList) => {
@@ -4689,11 +4496,11 @@ const {
         logger.info('[mpv-subtitles] subtitle track list updated', diagnostics);
       }
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
-      scheduleSubtitlePrefetchRefresh();
+      autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
     updateSubtitleRenderMetrics: (patch) => {
-      updateMpvSubtitleRenderMetrics(patch as Partial<MpvSubtitleRenderMetrics>);
+      updateMpvSubtitleRenderMetricsHandler(patch as Partial<MpvSubtitleRenderMetrics>);
     },
     syncOverlayMpvSubtitleSuppression: () => {
       syncOverlayMpvSubtitleSuppression();
@@ -4702,7 +4509,7 @@ const {
   mpvClientRuntimeServiceFactoryMainDeps: {
     createClient: MpvIpcClient,
     getSocketPath: () => appState.mpvSocketPath,
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     isAutoStartOverlayEnabled: () => appState.autoStartOverlay,
     setOverlayVisible: (visible: boolean) => setOverlayVisible(visible),
     isVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
@@ -4754,41 +4561,42 @@ const {
       },
       getKnownWordMatchMode: () =>
         appState.ankiIntegration?.getKnownWordMatchMode() ??
-        getResolvedConfig().ankiConnect.knownWords.matchMode,
+        configService.getConfig().ankiConnect.knownWords.matchMode,
       getKnownWordsEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.knownWords.highlightEnabled',
-          getResolvedConfig().ankiConnect.knownWords.highlightEnabled,
+          configService.getConfig().ankiConnect.knownWords.highlightEnabled,
         ),
       getNPlusOneEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.nPlusOne',
-          getResolvedConfig().ankiConnect.nPlusOne.enabled,
+          configService.getConfig().ankiConnect.nPlusOne.enabled,
         ),
       getMinSentenceWordsForNPlusOne: () =>
-        getResolvedConfig().ankiConnect.nPlusOne.minSentenceWords,
+        configService.getConfig().ankiConnect.nPlusOne.minSentenceWords,
       getJlptLevel: (text) => appState.jlptLevelLookup(text),
       getJlptEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.jlpt',
-          getResolvedConfig().subtitleStyle.enableJlpt,
+          configService.getConfig().subtitleStyle.enableJlpt,
         ),
       getCharacterDictionaryEnabled: () =>
-        getResolvedConfig().subtitleStyle.nameMatchEnabled &&
+        configService.getConfig().subtitleStyle.nameMatchEnabled &&
         yomitanProfilePolicy.isCharacterDictionaryEnabled() &&
         !isYoutubePlaybackActiveNow(),
-      getNameMatchEnabled: () => getResolvedConfig().subtitleStyle.nameMatchEnabled,
-      getNameMatchImagesEnabled: () => getResolvedConfig().subtitleStyle.nameMatchImagesEnabled,
+      getNameMatchEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
+      getNameMatchImagesEnabled: () =>
+        configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
       getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
       getCurrentCharacterDictionaryMediaId: () =>
         characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
-          getResolvedConfig().subtitleStyle.frequencyDictionary.enabled,
+          configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
         ),
       getFrequencyDictionaryMatchMode: () =>
-        getResolvedConfig().subtitleStyle.frequencyDictionary.matchMode,
+        configService.getConfig().subtitleStyle.frequencyDictionary.matchMode,
       getFrequencyRank: (text) => appState.frequencyRankLookup(text),
       getYomitanGroupDebugEnabled: () => appState.overlayDebugVisualizationEnabled,
       getMecabTokenizer: () => appState.mecabTokenizer,
@@ -4814,12 +4622,13 @@ const {
       ensureJlptDictionaryLookup: () => jlptDictionaryRuntime.ensureJlptDictionaryLookup(),
       ensureFrequencyDictionaryLookup: () =>
         frequencyDictionaryRuntime.ensureFrequencyDictionaryLookup(),
-      showMpvOsd: (message: string) => showConfiguredStatusNotification(message),
+      showMpvOsd: (message: string) =>
+        overlayNotificationsRuntime.showConfiguredStatusNotification(message),
       showLoadingOsd: (message: string) => startupOsdSequencer.showAnnotationLoading(message),
       showLoadedOsd: (message: string) =>
         startupOsdSequencer.markAnnotationLoadingComplete(message),
       shouldShowOsdNotification: () => {
-        const type = getConfiguredStatusNotificationType();
+        const type = overlayNotificationsRuntime.getConfiguredStatusNotificationType();
         return type === 'osd' || type === 'osd-system';
       },
     },
@@ -4838,7 +4647,7 @@ const {
       isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
       ensureYomitanExtensionLoaded: () => ensureYomitanExtensionLoaded().then(() => {}),
       shouldWarmupMecab: () => {
-        const startupWarmups = getResolvedConfig().startupWarmups;
+        const startupWarmups = configService.getConfig().startupWarmups;
         if (startupWarmups.lowPowerMode) {
           return false;
         }
@@ -4847,23 +4656,23 @@ const {
         }
         return shouldInitializeMecabForAnnotations();
       },
-      shouldWarmupYomitanExtension: () => getResolvedConfig().startupWarmups.yomitanExtension,
+      shouldWarmupYomitanExtension: () => configService.getConfig().startupWarmups.yomitanExtension,
       shouldWarmupSubtitleDictionaries: () => {
-        const startupWarmups = getResolvedConfig().startupWarmups;
+        const startupWarmups = configService.getConfig().startupWarmups;
         if (startupWarmups.lowPowerMode) {
           return false;
         }
         return startupWarmups.subtitleDictionaries;
       },
       shouldWarmupJellyfinRemoteSession: () => {
-        const startupWarmups = getResolvedConfig().startupWarmups;
+        const startupWarmups = configService.getConfig().startupWarmups;
         if (startupWarmups.lowPowerMode) {
           return false;
         }
         return startupWarmups.jellyfinRemoteSession;
       },
       shouldAutoConnectJellyfinRemote: () => {
-        const jellyfin = getResolvedConfig().jellyfin;
+        const jellyfin = configService.getConfig().jellyfin;
         return (
           jellyfin.enabled && jellyfin.remoteControlEnabled && jellyfin.remoteControlAutoConnect
         );
@@ -4897,8 +4706,8 @@ tokenizeSubtitleDeferred = tokenizeSubtitle;
 
 const aniSkipRuntime = createAniSkipRuntime({
   getAniSkipConfig: () => ({
-    aniskipEnabled: getResolvedConfig().mpv.aniskipEnabled,
-    aniskipButtonKey: getResolvedConfig().mpv.aniskipButtonKey,
+    aniskipEnabled: configService.getConfig().mpv.aniskipEnabled,
+    aniskipButtonKey: configService.getConfig().mpv.aniskipButtonKey,
   }),
   resolveMetadataForFile: (mediaPath) => resolveAniSkipMetadataForFile(mediaPath),
   sendMpvCommand: (command) => {
@@ -4931,7 +4740,7 @@ function createMpvClientRuntimeService(): MpvIpcClient {
       return;
     }
     youtubeFlowRuntime.cancelActivePicker();
-    broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
+    overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.youtubePickerCancel, null);
     overlayModalRuntime.handleOverlayModalClosed('youtube-track-picker');
   });
   client.on('connection-change', aniSkipRuntime.handleConnectionChange);
@@ -4944,10 +4753,6 @@ function createMpvClientRuntimeService(): MpvIpcClient {
 function resetSubtitleSidebarEmbeddedLayoutRuntime(): void {
   sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-margin-ratio-right', 0]);
   sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'video-pan-x', 0]);
-}
-
-function updateMpvSubtitleRenderMetrics(patch: Partial<MpvSubtitleRenderMetrics>): void {
-  updateMpvSubtitleRenderMetricsHandler(patch);
 }
 
 const overlayGeometryRuntime = createOverlayGeometryRuntime({
@@ -4972,46 +4777,20 @@ const overlayGeometryRuntime = createOverlayGeometryRuntime({
   setLinuxVisibleOverlayOwnerBindingKey: (key) => {
     linuxVisibleOverlayOwnerBindingKey = key;
   },
-  clearVisibleOverlayX11OwnerBinding: (window) => clearVisibleOverlayX11OwnerBinding(window),
-  getNativeWindowHandleDecimal: (window) => getNativeWindowHandleDecimal(window),
+  clearVisibleOverlayX11OwnerBinding: (window) =>
+    visibleOverlayInteractionRuntime.clearVisibleOverlayX11OwnerBinding(window),
+  getNativeWindowHandleDecimal: (window) =>
+    visibleOverlayInteractionRuntime.getNativeWindowHandleDecimal(window),
   enqueueVisibleOverlayX11OwnerBindingOperation: (window, args, onError) =>
-    enqueueVisibleOverlayX11OwnerBindingOperation(window, args, onError),
+    visibleOverlayInteractionRuntime.enqueueVisibleOverlayX11OwnerBindingOperation(
+      window,
+      args,
+      onError,
+    ),
   scheduleWindowsVisibleOverlayZOrderSyncBurst: () =>
-    scheduleWindowsVisibleOverlayZOrderSyncBurst(),
+    visibleOverlayInteractionRuntime.scheduleWindowsVisibleOverlayZOrderSyncBurst(),
   logDebug: (message, ...args) => logger.debug(message, ...args),
 });
-
-function getCurrentOverlayGeometry(): WindowGeometry {
-  return overlayGeometryRuntime.getCurrentOverlayGeometry();
-}
-
-function getCurrentTrackedOverlayGeometry(): WindowGeometry | null {
-  return overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
-}
-
-function geometryMatches(a: WindowGeometry | null, b: WindowGeometry | null): boolean {
-  return overlayGeometryRuntime.geometryMatches(a, b);
-}
-
-function syncPrimaryOverlayWindowLayer(layer: 'visible'): void {
-  overlayGeometryRuntime.syncPrimaryOverlayWindowLayer(layer);
-}
-
-function bindVisibleOverlayToTrackedX11Window(window: BrowserWindow): void {
-  overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window);
-}
-
-function updateVisibleOverlayBounds(geometry: WindowGeometry): void {
-  overlayGeometryRuntime.updateVisibleOverlayBounds(geometry);
-}
-
-function ensureOverlayWindowLevel(window: unknown): void {
-  overlayGeometryRuntime.ensureOverlayWindowLevel(window);
-}
-
-function enforceOverlayLayerOrder(): void {
-  overlayGeometryRuntime.enforceOverlayLayerOrder();
-}
 
 async function loadYomitanExtension(): Promise<Extension | null> {
   const extension = await yomitanExtensionRuntime.loadYomitanExtension();
@@ -5031,7 +4810,7 @@ async function ensureYomitanExtensionLoaded(): Promise<Extension | null> {
 
 const { syncYomitanDefaultProfileAnkiServer } = createYomitanAnkiServerSyncRuntime({
   isExternalReadOnlyMode: () => yomitanProfilePolicy.isExternalReadOnlyMode(),
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getYomitanParserRuntimeDeps: () => getYomitanParserRuntimeDeps(),
   logError: (message, ...args) => {
     logger.error(message, ...args);
@@ -5066,14 +4845,14 @@ function createModalWindow(): BrowserWindow {
     return existingWindow;
   }
   const window = createModalWindowHandler();
-  overlayManager.setModalWindowBounds(getCurrentOverlayGeometry());
+  overlayManager.setModalWindowBounds(overlayGeometryRuntime.getCurrentOverlayGeometry());
   return window;
 }
 
 function createMainWindow(): BrowserWindow {
   const window = createMainWindowHandler();
   if (process.platform === 'win32') {
-    const overlayHwnd = getWindowsNativeWindowHandleNumber(window);
+    const overlayHwnd = visibleOverlayInteractionRuntime.getWindowsNativeWindowHandleNumber(window);
     if (!ensureWindowsOverlayTransparency(overlayHwnd)) {
       logger.warn('Failed to eagerly extend Windows overlay transparency via koffi');
     }
@@ -5093,9 +4872,9 @@ function createLinuxVisibleOverlayWindowForCurrentMode(token: number, fullscreen
     return;
   }
 
-  resetVisibleOverlayInputState();
+  visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
   createMainWindow();
-  const trackedGeometry = getCurrentTrackedOverlayGeometry();
+  const trackedGeometry = overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
   if (trackedGeometry) {
     overlayManager.setOverlayWindowBounds(trackedGeometry);
   }
@@ -5160,14 +4939,6 @@ function syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen: boolean): void {
   }
 }
 
-function ensureTray(): void {
-  ensureTrayHandler();
-}
-
-function destroyTray(): void {
-  destroyTrayHandler();
-}
-
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
@@ -5184,7 +4955,7 @@ function openYomitanSettings(): boolean {
     logger.warn(
       'Yomitan settings window disabled while yomitan.externalProfilePath is configured because external profile mode is read-only.',
     );
-    showConfiguredStatusNotification(message, { variant: 'warning' });
+    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' });
     return false;
   }
   openYomitanSettingsHandler();
@@ -5210,7 +4981,7 @@ const {
 } = composeShortcutRuntimes({
   globalShortcuts: {
     getConfiguredShortcutsMainDeps: {
-      getResolvedConfig: () => getResolvedConfig(),
+      getResolvedConfig: () => configService.getConfig(),
       defaultConfig: DEFAULT_CONFIG,
       resolveConfiguredShortcuts,
     },
@@ -5230,13 +5001,13 @@ const {
   },
   numericShortcutRuntimeMainDeps: {
     globalShortcut,
-    showMpvOsd: (text) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     setTimer: (handler, timeoutMs) => setTimeout(handler, timeoutMs),
     clearTimer: (timer) => clearTimeout(timer),
   },
   numericSessions: {
-    onMultiCopyDigit: (count) => handleMultiCopyDigit(count),
-    onMineSentenceDigit: (count) => handleMineSentenceDigit(count),
+    onMultiCopyDigit: (count) => handleMultiCopyDigitHandler(count),
+    onMineSentenceDigit: (count) => handleMineSentenceDigitHandler(count),
     tryBeginMultiCopyOverlaySelection: (timeoutMs) =>
       tryBeginVisibleOverlayNumericSelection({
         actionId: 'copySubtitleMultiple',
@@ -5261,7 +5032,7 @@ const { persistSessionBindings, refreshCurrentSessionBindings } = createSessionB
   configDir: CONFIG_DIR,
   getKeybindings: () => appState.keybindings,
   getConfiguredShortcuts: () => getConfiguredShortcuts(),
-  getResolvedConfig: () => getResolvedConfig(),
+  getResolvedConfig: () => configService.getConfig(),
   getMpvClient: () => appState.mpvClient,
   setSessionBindings: (bindings) => {
     appState.sessionBindings = bindings;
@@ -5298,10 +5069,11 @@ flushPendingMpvLogWrites = () => {
 
 const { getUpdateService } = createUpdateServiceRuntime({
   userDataPath: USER_DATA_PATH,
-  getUpdatesConfig: () => getResolvedConfig().updates,
+  getUpdatesConfig: () => configService.getConfig().updates,
   logInfo: (message) => logger.info(message),
   logWarn: (message, details) => logger.warn(message, details),
-  showOverlayNotification,
+  showOverlayNotification: (payload) =>
+    overlayNotificationsRuntime.showOverlayNotification(payload),
   showDesktopNotification: (title, options) => showDesktopNotification(title, options),
   showMpvOsd: (message) => {
     showMpvOsd(message);
@@ -5321,7 +5093,7 @@ const cycleSecondarySubMode = createCycleSecondarySubModeRuntimeHandler({
       appState.lastSecondarySubToggleAtMs = timestampMs;
     },
     broadcastToOverlayWindows: (channel, mode) => {
-      broadcastToOverlayWindows(channel, mode);
+      overlayManager.broadcastToOverlayWindows(channel, mode);
     },
     showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
   },
@@ -5332,35 +5104,11 @@ function setSecondarySubMode(mode: SecondarySubMode): void {
   appState.secondarySubMode = mode;
 }
 
-function handleCycleSecondarySubMode(): void {
-  cycleSecondarySubMode();
-}
-
-function toggleSubtitleSidebar(): void {
-  broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle);
-}
-
-function togglePrimarySubtitleBar(): void {
-  broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle);
-}
-
-async function triggerSubsyncFromConfig(): Promise<void> {
-  await subsyncRuntime.triggerFromConfig();
-}
-
-function handleMultiCopyDigit(count: number): void {
-  handleMultiCopyDigitHandler(count);
-}
-
-function copyCurrentSubtitle(): void {
-  copyCurrentSubtitleHandler();
-}
-
 const buildUpdateLastCardFromClipboardMainDepsHandler =
   createBuildUpdateLastCardFromClipboardMainDepsHandler({
     getAnkiIntegration: () => appState.ankiIntegration,
     readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     updateLastCardFromClipboardCore,
   });
 const updateLastCardFromClipboardMainDeps = buildUpdateLastCardFromClipboardMainDepsHandler();
@@ -5379,7 +5127,7 @@ const refreshKnownWordCacheHandler = createRefreshKnownWordCacheHandler(
 
 const buildTriggerFieldGroupingMainDepsHandler = createBuildTriggerFieldGroupingMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
-  showMpvOsd: (text) => showConfiguredStatusNotification(text),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   triggerFieldGroupingCore,
 });
 const triggerFieldGroupingMainDeps = buildTriggerFieldGroupingMainDepsHandler();
@@ -5388,7 +5136,7 @@ const triggerFieldGroupingHandler = createTriggerFieldGroupingHandler(triggerFie
 const buildMarkLastCardAsAudioCardMainDepsHandler =
   createBuildMarkLastCardAsAudioCardMainDepsHandler({
     getAnkiIntegration: () => appState.ankiIntegration,
-    showMpvOsd: (text) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     markLastCardAsAudioCardCore,
   });
 const markLastCardAsAudioCardMainDeps = buildMarkLastCardAsAudioCardMainDepsHandler();
@@ -5399,7 +5147,7 @@ const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
 const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
-  showMpvOsd: (text) => showConfiguredStatusNotification(text),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
   recordCardsMined: (count, noteIds) => {
     ensureImmersionTrackerStarted();
@@ -5422,7 +5170,7 @@ const handleMultiCopyDigitHandler = createHandleMultiCopyDigitHandler(handleMult
 const buildCopyCurrentSubtitleMainDepsHandler = createBuildCopyCurrentSubtitleMainDepsHandler({
   getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
   writeClipboardText: (text) => clipboard.writeText(text),
-  showMpvOsd: (text) => showConfiguredStatusNotification(text),
+  showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   copyCurrentSubtitleCore,
 });
 const copyCurrentSubtitleMainDeps = buildCopyCurrentSubtitleMainDepsHandler();
@@ -5433,7 +5181,7 @@ const buildHandleMineSentenceDigitMainDepsHandler =
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getAnkiIntegration: () => appState.ankiIntegration,
     getCurrentSecondarySubText: () => appState.mpvClient?.currentSecondarySubText || undefined,
-    showMpvOsd: (text) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     logError: (message, err) => {
       logger.error(message, err);
     },
@@ -5476,7 +5224,7 @@ const buildAppendClipboardVideoToQueueMainDepsHandler =
     appendClipboardVideoToQueueRuntime,
     getMpvClient: () => appState.mpvClient,
     readClipboardText: () => clipboard.readText(),
-    showMpvOsd: (text) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     sendMpvCommand: (command) => {
       sendMpvCommandRuntime(appState.mpvClient, command);
     },
@@ -5493,27 +5241,28 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
         getApiBaseUrl: () => ensureStatsServerStarted().url,
-        getToggleKey: () => getResolvedConfig().stats.toggleKey,
-        resolveBounds: () => getCurrentOverlayGeometry(),
+        getToggleKey: () => configService.getConfig().stats.toggleKey,
+        resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
-          handleStatsOverlayVisibilityChanged(visible);
+          visibleOverlayInteractionRuntime.handleStatsOverlayVisibilityChanged(visible);
         },
       }),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    copyCurrentSubtitle: () => copyCurrentSubtitle(),
-    copySubtitleCount: (count) => handleMultiCopyDigit(count),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-    mineSentenceCard: () => mineSentenceCard(),
-    mineSentenceCount: (count) => handleMineSentenceDigit(count),
-    toggleSecondarySub: () => handleCycleSecondarySubMode(),
-    toggleSubtitleSidebar: () => toggleSubtitleSidebar(),
+    copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
+    copySubtitleCount: (count) => handleMultiCopyDigitHandler(count),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
+    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+    triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
+    mineSentenceCard: () => mineSentenceCardHandler(),
+    mineSentenceCount: (count) => handleMineSentenceDigitHandler(count),
+    toggleSecondarySub: () => cycleSecondarySubMode(),
+    toggleSubtitleSidebar: () =>
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.subtitleSidebarToggle),
     toggleNotificationHistory: () => toggleNotificationHistoryPanel(),
     appendClipboardVideoToQueue: () => {
-      appendClipboardVideoToQueue();
+      appendClipboardVideoToQueueHandler();
     },
-    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
     markActiveVideoWatched: async () => {
       ensureImmersionTrackerStarted();
       const marked = (await appState.immersionTracker?.markActiveVideoWatched()) ?? false;
@@ -5553,13 +5302,13 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
 }
 
 const { playlistBrowserMainDeps } = createPlaylistBrowserIpcRuntime(() => appState.mpvClient, {
-  getPrimarySubtitleLanguages: () => getResolvedConfig().youtube.primarySubLanguages,
-  getSecondarySubtitleLanguages: () => getResolvedConfig().secondarySub.secondarySubLanguages,
+  getPrimarySubtitleLanguages: () => configService.getConfig().youtube.primarySubLanguages,
+  getSecondarySubtitleLanguages: () => configService.getConfig().secondarySub.secondarySubLanguages,
 });
 
 const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
   mpvCommandMainDeps: {
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
+    triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     openJimaku: () => openJimakuOverlay(),
     openTsukihime: () => openTsukihimeOverlay(),
@@ -5574,7 +5323,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         (text) => showConfiguredPlaybackFeedback(text),
       );
     },
-    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text: string) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     showRawMpvOsd: (text: string) => showMpvOsd(text),
     showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
@@ -5614,14 +5364,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       activatePlaybackWindowForOverlayInteraction: async () => {
         try {
           const raised = (await appState.windowTracker?.raiseTargetWindow?.()) ?? false;
-          enforceOverlayLayerOrder();
+          overlayGeometryRuntime.enforceOverlayLayerOrder();
           return raised;
         } catch (error) {
           logger.debug(
             'Failed to raise tracked mpv window for overlay interaction:',
             error instanceof Error ? error.message : String(error),
           );
-          enforceOverlayLayerOrder();
+          overlayGeometryRuntime.enforceOverlayLayerOrder();
           return false;
         }
       },
@@ -5639,7 +5389,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           senderWindow.setIgnoreMouseEvents(true, { forward: true });
           senderWindow.hide();
         }
-        handleOverlayModalClosed(modal);
+        handleOverlayModalClosedHandler(modal);
       },
       onOverlayModalOpened: (modal, senderWindow) => {
         if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
@@ -5669,7 +5419,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           return;
         }
         visibleOverlayInteractionRuntime.setLinuxOverlayInteractiveHint(interactive);
-        applyLinuxOverlayInputShapeFromLatestMeasurement();
+        visibleOverlayInteractionRuntime.applyLinuxOverlayInputShapeFromLatestMeasurement();
       },
       handleOverlayNotificationAction: (notificationId, actionId, noteId) => {
         if (
@@ -5688,10 +5438,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
           void openAnkiCardFromNotification(noteId).catch((error) => {
             logger.warn('Failed to open Anki card from overlay notification action:', error);
-            showConfiguredStatusNotification('Failed to open Anki card in Anki.', {
-              id: 'open-anki-card-failed',
-              variant: 'error',
-            });
+            overlayNotificationsRuntime.showConfiguredStatusNotification(
+              'Failed to open Anki card in Anki.',
+              {
+                id: 'open-anki-card-failed',
+                variant: 'error',
+              },
+            );
           });
         }
       },
@@ -5726,7 +5479,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           endTime: appState.mpvClient?.currentSubEnd ?? null,
         };
         const currentTimeSec = appState.mpvClient?.currentTimePos ?? null;
-        const config = getResolvedConfig().subtitleSidebar;
+        const config = configService.getConfig().subtitleSidebar;
         const client = appState.mpvClient;
         if (!client?.connected) {
           return {
@@ -5826,7 +5579,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }),
       getSubtitlePosition: () => loadSubtitlePosition(),
       getSubtitleStyle: () => {
-        const resolvedConfig = getResolvedConfig();
+        const resolvedConfig = configService.getConfig();
         return resolveSubtitleStyleForRenderer(resolvedConfig);
       },
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
@@ -5835,10 +5588,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getSessionBindings: () => appState.sessionBindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       dispatchSessionAction: (request) => dispatchSessionAction(request),
-      getStatsToggleKey: () => getResolvedConfig().stats.toggleKey,
-      getMarkWatchedKey: () => getResolvedConfig().stats.markWatchedKey,
-      getOverlayNotificationPosition: () => getResolvedConfig().notifications.overlayPosition,
-      getControllerConfig: () => getResolvedConfig().controller,
+      getStatsToggleKey: () => configService.getConfig().stats.toggleKey,
+      getMarkWatchedKey: () => configService.getConfig().stats.markWatchedKey,
+      getOverlayNotificationPosition: () => configService.getConfig().notifications.overlayPosition,
+      getControllerConfig: () => configService.getConfig().controller,
       saveControllerConfig: (update) => {
         const currentRawConfig = configService.getRawConfig();
         configService.patchRawConfig({
@@ -5856,19 +5609,19 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getSecondarySubMode: () => appState.secondarySubMode,
       getMpvClient: () => appState.mpvClient,
       getAnkiConnectStatus: () => appState.ankiIntegration !== null,
-      getRuntimeOptions: () => getRuntimeOptionsState(),
+      getRuntimeOptions: () => getRuntimeOptionsStateHandler(),
       reportOverlayContentBounds: (payload: unknown) => {
         if (overlayContentMeasurementStore.report(payload)) {
-          tickLinuxOverlayPointerInteractionNow();
-          tickWindowsOverlayPointerInteractionNow();
-          primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
+          visibleOverlayInteractionRuntime.tickLinuxOverlayPointerInteractionNow();
+          visibleOverlayInteractionRuntime.tickWindowsOverlayPointerInteractionNow();
+          visibleOverlayInteractionRuntime.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
           autoplayReadyGate.flushPendingAutoplayReadySignal();
-          scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
+          autoplaySubtitlePrimingRuntime.scheduleVisibleOverlaySubtitleRefreshAfterFirstPaint();
         }
       },
       getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
       clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-      openAnilistSetup: () => openAnilistSetupWindow(),
+      openAnilistSetup: () => openAnilistSetupWindowHandler(),
       getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
       retryAnilistQueueNow: () => processNextAnilistRetryUpdate(),
       runAnilistPostWatchUpdateOnManualMark: () => maybeRunAnilistPostWatchUpdate({ force: true }),
@@ -5946,7 +5699,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
         return result;
       },
-      appendClipboardVideoToQueue: () => appendClipboardVideoToQueue(),
+      appendClipboardVideoToQueue: () => appendClipboardVideoToQueueHandler(),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
     },
@@ -5954,7 +5707,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       patchAnkiConnectEnabled: (enabled: boolean) => {
         configService.patchRawConfig({ ankiConnect: { enabled } });
       },
-      getResolvedConfig: () => getResolvedConfig(),
+      getResolvedConfig: () => configService.getConfig(),
       getRuntimeOptionsManager: () => appState.runtimeOptionsManager,
       getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
       getMpvClient: () => appState.mpvClient,
@@ -5975,12 +5728,14 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       shouldRequireRemoteMediaCache: () => shouldRequireYoutubeMediaCacheForCurrentPlayback(),
       getYoutubeMediaSourceUrl: () => getCurrentYoutubeMediaCacheSourceUrl(),
       showDesktopNotification,
-      showOverlayNotification,
+      showOverlayNotification: (payload) =>
+        overlayNotificationsRuntime.showOverlayNotification(payload),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
-      broadcastRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
-      getFieldGroupingResolver: () => getFieldGroupingResolver(),
+      broadcastRuntimeOptionsChanged: () =>
+        overlayVisibilityComposer.broadcastRuntimeOptionsChanged(),
+      getFieldGroupingResolver: () => getFieldGroupingResolverHandler(),
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
-        setFieldGroupingResolver(resolver),
+        setFieldGroupingResolverHandler(resolver),
       parseMediaInfo: (mediaPath: string | null) =>
         parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
       getCurrentMediaPath: () => appState.currentMediaPath,
@@ -6007,35 +5762,40 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     appState,
     setLogLevel: (level) => setLogLevel(level, 'cli'),
     onMpvSocketPathChanged: (nextSocketPath, previousSocketPath) =>
-      retargetOverlayWindowTrackerForMpvSocket(nextSocketPath, previousSocketPath),
+      visibleOverlayInteractionRuntime.retargetOverlayWindowTrackerForMpvSocket(
+        nextSocketPath,
+        previousSocketPath,
+      ),
     texthookerService,
-    getResolvedConfig: () => getResolvedConfig(),
+    getResolvedConfig: () => configService.getConfig(),
     defaultWebsocketPort: DEFAULT_CONFIG.websocket.port,
     defaultAnnotationWebsocketPort: DEFAULT_CONFIG.annotationWebsocket.port,
     hasMpvWebsocketPlugin: () => hasMpvWebsocketPlugin(),
     openExternal: (url: string) => shell.openExternal(url),
     logBrowserOpenError: (url: string, error: unknown) =>
       logger.error(`Failed to open browser for texthooker URL: ${url}`, error),
-    showMpvOsd: (text: string) => showConfiguredStatusNotification(text),
+    showMpvOsd: (text: string) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text),
     showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     initializeOverlayRuntime: () => initializeOverlayRuntime(),
     toggleVisibleOverlay: () => toggleVisibleOverlay(),
-    togglePrimarySubtitleBar: () => togglePrimarySubtitleBar(),
+    togglePrimarySubtitleBar: () =>
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.primarySubtitleBarToggle),
     openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
     setVisibleOverlayVisible: (visible: boolean) => setVisibleOverlayVisible(visible),
-    copyCurrentSubtitle: () => copyCurrentSubtitle(),
+    copyCurrentSubtitle: () => copyCurrentSubtitleHandler(),
     startPendingMultiCopy: (timeoutMs: number) => startPendingMultiCopy(timeoutMs),
-    mineSentenceCard: () => mineSentenceCard(),
+    mineSentenceCard: () => mineSentenceCardHandler(),
     startPendingMineSentenceMultiple: (timeoutMs: number) =>
       startPendingMineSentenceMultiple(timeoutMs),
-    updateLastCardFromClipboard: () => updateLastCardFromClipboard(),
-    refreshKnownWordCache: () => refreshKnownWordCache(),
-    triggerFieldGrouping: () => triggerFieldGrouping(),
-    triggerSubsyncFromConfig: () => triggerSubsyncFromConfig(),
-    markLastCardAsAudioCard: () => markLastCardAsAudioCard(),
+    updateLastCardFromClipboard: () => updateLastCardFromClipboardHandler(),
+    refreshKnownWordCache: () => refreshKnownWordCacheHandler(),
+    triggerFieldGrouping: () => triggerFieldGroupingHandler(),
+    triggerSubsyncFromConfig: () => subsyncRuntime.triggerFromConfig(),
+    markLastCardAsAudioCard: () => markLastCardAsAudioCardHandler(),
     getAnilistStatus: () => anilistStateRuntime.getStatusSnapshot(),
     clearAnilistToken: () => anilistStateRuntime.clearTokenState(),
-    openAnilistSetupWindow: () => openAnilistSetupWindow(),
+    openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
     openJellyfinSetupWindow: () => openJellyfinSetupWindow(),
     getAnilistQueueStatus: () => anilistStateRuntime.getQueueStatusSnapshot(),
     processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
@@ -6085,9 +5845,9 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     runYoutubePlaybackFlow: (request) => youtubePlaybackRuntime.runYoutubePlaybackFlow(request),
     ensureBackgroundStatsServer: () => ensureBackgroundStatsServer(),
     openYomitanSettings: () => openYomitanSettings(),
-    openConfigSettingsWindow: () => openConfigSettingsWindow(),
-    openSyncUiWindow: () => openSyncUiWindow(),
-    cycleSecondarySubMode: () => handleCycleSecondarySubMode(),
+    openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
+    openSyncUiWindow: () => openSyncUiWindowHandler(),
+    cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
     stopApp: () => requestAppQuit(),
@@ -6115,7 +5875,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     },
     ensureTrayForCommand: (args) => {
       if (args.background || args.managedPlayback) {
-        ensureTray();
+        ensureTrayHandler();
       }
     },
     handleCliCommandRuntimeServiceWithContext: (args, source, cliContext) =>
@@ -6127,7 +5887,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     shouldEnsureTrayOnStartup: () =>
       shouldEnsureTrayOnStartupForInitialArgs(process.platform, appState.initialArgs),
     shouldRunHeadlessInitialCommand: (args) => isHeadlessInitialCommand(args),
-    ensureTray: () => ensureTray(),
+    ensureTray: () => ensureTrayHandler(),
     isTexthookerOnlyMode: () => appState.texthookerOnlyMode,
     hasImmersionTracker: () => Boolean(appState.immersionTracker),
     getMpvClient: () => appState.mpvClient,
@@ -6188,7 +5948,8 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
         enforceUnsupportedWaylandMode(args);
       },
       shouldStartApp: (args: CliArgs) => shouldStartApp(args),
-      getDefaultSocketPath: () => getResolvedConfig().mpv.socketPath || getDefaultSocketPath(),
+      getDefaultSocketPath: () =>
+        configService.getConfig().mpv.socketPath || getDefaultSocketPathHandler(),
       defaultTexthookerPort: DEFAULT_TEXTHOOKER_PORT,
       configDir: CONFIG_DIR,
       defaultConfig: DEFAULT_CONFIG,
@@ -6225,7 +5986,7 @@ const startupModeFlags = getStartupModeFlags(appState.initialArgs);
 const shouldUseMinimalStartup = startupModeFlags.shouldUseMinimalStartup;
 const shouldSkipHeavyStartup = startupModeFlags.shouldSkipHeavyStartup;
 if (!appState.initialArgs || (!shouldUseMinimalStartup && !shouldSkipHeavyStartup)) {
-  if (isAnilistTrackingEnabled(getResolvedConfig())) {
+  if (isAnilistTrackingEnabled(configService.getConfig())) {
     void refreshAnilistClientSecretStateIfEnabled({
       force: true,
       allowSetupPrompt: false,
@@ -6243,10 +6004,10 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
     createOverlayWindowDeps: {
       createOverlayWindowCore: (kind, options) => createOverlayWindowCore(kind, options),
       isDev,
-      ensureOverlayWindowLevel: (window) => ensureOverlayWindowLevel(window),
-      onRuntimeOptionsChanged: () => broadcastRuntimeOptionsChanged(),
+      ensureOverlayWindowLevel: (window) => overlayGeometryRuntime.ensureOverlayWindowLevel(window),
+      onRuntimeOptionsChanged: () => overlayVisibilityComposer.broadcastRuntimeOptionsChanged(),
       setOverlayDebugVisualizationEnabled: (enabled) =>
-        setOverlayDebugVisualizationEnabled(enabled),
+        overlayVisibilityComposer.setOverlayDebugVisualizationEnabled(enabled),
       isOverlayVisible: (windowKind) =>
         windowKind === 'visible' ? overlayManager.getVisibleOverlayVisible() : false,
       getYomitanSession: () => appState.yomitanSession,
@@ -6257,16 +6018,18 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
         shouldRunLinuxOverlayZOrderKeepAlive() &&
         linuxTrackedMpvFullscreen &&
         linuxVisibleOverlayWindowMode === 'fullscreen-override',
-      onVisibleWindowBlurred: () => scheduleVisibleOverlayBlurRefresh(),
-      onVisibleWindowFocused: () => requestLinuxOverlayZOrderFollow(),
+      onVisibleWindowBlurred: () =>
+        visibleOverlayInteractionRuntime.scheduleVisibleOverlayBlurRefresh(),
+      onVisibleWindowFocused: () =>
+        visibleOverlayInteractionRuntime.requestLinuxOverlayZOrderFollow(),
       onWindowDidFinishLoad: () => {
         flushQueuedOverlayNotifications();
       },
       onWindowContentReady: () => {
-        dismissOverlayLoadingStatusNotification();
+        overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
         flushQueuedOverlayNotifications();
         overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-        primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
+        visibleOverlayInteractionRuntime.primeLinuxOverlayPointerInteractionAfterFirstMeasurement();
         autoplayReadyGate.flushPendingAutoplayReadySignal();
       },
       onWindowClosed: (windowKind, window) => {
@@ -6306,7 +6069,7 @@ function getJellyfinTrayDiscoveryDeps() {
     refreshTrayMenu: () => refreshTrayMenuIfPresent(),
     logger,
     showMpvOsd: (message: string) =>
-      showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
+      overlayNotificationsRuntime.showConfiguredStatusNotification(message, { title: 'Jellyfin' }),
   };
 }
 
@@ -6329,13 +6092,13 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openSessionHelpModal: () => openSessionHelpOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
-      showTexthookerPage: () => shouldShowTexthookerTrayEntry(getResolvedConfig()),
+      showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),
       showFirstRunSetup: () => !firstRunSetupService.isSetupCompleted(),
       openFirstRunSetupWindow: (force?: boolean) => openFirstRunSetupWindow(force),
       showWindowsMpvLauncherSetup: () => process.platform === 'win32',
       openYomitanSettings: () => openYomitanSettings(),
-      openConfigSettingsWindow: () => openConfigSettingsWindow(),
-      openSyncUiWindow: () => openSyncUiWindow(),
+      openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
+      openSyncUiWindow: () => openSyncUiWindowHandler(),
       exportLogs: () => {
         void exportLogsFromTray();
       },
@@ -6347,7 +6110,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
         toggleJellyfinDiscoveryFromTrayRuntime(getJellyfinTrayDiscoveryDeps(), {
           desiredActive: checked,
         }),
-      openAnilistSetupWindow: () => openAnilistSetupWindow(),
+      openAnilistSetupWindow: () => openAnilistSetupWindowHandler(),
       checkForUpdates: () => {
         void getUpdateService().checkForUpdates({ source: 'manual' });
       },
@@ -6377,7 +6140,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
     buildMenuFromTemplate: (template) => Menu.buildFromTemplate(template),
   });
 const yomitanProfilePolicy = createYomitanProfilePolicy({
-  externalProfilePath: getResolvedConfig().yomitan.externalProfilePath,
+  externalProfilePath: configService.getConfig().yomitan.externalProfilePath,
   logInfo: (message) => logger.info(message),
 });
 const configuredExternalYomitanProfilePath = yomitanProfilePolicy.externalProfilePath;
@@ -6408,7 +6171,7 @@ const yomitanExtensionRuntime = createYomitanExtensionRuntime({
   },
   onYomitanExtensionLoaded: () => {
     const reloaded = reloadOverlayWindowsForYomitanContentScripts(
-      getOverlayWindows(),
+      overlayManager.getOverlayWindows(),
       (message, error) => logger.warn(message, error),
     );
     if (reloaded > 0) {
@@ -6446,15 +6209,16 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
         registerGlobalShortcuts();
       },
       createWindowTracker: (override, targetMpvSocketPath) =>
-        createOverlayWindowTracker(override, targetMpvSocketPath),
+        visibleOverlayInteractionRuntime.createOverlayWindowTracker(override, targetMpvSocketPath),
       updateVisibleOverlayBounds: (geometry: WindowGeometry) =>
-        updateVisibleOverlayBounds(geometry),
-      bindOverlayOwner: () => bindVisibleOverlayOwner(),
-      releaseOverlayOwner: () => releaseVisibleOverlayOwner(),
-      getOverlayWindows: () => getOverlayWindows(),
-      getResolvedConfig: () => getResolvedConfig(),
+        overlayGeometryRuntime.updateVisibleOverlayBounds(geometry),
+      bindOverlayOwner: () => visibleOverlayInteractionRuntime.bindVisibleOverlayOwner(),
+      releaseOverlayOwner: () => visibleOverlayInteractionRuntime.releaseVisibleOverlayOwner(),
+      getOverlayWindows: () => overlayManager.getOverlayWindows(),
+      getResolvedConfig: () => configService.getConfig(),
       showDesktopNotification,
-      showOverlayNotification,
+      showOverlayNotification: (payload) =>
+        overlayNotificationsRuntime.showOverlayNotification(payload),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
@@ -6504,30 +6268,6 @@ const { openYomitanSettings: openYomitanSettingsHandler } = createYomitanSetting
   logError: (message, error) => logger.error(message, error),
 });
 
-async function updateLastCardFromClipboard(): Promise<void> {
-  await updateLastCardFromClipboardHandler();
-}
-
-async function refreshKnownWordCache(): Promise<void> {
-  await refreshKnownWordCacheHandler();
-}
-
-async function triggerFieldGrouping(): Promise<void> {
-  await triggerFieldGroupingHandler();
-}
-
-async function markLastCardAsAudioCard(): Promise<void> {
-  await markLastCardAsAudioCardHandler();
-}
-
-async function mineSentenceCard(): Promise<void> {
-  await mineSentenceCardHandler();
-}
-
-function handleMineSentenceDigit(count: number): void {
-  handleMineSentenceDigitHandler(count);
-}
-
 function ensureOverlayWindowsReadyForVisibilityActions(): void {
   if (!appState.overlayRuntimeInitialized) {
     initializeOverlayRuntime();
@@ -6550,19 +6290,19 @@ function notifyMpvPluginVisibleOverlayVisibility(visible: boolean): void {
 function setVisibleOverlayVisible(visible: boolean): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   if (!visible) {
-    dismissOverlayLoadingStatusNotification();
+    overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
-    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
+    autoplaySubtitlePrimingRuntime.cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
-    resetVisibleOverlayInputState();
+    visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
   }
   if (visible) {
     maybeStartOverlayLoadingOsd();
-    resetLinuxVisibleOverlayStartupInputPrimer();
-    startLinuxVisibleOverlayStartupInputGrace();
-    restoreVisibleOverlayWindowShapeForShow();
+    visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
+    visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();
+    visibleOverlayInteractionRuntime.restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
-    void primeCurrentSubtitleForVisibleOverlay();
+    void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
   }
   setVisibleOverlayVisibleHandler(visible);
   notifyMpvPluginVisibleOverlayVisibility(visible);
@@ -6573,18 +6313,18 @@ function toggleVisibleOverlay(): void {
   ensureOverlayWindowsReadyForVisibilityActions();
   const nextVisible = !overlayManager.getVisibleOverlayVisible();
   if (!nextVisible) {
-    dismissOverlayLoadingStatusNotification();
+    overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
-    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
+    autoplaySubtitlePrimingRuntime.cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
-    resetVisibleOverlayInputState();
+    visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
   } else {
     maybeStartOverlayLoadingOsd();
-    resetLinuxVisibleOverlayStartupInputPrimer();
-    startLinuxVisibleOverlayStartupInputGrace();
-    restoreVisibleOverlayWindowShapeForShow();
+    visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
+    visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();
+    visibleOverlayInteractionRuntime.restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
-    void primeCurrentSubtitleForVisibleOverlay();
+    void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
   }
   toggleVisibleOverlayHandler();
   notifyMpvPluginVisibleOverlayVisibility(nextVisible);
@@ -6592,30 +6332,23 @@ function toggleVisibleOverlay(): void {
 }
 function setOverlayVisible(visible: boolean): void {
   if (!visible) {
-    dismissOverlayLoadingStatusNotification();
-    cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
-    resetVisibleOverlayInputState();
+    overlayNotificationsRuntime.dismissOverlayLoadingStatusNotification();
+    autoplaySubtitlePrimingRuntime.cancelVisibleOverlaySubtitleRefreshAfterFirstPaint();
+    visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
     autoplayReadyGate.markCurrentMediaAutoplayReady();
     cancelPendingLinuxMpvFullscreenOverlayRefreshBurst();
   }
   if (visible) {
     maybeStartOverlayLoadingOsd();
-    resetLinuxVisibleOverlayStartupInputPrimer();
-    startLinuxVisibleOverlayStartupInputGrace();
-    restoreVisibleOverlayWindowShapeForShow();
+    visibleOverlayInteractionRuntime.resetLinuxVisibleOverlayStartupInputPrimer();
+    visibleOverlayInteractionRuntime.startLinuxVisibleOverlayStartupInputGrace();
+    visibleOverlayInteractionRuntime.restoreVisibleOverlayWindowShapeForShow();
     void ensureOverlayMpvSubtitlesHidden();
-    void primeCurrentSubtitleForVisibleOverlay();
+    void autoplaySubtitlePrimingRuntime.primeCurrentSubtitleForVisibleOverlay();
   }
   setOverlayVisibleHandler(visible);
   notifyMpvPluginVisibleOverlayVisibility(visible);
   syncOverlayMpvSubtitleSuppression();
-}
-function handleOverlayModalClosed(modal: OverlayHostedModal): void {
-  handleOverlayModalClosedHandler(modal);
-}
-
-function appendClipboardVideoToQueue(): { ok: boolean; message: string } {
-  return appendClipboardVideoToQueueHandler();
 }
 
 registerIpcRuntimeHandlers();

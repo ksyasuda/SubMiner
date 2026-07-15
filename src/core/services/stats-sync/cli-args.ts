@@ -58,7 +58,9 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
 
   for (let i = 0; i < rest.length; i += 1) {
     const token = rest[i]!;
-    const assignValue = valueFlags.get(token.includes('=') ? token.slice(0, token.indexOf('=')) : token);
+    const assignValue = valueFlags.get(
+      token.includes('=') ? token.slice(0, token.indexOf('=')) : token,
+    );
     if (assignValue) {
       if (token.includes('=')) {
         assignValue(token.slice(token.indexOf('=') + 1));
@@ -109,7 +111,10 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
     Boolean(removeTemp),
   ].filter(Boolean).length;
   if (modes === 0) {
-    return { kind: 'error', message: 'Sync requires a host, --snapshot <file>, or --merge <file>.' };
+    return {
+      kind: 'error',
+      message: 'Sync requires a host, --snapshot <file>, or --merge <file>.',
+    };
   }
   if (modes > 1) {
     return {

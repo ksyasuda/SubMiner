@@ -31,6 +31,8 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 - `src/config/` owns config definitions, defaults, loading, and resolution.
 - `src/types/` owns shared cross-runtime contracts via domain entrypoints; `src/types.ts` stays a compatibility barrel.
 - `src/main/runtime/composers/` owns larger domain compositions.
+- `src/main.ts` call sites invoke configured runtime handlers and runtime-object methods directly;
+  do not add local pass-through wrappers around them.
 
 ## Architecture Intent
 

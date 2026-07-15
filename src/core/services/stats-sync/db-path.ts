@@ -34,9 +34,7 @@ export function resolveImmersionDbPath(): string {
     // no config or unreadable config → default location
   }
   if (configured) {
-    return configured.startsWith('~')
-      ? path.join(os.homedir(), configured.slice(1))
-      : configured;
+    return configured.startsWith('~') ? path.join(os.homedir(), configured.slice(1)) : configured;
   }
   return path.join(getDefaultConfigDir(), 'immersion.sqlite');
 }
