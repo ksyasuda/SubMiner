@@ -1379,9 +1379,10 @@ const youtubePlaybackRuntime = createYoutubePlaybackRuntime({
   waitForYoutubeMpvConnected: (timeoutMs) => waitForYoutubeMpvConnected(timeoutMs),
   prepareYoutubePlaybackInMpv: (request) => prepareYoutubePlaybackInMpv(request),
   startYoutubeMediaCache: (url) => {
+    const mediaCacheConfig = configService.getConfig().youtube.mediaCache;
     youtubeMediaCache.start(url, {
-      mode: configService.getConfig().youtube.mediaCache.mode,
-      maxHeight: configService.getConfig().youtube.mediaCache.maxHeight,
+      mode: mediaCacheConfig.mode,
+      maxHeight: mediaCacheConfig.maxHeight,
     });
   },
   runYoutubePlaybackFlow: (request) => youtubeFlowRuntime.runYoutubePlaybackFlow(request),
@@ -1816,18 +1817,16 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
 }
 function emitSubtitlePayload(payload: SubtitleData): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
+  const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
+  const frequencyOptions = {
+    enabled: frequencyDictionary.enabled,
+    topX: frequencyDictionary.topX,
+    mode: frequencyDictionary.mode,
+  };
   appState.currentSubtitleData = timedPayload;
   overlayManager.broadcastToOverlayWindows('subtitle:set', timedPayload);
-  subtitleWsService.broadcast(timedPayload, {
-    enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-    topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
-    mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
-  });
-  annotationSubtitleWsService.broadcast(timedPayload, {
-    enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-    topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
-    mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
-  });
+  subtitleWsService.broadcast(timedPayload, frequencyOptions);
+  annotationSubtitleWsService.broadcast(timedPayload, frequencyOptions);
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
   subtitlePrefetchService?.resume();
 }
@@ -4139,11 +4138,14 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
                 endTime: appState.mpvClient?.currentSubEnd ?? null,
               }
             : null),
-        () => ({
-          enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-          topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
-          mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
-        }),
+        () => {
+          const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
+          return {
+            enabled: frequencyDictionary.enabled,
+            topX: frequencyDictionary.topX,
+            mode: frequencyDictionary.mode,
+          };
+        },
       );
     },
     startAnnotationWebsocket: (port: number) => {
@@ -4159,11 +4161,14 @@ const { appReadyRuntimeRunner } = composeAppReadyRuntime({
                 endTime: appState.mpvClient?.currentSubEnd ?? null,
               }
             : null),
-        () => ({
-          enabled: configService.getConfig().subtitleStyle.frequencyDictionary.enabled,
-          topX: configService.getConfig().subtitleStyle.frequencyDictionary.topX,
-          mode: configService.getConfig().subtitleStyle.frequencyDictionary.mode,
-        }),
+        () => {
+          const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
+          return {
+            enabled: frequencyDictionary.enabled,
+            topX: frequencyDictionary.topX,
+            mode: frequencyDictionary.mode,
+          };
+        },
       );
     },
     startTexthooker: (port: number, websocketUrl?: string) => {

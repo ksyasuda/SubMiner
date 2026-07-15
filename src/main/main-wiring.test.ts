@@ -559,11 +559,42 @@ test('YouTube media cache lifecycle routes through configured status notificatio
   );
   assert.match(cacheBlock, /variant:\s*'success'/);
   assert.match(cacheBlock, /notifyNoQueued:\s*false/);
-  assert.match(startCacheBlock, /mode:\s*configService\.getConfig\(\)\.youtube\.mediaCache\.mode/);
   assert.match(
     startCacheBlock,
-    /maxHeight:\s*configService\.getConfig\(\)\.youtube\.mediaCache\.maxHeight/,
+    /const mediaCacheConfig = configService\.getConfig\(\)\.youtube\.mediaCache;/,
   );
+  assert.match(startCacheBlock, /mode:\s*mediaCacheConfig\.mode/);
+  assert.match(startCacheBlock, /maxHeight:\s*mediaCacheConfig\.maxHeight/);
+});
+
+test('subtitle broadcasts share one frequency options snapshot per emitted payload', () => {
+  const source = readMainSource();
+  const emitBlock = source.match(
+    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(emitBlock);
+  assert.equal((emitBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
+  assert.match(emitBlock, /subtitleWsService\.broadcast\(timedPayload, frequencyOptions\);/);
+  assert.match(
+    emitBlock,
+    /annotationSubtitleWsService\.broadcast\(timedPayload, frequencyOptions\);/,
+  );
+});
+
+test('websocket frequency options callbacks each read one configuration snapshot', () => {
+  const source = readMainSource();
+  const subtitleBlock = source.match(
+    /startSubtitleWebsocket:\s*\(port: number\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    startAnnotationWebsocket:/,
+  )?.groups?.body;
+  const annotationBlock = source.match(
+    /startAnnotationWebsocket:\s*\(port: number\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    startTexthooker:/,
+  )?.groups?.body;
+
+  assert.ok(subtitleBlock);
+  assert.ok(annotationBlock);
+  assert.equal((subtitleBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
+  assert.equal((annotationBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
 });
 
 test('mpv connection flushes queued configured OSD notifications', () => {
