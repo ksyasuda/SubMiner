@@ -572,9 +572,17 @@ test('subtitle broadcasts share one frequency options snapshot per emitted paylo
   const emitBlock = source.match(
     /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
+  const frequencyOptionsSnapshot = emitBlock?.match(
+    /const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;(?<body>[\s\S]*?)\n  \};/,
+  )?.[0];
 
   assert.ok(emitBlock);
-  assert.equal((emitBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
+  assert.ok(frequencyOptionsSnapshot);
+  assert.match(frequencyOptionsSnapshot, /const frequencyOptions = \{/);
+  assert.match(frequencyOptionsSnapshot, /enabled:\s*frequencyDictionary\.enabled/);
+  assert.match(frequencyOptionsSnapshot, /topX:\s*frequencyDictionary\.topX/);
+  assert.match(frequencyOptionsSnapshot, /mode:\s*frequencyDictionary\.mode/);
+  assert.equal((frequencyOptionsSnapshot.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
   assert.match(emitBlock, /subtitleWsService\.broadcast\(timedPayload, frequencyOptions\);/);
   assert.match(
     emitBlock,
@@ -590,11 +598,21 @@ test('websocket frequency options callbacks each read one configuration snapshot
   const annotationBlock = source.match(
     /startAnnotationWebsocket:\s*\(port: number\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    startTexthooker:/,
   )?.groups?.body;
+  const subtitleFrequencyOptionsCallback = subtitleBlock?.match(
+    /(?<body>\(\) => \{\s+const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;[\s\S]*?\s+return \{[\s\S]*?\s+\};\s+\})/,
+  )?.groups?.body;
+  const annotationFrequencyOptionsCallback = annotationBlock?.match(
+    /(?<body>\(\) => \{\s+const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;[\s\S]*?\s+return \{[\s\S]*?\s+\};\s+\})/,
+  )?.groups?.body;
 
-  assert.ok(subtitleBlock);
-  assert.ok(annotationBlock);
-  assert.equal((subtitleBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
-  assert.equal((annotationBlock.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
+  assert.ok(subtitleFrequencyOptionsCallback);
+  assert.ok(annotationFrequencyOptionsCallback);
+  for (const callback of [subtitleFrequencyOptionsCallback, annotationFrequencyOptionsCallback]) {
+    assert.match(callback, /return \{[\s\S]*enabled:\s*frequencyDictionary\.enabled/);
+    assert.match(callback, /topX:\s*frequencyDictionary\.topX/);
+    assert.match(callback, /mode:\s*frequencyDictionary\.mode/);
+    assert.equal((callback.match(/configService\.getConfig\(\)/g) ?? []).length, 1);
+  }
 });
 
 test('mpv connection flushes queued configured OSD notifications', () => {
