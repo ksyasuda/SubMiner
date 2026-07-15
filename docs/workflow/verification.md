@@ -17,7 +17,7 @@ Read when: selecting the right verification lane for a change
   one file cannot cascade into the rest of the lane. `--jobs N` parallelizes;
   `--single-process` restores the shared-process mode for debugging.
 - `bun run test:fast` is the full source gate: discovered `src/**`, launcher
-  unit, `scripts/**`, and the compiled runtime-compat slice.
+  unit, and `scripts/**`.
 - `.github/workflows/quality-gate.yml` is the reusable `workflow_call` gate for
   pull requests, stable tags, and prerelease tags. Keep common quality steps
   there instead of copying them into caller workflows.

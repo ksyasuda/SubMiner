@@ -135,7 +135,7 @@ Focused commands:
 bun run test:config       # Source-level config schema/validation tests
 bun run test:launcher     # Launcher regression tests (config discovery + command routing)
 bun run test:launcher:smoke:src # Launcher e2e smoke: launcher -> mpv IPC -> overlay start/stop wiring
-bun run test:launcher:env:src # Launcher smoke + Lua plugin gate
+bun run test:env                # Launcher smoke + Lua plugin gate
 bun run test:src          # Bun-managed maintained src/** discovery lane
 bun run test:launcher:unit:src # Bun-managed maintained launcher unit lane
 bun run test:scripts      # Bun-managed scripts/** test lane

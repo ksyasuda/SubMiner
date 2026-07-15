@@ -94,10 +94,6 @@ export function isVerb(tok: Token): boolean {
   return [PartOfSpeech.verb, PartOfSpeech.bound_auxiliary].includes(tok.partOfSpeech);
 }
 
-export function isVerbNonIndependent(): boolean {
-  return true;
-}
-
 export function canReceiveAuxiliary(tok: Token): boolean {
   return [PartOfSpeech.verb, PartOfSpeech.bound_auxiliary, PartOfSpeech.i_adjective].includes(
     tok.partOfSpeech,
@@ -127,10 +123,7 @@ export function shouldMerge(lastStandaloneToken: Token, token: Token): boolean {
     if (isAuxVerb(token)) {
       return true;
     }
-    if (isContinuativeForm(lastStandaloneToken) && isVerbSuffix(token)) {
-      return true;
-    }
-    if (isVerbSuffix(token) && isVerbNonIndependent()) {
+    if (isVerbSuffix(token)) {
       return true;
     }
   }

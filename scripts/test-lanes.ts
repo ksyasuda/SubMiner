@@ -16,15 +16,6 @@ export const testLanes: Record<string, TestLane> = {
   'bun-src-full': {
     roots: ['src'],
     include: ['.test.ts', '.type-test.ts'],
-    // Node-compat suites; their dist builds run via test:runtime:compat.
-    exclude: [
-      'src/core/services/anki-jimaku-ipc.test.ts',
-      'src/core/services/ipc.test.ts',
-      'src/core/services/overlay-manager.test.ts',
-      'src/main/config-validation.test.ts',
-      'src/main/runtime/registry.test.ts',
-      'src/main/runtime/startup-config.test.ts',
-    ],
   },
   config: {
     roots: ['src/config'],
