@@ -48,7 +48,10 @@ test('parseSyncCliTokens handles the temp-dir protocol modes', () => {
   }
 
   assert.equal(parseSyncCliTokens(['sync', '--make-temp', 'host']).kind, 'error');
-  assert.equal(parseSyncCliTokens(['sync', '--make-temp', '--remove-temp', '/tmp/x']).kind, 'error');
+  assert.equal(
+    parseSyncCliTokens(['sync', '--make-temp', '--remove-temp', '/tmp/x']).kind,
+    'error',
+  );
 });
 
 test('parseSyncCliTokens owns the sync CLI validation rules', () => {

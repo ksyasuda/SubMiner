@@ -302,9 +302,7 @@ export function registerAnkiJimakuIpcHandlers(
           await deps.onDownloadedSecondarySubtitle(result.path);
         }
       } else {
-        logger.error(
-          `[tsukihime] download-file failed: ${result.error?.error ?? 'unknown error'}`,
-        );
+        logger.error(`[tsukihime] download-file failed: ${result.error?.error ?? 'unknown error'}`);
       }
 
       return result;

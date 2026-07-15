@@ -404,8 +404,7 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'tsukihime.apiBaseUrl',
       kind: 'string',
       defaultValue: defaultConfig.tsukihime.apiBaseUrl,
-      description:
-        'Base URL of the TsukiHime API (Animetosho successor). No API key required.',
+      description: 'Base URL of the TsukiHime API (Animetosho successor). No API key required.',
     },
     {
       path: 'tsukihime.maxSearchResults',

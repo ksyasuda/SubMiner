@@ -251,11 +251,7 @@ export function mergeMediaMetadata(
   }
 }
 
-export function mergeExcludedWords(
-  local: SyncDb,
-  remote: SyncDb,
-  summary: SyncMergeSummary,
-): void {
+export function mergeExcludedWords(local: SyncDb, remote: SyncDb, summary: SyncMergeSummary): void {
   if (
     !tableExists(remote, 'imm_stats_excluded_words') ||
     !tableExists(local, 'imm_stats_excluded_words')

@@ -8,11 +8,7 @@ import {
 } from './merge-catalog';
 import { mergeSessions } from './merge-sessions';
 import { copyRemoteOnlyRollups, refreshRollupsForNewSessions } from './merge-rollups';
-import {
-  assertMergeableSchema,
-  createEmptyMergeSummary,
-  type SyncMergeSummary,
-} from './shared';
+import { assertMergeableSchema, createEmptyMergeSummary, type SyncMergeSummary } from './shared';
 import { openLibsqlSyncDb, type SyncDb } from './libsql-driver';
 
 export type { SyncMergeSummary } from './shared';

@@ -106,7 +106,8 @@ export function parseSyncProgressLine(line: string): SyncProgressEvent | null {
         ? (parsed as SyncProgressEvent)
         : null;
     case 'merge-summary':
-      return (event.target === 'local' || event.target === 'remote') && isMergeSummary(event.summary)
+      return (event.target === 'local' || event.target === 'remote') &&
+        isMergeSummary(event.summary)
         ? (parsed as SyncProgressEvent)
         : null;
     case 'remote-output':

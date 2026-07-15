@@ -319,7 +319,8 @@ function applyMergedSessionLifetime(
       .get(videoId, sessionId),
   );
   const isFirstSessionForVideoRun = !mediaLifetime && !hasOtherSessionForVideo;
-  const isFirstCompletedSessionForVideoRun = watched > 0 && Number(mediaLifetime?.completed ?? 0) <= 0;
+  const isFirstCompletedSessionForVideoRun =
+    watched > 0 && Number(mediaLifetime?.completed ?? 0) <= 0;
 
   const hasOtherSessionOnDay = Boolean(
     local

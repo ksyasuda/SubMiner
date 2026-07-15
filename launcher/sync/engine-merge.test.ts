@@ -632,8 +632,10 @@ test('adopted word frequency excludes active-session counts that merge later', (
     // Only the ended session's count is adopted; the active session's slice
     // is re-added when that session finalizes and syncs.
     assert.equal(
-      queryOne<{ frequency: number }>(localPath, `SELECT frequency FROM imm_words WHERE word = '食べた'`)
-        ?.frequency,
+      queryOne<{ frequency: number }>(
+        localPath,
+        `SELECT frequency FROM imm_words WHERE word = '食べた'`,
+      )?.frequency,
       1,
     );
 
@@ -650,8 +652,10 @@ test('adopted word frequency excludes active-session counts that merge later', (
     assert.equal(second.sessionsAlreadyPresent, 1);
     // 1 (ended session) + 4 (finalized session), not 5 + 4 = 9.
     assert.equal(
-      queryOne<{ frequency: number }>(localPath, `SELECT frequency FROM imm_words WHERE word = '食べた'`)
-        ?.frequency,
+      queryOne<{ frequency: number }>(
+        localPath,
+        `SELECT frequency FROM imm_words WHERE word = '食べた'`,
+      )?.frequency,
       5,
     );
   } finally {

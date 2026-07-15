@@ -147,7 +147,9 @@ export function refreshRollupsForNewSessions(
   }
 
   const stampMs = nowDbTimestamp();
-  const deleteDaily = local.query('DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?');
+  const deleteDaily = local.query(
+    'DELETE FROM imm_daily_rollups WHERE rollup_day = ? AND video_id = ?',
+  );
   const deleteMonthly = local.query(
     'DELETE FROM imm_monthly_rollups WHERE rollup_month = ? AND video_id = ?',
   );
