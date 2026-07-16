@@ -93,7 +93,7 @@ subminer --start video.mkv        # Explicit overlay start (use when mpv.autoSta
 subminer -S video.mkv             # Also force the visible overlay on start (--start-overlay)
 subminer https://youtu.be/...     # Play a YouTube URL
 subminer ytsearch:"jp news"       # Play first YouTube search result
-subminer -H                       # Browse watch history (replay/continue episodes, fzf or rofi picker)
+subminer -H                       # Browse history, then choose previous/replay/next after playback
 subminer app --setup              # Open first-run setup popup
 subminer --version                # Print the launcher's version
 subminer -v                       # Same as above

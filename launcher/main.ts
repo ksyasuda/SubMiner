@@ -21,7 +21,7 @@ import { runDictionaryCommand } from './commands/dictionary-command.js';
 import { runLogsCommand } from './commands/logs-command.js';
 import { runStatsCommand } from './commands/stats-command.js';
 import { runJellyfinCommand } from './commands/jellyfin-command.js';
-import { runHistoryCommand } from './commands/history-command.js';
+import { runHistorySession } from './commands/history-command.js';
 import { runSyncCommand } from './commands/sync-command.js';
 import { runPlaybackCommand } from './commands/playback-command.js';
 import { runUpdateCommand } from './commands/update-command.js';
@@ -149,13 +149,15 @@ async function main(): Promise<void> {
   }
 
   if (appContext.args.history) {
-    const selected = await runHistoryCommand(appContext);
-    if (!selected) {
+    const played = await runHistorySession(appContext, async (videoPath) => {
+      appContext.args.target = videoPath;
+      appContext.args.targetKind = 'file';
+      await runPlaybackCommand(appContext);
+    });
+    if (!played) {
       log('info', args.logLevel, 'No watch history selection made, exiting');
-      return;
     }
-    appContext.args.target = selected;
-    appContext.args.targetKind = 'file';
+    return;
   }
 
   await runPlaybackCommand(appContext);

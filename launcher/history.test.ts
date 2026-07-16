@@ -7,6 +7,7 @@ import { Database } from 'bun:sqlite';
 import {
   detectImageExtension,
   findNextEpisode,
+  findPreviousEpisode,
   groupHistoryBySeries,
   isReadonlyWalRetryError,
   listSeasonDirs,
@@ -193,6 +194,54 @@ test('findNextEpisode advances seasons when a deleted file was the last episode'
     const season2 = path.join(seriesRoot, 'Season-2');
     const missing = path.join(season1, 'Show - S01E03 - Deleted Cut.mkv');
     assert.equal(findNextEpisode(missing), path.join(season2, 'Show - S02E01.mkv'));
+  } finally {
+    fs.rmSync(path.dirname(seriesRoot), { recursive: true, force: true });
+  }
+});
+
+test('findPreviousEpisode steps back within a season and across seasons', () => {
+  assert.equal(typeof findPreviousEpisode, 'function', 'findPreviousEpisode is not implemented');
+  const seriesRoot = createSeriesTree();
+  try {
+    const season1 = path.join(seriesRoot, 'Season-1');
+    const season2 = path.join(seriesRoot, 'Season-2');
+
+    assert.equal(
+      findPreviousEpisode(path.join(season1, 'Show - S01E03.mkv')),
+      path.join(season1, 'Show - S01E02.mkv'),
+    );
+    assert.equal(
+      findPreviousEpisode(path.join(season1, 'Show - S01E02.mkv')),
+      path.join(season1, 'Show - S01E01.mkv'),
+    );
+    assert.equal(findPreviousEpisode(path.join(season1, 'Show - S01E01.mkv')), null);
+    assert.equal(
+      findPreviousEpisode(path.join(season2, 'Show - S02E01.mkv')),
+      path.join(season1, 'Show - S01E03.mkv'),
+    );
+  } finally {
+    fs.rmSync(path.dirname(seriesRoot), { recursive: true, force: true });
+  }
+});
+
+test('findPreviousEpisode falls back to episode numbers when file was removed', () => {
+  const seriesRoot = createSeriesTree();
+  try {
+    const season1 = path.join(seriesRoot, 'Season-1');
+    const missing = path.join(season1, 'Show - S01E02 - Deleted Cut.mkv');
+    assert.equal(findPreviousEpisode(missing), path.join(season1, 'Show - S01E01.mkv'));
+  } finally {
+    fs.rmSync(path.dirname(seriesRoot), { recursive: true, force: true });
+  }
+});
+
+test('findPreviousEpisode falls back to prior season when a deleted file was the first episode', () => {
+  const seriesRoot = createSeriesTree();
+  try {
+    const season1 = path.join(seriesRoot, 'Season-1');
+    const season2 = path.join(seriesRoot, 'Season-2');
+    const missing = path.join(season2, 'Show - S02E01 - Deleted Cut.mkv');
+    assert.equal(findPreviousEpisode(missing), path.join(season1, 'Show - S01E03.mkv'));
   } finally {
     fs.rmSync(path.dirname(seriesRoot), { recursive: true, force: true });
   }

@@ -73,9 +73,12 @@ subminer -R -H                         # rofi history browser
 
 The first menu lists every locally watched series, most recently watched first, using the parsed media title (e.g. the anime title) when available and the directory name otherwise. Selecting a series opens an action menu:
 
-- **Replay last watched** — replays the most recently watched episode
-- **Next episode** — plays the episode after the last watched one (continues into the next season directory when the season ends)
-- **Browse episodes** — lists the video files in the series directory in episode order, using the same fzf/rofi episode picker as directory browsing; if the series has multiple season directories, a season menu is shown first
+- **Replay last watched**: replays the most recently watched episode
+- **Next episode**: plays the episode after the last watched one and continues into the next season directory when the season ends
+- **Browse episodes**: lists the video files in the series directory in episode order, using the same fzf/rofi episode picker as directory browsing; if the series has multiple season directories, a season menu appears first
+- **Quit SubMiner**: closes the history session without starting an episode
+
+After an episode ends or you close mpv, the launcher returns to an action menu for the same series. The menu lists Previous, Rewatch, Next, Select episode, and Quit SubMiner in that order, omitting Previous or Next when no episode exists in that direction. Choosing Previous or Next can move between season directories. After you play another episode, Previous, Rewatch, and Next use it instead of the older database entry. Pressing Escape closes the history session.
 
 Series whose directories are not currently accessible (e.g. an unmounted network share) are hidden from the list. Watch history requires the immersion tracker database (`immersionTracking.dbPath`, default `<config dir>/immersion.sqlite`), which SubMiner populates during playback.
 

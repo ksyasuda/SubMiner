@@ -12,6 +12,7 @@ import {
 } from '../picker.js';
 import {
   findNextEpisode,
+  findPreviousEpisode,
   groupHistoryBySeries,
   listSeasonDirs,
   materializeCoverArt,
@@ -22,6 +23,139 @@ import {
 } from '../history.js';
 import type { Args } from '../types.js';
 import type { LauncherCommandContext } from './context.js';
+
+export type HistorySessionAction = 'previous' | 'replay' | 'next' | 'browse' | 'quit';
+
+export interface HistoryPlaybackSelection {
+  entry: HistorySeriesEntry;
+  videoPath: string;
+  themePath?: string | null;
+  entryIcon?: string | null;
+}
+
+interface HistorySessionMenuAction {
+  kind: HistorySessionAction;
+  label: string;
+}
+
+export function buildHistorySessionActions(
+  justPlayedPath: string,
+  previousEpisodePath: string | null,
+  nextEpisodePath: string | null,
+): HistorySessionMenuAction[] {
+  const actions: HistorySessionMenuAction[] = [];
+  if (previousEpisodePath) {
+    actions.push({
+      kind: 'previous',
+      label: `Previous episode: ${path.basename(previousEpisodePath)}`,
+    });
+  }
+  actions.push({
+    kind: 'replay',
+    label: `Rewatch episode: ${path.basename(justPlayedPath)}`,
+  });
+  if (nextEpisodePath) {
+    actions.push({
+      kind: 'next',
+      label: `Play next episode: ${path.basename(nextEpisodePath)}`,
+    });
+  }
+  actions.push(
+    { kind: 'browse', label: 'Select / browse episode' },
+    { kind: 'quit', label: 'Quit SubMiner' },
+  );
+  return actions;
+}
+
+interface HistoryPlaybackLoopDeps {
+  play: (videoPath: string) => Promise<void>;
+  pickPostPlaybackAction: (input: {
+    entry: HistorySeriesEntry;
+    justPlayedPath: string;
+    previousEpisodePath: string | null;
+    nextEpisodePath: string | null;
+  }) => Promise<HistorySessionAction | null>;
+  findPreviousEpisode: (videoPath: string) => string | null;
+  findNextEpisode: (videoPath: string) => string | null;
+  browseEpisodes: (entry: HistorySeriesEntry) => Promise<string | null>;
+}
+
+export async function runHistoryPlaybackLoop(
+  initial: HistoryPlaybackSelection,
+  deps: HistoryPlaybackLoopDeps,
+): Promise<void> {
+  let videoPath = initial.videoPath;
+
+  while (true) {
+    await deps.play(videoPath);
+    const previousEpisodePath = deps.findPreviousEpisode(videoPath);
+    const nextEpisodePath = deps.findNextEpisode(videoPath);
+    const action = await deps.pickPostPlaybackAction({
+      entry: initial.entry,
+      justPlayedPath: videoPath,
+      previousEpisodePath,
+      nextEpisodePath,
+    });
+
+    switch (action) {
+      case 'replay':
+        break;
+      case 'previous':
+        if (!previousEpisodePath) return;
+        videoPath = previousEpisodePath;
+        break;
+      case 'next':
+        if (!nextEpisodePath) return;
+        videoPath = nextEpisodePath;
+        break;
+      case 'browse': {
+        const browsedPath = await deps.browseEpisodes(initial.entry);
+        if (!browsedPath) return;
+        videoPath = browsedPath;
+        break;
+      }
+      case 'quit':
+      case null:
+        return;
+    }
+  }
+}
+
+export async function runHistorySession(
+  context: LauncherCommandContext,
+  play: (videoPath: string) => Promise<void>,
+): Promise<boolean> {
+  const initial = await runHistoryCommand(context);
+  if (!initial) return false;
+
+  await runHistoryPlaybackLoop(initial, {
+    play,
+    findPreviousEpisode,
+    findNextEpisode,
+    browseEpisodes: async (entry) => browseEpisodes(entry, context, initial.themePath ?? null),
+    pickPostPlaybackAction: async ({
+      entry,
+      justPlayedPath,
+      previousEpisodePath,
+      nextEpisodePath,
+    }) => {
+      const actions = buildHistorySessionActions(
+        justPlayedPath,
+        previousEpisodePath,
+        nextEpisodePath,
+      );
+      const actionIdx = pickIndex(
+        actions.map((action) => action.label),
+        entry.displayName,
+        context.args.useRofi,
+        initial.themePath ?? null,
+        actions.map(() => initial.entryIcon ?? null),
+      );
+      return actionIdx < 0 ? null : actions[actionIdx]!.kind;
+    },
+  });
+  return true;
+}
 
 function checkPickerDependencies(args: Args): void {
   if (args.useRofi) {
@@ -142,7 +276,7 @@ function browseEpisodes(
   if (seasons.length > 1) {
     const idx = pickIndex(
       seasons.map((season) => season.name),
-      `${entry.displayName} — Season`,
+      `${entry.displayName}: Season`,
       args.useRofi,
       themePath,
     );
@@ -155,7 +289,9 @@ function browseEpisodes(
   return pickEpisodeFromDir(dir, context);
 }
 
-export async function runHistoryCommand(context: LauncherCommandContext): Promise<string | null> {
+export async function runHistoryCommand(
+  context: LauncherCommandContext,
+): Promise<HistoryPlaybackSelection | null> {
   const { args, scriptPath } = context;
 
   checkPickerDependencies(args);
@@ -198,14 +334,15 @@ export async function runHistoryCommand(context: LauncherCommandContext): Promis
   const lastExists = fs.existsSync(lastPath);
   const nextEpisode = findNextEpisode(lastPath);
 
-  const actions: Array<{ kind: 'replay' | 'next' | 'browse'; label: string }> = [];
+  const actions: HistorySessionMenuAction[] = [];
   if (lastExists) {
-    actions.push({ kind: 'replay', label: `Replay last watched — ${path.basename(lastPath)}` });
+    actions.push({ kind: 'replay', label: `Replay last watched: ${path.basename(lastPath)}` });
   }
   if (nextEpisode) {
-    actions.push({ kind: 'next', label: `Next episode — ${path.basename(nextEpisode)}` });
+    actions.push({ kind: 'next', label: `Next episode: ${path.basename(nextEpisode)}` });
   }
   actions.push({ kind: 'browse', label: 'Browse episodes' });
+  actions.push({ kind: 'quit', label: 'Quit SubMiner' });
 
   const entryIcon = seriesIcons[seriesIdx] ?? null;
   const actionIdx = pickIndex(
@@ -219,10 +356,15 @@ export async function runHistoryCommand(context: LauncherCommandContext): Promis
 
   switch (actions[actionIdx]!.kind) {
     case 'replay':
-      return lastPath;
+      return { entry, videoPath: lastPath, themePath, entryIcon };
     case 'next':
-      return nextEpisode;
-    case 'browse':
-      return browseEpisodes(entry, context, themePath);
+      return nextEpisode ? { entry, videoPath: nextEpisode, themePath, entryIcon } : null;
+    case 'browse': {
+      const videoPath = browseEpisodes(entry, context, themePath);
+      return videoPath ? { entry, videoPath, themePath, entryIcon } : null;
+    }
+    case 'previous':
+    case 'quit':
+      return null;
   }
 }

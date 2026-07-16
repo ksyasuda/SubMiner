@@ -130,3 +130,36 @@ export function findNextEpisode(lastPath: string): string | null {
 
   return findFirstEpisodeInNextSeason(resolvedLast, dir);
 }
+
+function findLastEpisodeInPreviousSeason(resolvedCurrent: string, dir: string): string | null {
+  const seriesRoot = resolveSeriesRoot(resolvedCurrent);
+  if (seriesRoot === dir) return null;
+  const seasons = listSeasonDirs(seriesRoot);
+  const currentIdx = seasons.findIndex((season) => path.resolve(season.path) === dir);
+  if (currentIdx <= 0) return null;
+  const previousSeason = sortVideosByEpisode(collectVideos(seasons[currentIdx - 1]!.path, false));
+  return previousSeason[previousSeason.length - 1] ?? null;
+}
+
+export function findPreviousEpisode(currentPath: string): string | null {
+  const resolvedCurrent = path.resolve(currentPath);
+  const dir = path.dirname(resolvedCurrent);
+  const episodes = sortVideosByEpisode(collectVideos(dir, false));
+  const idx = episodes.indexOf(resolvedCurrent);
+
+  if (idx >= 0) {
+    if (idx - 1 >= 0) return episodes[idx - 1]!;
+  } else {
+    const currentInfo = parseMediaInfo(resolvedCurrent);
+    if (currentInfo.episode !== null) {
+      const candidates = episodes.filter((episode) => {
+        const info = parseMediaInfo(episode);
+        return info.episode !== null && info.episode < currentInfo.episode!;
+      });
+      const candidate = candidates[candidates.length - 1];
+      if (candidate) return candidate;
+    }
+  }
+
+  return findLastEpisodeInPreviousSeason(resolvedCurrent, dir);
+}
