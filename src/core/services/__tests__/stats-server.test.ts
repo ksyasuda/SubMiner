@@ -900,9 +900,11 @@ describe('stats server API routes', () => {
       }),
     );
 
-    const res = await app.request('/api/stats/vocabulary?excludePos=particle,auxiliary');
+    const res = await app.request(
+      '/api/stats/vocabulary?excludePos=particle,%20auxiliary,%20,%20noun%20',
+    );
     assert.equal(res.status, 200);
-    assert.deepEqual(seenArgs, [100, ['particle', 'auxiliary']]);
+    assert.deepEqual(seenArgs, [100, ['particle', 'auxiliary', 'noun']]);
   });
 
   it('GET /api/stats/vocabulary returns POS fields', async () => {
@@ -999,6 +1001,36 @@ describe('stats server API routes', () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anime/99999');
     assert.equal(res.status, 404);
+  });
+
+  it('PATCH /api/stats/anime/:animeId/anilist accepts only positive integer AniList ids', async () => {
+    const assignments: Array<{ animeId: number; body: unknown }> = [];
+    const app = createStatsApp(
+      createMockTracker({
+        reassignAnimeAnilist: async (animeId: number, body: unknown) => {
+          assignments.push({ animeId, body });
+        },
+      }),
+    );
+
+    for (const anilistId of [-1, 0, 1.5, '12', true, undefined]) {
+      const res = await app.request('/api/stats/anime/1/anilist', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anilistId }),
+      });
+      assert.equal(res.status, 400, `accepted invalid AniList id: ${String(anilistId)}`);
+    }
+    assert.deepEqual(assignments, []);
+
+    const body = { anilistId: 21_802, titleRomaji: 'Little Witch Academia' };
+    const res = await app.request('/api/stats/anime/1/anilist', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(assignments, [{ animeId: 1, body }]);
   });
 
   it('GET /api/stats/anime/:animeId/cover returns cover art', async () => {
@@ -1345,6 +1377,86 @@ describe('stats server API routes', () => {
       assert.equal(res.status, 400, JSON.stringify(body));
       assert.deepEqual(body, { error: 'endMs must be greater than startMs' });
       assert.equal(generatedAudio, false);
+    });
+  });
+
+  it('POST /api/stats/mine-card requires a non-empty word in word mode', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      let yomitanCalls = 0;
+      let mediaCalls = 0;
+      const app = createStatsApp(createMockTracker(), {
+        addYomitanNote: async () => {
+          yomitanCalls += 1;
+          return 777;
+        },
+        createMediaGenerator: () => ({
+          generateAudio: async () => {
+            mediaCalls += 1;
+            return Buffer.from('audio');
+          },
+          generateScreenshot: async () => {
+            mediaCalls += 1;
+            return Buffer.from('image');
+          },
+          generateAnimatedImage: async () => null,
+        }),
+        ankiConnectConfig: { media: { generateAudio: true, generateImage: true } },
+      });
+
+      const res = await app.request('/api/stats/mine-card?mode=word', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourcePath,
+          startMs: 1_000,
+          endMs: 2_000,
+          sentence: '猫を見た',
+          word: '   ',
+        }),
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(yomitanCalls, 0);
+      assert.equal(mediaCalls, 0);
+    });
+  });
+
+  it('POST /api/stats/mine-card does not start word media without a Yomitan bridge', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      let mediaCalls = 0;
+      const app = createStatsApp(createMockTracker(), {
+        createMediaGenerator: () => ({
+          generateAudio: async () => {
+            mediaCalls += 1;
+            return Buffer.from('audio');
+          },
+          generateScreenshot: async () => {
+            mediaCalls += 1;
+            return Buffer.from('image');
+          },
+          generateAnimatedImage: async () => null,
+        }),
+        ankiConnectConfig: { media: { generateAudio: true, generateImage: true } },
+      });
+
+      const res = await app.request('/api/stats/mine-card?mode=word', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourcePath,
+          startMs: 1_000,
+          endMs: 2_000,
+          sentence: '猫を見た',
+          word: '猫',
+        }),
+      });
+
+      assert.equal(res.status, 500);
+      assert.equal(mediaCalls, 0);
     });
   });
 
@@ -2155,7 +2267,7 @@ Aligned English subtitle
 
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         const audioValue = updateRequest?.params?.note?.fields?.SentenceAudio;
-        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+\.mp3\]$/);
+        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
         assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, undefined);
       });
     });
@@ -2279,8 +2391,8 @@ Aligned English subtitle
 
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         const fields = updateRequest?.params?.note?.fields ?? {};
-        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+\.mp3\]$/);
-        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+\.jpg">$/);
+        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
+        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+_777\.jpg">$/);
         assert.equal(fields.ExpressionAudio, undefined);
         assert.equal(fields.SelectionText, undefined);
       });
@@ -2335,8 +2447,8 @@ Aligned English subtitle
 
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         const fields = updateRequest?.params?.note?.fields ?? {};
-        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+\.mp3\]$/);
-        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+\.avif">$/);
+        assert.match(fields.SentenceAudio ?? '', /^\[sound:subminer_audio_\d+_777\.mp3\]$/);
+        assert.match(fields.Picture ?? '', /^<img src="subminer_image_\d+_777\.avif">$/);
         assert.equal(fields.ExpressionAudio, undefined);
         assert.equal(fields.SelectionText, undefined);
       });
@@ -2492,7 +2604,7 @@ Aligned English subtitle
           const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
           assert.match(
             updateRequest?.params?.note?.fields?.Voice ?? '',
-            /^\[sound:subminer_audio_\d+\.mp3\]$/,
+            /^\[sound:subminer_audio_\d+_12345\.mp3\]$/,
           );
         },
         { notesInfoFields: null },
@@ -2580,7 +2692,11 @@ Aligned English subtitle
 
         const updateRequest = requests.find((request) => request.action === 'updateNoteFields');
         const audioValue = updateRequest?.params?.note?.fields?.SentenceAudio;
-        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+\.mp3\]$/);
+        assert.match(audioValue ?? '', /^\[sound:subminer_audio_\d+_12345\.mp3\]$/);
+        assert.match(
+          updateRequest?.params?.note?.fields?.Picture ?? '',
+          /^<img src="subminer_image_\d+_12345\.jpg">$/,
+        );
         assert.equal(updateRequest?.params?.note?.fields?.ExpressionAudio, undefined);
       });
     });
@@ -2670,6 +2786,26 @@ Aligned English subtitle
     assert.deepEqual(await res.json(), { ok: true });
   });
 
+  it('DELETE /api/stats/sessions rejects non-safe or fractional session ids', async () => {
+    let deleteCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSessions: async () => {
+          deleteCalls += 1;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sessionIds":[1.5,1e309,9007199254740992]}',
+    });
+
+    assert.equal(res.status, 400);
+    assert.equal(deleteCalls, 0);
+  });
+
   it('POST /api/stats/anki/browse returns 400 for missing noteId', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anki/browse', { method: 'POST' });
@@ -2694,8 +2830,10 @@ Aligned English subtitle
     const originalFetch = globalThis.fetch;
     let acquireCalls = 0;
     let recordCalls = 0;
-    globalThis.fetch = (async () =>
-      new Response(
+    let requestSignal: AbortSignal | null | undefined;
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal;
+      return new Response(
         JSON.stringify({
           data: {
             Page: {
@@ -2707,7 +2845,8 @@ Aligned English subtitle
           status: 200,
           headers: { 'Content-Type': 'application/json', 'X-RateLimit-Remaining': '29' },
         },
-      )) as typeof fetch;
+      );
+    }) as typeof fetch;
 
     try {
       const app = createStatsApp(createMockTracker(), {
@@ -2725,6 +2864,7 @@ Aligned English subtitle
       assert.equal(res.status, 200);
       assert.equal(acquireCalls, 1);
       assert.equal(recordCalls, 1);
+      assert.ok(requestSignal instanceof AbortSignal);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -2920,6 +3060,15 @@ Aligned English subtitle
       assert.equal(assetRes.status, 200);
       assert.equal(assetRes.headers.get('content-type'), 'text/javascript; charset=utf-8');
       assert.match(await assetRes.text(), /stats ok/);
+    });
+  });
+
+  it('returns not found for malformed percent-encoded asset paths', async () => {
+    await withTempDir(async (dir) => {
+      const app = createStatsApp(createMockTracker(), { staticDir: dir });
+      const res = await app.request('/assets/%');
+
+      assert.equal(res.status, 404);
     });
   });
 

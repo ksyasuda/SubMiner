@@ -3,43 +3,281 @@ import type { ResolveContext } from '../context';
 import { asBoolean, asNumber, asString, isObject } from '../shared';
 import { asNotificationType, hasOwn } from './shared';
 
+function asIntegerInRange(value: unknown, min: number, max: number): number | undefined {
+  const parsed = asNumber(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : undefined;
+}
+
+function asNonNegativeInteger(value: unknown): number | undefined {
+  const parsed = asNumber(value);
+  return parsed !== undefined && Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function asPositiveNumber(value: unknown): number | undefined {
+  const parsed = asNumber(value);
+  return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
+
+function asNonNegativeNumber(value: unknown): number | undefined {
+  const parsed = asNumber(value);
+  return parsed !== undefined && parsed >= 0 ? parsed : undefined;
+}
+
+function applyModernValue<T>(
+  context: ResolveContext,
+  source: Record<string, unknown>,
+  key: string,
+  path: string,
+  parse: (value: unknown) => T | undefined,
+  fallback: T,
+  apply: (value: T) => void,
+  message: string,
+): void {
+  if (!hasOwn(source, key)) return;
+  const raw = source[key];
+  const parsed = parse(raw);
+  if (parsed === undefined) {
+    apply(fallback);
+    context.warn(path, raw, fallback, message);
+    return;
+  }
+  apply(parsed);
+}
+
+function applyModernFieldsResolution(
+  context: ResolveContext,
+  fields: Record<string, unknown>,
+): void {
+  for (const key of ['word', 'audio', 'image', 'sentence', 'miscInfo', 'translation'] as const) {
+    applyModernValue(
+      context,
+      fields,
+      key,
+      `ankiConnect.fields.${key}`,
+      asString,
+      DEFAULT_CONFIG.ankiConnect.fields[key],
+      (value) => {
+        context.resolved.ankiConnect.fields[key] = value;
+      },
+      'Expected string.',
+    );
+  }
+}
+
+function applyModernMediaResolution(context: ResolveContext, media: Record<string, unknown>): void {
+  for (const key of [
+    'generateAudio',
+    'generateImage',
+    'syncAnimatedImageToWordAudio',
+    'normalizeAudio',
+    'mirrorMpvVolume',
+  ] as const) {
+    applyModernValue(
+      context,
+      media,
+      key,
+      `ankiConnect.media.${key}`,
+      asBoolean,
+      DEFAULT_CONFIG.ankiConnect.media[key],
+      (value) => {
+        context.resolved.ankiConnect.media[key] = value;
+      },
+      'Expected boolean.',
+    );
+  }
+
+  applyModernValue(
+    context,
+    media,
+    'imageType',
+    'ankiConnect.media.imageType',
+    (value) => (value === 'static' || value === 'avif' ? value : undefined),
+    DEFAULT_CONFIG.ankiConnect.media.imageType,
+    (value) => {
+      context.resolved.ankiConnect.media.imageType = value;
+    },
+    "Expected 'static' or 'avif'.",
+  );
+  applyModernValue(
+    context,
+    media,
+    'imageFormat',
+    'ankiConnect.media.imageFormat',
+    (value) => (value === 'jpg' || value === 'png' || value === 'webp' ? value : undefined),
+    DEFAULT_CONFIG.ankiConnect.media.imageFormat,
+    (value) => {
+      context.resolved.ankiConnect.media.imageFormat = value;
+    },
+    "Expected 'jpg', 'png', or 'webp'.",
+  );
+  applyModernValue(
+    context,
+    media,
+    'imageQuality',
+    'ankiConnect.media.imageQuality',
+    (value) => asIntegerInRange(value, 1, 100),
+    DEFAULT_CONFIG.ankiConnect.media.imageQuality,
+    (value) => {
+      context.resolved.ankiConnect.media.imageQuality = value;
+    },
+    'Expected integer between 1 and 100.',
+  );
+
+  for (const key of [
+    'imageMaxWidth',
+    'imageMaxHeight',
+    'animatedMaxWidth',
+    'animatedMaxHeight',
+  ] as const) {
+    applyModernValue(
+      context,
+      media,
+      key,
+      `ankiConnect.media.${key}`,
+      asNonNegativeInteger,
+      DEFAULT_CONFIG.ankiConnect.media[key] ?? 0,
+      (value) => {
+        context.resolved.ankiConnect.media[key] = value;
+      },
+      'Expected non-negative integer.',
+    );
+  }
+
+  applyModernValue(
+    context,
+    media,
+    'animatedFps',
+    'ankiConnect.media.animatedFps',
+    (value) => asIntegerInRange(value, 1, 60),
+    DEFAULT_CONFIG.ankiConnect.media.animatedFps,
+    (value) => {
+      context.resolved.ankiConnect.media.animatedFps = value;
+    },
+    'Expected integer between 1 and 60.',
+  );
+  applyModernValue(
+    context,
+    media,
+    'animatedCrf',
+    'ankiConnect.media.animatedCrf',
+    (value) => asIntegerInRange(value, 0, 63),
+    DEFAULT_CONFIG.ankiConnect.media.animatedCrf,
+    (value) => {
+      context.resolved.ankiConnect.media.animatedCrf = value;
+    },
+    'Expected integer between 0 and 63.',
+  );
+  applyModernValue(
+    context,
+    media,
+    'audioPadding',
+    'ankiConnect.media.audioPadding',
+    asNonNegativeNumber,
+    DEFAULT_CONFIG.ankiConnect.media.audioPadding,
+    (value) => {
+      context.resolved.ankiConnect.media.audioPadding = value;
+    },
+    'Expected non-negative number.',
+  );
+
+  for (const key of ['fallbackDuration', 'maxMediaDuration'] as const) {
+    applyModernValue(
+      context,
+      media,
+      key,
+      `ankiConnect.media.${key}`,
+      asPositiveNumber,
+      DEFAULT_CONFIG.ankiConnect.media[key],
+      (value) => {
+        context.resolved.ankiConnect.media[key] = value;
+      },
+      'Expected positive number.',
+    );
+  }
+}
+
+function applyModernBehaviorResolution(
+  context: ResolveContext,
+  behavior: Record<string, unknown>,
+): void {
+  for (const key of [
+    'overwriteAudio',
+    'overwriteImage',
+    'highlightWord',
+    'autoUpdateNewCards',
+  ] as const) {
+    applyModernValue(
+      context,
+      behavior,
+      key,
+      `ankiConnect.behavior.${key}`,
+      asBoolean,
+      DEFAULT_CONFIG.ankiConnect.behavior[key],
+      (value) => {
+        context.resolved.ankiConnect.behavior[key] = value;
+      },
+      'Expected boolean.',
+    );
+  }
+
+  applyModernValue(
+    context,
+    behavior,
+    'mediaInsertMode',
+    'ankiConnect.behavior.mediaInsertMode',
+    (value) => (value === 'append' || value === 'prepend' ? value : undefined),
+    DEFAULT_CONFIG.ankiConnect.behavior.mediaInsertMode,
+    (value) => {
+      context.resolved.ankiConnect.behavior.mediaInsertMode = value;
+    },
+    "Expected 'append' or 'prepend'.",
+  );
+  applyModernValue(
+    context,
+    behavior,
+    'notificationType',
+    'ankiConnect.behavior.notificationType',
+    asNotificationType,
+    DEFAULT_CONFIG.ankiConnect.behavior.notificationType,
+    (value) => {
+      context.resolved.ankiConnect.behavior.notificationType = value;
+    },
+    "Expected 'overlay', 'system', 'both', 'none', 'osd', or 'osd-system'.",
+  );
+}
+
+function applyModernMetadataResolution(
+  context: ResolveContext,
+  metadata: Record<string, unknown>,
+): void {
+  applyModernValue(
+    context,
+    metadata,
+    'pattern',
+    'ankiConnect.metadata.pattern',
+    asString,
+    DEFAULT_CONFIG.ankiConnect.metadata.pattern,
+    (value) => {
+      context.resolved.ankiConnect.metadata.pattern = value;
+    },
+    'Expected string.',
+  );
+}
+
 export function applyAnkiModernResolution(
   context: ResolveContext,
   ankiConnect: Record<string, unknown>,
   behavior: Record<string, unknown>,
   media: Record<string, unknown>,
 ): void {
-  if (hasOwn(media, 'mirrorMpvVolume')) {
-    const parsed = asBoolean(media.mirrorMpvVolume);
-    if (parsed === undefined) {
-      context.resolved.ankiConnect.media.mirrorMpvVolume =
-        DEFAULT_CONFIG.ankiConnect.media.mirrorMpvVolume;
-      context.warn(
-        'ankiConnect.media.mirrorMpvVolume',
-        media.mirrorMpvVolume,
-        context.resolved.ankiConnect.media.mirrorMpvVolume,
-        'Expected boolean.',
-      );
-    } else {
-      context.resolved.ankiConnect.media.mirrorMpvVolume = parsed;
-    }
-  }
-
-  if (hasOwn(behavior, 'notificationType')) {
-    const parsed = asNotificationType(behavior.notificationType);
-    if (parsed === undefined) {
-      context.resolved.ankiConnect.behavior.notificationType =
-        DEFAULT_CONFIG.ankiConnect.behavior.notificationType;
-      context.warn(
-        'ankiConnect.behavior.notificationType',
-        behavior.notificationType,
-        context.resolved.ankiConnect.behavior.notificationType,
-        "Expected 'overlay', 'system', 'both', 'none', 'osd', or 'osd-system'.",
-      );
-    } else {
-      context.resolved.ankiConnect.behavior.notificationType = parsed;
-    }
-  }
+  const fields = isObject(ankiConnect.fields) ? ankiConnect.fields : {};
+  const metadata = isObject(ankiConnect.metadata) ? ankiConnect.metadata : {};
+  applyModernFieldsResolution(context, fields);
+  applyModernMediaResolution(context, media);
+  applyModernBehaviorResolution(context, behavior);
+  applyModernMetadataResolution(context, metadata);
 
   applyLapisResolution(context, ankiConnect);
   applyProxyResolution(context, ankiConnect);

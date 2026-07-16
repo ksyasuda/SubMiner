@@ -17,6 +17,7 @@ import {
 } from './route-support.js';
 
 const ANKI_CONNECT_FETCH_TIMEOUT_MS = 3_000;
+const ANILIST_FETCH_TIMEOUT_MS = 3_000;
 
 export function registerStatsIntegrationRoutes(
   app: Hono,
@@ -39,6 +40,7 @@ export function registerStatsIntegrationRoutes(
       const res = await fetch('https://graphql.anilist.co', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(ANILIST_FETCH_TIMEOUT_MS),
         body: JSON.stringify({
           query: `query ($search: String!) {
           Page(perPage: 10) {
@@ -124,7 +126,13 @@ export function registerStatsIntegrationRoutes(
     const animeId = parseIntQuery(c.req.param('animeId'), 0);
     if (animeId <= 0) return c.body(null, 400);
     const body = await c.req.json().catch(() => null);
-    if (!body?.anilistId) return c.body(null, 400);
+    if (
+      typeof body?.anilistId !== 'number' ||
+      !Number.isInteger(body.anilistId) ||
+      body.anilistId <= 0
+    ) {
+      return c.body(null, 400);
+    }
     await tracker.reassignAnimeAnilist(animeId, body);
     return c.json(statsJson('reassignAnimeAnilist', { ok: true }));
   });

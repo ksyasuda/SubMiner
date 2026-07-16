@@ -19,7 +19,11 @@ export function registerStatsLibraryRoutes(
 ): void {
   app.get('/api/stats/vocabulary', async (c) => {
     const limit = parseIntQuery(c.req.query('limit'), 100, 500);
-    const excludePos = c.req.query('excludePos')?.split(',').filter(Boolean);
+    const excludePos = c.req
+      .query('excludePos')
+      ?.split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
     const vocab = await tracker.getVocabularyStats(limit, excludePos);
     return c.json(statsJson('vocabulary', vocab));
   });
@@ -164,7 +168,9 @@ export function registerStatsLibraryRoutes(
   app.delete('/api/stats/sessions', async (c) => {
     const body = await c.req.json().catch(() => null);
     const ids = Array.isArray(body?.sessionIds)
-      ? body.sessionIds.filter((id: unknown) => typeof id === 'number' && id > 0)
+      ? body.sessionIds.filter(
+          (id: unknown): id is number => Number.isSafeInteger(id) && (id as number) > 0,
+        )
       : [];
     if (ids.length === 0) return c.body(null, 400);
     await tracker.deleteSessions(ids);

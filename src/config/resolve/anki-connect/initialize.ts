@@ -52,33 +52,21 @@ export function initializeAnkiConnectResolution(
       : {}),
     fields: {
       ...context.resolved.ankiConnect.fields,
-      ...(isObject(ankiConnect.fields)
-        ? (ankiConnect.fields as (typeof context.resolved)['ankiConnect']['fields'])
-        : {}),
     },
     media: {
       ...context.resolved.ankiConnect.media,
-      ...(isObject(ankiConnect.media)
-        ? (ankiConnect.media as (typeof context.resolved)['ankiConnect']['media'])
-        : {}),
     },
     knownWords: {
       ...context.resolved.ankiConnect.knownWords,
     },
     behavior: {
       ...context.resolved.ankiConnect.behavior,
-      ...(isObject(ankiConnect.behavior)
-        ? (ankiConnect.behavior as (typeof context.resolved)['ankiConnect']['behavior'])
-        : {}),
     },
     proxy: {
       ...context.resolved.ankiConnect.proxy,
     },
     metadata: {
       ...context.resolved.ankiConnect.metadata,
-      ...(isObject(ankiConnect.metadata)
-        ? (ankiConnect.metadata as (typeof context.resolved)['ankiConnect']['metadata'])
-        : {}),
     },
     isLapis: {
       ...context.resolved.ankiConnect.isLapis,

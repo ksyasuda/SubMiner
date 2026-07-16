@@ -28,9 +28,12 @@ test('stats data uses the shared HTTP contract while native dialogs retain IPC',
     'integration-routes.ts',
     'library-routes.ts',
     'mining-routes.ts',
-  ]
-    .map((filename) => read(`src/core/services/stats-server/${filename}`))
-    .join('\n');
+  ].map((filename) => ({
+    filename,
+    source: read(`src/core/services/stats-server/${filename}`),
+  }));
   assert.match(apiClient, /StatsHttpClient/);
-  assert.match(statsServerRoutes, /statsJson/);
+  for (const { filename, source } of statsServerRoutes) {
+    assert.match(source, /statsJson/, `${filename} must use the shared HTTP contract`);
+  }
 });

@@ -40,6 +40,74 @@ test('modern invalid knownWords.highlightEnabled warns modern key and does not f
   );
 });
 
+test('invalid modern known-words primitive values warn and keep defaults', () => {
+  const { context, warnings } = makeContext({
+    knownWords: {
+      refreshMinutes: 'daily',
+      matchMode: false,
+    },
+    nPlusOne: {
+      minSentenceWords: 'three',
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.refreshMinutes,
+    DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.matchMode,
+    DEFAULT_CONFIG.ankiConnect.knownWords.matchMode,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.nPlusOne.minSentenceWords,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
+  );
+  assert.deepEqual(
+    warnings.map((warning) => warning.path),
+    [
+      'ankiConnect.knownWords.refreshMinutes',
+      'ankiConnect.nPlusOne.minSentenceWords',
+      'ankiConnect.knownWords.matchMode',
+    ],
+  );
+});
+
+test('invalid legacy known-words primitive values warn and keep defaults', () => {
+  const { context, warnings } = makeContext({
+    behavior: {
+      nPlusOneHighlightEnabled: 'yes',
+      nPlusOneRefreshMinutes: 'daily',
+      nPlusOneMatchMode: false,
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.highlightEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.refreshMinutes,
+    DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.matchMode,
+    DEFAULT_CONFIG.ankiConnect.knownWords.matchMode,
+  );
+  assert.deepEqual(
+    warnings.map((warning) => warning.path),
+    [
+      'ankiConnect.behavior.nPlusOneHighlightEnabled',
+      'ankiConnect.behavior.nPlusOneRefreshMinutes',
+      'ankiConnect.behavior.nPlusOneMatchMode',
+    ],
+  );
+});
+
 test('known-words resolution can run independently from other Anki domains', () => {
   const { context, warnings } = makeContext({
     knownWords: { highlightEnabled: true },
@@ -191,6 +259,40 @@ test('accepts ankiConnect.media.syncAnimatedImageToWordAudio override', () => {
   assert.equal(
     warnings.some((warning) => warning.path === 'ankiConnect.media.syncAnimatedImageToWordAudio'),
     false,
+  );
+});
+
+test('invalid modern Anki subtrees warn and keep resolved defaults', () => {
+  const { context, warnings } = makeContext({
+    fields: { word: 7 },
+    media: { generateAudio: 'yes' },
+    behavior: { overwriteAudio: 'yes' },
+    metadata: { pattern: false },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.fields.word, DEFAULT_CONFIG.ankiConnect.fields.word);
+  assert.equal(
+    context.resolved.ankiConnect.media.generateAudio,
+    DEFAULT_CONFIG.ankiConnect.media.generateAudio,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.behavior.overwriteAudio,
+    DEFAULT_CONFIG.ankiConnect.behavior.overwriteAudio,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.metadata.pattern,
+    DEFAULT_CONFIG.ankiConnect.metadata.pattern,
+  );
+  assert.deepEqual(
+    warnings.map((warning) => warning.path),
+    [
+      'ankiConnect.fields.word',
+      'ankiConnect.media.generateAudio',
+      'ankiConnect.behavior.overwriteAudio',
+      'ankiConnect.metadata.pattern',
+    ],
   );
 });
 

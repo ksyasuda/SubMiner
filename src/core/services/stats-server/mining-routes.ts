@@ -43,7 +43,13 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     const rawMode = c.req.query('mode');
     const mode = rawMode === 'audio' ? 'audio' : rawMode === 'word' ? 'word' : 'sentence';
 
-    if (!sourcePath || !sentence || !Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    if (
+      !sourcePath ||
+      !sentence ||
+      (mode === 'word' && !word) ||
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs)
+    ) {
       return c.json(
         statsJson('mineCard', {
           error: 'sourcePath, sentence, startMs, and endMs are required',
@@ -62,6 +68,10 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     const ankiConfig = getAnkiConnectConfig();
     if (!ankiConfig) {
       return c.json(statsJson('mineCard', { error: 'AnkiConnect is not configured' }), 500);
+    }
+    const addYomitanNote = options?.addYomitanNote;
+    if (mode === 'word' && !addYomitanNote) {
+      return c.json(statsJson('mineCard', { error: 'Yomitan bridge not available' }), 500);
     }
     const secondarySubtitleLanguages = getSecondarySubtitleLanguages();
     let retimedSecondaryText = '';
@@ -188,15 +198,11 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     };
 
     if (mode === 'word') {
-      if (!options?.addYomitanNote) {
-        return c.json(statsJson('mineCard', { error: 'Yomitan bridge not available' }), 500);
-      }
-
       const [yomitanResult, audioResult, imageResult] = await Promise.allSettled([
         timeMiningPhase(
           'word',
           'addYomitanNote',
-          () => options.addYomitanNote!(word),
+          () => addYomitanNote!(word),
           (noteId) => (typeof noteId === 'number' ? { noteId } : {}),
         ),
         audioPromise,
@@ -269,7 +275,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
       applyStatsWordAndSentenceCardFields(mediaFields, noteInfo, ankiConfig);
 
       if (audioBuffer) {
-        const audioFilename = `subminer_audio_${timestamp}.mp3`;
+        const audioFilename = `subminer_audio_${timestamp}_${noteId}.mp3`;
         try {
           await timeMiningPhase('word', 'uploadAudio', () =>
             client.storeMediaFile(audioFilename, audioBuffer),
@@ -282,7 +288,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
 
       if (imageBuffer) {
         const imageExt = imageType === 'avif' ? 'avif' : (ankiConfig.media?.imageFormat ?? 'jpg');
-        const imageFilename = `subminer_image_${timestamp}.${imageExt}`;
+        const imageFilename = `subminer_image_${timestamp}_${noteId}.${imageExt}`;
         try {
           await timeMiningPhase('word', 'uploadImage', () =>
             client.storeMediaFile(imageFilename, imageBuffer),
@@ -402,7 +408,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
     }
 
     if (audioBuffer) {
-      const audioFilename = `subminer_audio_${timestamp}.mp3`;
+      const audioFilename = `subminer_audio_${timestamp}_${noteId}.mp3`;
       try {
         await timeMiningPhase(mode, 'uploadAudio', () =>
           client.storeMediaFile(audioFilename, audioBuffer),
@@ -418,7 +424,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
 
     if (imageBuffer) {
       const imageExt = imageType === 'avif' ? 'avif' : (ankiConfig.media?.imageFormat ?? 'jpg');
-      const imageFilename = `subminer_image_${timestamp}.${imageExt}`;
+      const imageFilename = `subminer_image_${timestamp}_${noteId}.${imageExt}`;
       try {
         await timeMiningPhase(mode, 'uploadImage', () =>
           client.storeMediaFile(imageFilename, imageBuffer),

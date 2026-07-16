@@ -225,7 +225,13 @@ export function buildAnkiNotePreview(
 function resolveStatsStaticPath(staticDir: string, requestPath: string): string | null {
   const normalizedPath = requestPath.replace(/^\/+/, '') || 'index.html';
   const absoluteStaticDir = resolve(staticDir);
-  const absolutePath = resolve(absoluteStaticDir, decodeURIComponent(normalizedPath));
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURIComponent(normalizedPath);
+  } catch {
+    return null;
+  }
+  const absolutePath = resolve(absoluteStaticDir, decodedPath);
   if (
     absolutePath !== absoluteStaticDir &&
     !absolutePath.startsWith(`${absoluteStaticDir}${sep}`)

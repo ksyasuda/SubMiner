@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG } from '../../definitions';
 import type { ResolveContext } from '../context';
 import { asBoolean, asColor, asNumber, asString, isObject } from '../shared';
+import { hasOwn } from './shared';
 
 export function applyAnkiKnownWordsResolution(
   context: ResolveContext,
@@ -13,7 +14,7 @@ export function applyAnkiKnownWordsResolution(
   const knownWordsHighlightEnabled = asBoolean(knownWordsConfig.highlightEnabled);
   if (knownWordsHighlightEnabled !== undefined) {
     context.resolved.ankiConnect.knownWords.highlightEnabled = knownWordsHighlightEnabled;
-  } else if (knownWordsConfig.highlightEnabled !== undefined) {
+  } else if (hasOwn(knownWordsConfig, 'highlightEnabled')) {
     context.warn(
       'ankiConnect.knownWords.highlightEnabled',
       knownWordsConfig.highlightEnabled,
@@ -33,6 +34,15 @@ export function applyAnkiKnownWordsResolution(
         DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
         'Legacy key is deprecated; use ankiConnect.knownWords.highlightEnabled',
       );
+    } else if (hasOwn(behavior, 'nPlusOneHighlightEnabled')) {
+      context.warn(
+        'ankiConnect.behavior.nPlusOneHighlightEnabled',
+        behavior.nPlusOneHighlightEnabled,
+        DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled,
+        'Expected boolean.',
+      );
+      context.resolved.ankiConnect.knownWords.highlightEnabled =
+        DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled;
     } else {
       context.resolved.ankiConnect.knownWords.highlightEnabled =
         DEFAULT_CONFIG.ankiConnect.knownWords.highlightEnabled;
@@ -44,7 +54,7 @@ export function applyAnkiKnownWordsResolution(
     knownWordsRefreshMinutes !== undefined &&
     Number.isInteger(knownWordsRefreshMinutes) &&
     knownWordsRefreshMinutes > 0;
-  if (knownWordsRefreshMinutes !== undefined) {
+  if (hasOwn(knownWordsConfig, 'refreshMinutes')) {
     if (hasValidKnownWordsRefreshMinutes) {
       context.resolved.ankiConnect.knownWords.refreshMinutes = knownWordsRefreshMinutes;
     } else {
@@ -57,7 +67,7 @@ export function applyAnkiKnownWordsResolution(
       context.resolved.ankiConnect.knownWords.refreshMinutes =
         DEFAULT_CONFIG.ankiConnect.knownWords.refreshMinutes;
     }
-  } else if (asNumber(behavior.nPlusOneRefreshMinutes) !== undefined) {
+  } else if (hasOwn(behavior, 'nPlusOneRefreshMinutes')) {
     const legacyBehaviorNPlusOneRefreshMinutes = asNumber(behavior.nPlusOneRefreshMinutes);
     const hasValidLegacyRefreshMinutes =
       legacyBehaviorNPlusOneRefreshMinutes !== undefined &&
@@ -124,7 +134,7 @@ export function applyAnkiKnownWordsResolution(
     nPlusOneMinSentenceWords !== undefined &&
     Number.isInteger(nPlusOneMinSentenceWords) &&
     nPlusOneMinSentenceWords > 0;
-  if (nPlusOneMinSentenceWords !== undefined) {
+  if (hasOwn(nPlusOneConfig, 'minSentenceWords')) {
     if (hasValidNPlusOneMinSentenceWords) {
       context.resolved.ankiConnect.nPlusOne.minSentenceWords = nPlusOneMinSentenceWords;
     } else {
@@ -150,7 +160,7 @@ export function applyAnkiKnownWordsResolution(
     legacyBehaviorNPlusOneMatchMode === 'headword' || legacyBehaviorNPlusOneMatchMode === 'surface';
   if (hasValidKnownWordsMatchMode) {
     context.resolved.ankiConnect.knownWords.matchMode = knownWordsMatchMode;
-  } else if (knownWordsMatchMode !== undefined) {
+  } else if (hasOwn(knownWordsConfig, 'matchMode')) {
     context.warn(
       'ankiConnect.knownWords.matchMode',
       knownWordsConfig.matchMode,
@@ -159,7 +169,7 @@ export function applyAnkiKnownWordsResolution(
     );
     context.resolved.ankiConnect.knownWords.matchMode =
       DEFAULT_CONFIG.ankiConnect.knownWords.matchMode;
-  } else if (legacyBehaviorNPlusOneMatchMode !== undefined) {
+  } else if (hasOwn(behavior, 'nPlusOneMatchMode')) {
     if (hasValidLegacyMatchMode) {
       context.resolved.ankiConnect.knownWords.matchMode = legacyBehaviorNPlusOneMatchMode;
       context.warn(

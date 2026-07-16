@@ -153,7 +153,11 @@ export function createStatsMiningContext(options?: StatsMiningRouteOptions) {
     }
   };
   const recordMiningTiming = (event: StatsMiningTimingEvent): void => {
-    options?.onMiningTiming?.(event);
+    try {
+      options?.onMiningTiming?.(event);
+    } catch {
+      // Timing observers must not affect mining execution.
+    }
     statsMiningLogger.debug(
       `[stats:mining] ${event.mode} ${event.phase} ${Math.round(event.elapsedMs)}ms`,
       event,
