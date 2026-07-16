@@ -3,6 +3,7 @@ import test from 'node:test';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../definitions';
 import { createWarningCollector } from '../warnings';
 import { applyAnkiConnectResolution } from './anki-connect';
+import { applyAnkiKnownWordsResolution } from './anki-connect/known-words';
 import type { ResolveContext } from './context';
 
 function makeContext(ankiConnect: unknown): {
@@ -35,6 +36,22 @@ test('modern invalid knownWords.highlightEnabled warns modern key and does not f
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.highlightEnabled'));
   assert.equal(
     warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.highlightEnabled'),
+    false,
+  );
+});
+
+test('known-words resolution can run independently from other Anki domains', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { highlightEnabled: true },
+    proxy: { port: -1 },
+  });
+  const ankiConnect = context.src.ankiConnect as Record<string, unknown>;
+
+  applyAnkiKnownWordsResolution(context, ankiConnect, {});
+
+  assert.equal(context.resolved.ankiConnect.knownWords.highlightEnabled, true);
+  assert.equal(
+    warnings.some((warning) => warning.path.startsWith('ankiConnect.proxy')),
     false,
   );
 });

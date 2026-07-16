@@ -23,7 +23,14 @@ test('stats data uses the shared HTTP contract while native dialogs retain IPC',
   assert.doesNotMatch(ipcHandlers, /statsGet[A-Z]/);
 
   const apiClient = read('stats/src/lib/api-client.ts');
-  const statsServer = read('src/core/services/stats-server.ts');
+  const statsServerRoutes = [
+    'analytics-routes.ts',
+    'integration-routes.ts',
+    'library-routes.ts',
+    'mining-routes.ts',
+  ]
+    .map((filename) => read(`src/core/services/stats-server/${filename}`))
+    .join('\n');
   assert.match(apiClient, /StatsHttpClient/);
-  assert.match(statsServer, /statsJson/);
+  assert.match(statsServerRoutes, /statsJson/);
 });

@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-05-23
+Last verified: 2026-07-15
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -16,7 +16,9 @@ Read when: you need to find the owner module for a behavior or test surface
 
 ## Product / Integration Domains
 
-- Config system: `src/config/`
+- Config system: `src/config/`; Anki resolution is composed by
+  `src/config/resolve/anki-connect.ts` from focused resolvers in
+  `src/config/resolve/anki-connect/`
 - Overlay/window state: `src/core/services/overlay-*`, `src/main/overlay-*.ts`
 - MPV runtime and protocol: `src/core/services/mpv*.ts`
 - Subtitle/token pipeline: `src/core/services/subtitle-*.ts`, `src/core/services/tokenizer*`, `src/core/services/tokenizer/`, `src/subsync/`
@@ -26,7 +28,9 @@ Read when: you need to find the owner module for a behavior or test surface
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
 - Window trackers: `src/window-trackers/`
-- Stats app: `stats/`
+- Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
+  in `src/core/services/stats-server/`
+- Stats SPA: `stats/`
 - Public docs site: `docs-site/`
 
 ## Shared Contract Entry Points
