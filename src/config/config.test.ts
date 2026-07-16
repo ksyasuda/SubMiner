@@ -2462,6 +2462,37 @@ test('resolves duplicate ankiConnect nPlusOne objects without rewriting config',
   assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
 });
 
+test('later invalid duplicate nPlusOne values supersede earlier valid values', () => {
+  const dir = makeTempDir();
+  const configPath = path.join(dir, 'config.jsonc');
+  const originalContent = `{
+      "ankiConnect": {
+        "nPlusOne": {
+          "enabled": true,
+          "minSentenceWords": 4
+        },
+        "nPlusOne": {
+          "enabled": "yes",
+          "minSentenceWords": "4"
+        }
+      }
+    }`;
+  fs.writeFileSync(configPath, originalContent, 'utf-8');
+
+  const service = new ConfigService(dir);
+  const config = service.getConfig();
+  const warnings = service.getWarnings();
+
+  assert.equal(config.ankiConnect.nPlusOne.enabled, DEFAULT_CONFIG.ankiConnect.nPlusOne.enabled);
+  assert.equal(
+    config.ankiConnect.nPlusOne.minSentenceWords,
+    DEFAULT_CONFIG.ankiConnect.nPlusOne.minSentenceWords,
+  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.enabled'));
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.nPlusOne.minSentenceWords'));
+  assert.equal(fs.readFileSync(configPath, 'utf-8'), originalContent);
+});
+
 test('supports legacy ankiConnect.behavior N+1 settings as fallback', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

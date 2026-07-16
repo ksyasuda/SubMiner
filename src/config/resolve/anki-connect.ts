@@ -1,8 +1,9 @@
 import type { ResolveContext } from './context';
 import { initializeAnkiConnectResolution } from './anki-connect/initialize';
+import { applyAnkiKikuResolution } from './anki-connect/kiku';
 import { applyAnkiKnownWordsResolution } from './anki-connect/known-words';
 import { applyAnkiLegacyResolution } from './anki-connect/legacy';
-import { applyAnkiKikuResolution, applyAnkiModernResolution } from './anki-connect/modern';
+import { applyAnkiModernResolution } from './anki-connect/modern';
 import { isObject } from './shared';
 
 export function applyAnkiConnectResolution(context: ResolveContext): void {
