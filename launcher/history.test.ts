@@ -240,6 +240,7 @@ test('findPreviousEpisode falls back to prior season when a deleted file was the
   try {
     const season1 = path.join(seriesRoot, 'Season-1');
     const season2 = path.join(seriesRoot, 'Season-2');
+    fs.rmSync(path.join(season2, 'Show - S02E01.mkv'));
     const missing = path.join(season2, 'Show - S02E01 - Deleted Cut.mkv');
     assert.equal(findPreviousEpisode(missing), path.join(season1, 'Show - S01E03.mkv'));
   } finally {

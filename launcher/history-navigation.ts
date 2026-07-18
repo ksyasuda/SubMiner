@@ -136,9 +136,19 @@ function findLastEpisodeInPreviousSeason(resolvedCurrent: string, dir: string): 
   if (seriesRoot === dir) return null;
   const seasons = listSeasonDirs(seriesRoot);
   const currentIdx = seasons.findIndex((season) => path.resolve(season.path) === dir);
-  if (currentIdx <= 0) return null;
-  const previousSeason = sortVideosByEpisode(collectVideos(seasons[currentIdx - 1]!.path, false));
-  return previousSeason[previousSeason.length - 1] ?? null;
+  const currentSeason = seasonNumberFromDirName(path.basename(dir));
+  const previousSeasonEntry =
+    currentIdx >= 0
+      ? seasons[currentIdx - 1]
+      : seasons
+          .filter(
+            (season) =>
+              currentSeason !== null && season.season !== null && season.season < currentSeason,
+          )
+          .at(-1);
+  if (!previousSeasonEntry) return null;
+  const previousSeason = sortVideosByEpisode(collectVideos(previousSeasonEntry.path, false));
+  return previousSeason.at(-1) ?? null;
 }
 
 export function findPreviousEpisode(currentPath: string): string | null {
