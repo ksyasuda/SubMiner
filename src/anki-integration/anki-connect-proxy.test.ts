@@ -543,3 +543,41 @@ test('proxy detects self-referential loop configuration', () => {
 
   assert.equal(result, true);
 });
+
+test('proxy continues without a local listener when its address is already bound', async () => {
+  const occupiedServer = http.createServer();
+  occupiedServer.listen(0, '127.0.0.1');
+  await once(occupiedServer, 'listening');
+  const occupiedAddress = occupiedServer.address();
+  assert.ok(occupiedAddress && typeof occupiedAddress === 'object');
+  const info: string[] = [];
+  const warnings: string[] = [];
+  const proxy = new AnkiConnectProxyServer({
+    shouldAutoUpdateNewCards: () => true,
+    processNewCard: async () => undefined,
+    logInfo: (message) => info.push(message),
+    logWarn: (message, ...args) => warnings.push([message, ...args].join(' ')),
+    logError: () => undefined,
+  });
+
+  try {
+    proxy.start({
+      host: '127.0.0.1',
+      port: occupiedAddress.port,
+      upstreamUrl: 'http://127.0.0.1:8765',
+    });
+
+    await proxy.waitUntilReady();
+
+    assert.equal(proxy.isRunning, false);
+    assert.deepEqual(warnings, [
+      `[anki-proxy] Local proxy unavailable because http://127.0.0.1:${occupiedAddress.port} is already in use; continuing without it. Change ankiConnect.proxy.port or stop the process using that address.`,
+    ]);
+    proxy.stop();
+    assert.deepEqual(info, []);
+  } finally {
+    proxy.stop();
+    occupiedServer.close();
+    await once(occupiedServer, 'close');
+  }
+});

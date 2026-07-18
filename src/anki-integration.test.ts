@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
+import { once } from 'node:events';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -463,6 +465,66 @@ test('AnkiIntegration does not allocate proxy server when proxy transport is dis
     };
   };
   assert.equal(privateState.runtime.proxyServer, null);
+});
+
+test('AnkiIntegration reports an occupied proxy address through its notification seam', async () => {
+  const occupiedServer = http.createServer();
+  occupiedServer.listen(0, '127.0.0.1');
+  await once(occupiedServer, 'listening');
+  const occupiedAddress = occupiedServer.address();
+  assert.ok(occupiedAddress && typeof occupiedAddress === 'object');
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-anki-proxy-collision-'));
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const integration = new AnkiIntegration(
+    {
+      enabled: true,
+      url: 'http://127.0.0.1:8765',
+      proxy: {
+        enabled: true,
+        host: '127.0.0.1',
+        port: occupiedAddress.port,
+        upstreamUrl: 'http://127.0.0.1:8765',
+      },
+      behavior: {
+        notificationType: 'overlay',
+      },
+      knownWords: {
+        highlightEnabled: false,
+      },
+      nPlusOne: {
+        enabled: false,
+      },
+    } as never,
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    path.join(stateDir, 'known-words-cache.json'),
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload as TestOverlayNotificationPayload);
+    },
+  );
+
+  try {
+    integration.start();
+    await integration.waitUntilReady();
+
+    assert.deepEqual(overlayNotifications, [
+      {
+        title: 'SubMiner',
+        body: `AnkiConnect proxy unavailable because http://127.0.0.1:${occupiedAddress.port} is already in use. Change ankiConnect.proxy.port or stop the process using that address.`,
+        variant: 'info',
+      },
+    ]);
+  } finally {
+    integration.stop();
+    occupiedServer.close();
+    await once(occupiedServer, 'close');
+    fs.rmSync(stateDir, { recursive: true, force: true });
+  }
 });
 
 test('AnkiIntegration triggers field grouping after a local duplicate sentence card is created', async () => {

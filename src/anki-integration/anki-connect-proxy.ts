@@ -27,6 +27,7 @@ export interface AnkiConnectProxyServerDeps {
   logInfo: (message: string, ...args: unknown[]) => void;
   logWarn: (message: string, ...args: unknown[]) => void;
   logError: (message: string, ...args: unknown[]) => void;
+  notifyUnavailable?: (message: string) => void;
 }
 
 export class AnkiConnectProxyServer {
@@ -78,7 +79,23 @@ export class AnkiConnectProxyServer {
       void this.handleRequest(req, res, options.upstreamUrl);
     });
 
+    const server = this.server;
     this.server.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+        this.resolveReady?.();
+        this.resolveReady = null;
+        this.rejectReady = null;
+        if (this.server === server) {
+          this.server = null;
+        }
+        this.deps.logWarn(
+          `[anki-proxy] Local proxy unavailable because http://${options.host}:${options.port} is already in use; continuing without it. Change ankiConnect.proxy.port or stop the process using that address.`,
+        );
+        this.deps.notifyUnavailable?.(
+          `AnkiConnect proxy unavailable because http://${options.host}:${options.port} is already in use. Change ankiConnect.proxy.port or stop the process using that address.`,
+        );
+        return;
+      }
       this.rejectReady?.(error as Error);
       this.resolveReady = null;
       this.rejectReady = null;

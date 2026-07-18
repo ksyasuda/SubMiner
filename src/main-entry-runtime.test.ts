@@ -7,6 +7,7 @@ import { DEFAULT_CONFIG } from './config/definitions';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import {
   configureEarlyAppPaths,
+  exitBackgroundBootstrap,
   normalizeLaunchMpvExtraArgs,
   normalizeStartupArgv,
   normalizeLaunchMpvTargets,
@@ -21,9 +22,16 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
   hasTransportedStartupArgs,
   shouldForwardStartupArgvViaAppControl,
+  applyBackgroundBootstrapCommandLineSwitches,
   applyEarlyLinuxCommandLineSwitches,
   resolveLinuxPasswordStoreValue,
 } from './main-entry-runtime';
+
+test('background bootstrap exits through Electron so Chromium children shut down', () => {
+  const exitCodes: number[] = [];
+  exitBackgroundBootstrap({ exit: (code) => exitCodes.push(code) });
+  assert.deepEqual(exitCodes, [0]);
+});
 
 test('normalizeStartupArgv defaults no-arg startup to --start --background on non-Windows', () => {
   const originalPlatform = process.platform;
@@ -149,6 +157,56 @@ test('applyEarlyLinuxCommandLineSwitches appends password store before main star
     ['enable-features', 'GlobalShortcutsPortal'],
     ['password-store', 'kwallet6'],
   ]);
+});
+
+test('background bootstrap keeps the GPU in-process so no child outlives its AppImage mount', () => {
+  const collect = () => {
+    const switches: Array<[string, string | undefined]> = [];
+    return {
+      switches,
+      commandLine: {
+        appendSwitch: (name: string, value?: string) => {
+          switches.push([name, value]);
+        },
+      },
+    };
+  };
+
+  const bootstrap = collect();
+  applyBackgroundBootstrapCommandLineSwitches(
+    bootstrap.commandLine,
+    ['SubMiner.AppImage', '--start', '--background'],
+    {},
+    'linux',
+  );
+  assert.deepEqual(bootstrap.switches, [['in-process-gpu', undefined]]);
+
+  const detachedChild = collect();
+  applyBackgroundBootstrapCommandLineSwitches(
+    detachedChild.commandLine,
+    ['SubMiner.AppImage', '--start', '--background'],
+    { SUBMINER_BACKGROUND_CHILD: '1' },
+    'linux',
+  );
+  assert.deepEqual(detachedChild.switches, []);
+
+  const foreground = collect();
+  applyBackgroundBootstrapCommandLineSwitches(
+    foreground.commandLine,
+    ['SubMiner.AppImage', '--stop'],
+    {},
+    'linux',
+  );
+  assert.deepEqual(foreground.switches, []);
+
+  const windows = collect();
+  applyBackgroundBootstrapCommandLineSwitches(
+    windows.commandLine,
+    ['SubMiner.exe', '--start', '--background'],
+    {},
+    'win32',
+  );
+  assert.deepEqual(windows.switches, []);
 });
 
 test('transported AppImage visibility commands forward through app control', () => {

@@ -461,6 +461,7 @@ export class AnkiIntegration {
       getDeck: () => this.config.deck,
       findNotes: async (query, options) =>
         (await this.client.findNotes(query, options)) as number[],
+      notifyUnavailable: (message) => this.showStatusNotification(message),
       logInfo: (message, ...args) => log.info(message, ...args),
       logWarn: (message, ...args) => log.warn(message, ...args),
       logError: (message, ...args) => log.error(message, ...args),

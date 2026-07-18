@@ -3,7 +3,9 @@ import { spawn } from 'node:child_process';
 import { app, dialog, shell } from 'electron';
 import { printHelp } from './cli/help';
 import {
+  applyBackgroundBootstrapCommandLineSwitches,
   configureEarlyAppPaths,
+  exitBackgroundBootstrap,
   normalizeLaunchMpvExtraArgs,
   normalizeLaunchMpvTargets,
   normalizeStartupArgv,
@@ -174,6 +176,7 @@ function createWindowsRuntimePluginPolicy() {
 process.argv = normalizeStartupArgv(process.argv, process.env);
 applyEarlyLinuxCommandLineSwitches(app.commandLine, process.argv);
 applySanitizedEnv(sanitizeStartupEnv(process.env));
+applyBackgroundBootstrapCommandLineSwitches(app.commandLine, process.argv, process.env);
 const userDataPath = configureEarlyAppPaths(app);
 const reportFatalError = createFatalErrorReporter({
   showErrorBox: (title, details) => dialog.showErrorBox(title, details),
@@ -308,7 +311,8 @@ async function runEntryProcess(): Promise<void> {
           env: sanitizeBackgroundEnv(process.env),
         });
     child.unref();
-    process.exit(0);
+    // Let Electron stop bootstrap Chromium children before its AppImage mount is released.
+    exitBackgroundBootstrap(app);
     return;
   }
 

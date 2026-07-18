@@ -35,6 +35,10 @@ type EarlyAppLike = {
   setPath: (name: 'userData', value: string) => void;
 };
 
+type BackgroundBootstrapAppLike = {
+  exit: (code: number) => void;
+};
+
 type CommandLineLike = {
   appendSwitch: (name: string, value?: string) => void;
 };
@@ -130,6 +134,22 @@ export function applyEarlyLinuxCommandLineSwitches(
     'password-store',
     resolveLinuxPasswordStoreValue(argv, platform) ?? DEFAULT_LINUX_PASSWORD_STORE,
   );
+}
+
+// The detach bootstrap exits within milliseconds, but a separate GPU child it
+// spawned survives app.exit() and keeps executing from the bootstrap's FUSE
+// mount until session teardown finally unmaps it — SIGBUS, surfaced by DrKonqi
+// as a "Service Crash" notification on every video close. Keeping the GPU
+// in-process means the bootstrap leaves no child behind.
+export function applyBackgroundBootstrapCommandLineSwitches(
+  commandLine: CommandLineLike,
+  argv: string[],
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): void {
+  if (platform !== 'linux') return;
+  if (!shouldDetachBackgroundLaunch(argv, env)) return;
+  commandLine.appendSwitch('in-process-gpu');
 }
 
 function consumesLaunchMpvValue(token: string): boolean {
@@ -239,6 +259,10 @@ export function shouldDetachBackgroundLaunch(argv: string[], env: NodeJS.Process
   if (!argv.includes(BACKGROUND_ARG)) return false;
   if (env[BACKGROUND_CHILD_ENV] === '1') return false;
   return true;
+}
+
+export function exitBackgroundBootstrap(app: BackgroundBootstrapAppLike): void {
+  app.exit(0);
 }
 
 export function shouldHandleHelpOnlyAtEntry(argv: string[], env: NodeJS.ProcessEnv): boolean {
