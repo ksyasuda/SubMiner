@@ -112,8 +112,20 @@ function buildLegacyNPlusOneMigrationOperations(root: JsoncNode | undefined): {
       if (!key) continue;
       const valueNode = propertyValue(property);
       const value = valueNode ? getNodeValue(valueNode) : undefined;
-      if (key === 'enabled' || key === 'minSentenceWords') {
-        canonicalNPlusOneValues.set(key, value);
+      if (key === 'enabled') {
+        if (typeof value === 'boolean') {
+          canonicalNPlusOneValues.set(key, value);
+        } else {
+          canonicalNPlusOneValues.delete(key);
+        }
+        continue;
+      }
+      if (key === 'minSentenceWords') {
+        if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+          canonicalNPlusOneValues.set(key, value);
+        } else {
+          canonicalNPlusOneValues.delete(key);
+        }
         continue;
       }
       if (key in LEGACY_N_PLUS_ONE_PATH_MAP) {
