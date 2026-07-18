@@ -32,6 +32,12 @@ export const SUBTITLE_DEFAULT_CONFIG: Pick<ResolvedConfig, 'subtitleStyle' | 'su
     backdropFilter: 'blur(6px)',
     nPlusOneColor: '#c6a0f6',
     knownWordColor: '#a6da95',
+    knownWordMaturityColors: {
+      new: '#ee99a0',
+      learning: '#b7bdf8',
+      young: '#91d7e3',
+      mature: '#a6da95',
+    },
     jlptColors: {
       N1: '#ed8796',
       N2: '#f5a97f',

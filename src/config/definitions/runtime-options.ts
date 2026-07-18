@@ -36,6 +36,22 @@ export function buildRuntimeOptionRegistry(
       }),
     },
     {
+      id: 'subtitle.annotation.knownWords.maturityEnabled',
+      path: 'ankiConnect.knownWords.maturityEnabled',
+      label: 'Known Word Maturity Colors',
+      scope: 'subtitle',
+      valueType: 'boolean',
+      allowedValues: [true, false],
+      defaultValue: defaultConfig.ankiConnect.knownWords.maturityEnabled,
+      requiresRestart: false,
+      formatValueForOsd: (value) => (value === true ? 'On' : 'Off'),
+      toAnkiPatch: (value) => ({
+        knownWords: {
+          maturityEnabled: value === true,
+        },
+      }),
+    },
+    {
       id: 'subtitle.annotation.nPlusOne',
       path: 'ankiConnect.nPlusOne.enabled',
       label: 'N+1 Annotation',

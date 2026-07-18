@@ -1445,3 +1445,70 @@ test('secondary subtitle root CSS caps height so hover-pause band stays a top st
   assert.match(secondaryRootBlock, /max-height:\s*6em;/);
   assert.match(secondaryRootBlock, /overflow:\s*hidden;/);
 });
+
+test('applySubtitleStyle sets known-word maturity color variables', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({
+      knownWordMaturityColors: {
+        new: '#111111',
+        learning: '#222222',
+        young: '#333333',
+        mature: '#444444',
+      },
+    } as never);
+
+    const values = (subtitleRoot.style as unknown as { values?: Map<string, string> }).values;
+    assert.equal(values?.get('--subtitle-maturity-new-color'), '#111111');
+    assert.equal(values?.get('--subtitle-maturity-learning-color'), '#222222');
+    assert.equal(values?.get('--subtitle-maturity-young-color'), '#333333');
+    assert.equal(values?.get('--subtitle-maturity-mature-color'), '#444444');
+  } finally {
+    restoreDocument();
+  }
+});
+
+test('applySubtitleStyle falls back to default maturity colors', () => {
+  const restoreDocument = installFakeDocument();
+  try {
+    const subtitleRoot = new FakeElement('div');
+    const subtitleContainer = new FakeElement('div');
+    const secondarySubRoot = new FakeElement('div');
+    const secondarySubContainer = new FakeElement('div');
+    const ctx = {
+      state: createRendererState(),
+      dom: {
+        subtitleRoot,
+        subtitleContainer,
+        secondarySubRoot,
+        secondarySubContainer,
+      },
+    } as never;
+
+    const renderer = createSubtitleRenderer(ctx);
+    renderer.applySubtitleStyle({} as never);
+
+    const values = (subtitleRoot.style as unknown as { values?: Map<string, string> }).values;
+    assert.equal(values?.get('--subtitle-maturity-new-color'), '#ee99a0');
+    assert.equal(values?.get('--subtitle-maturity-learning-color'), '#b7bdf8');
+    assert.equal(values?.get('--subtitle-maturity-young-color'), '#91d7e3');
+    assert.equal(values?.get('--subtitle-maturity-mature-color'), '#a6da95');
+  } finally {
+    restoreDocument();
+  }
+});

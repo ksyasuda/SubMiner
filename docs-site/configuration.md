@@ -407,6 +407,7 @@ See `config.example.jsonc` for detailed configuration options.
 | `nameMatchImagesEnabled`           | boolean  | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                      |
 | `nameMatchColor`                   | string   | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                       |
 | `knownWordColor`                   | string   | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                       |
+| `knownWordMaturityColors`          | object   | Per-tier known-word colors used when `ankiConnect.knownWords.maturityEnabled` is on: `new` (`#ee99a0`), `learning` (`#b7bdf8`), `young` (`#91d7e3`), `mature` (`#a6da95`) |
 | `nPlusOneColor`                    | string   | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                             |
 | `frequencyDictionary.enabled`      | boolean  | Enable frequency highlighting from dictionary lookups (`false` by default)                                                   |
 | `frequencyDictionary.sourcePath`   | string   | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.   |

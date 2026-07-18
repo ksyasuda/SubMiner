@@ -353,6 +353,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path.startsWith('ankiConnect.nPlusOne.') ||
     path.startsWith('subtitleStyle.frequencyDictionary.') ||
     path.startsWith('subtitleStyle.jlptColors.') ||
+    path.startsWith('subtitleStyle.knownWordMaturityColors.') ||
     path === 'subtitleStyle.enableJlpt' ||
     path === 'subtitleStyle.knownWordColor' ||
     path === 'subtitleStyle.nPlusOneColor' ||

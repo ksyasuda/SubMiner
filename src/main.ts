@@ -4560,6 +4560,8 @@ const {
       },
       isKnownWord: (text, reading, options) =>
         Boolean(appState.ankiIntegration?.isKnownWord(text, reading, options)),
+      getKnownWordTier: (text, reading, options) =>
+        appState.ankiIntegration?.getKnownWordTier(text, reading, options) ?? null,
       recordLookup: (hit) => {
         ensureImmersionTrackerStarted();
         appState.immersionTracker?.recordLookup(hit);

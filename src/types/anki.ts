@@ -82,6 +82,8 @@ export interface AnkiConnectConfig {
   };
   knownWords?: {
     highlightEnabled?: boolean;
+    maturityEnabled?: boolean;
+    matureThresholdDays?: number;
     refreshMinutes?: number;
     addMinedWordsImmediately?: boolean;
     matchMode?: NPlusOneMatchMode;

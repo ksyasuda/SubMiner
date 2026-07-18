@@ -597,6 +597,11 @@ export function computeWordClass(
     classes.push('word-n-plus-one');
   } else if (token.isKnown) {
     classes.push('word-known');
+    // The maturity class rides on word-known so hover/selection rules keyed
+    // on word-known keep applying; it only overrides the color.
+    if (token.knownMaturity) {
+      classes.push(`word-maturity-${token.knownMaturity}`);
+    }
   }
 
   if (!hasPrioritizedNameMatch(token, resolvedTokenRenderSettings) && token.jlptLevel) {
@@ -867,11 +872,39 @@ export function createSubtitleRenderer(ctx: RendererContext) {
         : {}),
     };
 
+    const maturityColorOverrides = style.knownWordMaturityColors;
+    const maturityColors = {
+      new: sanitizeHexColor(maturityColorOverrides?.new, ctx.state.knownWordMaturityNewColor),
+      learning: sanitizeHexColor(
+        maturityColorOverrides?.learning,
+        ctx.state.knownWordMaturityLearningColor,
+      ),
+      young: sanitizeHexColor(maturityColorOverrides?.young, ctx.state.knownWordMaturityYoungColor),
+      mature: sanitizeHexColor(
+        maturityColorOverrides?.mature,
+        ctx.state.knownWordMaturityMatureColor,
+      ),
+    };
+
     ctx.state.knownWordColor = knownWordColor;
+    ctx.state.knownWordMaturityNewColor = maturityColors.new;
+    ctx.state.knownWordMaturityLearningColor = maturityColors.learning;
+    ctx.state.knownWordMaturityYoungColor = maturityColors.young;
+    ctx.state.knownWordMaturityMatureColor = maturityColors.mature;
     ctx.state.nPlusOneColor = nPlusOneColor;
     ctx.state.nameMatchEnabled = nameMatchEnabled;
     ctx.state.nameMatchColor = nameMatchColor;
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-known-word-color', knownWordColor);
+    ctx.dom.subtitleRoot.style.setProperty('--subtitle-maturity-new-color', maturityColors.new);
+    ctx.dom.subtitleRoot.style.setProperty(
+      '--subtitle-maturity-learning-color',
+      maturityColors.learning,
+    );
+    ctx.dom.subtitleRoot.style.setProperty('--subtitle-maturity-young-color', maturityColors.young);
+    ctx.dom.subtitleRoot.style.setProperty(
+      '--subtitle-maturity-mature-color',
+      maturityColors.mature,
+    );
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-n-plus-one-color', nPlusOneColor);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-name-match-color', nameMatchColor);
     ctx.dom.subtitleRoot.style.setProperty('--subtitle-hover-token-color', hoverTokenColor);

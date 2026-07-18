@@ -204,3 +204,54 @@ test('computeWordClass skips frequency class when rank is out of topX', () => {
 
   assert.equal(actual, 'word');
 });
+
+test('computeWordClass adds the maturity tier class alongside word-known', () => {
+  const token = createToken({
+    isKnown: true,
+    knownMaturity: 'mature',
+    surface: '猫',
+  });
+
+  assert.equal(computeWordClass(token), 'word word-known word-maturity-mature');
+});
+
+test('computeWordClass keeps the plain known class when no maturity tier is set', () => {
+  const token = createToken({
+    isKnown: true,
+    surface: '猫',
+  });
+
+  assert.equal(computeWordClass(token), 'word word-known');
+});
+
+test('computeWordClass composes maturity with JLPT classes', () => {
+  const token = createToken({
+    isKnown: true,
+    knownMaturity: 'young',
+    jlptLevel: 'N3',
+    surface: '猫',
+  });
+
+  assert.equal(computeWordClass(token), 'word word-known word-maturity-young word-jlpt-n3');
+});
+
+test('computeWordClass gives n+1 and name matches precedence over maturity', () => {
+  const nPlusOne = createToken({
+    isKnown: true,
+    knownMaturity: 'mature',
+    isNPlusOneTarget: true,
+    surface: '犬',
+  });
+  assert.equal(computeWordClass(nPlusOne), 'word word-n-plus-one');
+
+  const nameMatch = createToken({
+    isKnown: true,
+    knownMaturity: 'mature',
+    surface: 'アクア',
+  }) as MergedToken & { isNameMatch?: boolean };
+  nameMatch.isNameMatch = true;
+  assert.equal(
+    computeWordClass(nameMatch, { nameMatchEnabled: true }),
+    'word word-name-match',
+  );
+});

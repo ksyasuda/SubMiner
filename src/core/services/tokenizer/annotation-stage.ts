@@ -7,7 +7,13 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../../token-pos2-exclusions';
-import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
+import {
+  JlptLevel,
+  KnownWordMaturityTier,
+  MergedToken,
+  NPlusOneMatchMode,
+  PartOfSpeech,
+} from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
 import {
   shouldExcludeTokenFromSubtitleAnnotations as sharedShouldExcludeTokenFromSubtitleAnnotations,
@@ -36,6 +42,11 @@ export interface AnnotationStageDeps {
     reading?: string,
     options?: { allowReadingOnlyMatch?: boolean },
   ) => boolean;
+  getKnownWordTier?: (
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ) => KnownWordMaturityTier | null;
   knownWordMatchMode: NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
 }
@@ -616,6 +627,28 @@ function computeTokenKnownStatus(
   );
 }
 
+// Maturity tier for a token already confirmed known, following the same
+// primary + kana-fallback lookup sequence as computeTokenKnownStatus so the
+// tier always describes a note the boolean match could have come from.
+function computeTokenKnownMaturity(
+  token: MergedToken,
+  getKnownWordTier: NonNullable<AnnotationStageDeps['getKnownWordTier']>,
+  knownWordMatchMode: NPlusOneMatchMode,
+): KnownWordMaturityTier | undefined {
+  const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
+  const matchReading = resolveKnownWordReadingForMatch(token, knownWordMatchMode);
+  const primaryTier = matchText ? getKnownWordTier(matchText, matchReading) : null;
+  if (primaryTier) {
+    return primaryTier;
+  }
+
+  const fallbackReading = resolveCompleteTokenReading(token);
+  if (!fallbackReading || fallbackReading === matchText.trim()) {
+    return undefined;
+  }
+  return getKnownWordTier(fallbackReading, undefined, { allowReadingOnlyMatch: false }) ?? undefined;
+}
+
 function filterTokenFrequencyRank(
   token: MergedToken,
   pos1Exclusions: ReadonlySet<string>,
@@ -677,6 +710,11 @@ export function annotateTokens(
       : false;
     nPlusOneKnownStatuses[index] = isKnownForMatching;
 
+    const knownMaturity =
+      knownWordsEnabled && isKnownForMatching && deps.getKnownWordTier
+        ? computeTokenKnownMaturity(token, deps.getKnownWordTier, deps.knownWordMatchMode)
+        : undefined;
+
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
 
     // A confirmed character-name match must survive the POS noise filter:
@@ -696,6 +734,7 @@ export function annotateTokens(
       return {
         ...strippedToken,
         isKnown: knownWordsEnabled ? isKnownForMatching : false,
+        knownMaturity,
       };
     }
 
@@ -712,6 +751,7 @@ export function annotateTokens(
     return {
       ...token,
       isKnown: knownWordsEnabled ? isKnownForMatching : false,
+      knownMaturity,
       isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,

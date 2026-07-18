@@ -39,6 +39,8 @@ export interface MergedToken {
   pos3?: string;
   isMerged: boolean;
   isKnown: boolean;
+  /** Anki card maturity for a known token; unset when tier data is unavailable. */
+  knownMaturity?: KnownWordMaturityTier;
   isNPlusOneTarget: boolean;
   /**
    * Text Yomitan had no dictionary entry for (e.g. ぅ～ elongation runs,
@@ -60,6 +62,9 @@ export interface CharacterNameImage {
 export type FrequencyDictionaryLookup = (term: string) => number | null;
 
 export type JlptLevel = 'N1' | 'N2' | 'N3' | 'N4' | 'N5';
+
+/** Anki card maturity tier for a known word, most mature card wins. */
+export type KnownWordMaturityTier = 'new' | 'learning' | 'young' | 'mature';
 
 export interface SubtitlePosition {
   yPercent: number;
@@ -112,6 +117,12 @@ export interface SubtitleStyleConfig {
   backgroundColor?: string;
   nPlusOneColor?: string;
   knownWordColor?: string;
+  knownWordMaturityColors?: {
+    new: string;
+    learning: string;
+    young: string;
+    mature: string;
+  };
   jlptColors?: {
     N1: string;
     N2: string;

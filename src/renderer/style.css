@@ -1503,6 +1503,24 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
   color: var(--subtitle-known-word-color, #a6da95);
 }
 
+/* Anki maturity tiers ride on word-known and only override its color, so
+   hover/selection rules keyed on word-known keep applying. */
+#subtitleRoot .word.word-known.word-maturity-new {
+  color: var(--subtitle-maturity-new-color, #ee99a0);
+}
+
+#subtitleRoot .word.word-known.word-maturity-learning {
+  color: var(--subtitle-maturity-learning-color, #b7bdf8);
+}
+
+#subtitleRoot .word.word-known.word-maturity-young {
+  color: var(--subtitle-maturity-young-color, #91d7e3);
+}
+
+#subtitleRoot .word.word-known.word-maturity-mature {
+  color: var(--subtitle-maturity-mature-color, #a6da95);
+}
+
 #subtitleRoot .word.word-n-plus-one {
   color: var(--subtitle-n-plus-one-color, #c6a0f6);
 }
@@ -1678,6 +1696,30 @@ body.settings-modal-open [data-subminer-yomitan-popup-host='true'] {
 #subtitleRoot .word.word-known .c::selection {
   color: var(--subtitle-known-word-color, #a6da95) !important;
   -webkit-text-fill-color: var(--subtitle-known-word-color, #a6da95) !important;
+}
+
+#subtitleRoot .word.word-known.word-maturity-new::selection,
+#subtitleRoot .word.word-known.word-maturity-new .c::selection {
+  color: var(--subtitle-maturity-new-color, #ee99a0) !important;
+  -webkit-text-fill-color: var(--subtitle-maturity-new-color, #ee99a0) !important;
+}
+
+#subtitleRoot .word.word-known.word-maturity-learning::selection,
+#subtitleRoot .word.word-known.word-maturity-learning .c::selection {
+  color: var(--subtitle-maturity-learning-color, #b7bdf8) !important;
+  -webkit-text-fill-color: var(--subtitle-maturity-learning-color, #b7bdf8) !important;
+}
+
+#subtitleRoot .word.word-known.word-maturity-young::selection,
+#subtitleRoot .word.word-known.word-maturity-young .c::selection {
+  color: var(--subtitle-maturity-young-color, #91d7e3) !important;
+  -webkit-text-fill-color: var(--subtitle-maturity-young-color, #91d7e3) !important;
+}
+
+#subtitleRoot .word.word-known.word-maturity-mature::selection,
+#subtitleRoot .word.word-known.word-maturity-mature .c::selection {
+  color: var(--subtitle-maturity-mature-color, #a6da95) !important;
+  -webkit-text-fill-color: var(--subtitle-maturity-mature-color, #a6da95) !important;
 }
 
 #subtitleRoot .word.word-n-plus-one::selection,

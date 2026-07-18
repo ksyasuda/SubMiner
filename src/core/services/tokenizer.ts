@@ -10,6 +10,7 @@ import {
   Token,
   FrequencyDictionaryLookup,
   JlptLevel,
+  KnownWordMaturityTier,
   PartOfSpeech,
 } from '../../types';
 import {
@@ -43,6 +44,12 @@ export type KnownWordLookupFn = (
   options?: { allowReadingOnlyMatch?: boolean },
 ) => boolean;
 
+export type KnownWordTierLookupFn = (
+  text: string,
+  reading?: string,
+  options?: { allowReadingOnlyMatch?: boolean },
+) => KnownWordMaturityTier | null;
+
 export interface TokenizerServiceDeps {
   getYomitanExt: () => Extension | null;
   getYomitanSession?: () => Session | null;
@@ -53,6 +60,7 @@ export interface TokenizerServiceDeps {
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: KnownWordLookupFn;
+  getKnownWordTier?: KnownWordTierLookupFn;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -88,6 +96,7 @@ export interface TokenizerDepsRuntimeOptions {
   getYomitanParserInitPromise: () => Promise<boolean> | null;
   setYomitanParserInitPromise: (promise: Promise<boolean> | null) => void;
   isKnownWord: KnownWordLookupFn;
+  getKnownWordTier?: KnownWordTierLookupFn;
   getKnownWordMatchMode: () => NPlusOneMatchMode;
   getKnownWordsEnabled?: () => boolean;
   getJlptLevel: (text: string) => JlptLevel | null;
@@ -204,6 +213,11 @@ async function applyAnnotationStage(
     tokens,
     {
       isKnownWord: getKnownWordLookup(deps, options),
+      // Maturity tiers only refine known-word rendering, so they follow the
+      // known-word toggle rather than the N+1 gate.
+      ...(options.knownWordsEnabled && deps.getKnownWordTier
+        ? { getKnownWordTier: deps.getKnownWordTier }
+        : {}),
       knownWordMatchMode: deps.getKnownWordMatchMode(),
       getJlptLevel: deps.getJlptLevel,
     },
@@ -242,6 +256,7 @@ export function createTokenizerDepsRuntime(
     getYomitanParserInitPromise: options.getYomitanParserInitPromise,
     setYomitanParserInitPromise: options.setYomitanParserInitPromise,
     isKnownWord: options.isKnownWord,
+    getKnownWordTier: options.getKnownWordTier,
     getKnownWordMatchMode: options.getKnownWordMatchMode,
     getKnownWordsEnabled: options.getKnownWordsEnabled,
     getJlptLevel: options.getJlptLevel,
