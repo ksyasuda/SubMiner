@@ -6,28 +6,42 @@
 ### Added
 
 - **Sync Stats & History**
-  - New **Sync Stats & History** window (tray menu) and `subminer sync <host>` command keep mining stats and watch history in sync across machines over SSH.
-  - Syncing is safe to repeat: data merges without duplicates, and hosts with auto-sync enabled sync automatically in the background on a schedule, reporting results as overlay notifications.
-  - Manual database snapshots (create, merge, reveal, delete) and connection testing cover one-off transfers, and Windows machines running the built-in OpenSSH Server work as sync remotes too; no setup beyond SSH access is needed on the remote side.
+  - New **Sync Stats & History** window (tray menu) and `subminer sync <host>` command keep mining stats and watch history in sync between machines over SSH, with saved devices, per-host sync direction, and live stage-by-stage progress.
+  - Merges are safe to repeat: data combines without duplicates, and hosts with auto-sync enabled sync automatically in the background on a schedule, reporting results as overlay notifications.
+  - Manual snapshot tools (create, merge, reveal, delete) and connection testing cover one-off transfers; Windows machines running the built-in OpenSSH Server work as sync remotes too, with no setup needed beyond SSH access. Power users can script transfers directly with `--push`/`--pull`, `--check`, `--snapshot`/`--merge`, and `--json` flags.
 
 - **TsukiHime Subtitle Downloads**
-  - Download Japanese and secondary-language subtitles for the current video directly from TsukiHime, mirroring the existing Jimaku flow: `Ctrl+Shift+T` opens an in-overlay search modal with separate tabs for the primary and secondary languages.
-  - Matching releases are found automatically from the video filename; the chosen subtitle downloads and loads straight into mpv, no API key required.
+  - Download Japanese and secondary-language subtitles for the current video directly from TsukiHime, mirroring the existing Jimaku flow.
+  - Press `Ctrl+Shift+T` to search by tabs for the primary and secondary languages; the matching release is found automatically from the video filename and loads straight into mpv, no API key required.
 
 - **Post-Playback History Menu**
-  - After a watch-history episode ends or mpv closes, the fzf or rofi launcher returns to that series with options to play the previous episode, rewatch, play the next episode, select another episode, or quit SubMiner. Previous and Next continue across season directories.
+  - After a watch-history episode ends or mpv closes, the fzf/rofi launcher returns to that series with options to play the previous or next episode, rewatch, pick another episode, or quit SubMiner.
+  - Previous/Next continue across season directories, so you can binge a show without manually browsing folders.
 
 ### Changed
 
-- **Clipboard-Video Shortcut**: The "append clipboard video to queue" shortcut is now configurable (`shortcuts.appendClipboardVideoToQueue`) instead of fixed.
+- **Clipboard-Video Shortcut**
+  - The "append clipboard video to queue" shortcut is now configurable via `shortcuts.appendClipboardVideoToQueue` instead of being fixed.
 
 ### Fixed
 
-- **Word Highlighting Accuracy**: Fixed several cases of incorrect word highlighting and annotations, including inconsistent part-of-speech exclusions on merged quote-particle tokens, missing annotations for rare kanji, katakana punctuation wrongly treated as non-kana noise, and certain kanji vocabulary being skipped for next-level ("N+1") highlighting.
-- **Startup Playback Pausing Too Early**: Fixed playback resuming before subtitle processing had finished warming up, which could briefly show untranslated subtitles right after opening a video, most noticeable when resuming mid-episode.
-- **Linux AppImage Crash Notification on Quit**: Fixed a spurious "Service Crash" desktop notification appearing after closing a video when running the Linux AppImage.
-- **AnkiConnect Proxy Port Conflict**: Fixed video playback failing to start when another process already held the configured AnkiConnect proxy port; SubMiner now shows a notification explaining how to resolve the conflict instead of crashing.
-- **Stats & Settings Reliability**: Hardened the stats server against malformed requests, stalled AniList lookups, media mismatches during word mining, and missing Yomitan connections; AnkiConnect settings validation now preserves valid custom configurations while safely falling back on invalid values instead of failing.
+- **Word Highlighting Accuracy**
+  - Fixed several incorrect word highlighting and annotation cases: inconsistent part-of-speech exclusions on merged quote-particle tokens, missing annotations for rare kanji, katakana punctuation wrongly treated as non-kana noise, and certain kanji vocabulary skipped for next-level ("N+1") highlighting.
+
+- **Startup Playback Pausing Too Early**
+  - Fixed playback resuming before subtitle processing finished warming up, which could briefly show untranslated subtitles right after opening a video.
+  - Most noticeable when resuming mid-episode or when a subtitle cue starts within the first couple of seconds.
+
+- **Linux AppImage Crash Notification on Quit**
+  - Fixed a spurious "Service Crash" desktop notification appearing after closing a video when running the Linux AppImage.
+  - If needed, the mount-keepalive behavior behind this fix can be disabled with `SUBMINER_NO_APPIMAGE_MOUNT_KEEPALIVE=1`.
+
+- **AnkiConnect Proxy Port Conflict**
+  - Fixed video playback failing to start when another process already held the configured AnkiConnect proxy port; SubMiner now shows a notification explaining how to resolve the conflict instead of crashing.
+
+- **Stats & Settings Reliability**
+  - Hardened the stats server against malformed requests, stalled AniList lookups, media mismatches during word mining, and missing Yomitan connections.
+  - AnkiConnect settings validation now preserves valid custom configurations while safely falling back on invalid values instead of failing.
 
 ## What's Changed
 
