@@ -35,20 +35,11 @@ test('maturity is enabled only when both highlight and maturity flags are on', (
 
 test('mature threshold falls back to default for invalid values', () => {
   assert.equal(DEFAULT_MATURE_INTERVAL_THRESHOLD_DAYS, 21);
-  assert.equal(
-    getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: 30 })),
-    30,
-  );
-  assert.equal(
-    getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: 14.9 })),
-    14,
-  );
+  assert.equal(getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: 30 })), 30);
+  assert.equal(getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: 14.9 })), 14);
   assert.equal(getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: 0 })), 21);
   assert.equal(getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: -5 })), 21);
-  assert.equal(
-    getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: Number.NaN })),
-    21,
-  );
+  assert.equal(getMatureIntervalThresholdDays(makeConfig({ matureThresholdDays: Number.NaN })), 21);
   assert.equal(getMatureIntervalThresholdDays(makeConfig({})), 21);
   assert.equal(getMatureIntervalThresholdDays(makeConfig(undefined)), 21);
 });

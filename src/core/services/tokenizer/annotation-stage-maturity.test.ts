@@ -80,9 +80,7 @@ test('annotateTokens resolves maturity through the kana reading fallback', () =>
     reading: string | undefined;
     allowReadingOnlyMatch: boolean | undefined;
   }> = [];
-  const tokens = [
-    makeToken({ surface: '大体', headword: '大体', reading: 'だいたい', endPos: 2 }),
-  ];
+  const tokens = [makeToken({ surface: '大体', headword: '大体', reading: 'だいたい', endPos: 2 })];
 
   const result = annotateTokens(
     tokens,

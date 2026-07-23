@@ -646,7 +646,9 @@ function computeTokenKnownMaturity(
   if (!fallbackReading || fallbackReading === matchText.trim()) {
     return undefined;
   }
-  return getKnownWordTier(fallbackReading, undefined, { allowReadingOnlyMatch: false }) ?? undefined;
+  return (
+    getKnownWordTier(fallbackReading, undefined, { allowReadingOnlyMatch: false }) ?? undefined
+  );
 }
 
 function filterTokenFrequencyRank(

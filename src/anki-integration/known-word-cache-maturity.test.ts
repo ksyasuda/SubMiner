@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { AnkiConnectConfig } from '../types/anki';
+import { setLogLevel } from '../logger';
 import { KnownWordCacheManager, getKnownWordCacheLifecycleConfig } from './known-word-cache';
 
 interface HarnessNoteInfo {
@@ -255,8 +256,14 @@ test('getKnownWordTier returns null and skips tier queries when maturity is disa
 
 test('refresh preserves known-word cache when maturity lookup fails', async () => {
   const { manager, statePath, clientState, cleanup } = createMaturityHarness(maturityConfig());
+  const originalInfo = console.info;
+  const infoLogs: string[] = [];
+  setLogLevel('info');
 
   try {
+    console.info = (...args: unknown[]) => {
+      infoLogs.push(args.map((value) => String(value)).join(' '));
+    };
     clientState.findNotesByQuery.set('deck:"Mining"', [1]);
     clientState.failedQueries.add('deck:"Mining" prop:ivl>=21');
     clientState.notesInfoResult = [{ noteId: 1, fields: { Word: { value: '猫' } } }];
@@ -271,7 +278,10 @@ test('refresh preserves known-word cache when maturity lookup fails', async () =
     };
     assert.equal(persisted.version, 4);
     assert.deepEqual(persisted.tiers, {});
+    assert.match(infoLogs.join('\n'), /maturityTiers=fetch-failed/);
   } finally {
+    console.info = originalInfo;
+    setLogLevel(undefined);
     cleanup();
   }
 });

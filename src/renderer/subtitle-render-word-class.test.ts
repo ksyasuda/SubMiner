@@ -250,8 +250,5 @@ test('computeWordClass gives n+1 and name matches precedence over maturity', () 
     surface: 'アクア',
   }) as MergedToken & { isNameMatch?: boolean };
   nameMatch.isNameMatch = true;
-  assert.equal(
-    computeWordClass(nameMatch, { nameMatchEnabled: true }),
-    'word word-name-match',
-  );
+  assert.equal(computeWordClass(nameMatch, { nameMatchEnabled: true }), 'word word-name-match');
 });

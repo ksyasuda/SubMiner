@@ -389,8 +389,10 @@ export class KnownWordCacheManager {
     this.isRefreshingKnownWords = true;
     try {
       const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
+      const maturityTrackingEnabled = this.isMaturityTrackingEnabled();
+      let maturityFetchFailed = false;
       let tierSets = null;
-      if (this.isMaturityTrackingEnabled()) {
+      if (maturityTrackingEnabled) {
         try {
           tierSets = await fetchKnownWordMaturityTierSets(
             (query, options) => this.deps.client.findNotes(query, options),
@@ -398,6 +400,7 @@ export class KnownWordCacheManager {
             getMatureIntervalThresholdDays(this.deps.getConfig()),
           );
         } catch (error) {
+          maturityFetchFailed = true;
           log.warn('Failed to fetch known-word maturity tiers:', (error as Error).message);
         }
       }
@@ -441,7 +444,11 @@ export class KnownWordCacheManager {
         'Known-word cache refreshed',
         `noteCount=${currentNoteIds.length}`,
         `wordCount=${this.wordReadingNoteIds.size}`,
-        tierSets ? `maturityTiers=${this.noteTierById.size}` : 'maturityTiers=off',
+        tierSets
+          ? `maturityTiers=${this.noteTierById.size}`
+          : maturityFetchFailed
+            ? 'maturityTiers=fetch-failed'
+            : 'maturityTiers=off',
       );
     } catch (error) {
       log.warn('Failed to refresh known-word cache:', (error as Error).message);
