@@ -20,6 +20,7 @@ function createMaturityHarness(config: AnkiConnectConfig): {
     findNotesResult: number[];
     notesInfoResult: HarnessNoteInfo[];
     findNotesByQuery: Map<string, number[]>;
+    failedQueries: Set<string>;
   };
   createSiblingManager: () => KnownWordCacheManager;
   cleanup: () => void;
@@ -31,12 +32,16 @@ function createMaturityHarness(config: AnkiConnectConfig): {
     findNotesResult: [] as number[],
     notesInfoResult: [] as HarnessNoteInfo[],
     findNotesByQuery: new Map<string, number[]>(),
+    failedQueries: new Set<string>(),
   };
   const deps = {
     client: {
       findNotes: async (query: string) => {
         calls.findNotes += 1;
         calls.queries.push(query);
+        if (clientState.failedQueries.has(query)) {
+          throw new Error(`Anki unavailable for query: ${query}`);
+        }
         if (clientState.findNotesByQuery.has(query)) {
           return clientState.findNotesByQuery.get(query) ?? [];
         }
@@ -220,7 +225,10 @@ test('reading-only fallback resolves tiers unless opted out', async () => {
     await manager.refresh(true);
 
     assert.equal(manager.getKnownWordTier('けいこく'), 'mature');
-    assert.equal(manager.getKnownWordTier('けいこく', undefined, { allowReadingOnlyMatch: false }), null);
+    assert.equal(
+      manager.getKnownWordTier('けいこく', undefined, { allowReadingOnlyMatch: false }),
+      null,
+    );
   } finally {
     cleanup();
   }
@@ -240,6 +248,29 @@ test('getKnownWordTier returns null and skips tier queries when maturity is disa
     assert.equal(calls.findNotes, 1);
     assert.equal(manager.isKnownWord('猫'), true);
     assert.equal(manager.getKnownWordTier('猫'), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test('refresh preserves known-word cache when maturity lookup fails', async () => {
+  const { manager, statePath, clientState, cleanup } = createMaturityHarness(maturityConfig());
+
+  try {
+    clientState.findNotesByQuery.set('deck:"Mining"', [1]);
+    clientState.failedQueries.add('deck:"Mining" prop:ivl>=21');
+    clientState.notesInfoResult = [{ noteId: 1, fields: { Word: { value: '猫' } } }];
+
+    await manager.refresh(true);
+
+    assert.equal(manager.isKnownWord('猫'), true);
+    assert.equal(manager.getKnownWordTier('猫'), null);
+    const persisted = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as {
+      version: number;
+      tiers: Record<string, string>;
+    };
+    assert.equal(persisted.version, 4);
+    assert.deepEqual(persisted.tiers, {});
   } finally {
     cleanup();
   }

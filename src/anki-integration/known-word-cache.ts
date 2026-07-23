@@ -389,13 +389,18 @@ export class KnownWordCacheManager {
     this.isRefreshingKnownWords = true;
     try {
       const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
-      const tierSets = this.isMaturityTrackingEnabled()
-        ? await fetchKnownWordMaturityTierSets(
+      let tierSets = null;
+      if (this.isMaturityTrackingEnabled()) {
+        try {
+          tierSets = await fetchKnownWordMaturityTierSets(
             (query, options) => this.deps.client.findNotes(query, options),
             this.getKnownWordQueryScopes().map((scope) => scope.query),
             getMatureIntervalThresholdDays(this.deps.getConfig()),
-          )
-        : null;
+          );
+        } catch (error) {
+          log.warn('Failed to fetch known-word maturity tiers:', (error as Error).message);
+        }
+      }
       const currentNoteIds = Array.from(noteFieldsById.keys()).sort((a, b) => a - b);
 
       if (this.noteEntriesById.size === 0) {
