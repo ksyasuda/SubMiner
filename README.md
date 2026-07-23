@@ -238,7 +238,6 @@ SubMiner builds on the work of these open-source projects:
 | [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
 | [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
 | [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
-| [TsukiHime](https://tsukihime.org)                                                          | Release-track subtitle search and downloads (Animetosho successor)      |
 | [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser     |
 | [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
 
