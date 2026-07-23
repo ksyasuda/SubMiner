@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { LauncherCommandContext } from './context.js';
-import { runPlaybackCommandWithDeps } from './playback-command.js';
+import { registerCleanup, runPlaybackCommandWithDeps } from './playback-command.js';
 import { state } from '../mpv.js';
 
 function createContext(): LauncherCommandContext {
@@ -102,6 +102,20 @@ function createContext(): LauncherCommandContext {
     },
   };
 }
+
+test('playback cleanup signal handlers are registered once across repeated sessions', () => {
+  assert.equal(typeof registerCleanup, 'function', 'cleanup registration is not exported');
+  const context = createContext();
+  const registeredSignals: NodeJS.Signals[] = [];
+  context.processAdapter.onSignal = (signal) => {
+    registeredSignals.push(signal);
+  };
+
+  registerCleanup(context);
+  registerCleanup(context);
+
+  assert.deepEqual(registeredSignals, ['SIGINT', 'SIGTERM']);
+});
 
 test('youtube playback launches overlay with app-owned youtube flow args', async () => {
   const calls: string[] = [];

@@ -30,6 +30,7 @@ import { hasLauncherExternalYomitanProfileConfig } from '../config.js';
 
 const SETUP_WAIT_TIMEOUT_MS = 10 * 60 * 1000;
 const SETUP_POLL_INTERVAL_MS = 500;
+const cleanupRegisteredProcessAdapters = new WeakSet<LauncherCommandContext['processAdapter']>();
 
 function getLauncherConfigDir(): string {
   return getDefaultConfigDir({
@@ -92,8 +93,10 @@ async function chooseTarget(
   return { target: selected, kind: 'file' };
 }
 
-function registerCleanup(context: LauncherCommandContext): void {
+export function registerCleanup(context: LauncherCommandContext): void {
   const { args, processAdapter } = context;
+  if (cleanupRegisteredProcessAdapters.has(processAdapter)) return;
+
   processAdapter.onSignal('SIGINT', () => {
     stopOverlay(args);
     processAdapter.exit(130);
@@ -102,6 +105,7 @@ function registerCleanup(context: LauncherCommandContext): void {
     stopOverlay(args);
     processAdapter.exit(143);
   });
+  cleanupRegisteredProcessAdapters.add(processAdapter);
 }
 
 async function ensurePlaybackSetupReady(context: LauncherCommandContext): Promise<void> {

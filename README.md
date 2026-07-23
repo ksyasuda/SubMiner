@@ -213,7 +213,7 @@ On **Windows**, just run `SubMiner.exe` and the setup will open automatically on
 subminer video.mkv          # launch mpv with SubMiner
 subminer /path/to/dir       # pick a file with fzf
 subminer -R /path/to/dir    # pick a file with rofi (Linux only)
-subminer -H                 # browse local watch history (replay / next episode / browse)
+subminer -H                 # browse history, then previous / replay / next / select / quit
 ```
 
 On **Windows**, use the **SubMiner mpv** shortcut created during setup. Double-click it or drag a video file onto it.
