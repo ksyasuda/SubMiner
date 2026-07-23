@@ -342,7 +342,11 @@ export class KnownWordCacheManager {
     }
 
     // A just-mined card has never been reviewed.
-    if (this.isMaturityTrackingEnabled() && this.noteEntriesById.has(noteInfo.noteId)) {
+    if (
+      this.isMaturityTrackingEnabled() &&
+      this.noteEntriesById.has(noteInfo.noteId) &&
+      !this.noteTierById.has(noteInfo.noteId)
+    ) {
       this.noteTierById.set(noteInfo.noteId, 'new');
     }
 

@@ -342,3 +342,33 @@ test('appendFromNoteInfo marks freshly mined notes as new tier', async () => {
     cleanup();
   }
 });
+
+test('appendFromNoteInfo preserves an existing maturity tier', async () => {
+  const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
+
+  try {
+    clientState.findNotesByQuery.set('deck:"Mining"', [7, 8]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [7]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', []);
+    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [8]);
+    clientState.notesInfoResult = [
+      { noteId: 7, fields: { Word: { value: '猫' } } },
+      { noteId: 8, fields: { Word: { value: '犬' } } },
+    ];
+    await manager.refresh(true);
+
+    manager.appendFromNoteInfo({
+      noteId: 7,
+      fields: { Word: { value: '子猫' } },
+    });
+    manager.appendFromNoteInfo({
+      noteId: 8,
+      fields: { Word: { value: '子犬' } },
+    });
+
+    assert.equal(manager.getKnownWordTier('子猫'), 'mature');
+    assert.equal(manager.getKnownWordTier('子犬'), 'learning');
+  } finally {
+    cleanup();
+  }
+});
