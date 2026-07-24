@@ -125,6 +125,32 @@ test('settings registry groups annotation display fields by config group', () =>
   assert.equal(field('subtitleStyle.jlptColors.N1').control, 'color');
 });
 
+test('settings registry groups maturity settings under Known Words with color controls', () => {
+  assert.equal(field('ankiConnect.knownWords.maturityEnabled').subsection, 'Known Words');
+  assert.equal(field('ankiConnect.knownWords.matureThresholdDays').subsection, 'Known Words');
+  for (const tier of ['new', 'learning', 'young', 'mature']) {
+    const tierField = field(`subtitleStyle.knownWordMaturityColors.${tier}`);
+    assert.equal(tierField.subsection, 'Known Words');
+    assert.equal(tierField.control, 'color');
+  }
+});
+
+test('settings registry orders maturity colors from least mature to mature', () => {
+  const knownWordsPaths = fields
+    .filter((candidate) => candidate.subsection === 'Known Words')
+    .map((candidate) => candidate.configPath);
+  assert.deepEqual(knownWordsPaths, [
+    'ankiConnect.knownWords.highlightEnabled',
+    'ankiConnect.knownWords.maturityEnabled',
+    'subtitleStyle.knownWordColor',
+    'ankiConnect.knownWords.matureThresholdDays',
+    'subtitleStyle.knownWordMaturityColors.new',
+    'subtitleStyle.knownWordMaturityColors.learning',
+    'subtitleStyle.knownWordMaturityColors.young',
+    'subtitleStyle.knownWordMaturityColors.mature',
+  ]);
+});
+
 test('settings registry routes known words sync, n+1, and frequency config to behavior', () => {
   assert.equal(field('ankiConnect.knownWords.addMinedWordsImmediately').category, 'behavior');
   assert.equal(field('ankiConnect.knownWords.addMinedWordsImmediately').section, 'Known Words');
