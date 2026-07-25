@@ -238,6 +238,42 @@ test('manual selection store prefers exact scoped override over legacy fallback'
   });
 });
 
+test('manual selection store prefers same-directory override over legacy fallback', async () => {
+  const userDataPath = makeTempDir();
+  const overrideDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(overrideDir, { recursive: true });
+  const directoryScope = 'volumes-jellyfin-anime-toaru-kagaku-no-railgun-season-2';
+  fs.writeFileSync(
+    path.join(overrideDir, 'anilist-overrides.json'),
+    JSON.stringify({
+      overrides: [
+        {
+          seriesKey: 'sisters',
+          mediaId: 1057,
+          mediaTitle: 'Legacy fallback',
+          staleMediaIds: [],
+        },
+        {
+          seriesKey: `${directoryScope}--critical`,
+          mediaId: 16049,
+          mediaTitle: 'A Certain Scientific Railgun S',
+          staleMediaIds: [1057],
+        },
+      ],
+    }),
+    'utf8',
+  );
+
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+
+  assert.deepEqual(await store.getOverride(`${directoryScope}--sisters`), {
+    seriesKey: `${directoryScope}--critical`,
+    mediaId: 16049,
+    mediaTitle: 'A Certain Scientific Railgun S',
+    staleMediaIds: [1057],
+  });
+});
+
 test('manual selection store keeps overrides separate for different season directories', async () => {
   const userDataPath = makeTempDir();
   const store = createCharacterDictionaryManualSelectionStore({ userDataPath });

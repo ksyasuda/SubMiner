@@ -140,10 +140,8 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
       const candidates = getLegacySeriesKeyCandidates(seriesKey);
       const overrides = readOverrides(filePath);
-      for (const candidate of candidates) {
-        const match = overrides.find((entry) => entry.seriesKey === candidate);
-        if (match) return match;
-      }
+      const exactMatch = overrides.find((entry) => entry.seriesKey === candidates[0]);
+      if (exactMatch) return exactMatch;
       const directoryScope = getDirectoryScope(seriesKey);
       if (directoryScope) {
         const scopedMatches = overrides.filter(
@@ -157,6 +155,10 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
             staleMediaIds: dedupeNumbers(scopedMatches.flatMap((entry) => entry.staleMediaIds)),
           };
         }
+      }
+      for (const candidate of candidates.slice(1)) {
+        const match = overrides.find((entry) => entry.seriesKey === candidate);
+        if (match) return match;
       }
       return null;
     },
