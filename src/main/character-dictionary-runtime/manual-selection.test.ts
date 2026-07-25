@@ -82,6 +82,73 @@ test('manual selection store persists overrides and matches later episodes in th
   });
 });
 
+test('manual selection store applies a season-directory override when later episode guesses differ', async () => {
+  const userDataPath = makeTempDir();
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+  const directory = '/Volumes/jellyfin/anime/toaru-kagaku-no-railgun/Season-2';
+  const selectedKey = buildCharacterDictionarySeriesKey({
+    mediaPath: `${directory}/A Certain Scientific Railgun S - 10 - Critical.mkv`,
+    mediaTitle: 'A Certain Scientific Railgun S - 10 - Critical.mkv',
+    guess: {
+      title: 'Critical',
+      season: null,
+      episode: 10,
+      source: 'guessit',
+    },
+  });
+  await store.setOverride({
+    seriesKey: selectedKey,
+    mediaId: 16049,
+    mediaTitle: 'A Certain Scientific Railgun S',
+    staleMediaIds: [1057],
+  });
+
+  const laterEpisodeKey = buildCharacterDictionarySeriesKey({
+    mediaPath: `${directory}/A Certain Scientific Railgun S - 16 - Sisters.mkv`,
+    mediaTitle: 'A Certain Scientific Railgun S - 16 - Sisters.mkv',
+    guess: {
+      title: 'Sisters',
+      season: null,
+      episode: 16,
+      source: 'guessit',
+    },
+  });
+
+  assert.deepEqual(await store.getOverride(laterEpisodeKey), {
+    seriesKey: selectedKey,
+    mediaId: 16049,
+    mediaTitle: 'A Certain Scientific Railgun S',
+    staleMediaIds: [1057],
+  });
+});
+
+test('manual selection store replaces older guessed keys for the same season directory', async () => {
+  const userDataPath = makeTempDir();
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+  const directoryKey = 'volumes-jellyfin-anime-toaru-kagaku-no-railgun-season-2';
+  const firstKey = `${directoryKey}--critical`;
+  const laterKey = `${directoryKey}--sisters`;
+  await store.setOverride({
+    seriesKey: firstKey,
+    mediaId: 1057,
+    mediaTitle: 'Ippatsu Kiki Musume',
+    staleMediaIds: [],
+  });
+  await store.setOverride({
+    seriesKey: laterKey,
+    mediaId: 16049,
+    mediaTitle: 'A Certain Scientific Railgun S',
+    staleMediaIds: [1057],
+  });
+
+  assert.deepEqual(await store.getOverride(firstKey), {
+    seriesKey: laterKey,
+    mediaId: 16049,
+    mediaTitle: 'A Certain Scientific Railgun S',
+    staleMediaIds: [1057],
+  });
+});
+
 test('manual selection store resolves legacy unscoped override keys', async () => {
   const userDataPath = makeTempDir();
   const overrideDir = path.join(userDataPath, 'character-dictionaries');
