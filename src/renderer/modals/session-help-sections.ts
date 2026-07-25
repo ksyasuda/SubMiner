@@ -403,6 +403,7 @@ export function buildSessionHelpSections(input: {
   markWatchedKey?: string | null;
   subtitleSidebarToggleKey?: string | null;
   subtitleStyle: SessionHelpSubtitleStyle | null | undefined;
+  knownWordMaturityEnabled?: boolean;
 }): SessionHelpSection[] {
   const sessionBindings = input.sessionBindings.filter((binding) => {
     if (binding.actionType !== 'session-action') return true;
@@ -420,7 +421,9 @@ export function buildSessionHelpSections(input: {
       subtitleSidebarToggleKey: input.subtitleSidebarToggleKey,
     }),
     ...buildFixedOverlaySections(),
-    buildColorSection(input.subtitleStyle ?? {}),
+    buildColorSection(input.subtitleStyle ?? {}, {
+      knownWordMaturityEnabled: input.knownWordMaturityEnabled,
+    }),
   ]);
 }
 

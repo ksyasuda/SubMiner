@@ -67,6 +67,8 @@ Instead of one color for every known word, maturity highlighting tints each know
 
 Changing `maturityEnabled` or the threshold triggers a full known-word cache refresh so tiers are refetched.
 
+While maturity highlighting is on, the session help color legend replaces its single "Known words" swatch with one row per tier (new, learning, young, mature).
+
 ## Character-Name Highlighting
 
 Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.

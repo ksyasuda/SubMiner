@@ -19,6 +19,23 @@ type SessionHelpBindingInfo = {
   fallbackUnavailable: boolean;
 };
 
+/**
+ * Maturity coloring is a live runtime toggle, so the color legend reads it from
+ * runtime options instead of the resolved subtitle style. A missing or failing
+ * runtime-options call falls back to the flat known-word color.
+ */
+async function readKnownWordMaturityEnabled(): Promise<boolean> {
+  try {
+    const runtimeOptions = await window.electronAPI.getRuntimeOptions();
+    return runtimeOptions.some(
+      (option) =>
+        option.id === 'subtitle.annotation.knownWords.maturityEnabled' && option.value === true,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function formatBindingHint(info: SessionHelpBindingInfo): string {
   if (info.bindingKey === 'KeyK' && info.fallbackUsed) {
     return info.fallbackUnavailable ? 'Y-K (fallback and conflict noted)' : 'Y-K (fallback)';
@@ -219,22 +236,29 @@ export function createSessionHelpModal(
 
   async function render(): Promise<boolean> {
     try {
-      const [sessionBindings, styleConfig, markWatchedKey, subtitleSidebarToggleKey] =
-        await Promise.all([
-          window.electronAPI.getSessionBindings(),
-          window.electronAPI.getSubtitleStyle(),
-          window.electronAPI.getMarkWatchedKey(),
-          window.electronAPI
-            .getSubtitleSidebarSnapshot()
-            .then((snapshot) => snapshot.config.toggleKey)
-            .catch(() => undefined),
-        ]);
+      const [
+        sessionBindings,
+        styleConfig,
+        markWatchedKey,
+        subtitleSidebarToggleKey,
+        knownWordMaturityEnabled,
+      ] = await Promise.all([
+        window.electronAPI.getSessionBindings(),
+        window.electronAPI.getSubtitleStyle(),
+        window.electronAPI.getMarkWatchedKey(),
+        window.electronAPI
+          .getSubtitleSidebarSnapshot()
+          .then((snapshot) => snapshot.config.toggleKey)
+          .catch(() => undefined),
+        readKnownWordMaturityEnabled(),
+      ]);
 
       helpSections = buildSessionHelpSections({
         sessionBindings,
         markWatchedKey,
         subtitleSidebarToggleKey,
         subtitleStyle: styleConfig ?? {},
+        knownWordMaturityEnabled,
       });
       applyFilterAndRender();
       return true;

@@ -49,6 +49,46 @@ export function applyAnkiKnownWordsResolution(
     }
   }
 
+  const knownWordsMaturityEnabled = asBoolean(knownWordsConfig.maturityEnabled);
+  if (knownWordsMaturityEnabled !== undefined) {
+    context.resolved.ankiConnect.knownWords.maturityEnabled = knownWordsMaturityEnabled;
+  } else if (hasOwn(knownWordsConfig, 'maturityEnabled')) {
+    context.warn(
+      'ankiConnect.knownWords.maturityEnabled',
+      knownWordsConfig.maturityEnabled,
+      context.resolved.ankiConnect.knownWords.maturityEnabled,
+      'Expected boolean.',
+    );
+    context.resolved.ankiConnect.knownWords.maturityEnabled =
+      DEFAULT_CONFIG.ankiConnect.knownWords.maturityEnabled;
+  } else {
+    context.resolved.ankiConnect.knownWords.maturityEnabled =
+      DEFAULT_CONFIG.ankiConnect.knownWords.maturityEnabled;
+  }
+
+  const knownWordsMatureThresholdDays = asNumber(knownWordsConfig.matureThresholdDays);
+  const hasValidMatureThresholdDays =
+    knownWordsMatureThresholdDays !== undefined &&
+    Number.isInteger(knownWordsMatureThresholdDays) &&
+    knownWordsMatureThresholdDays >= 1;
+  if (hasOwn(knownWordsConfig, 'matureThresholdDays')) {
+    if (hasValidMatureThresholdDays) {
+      context.resolved.ankiConnect.knownWords.matureThresholdDays = knownWordsMatureThresholdDays;
+    } else {
+      context.warn(
+        'ankiConnect.knownWords.matureThresholdDays',
+        knownWordsConfig.matureThresholdDays,
+        DEFAULT_CONFIG.ankiConnect.knownWords.matureThresholdDays,
+        'Expected an integer of at least 1.',
+      );
+      context.resolved.ankiConnect.knownWords.matureThresholdDays =
+        DEFAULT_CONFIG.ankiConnect.knownWords.matureThresholdDays;
+    }
+  } else {
+    context.resolved.ankiConnect.knownWords.matureThresholdDays =
+      DEFAULT_CONFIG.ankiConnect.knownWords.matureThresholdDays;
+  }
+
   const knownWordsRefreshMinutes = asNumber(knownWordsConfig.refreshMinutes);
   const hasValidKnownWordsRefreshMinutes =
     knownWordsRefreshMinutes !== undefined &&
