@@ -16,6 +16,11 @@ import {
   sanitizeKnownWordMaturityTier,
 } from './known-word-maturity';
 import {
+  CurrentKnownWordCacheState,
+  assertNever,
+  parseKnownWordCacheState,
+} from './known-word-cache-format';
+import {
   DEFAULT_KNOWN_WORD_READING_FIELDS,
   KnownWordEntry,
   convertKatakanaToHiragana,
@@ -93,42 +98,6 @@ export interface KnownWordCacheNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
-
-interface KnownWordCacheStateV1 {
-  readonly version: 1;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly words: string[];
-}
-
-interface KnownWordCacheStateV2 {
-  readonly version: 2;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly words: string[];
-  readonly notes: Record<string, string[]>;
-}
-
-interface KnownWordCacheStateV3 {
-  readonly version: 3;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly notes: Record<string, KnownWordEntry[]>;
-}
-
-interface KnownWordCacheStateV4 {
-  readonly version: 4;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly notes: Record<string, KnownWordEntry[]>;
-  readonly tiers: Record<string, KnownWordMaturityTier>;
-}
-
-type KnownWordCacheState =
-  | KnownWordCacheStateV1
-  | KnownWordCacheStateV2
-  | KnownWordCacheStateV3
-  | KnownWordCacheStateV4;
 
 const NO_READING_KEY = '';
 
@@ -842,8 +811,8 @@ export class KnownWordCacheManager {
         return;
       }
 
-      const parsed = JSON.parse(raw) as unknown;
-      if (!this.isKnownWordCacheStateValid(parsed)) {
+      const parsed = parseKnownWordCacheState(JSON.parse(raw) as unknown);
+      if (!parsed) {
         this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
@@ -856,57 +825,63 @@ export class KnownWordCacheManager {
       }
 
       this.clearInMemoryState();
-      if (parsed.version === 3 || parsed.version === 4) {
-        for (const [noteIdKey, entries] of Object.entries(parsed.notes)) {
-          const noteId = Number.parseInt(noteIdKey, 10);
-          if (!Number.isInteger(noteId) || noteId <= 0) {
-            continue;
-          }
-          const normalizedEntries = normalizeKnownWordEntryList(entries);
-          if (normalizedEntries.length === 0) {
-            continue;
-          }
-          this.noteEntriesById.set(noteId, normalizedEntries);
-          this.addEntriesToIndexes(noteId, normalizedEntries);
-        }
-        if (parsed.version === 4) {
-          for (const [noteIdKey, tier] of Object.entries(parsed.tiers)) {
+      switch (parsed.version) {
+        case 1:
+          // v1 has no per-note snapshots to convert; refetch from Anki.
+          this.knownWordsStateKey = this.getKnownWordCacheStateKey();
+          return;
+        case 2:
+          // Older states have no readings; load them reading-less (fail-open,
+          // matching the old behavior) but leave the cache marked stale so the
+          // next refresh upgrades entries with readings from Anki.
+          for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
             const noteId = Number.parseInt(noteIdKey, 10);
-            const sanitizedTier = sanitizeKnownWordMaturityTier(tier);
-            if (sanitizedTier && this.noteEntriesById.has(noteId)) {
-              this.noteTierById.set(noteId, sanitizedTier);
+            if (!Number.isInteger(noteId) || noteId <= 0) {
+              continue;
+            }
+            const normalizedEntries = normalizeKnownWordEntryList(
+              words.map((word) => ({
+                word: this.normalizeKnownWordForLookup(word),
+                reading: null,
+              })),
+            );
+            if (normalizedEntries.length === 0) {
+              continue;
+            }
+            this.noteEntriesById.set(noteId, normalizedEntries);
+            this.addEntriesToIndexes(noteId, normalizedEntries);
+          }
+          this.knownWordsStateKey = parsed.scope;
+          return;
+        case 3:
+        case 4:
+          for (const [noteIdKey, entries] of Object.entries(parsed.notes)) {
+            const noteId = Number.parseInt(noteIdKey, 10);
+            if (!Number.isInteger(noteId) || noteId <= 0) {
+              continue;
+            }
+            const normalizedEntries = normalizeKnownWordEntryList(entries);
+            if (normalizedEntries.length === 0) {
+              continue;
+            }
+            this.noteEntriesById.set(noteId, normalizedEntries);
+            this.addEntriesToIndexes(noteId, normalizedEntries);
+          }
+          if (parsed.version === 4) {
+            for (const [noteIdKey, tier] of Object.entries(parsed.tiers)) {
+              const noteId = Number.parseInt(noteIdKey, 10);
+              const sanitizedTier = sanitizeKnownWordMaturityTier(tier);
+              if (sanitizedTier && this.noteEntriesById.has(noteId)) {
+                this.noteTierById.set(noteId, sanitizedTier);
+              }
             }
           }
-        }
-        this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
-        this.knownWordsStateKey = parsed.scope;
-        return;
+          this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
+          this.knownWordsStateKey = parsed.scope;
+          return;
+        default:
+          assertNever(parsed);
       }
-
-      if (parsed.version === 2) {
-        // Older states have no readings; load them reading-less (fail-open,
-        // matching the old behavior) but leave the cache marked stale so the
-        // next refresh upgrades entries with readings from Anki.
-        for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
-          const noteId = Number.parseInt(noteIdKey, 10);
-          if (!Number.isInteger(noteId) || noteId <= 0) {
-            continue;
-          }
-          const normalizedEntries = normalizeKnownWordEntryList(
-            words.map((word) => ({ word: this.normalizeKnownWordForLookup(word), reading: null })),
-          );
-          if (normalizedEntries.length === 0) {
-            continue;
-          }
-          this.noteEntriesById.set(noteId, normalizedEntries);
-          this.addEntriesToIndexes(noteId, normalizedEntries);
-        }
-        this.knownWordsStateKey = parsed.scope;
-        return;
-      }
-
-      // v1 has no per-note snapshots to convert; refetch from Anki.
-      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     } catch (error) {
       log.warn('Failed to load known-word cache state:', (error as Error).message);
       this.clearInMemoryState();
@@ -928,7 +903,7 @@ export class KnownWordCacheManager {
         }
       }
 
-      const state: KnownWordCacheStateV4 = {
+      const state: CurrentKnownWordCacheState = {
         version: 4,
         refreshedAtMs: this.knownWordsLastRefreshedAtMs,
         scope: this.knownWordsStateKey,
@@ -939,63 +914,6 @@ export class KnownWordCacheManager {
     } catch (error) {
       log.warn('Failed to persist known-word cache state:', (error as Error).message);
     }
-  }
-
-  private isKnownWordCacheStateValid(value: unknown): value is KnownWordCacheState {
-    if (typeof value !== 'object' || value === null) return false;
-    const candidate = value as Record<string, unknown>;
-    if (
-      candidate.version !== 1 &&
-      candidate.version !== 2 &&
-      candidate.version !== 3 &&
-      candidate.version !== 4
-    ) {
-      return false;
-    }
-    if (typeof candidate.refreshedAtMs !== 'number') return false;
-    if (typeof candidate.scope !== 'string') return false;
-    if (candidate.version === 1 || candidate.version === 2) {
-      if (!Array.isArray(candidate.words)) return false;
-      if (!candidate.words.every((entry: unknown) => typeof entry === 'string')) {
-        return false;
-      }
-    }
-    if (candidate.version === 4) {
-      // Per-tier values are sanitized entry-by-entry at load time.
-      if (
-        typeof candidate.tiers !== 'object' ||
-        candidate.tiers === null ||
-        Array.isArray(candidate.tiers)
-      ) {
-        return false;
-      }
-    }
-    if (candidate.version === 2 || candidate.version === 3 || candidate.version === 4) {
-      if (
-        typeof candidate.notes !== 'object' ||
-        candidate.notes === null ||
-        Array.isArray(candidate.notes)
-      ) {
-        return false;
-      }
-      const isValidNoteEntry =
-        candidate.version === 2
-          ? (entry: unknown): boolean => typeof entry === 'string'
-          : (entry: unknown): boolean =>
-              typeof entry === 'object' &&
-              entry !== null &&
-              typeof (entry as KnownWordEntry).word === 'string' &&
-              ((entry as KnownWordEntry).reading === null ||
-                typeof (entry as KnownWordEntry).reading === 'string');
-      if (
-        !Object.values(candidate.notes as Record<string, unknown>).every(
-          (noteEntries) => Array.isArray(noteEntries) && noteEntries.every(isValidNoteEntry),
-        )
-      ) {
-        return false;
-      }
-    }
-    return true;
   }
 
   private extractKnownWordEntriesFromNoteInfo(
