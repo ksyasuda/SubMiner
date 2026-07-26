@@ -3,6 +3,10 @@ import type { KnownWordMaturityTier } from '../types/subtitle';
 
 export const DEFAULT_MATURE_INTERVAL_THRESHOLD_DAYS = 21;
 
+// Version of the tier classification rules; part of the known-word cache
+// identity so a rule change invalidates caches built under the old rules.
+export const KNOWN_WORD_MATURITY_RULES_VERSION = 2;
+
 // Ascending maturity; index order backs tier comparison.
 const TIER_ORDER: readonly KnownWordMaturityTier[] = ['new', 'learning', 'young', 'mature'];
 
@@ -37,14 +41,20 @@ export function getMatureIntervalThresholdDays(config: AnkiConnectConfig): numbe
 // Anki search props classify notes server-side: a note matches a tier query
 // when ANY of its cards matches, which implements most-mature-card-wins for
 // free once tiers are checked in mature > young > learning order.
+//
+// The interval tiers exclude is:learn so the per-card buckets stay disjoint and
+// match Anki's own card counts, where (re)learning is its own bucket rather
+// than part of young/mature. Without the exclusion a lapsed card - whose
+// interval is reset to at least lapse minInt, so >= 1 - is caught by the young
+// query first and the learning tier becomes unreachable in practice.
 export function buildKnownWordMaturityTierQueries(
   scopeQuery: string,
   thresholdDays: number,
 ): KnownWordMaturityTierQueries {
   const prefix = scopeQuery.trim().length > 0 ? `${scopeQuery.trim()} ` : '';
   return {
-    mature: `${prefix}prop:ivl>=${thresholdDays}`,
-    young: `${prefix}prop:ivl>=1 prop:ivl<${thresholdDays}`,
+    mature: `${prefix}prop:ivl>=${thresholdDays} -is:learn`,
+    young: `${prefix}prop:ivl>=1 prop:ivl<${thresholdDays} -is:learn`,
     learning: `${prefix}is:learn`,
   };
 }

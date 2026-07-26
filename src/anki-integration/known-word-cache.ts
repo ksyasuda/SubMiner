@@ -7,6 +7,7 @@ import { AnkiConnectConfig } from '../types/anki';
 import type { KnownWordMaturityTier } from '../types/subtitle';
 import { createLogger } from '../logger';
 import {
+  KNOWN_WORD_MATURITY_RULES_VERSION,
   classifyKnownWordNoteTier,
   fetchKnownWordMaturityTierSets,
   getKnownWordMaturityEnabled,
@@ -76,10 +77,14 @@ export function getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): str
     scope: getKnownWordCacheScopeForConfig(config),
     fieldsWord: trimToNonEmptyString(config.fields?.word) ?? '',
   };
-  // The maturity field is only added while enabled so persisted caches from
+  // The maturity fields are only added while enabled so persisted caches from
   // before the feature existed (or with it off) keep their identity.
+  // maturityRules is the classification-rule version: bump it whenever the tier
+  // queries change meaning so existing caches refetch instead of serving tiers
+  // computed under the old rules.
   if (getKnownWordMaturityEnabled(config)) {
     payload.maturity = getMatureIntervalThresholdDays(config);
+    payload.maturityRules = KNOWN_WORD_MATURITY_RULES_VERSION;
   }
   return JSON.stringify(payload);
 }

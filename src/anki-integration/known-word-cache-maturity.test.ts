@@ -98,7 +98,7 @@ test('lifecycle config key is unchanged when maturity is disabled', () => {
   };
   assert.equal(
     getKnownWordCacheLifecycleConfig(enabled),
-    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":21}',
+    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":21,"maturityRules":2}',
   );
 
   const customThreshold: AnkiConnectConfig = {
@@ -111,7 +111,19 @@ test('lifecycle config key is unchanged when maturity is disabled', () => {
   };
   assert.equal(
     getKnownWordCacheLifecycleConfig(customThreshold),
-    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":30}',
+    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":30,"maturityRules":2}',
+  );
+});
+
+test('a cache built under the old tier rules is invalidated', () => {
+  const config: AnkiConnectConfig = {
+    knownWords: { highlightEnabled: true, maturityEnabled: true, refreshMinutes: 60 },
+  };
+  // v1 rules put lapsed cards in young because the interval queries did not
+  // exclude is:learn; those persisted tiers must not be served under v2.
+  assert.notEqual(
+    getKnownWordCacheLifecycleConfig(config),
+    '{"refreshMinutes":60,"scope":"all","fieldsWord":"","maturity":21}',
   );
 });
 
@@ -120,8 +132,8 @@ test('refresh fetches tier sets and getKnownWordTier classifies notes', async ()
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [1, 2, 3, 4]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', [2]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [3]);
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
@@ -151,8 +163,8 @@ test('a note with cards in several tiers counts as its most mature card', async 
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [1]);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [1]);
     clientState.notesInfoResult = [{ noteId: 1, fields: { Word: { value: '猫' } } }];
 
@@ -169,8 +181,8 @@ test('a word matched by several notes takes the most mature note tier', async ()
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', []);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', [2]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', []);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [1]);
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
@@ -190,8 +202,8 @@ test('tiers are reading-aware for words with several readings', async () => {
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', []);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [2]);
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '床' }, Reading: { value: 'とこ' } } },
@@ -216,8 +228,8 @@ test('reading-only fallback resolves tiers unless opted out', async () => {
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', []);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', []);
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '警告' }, Reading: { value: 'けいこく' } } },
@@ -265,7 +277,7 @@ test('refresh preserves known-word cache when maturity lookup fails', async () =
       infoLogs.push(args.map((value) => String(value)).join(' '));
     };
     clientState.findNotesByQuery.set('deck:"Mining"', [1]);
-    clientState.failedQueries.add('deck:"Mining" prop:ivl>=21');
+    clientState.failedQueries.add('deck:"Mining" prop:ivl>=21 -is:learn');
     clientState.notesInfoResult = [{ noteId: 1, fields: { Word: { value: '猫' } } }];
 
     await manager.refresh(true);
@@ -294,8 +306,8 @@ test('tiers persist to v4 state and reload without refetching', async () => {
   try {
     Date.now = () => 120_000;
     clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', []);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [2]);
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
@@ -348,8 +360,8 @@ test('appendFromNoteInfo preserves an existing maturity tier', async () => {
 
   try {
     clientState.findNotesByQuery.set('deck:"Mining"', [7, 8]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21', [7]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21', []);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [7]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
     clientState.findNotesByQuery.set('deck:"Mining" is:learn', [8]);
     clientState.notesInfoResult = [
       { noteId: 7, fields: { Word: { value: '猫' } } },

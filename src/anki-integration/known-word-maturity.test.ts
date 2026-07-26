@@ -46,15 +46,26 @@ test('mature threshold falls back to default for invalid values', () => {
 
 test('tier queries append Anki search props to a deck scope query', () => {
   const queries = buildKnownWordMaturityTierQueries('deck:"Mining"', 21);
-  assert.equal(queries.mature, 'deck:"Mining" prop:ivl>=21');
-  assert.equal(queries.young, 'deck:"Mining" prop:ivl>=1 prop:ivl<21');
+  assert.equal(queries.mature, 'deck:"Mining" prop:ivl>=21 -is:learn');
+  assert.equal(queries.young, 'deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn');
+  assert.equal(queries.learning, 'deck:"Mining" is:learn');
+});
+
+test('interval tiers exclude (re)learning cards so the buckets stay disjoint', () => {
+  const queries = buildKnownWordMaturityTierQueries('deck:"Mining"', 21);
+  // A lapsed card keeps an interval of at least the lapse minInt (>= 1), so
+  // without the exclusion the young query would claim every relearning card
+  // and the learning tier could only ever match brand-new cards mid-step.
+  for (const intervalQuery of [queries.mature, queries.young]) {
+    assert.ok(intervalQuery.includes('-is:learn'));
+  }
   assert.equal(queries.learning, 'deck:"Mining" is:learn');
 });
 
 test('tier queries with an empty scope query have no leading space', () => {
   const queries = buildKnownWordMaturityTierQueries('', 30);
-  assert.equal(queries.mature, 'prop:ivl>=30');
-  assert.equal(queries.young, 'prop:ivl>=1 prop:ivl<30');
+  assert.equal(queries.mature, 'prop:ivl>=30 -is:learn');
+  assert.equal(queries.young, 'prop:ivl>=1 prop:ivl<30 -is:learn');
   assert.equal(queries.learning, 'is:learn');
 });
 

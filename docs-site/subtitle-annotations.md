@@ -49,23 +49,25 @@ Instead of one color for every known word, maturity highlighting tints each know
 
 **How it works:**
 
-1. During the known-word cache refresh, SubMiner classifies each note with Anki search filters (`prop:ivl`, `is:learn`, `is:new`) - no extra card data is downloaded.
-2. Each note gets the tier of its **most mature** card: `mature` (interval ≥ threshold), `young` (in review below the threshold), `learning` (in (re)learning), or `new` (never reviewed).
+1. During the known-word cache refresh, SubMiner classifies each note with Anki search filters (`prop:ivl`, `is:learn`) - no extra card data is downloaded.
+2. Each note gets the tier of its **most mature** card: `mature` (in review, interval ≥ threshold), `young` (in review, interval below the threshold), `learning` (in the learning or relearning queue), or `new` (never studied). The buckets are disjoint, matching Anki's own card counts: a lapsed card in relearning counts as `learning`, not `young`, even though its interval is ≥ 1 day. A note with a mature card plus a relearning card still shows `mature`.
 3. A word matched by several notes takes the most mature tier among them, with the same reading-aware matching as regular known-word highlighting.
 4. Known tokens render in the tier color instead of `subtitleStyle.knownWordColor`; if tier data is missing for a match, the token falls back to the single known-word color.
 
 **Key settings:**
 
-| Option                                       | Default   | Description                                                |
-| -------------------------------------------- | --------- | ---------------------------------------------------------- |
-| `ankiConnect.knownWords.maturityEnabled`     | `false`   | Color known words by card maturity (requires known-word highlighting) |
-| `ankiConnect.knownWords.matureThresholdDays` | `21`      | Card interval in days at which a word counts as mature     |
-| `subtitleStyle.knownWordMaturityColors.new`      | `#ee99a0` | Tier color for never-reviewed cards                    |
-| `subtitleStyle.knownWordMaturityColors.learning` | `#b7bdf8` | Tier color for (re)learning cards                      |
-| `subtitleStyle.knownWordMaturityColors.young`    | `#91d7e3` | Tier color for young review cards                      |
-| `subtitleStyle.knownWordMaturityColors.mature`   | `#a6da95` | Tier color for mature cards                            |
+| Option                                           | Default   | Description                                                           |
+| ------------------------------------------------ | --------- | --------------------------------------------------------------------- |
+| `ankiConnect.knownWords.maturityEnabled`         | `false`   | Color known words by card maturity (requires known-word highlighting) |
+| `ankiConnect.knownWords.matureThresholdDays`     | `21`      | Card interval in days at which a word counts as mature                |
+| `subtitleStyle.knownWordMaturityColors.new`      | `#ee99a0` | Tier color for never-reviewed cards                                   |
+| `subtitleStyle.knownWordMaturityColors.learning` | `#b7bdf8` | Tier color for cards in the learning/relearning queue                 |
+| `subtitleStyle.knownWordMaturityColors.young`    | `#91d7e3` | Tier color for young review cards                                     |
+| `subtitleStyle.knownWordMaturityColors.mature`   | `#a6da95` | Tier color for mature cards                                           |
 
-Changing `maturityEnabled` or the threshold triggers a full known-word cache refresh so tiers are refetched.
+Changing `maturityEnabled` or the threshold triggers a full known-word cache refresh so tiers are refetched, as does upgrading to a build that revises the tier rules.
+
+How often the `learning` color appears depends on your deck preset: with no relearning steps configured, a lapsed card returns straight to review and shows `young` instead.
 
 While maturity highlighting is on, the session help color legend replaces its single "Known words" swatch with one row per tier (new, learning, young, mature).
 
