@@ -63,7 +63,7 @@ export interface AnnotationStageOptions {
   sourceText?: string;
 }
 
-function resolveKnownWordText(
+export function resolveKnownWordText(
   surface: string,
   headword: string,
   matchMode: NPlusOneMatchMode,
@@ -571,7 +571,7 @@ function isCompleteReadingForSurface(surface: string, reading: string): boolean 
 // (see isCompleteReadingForSurface); undefined otherwise. Shared so the
 // known-word reading disambiguation and the reading fallback stay in sync if the
 // validity rule changes.
-function resolveCompleteTokenReading(token: MergedToken): string | undefined {
+export function resolveCompleteTokenReading(token: MergedToken): string | undefined {
   const normalizedReading = token.reading.trim();
   if (!normalizedReading || !isCompleteReadingForSurface(token.surface, normalizedReading)) {
     return undefined;
@@ -584,7 +584,7 @@ function resolveCompleteTokenReading(token: MergedToken): string | undefined {
 // inflected surface's reading does not match the dictionary form's reading,
 // and partial furigana readings (see isCompleteReadingForSurface) would cause
 // false negatives. Undefined falls back to text-only matching (fail-open).
-function resolveKnownWordReadingForMatch(
+export function resolveKnownWordReadingForMatch(
   token: MergedToken,
   knownWordMatchMode: NPlusOneMatchMode,
 ): string | undefined {

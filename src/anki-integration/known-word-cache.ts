@@ -231,43 +231,56 @@ export class KnownWordCacheManager {
       return null;
     }
 
+    return this.maxTierForNotes(null, this.getKnownWordMatchNoteIds(text, reading, options));
+  }
+
+  // Note ids a known-word lookup matches, using the same matching rules as
+  // getKnownWordTier. Exposed for diagnostics (see
+  // scripts/verify-known-word-highlights.ts), which audits a rendered tier
+  // against the live card data of the notes that produced it.
+  getKnownWordMatchNoteIds(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): Set<number> {
+    const matches = new Set<number>();
     const normalized = this.normalizeKnownWordForLookup(text);
     if (normalized.length === 0) {
-      return null;
+      return matches;
     }
 
     const knownReadings = this.wordReadingNoteIds.get(normalized);
     if (knownReadings && knownReadings.size > 0) {
       const normalizedReading =
         typeof reading === 'string' ? normalizeKnownReadingForLookup(reading) : '';
-      let tier: KnownWordMaturityTier | null = null;
       if (normalizedReading.length === 0) {
         for (const noteIds of knownReadings.values()) {
-          tier = this.maxTierForNotes(tier, noteIds);
+          for (const noteId of noteIds) {
+            matches.add(noteId);
+          }
         }
-        return tier;
+        return matches;
       }
-      const noReadingNotes = knownReadings.get(NO_READING_KEY);
-      if (noReadingNotes) {
-        tier = this.maxTierForNotes(tier, noReadingNotes);
+      for (const key of [NO_READING_KEY, normalizedReading]) {
+        for (const noteId of knownReadings.get(key) ?? []) {
+          matches.add(noteId);
+        }
       }
-      const exactReadingNotes = knownReadings.get(normalizedReading);
-      if (exactReadingNotes) {
-        tier = this.maxTierForNotes(tier, exactReadingNotes);
-      }
-      return tier;
+      return matches;
     }
 
     if (options?.allowReadingOnlyMatch === false) {
-      return null;
+      return matches;
     }
 
     const hiragana = convertKatakanaToHiragana(normalized);
     if ([...hiragana].length === 1) {
-      return null;
+      return matches;
     }
-    const readingNotes = this.readingNoteIds.get(hiragana);
-    return readingNotes ? this.maxTierForNotes(null, readingNotes) : null;
+    for (const noteId of this.readingNoteIds.get(hiragana) ?? []) {
+      matches.add(noteId);
+    }
+    return matches;
   }
 
   private maxTierForNotes(

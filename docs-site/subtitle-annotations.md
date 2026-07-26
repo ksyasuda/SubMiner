@@ -71,6 +71,16 @@ How often the `learning` color appears depends on your deck preset: with no rele
 
 While maturity highlighting is on, the session help color legend replaces its single "Known words" swatch with one row per tier (new, learning, young, mature).
 
+**Checking the colors you actually see:**
+
+Tiers are only as fresh as the last known-word cache refresh (`ankiConnect.knownWords.refreshMinutes`), so a card that crosses the mature threshold mid-day keeps its old color until the next refresh. To check a whole episode offline, run the verifier against its subtitle file:
+
+```sh
+bun run verify-known-word-highlights:electron -- --input /path/to/episode.ja.srt --audit
+```
+
+It tokenizes every cue through the real Yomitan/MeCab pipeline with your live known-word cache, prints each line in your configured tier colors, and summarizes the tier counts. `--audit` re-derives each highlighted tier from live Anki card data (`notesInfo` + `cardsInfo` intervals) and lists any token whose color disagrees, with the note ids and intervals behind it. Electron locks the Yomitan profile, so quit SubMiner first or pass `--profile-copy` to run against a scratch copy. Other useful flags: `--refresh` (refresh the cache first), `--limit <n>`, `--quiet`, `--json`.
+
 ## Character-Name Highlighting
 
 Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.

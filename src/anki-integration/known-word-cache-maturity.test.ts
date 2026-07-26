@@ -384,3 +384,40 @@ test('appendFromNoteInfo preserves an existing maturity tier', async () => {
     cleanup();
   }
 });
+
+test('getKnownWordMatchNoteIds reports the notes behind a tier', async () => {
+  const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
+
+  try {
+    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2, 3]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
+    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
+    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [3]);
+    clientState.notesInfoResult = [
+      { noteId: 1, fields: { Word: { value: '床' }, Reading: { value: 'とこ' } } },
+      { noteId: 2, fields: { Word: { value: '床' }, Reading: { value: 'ゆか' } } },
+      { noteId: 3, fields: { Word: { value: '警告' }, Reading: { value: 'けいこく' } } },
+    ];
+
+    await manager.refresh(true);
+
+    // Same matching rules as getKnownWordTier, so an audit can re-derive the
+    // rendered tier from the exact notes that produced it.
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('床', 'とこ')], [1]);
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('床', 'ゆか')], [2]);
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('床')].sort(), [1, 2]);
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('床', 'しょう')], []);
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('けいこく')], [3]);
+    assert.deepEqual(
+      [
+        ...manager.getKnownWordMatchNoteIds('けいこく', undefined, {
+          allowReadingOnlyMatch: false,
+        }),
+      ],
+      [],
+    );
+    assert.deepEqual([...manager.getKnownWordMatchNoteIds('馬')], []);
+  } finally {
+    cleanup();
+  }
+});
