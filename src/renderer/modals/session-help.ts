@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import type { RuntimeOptionId, RuntimeOptionState } from '../../types/runtime-options';
 import {
   buildSessionHelpSections,
   type SessionHelpSection,
@@ -20,17 +21,26 @@ type SessionHelpBindingInfo = {
 };
 
 /**
+ * Tiers only render when known-word highlighting is also on, matching
+ * getKnownWordMaturityEnabled in anki-integration/known-word-maturity.
+ */
+export function isKnownWordMaturityLegendEnabled(runtimeOptions: RuntimeOptionState[]): boolean {
+  const isOn = (id: RuntimeOptionId): boolean =>
+    runtimeOptions.some((option) => option.id === id && option.value === true);
+  return (
+    isOn('subtitle.annotation.knownWords.highlightEnabled') &&
+    isOn('subtitle.annotation.knownWords.maturityEnabled')
+  );
+}
+
+/**
  * Maturity coloring is a live runtime toggle, so the color legend reads it from
  * runtime options instead of the resolved subtitle style. A missing or failing
  * runtime-options call falls back to the flat known-word color.
  */
 async function readKnownWordMaturityEnabled(): Promise<boolean> {
   try {
-    const runtimeOptions = await window.electronAPI.getRuntimeOptions();
-    return runtimeOptions.some(
-      (option) =>
-        option.id === 'subtitle.annotation.knownWords.maturityEnabled' && option.value === true,
-    );
+    return isKnownWordMaturityLegendEnabled(await window.electronAPI.getRuntimeOptions());
   } catch {
     return false;
   }

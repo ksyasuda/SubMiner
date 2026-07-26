@@ -9,7 +9,9 @@ import {
   createSessionHelpModal,
   describeSessionHelpCommand,
   formatSessionHelpKeybinding,
+  isKnownWordMaturityLegendEnabled,
 } from './session-help.js';
+import type { RuntimeOptionId, RuntimeOptionState } from '../../types/runtime-options.js';
 
 test('session help describes sub-seek commands as subtitle-line navigation', () => {
   assert.equal(describeSessionHelpCommand(['sub-seek', 1]), 'Jump to next subtitle');
@@ -102,6 +104,34 @@ test('session help builds rows from canonical session bindings and fixed overlay
     ),
   );
   assert.ok(rows.some((row) => row.shortcut === 'Y then D' && row.action === 'Toggle DevTools'));
+});
+
+function booleanRuntimeOption(id: RuntimeOptionId, value: boolean): RuntimeOptionState {
+  return {
+    id,
+    label: id,
+    scope: 'subtitle',
+    valueType: 'boolean',
+    value,
+    allowedValues: [true, false],
+    requiresRestart: false,
+  };
+}
+
+test('maturity legend requires both known-word highlighting and maturity coloring', () => {
+  const highlightOn = booleanRuntimeOption('subtitle.annotation.knownWords.highlightEnabled', true);
+  const highlightOff = booleanRuntimeOption(
+    'subtitle.annotation.knownWords.highlightEnabled',
+    false,
+  );
+  const maturityOn = booleanRuntimeOption('subtitle.annotation.knownWords.maturityEnabled', true);
+  const maturityOff = booleanRuntimeOption('subtitle.annotation.knownWords.maturityEnabled', false);
+
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOn, maturityOn]), true);
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOff, maturityOn]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOn, maturityOff]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([maturityOn]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([]), false);
 });
 
 function colorLegendRows(input: Parameters<typeof buildSessionHelpSections>[0]) {
