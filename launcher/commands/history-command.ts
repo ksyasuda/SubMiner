@@ -67,6 +67,34 @@ export function buildHistorySessionActions(
   return actions;
 }
 
+export function buildHistoryEntryActions(
+  lastWatchedPath: string | null,
+  previousEpisodePath: string | null,
+  nextEpisodePath: string | null,
+): HistorySessionMenuAction[] {
+  const actions: HistorySessionMenuAction[] = [];
+  if (previousEpisodePath) {
+    actions.push({
+      kind: 'previous',
+      label: `Previous episode: ${path.basename(previousEpisodePath)}`,
+    });
+  }
+  if (lastWatchedPath) {
+    actions.push({
+      kind: 'replay',
+      label: `Replay last watched: ${path.basename(lastWatchedPath)}`,
+    });
+  }
+  if (nextEpisodePath) {
+    actions.push({ kind: 'next', label: `Next episode: ${path.basename(nextEpisodePath)}` });
+  }
+  actions.push(
+    { kind: 'browse', label: 'Browse episodes' },
+    { kind: 'quit', label: 'Quit SubMiner' },
+  );
+  return actions;
+}
+
 interface HistoryPlaybackLoopDeps {
   play: (videoPath: string) => Promise<void>;
   pickPostPlaybackAction: (input: {
@@ -332,17 +360,14 @@ export async function runHistoryCommand(
 
   const lastPath = path.resolve(entry.lastWatched.sourcePath);
   const lastExists = fs.existsSync(lastPath);
+  const previousEpisode = findPreviousEpisode(lastPath);
   const nextEpisode = findNextEpisode(lastPath);
 
-  const actions: HistorySessionMenuAction[] = [];
-  if (lastExists) {
-    actions.push({ kind: 'replay', label: `Replay last watched: ${path.basename(lastPath)}` });
-  }
-  if (nextEpisode) {
-    actions.push({ kind: 'next', label: `Next episode: ${path.basename(nextEpisode)}` });
-  }
-  actions.push({ kind: 'browse', label: 'Browse episodes' });
-  actions.push({ kind: 'quit', label: 'Quit SubMiner' });
+  const actions = buildHistoryEntryActions(
+    lastExists ? lastPath : null,
+    previousEpisode,
+    nextEpisode,
+  );
 
   const entryIcon = seriesIcons[seriesIdx] ?? null;
   const actionIdx = pickIndex(
@@ -357,13 +382,14 @@ export async function runHistoryCommand(
   switch (actions[actionIdx]!.kind) {
     case 'replay':
       return { entry, videoPath: lastPath, themePath, entryIcon };
+    case 'previous':
+      return previousEpisode ? { entry, videoPath: previousEpisode, themePath, entryIcon } : null;
     case 'next':
       return nextEpisode ? { entry, videoPath: nextEpisode, themePath, entryIcon } : null;
     case 'browse': {
       const videoPath = browseEpisodes(entry, context, themePath);
       return videoPath ? { entry, videoPath, themePath, entryIcon } : null;
     }
-    case 'previous':
     case 'quit':
       return null;
   }

@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { buildHistorySessionActions, runHistoryPlaybackLoop } from './history-command.js';
+import {
+  buildHistoryEntryActions,
+  buildHistorySessionActions,
+  runHistoryPlaybackLoop,
+} from './history-command.js';
 import type { HistorySeriesEntry } from '../history.js';
 
 type HistoryLoop = (
@@ -182,6 +186,37 @@ test('history show menu omits previous and next when the just-played episode has
   assert.deepEqual(buildHistorySessionActions('/shows/test-show/finale.mkv', null, null), [
     { kind: 'replay', label: 'Rewatch episode: finale.mkv' },
     { kind: 'browse', label: 'Select / browse episode' },
+    { kind: 'quit', label: 'Quit SubMiner' },
+  ]);
+});
+
+test('history entry menu offers previous, replay, and next before playback starts', () => {
+  assert.equal(
+    typeof buildHistoryEntryActions,
+    'function',
+    'history entry actions not implemented',
+  );
+
+  assert.deepEqual(
+    buildHistoryEntryActions(
+      '/shows/test-show/episode-03.mkv',
+      '/shows/test-show/episode-02.mkv',
+      '/shows/test-show/episode-04.mkv',
+    ),
+    [
+      { kind: 'previous', label: 'Previous episode: episode-02.mkv' },
+      { kind: 'replay', label: 'Replay last watched: episode-03.mkv' },
+      { kind: 'next', label: 'Next episode: episode-04.mkv' },
+      { kind: 'browse', label: 'Browse episodes' },
+      { kind: 'quit', label: 'Quit SubMiner' },
+    ],
+  );
+});
+
+test('history entry menu omits replay when the last watched file is gone', () => {
+  assert.deepEqual(buildHistoryEntryActions(null, null, '/shows/test-show/episode-04.mkv'), [
+    { kind: 'next', label: 'Next episode: episode-04.mkv' },
+    { kind: 'browse', label: 'Browse episodes' },
     { kind: 'quit', label: 'Quit SubMiner' },
   ]);
 });

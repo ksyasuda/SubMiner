@@ -73,6 +73,7 @@ subminer -R -H                         # rofi history browser
 
 The first menu lists every locally watched series, most recently watched first, using the parsed media title (e.g. the anime title) when available and the directory name otherwise. Selecting a series opens an action menu:
 
+- **Previous episode**: plays the episode before the last watched one and continues into the previous season directory when the season starts
 - **Replay last watched**: replays the most recently watched episode
 - **Next episode**: plays the episode after the last watched one and continues into the next season directory when the season ends
 - **Browse episodes**: lists the video files in the series directory in episode order, using the same fzf/rofi episode picker as directory browsing; if the series has multiple season directories, a season menu appears first
