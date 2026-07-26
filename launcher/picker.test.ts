@@ -3,7 +3,22 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { findRofiTheme } from './picker';
+import { findRofiTheme, formatRofiPrompt } from './picker';
+
+// ── formatRofiPrompt: spacing between prompt and input field ──────────────────
+
+test('formatRofiPrompt appends a single trailing space', () => {
+  assert.equal(formatRofiPrompt('Select Video'), 'Select Video ');
+});
+
+test('formatRofiPrompt collapses existing trailing whitespace to one space', () => {
+  assert.equal(formatRofiPrompt('Watch History   '), 'Watch History ');
+});
+
+test('formatRofiPrompt leaves an empty prompt empty', () => {
+  assert.equal(formatRofiPrompt(''), '');
+  assert.equal(formatRofiPrompt('   '), '');
+});
 
 // ── findRofiTheme: Linux packaged path discovery ──────────────────────────────
 

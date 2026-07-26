@@ -7,6 +7,7 @@ import {
   collectVideos,
   findRofiTheme,
   formatPickerLaunchError,
+  formatRofiPrompt,
   showFzfMenu,
   showRofiMenu,
 } from '../picker.js';
@@ -199,7 +200,16 @@ function showRofiIndexMenu(
   themePath: string | null,
   icons: Array<string | null> = [],
 ): number {
-  const rofiArgs = ['-dmenu', '-i', '-matching', 'fuzzy', '-format', 'i', '-p', prompt];
+  const rofiArgs = [
+    '-dmenu',
+    '-i',
+    '-matching',
+    'fuzzy',
+    '-format',
+    'i',
+    '-p',
+    formatRofiPrompt(prompt),
+  ];
   const hasIcons = icons.some(Boolean);
   if (hasIcons) rofiArgs.push('-show-icons');
   if (themePath) {

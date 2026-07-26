@@ -17,13 +17,22 @@ export function escapeShellSingle(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/**
+ * Rofi renders the prompt flush against the input field, so keep exactly one
+ * trailing space to separate them.
+ */
+export function formatRofiPrompt(prompt: string): string {
+  const trimmed = prompt.trimEnd();
+  return trimmed ? `${trimmed} ` : '';
+}
+
 export function showRofiFlatMenu(
   items: string[],
   prompt: string,
   initialQuery = '',
   themePath: string | null = null,
 ): string {
-  const args = ['-dmenu', '-i', '-matching', 'fuzzy', '-p', prompt];
+  const args = ['-dmenu', '-i', '-matching', 'fuzzy', '-p', formatRofiPrompt(prompt)];
   if (themePath) {
     args.push('-theme', themePath);
   } else {
@@ -110,7 +119,7 @@ export async function promptOptionalJellyfinSearch(
   themePath: string | null = null,
 ): Promise<string> {
   if (useRofi && commandExists('rofi')) {
-    const rofiArgs = ['-dmenu', '-i', '-p', 'Jellyfin Search (optional)'];
+    const rofiArgs = ['-dmenu', '-i', '-p', formatRofiPrompt('Jellyfin Search (optional)')];
     if (themePath) {
       rofiArgs.push('-theme', themePath);
     } else {
@@ -157,7 +166,7 @@ function showRofiIconMenu(
   themePath: string | null = null,
 ): number {
   if (entries.length === 0) return -1;
-  const rofiArgs = ['-dmenu', '-i', '-show-icons', '-format', 'i', '-p', prompt];
+  const rofiArgs = ['-dmenu', '-i', '-show-icons', '-format', 'i', '-p', formatRofiPrompt(prompt)];
   if (initialQuery) rofiArgs.push('-filter', initialQuery);
   if (themePath) {
     rofiArgs.push('-theme', themePath);
@@ -391,7 +400,7 @@ export function showRofiMenu(
     '-dmenu',
     '-i',
     '-p',
-    'Select Video ',
+    formatRofiPrompt('Select Video'),
     '-show-icons',
     '-theme-str',
     'configuration { font: "Noto Sans CJK JP Regular 8";}',
