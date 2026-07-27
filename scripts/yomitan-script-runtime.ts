@@ -152,5 +152,6 @@ export async function createYomitanRuntimeStateWithSearch(
     }
   }
 
-  return createYomitanRuntimeState(userDataPath, resolvedExtensionPath ?? undefined);
+  // No usable manifest at the resolved path, so let the loader search on its own.
+  return createYomitanRuntimeState(userDataPath);
 }

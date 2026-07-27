@@ -69,6 +69,18 @@ function createMaturityHarness(config: AnkiConnectConfig): {
   };
 }
 
+// The four queries a maturity refresh issues, in one place so a query-string
+// change lands in a single spot.
+function setTierQueries(
+  clientState: { findNotesByQuery: Map<string, number[]> },
+  tiers: { all: number[]; mature: number[]; young: number[]; learning: number[] },
+): void {
+  clientState.findNotesByQuery.set('deck:"Mining"', tiers.all);
+  clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', tiers.mature);
+  clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', tiers.young);
+  clientState.findNotesByQuery.set('deck:"Mining" is:learn', tiers.learning);
+}
+
 function maturityConfig(overrides: Partial<AnkiConnectConfig> = {}): AnkiConnectConfig {
   return {
     deck: 'Mining',
@@ -131,10 +143,7 @@ test('refresh fetches tier sets and getKnownWordTier classifies notes', async ()
   const { manager, calls, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2, 3, 4]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [3]);
+    setTierQueries(clientState, { all: [1, 2, 3, 4], mature: [1], young: [2], learning: [3] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
       { noteId: 2, fields: { Word: { value: '犬' } } },
@@ -162,10 +171,7 @@ test('a note with cards in several tiers counts as its most mature card', async 
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [1]);
+    setTierQueries(clientState, { all: [1], mature: [1], young: [1], learning: [1] });
     clientState.notesInfoResult = [{ noteId: 1, fields: { Word: { value: '猫' } } }];
 
     await manager.refresh(true);
@@ -180,10 +186,7 @@ test('a word matched by several notes takes the most mature note tier', async ()
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', []);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [1]);
+    setTierQueries(clientState, { all: [1, 2], mature: [], young: [2], learning: [1] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
       { noteId: 2, fields: { Word: { value: '猫' } } },
@@ -201,10 +204,7 @@ test('tiers are reading-aware for words with several readings', async () => {
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [2]);
+    setTierQueries(clientState, { all: [1, 2], mature: [1], young: [], learning: [2] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '床' }, Reading: { value: 'とこ' } } },
       { noteId: 2, fields: { Word: { value: '床' }, Reading: { value: 'ゆか' } } },
@@ -227,10 +227,7 @@ test('reading-only fallback resolves tiers unless opted out', async () => {
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', []);
+    setTierQueries(clientState, { all: [1], mature: [1], young: [], learning: [] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '警告' }, Reading: { value: 'けいこく' } } },
     ];
@@ -305,10 +302,7 @@ test('tiers persist to v4 state and reload without refetching', async () => {
 
   try {
     Date.now = () => 120_000;
-    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [2]);
+    setTierQueries(clientState, { all: [1, 2], mature: [1], young: [], learning: [2] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '猫' } } },
       { noteId: 2, fields: { Word: { value: '犬' } } },
@@ -359,10 +353,7 @@ test('appendFromNoteInfo preserves an existing maturity tier', async () => {
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [7, 8]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [7]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', []);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [8]);
+    setTierQueries(clientState, { all: [7, 8], mature: [7], young: [], learning: [8] });
     clientState.notesInfoResult = [
       { noteId: 7, fields: { Word: { value: '猫' } } },
       { noteId: 8, fields: { Word: { value: '犬' } } },
@@ -389,10 +380,7 @@ test('getKnownWordMatchNoteIds reports the notes behind a tier', async () => {
   const { manager, clientState, cleanup } = createMaturityHarness(maturityConfig());
 
   try {
-    clientState.findNotesByQuery.set('deck:"Mining"', [1, 2, 3]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=21 -is:learn', [1]);
-    clientState.findNotesByQuery.set('deck:"Mining" prop:ivl>=1 prop:ivl<21 -is:learn', [2]);
-    clientState.findNotesByQuery.set('deck:"Mining" is:learn', [3]);
+    setTierQueries(clientState, { all: [1, 2, 3], mature: [1], young: [2], learning: [3] });
     clientState.notesInfoResult = [
       { noteId: 1, fields: { Word: { value: '床' }, Reading: { value: 'とこ' } } },
       { noteId: 2, fields: { Word: { value: '床' }, Reading: { value: 'ゆか' } } },

@@ -224,13 +224,19 @@ function readPersistedCacheScope(cachePath: string): string | null {
   }
 }
 
+const ANKI_REQUEST_TIMEOUT_MS = 30_000;
+
 function createAnkiClient(url: string) {
   const request = async (action: string, params: unknown): Promise<unknown> => {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, version: 6, params }),
+      signal: AbortSignal.timeout(ANKI_REQUEST_TIMEOUT_MS),
     });
+    if (!response.ok) {
+      throw new Error(`AnkiConnect ${action}: HTTP ${response.status} ${response.statusText}`);
+    }
     const payload = (await response.json()) as { result: unknown; error: string | null };
     if (payload.error) {
       throw new Error(`AnkiConnect ${action}: ${payload.error}`);
