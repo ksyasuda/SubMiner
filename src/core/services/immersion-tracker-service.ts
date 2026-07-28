@@ -83,6 +83,7 @@ import {
 } from './immersion-tracker/query-library';
 import {
   cleanupVocabularyStats,
+  deleteAnime as deleteAnimeQuery,
   deleteSession as deleteSessionQuery,
   deleteSessions as deleteSessionsQuery,
   deleteVideo as deleteVideoQuery,
@@ -731,6 +732,20 @@ export class ImmersionTrackerService {
       return;
     }
     deleteVideoQuery(this.db, videoId);
+  }
+
+  async deleteAnime(animeId: number): Promise<void> {
+    const activeVideoId = this.sessionState?.videoId;
+    if (activeVideoId !== undefined) {
+      const activeAnime = this.db
+        .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+        .get(activeVideoId) as { anime_id: number | null } | null;
+      if (activeAnime?.anime_id === animeId) {
+        this.logger.warn(`Ignoring delete request for active immersion anime ${animeId}`);
+        return;
+      }
+    }
+    deleteAnimeQuery(this.db, animeId);
   }
 
   async reassignAnimeAnilist(

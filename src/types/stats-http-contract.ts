@@ -141,6 +141,7 @@ export interface StatsJsonResponseMap {
   deleteSessions: StatsOkResponse;
   deleteSession: StatsOkResponse;
   deleteVideo: StatsOkResponse;
+  deleteAnime: StatsOkResponse;
   anilistSearch: StatsAnilistSearchResult[];
   knownWords: string[];
   knownWordsSummary: StatsKnownWordsSummary;
@@ -219,6 +220,7 @@ export interface StatsHttpClient {
   deleteSession: (sessionId: number) => Promise<void>;
   deleteSessions: (sessionIds: number[]) => Promise<void>;
   deleteVideo: (videoId: number) => Promise<void>;
+  deleteAnime: (animeId: number) => Promise<void>;
   getKnownWords: () => Promise<string[]>;
   getKnownWordsSummary: () => Promise<StatsKnownWordsSummary>;
   getAnimeKnownWordsSummary: (animeId: number) => Promise<StatsKnownWordsSummary>;

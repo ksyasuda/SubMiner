@@ -9,14 +9,12 @@ import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
 import {
+  applyLexicalRemovals,
   cleanupUnusedCoverArtBlobHash,
   deleteSessionsByIds,
   findSharedCoverBlobHash,
-  getAffectedKanjiIdsForSessions,
-  getAffectedKanjiIdsForVideo,
-  getAffectedWordIdsForSessions,
-  getAffectedWordIdsForVideo,
-  refreshLexicalAggregates,
+  planLexicalRemovalsForSessions,
+  planLexicalRemovalsForVideos,
   toDbMs,
   toDbTimestamp,
 } from './query-shared';
@@ -232,12 +230,13 @@ export async function cleanupVocabularyStats(
      WHERE id = ?`,
   );
   const moveOccurrencesStmt = db.prepare(
-    `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count)
-     SELECT line_id, ?, occurrence_count
+    `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count, seen_ms)
+     SELECT line_id, ?, occurrence_count, seen_ms
      FROM imm_word_line_occurrences
      WHERE word_id = ?
      ON CONFLICT(line_id, word_id) DO UPDATE SET
-       occurrence_count = imm_word_line_occurrences.occurrence_count + excluded.occurrence_count`,
+       occurrence_count = imm_word_line_occurrences.occurrence_count + excluded.occurrence_count,
+       seen_ms = COALESCE(imm_word_line_occurrences.seen_ms, excluded.seen_ms)`,
   );
   const deleteOccurrencesStmt = db.prepare(
     'DELETE FROM imm_word_line_occurrences WHERE word_id = ?',
@@ -484,14 +483,13 @@ export function isVideoWatched(db: DatabaseSync, videoId: number): boolean {
 
 export function deleteSession(db: DatabaseSync, sessionId: number): void {
   const sessionIds = [sessionId];
-  const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
-  const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+  const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
   const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
     deleteSessionsByIds(db, sessionIds);
-    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    applyLexicalRemovals(db, lexicalRemovals);
     rebuildLifetimeSummariesInTransaction(db);
     refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
     db.exec('COMMIT');
@@ -503,16 +501,75 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
 
 export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   if (sessionIds.length === 0) return;
-  const affectedWordIds = getAffectedWordIdsForSessions(db, sessionIds);
-  const affectedKanjiIds = getAffectedKanjiIdsForSessions(db, sessionIds);
+  const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
   const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
     deleteSessionsByIds(db, sessionIds);
-    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    applyLexicalRemovals(db, lexicalRemovals);
     rebuildLifetimeSummariesInTransaction(db);
     refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/**
+ * Delete an entire library entry: every episode of the anime, all of their
+ * sessions and derived stats, and the anime row itself.
+ *
+ * Mirrors {@link deleteVideo} per episode, but batches the lexical refresh and
+ * lifetime rebuild into a single transaction so a multi-episode title doesn't
+ * pay for one full rebuild per episode.
+ */
+export function deleteAnime(db: DatabaseSync, animeId: number): void {
+  const videoIds = (
+    db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?').all(animeId) as Array<{
+      video_id: number;
+    }>
+  ).map((row) => row.video_id);
+
+  const lexicalRemovals = planLexicalRemovalsForVideos(db, videoIds);
+  const coverBlobHashes: string[] = [];
+  const sessionIds: number[] = [];
+  for (const videoId of videoIds) {
+    const artRow = db
+      .prepare('SELECT cover_blob_hash AS coverBlobHash FROM imm_media_art WHERE video_id = ?')
+      .get(videoId) as { coverBlobHash: string | null } | undefined;
+    if (artRow?.coverBlobHash) {
+      coverBlobHashes.push(artRow.coverBlobHash);
+    }
+    const sessions = db
+      .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
+      .all(videoId) as Array<{ session_id: number }>;
+    sessionIds.push(...sessions.map((session) => session.session_id));
+  }
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    deleteSessionsByIds(db, sessionIds);
+    const deleteLinesStmt = db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?');
+    const deleteDailyStmt = db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?');
+    const deleteMonthlyStmt = db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?');
+    const deleteArtStmt = db.prepare('DELETE FROM imm_media_art WHERE video_id = ?');
+    const deleteVideoStmt = db.prepare('DELETE FROM imm_videos WHERE video_id = ?');
+    for (const videoId of videoIds) {
+      deleteLinesStmt.run(videoId);
+      deleteDailyStmt.run(videoId);
+      deleteMonthlyStmt.run(videoId);
+      deleteArtStmt.run(videoId);
+      deleteVideoStmt.run(videoId);
+    }
+    for (const coverBlobHash of new Set(coverBlobHashes)) {
+      cleanupUnusedCoverArtBlobHash(db, coverBlobHash);
+    }
+    db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?').run(animeId);
+    db.prepare('DELETE FROM imm_anime WHERE anime_id = ?').run(animeId);
+    applyLexicalRemovals(db, lexicalRemovals);
+    rebuildLifetimeSummariesInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -530,8 +587,7 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
       `,
     )
     .get(videoId) as { coverBlobHash: string | null } | undefined;
-  const affectedWordIds = getAffectedWordIdsForVideo(db, videoId);
-  const affectedKanjiIds = getAffectedKanjiIdsForVideo(db, videoId);
+  const lexicalRemovals = planLexicalRemovalsForVideos(db, [videoId]);
   const sessions = db
     .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
     .all(videoId) as Array<{ session_id: number }>;
@@ -548,7 +604,7 @@ export function deleteVideo(db: DatabaseSync, videoId: number): void {
     db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
     cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
     db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
-    refreshLexicalAggregates(db, affectedWordIds, affectedKanjiIds);
+    applyLexicalRemovals(db, lexicalRemovals);
     rebuildLifetimeSummariesInTransaction(db);
     db.exec('COMMIT');
   } catch (error) {

@@ -190,4 +190,11 @@ export function registerStatsLibraryRoutes(
     await tracker.deleteVideo(videoId);
     return c.json(statsJson('deleteVideo', { ok: true }));
   });
+
+  app.delete('/api/stats/anime/:animeId', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 400);
+    await tracker.deleteAnime(animeId);
+    return c.json(statsJson('deleteAnime', { ok: true }));
+  });
 }

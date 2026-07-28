@@ -2873,6 +2873,39 @@ Aligned English subtitle
     assert.equal(deleteCalls, 0);
   });
 
+  it('DELETE /api/stats/anime/:animeId deletes the whole library entry', async () => {
+    let deletedAnimeId: number | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteAnime: async (animeId: number) => {
+          deletedAnimeId = animeId;
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7', { method: 'DELETE' });
+
+    assert.equal(res.status, 200);
+    assert.equal(deletedAnimeId, 7);
+    assert.deepEqual(await res.json(), { ok: true });
+  });
+
+  it('DELETE /api/stats/anime/:animeId rejects non-positive anime ids', async () => {
+    let deleteCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteAnime: async () => {
+          deleteCalls += 1;
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/0', { method: 'DELETE' });
+
+    assert.equal(res.status, 400);
+    assert.equal(deleteCalls, 0);
+  });
+
   it('POST /api/stats/anki/browse returns 400 for missing noteId', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anki/browse', { method: 'POST' });

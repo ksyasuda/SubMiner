@@ -4982,3 +4982,145 @@ test('getTrendsDashboard librarySummary is empty when no rollups exist', () => {
     cleanupDbPath(dbPath);
   }
 });
+
+test('getVocabularyStats counts the distinct anime each word appeared in', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const startedAtMs = 1_700_000_000_000;
+    db.exec(`
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (11, 'vocab-a', 'Vocab A', ${startedAtMs}, ${startedAtMs}),
+               (22, 'vocab-b', 'Vocab B', ${startedAtMs}, ${startedAtMs});
+    `);
+    const videoIds = [1, 2].map((n) =>
+      getOrCreateVideoRecord(db, `local:/tmp/vocab-anime-${n}.mkv`, {
+        canonicalTitle: `Vocab Anime ${n}`,
+        sourcePath: `/tmp/vocab-anime-${n}.mkv`,
+        sourceUrl: null,
+        sourceType: SOURCE_TYPE_LOCAL,
+      }),
+    );
+    const sessionIds = videoIds.map(
+      (videoId) => startSessionRecord(db, videoId, startedAtMs).sessionId,
+    );
+
+    // 猫 spans both titles, twice in the first, so the count has to deduplicate
+    // by anime rather than just tallying occurrence rows. 犬 stays in one title.
+    insertFilteredWordOccurrence(db, {
+      sessionId: sessionIds[0]!,
+      videoId: videoIds[0]!,
+      animeId: 11,
+      lineIndex: 1,
+      occurrenceCount: 5,
+      startedAtMs,
+      word: '猫',
+      reading: 'ねこ',
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId: sessionIds[0]!,
+      videoId: videoIds[0]!,
+      animeId: 11,
+      lineIndex: 2,
+      occurrenceCount: 1,
+      startedAtMs,
+      word: '猫',
+      reading: 'ねこ',
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId: sessionIds[1]!,
+      videoId: videoIds[1]!,
+      animeId: 22,
+      lineIndex: 3,
+      occurrenceCount: 4,
+      startedAtMs,
+      word: '猫',
+      reading: 'ねこ',
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId: sessionIds[0]!,
+      videoId: videoIds[0]!,
+      animeId: 11,
+      lineIndex: 4,
+      occurrenceCount: 2,
+      startedAtMs,
+      word: '犬',
+      reading: 'いぬ',
+    });
+
+    const rows = getVocabularyStats(db, 10);
+    const cat = rows.find((row) => row.headword === '猫');
+    const dog = rows.find((row) => row.headword === '犬');
+
+    assert.equal(cat?.animeCount, 2, '猫 was seen in two anime across three lines');
+    assert.equal(dog?.animeCount, 1, '犬 was seen in one');
+    assert.equal(cat?.frequency, 10, 'frequency still aggregates across both titles');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularyStats still applies part-of-speech exclusions', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const startedAtMs = 1_700_000_000_000;
+    db.exec(`
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (11, 'vocab-a', 'Vocab A', ${startedAtMs}, ${startedAtMs});
+    `);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/vocab-exclude.mkv', {
+      canonicalTitle: 'Vocab Exclude',
+      sourcePath: '/tmp/vocab-exclude.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const { sessionId } = startSessionRecord(db, videoId, startedAtMs);
+
+    insertFilteredWordOccurrence(db, {
+      sessionId,
+      videoId,
+      animeId: 11,
+      lineIndex: 1,
+      occurrenceCount: 9,
+      startedAtMs,
+      word: '走る',
+      reading: 'はしる',
+      partOfSpeech: 'verb',
+    });
+    insertFilteredWordOccurrence(db, {
+      sessionId,
+      videoId,
+      animeId: 11,
+      lineIndex: 2,
+      occurrenceCount: 3,
+      startedAtMs,
+      word: '猫',
+      reading: 'ねこ',
+      partOfSpeech: 'noun',
+    });
+
+    const all = getVocabularyStats(db, 10);
+    assert.deepEqual(
+      all.map((row) => row.headword).sort(),
+      ['猫', '走る'],
+      'precondition: both parts of speech are present',
+    );
+
+    const nounsOnly = getVocabularyStats(db, 10, ['verb']);
+    assert.deepEqual(
+      nounsOnly.map((row) => row.headword),
+      ['猫'],
+      'excluded part of speech is filtered out even though it ranks higher',
+    );
+    assert.equal(nounsOnly[0]?.animeCount, 1, 'surviving rows keep their anime count');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});

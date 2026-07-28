@@ -15,6 +15,7 @@ import type {
 } from '../types/stats';
 import type { StatsMineCardParams, StatsMineCardResponse } from './mining';
 import { appendCoverRetryToken } from './cover-retry';
+import { trackDelete } from './delete-progress';
 
 type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
 
@@ -169,17 +170,29 @@ export const apiClient = {
     });
   },
   deleteSession: async (sessionId: number): Promise<void> => {
-    await fetchResponse(`/api/stats/sessions/${sessionId}`, { method: 'DELETE' });
+    await trackDelete('Deleting session', () =>
+      fetchResponse(`/api/stats/sessions/${sessionId}`, { method: 'DELETE' }),
+    );
   },
   deleteSessions: async (sessionIds: number[]): Promise<void> => {
-    await fetchResponse('/api/stats/sessions', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionIds } satisfies StatsDeleteSessionsRequest),
-    });
+    const label = `Deleting ${sessionIds.length} session${sessionIds.length === 1 ? '' : 's'}`;
+    await trackDelete(label, () =>
+      fetchResponse('/api/stats/sessions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionIds } satisfies StatsDeleteSessionsRequest),
+      }),
+    );
   },
   deleteVideo: async (videoId: number): Promise<void> => {
-    await fetchResponse(`/api/stats/media/${videoId}`, { method: 'DELETE' });
+    await trackDelete('Deleting episode', () =>
+      fetchResponse(`/api/stats/media/${videoId}`, { method: 'DELETE' }),
+    );
+  },
+  deleteAnime: async (animeId: number): Promise<void> => {
+    await trackDelete('Deleting library entry', () =>
+      fetchResponse(`/api/stats/anime/${animeId}`, { method: 'DELETE' }),
+    );
   },
   getKnownWords: () => fetchJson('knownWords', '/api/stats/known-words'),
   getKnownWordsSummary: () => fetchJson('knownWordsSummary', '/api/stats/known-words-summary'),

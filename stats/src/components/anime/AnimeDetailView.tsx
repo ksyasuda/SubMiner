@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAnimeDetail } from '../../hooks/useAnimeDetail';
 import { getStatsClient } from '../../hooks/useStatsApi';
+import { confirmAnimeDelete } from '../../lib/delete-confirm';
 import { epochDayToDate } from '../../lib/formatters';
 import { AnimeHeader } from './AnimeHeader';
 import { EpisodeList } from './EpisodeList';
@@ -16,6 +17,8 @@ interface AnimeDetailViewProps {
   onBack: () => void;
   onNavigateToWord?: (wordId: number) => void;
   onOpenEpisodeDetail?: (videoId: number) => void;
+  /** Called after the whole library entry is deleted, so the caller can refresh. */
+  onAnimeDeleted?: () => void;
 }
 
 type Range = 14 | 30 | 90;
@@ -139,10 +142,14 @@ export function AnimeDetailView({
   onBack,
   onNavigateToWord,
   onOpenEpisodeDetail,
+  onAnimeDeleted,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
   const [coverRetryToken, setCoverRetryToken] = useState(0);
+  const [isDeletingAnime, setIsDeletingAnime] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const isDeletingAnimeRef = useRef(false);
   const knownWordsSummary = useAnimeKnownWords(animeId);
 
   useEffect(() => {
@@ -154,6 +161,37 @@ export function AnimeDetailView({
   if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Anime not found</div>;
 
   const { detail, episodes, anilistEntries } = data;
+
+  const handleDeleteAnime = async () => {
+    if (isDeletingAnimeRef.current) return;
+    isDeletingAnimeRef.current = true;
+    let confirmed = false;
+    try {
+      confirmed = await confirmAnimeDelete(detail.canonicalTitle, detail.episodeCount);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to confirm delete.');
+      isDeletingAnimeRef.current = false;
+      return;
+    }
+    if (!confirmed) {
+      isDeletingAnimeRef.current = false;
+      return;
+    }
+
+    setDeleteError(null);
+    setIsDeletingAnime(true);
+    try {
+      await getStatsClient().deleteAnime(animeId);
+      onAnimeDeleted?.();
+      onBack();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete this title.');
+      setIsDeletingAnime(false);
+    } finally {
+      isDeletingAnimeRef.current = false;
+    }
+  };
+
   return (
     <div className="space-y-4">
       <button
@@ -168,7 +206,10 @@ export function AnimeDetailView({
         anilistEntries={anilistEntries ?? []}
         coverRetryToken={coverRetryToken}
         onChangeAnilist={() => setShowAnilistSelector(true)}
+        onDeleteAnime={() => void handleDeleteAnime()}
+        isDeletingAnime={isDeletingAnime}
       />
+      {deleteError ? <div className="text-sm text-ctp-red">{deleteError}</div> : null}
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}

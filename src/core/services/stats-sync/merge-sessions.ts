@@ -215,12 +215,16 @@ function copySubtitleLines(
     'SELECT kanji_id, occurrence_count FROM imm_kanji_line_occurrences WHERE line_id = ?',
   );
   const insertWordOccurrence = local.query(
-    `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count) VALUES (?, ?, ?)
-     ON CONFLICT(line_id, word_id) DO UPDATE SET occurrence_count = occurrence_count + excluded.occurrence_count`,
+    `INSERT INTO imm_word_line_occurrences (line_id, word_id, occurrence_count, seen_ms) VALUES (?, ?, ?, ?)
+     ON CONFLICT(line_id, word_id) DO UPDATE SET
+       occurrence_count = occurrence_count + excluded.occurrence_count,
+       seen_ms = COALESCE(seen_ms, excluded.seen_ms)`,
   );
   const insertKanjiOccurrence = local.query(
-    `INSERT INTO imm_kanji_line_occurrences (line_id, kanji_id, occurrence_count) VALUES (?, ?, ?)
-     ON CONFLICT(line_id, kanji_id) DO UPDATE SET occurrence_count = occurrence_count + excluded.occurrence_count`,
+    `INSERT INTO imm_kanji_line_occurrences (line_id, kanji_id, occurrence_count, seen_ms) VALUES (?, ?, ?, ?)
+     ON CONFLICT(line_id, kanji_id) DO UPDATE SET
+       occurrence_count = occurrence_count + excluded.occurrence_count,
+       seen_ms = COALESCE(seen_ms, excluded.seen_ms)`,
   );
 
   for (const row of rows) {
@@ -241,17 +245,20 @@ function copySubtitleLines(
       ],
     );
     summary.subtitleLinesAdded += 1;
+    // Taken from the line rather than the remote occurrence row so this also
+    // works when the remote database predates the seen_ms column.
+    const seenMs = row.CREATED_DATE ?? row.LAST_UPDATE_DATE ?? null;
 
     for (const occurrence of wordOccurrences.all(row.line_id) as SqlRow[]) {
       const localWordId = lexicon.resolveWord(Number(occurrence.word_id));
       const count = Number(occurrence.occurrence_count);
-      insertWordOccurrence.run(localLineId, localWordId, count);
+      insertWordOccurrence.run(localLineId, localWordId, count, seenMs);
       lexicon.addWordOccurrences(Number(occurrence.word_id), count);
     }
     for (const occurrence of kanjiOccurrences.all(row.line_id) as SqlRow[]) {
       const localKanjiId = lexicon.resolveKanji(Number(occurrence.kanji_id));
       const count = Number(occurrence.occurrence_count);
-      insertKanjiOccurrence.run(localLineId, localKanjiId, count);
+      insertKanjiOccurrence.run(localLineId, localKanjiId, count, seenMs);
       lexicon.addKanjiOccurrences(Number(occurrence.kanji_id), count);
     }
   }

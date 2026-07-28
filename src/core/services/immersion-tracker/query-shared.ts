@@ -203,6 +203,167 @@ export function getAffectedKanjiIdsForVideo(db: DatabaseSync, videoId: number): 
   return getAffectedIdsForVideo(db, 'kanji', videoId);
 }
 
+/** Per-entity totals that a pending delete is about to remove. */
+interface LexicalRemoval {
+  id: number;
+  removedFrequency: number;
+  removedFirstSeenMs: number | null;
+  removedLastSeenMs: number | null;
+}
+
+/** What a pending delete removes from `imm_words` and `imm_kanji`. */
+export interface LexicalRemovalPlan {
+  words: LexicalRemoval[];
+  kanji: LexicalRemoval[];
+}
+
+export const EMPTY_LEXICAL_REMOVAL_PLAN: LexicalRemovalPlan = { words: [], kanji: [] };
+
+function collectLexicalRemovals(
+  db: DatabaseSync,
+  entity: LexicalEntity,
+  lineScopeSql: string,
+  params: number[],
+): LexicalRemoval[] {
+  const table = entity === 'word' ? 'imm_word_line_occurrences' : 'imm_kanji_line_occurrences';
+  const col = `${entity}_id`;
+  return db
+    .prepare(
+      `SELECT
+         o.${col} AS id,
+         COALESCE(SUM(o.occurrence_count), 0) AS removedFrequency,
+         MIN(COALESCE(o.seen_ms, sl.CREATED_DATE, sl.LAST_UPDATE_DATE)) AS removedFirstSeenMs,
+         MAX(COALESCE(o.seen_ms, sl.LAST_UPDATE_DATE, sl.CREATED_DATE)) AS removedLastSeenMs
+       FROM imm_subtitle_lines sl
+       JOIN ${table} o ON o.line_id = sl.line_id
+       WHERE ${lineScopeSql}
+       GROUP BY o.${col}`,
+    )
+    .all(...params) as LexicalRemoval[];
+}
+
+function planLexicalRemovals(
+  db: DatabaseSync,
+  lineScopeSql: string,
+  params: number[],
+): LexicalRemovalPlan {
+  return {
+    words: collectLexicalRemovals(db, 'word', lineScopeSql, params),
+    kanji: collectLexicalRemovals(db, 'kanji', lineScopeSql, params),
+  };
+}
+
+/**
+ * Measure what deleting these sessions removes from the vocabulary tables.
+ *
+ * Must run before the rows are deleted. Reads only the subtitle lines in scope,
+ * unlike {@link refreshLexicalAggregates}, which re-reads every occurrence of
+ * every affected word across the whole library.
+ */
+export function planLexicalRemovalsForSessions(
+  db: DatabaseSync,
+  sessionIds: number[],
+): LexicalRemovalPlan {
+  if (sessionIds.length === 0) return EMPTY_LEXICAL_REMOVAL_PLAN;
+  return planLexicalRemovals(db, `sl.session_id IN (${makePlaceholders(sessionIds)})`, sessionIds);
+}
+
+/** Measure what deleting these videos removes from the vocabulary tables. */
+export function planLexicalRemovalsForVideos(
+  db: DatabaseSync,
+  videoIds: number[],
+): LexicalRemovalPlan {
+  if (videoIds.length === 0) return EMPTY_LEXICAL_REMOVAL_PLAN;
+  return planLexicalRemovals(db, `sl.video_id IN (${makePlaceholders(videoIds)})`, videoIds);
+}
+
+function toStoredSeenSeconds(ms: number | null): number | null {
+  if (ms === null || !Number.isFinite(ms)) return null;
+  return Math.floor(ms / 1000);
+}
+
+/**
+ * Apply a removal plan to the vocabulary aggregates.
+ *
+ * Frequencies are adjusted by subtraction, which is exact and touches only the
+ * affected rows. `first_seen`/`last_seen` only need a rescan when the removed
+ * lines held the current extreme, and rows whose frequency reaches zero are
+ * verified against the surviving occurrences before deletion — so stored counts
+ * that have drifted still converge on the truth instead of dropping a live row.
+ */
+export function applyLexicalRemovals(db: DatabaseSync, plan: LexicalRemovalPlan): void {
+  applyRemovalsForEntity(db, 'word', plan.words);
+  applyRemovalsForEntity(db, 'kanji', plan.kanji);
+}
+
+function applyRemovalsForEntity(
+  db: DatabaseSync,
+  entity: LexicalEntity,
+  removals: LexicalRemoval[],
+): void {
+  if (removals.length === 0) return;
+
+  const entityTable = entity === 'word' ? 'imm_words' : 'imm_kanji';
+  const occurrenceTable =
+    entity === 'word' ? 'imm_word_line_occurrences' : 'imm_kanji_line_occurrences';
+  const col = `${entity}_id`;
+
+  const selectStmt = db.prepare(
+    `SELECT frequency, first_seen AS firstSeen, last_seen AS lastSeen
+     FROM ${entityTable}
+     WHERE id = ?`,
+  );
+  const updateFrequencyStmt = db.prepare(`UPDATE ${entityTable} SET frequency = ? WHERE id = ?`);
+  const hasOccurrencesStmt = db.prepare(
+    `SELECT 1 AS found FROM ${occurrenceTable} WHERE ${col} = ? LIMIT 1`,
+  );
+  const deleteStmt = db.prepare(`DELETE FROM ${entityTable} WHERE id = ?`);
+
+  const needsExactRefresh: number[] = [];
+
+  for (const removal of removals) {
+    const current = selectStmt.get(removal.id) as {
+      frequency: number | null;
+      firstSeen: number | null;
+      lastSeen: number | null;
+    } | null;
+    if (!current) continue;
+
+    const nextFrequency = (current.frequency ?? 0) - removal.removedFrequency;
+    if (nextFrequency <= 0) {
+      // The rows in scope are already gone by now, so anything still pointing at
+      // this entity means the stored frequency was stale rather than exhausted.
+      if (hasOccurrencesStmt.get(removal.id)) {
+        needsExactRefresh.push(removal.id);
+      } else {
+        deleteStmt.run(removal.id);
+      }
+      continue;
+    }
+
+    const removedFirstSeen = toStoredSeenSeconds(removal.removedFirstSeenMs);
+    const removedLastSeen = toStoredSeenSeconds(removal.removedLastSeenMs);
+    const firstSeenMayHaveMoved =
+      current.firstSeen === null ||
+      (removedFirstSeen !== null && removedFirstSeen <= current.firstSeen);
+    const lastSeenMayHaveMoved =
+      current.lastSeen === null ||
+      (removedLastSeen !== null && removedLastSeen >= current.lastSeen);
+    if (firstSeenMayHaveMoved || lastSeenMayHaveMoved) {
+      needsExactRefresh.push(removal.id);
+      continue;
+    }
+
+    updateFrequencyStmt.run(nextFrequency, removal.id);
+  }
+
+  if (entity === 'word') {
+    refreshWordAggregates(db, needsExactRefresh);
+  } else {
+    refreshKanjiAggregates(db, needsExactRefresh);
+  }
+}
+
 function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
   if (wordIds.length === 0) {
     return;
@@ -214,11 +375,18 @@ function refreshWordAggregates(db: DatabaseSync, wordIds: number[]): void {
         SELECT
           w.id AS wordId,
           COALESCE(SUM(o.occurrence_count), 0) AS frequency,
-          MIN(COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)) AS firstSeen,
-          MAX(COALESCE(sl.LAST_UPDATE_DATE, sl.CREATED_DATE)) AS lastSeen
+          MIN(COALESCE(o.seen_ms, (
+            SELECT COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)
+            FROM imm_subtitle_lines sl
+            WHERE sl.line_id = o.line_id
+          ))) AS firstSeen,
+          MAX(COALESCE(o.seen_ms, (
+            SELECT COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)
+            FROM imm_subtitle_lines sl
+            WHERE sl.line_id = o.line_id
+          ))) AS lastSeen
         FROM imm_words w
         LEFT JOIN imm_word_line_occurrences o ON o.word_id = w.id
-        LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE w.id IN (${makePlaceholders(wordIds)})
         GROUP BY w.id
       `,
@@ -263,11 +431,18 @@ function refreshKanjiAggregates(db: DatabaseSync, kanjiIds: number[]): void {
         SELECT
           k.id AS kanjiId,
           COALESCE(SUM(o.occurrence_count), 0) AS frequency,
-          MIN(COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)) AS firstSeen,
-          MAX(COALESCE(sl.LAST_UPDATE_DATE, sl.CREATED_DATE)) AS lastSeen
+          MIN(COALESCE(o.seen_ms, (
+            SELECT COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)
+            FROM imm_subtitle_lines sl
+            WHERE sl.line_id = o.line_id
+          ))) AS firstSeen,
+          MAX(COALESCE(o.seen_ms, (
+            SELECT COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)
+            FROM imm_subtitle_lines sl
+            WHERE sl.line_id = o.line_id
+          ))) AS lastSeen
         FROM imm_kanji k
         LEFT JOIN imm_kanji_line_occurrences o ON o.kanji_id = k.id
-        LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id
         WHERE k.id IN (${makePlaceholders(kanjiIds)})
         GROUP BY k.id
       `,

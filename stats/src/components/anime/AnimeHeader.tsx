@@ -6,6 +6,8 @@ interface AnimeHeaderProps {
   anilistEntries: AnilistEntry[];
   coverRetryToken?: number;
   onChangeAnilist?: () => void;
+  onDeleteAnime?: () => void;
+  isDeletingAnime?: boolean;
 }
 
 function AnilistButton({ entry }: { entry: AnilistEntry }) {
@@ -32,6 +34,8 @@ export function AnimeHeader({
   anilistEntries,
   coverRetryToken = 0,
   onChangeAnilist,
+  onDeleteAnime,
+  isDeletingAnime = false,
 }: AnimeHeaderProps) {
   const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative].filter(
     (t): t is string => t != null && t !== detail.canonicalTitle,
@@ -93,6 +97,25 @@ export function AnimeHeader({
               {anilistEntries.length > 0 || detail.anilistId
                 ? 'Change AniList Entry'
                 : 'Link to AniList'}
+            </button>
+          )}
+          {onDeleteAnime && (
+            <button
+              type="button"
+              onClick={onDeleteAnime}
+              disabled={isDeletingAnime}
+              title="Delete this title and every session and stat recorded for it"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-red/80 hover:bg-ctp-red/15 hover:text-ctp-red transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeletingAnime ? (
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 animate-spin rounded-full border-2 border-ctp-surface2 border-t-ctp-red"
+                />
+              ) : (
+                <span aria-hidden="true">{'\u2715'}</span>
+              )}
+              {isDeletingAnime ? 'Deleting\u2026' : 'Delete Entry'}
             </button>
           )}
         </div>

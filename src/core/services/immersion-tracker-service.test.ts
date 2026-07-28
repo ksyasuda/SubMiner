@@ -1466,6 +1466,97 @@ test('deleteVideo ignores the currently active video and keeps new writes flusha
   }
 });
 
+test('deleteAnime removes every episode, session and library row for the title', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+
+    for (const episode of ['S02E05', 'S02E06']) {
+      tracker = new Ctor({ dbPath });
+      tracker.handleMediaChange(`/tmp/Little Witch Academia ${episode}.mkv`, `Episode ${episode}`);
+      await waitForPendingAnimeMetadata(tracker);
+      tracker.recordSubtitleLine('今日は晴れです', 0, 1.2);
+      tracker.recordCardsMined(1);
+      tracker.destroy();
+      tracker = null;
+    }
+
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const animeId = (
+      privateApi.db.prepare('SELECT anime_id FROM imm_anime LIMIT 1').get() as {
+        anime_id: number;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+
+    const libraryBefore = await tracker.getAnimeLibrary();
+    assert.equal(libraryBefore.length, 1);
+    assert.equal(libraryBefore[0]?.episodeCount, 2);
+
+    await tracker.deleteAnime(animeId);
+
+    const libraryAfter = await tracker.getAnimeLibrary();
+    assert.equal(libraryAfter.length, 0);
+
+    const countOf = (sql: string): number =>
+      (privateApi.db.prepare(sql).get() as { total: number }).total;
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_anime'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_lifetime_anime'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_videos'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_sessions'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_subtitle_lines'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_daily_rollups'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_lifetime_media'), 0);
+    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_words'), 0);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteAnime ignores the title of the currently active session', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(videoId);
+    const animeId = (
+      privateApi.db.prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?').get(videoId) as {
+        anime_id: number | null;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+
+    await tracker.deleteAnime(animeId);
+
+    const animeCountRow = privateApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_anime WHERE anime_id = ?')
+      .get(animeId) as { total: number };
+    const videoCountRow = privateApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { total: number };
+
+    assert.equal(animeCountRow.total, 1);
+    assert.equal(videoCountRow.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('handleMediaChange links parsed anime metadata on the active video row', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
