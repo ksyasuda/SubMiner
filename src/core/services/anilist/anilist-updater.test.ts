@@ -605,3 +605,33 @@ test('updateAnilistPostWatchProgress returns error when search fails', async () 
     globalThis.fetch = originalFetch;
   }
 });
+
+test('updateAnilistPostWatchProgress does not requeue a search that matched nothing', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    createJsonResponse({ data: { Page: { media: [] } } })) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Unknown Show', 3);
+    assert.equal(result.status, 'error');
+    assert.equal(result.retryable, false);
+    assert.match(result.message, /no matches/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress still allows retry when the search itself fails', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    createJsonResponse({ errors: [{ message: 'upstream exploded' }] })) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 3);
+    assert.equal(result.status, 'error');
+    assert.notEqual(result.retryable, false);
+    assert.match(result.message, /search failed/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

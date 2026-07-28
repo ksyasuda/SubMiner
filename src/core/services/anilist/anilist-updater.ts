@@ -305,7 +305,13 @@ export async function updateAnilistPostWatchProgress(
     }
 
     if (!resolution) {
-      return { status: 'error', message: 'AniList search returned no matches.' };
+      // A well-formed search that matched nothing is deterministic for this title, so
+      // requeueing it just burns rate limit. Transient failures throw and are caught above.
+      return {
+        status: 'error',
+        retryable: false,
+        message: 'AniList search returned no matches.',
+      };
     }
     if (!resolution.seasonResolved) {
       // Updating the season 1 entry here is worse than not updating at all.
