@@ -176,22 +176,22 @@ Use `subminer <subcommand> -h` for command-specific help.
 
 ## Options
 
-| Flag                  | Description                                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| `-d, --directory`     | Video search directory (default: cwd)                                       |
-| `-r, --recursive`     | Search directories recursively                                              |
-| `-R, --rofi`          | Use rofi instead of fzf                                                     |
-| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))            |
-| `-v, --version`       | Print the launcher's own version (can differ from the installed app binary) |
-| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible        |
-| `--start`             | Explicitly start overlay after mpv launches                                 |
-| `-S, --start-overlay` | Force the visible overlay on start                                          |
-| `-T, --no-texthooker` | Disable texthooker server                                                   |
-| `-p, --profile`       | mpv profile name (no default; omitted unless set)                           |
-| `-a, --args`          | Pass additional mpv arguments as a quoted string                            |
-| `-b, --backend`       | Force window backend (`hyprland`, `sway`, `x11`, `macos`, `windows`)        |
-| `--settings`          | Open the SubMiner settings window                                           |
-| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                         |
+| Flag                  | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `-d, --directory`     | Video search directory (default: cwd)                                        |
+| `-r, --recursive`     | Search directories recursively                                               |
+| `-R, --rofi`          | Use rofi instead of fzf                                                      |
+| `-H, --history`       | Browse local watch history (see [Watch History](#watch-history))             |
+| `-v, --version`       | Print the launcher's own version (can differ from the installed app binary)  |
+| `-u, --update`        | Check for SubMiner updates and update the app/launcher when possible         |
+| `--start`             | Explicitly start overlay after mpv launches                                  |
+| `-S, --start-overlay` | Force the visible overlay on start                                           |
+| `-T, --no-texthooker` | Disable texthooker server                                                    |
+| `-p, --profile`       | mpv profile name (no default; omitted unless set)                            |
+| `-a, --args`          | Pass additional mpv arguments as a quoted string                             |
+| `-b, --backend`       | Force window backend (`auto`, `hyprland`, `sway`, `x11`, `macos`, `windows`) |
+| `--settings`          | Open the SubMiner settings window                                            |
+| `--log-level`         | Logger verbosity (`debug`, `info`, `warn`, `error`)                          |
 
 App-binary flags such as `--setup`, `--dev`, and `--debug` are not launcher flags - pass them through with `subminer app`, for example `subminer app --setup`.
 

@@ -71,6 +71,10 @@ When both files exist, SubMiner prefers `config.jsonc` over `config.json`.
 
 See [config.example.jsonc](/config.example.jsonc) for a comprehensive example with all available options, default values, and detailed comments. Only include the options you want to customize in your config file.
 
+::: warning One value in that file is platform-specific
+The example is generated with a fixed Linux/macOS socket path so it stays reproducible, so it shows `"socketPath": "/tmp/subminer-socket"`. On Windows the real default is `\\\\.\\pipe\\subminer-socket`. Leave `mpv.socketPath` out of your config entirely unless you need a custom path, and SubMiner picks the right one for your platform.
+:::
+
 Generate a fresh default config from the centralized config registry:
 
 ```bash
@@ -145,12 +149,13 @@ The configuration file includes several main sections:
 - [**Shared AI Provider**](#shared-ai-provider) - Canonical OpenAI-compatible provider config shared by Anki and YouTube subtitle fixing
 - [**AnkiConnect**](#ankiconnect) - Automatic Anki card creation with media
 - [**Kiku/Lapis Integration**](#kiku-lapis-integration) - Sentence cards and duplicate handling for Kiku/Lapis note types
-- [**N+1 Word Highlighting**](#n1-word-highlighting) - Known-word cache and single-target highlighting
+- [**N+1 Word Highlighting**](#n-1-word-highlighting) - Known-word cache and single-target highlighting
 - [**Field Grouping Modes**](#field-grouping-modes) - Kiku/Lapis duplicate card merging
 
 **External Integrations**
 
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
+- [**TsukiHime**](#tsukihime) - Multi-language subtitle search and download
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile
@@ -538,6 +543,8 @@ Display a second subtitle track (e.g., English alongside Japanese) in the overla
 
 See `config.example.jsonc` for detailed configuration options.
 
+Secondary subtitles do **not** auto-load by default. To turn them on for local and Jellyfin playback, set `autoLoadSecondarySub` to `true` and list the language codes you want:
+
 ```json
 {
   "secondarySub": {
@@ -548,11 +555,15 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                  | Values                             | Description                                                                                                         |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`); non-Signs/Songs tracks are preferred when several tracks match |
-| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load matching secondary subtitle track                                                              |
-| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)                                                                           |
+| Option                  | Values                             | Description                                                                                                                                                             |
+| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`); non-Signs/Songs tracks are preferred when several tracks match. Default is empty (`[]`).                            |
+| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load a matching secondary subtitle track for local/Jellyfin sidecar files (default: `false`)                                                             |
+| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)                                                                                                                               |
+
+These two settings apply to local and Jellyfin playback only. YouTube secondary selection is fixed to English and ignores them; see [YouTube Integration](/youtube-integration#secondary-subtitle-languages). `defaultMode` still controls how the loaded secondary bar is displayed in every case.
+
+Because the mined-card translation field is filled from the secondary subtitle when one is present, leaving `autoLoadSecondarySub` off means local-file cards fall back to AI translation (when configured) or the original sentence text.
 
 The secondary-subtitle language list also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
 
@@ -863,8 +874,8 @@ When config hot-reload updates shortcut/keybinding/style values, close and reope
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
 
 Current runtime options cover automatic card updates, known-word highlighting,
-N+1 annotation, JLPT underlines, frequency highlighting, known-word match mode,
-and Kiku field grouping mode.
+known-word maturity coloring, N+1 annotation, JLPT underlines, frequency
+highlighting, known-word match mode, and Kiku field grouping mode.
 
 Annotation toggles only apply to new subtitle lines after the toggle. The currently displayed line is not re-tokenized in place.
 
@@ -1031,6 +1042,8 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.knownWords.matchMode`                | `"headword"`, `"surface"`                   | Matching strategy for known-word highlighting (default: `"headword"`). `headword` uses token headwords; `surface` uses visible subtitle text.                                                                                   |
 | `ankiConnect.knownWords.refreshMinutes`           | number                                      | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                                                    |
 | `ankiConnect.knownWords.decks`                    | object                                      | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word"] }`).                                                                                                                                 |
+| `ankiConnect.knownWords.maturityEnabled`          | `true`, `false`                             | Color known words by Anki card maturity (new/learning/young/mature) instead of one color. Requires `knownWords.highlightEnabled` (default: `false`). Tier colors come from `subtitleStyle.knownWordMaturityColors`.             |
+| `ankiConnect.knownWords.matureThresholdDays`      | number                                      | Card interval in days at which a known word counts as mature (default: `21`, matching Anki's own convention)                                                                                                                   |
 | `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                             | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).                                            |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                      | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                                                          |
 | `behavior.notificationType`                       | `"overlay"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"overlay"`). `"both"` means overlay + system. `osd` and `osd-system` are legacy config-file-only values; use `"osd-system"` to keep the old OSD + system behavior.                  |
@@ -1076,6 +1089,7 @@ Known-word cache policy:
 - `subtitleStyle.nPlusOneColor` sets the color for the single target token when exactly one eligible unknown word exists.
 - The N+1 minimum sentence-word setting controls the token count required before N+1 highlighting can trigger.
 - `subtitleStyle.knownWordColor` sets the known-word highlight color for tokens already in Anki.
+- Set `ankiConnect.knownWords.maturityEnabled` to `true` to color known words by Anki card maturity instead, using the four `subtitleStyle.knownWordMaturityColors` tiers. See [Known-Word Maturity Highlighting](/subtitle-annotations#known-word-maturity-highlighting) for how tiers are derived. Changing it or `matureThresholdDays` forces a full cache refresh.
 - The known-word deck map accepts an object keyed by deck name.
 - Prefer expression/word fields such as `Expression` or `Word`. Avoid reading-only fields unless you intentionally want homophone readings to count as known words.
 - Cache state is persisted to `known-words-cache.json` under the app `userData` directory.
@@ -1114,6 +1128,7 @@ When the manual merge popup opens, SubMiner pauses playback and closes any open 
 
 <video controls playsinline preload="metadata" :poster="withBase('/assets/kiku-integration-poster.jpg')" style="width: 100%; max-width: 960px;">
   <source :src="withBase('/assets/kiku-integration.webm')" type="video/webm" />
+  <source :src="withBase('/assets/kiku-integration.mp4')" type="video/mp4" />
   Your browser does not support the video tag.
 </video>
 
@@ -1138,6 +1153,28 @@ Configure Jimaku API access and defaults:
 ```
 
 Jimaku is rate limited; if you hit a limit, SubMiner will surface the retry delay from the API response.
+
+### TsukiHime
+
+TsukiHime subtitle search works out of the box and needs no account or API key. It does require the `xz` binary on your `PATH`, because TsukiHime serves extracted subtitles xz-compressed.
+
+```json
+{
+  "tsukihime": {
+    "apiBaseUrl": "https://api.tsukihime.org/v1",
+    "maxSearchResults": 10
+  }
+}
+```
+
+| Option                       | Values       | Description                                                                                          |
+| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `tsukihime.apiBaseUrl`       | string (URL) | Base URL of the TsukiHime API (default: `https://api.tsukihime.org/v1`). Only change it for a mirror. |
+| `tsukihime.maxSearchResults` | number       | Maximum releases returned per search (default: `10`; the API caps this at 100)                       |
+
+The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift+T`; set to `null` to disable). The older `animetosho` section and `shortcuts.openAnimetosho` are still accepted as deprecated aliases, with the current names taking precedence when both are set.
+
+See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, language tabs, and troubleshooting.
 
 ### Subtitle Sync
 
@@ -1491,7 +1528,7 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
     "executablePath": "",
     "launchMode": "normal",
     "profile": "",
-    "socketPath": "\\\\.\\pipe\\subminer-socket",
+    "socketPath": "/tmp/subminer-socket",
     "backend": "auto",
     "autoStartSubMiner": true,
     "pauseUntilOverlayReady": true,

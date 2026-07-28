@@ -14,6 +14,10 @@ const ankiIntegrationContents = readFileSync(
   'utf8',
 );
 const configurationContents = readFileSync(new URL('./configuration.md', import.meta.url), 'utf8');
+const troubleshootingContents = readFileSync(
+  new URL('./troubleshooting.md', import.meta.url),
+  'utf8',
+);
 
 function extractReleaseHeadings(content: string, count: number): string[] {
   return Array.from(content.matchAll(/^## v[^\n]+$/gm))
@@ -56,6 +60,33 @@ test('docs reflect current launcher and release surfaces', () => {
   expect(configurationContents).toContain('### Shared AI Provider');
 
   expect(changelogContents).toContain('v0.5.1 (2026-03-09)');
+});
+
+test('docs document config surfaces that are easy to miss when they ship', () => {
+  // Anki maturity-based known-word highlighting (#172) landed in
+  // subtitle-annotations.md but was missing from the config reference.
+  expect(configurationContents).toContain('ankiConnect.knownWords.maturityEnabled');
+  expect(configurationContents).toContain('ankiConnect.knownWords.matureThresholdDays');
+
+  // Every top-level config block should be reachable from the config reference.
+  expect(configurationContents).toContain('### TsukiHime');
+  expect(configurationContents).toContain('tsukihime.maxSearchResults');
+
+  // xz is a hard runtime dependency of the TsukiHime download path.
+  expect(installationContents).toContain('xz');
+});
+
+test('docs state the real secondary-subtitle and Anki field-matching behavior', () => {
+  // secondarySub auto-load is off by default; the config example previously
+  // implied otherwise while youtube-integration.md documented it correctly.
+  expect(configurationContents).toContain('Secondary subtitles do **not** auto-load by default');
+  expect(configurationContents).toContain('default: `false`');
+
+  // Anki field names are matched case-insensitively (src/anki-integration.ts
+  // resolveFieldName: exact match first, then a lowercase comparison).
+  expect(usageContents).not.toContain('exactly (case-sensitive)');
+  expect(troubleshootingContents).not.toContain('exactly (case-sensitive)');
+  expect(ankiIntegrationContents).toContain('case-insensitively');
 });
 
 test('docs dev server links version navigation to local dev routes', () => {

@@ -153,6 +153,6 @@ These settings come from `config.jsonc` (or built-in defaults); there are no CLI
 
 - [Usage --- YouTube Playback](/usage#youtube-playback)
 - [Configuration --- YouTube Playback Settings](/configuration#youtube-playback-settings)
-- [Configuration --- Secondary Subtitle](/configuration#secondary-subtitle)
+- [Configuration --- Secondary Subtitles](/configuration#secondary-subtitles)
 - [Keyboard Shortcuts](/shortcuts)
 - [Jellyfin Integration](/jellyfin-integration)

@@ -377,4 +377,4 @@ ws.on('message', async (raw) => {
 - [Mining Workflow - Texthooker](/mining-workflow#texthooker)
 - [MPV Plugin](/mpv-plugin)
 - [Launcher Script](/launcher-script)
-- [Anki Integration](/anki-integration#proxy-mode-setup-yomitan--texthooker)
+- [Anki Integration](/anki-integration#proxy-mode-setup-yomitan-texthooker)

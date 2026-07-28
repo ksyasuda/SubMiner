@@ -112,5 +112,5 @@ Verify mpv is running and connected via IPC. SubMiner loads the subtitle by issu
 ## Related
 
 - [Configuration Reference](/configuration#jimaku) - full config options
-- [Mining Workflow](/mining-workflow#jimaku-subtitle-search) - how Jimaku fits into the sentence mining loop
+- [Mining Workflow](/mining-workflow#related-features) - how Jimaku fits into the sentence mining loop
 - [Troubleshooting](/troubleshooting#jimaku) - additional error guidance

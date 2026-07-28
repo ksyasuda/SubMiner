@@ -183,7 +183,7 @@ If you want to build your own browser client, websocket consumer, or automation 
 These features support the mining loop but have their own dedicated pages:
 
 - **[Jimaku subtitle search](/jimaku-integration)** - search and download anime subtitle files directly from the overlay (`Ctrl+Shift+J` by default), then load them into mpv.
-- **[N+1 word highlighting](/subtitle-annotations#n1-word-highlighting)** - cross-reference your Anki decks to highlight known words, making true N+1 sentences (exactly one unknown word) easy to spot during immersion.
+- **[N+1 word highlighting](/subtitle-annotations#n-1-word-highlighting)** - cross-reference your Anki decks to highlight known words, making true N+1 sentences (exactly one unknown word) easy to spot during immersion.
 - **[Immersion tracking](/immersion-tracking)** - log watching and mining activity to a local database and view session times, words seen, and cards mined in the built-in stats dashboard.
 
 Next: [Anki Integration](/anki-integration) - field mapping, media generation, and card enrichment configuration.

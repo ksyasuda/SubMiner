@@ -8,7 +8,7 @@
     "docs:dev": "SUBMINER_DOCS_VERSION_LINK_ORIGIN=local bun run ../scripts/build-versioned-docs.ts && SUBMINER_DOCS_VERSION_LINK_ORIGIN=local SUBMINER_DOCS_VERSION_MANIFEST=\"$(bun run ../scripts/print-docs-version-manifest.ts)\" VITE_EXTRA_EXTENSIONS=jsonc vitepress dev --host 0.0.0.0 --port 5173 --strictPort",
     "docs:build": "VITE_EXTRA_EXTENSIONS=jsonc vitepress build",
     "docs:preview": "VITE_EXTRA_EXTENSIONS=jsonc vitepress preview --host 0.0.0.0 --port 4173 --strictPort",
-    "test": "bun test plausible.test.ts index.assets.test.ts docs-sync.test.ts seo.test.ts .vitepress/theme/status-line.test.ts ../scripts/docs-versioning.test.ts"
+    "test": "bun test plausible.test.ts index.assets.test.ts docs-sync.test.ts links.test.ts seo.test.ts .vitepress/theme/status-line.test.ts ../scripts/docs-versioning.test.ts"
   },
   "dependencies": {
     "@catppuccin/vitepress": "^0.1.2",

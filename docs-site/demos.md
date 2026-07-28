@@ -20,9 +20,6 @@ Mine vocabulary cards from Yomitan or directly from subtitle lines. SubMiner aut
   </a>
 </video>
 
-::: info VIDEO COMING SOON
-:::
-
 ## Subtitle Download & Sync
 
 Search and download subtitles from Jimaku, then retime them with alass or ffsubsync - all from within SubMiner.

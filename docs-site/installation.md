@@ -12,20 +12,23 @@ Three steps to get started:
 
 Only **mpv** is strictly required to run SubMiner. Everything else enhances the experience but is optional.
 
-| Dependency           | Status      | What it does                                                                                                                                                   |
-| -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| mpv                  | Required    | The video player SubMiner overlays on. Must support `--input-ipc-server`.                                                                                      |
-| ffmpeg               | Recommended | Audio extraction and screenshots for Anki cards. Without it SubMiner still runs, but media fields will be empty.                                               |
-| MeCab + mecab-ipadic | Recommended | Part-of-speech filtering for more precise N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less accurate. |
-| yt-dlp               | Optional    | YouTube playback and subtitle extraction.                                                                                                                      |
-| fzf                  | Optional    | Terminal-based video picker in the launcher.                                                                                                                   |
-| rofi                 | Optional    | GUI-based video picker (Linux).                                                                                                                                |
-| chafa                | Optional    | Thumbnail previews in fzf.                                                                                                                                     |
-| ffmpegthumbnailer    | Optional    | Video thumbnail generation for the picker.                                                                                                                     |
-| guessit              | Optional    | Better AniSkip title/season/episode parsing.                                                                                                                   |
-| alass                | Optional    | Subtitle sync engine (preferred). Disabled without alass or ffsubsync.                                                                                         |
-| ffsubsync            | Optional    | Audio-based subtitle sync engine. Disabled without alass or ffsubsync.                                                                                         |
-| fuse2                | Linux only  | Required to run the AppImage.                                                                                                                                  |
+Several entries below exist only for the `subminer` command-line launcher, which is Linux and macOS only. On Windows you launch playback with the **SubMiner mpv** shortcut instead, so you can ignore those rows.
+
+| Dependency           | Status      | Platforms    | What it does                                                                                                                                                   |
+| -------------------- | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| mpv                  | Required    | All          | The video player SubMiner overlays on. Must support `--input-ipc-server`.                                                                                      |
+| ffmpeg               | Recommended | All          | Audio extraction and screenshots for Anki cards. Without it SubMiner still runs, but media fields will be empty.                                               |
+| MeCab + mecab-ipadic | Recommended | All          | Part-of-speech filtering for more precise N+1, JLPT, and frequency annotations. Without it annotations still render, but POS-based filtering is less accurate. |
+| yt-dlp               | Optional    | All          | YouTube playback and subtitle extraction.                                                                                                                      |
+| xz                   | Optional    | All          | Required for TsukiHime subtitle downloads (subtitles are served xz-compressed). Preinstalled on most Linux distros; not present on Windows by default.         |
+| guessit              | Optional    | All          | Better AniSkip title/season/episode parsing.                                                                                                                   |
+| alass                | Optional    | All          | Subtitle sync engine (preferred). Disabled without alass or ffsubsync.                                                                                         |
+| ffsubsync            | Optional    | All          | Audio-based subtitle sync engine. Disabled without alass or ffsubsync.                                                                                         |
+| fzf                  | Optional    | Linux, macOS | Terminal-based video picker in the `subminer` launcher.                                                                                                        |
+| rofi                 | Optional    | Linux        | GUI-based video picker in the `subminer` launcher.                                                                                                             |
+| chafa                | Optional    | Linux, macOS | Thumbnail previews in the fzf picker.                                                                                                                          |
+| ffmpegthumbnailer    | Optional    | Linux, macOS | Video thumbnail generation for the pickers.                                                                                                                    |
+| fuse2                | Required    | Linux        | Needed to run the AppImage.                                                                                                                                    |
 
 ### Linux
 
@@ -109,9 +112,100 @@ pip install ffsubsync
 
 ### Windows
 
-Windows 10 or later. Install [`mpv`](https://mpv.io/installation/) and [`ffmpeg`](https://ffmpeg.org/download.html) and ensure both are on `PATH`. Optionally install [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary.
+Windows 10 or later. No compositor tools or window helpers are needed - native window tracking is built in.
 
-No compositor tools or window helpers are needed - native window tracking is built in.
+You need **mpv** (required) and **ffmpeg** (strongly recommended, for card audio and screenshots), and both must be on your `PATH`.
+
+::: tip What is PATH?
+`PATH` is the list of folders Windows searches when a program asks to run another program by name. SubMiner runs `mpv` and `ffmpeg` by name, so if their folders are not on `PATH`, SubMiner cannot find them even though they are installed. The routes below mostly handle `PATH` for you; the manual route explains how to add a folder yourself.
+:::
+
+You can install these with a package manager or by hand. Coverage differs, so pick based on what you need:
+
+| Dependency       | winget          | Scoop         |
+| ---------------- | --------------- | ------------- |
+| mpv (required)   | `shinchiro.mpv` | `extras/mpv`  |
+| ffmpeg           | `Gyan.FFmpeg`   | `main/ffmpeg` |
+| yt-dlp (YouTube) | `yt-dlp.yt-dlp` | `main/yt-dlp` |
+| xz (TsukiHime)   | not packaged    | `main/xz`     |
+
+Use **winget** if you want Microsoft's first-party tool and don't need TsukiHime subtitle downloads. Use **Scoop** if you want one package manager to cover everything, since it is the only one that also packages `xz`.
+
+#### Recommended: winget
+
+[winget](https://learn.microsoft.com/windows/package-manager/winget/) is Microsoft's own package manager and ships with Windows 11 and current Windows 10 (it comes with **App Installer** from the Microsoft Store). In **PowerShell** or **Command Prompt**:
+
+```powershell
+winget install shinchiro.mpv
+winget install Gyan.FFmpeg
+```
+
+Close and reopen your terminal, then check that both are found:
+
+```powershell
+mpv --version
+ffmpeg -version
+```
+
+`ffmpeg` is installed as a portable package, so winget links it into a folder that is already on your `PATH` and it should work right away.
+
+`mpv` uses a regular installer, and depending on the version it may **not** add itself to `PATH`. If `mpv --version` says `not recognized`, you have two easy options:
+
+- Note where it installed (usually `%LOCALAPPDATA%\Programs\mpv`) and add that folder to `PATH` using the manual steps below, or
+- Skip `PATH` entirely and set `mpv.executablePath` to the full path of `mpv.exe` during first-run setup.
+
+Once `mpv --version` works, or you have the full path to `mpv.exe` ready, continue to [step 2](#_2-install-subminer).
+
+<details>
+<summary><b>Alternative: Scoop (covers every dependency, no admin rights)</b></summary>
+
+[Scoop](https://scoop.sh) installs into your user profile, needs no administrator prompt, and always puts commands on `PATH`. It is the only Windows package manager that carries all of SubMiner's optional dependencies, including `xz`, so it is the best choice if you want a single tool to manage everything.
+
+```powershell
+# One-time Scoop setup (skip if you already have it)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+Invoke-RestMethod -Uri https://get.scoop.sh | Invoke-Expression
+
+# mpv lives in the "extras" bucket; everything else is in "main"
+scoop bucket add extras
+scoop install extras/mpv main/ffmpeg
+
+# Optional: yt-dlp for YouTube playback, xz for TsukiHime subtitle downloads
+scoop install main/yt-dlp main/xz
+```
+
+Close and reopen your terminal, then verify with `mpv --version` and `ffmpeg -version`.
+
+</details>
+
+<details>
+<summary><b>Manual install (download the zips yourself)</b></summary>
+
+1. Download mpv from [mpv.io/installation](https://mpv.io/installation/) (the Windows builds link) and ffmpeg from [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
+2. Unzip each one somewhere permanent, for example `C:\Tools\mpv` and `C:\Tools\ffmpeg`. Note the folder that actually contains `mpv.exe` and the one containing `ffmpeg.exe` (for ffmpeg this is usually a `bin` subfolder).
+3. Press `Win`, type **Edit the system environment variables**, and open it.
+4. Click **Environment Variables…**
+5. Under **User variables**, select **Path** and click **Edit…**
+6. Click **New** and paste the folder containing `mpv.exe`. Click **New** again and paste the folder containing `ffmpeg.exe`.
+7. Click **OK** on all three dialogs.
+8. Close and reopen your terminal (PATH changes only apply to newly opened windows), then check:
+
+```powershell
+mpv --version
+ffmpeg -version
+```
+
+If you see `not recognized as the name of a cmdlet`, the folder you added is not the one holding the `.exe`. Reopen the Path editor and double-check.
+
+::: tip Don't want to touch PATH at all?
+mpv is the only hard requirement, and you can point SubMiner straight at it instead: leave `PATH` alone and set `mpv.executablePath` to the full path of `mpv.exe` during first-run setup. ffmpeg still needs to be on `PATH` for card audio and screenshots.
+:::
+
+</details>
+
+**Optional extras:** [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary improves annotation accuracy; it is not in any package manager, so install it from that page. `xz` is needed only for [TsukiHime](/tsukihime-integration) subtitle downloads and is not packaged by winget or Chocolatey, so use `scoop install main/xz` or download [XZ Utils](https://tukaani.org/xz/) and add its folder to `PATH`.
+
+The `subminer` command-line launcher and its picker tools (`fzf`, `rofi`, `chafa`, `ffmpegthumbnailer`) are Linux/macOS only; on Windows you use the **SubMiner mpv** shortcut instead.
 
 ## 2. Install SubMiner
 
@@ -278,7 +372,7 @@ Run the built-in diagnostic to confirm everything is working:
 subminer doctor
 ```
 
-This checks for the app binary, mpv, ffmpeg, config file, and socket path. Fix any failures before continuing.
+This checks for the app binary, mpv, ffmpeg, yt-dlp, fzf, rofi, your config file, and the mpv socket path. Only the app binary and mpv are hard failures; the rest are reported as optional. Fix any hard failures before continuing.
 
 ## Anki Setup (Recommended)
 

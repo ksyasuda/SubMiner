@@ -691,7 +691,7 @@
     "executablePath": "", // Optional absolute path to mpv.exe for Windows launch flows. Leave empty to auto-discover from SUBMINER_MPV_PATH or PATH.
     "launchMode": "normal", // Default window state for SubMiner-managed mpv launches. Values: normal | maximized | fullscreen
     "profile": "", // Optional mpv profile name passed to SubMiner-managed mpv launches. Leave empty to pass no profile.
-    "socketPath": "\\\\.\\pipe\\subminer-socket", // mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.
+    "socketPath": "/tmp/subminer-socket", // mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin.
     "backend": "auto", // Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform. Values: auto | hyprland | sway | x11 | macos | windows
     "autoStartSubMiner": true, // Start SubMiner in the background when SubMiner-managed mpv loads a file. Values: true | false
     "pauseUntilOverlayReady": true, // Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness. Values: true | false

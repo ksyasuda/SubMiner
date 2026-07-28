@@ -251,7 +251,9 @@ test('dev docs version links use local targets for version route testing', async
   delete process.env.SUBMINER_DOCS_CHANNEL;
   delete process.env.SUBMINER_DOCS_BASE;
   delete process.env.SUBMINER_DOCS_VERSION;
-  delete process.env.SUBMINER_DOCS_LATEST_STABLE;
+  // Set explicitly (like the sibling version-nav tests) so this assertion stays
+  // pinned to the manifest under test instead of the config's fallback constant.
+  process.env.SUBMINER_DOCS_LATEST_STABLE = 'v0.14.0';
   process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN = 'local';
   process.env.SUBMINER_DOCS_VERSION_MANIFEST = JSON.stringify({
     latestStable: 'v0.14.0',

@@ -33,7 +33,7 @@ If you want sentence, audio, and screenshot fields on your Anki cards, add this 
 }
 ```
 
-Field names must match your Anki note type exactly (case-sensitive). See [Anki Integration](/anki-integration) for the full reference.
+Field names must match a field on your Anki note type. Matching is case-insensitive (an exact match wins, then a lowercase comparison), but the spelling must otherwise match. See [Anki Integration](/anki-integration) for the full reference.
 :::
 
 ## How It Works
@@ -56,126 +56,90 @@ From there, subtitles render as interactive, hoverable word spans and you mine c
 
 The mpv plugin is always available - it's bundled with SubMiner and injected at runtime. On Linux, normal `subminer` playback auto-installs the launcher-managed runtime plugin copy from the bundled app if that managed copy is missing, so no separate plugin install is needed for standard launcher usage. If you launch mpv yourself (without the launcher), pass `--input-ipc-server=/tmp/subminer-socket` in your mpv config for the overlay to connect.
 
-## Live Config Reload
-
-While SubMiner is running, it watches your active config file and applies safe updates automatically.
-
-Live-updated settings include:
-
-- `subtitleStyle`
-- `keybindings`
-- `shortcuts`
-- `secondarySub.defaultMode`
-- `subtitleSidebar`
-- `notifications`
-- `logging`
-- `jimaku`, `subsync`
-- `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`
-- `stats.toggleKey`, `stats.markWatchedKey`
-- `youtube.primarySubLanguages`
-- most `ankiConnect.*` settings (including `ankiConnect.ai`)
-
-Invalid config edits are rejected; SubMiner keeps the previous valid runtime config and shows an error notification.
-For restart-required sections, SubMiner shows a restart-needed notification.
-
 ## Commands
 
-On Windows, replace `SubMiner.AppImage` with `SubMiner.exe` in the direct packaged-app examples below.
+These are the commands you will actually use day to day. The full inventory of subcommands and flags lives in [Launcher Script](/launcher-script#subcommands).
 
 ```bash
-# Browse and play videos
-subminer                          # Current directory (uses fzf)
-subminer -R                       # Use rofi instead of fzf
-subminer -d ~/Videos              # Specific directory
-subminer -r -d ~/Anime            # Recursive search
-subminer video.mkv                # Play specific file (overlay auto-starts)
-subminer --start video.mkv        # Explicit overlay start (use when mpv.autoStartSubMiner is false in config)
-subminer -S video.mkv             # Also force the visible overlay on start (--start-overlay)
+subminer video.mkv                # Play a specific file
+subminer                          # Browse the current directory (fzf picker)
+subminer -R                       # Browse with the rofi picker instead
+subminer -d ~/Anime -r            # Browse a specific directory, recursively
+subminer -H                       # Browse watch history, then replay/next/previous
 subminer https://youtu.be/...     # Play a YouTube URL
-subminer ytsearch:"jp news"       # Play first YouTube search result
-subminer -H                       # Browse history, then choose previous/replay/next after playback
-subminer app --setup              # Open first-run setup popup
-subminer --version                # Print the launcher's version
-subminer -v                       # Same as above
-subminer --log-level debug video.mkv # Enable verbose logs for launch/debugging
-subminer --log-level warn video.mkv  # Set logging level explicitly
-subminer --args '--fs=opengl-hq --ytdl-format=bestvideo*+bestaudio/best' video.mkv  # Pass extra mpv args
+subminer stats                    # Open the immersion stats dashboard
+subminer doctor                   # Check dependencies, config, and the mpv socket
+subminer settings                 # Open the SubMiner settings window
+subminer app --setup              # Re-open first-run setup
+subminer -u                       # Check for updates
+```
 
-# Options
-subminer -T video.mkv             # Disable texthooker server
-subminer -b x11 video.mkv         # Force X11 backend
-subminer video.mkv                # No mpv profile passed by default
+On **Windows** there is no `subminer` launcher. Use the **SubMiner mpv** shortcut for playback (see [Windows mpv Shortcut](#windows-mpv-shortcut)), and run `SubMiner.exe` directly for everything else.
+
+Two flags are worth knowing early:
+
+- `-a/--args` passes extra arguments straight to mpv, for example `subminer --args "--ao=alsa --volume=80" video.mkv`.
+- `--log-level debug` turns on verbose logging when something is not working.
+
+<details>
+<summary><b>Less common launcher commands</b></summary>
+
+```bash
+subminer --start video.mkv        # Explicit overlay start (when mpv.autoStartSubMiner is false)
+subminer -S video.mkv             # Also force the visible overlay on start
+subminer -T video.mkv             # Disable the texthooker server
+subminer -b x11 video.mkv         # Force a window backend
 subminer -p gpu-hq video.mkv      # Use a specific mpv profile
-subminer jellyfin                 # Open Jellyfin setup window (subcommand form)
-subminer jellyfin -l --server http://127.0.0.1:8096 --username me --password 'secret'
-subminer jellyfin --logout        # Clear stored Jellyfin token/session data
-subminer jellyfin -p              # Interactive Jellyfin library/item picker + playback
-subminer jellyfin -d              # Jellyfin cast-discovery mode (background tray app)
-subminer app --stop               # Stop background app (including Jellyfin cast broadcast)
-subminer doctor                   # Dependency + config + socket diagnostics
-subminer logs -e                  # Export a sanitized log ZIP and print its path
-subminer config path              # Print active config path
-subminer config show              # Print active config contents
-subminer mpv socket               # Print active mpv socket path
-subminer mpv status               # Exit 0 if socket is ready, else exit 1
-subminer mpv idle                 # Launch detached idle mpv with SubMiner defaults
-subminer sync media-box           # Sync stats/watch history with an SSH host
-subminer sync media-box --push    # Merge this machine's stats into the host only
-subminer sync media-box --pull    # Merge the host's stats into this machine only
-subminer sync media-box --check   # Verify SSH and remote SubMiner without syncing
-subminer sync media-box --json    # Emit machine-readable NDJSON progress
-subminer sync --ui                # Open the Sync Stats & History window
-subminer sync --snapshot ~/subminer-snapshot.sqlite  # Write a local DB snapshot
-subminer sync --merge ~/subminer-snapshot.sqlite     # Merge a snapshot into the local DB
-subminer sync --make-temp         # Create an internal sync temp directory
-subminer sync --remove-temp /tmp/subminer-sync-123   # Remove an internal sync temp directory
-subminer dictionary /path/to/file-or-directory  # Generate character dictionary ZIP from target (manual Yomitan import)
-subminer dictionary --candidates /path/to/file.mkv
-subminer dictionary --select 21355 /path/to/file.mkv
-subminer texthooker               # Launch texthooker-only mode
-subminer texthooker -o            # Launch texthooker and open it in your browser
-subminer stats                    # Start the local stats server (see Immersion Tracking)
+subminer ytsearch:"jp news"       # Play the first YouTube search result
+subminer texthooker               # Texthooker-only mode (-o also opens the browser)
 subminer stats -b                 # Start/reuse the background stats daemon
 subminer stats -s                 # Stop the background stats daemon
-subminer app --anilist-setup      # Pass args directly to SubMiner binary (example: AniList login flow)
+subminer stats cleanup            # Backfill vocabulary metadata, prune stale rows
+subminer stats rebuild            # Rebuild rollup data
+subminer doctor --refresh-known-words  # Refresh the known-word cache
+subminer logs -e                  # Export a sanitized log ZIP and print its path
+subminer config path              # Print the active config path
+subminer config show              # Print the active config contents
+subminer mpv socket               # Print the active mpv socket path
+subminer mpv status               # Exit 0 if the socket is ready, else exit 1
+subminer mpv idle                 # Launch a detached idle mpv with SubMiner defaults
+subminer app --stop               # Stop the background app
+subminer --version                # Print the launcher's version
+```
 
-# Direct packaged app control
-SubMiner.AppImage --background             # Start in background (tray + IPC wait, minimal logs)
-SubMiner.AppImage --start --texthooker   # Start overlay with texthooker
-SubMiner.AppImage --texthooker           # Launch texthooker only (no overlay window)
-SubMiner.AppImage --texthooker --open-browser  # Launch texthooker and open browser
-SubMiner.AppImage --setup                  # Open first-run setup popup
+Jellyfin, cross-machine sync, and character-dictionary commands have their own sections: [Jellyfin](/jellyfin-integration), [Sync Between Machines](/launcher-script#sync-between-machines), and [Character Dictionary](/character-dictionary).
+
+</details>
+
+<details>
+<summary><b>Direct packaged-app flags (advanced)</b></summary>
+
+These call the app binary directly rather than going through the launcher. On Windows, replace `SubMiner.AppImage` with `SubMiner.exe`.
+
+```bash
+SubMiner.AppImage --background            # Start in background (tray + IPC wait, minimal logs)
+SubMiner.AppImage --start --texthooker    # Start overlay with texthooker
+SubMiner.AppImage --texthooker            # Texthooker only (no overlay window)
+SubMiner.AppImage --setup                 # Open first-run setup
 SubMiner.AppImage --stop                  # Stop overlay
-SubMiner.AppImage --start --toggle        # Start MPV IPC + toggle visibility
-SubMiner.AppImage --show-visible-overlay              # Force show visible overlay
-SubMiner.AppImage --hide-visible-overlay              # Force hide visible overlay
-SubMiner.AppImage --toggle-primary-subtitle-bar       # Toggle primary subtitle bar visibility
-SubMiner.AppImage --toggle-subtitle-sidebar           # Toggle the subtitle sidebar
-SubMiner.AppImage --open-tsukihime                    # Open TsukiHime subtitle search
-SubMiner.AppImage --start --dev                         # Enable app/dev mode only
-SubMiner.AppImage --start --debug                       # Alias for --dev
-SubMiner.AppImage --start --log-level debug             # Force verbose logging without app/dev mode
-SubMiner.AppImage --playback-feedback "your feedback"   # Route playback feedback through the configured feedback surface
+SubMiner.AppImage --start --toggle        # Start mpv IPC + toggle visibility
+SubMiner.AppImage --show-visible-overlay  # Force show the visible overlay
+SubMiner.AppImage --hide-visible-overlay  # Force hide the visible overlay
+SubMiner.AppImage --toggle-primary-subtitle-bar  # Toggle the primary subtitle bar
+SubMiner.AppImage --toggle-subtitle-sidebar      # Toggle the subtitle sidebar
+SubMiner.AppImage --open-tsukihime        # Open TsukiHime subtitle search
 SubMiner.AppImage --yomitan               # Open Yomitan settings
-SubMiner.AppImage --settings              # Open SubMiner settings window
-SubMiner.AppImage --jellyfin              # Open Jellyfin setup window
-SubMiner.AppImage --jellyfin-login --jellyfin-server http://127.0.0.1:8096 --jellyfin-username me --jellyfin-password 'secret'
-SubMiner.AppImage --jellyfin-logout       # Clear stored Jellyfin token/session data
-SubMiner.AppImage --jellyfin-libraries
-SubMiner.AppImage --jellyfin-items --jellyfin-library-id LIBRARY_ID --jellyfin-search anime --jellyfin-limit 20
-SubMiner.AppImage --jellyfin-play --jellyfin-item-id ITEM_ID --jellyfin-audio-stream-index 1 --jellyfin-subtitle-stream-index 2  # Requires connected mpv IPC (--start)
-SubMiner.AppImage --jellyfin-remote-announce  # Force cast-target capability announce + visibility check
-SubMiner.AppImage --sync-cli --help           # Show the packaged app's headless sync help
-SubMiner.AppImage --sync-cli sync media-box   # Run the sync engine directly in headless mode
-SubMiner.AppImage --dictionary             # Generate character dictionary ZIP for current anime
-SubMiner.AppImage --dictionary-candidates  # List AniList candidates for current character dictionary series
-SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355  # Pin correct AniList media for series
+SubMiner.AppImage --settings              # Open the SubMiner settings window
+SubMiner.AppImage --jellyfin              # Open the Jellyfin setup window
+SubMiner.AppImage --dictionary            # Generate a character dictionary ZIP
+SubMiner.AppImage --start --dev           # Enable app/dev mode
+SubMiner.AppImage --start --log-level debug  # Verbose logging without dev mode
 SubMiner.AppImage --help                  # Show all options
 ```
 
-`--check` performs connection and version checks without changing data. `--json` emits the NDJSON event protocol used by the sync window. `--ui` opens that window in a detached app process and returns the shell immediately; closing a standalone-launched Sync window exits that app instance. `--make-temp` and `--remove-temp` are internal remote-transfer helpers and should normally be left to SubMiner. The packaged app's `--sync-cli` flag selects its headless sync-compatible entrypoint; the `subminer sync` launcher command proxies to it automatically.
+The remaining flags are internal or scripting-only surfaces: the `--jellyfin-*` family (login, library listing, item playback, cast announce), `--sync-cli` (the app's headless sync entrypoint that `subminer sync` proxies to), `--dictionary-candidates` / `--dictionary-select`, and `--playback-feedback <text>`. Run `SubMiner.AppImage --help` for the complete list. The previous `--open-animetosho` flag is still accepted as a deprecated alias for `--open-tsukihime`.
 
-The previous `--open-animetosho` flag remains accepted as a deprecated alias for `--open-tsukihime`.
+</details>
 
 The tray menu includes `Export Logs`, which creates the same sanitized local-date log ZIP as `subminer logs -e` and shows the archive path when complete. Export sanitization masks common PII and secrets, including home-directory usernames, IP addresses, emails, auth/cookie headers, yt-dlp cookie arguments, URL credentials, token/key/password fields, and signed YouTube media URL query strings. The exported copy is sanitized; source log files remain unredacted on disk.
 
@@ -217,18 +181,11 @@ This flow requires `mpv.exe` to be discoverable. Leave `mpv.executablePath` blan
 
 ### Launcher Subcommands
 
-- `subminer jellyfin` / `subminer jf`: Jellyfin-focused workflow aliases.
-- `subminer doctor`: health checks for core dependencies and runtime paths.
-- `subminer settings`: open the SubMiner settings window (also `subminer --settings`).
-- `subminer logs -e`: export a sanitized ZIP of today's local-date logs, or the most recent logs when no current-day log exists. The exported copy masks common PII and secrets; on-disk logs are unchanged.
-- `subminer config`: config file helpers (`path`, `show`).
-- `subminer mpv`: mpv helpers (`status`, `socket`, `idle`).
-- `subminer sync <host>`: sync immersion stats and watch history with another machine over SSH. The host is the SSH destination (`user@host` or an SSH config alias). Use `--push` to merge only this machine's data into the host, or `--pull` to merge only the host's data into this machine; both remain insert-only and do not make either database an exact mirror. Remote launcher checks include standard SubMiner and Bun paths even when SSH omits them from `PATH`. Use `--snapshot <file>` to write a consistent local stats DB snapshot, `--merge <file>` to merge a snapshot into the local stats DB, and `--force` to skip the running stats/mpv safety check. Advanced options: `--db <file>` overrides the local stats DB path, and `--remote-cmd <cmd>` overrides the `subminer` command used on the remote host.
-- `subminer dictionary <path>`: generates a Yomitan-importable character dictionary ZIP from a file/directory target.
-- Use `subminer dictionary --candidates <path>` and `subminer dictionary --select <id> <path>` to correct AniList character-dictionary matches for a whole series.
-- `subminer texthooker`: texthooker-only shortcut (same behavior as `--texthooker`). A _texthooker_ is a web page that displays the current subtitle line as selectable text, so browser-based dictionary extensions and other tools can read along with playback.
-- `subminer app` / `subminer bin`: direct passthrough to the SubMiner binary/AppImage.
-- Subcommand help pages are available (for example `subminer jellyfin -h`).
+The launcher groups related work under subcommands: `jellyfin` (aliased `jf`), `stats`, `sync`, `dictionary` (aliased `dict`), `texthooker`, `doctor`, `settings`, `config`, `mpv`, `logs`, and `app` (aliased `bin`) for passing arguments straight to the SubMiner binary.
+
+Every subcommand has its own help page, for example `subminer jellyfin -h`. See [Launcher Script - Subcommands](/launcher-script#subcommands) for the full table, and [Sync Between Machines](/launcher-script#sync-between-machines) for the SSH stats/history sync.
+
+A _texthooker_ is a web page that displays the current subtitle line as selectable text, so browser-based dictionary extensions and other tools can read along with playback.
 
 ### First-Run Setup
 
@@ -324,6 +281,28 @@ Notes:
 - Configure defaults in `$XDG_CONFIG_HOME/SubMiner/config.jsonc` (or `~/.config/SubMiner/config.jsonc`) under `youtube` and `secondarySub`.
 
 For local video files, SubMiner uses the same config-driven language priorities to auto-select the primary and secondary subtitle tracks from internal and external subtitle sources.
+
+## Live Config Reload
+
+While SubMiner is running, it watches your active config file and applies safe updates automatically.
+
+Live-updated settings include:
+
+- `subtitleStyle`
+- `keybindings`
+- `shortcuts`
+- `secondarySub.defaultMode`
+- `subtitleSidebar`
+- `notifications`
+- `logging`
+- `jimaku`, `subsync`
+- `mpv.aniskipEnabled`, `mpv.aniskipButtonKey`
+- `stats.toggleKey`, `stats.markWatchedKey`
+- `youtube.primarySubLanguages`
+- most `ankiConnect.*` settings (including `ankiConnect.ai`)
+
+Invalid config edits are rejected; SubMiner keeps the previous valid runtime config and shows an error notification.
+For restart-required sections, SubMiner shows a restart-needed notification.
 
 ## Controller Support
 

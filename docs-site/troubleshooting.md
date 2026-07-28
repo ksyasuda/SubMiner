@@ -16,90 +16,6 @@ SubMiner retries the connection automatically with increasing delays (200 ms, 50
 
 If the overlay never appears at all, see [Playback Startup Flow](./architecture#playback-startup-flow) for how a managed launch starts mpv and brings up the overlay.
 
-## Logging and App Mode
-
-- Default log output is `warn`.
-- Use `--log-level` for more/less output.
-- Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
-- You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
-
-## Performance and Resource Impact
-
-### At a glance
-
-- Baseline: `SubMiner --start` is usually lightweight for normal playback.
-- Common spikes come from:
-  - first subtitle parse/tokenization bursts
-  - media generation (`ffmpeg` audio/image and AVIF paths)
-  - media sync and subtitle tooling (`alass`, `ffsubsync`)
-  - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
-
-### If playback feels sluggish
-
-1. Reduce overlay workload:
-
-- set secondary subtitles hidden:
-  - `secondarySub.defaultMode: "hidden"`
-- disable optional enrichment:
-  - `subtitleStyle.enableJlpt: false`
-  - `subtitleStyle.frequencyDictionary.enabled: false`
-
-2. Reduce rendering pressure:
-
-- lower `subtitleStyle.css["font-size"]`
-- keep overlay complexity minimal during heavy CPU periods
-
-3. Reduce media overhead:
-
-- keep `ankiConnect.media.imageType` set to `static` (avoid animated AVIF unless needed)
-- lower `ankiConnect.media.imageQuality`
-- reduce `ankiConnect.media.maxMediaDuration`
-
-4. Lower integration cost:
-
-- disable AI translation when not needed (`ankiConnect.ai.enabled: false`)
-- if needed, run immersion telemetry with lower duration expectations (`immersionTracking.enabled: false` for constrained sessions)
-- favor the default lightweight YouTube subtitle startup settings on low-resource systems
-
-### Practical low-impact profile
-
-```json
-{
-  "subtitleStyle": {
-    "css": {
-      "font-size": "30px"
-    },
-    "enableJlpt": false,
-    "frequencyDictionary": {
-      "enabled": false
-    }
-  },
-  "secondarySub": {
-    "defaultMode": "hidden"
-  },
-  "ankiConnect": {
-    "media": {
-      "imageType": "static",
-      "imageQuality": 80,
-      "maxMediaDuration": 12
-    },
-    "ai": {
-      "enabled": false
-    }
-  },
-  "immersionTracking": {
-    "enabled": false
-  }
-}
-```
-
-### If usage is still high
-
-- Confirm only one SubMiner instance is running.
-- Check whether bottlenecks are `ffmpeg`, `yt-dlp`, or sync tooling in system monitor.
-- Keep the default `warn` level for normal use; raise to `info` or `debug` only for targeted diagnosis.
-- Reproduce once with `SubMiner.AppImage --start --log-level debug` and open DevTools (`y` then `d`) if freezes recur.
-
 **"Failed to parse MPV message"**
 
 Logged when a malformed JSON line arrives from the mpv socket. Usually harmless - SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.
@@ -148,7 +64,7 @@ SubMiner retries with exponential backoff (up to 5 s) and suppresses repeated er
 
 **Cards are created but fields are empty**
 
-Field names in your config must match your Anki note type exactly (case-sensitive). Check `ankiConnect.fields` - for example, if your note type uses `SentenceAudio` but your config says `Audio`, the field will not be populated.
+Field names in your config must name a field that exists on your Anki note type. Matching is case-insensitive (`sentenceaudio` finds `SentenceAudio`), but the spelling must otherwise match, and unknown fields are skipped silently. Check `ankiConnect.fields` - for example, if your note type uses `SentenceAudio` but your config says `Audio`, the field will not be populated.
 
 See [Anki Integration](/anki-integration) for the full field mapping reference.
 
@@ -316,17 +232,115 @@ If subtitle sync fails (the error message is prefixed with the engine name):
 - Try running the sync tool manually to see detailed error output.
 - ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).
 
+## TsukiHime
+
+**"xz binary not found"**
+
+TsukiHime serves extracted subtitles xz-compressed, so SubMiner shells out to `xz` to decompress them. Install it:
+
+- **Arch Linux**: `sudo pacman -S xz`
+- **Ubuntu/Debian**: `sudo apt install xz-utils`
+- **Fedora**: `sudo dnf install xz`
+- **macOS**: `brew install xz`
+- **Windows**: neither winget nor Chocolatey packages `xz`. Use `scoop install main/xz`, or download XZ Utils from [tukaani.org/xz](https://tukaani.org/xz/) and add the folder containing `xz.exe` to your `PATH`. Restart SubMiner afterwards.
+
+Most Linux distributions ship it already. See [TsukiHime Integration](/tsukihime-integration#troubleshooting) for the other TsukiHime error messages.
+
 ## Jimaku
 
 **"Jimaku request failed" or HTTP 429**
 
 The Jimaku API has rate limits. If you see 429 errors, wait for the retry duration shown in the OSD message and try again. If you have a Jimaku API key, set it in `jimaku.apiKey` or `jimaku.apiKeyCommand` to get higher rate limits.
 
+## Logging and App Mode
+
+- Default log output is `warn`.
+- Use `--log-level` for more/less output.
+- Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
+- You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
+
+## Performance and Resource Impact
+
+### At a glance
+
+- Baseline: `SubMiner --start` is usually lightweight for normal playback.
+- Common spikes come from:
+  - first subtitle parse/tokenization bursts
+  - media generation (`ffmpeg` audio/image and AVIF paths)
+  - media sync and subtitle tooling (`alass`, `ffsubsync`)
+  - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
+
+### If playback feels sluggish
+
+1. Reduce overlay workload:
+
+- set secondary subtitles hidden:
+  - `secondarySub.defaultMode: "hidden"`
+- disable optional enrichment:
+  - `subtitleStyle.enableJlpt: false`
+  - `subtitleStyle.frequencyDictionary.enabled: false`
+
+2. Reduce rendering pressure:
+
+- lower `subtitleStyle.css["font-size"]`
+- keep overlay complexity minimal during heavy CPU periods
+
+3. Reduce media overhead:
+
+- keep `ankiConnect.media.imageType` set to `static` (avoid animated AVIF unless needed)
+- lower `ankiConnect.media.imageQuality`
+- reduce `ankiConnect.media.maxMediaDuration`
+
+4. Lower integration cost:
+
+- disable AI translation when not needed (`ankiConnect.ai.enabled: false`)
+- if needed, run immersion telemetry with lower duration expectations (`immersionTracking.enabled: false` for constrained sessions)
+- favor the default lightweight YouTube subtitle startup settings on low-resource systems
+
+### Practical low-impact profile
+
+```json
+{
+  "subtitleStyle": {
+    "css": {
+      "font-size": "30px"
+    },
+    "enableJlpt": false,
+    "frequencyDictionary": {
+      "enabled": false
+    }
+  },
+  "secondarySub": {
+    "defaultMode": "hidden"
+  },
+  "ankiConnect": {
+    "media": {
+      "imageType": "static",
+      "imageQuality": 80,
+      "maxMediaDuration": 12
+    },
+    "ai": {
+      "enabled": false
+    }
+  },
+  "immersionTracking": {
+    "enabled": false
+  }
+}
+```
+
+### If usage is still high
+
+- Confirm only one SubMiner instance is running.
+- Check whether bottlenecks are `ffmpeg`, `yt-dlp`, or sync tooling in system monitor.
+- Keep the default `warn` level for normal use; raise to `info` or `debug` only for targeted diagnosis.
+- Reproduce once with `SubMiner.AppImage --start --log-level debug` and open DevTools (`y` then `d`) if freezes recur.
+
 ## Platform-Specific
 
 ### Linux
 
-- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively - both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma--other-wayland-compositors)).
+- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively - both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma-other-wayland-compositors)).
 - **X11 / Xwayland**: Requires `xdotool`, `xprop`, and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway - both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
 - **Tray icon missing**: SubMiner creates an Electron tray icon in `--background` mode, but Linux trays require a StatusNotifier/AppIndicator host. Hyprland does not provide one by itself; enable a tray in Waybar, Hyprpanel, or another panel. If Electron cannot register the tray, SubMiner logs a warning that mentions the missing tray host.
 - **Mouse passthrough**: On Linux X11/Xwayland, SubMiner uses `xdotool` to poll the cursor and only enables overlay input while the cursor is over subtitle or popup regions. Outside those regions, pointer input passes through to mpv. Native Wayland compositors other than Hyprland/Sway cannot provide the stacking control SubMiner needs.
@@ -428,8 +442,11 @@ Feature-specific issues are covered in each feature's own page:
 - [Character Dictionary](/character-dictionary) - AniList character name matching and inline portraits
 - [Jellyfin Integration](/jellyfin-integration) - remote playback and library connection
 - [Jimaku Integration](/jimaku-integration) - subtitle fetching and API rate limits
+- [TsukiHime Integration](/tsukihime-integration) - multi-language subtitle download and `xz` decompression
 - [YouTube Integration](/youtube-integration) - subtitle generation and playback
-- [Immersion Tracking](/immersion-tracking) - telemetry and session logging
+- [Immersion Tracking](/immersion-tracking) - telemetry, session logging, and the stats dashboard
+- [Launcher Script](/launcher-script) - `subminer` commands, pickers, watch history, and cross-machine sync
+- [MPV Plugin](/mpv-plugin) - in-player chords, script-opts, and binary auto-detection
 - [WebSocket / Texthooker API](/websocket-texthooker-api) - external texthooker clients
 - [Subtitle Annotations](/subtitle-annotations) - N+1, frequency, JLPT, and name-match layers
 - [Subtitle Sidebar](/subtitle-sidebar) - sidebar navigation and behavior

@@ -85,5 +85,5 @@ test('writeConfigExampleArtifacts creates parent directories for resolved output
 test('generateConfigExampleTemplate uses the canonical example socket path', () => {
   const template = generateConfigExampleTemplate();
 
-  assert.match(template, /"socketPath": "\\\\\\\\.\\\\pipe\\\\subminer-socket"/);
+  assert.match(template, /"socketPath": "\/tmp\/subminer-socket"/);
 });

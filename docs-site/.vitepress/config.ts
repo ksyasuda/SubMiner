@@ -28,7 +28,7 @@ const outDir = optionalEnv(process.env.SUBMINER_DOCS_OUT_DIR);
 const docsSourceDir = optionalEnv(process.env.SUBMINER_DOCS_SOURCE_DIR) ?? process.cwd();
 const channel = normalizeChannel(optionalEnv(process.env.SUBMINER_DOCS_CHANNEL));
 const docsVersion = optionalEnv(process.env.SUBMINER_DOCS_VERSION);
-const latestStable = optionalEnv(process.env.SUBMINER_DOCS_LATEST_STABLE) ?? 'v0.14.0';
+const latestStable = optionalEnv(process.env.SUBMINER_DOCS_LATEST_STABLE) ?? 'v0.18.0';
 const versionManifest = parseVersionManifest(process.env.SUBMINER_DOCS_VERSION_MANIFEST);
 const versionLinkOrigin =
   optionalEnv(process.env.SUBMINER_DOCS_VERSION_LINK_ORIGIN) ?? 'production';
@@ -306,6 +306,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: 'Usage', link: '/usage' },
       { text: 'Mining Workflow', link: '/mining-workflow' },
       { text: 'Launcher Script', link: '/launcher-script' },
+      { text: 'Feature Demos', link: '/demos' },
     ],
   },
   {

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { DEFAULT_CONFIG, deepCloneConfig, generateConfigTemplate } from './config';
 import { getDefaultMpvSocketPath } from './shared/mpv-socket-path';
 
-const CONFIG_EXAMPLE_PLATFORM: NodeJS.Platform = 'win32';
+const CONFIG_EXAMPLE_PLATFORM: NodeJS.Platform = 'linux';
 
 export function generateConfigExampleTemplate(): string {
   const config = deepCloneConfig(DEFAULT_CONFIG);
