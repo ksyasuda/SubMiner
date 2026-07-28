@@ -271,12 +271,25 @@ export function createCoverArtFetcher(
       }
 
       if (resolution && !resolution.seasonResolved) {
+        // Only the season 1 entry was found. Storing its artwork would leave a cover with
+        // no AniList id, which the `existing.coverBlob` early return above serves forever,
+        // so the season could never re-resolve once AniList publishes the relation.
+        // Caching a plain no-match instead reuses the NO_MATCH_RETRY_MS retry window.
         logger.warn(
-          'cover-art: could not find season %d of "%s", using "%s"',
+          'cover-art: could not find season %d of "%s" (only matched "%s"), caching no-match',
           resolution.requestedSeason,
           searchBase,
           resolution.title,
         );
+        upsertCoverArt(db, videoId, {
+          anilistId: null,
+          coverUrl: null,
+          coverBlob: null,
+          titleRomaji: null,
+          titleEnglish: null,
+          episodesTotal: null,
+        });
+        return false;
       }
 
       const selected = resolution?.media ?? null;
@@ -299,34 +312,27 @@ export function createCoverArtFetcher(
         coverBlob = await downloadImage(coverUrl);
       }
 
-      // An unresolved season means `selected` is the season 1 entry. Its artwork is a
-      // reasonable stand-in, but its id and episode count are not: they feed anime-level
-      // metadata that would otherwise be cached wrong and never re-resolved.
-      const seasonResolved = resolution?.seasonResolved !== false;
-
       upsertCoverArt(db, videoId, {
-        anilistId: seasonResolved ? selected.id : null,
+        anilistId: selected.id,
         coverUrl,
         coverBlob,
-        titleRomaji: seasonResolved ? (selected.title?.romaji ?? null) : null,
-        titleEnglish: seasonResolved ? (selected.title?.english ?? null) : null,
-        episodesTotal: seasonResolved ? (selected.episodes ?? null) : null,
+        titleRomaji: selected.title?.romaji ?? null,
+        titleEnglish: selected.title?.english ?? null,
+        episodesTotal: selected.episodes ?? null,
       });
 
-      if (seasonResolved) {
-        updateAnimeAnilistInfo(db, videoId, {
-          anilistId: selected.id,
-          titleRomaji: selected.title?.romaji ?? null,
-          titleEnglish: selected.title?.english ?? null,
-          titleNative: selected.title?.native ?? null,
-          episodesTotal: selected.episodes ?? null,
-        });
-      }
+      updateAnimeAnilistInfo(db, videoId, {
+        anilistId: selected.id,
+        titleRomaji: selected.title?.romaji ?? null,
+        titleEnglish: selected.title?.english ?? null,
+        titleNative: selected.title?.native ?? null,
+        episodesTotal: selected.episodes ?? null,
+      });
 
       logger.info(
-        'cover-art: cached art for videoId=%d anilistId=%s title="%s"',
+        'cover-art: cached art for videoId=%d anilistId=%d title="%s"',
         videoId,
-        seasonResolved ? String(selected.id) : 'none (season unresolved)',
+        selected.id,
         selected.title?.romaji ?? searchBase,
       );
 
