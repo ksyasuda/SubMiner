@@ -3,6 +3,7 @@ import * as path from 'path';
 
 import { parseMediaInfo } from '../../../jimaku/utils';
 import type { AnilistRateLimiter } from './rate-limiter';
+import { resolveAnilistSeasonMedia } from './season-resolver';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 
@@ -24,6 +25,12 @@ export interface AnilistPostWatchUpdateResult {
 export interface AnilistPostWatchUpdateOptions {
   rateLimiter?: AnilistRateLimiter;
   season?: number | null;
+  /**
+   * Pinned AniList media id (from a character dictionary manual override). When set,
+   * the search/season resolution is skipped entirely.
+   */
+  mediaId?: number | null;
+  logInfo?: (message: string) => void;
 }
 
 interface AnilistGraphQlError {
@@ -35,23 +42,15 @@ interface AnilistGraphQlResponse<T> {
   errors?: AnilistGraphQlError[];
 }
 
-interface AnilistSearchData {
-  Page?: {
-    media?: Array<{
-      id: number;
-      episodes: number | null;
-      title?: {
-        romaji?: string | null;
-        english?: string | null;
-        native?: string | null;
-      };
-    }>;
-  };
-}
-
 interface AnilistMediaEntryData {
   Media?: {
     id: number;
+    episodes?: number | null;
+    title?: {
+      romaji?: string | null;
+      english?: string | null;
+      native?: string | null;
+    } | null;
     mediaListEntry?: {
       progress?: number | null;
       status?: string | null;
@@ -154,32 +153,6 @@ function buildGuessitTitle(title: string, alternativeTitle: string | null): stri
   return title;
 }
 
-function normalizeTitle(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function titleMentionsSeason(title: string, season: number): boolean {
-  const normalized = normalizeTitle(title);
-  return (
-    normalized.includes(`season ${season}`) ||
-    normalized.includes(`s${String(season).padStart(2, '0')}`) ||
-    normalized.includes(`s${season}`)
-  );
-}
-
-function buildSearchCandidates(title: string, season: number | null | undefined): string[] {
-  const trimmed = title.trim();
-  if (!trimmed) return [];
-  const candidates =
-    typeof season === 'number' &&
-    Number.isInteger(season) &&
-    season > 1 &&
-    !titleMentionsSeason(trimmed, season)
-      ? [`${trimmed} Season ${season}`, trimmed]
-      : [trimmed];
-  return candidates.filter((candidate, index, all) => all.indexOf(candidate) === index);
-}
-
 async function anilistGraphQl<T>(
   accessToken: string,
   query: string,
@@ -216,38 +189,22 @@ function firstErrorMessage<T>(response: AnilistGraphQlResponse<T>): string | nul
   return firstError?.message ?? null;
 }
 
-function pickBestSearchResult(
-  title: string,
-  episode: number,
-  media: Array<{
-    id: number;
-    episodes: number | null;
-    title?: {
-      romaji?: string | null;
-      english?: string | null;
-      native?: string | null;
-    };
-  }>,
-): { id: number; title: string; episodes: number | null } | null {
-  const filtered = media.filter((item) => {
-    const totalEpisodes = item.episodes;
-    return totalEpisodes === null || totalEpisodes >= episode;
-  });
-  const candidates = filtered.length > 0 ? filtered : media;
-  if (candidates.length === 0) return null;
-
-  const normalizedTarget = normalizeTitle(title);
-  const exact = candidates.find((item) => {
-    const titles = [item.title?.romaji, item.title?.english, item.title?.native]
-      .filter((value): value is string => typeof value === 'string')
-      .map((value) => normalizeTitle(value));
-    return titles.includes(normalizedTarget);
-  });
-
-  const selected = exact ?? candidates[0]!;
-  const selectedTitle =
-    selected.title?.english || selected.title?.romaji || selected.title?.native || title;
-  return { id: selected.id, title: selectedTitle, episodes: selected.episodes };
+/** The season resolver signals failure by throwing; anilistGraphQl reports it in-band. */
+function createAnilistSeasonQueryExecutor(
+  accessToken: string,
+  options: AnilistPostWatchUpdateOptions,
+) {
+  return async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
+    const response = await anilistGraphQl<T>(accessToken, query, variables, options);
+    const error = firstErrorMessage(response);
+    if (error) {
+      throw new Error(error);
+    }
+    if (!response.data) {
+      throw new Error('AniList response missing data');
+    }
+    return response.data;
+  };
 }
 
 function isUpdateableListStatus(status: string | null | undefined): boolean {
@@ -321,52 +278,47 @@ export async function updateAnilistPostWatchProgress(
   episode: number,
   options: AnilistPostWatchUpdateOptions = {},
 ): Promise<AnilistPostWatchUpdateResult> {
-  let media: NonNullable<NonNullable<AnilistSearchData['Page']>['media']> = [];
-  let searchError: string | null = null;
-  let pickTitle = title;
-  const searchCandidates = buildSearchCandidates(title, options.season);
-  for (const search of searchCandidates) {
-    const searchResponse = await anilistGraphQl<AnilistSearchData>(
-      accessToken,
-      `
-        query ($search: String!) {
-          Page(perPage: 5) {
-            media(search: $search, type: ANIME) {
-              id
-              episodes
-              title {
-                romaji
-                english
-                native
-              }
-            }
-          }
-        }
-      `,
-      { search },
-      options,
-    );
-    searchError = firstErrorMessage(searchResponse);
-    if (searchError) {
-      break;
-    }
-    media = searchResponse.data?.Page?.media ?? [];
-    if (media.length > 0) {
-      pickTitle = search;
-      break;
-    }
-  }
+  const pinnedMediaId =
+    typeof options.mediaId === 'number' && Number.isInteger(options.mediaId) && options.mediaId > 0
+      ? options.mediaId
+      : null;
 
-  if (searchError) {
-    return {
-      status: 'error',
-      message: `AniList search failed: ${searchError}`,
-    };
-  }
+  let mediaId = pinnedMediaId;
+  let resolvedTitle: string | null = null;
+  let resolvedEpisodes: number | null = null;
 
-  const picked = pickBestSearchResult(pickTitle, episode, media);
-  if (!picked) {
-    return { status: 'error', message: 'AniList search returned no matches.' };
+  if (mediaId === null) {
+    let resolution: Awaited<ReturnType<typeof resolveAnilistSeasonMedia>>;
+    try {
+      resolution = await resolveAnilistSeasonMedia(
+        { title, season: options.season, episode },
+        {
+          execute: createAnilistSeasonQueryExecutor(accessToken, options),
+          logInfo: options.logInfo,
+        },
+      );
+    } catch (error) {
+      return {
+        status: 'error',
+        message: `AniList search failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    if (!resolution) {
+      return { status: 'error', message: 'AniList search returned no matches.' };
+    }
+    if (!resolution.seasonResolved) {
+      // Updating the season 1 entry here is worse than not updating at all.
+      return {
+        status: 'error',
+        retryable: false,
+        message: `AniList update skipped: could not find season ${resolution.requestedSeason} of "${title}" (only matched "${resolution.title}"). Pick the right entry with the character dictionary AniList override.`,
+      };
+    }
+
+    mediaId = resolution.id;
+    resolvedTitle = resolution.title;
+    resolvedEpisodes = resolution.episodes;
   }
 
   const entryResponse = await anilistGraphQl<AnilistMediaEntryData>(
@@ -375,6 +327,12 @@ export async function updateAnilistPostWatchProgress(
       query ($mediaId: Int!) {
         Media(id: $mediaId, type: ANIME) {
           id
+          episodes
+          title {
+            romaji
+            english
+            native
+          }
           mediaListEntry {
             progress
             status
@@ -382,7 +340,7 @@ export async function updateAnilistPostWatchProgress(
         }
       }
     `,
-    { mediaId: picked.id },
+    { mediaId },
     options,
   );
   const entryError = firstErrorMessage(entryResponse);
@@ -393,21 +351,34 @@ export async function updateAnilistPostWatchProgress(
     };
   }
 
-  const entry = entryResponse.data?.Media?.mediaListEntry ?? null;
+  const entryMedia = entryResponse.data?.Media ?? null;
+  const pickedTitle =
+    resolvedTitle ||
+    entryMedia?.title?.english?.trim() ||
+    entryMedia?.title?.romaji?.trim() ||
+    entryMedia?.title?.native?.trim() ||
+    title;
+  const pickedEpisodes =
+    resolvedEpisodes ??
+    (typeof entryMedia?.episodes === 'number' && entryMedia.episodes > 0
+      ? entryMedia.episodes
+      : null);
+
+  const entry = entryMedia?.mediaListEntry ?? null;
   if (!entry || !isUpdateableListStatus(entry.status)) {
     return {
       status: 'error',
       retryable: false,
-      message: `AniList update not possible: "${picked.title}" is ${formatListStatus(entry?.status)}. Add it to Planning or Watching, then mark watched again.`,
+      message: `AniList update not possible: "${pickedTitle}" is ${formatListStatus(entry?.status)}. Add it to Planning or Watching, then mark watched again.`,
     };
   }
 
   const currentProgress = entry.progress ?? 0;
-  const shouldMarkCompleted = isKnownFinalEpisode(picked.episodes, episode);
+  const shouldMarkCompleted = isKnownFinalEpisode(pickedEpisodes, episode);
   if (typeof currentProgress === 'number' && currentProgress >= episode && !shouldMarkCompleted) {
     return {
       status: 'skipped',
-      message: `AniList already at episode ${currentProgress} (${picked.title}).`,
+      message: `AniList already at episode ${currentProgress} (${pickedTitle}).`,
     };
   }
 
@@ -422,7 +393,7 @@ export async function updateAnilistPostWatchProgress(
       }
     `,
     {
-      mediaId: picked.id,
+      mediaId,
       progress: episode,
       status: shouldMarkCompleted ? 'COMPLETED' : 'CURRENT',
     },
@@ -436,7 +407,7 @@ export async function updateAnilistPostWatchProgress(
   return {
     status: 'updated',
     message: shouldMarkCompleted
-      ? `AniList updated "${picked.title}" to episode ${episode} and marked it completed.`
-      : `AniList updated "${picked.title}" to episode ${episode}.`,
+      ? `AniList updated "${pickedTitle}" to episode ${episode} and marked it completed.`
+      : `AniList updated "${pickedTitle}" to episode ${episode}.`,
   };
 }

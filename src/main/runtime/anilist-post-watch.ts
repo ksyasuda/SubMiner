@@ -4,6 +4,8 @@ type AnilistGuess = {
   title: string;
   season: number | null;
   episode: number | null;
+  alternativeTitle?: string;
+  year?: number;
 };
 
 type AnilistUpdateResult = {
@@ -16,6 +18,7 @@ type RetryQueueItem = {
   key: string;
   title: string;
   season?: number | null;
+  mediaId?: number | null;
   episode: number;
 };
 
@@ -58,6 +61,7 @@ export function createProcessNextAnilistRetryUpdateHandler(deps: {
     title: string,
     episode: number,
     season?: number | null,
+    mediaId?: number | null,
   ) => Promise<AnilistUpdateResult>;
   markSuccess: (key: string) => void;
   rememberAttemptedUpdateKey: (key: string) => void;
@@ -84,6 +88,7 @@ export function createProcessNextAnilistRetryUpdateHandler(deps: {
       queued.title,
       queued.episode,
       queued.season ?? null,
+      queued.mediaId ?? null,
     );
     if (result.status === 'updated' || result.status === 'skipped') {
       deps.markSuccess(queued.key);
@@ -119,7 +124,23 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
   hasAttemptedUpdateKey: (key: string) => boolean;
   processNextAnilistRetryUpdate: () => Promise<{ ok: boolean; message: string }>;
   refreshAnilistClientSecretState: () => Promise<string | null>;
-  enqueueRetry: (key: string, title: string, episode: number, season?: number | null) => void;
+  enqueueRetry: (
+    key: string,
+    title: string,
+    episode: number,
+    season?: number | null,
+    mediaId?: number | null,
+  ) => void;
+  getCurrentMediaTitle?: () => string | null;
+  /**
+   * Pinned AniList media id from a manual dictionary override. Takes the media captured
+   * by this run, so a mid-run file change cannot pin the update to a different show.
+   */
+  resolvePinnedAnilistMediaId?: (input: {
+    mediaPath: string | null;
+    mediaTitle: string | null;
+    guess: AnilistGuess;
+  }) => Promise<number | null>;
   markRetryFailure: (key: string, message: string) => void;
   markRetrySuccess: (key: string) => void;
   refreshRetryQueueState: () => void;
@@ -128,6 +149,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     title: string,
     episode: number,
     season?: number | null,
+    mediaId?: number | null,
   ) => Promise<AnilistUpdateResult>;
   rememberAttemptedUpdateKey: (key: string) => void;
   showMpvOsd: (message: string) => void;
@@ -157,6 +179,8 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
     if (deps.getTrackedMediaKey() !== mediaKey) {
       deps.resetTrackedMedia(mediaKey);
     }
+    // Captured before any await: playback can advance while the update is in flight.
+    const mediaTitle = deps.getCurrentMediaTitle?.() ?? null;
 
     let watchedSeconds = 0;
     if (!force) {
@@ -202,9 +226,23 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         return;
       }
 
+      // A manual dictionary override is the user's explicit answer to "which AniList
+      // entry is this?", so it wins over anything the title search would resolve.
+      let pinnedMediaId: number | null = null;
+      try {
+        pinnedMediaId =
+          (await deps.resolvePinnedAnilistMediaId?.({
+            mediaPath: mediaKey,
+            mediaTitle,
+            guess,
+          })) ?? null;
+      } catch (error) {
+        deps.logWarn(`AniList override lookup failed: ${String(error)}`);
+      }
+
       const accessToken = await deps.refreshAnilistClientSecretState();
       if (!accessToken) {
-        deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season);
+        deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season, pinnedMediaId);
         deps.markRetryFailure(attemptKey, 'cannot authenticate without anilist.accessToken');
         deps.refreshRetryQueueState();
         deps.showMpvOsd('AniList: access token not configured');
@@ -216,6 +254,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         guess.title,
         guess.episode,
         guess.season,
+        pinnedMediaId,
       );
       if (result.status === 'updated') {
         deps.rememberAttemptedUpdateKey(attemptKey);
@@ -241,7 +280,7 @@ export function createMaybeRunAnilistPostWatchUpdateHandler(deps: {
         return;
       }
 
-      deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season);
+      deps.enqueueRetry(attemptKey, guess.title, guess.episode, guess.season, pinnedMediaId);
       deps.markRetryFailure(attemptKey, result.message);
       deps.refreshRetryQueueState();
       deps.showMpvOsd(`AniList: ${result.message}`);

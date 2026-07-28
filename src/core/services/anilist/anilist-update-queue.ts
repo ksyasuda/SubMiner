@@ -10,6 +10,8 @@ export interface AnilistQueuedUpdate {
   key: string;
   title: string;
   season?: number | null;
+  /** Pinned AniList media id from a manual override, when one applied at enqueue time. */
+  mediaId?: number | null;
   episode: number;
   createdAt: number;
   attemptCount: number;
@@ -29,11 +31,29 @@ export interface AnilistRetryQueueSnapshot {
 }
 
 export interface AnilistUpdateQueue {
-  enqueue: (key: string, title: string, episode: number, season?: number | null) => void;
+  enqueue: (
+    key: string,
+    title: string,
+    episode: number,
+    season?: number | null,
+    mediaId?: number | null,
+  ) => void;
   nextReady: (nowMs?: number) => AnilistQueuedUpdate | null;
   markSuccess: (key: string) => void;
   markFailure: (key: string, reason: string, nowMs?: number) => void;
   getSnapshot: (nowMs?: number) => AnilistRetryQueueSnapshot;
+}
+
+/**
+ * A persisted mediaId pins the update to a specific AniList entry, so a corrupted or
+ * hand-edited queue file must not be able to feed a bogus id straight to the mutation.
+ */
+function isValidPersistedMediaId(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'number' && Number.isInteger(value) && value > 0)
+  );
 }
 
 function clampBackoffMs(attemptCount: number): number {
@@ -82,6 +102,7 @@ export function createAnilistUpdateQueue(
             typeof item.createdAt === 'number' &&
             typeof item.attemptCount === 'number' &&
             typeof item.nextAttemptAt === 'number' &&
+            isValidPersistedMediaId(item.mediaId) &&
             (typeof item.lastError === 'string' || item.lastError === null),
         )
         .slice(0, MAX_ITEMS);
@@ -96,6 +117,7 @@ export function createAnilistUpdateQueue(
             typeof item.createdAt === 'number' &&
             typeof item.attemptCount === 'number' &&
             typeof item.nextAttemptAt === 'number' &&
+            isValidPersistedMediaId(item.mediaId) &&
             (typeof item.lastError === 'string' || item.lastError === null),
         )
         .slice(0, MAX_ITEMS);
@@ -107,7 +129,13 @@ export function createAnilistUpdateQueue(
   load();
 
   return {
-    enqueue(key: string, title: string, episode: number, season: number | null = null): void {
+    enqueue(
+      key: string,
+      title: string,
+      episode: number,
+      season: number | null = null,
+      mediaId: number | null = null,
+    ): void {
       const existing =
         pending.find((item) => item.key === key) || deadLetter.find((item) => item.key === key);
       if (existing) {
@@ -120,6 +148,7 @@ export function createAnilistUpdateQueue(
         key,
         title,
         season,
+        mediaId,
         episode,
         createdAt: Date.now(),
         attemptCount: 0,

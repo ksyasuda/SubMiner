@@ -160,3 +160,73 @@ test('getManualSelectionSnapshot hydrates override episode count from searched c
     globalThis.fetch = originalFetch;
   }
 });
+
+test('resolvePinnedMediaId returns the manual override for the current season', async () => {
+  const userDataPath = makeTempDir();
+  const seasonThreePath = '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S03E01.mkv';
+  const guess = {
+    title: 'My Teen Romantic Comedy SNAFU',
+    year: 2013,
+    season: 3,
+    episode: 1,
+    source: 'guessit' as const,
+  };
+
+  const runtime = createCharacterDictionaryRuntimeService({
+    userDataPath,
+    getCurrentMediaPath: () => seasonThreePath,
+    getCurrentMediaTitle: () => null,
+    resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+    guessAnilistMediaInfo: async () => guess,
+    now: () => 1_700_000_000_000,
+  });
+
+  assert.equal(
+    await runtime.resolvePinnedMediaId({
+      mediaPath: seasonThreePath,
+      mediaTitle: null,
+      guess,
+    }),
+    null,
+  );
+
+  const overridesPath = path.join(userDataPath, 'character-dictionaries', 'anilist-overrides.json');
+  fs.mkdirSync(path.dirname(overridesPath), { recursive: true });
+  fs.writeFileSync(
+    overridesPath,
+    JSON.stringify({
+      overrides: [
+        {
+          seriesKey: buildCharacterDictionarySeriesKey({
+            mediaPath: seasonThreePath,
+            mediaTitle: null,
+            guess,
+          }),
+          mediaId: 108489,
+          mediaTitle: 'My Teen Romantic Comedy SNAFU Climax!',
+          staleMediaIds: [],
+        },
+      ],
+    }),
+    'utf8',
+  );
+
+  assert.equal(
+    await runtime.resolvePinnedMediaId({
+      mediaPath: seasonThreePath,
+      mediaTitle: null,
+      guess,
+    }),
+    108489,
+  );
+
+  // The season 1 file in the same folder must not inherit the season 3 override.
+  assert.equal(
+    await runtime.resolvePinnedMediaId({
+      mediaPath: '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S01E01.mkv',
+      mediaTitle: null,
+      guess: { ...guess, season: 1 },
+    }),
+    null,
+  );
+});

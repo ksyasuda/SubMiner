@@ -201,17 +201,45 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
   });
 
   const searchCalls: Array<{ search: string }> = [];
+  const relationCalls: number[] = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const raw = (init?.body as string | undefined) ?? '';
-    const payload = JSON.parse(raw) as { variables: { search: string } };
-    const search = payload.variables.search;
-    searchCalls.push({ search });
+    const payload = JSON.parse(raw) as { variables: { search?: string; id?: number } };
 
-    if (search.includes('Season 2')) {
-      return Promise.resolve(createJsonResponse({ data: { Page: { media: [] } } }));
+    if (typeof payload.variables.id === 'number') {
+      relationCalls.push(payload.variables.id);
+      return Promise.resolve(
+        createJsonResponse({
+          data: {
+            Media: {
+              relations: {
+                edges: [
+                  {
+                    relationType: 'SEQUEL',
+                    node: {
+                      id: 20,
+                      type: 'ANIME',
+                      episodes: 25,
+                      format: 'TV',
+                      seasonYear: 2017,
+                      coverImage: { large: 'https://images.test/cover-s2.jpg', medium: null },
+                      title: {
+                        romaji: 'Little Witch Academia 2',
+                        english: 'Little Witch Academia 2',
+                        native: null,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      );
     }
 
+    searchCalls.push({ search: String(payload.variables.search) });
     return Promise.resolve(
       createJsonResponse({
         data: {
@@ -220,6 +248,8 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
               {
                 id: 19,
                 episodes: 24,
+                format: 'TV',
+                seasonYear: 2013,
                 coverImage: { large: 'https://images.test/cover.jpg', medium: null },
                 title: {
                   romaji: 'Little Witch Academia',
@@ -251,9 +281,11 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
     const stored = getCoverArt(db, videoId);
 
     assert.equal(fetched, true);
-    assert.equal(searchCalls.length, 2);
-    assert.equal(searchCalls[0]!.search, 'Little Witch Academia Season 2');
-    assert.equal(stored?.anilistId, 19);
+    // One search on the bare title, then a sequel hop to reach season 2.
+    assert.equal(searchCalls.length, 1);
+    assert.equal(searchCalls[0]!.search, 'Little Witch Academia');
+    assert.deepEqual(relationCalls, [19]);
+    assert.equal(stored?.anilistId, 20);
   } finally {
     globalThis.fetch = originalFetch;
     db.close();

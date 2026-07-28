@@ -143,3 +143,50 @@ test('anilist update queue persists and reloads from disk', () => {
   });
   assert.equal(queueB.nextReady(Number.MAX_SAFE_INTEGER)?.title, 'Persist Demo');
 });
+
+test('drops queued items whose persisted mediaId is not a positive integer', () => {
+  const filePath = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'anilist-queue-mediaid-')),
+    'queue.json',
+  );
+  const base = {
+    episode: 1,
+    createdAt: 1,
+    attemptCount: 0,
+    nextAttemptAt: 0,
+    lastError: null,
+  };
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify({
+      pending: [
+        { ...base, key: 'ok-absent', title: 'A' },
+        { ...base, key: 'ok-null', title: 'B', mediaId: null },
+        { ...base, key: 'ok-valid', title: 'C', mediaId: 108489 },
+        { ...base, key: 'bad-string', title: 'D', mediaId: '108489' },
+        { ...base, key: 'bad-zero', title: 'E', mediaId: 0 },
+        { ...base, key: 'bad-negative', title: 'F', mediaId: -3 },
+        { ...base, key: 'bad-float', title: 'G', mediaId: 1.5 },
+        { ...base, key: 'bad-object', title: 'H', mediaId: { id: 1 } },
+      ],
+      deadLetter: [],
+    }),
+    'utf-8',
+  );
+
+  const queue = createAnilistUpdateQueue(filePath, {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  });
+
+  const keptKeys: string[] = [];
+  for (let i = 0; i < 8; i += 1) {
+    const next = queue.nextReady(1000);
+    if (!next) break;
+    keptKeys.push(next.key);
+    queue.markSuccess(next.key);
+  }
+
+  assert.deepEqual(keptKeys, ['ok-absent', 'ok-null', 'ok-valid']);
+});
