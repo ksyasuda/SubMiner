@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { Database } from '../sqlite.js';
 import {
+  applyPragmas,
   createTrackerPreparedStatements,
   ensureSchema,
   getOrCreateAnimeRecord,
@@ -55,6 +56,16 @@ import {
 function makeDbPath(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-imm-query-test-'));
   return path.join(dir, 'immersion.sqlite');
+}
+
+// Match the runtime's SQLite tuning (WAL + synchronous=NORMAL). Without it these
+// tests run at SQLite's defaults, where every statement is its own fsync-ing
+// transaction; on slow CI disks that is enough to push insert-heavy cases past
+// the 5s per-test timeout.
+function openTestDb(dbPath: string) {
+  const db = new Database(dbPath);
+  applyPragmas(db);
+  return db;
 }
 
 function cleanupDbPath(dbPath: string): void {
@@ -172,7 +183,7 @@ function withMockNowMs<T>(fixedDateMs: string | number, run: () => T): T {
 
 test('getSessionSummaries returns sessionId and canonicalTitle', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -231,7 +242,7 @@ test('getSessionSummaries returns sessionId and canonicalTitle', () => {
 
 test('getAnimeEpisodes prefers the latest session media position when the latest session is still active', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -299,7 +310,7 @@ test('getAnimeEpisodes prefers the latest session media position when the latest
 
 test('getAnimeEpisodes includes unwatched episodes for the anime', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -397,7 +408,7 @@ test('getAnimeEpisodes includes unwatched episodes for the anime', () => {
 
 test('getAnimeEpisodes falls back to the latest subtitle segment end when session progress checkpoints are missing', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -469,7 +480,7 @@ test('getAnimeEpisodes falls back to the latest subtitle segment end when sessio
 
 test('getAnimeEpisodes ignores zero-valued session checkpoints and falls back to subtitle progress', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -541,7 +552,7 @@ test('getAnimeEpisodes ignores zero-valued session checkpoints and falls back to
 
 test('getSessionTimeline returns the full session when no limit is provided', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -592,7 +603,7 @@ test('getSessionTimeline returns the full session when no limit is provided', ()
 
 test('getDailyRollups limits by distinct days (not rows)', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -625,7 +636,7 @@ test('getDailyRollups limits by distinct days (not rows)', () => {
 
 test('getTrendsDashboard returns chart-ready aggregated series', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -779,7 +790,7 @@ test('getTrendsDashboard returns chart-ready aggregated series', () => {
 
 test('getTrendsDashboard redacts legacy Jellyfin stream titles', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -869,7 +880,7 @@ test('getTrendsDashboard redacts legacy Jellyfin stream titles', () => {
 
 test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1005,7 +1016,7 @@ test('getTrendsDashboard keeps local-midnight session buckets separate', () => {
 
 test('getTrendsDashboard 30d day range zero-fills empty calendar days', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   withMockNowMs('1772395200000', () => {
     try {
       ensureSchema(db);
@@ -1069,7 +1080,7 @@ test('getTrendsDashboard 30d day range zero-fills empty calendar days', () => {
 
 test('getTrendsDashboard skips empty calendar days when zero-fill is disabled', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   withMockNowMs('1772395200000', () => {
     try {
       ensureSchema(db);
@@ -1123,7 +1134,7 @@ test(
   { timeout: 20_000 },
   () => {
     const dbPath = makeDbPath();
-    const db = new Database(dbPath);
+    const db = openTestDb(dbPath);
     withMockNowMs('1772395200000', () => {
       try {
         ensureSchema(db);
@@ -1183,7 +1194,7 @@ test(
 
 test('getTrendsDashboard month grouping spans every touched calendar month and keeps progress monthly', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   withMockNowMs('1772395200000', () => {
     try {
       ensureSchema(db);
@@ -1406,7 +1417,7 @@ test('getTrendsDashboard month grouping spans every touched calendar month and k
 
 test('getQueryHints reads all-time totals from lifetime summary', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1476,7 +1487,7 @@ test('getQueryHints reads all-time totals from lifetime summary', () => {
 
 test('getQueryHints computes weekly new-word cutoff from calendar midnights', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   withMockNowMs('1773601200000', () => {
     try {
@@ -1528,7 +1539,7 @@ test('getQueryHints computes weekly new-word cutoff from calendar midnights', ()
 
 test('word-count read models use filtered persisted occurrences with raw fallback', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1611,7 +1622,7 @@ test('word-count read models use filtered persisted occurrences with raw fallbac
 
 test('rollups keep persisted totals when retained-session word counts are partial', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1672,7 +1683,7 @@ test('rollups keep persisted totals when retained-session word counts are partia
 
 test('getQueryHints counts new words by distinct headword first-seen time', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1737,7 +1748,7 @@ test('getQueryHints counts new words by distinct headword first-seen time', () =
 
 test('getSessionSummaries with no telemetry returns zero aggregates', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1771,7 +1782,7 @@ test('getSessionSummaries with no telemetry returns zero aggregates', () => {
 
 test('getSessionSummaries uses denormalized session metrics for ended sessions without telemetry', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1823,7 +1834,7 @@ test('getSessionSummaries uses denormalized session metrics for ended sessions w
 
 test('getVocabularyStats returns rows ordered by frequency descending', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1866,7 +1877,7 @@ test('getVocabularyStats returns rows ordered by frequency descending', () => {
 
 test('getVocabularyStats filters rows that fail tokenizer vocabulary rules', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1921,7 +1932,7 @@ test('getVocabularyStats filters rows that fail tokenizer vocabulary rules', () 
 
 test('getVocabularyStats pages past hidden rows until enough visible rows are collected', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1956,7 +1967,7 @@ test('getVocabularyStats pages past hidden rows until enough visible rows are co
 
 test('getVocabularyStats returns empty array when no words exist', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -1970,7 +1981,7 @@ test('getVocabularyStats returns empty array when no words exist', () => {
 
 test('cleanupVocabularyStats repairs stored POS metadata and removes excluded imm_words rows', async () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2100,7 +2111,7 @@ test('cleanupVocabularyStats repairs stored POS metadata and removes excluded im
 
 test('getDailyRollups returns all rows for the most recent rollup days', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   try {
     ensureSchema(db);
     const insertRollup = db.prepare(
@@ -2136,7 +2147,7 @@ test('getDailyRollups returns all rows for the most recent rollup days', () => {
 
 test('getMonthlyRollups returns all rows for the most recent rollup months', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   try {
     ensureSchema(db);
     const insertRollup = db.prepare(
@@ -2167,7 +2178,7 @@ test('getMonthlyRollups returns all rows for the most recent rollup months', () 
 
 test('getMonthlyRollups derives rate metrics from stored monthly totals', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   try {
     ensureSchema(db);
     const insertRollup = db.prepare(
@@ -2198,7 +2209,7 @@ test('getMonthlyRollups derives rate metrics from stored monthly totals', () => 
 
 test('getAnimeDailyRollups returns all rows for the most recent rollup days', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
   try {
     ensureSchema(db);
     const insertRollup = db.prepare(
@@ -2254,7 +2265,7 @@ test('getAnimeDailyRollups returns all rows for the most recent rollup days', ()
 
 test('cleanupVocabularyStats merges repaired duplicates instead of violating the imm_words unique key', async () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2367,7 +2378,7 @@ test('cleanupVocabularyStats merges repaired duplicates instead of violating the
 
 test('getKanjiStats returns rows ordered by frequency descending', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2405,7 +2416,7 @@ test('getKanjiStats returns rows ordered by frequency descending', () => {
 
 test('getKanjiStats returns empty array when no kanji exist', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2419,7 +2430,7 @@ test('getKanjiStats returns empty array when no kanji exist', () => {
 
 test('getSessionEvents returns events ordered by ts_ms ascending', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2480,7 +2491,7 @@ test('getSessionEvents returns events ordered by ts_ms ascending', () => {
 
 test('getSessionEvents round-trips wall-clock timestamps written through event inserts', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2524,7 +2535,7 @@ test('getSessionEvents round-trips wall-clock timestamps written through event i
 
 test('getSessionEvents returns empty array for session with no events', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2547,7 +2558,7 @@ test('getSessionEvents returns empty array for session with no events', () => {
 
 test('getSessionEvents filters events to the requested session id', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2613,7 +2624,7 @@ test('getSessionEvents filters events to the requested session id', () => {
 
 test('getSessionEvents respects limit parameter', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2656,7 +2667,7 @@ test('getSessionEvents respects limit parameter', () => {
 
 test('getSessionEvents filters by event type before applying limit', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2728,7 +2739,7 @@ test('getSessionEvents filters by event type before applying limit', () => {
 
 test('getSessionWordsByLine joins word occurrences through imm_words.id', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -2803,7 +2814,7 @@ test('getSessionWordsByLine joins word occurrences through imm_words.id', () => 
 
 test('anime-level queries group by anime_id and preserve episode-level rows', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3083,7 +3094,7 @@ test('anime-level queries group by anime_id and preserve episode-level rows', ()
 
 test('anime library and detail still return lifetime rows without retained sessions', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3180,7 +3191,7 @@ test('anime library and detail still return lifetime rows without retained sessi
 
 test('anime and media detail prefer lifetime totals over partial retained sessions', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3270,7 +3281,7 @@ test('anime and media detail prefer lifetime totals over partial retained sessio
 
 test('media detail resolves retained sessions before lifetime summary exists', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3323,7 +3334,7 @@ test('media detail resolves retained sessions before lifetime summary exists', (
 
 test('media library and detail queries read lifetime totals', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3415,7 +3426,7 @@ test('media library and detail queries read lifetime totals', () => {
 
 test('media library and detail queries include joined youtube metadata when present', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3512,7 +3523,7 @@ test('media library and detail queries include joined youtube metadata when pres
 
 test('cover art queries reuse a shared blob across duplicate anime art rows', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3639,7 +3650,7 @@ test('cover art queries reuse a shared blob across duplicate anime art rows', ()
 
 test('upsertCoverArt prefers freshly fetched bytes over a reused shared hash', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3685,7 +3696,7 @@ test('upsertCoverArt prefers freshly fetched bytes over a reused shared hash', (
 
 test('anime/media detail and episode queries use ended-session metrics when telemetry rows are absent', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3827,7 +3838,7 @@ test('anime/media detail and episode queries use ended-session metrics when tele
 
 test('getWordOccurrences maps a normalized word back to anime, video, and subtitle line context', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3902,7 +3913,7 @@ test('getWordOccurrences maps a normalized word back to anime, video, and subtit
 
 test('searchSubtitleSentences searches known subtitle lines and returns media context', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -3999,7 +4010,7 @@ test('searchSubtitleSentences searches known subtitle lines and returns media co
 
 test('searchSubtitleSentences searches subtitle lines by resolved headword candidates', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4083,7 +4094,7 @@ test('searchSubtitleSentences searches subtitle lines by resolved headword candi
 
 test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line context', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4158,7 +4169,7 @@ test('getKanjiOccurrences maps a kanji back to anime, video, and subtitle line c
 
 test('deleteSession removes the session and all associated session-scoped rows', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4306,7 +4317,7 @@ test('deleteSession removes the session and all associated session-scoped rows',
 
 test('deleteSession rebuilds word and kanji aggregates from retained subtitle lines', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4462,7 +4473,7 @@ test('deleteSession rebuilds word and kanji aggregates from retained subtitle li
 
 test('deleteSession removes zero-session media from library and trends', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4667,7 +4678,7 @@ test('deleteSession removes zero-session media from library and trends', () => {
 
 test('getTrendsDashboard builds librarySummary with per-title aggregates', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4774,7 +4785,7 @@ test('getTrendsDashboard builds librarySummary with per-title aggregates', () =>
 
 test('getTrendsDashboard librarySummary returns null lookupsPerHundred when words is zero', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4856,7 +4867,7 @@ test('getTrendsDashboard librarySummary returns null lookupsPerHundred when word
 
 test('getTrendsDashboard rollup word metrics keep persisted totals over partial session counts', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
@@ -4971,7 +4982,7 @@ test('getTrendsDashboard rollup word metrics keep persisted totals over partial 
 
 test('getTrendsDashboard librarySummary is empty when no rollups exist', () => {
   const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+  const db = openTestDb(dbPath);
 
   try {
     ensureSchema(db);
