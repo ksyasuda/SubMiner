@@ -17,6 +17,12 @@
 - **Post-Playback History Menu**
   - After a watch-history episode ends or mpv closes, the fzf/rofi launcher returns to that series with options to play the previous or next episode, rewatch, pick another episode, or quit SubMiner.
   - Previous/Next continue across season directories, so you can binge a show without manually browsing folders.
+  - The menu shown right after picking a series from `subminer -H` now offers the previous episode too, matching the post-playback menu.
+
+- **Known-Word Highlighting by Anki Maturity**
+  - Subtitle highlights for known words can now be colored by Anki card maturity (new, learning, young, mature), similar to asbplayer. Enable it with `ankiConnect.knownWords.maturityEnabled`, or toggle it live during a session.
+  - The mature-interval threshold and the four tier colors are configurable, and the in-session help legend shows the active tier colors while maturity highlighting is on.
+  - Tiers follow Anki's own card state: a lapsed card correctly shows as learning rather than young, and a note is treated as mature if any of its cards are mature. Stats and other known-word tools stay accurate with this new data.
 
 ### Changed
 
@@ -27,6 +33,9 @@
 
 - **Word Highlighting Accuracy**
   - Fixed several incorrect word highlighting and annotation cases: inconsistent part-of-speech exclusions on merged quote-particle tokens, missing annotations for rare kanji, katakana punctuation wrongly treated as non-kana noise, and certain kanji vocabulary skipped for next-level ("N+1") highlighting.
+
+- **Character Dictionary Season Overrides**
+  - Manual AniList overrides for a series now stay in effect for every episode in the same season folder, even when individual episode filenames produce different automatic guesses.
 
 - **Startup Playback Pausing Too Early**
   - Fixed playback resuming before subtitle processing finished warming up, which could briefly show untranslated subtitles right after opening a video.
@@ -40,8 +49,12 @@
   - Fixed video playback failing to start when another process already held the configured AnkiConnect proxy port; SubMiner now shows a notification explaining how to resolve the conflict instead of crashing.
 
 - **Stats & Settings Reliability**
+  - Fixed session stats reporting zero known words after the known-word cache gained maturity tiers.
   - Hardened the stats server against malformed requests, stalled AniList lookups, media mismatches during word mining, and missing Yomitan connections.
   - AnkiConnect settings validation now preserves valid custom configurations while safely falling back on invalid values instead of failing.
+
+- **Rofi Menu Prompt Spacing**
+  - Rofi menu prompts now keep a space between the prompt label and the input field instead of crowding the search placeholder text.
 
 ## What's Changed
 
@@ -50,6 +63,7 @@
 - refactor(tsukihime): swap Animetosho backend for TsukiHime API by @ksyasuda in #165
 - refactor: split anki-connect and stats-server resolvers into modules by @ksyasuda in #169
 - feat(launcher): add post-playback history menu with previous episode by @ksyasuda in #170
+- Anki maturity-based known-word highlighting by @ksyasuda in #172
 
 ## Installation
 
