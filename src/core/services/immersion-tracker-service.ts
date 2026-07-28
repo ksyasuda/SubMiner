@@ -735,6 +735,14 @@ export class ImmersionTrackerService {
   }
 
   async deleteAnime(animeId: number): Promise<void> {
+    // The active video's anime link is assigned asynchronously after the title
+    // is parsed, so a guard reading imm_videos too early sees a null and lets
+    // the delete through — then the late update recreates the anime row.
+    const pendingVideoId = this.sessionState?.videoId;
+    if (pendingVideoId !== undefined) {
+      await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
+    }
+
     const activeVideoId = this.sessionState?.videoId;
     if (activeVideoId !== undefined) {
       const activeAnime = this.db

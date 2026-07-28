@@ -1466,6 +1466,64 @@ test('deleteVideo ignores the currently active video and keeps new writes flusha
   }
 });
 
+/**
+ * Attach the derived rows a real session would produce to every recorded line
+ * of `animeId`: word/kanji entries and their occurrences, monthly rollups, and
+ * cover art backed by a shared blob.
+ */
+function seedDerivedAnimeData(db: DatabaseSync, animeId: number): void {
+  const lines = db
+    .prepare(
+      'SELECT line_id AS lineId, CREATED_DATE AS seenMs FROM imm_subtitle_lines WHERE anime_id = ?',
+    )
+    .all(animeId) as Array<{ lineId: number; seenMs: number }>;
+  assert.ok(lines.length > 0, 'expected recorded subtitle lines to decorate');
+
+  db.prepare(
+    `INSERT INTO imm_words(id, headword, word, reading, part_of_speech, pos1, first_seen, last_seen, frequency)
+     VALUES (9001, '天気', '天気', 'てんき', 'noun', '名詞', 0, 0, 0)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency) VALUES (9101, '気', 0, 0, 0)`,
+  ).run();
+
+  const insertWordOccurrence = db.prepare(
+    'INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms) VALUES (?, 9001, 1, ?)',
+  );
+  const insertKanjiOccurrence = db.prepare(
+    'INSERT INTO imm_kanji_line_occurrences(line_id, kanji_id, occurrence_count, seen_ms) VALUES (?, 9101, 1, ?)',
+  );
+  for (const line of lines) {
+    insertWordOccurrence.run(line.lineId, line.seenMs);
+    insertKanjiOccurrence.run(line.lineId, line.seenMs);
+  }
+  db.prepare(
+    `UPDATE imm_words SET frequency = ?, first_seen = ?, last_seen = ? WHERE id = 9001`,
+  ).run(lines.length, 0, 0);
+
+  const videoIds = (
+    db
+      .prepare('SELECT video_id AS videoId FROM imm_videos WHERE anime_id = ?')
+      .all(animeId) as Array<{ videoId: number }>
+  ).map((row) => row.videoId);
+  const insertMonthlyRollup = db.prepare(
+    `INSERT INTO imm_monthly_rollups(rollup_month, video_id, total_sessions, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (202401, ?, 1, '0', '0')`,
+  );
+  const insertArt = db.prepare(
+    `INSERT INTO imm_media_art(video_id, anilist_id, cover_url, cover_blob, cover_blob_hash, fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (?, 4242, 'https://example.test/cover.jpg', NULL, 'deadbeef', '0', '0', '0')`,
+  );
+  db.prepare(
+    `INSERT INTO imm_cover_art_blobs(blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES ('deadbeef', X'FFD8FFD9', '0', '0')`,
+  ).run();
+  for (const videoId of videoIds) {
+    insertMonthlyRollup.run(videoId);
+    insertArt.run(videoId);
+  }
+}
+
 test('deleteAnime removes every episode, session and library row for the title', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -1492,6 +1550,29 @@ test('deleteAnime removes every episode, session and library row for the title',
     )?.anime_id;
     assert.ok(animeId);
 
+    // The tokenizer does not run in this harness, so attach vocabulary, kanji,
+    // rollups and cover art to the recorded lines by hand. Without them the
+    // "everything is gone" assertions below would pass against empty tables.
+    seedDerivedAnimeData(privateApi.db, animeId);
+
+    const countOf = (sql: string): number =>
+      (privateApi.db.prepare(sql).get() as { total: number }).total;
+    for (const table of [
+      'imm_words',
+      'imm_kanji',
+      'imm_word_line_occurrences',
+      'imm_kanji_line_occurrences',
+      'imm_daily_rollups',
+      'imm_monthly_rollups',
+      'imm_media_art',
+      'imm_cover_art_blobs',
+    ]) {
+      assert.ok(
+        countOf(`SELECT COUNT(*) AS total FROM ${table}`) > 0,
+        `precondition: ${table} should hold rows before the delete`,
+      );
+    }
+
     const libraryBefore = await tracker.getAnimeLibrary();
     assert.equal(libraryBefore.length, 1);
     assert.equal(libraryBefore[0]?.episodeCount, 2);
@@ -1501,16 +1582,28 @@ test('deleteAnime removes every episode, session and library row for the title',
     const libraryAfter = await tracker.getAnimeLibrary();
     assert.equal(libraryAfter.length, 0);
 
-    const countOf = (sql: string): number =>
-      (privateApi.db.prepare(sql).get() as { total: number }).total;
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_anime'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_lifetime_anime'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_videos'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_sessions'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_subtitle_lines'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_daily_rollups'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_lifetime_media'), 0);
-    assert.equal(countOf('SELECT COUNT(*) AS total FROM imm_words'), 0);
+    for (const table of [
+      'imm_anime',
+      'imm_lifetime_anime',
+      'imm_videos',
+      'imm_sessions',
+      'imm_subtitle_lines',
+      'imm_daily_rollups',
+      'imm_monthly_rollups',
+      'imm_lifetime_media',
+      'imm_words',
+      'imm_kanji',
+      'imm_word_line_occurrences',
+      'imm_kanji_line_occurrences',
+      'imm_media_art',
+      'imm_cover_art_blobs',
+    ]) {
+      assert.equal(
+        countOf(`SELECT COUNT(*) AS total FROM ${table}`),
+        0,
+        `${table} should be empty after deleting the only title`,
+      );
+    }
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

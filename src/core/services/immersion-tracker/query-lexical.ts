@@ -125,7 +125,7 @@ export function getVocabularyStats(
              frequency, frequency_rank, first_seen, last_seen
       FROM imm_words
       ${whereClause}
-      ORDER BY frequency DESC
+      ORDER BY frequency DESC, id
       LIMIT ? OFFSET ?
     )
     SELECT p.id AS wordId, p.headword, p.word, p.reading,
@@ -137,7 +137,7 @@ export function getVocabularyStats(
     LEFT JOIN imm_word_line_occurrences o ON o.word_id = p.id
     LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id AND sl.anime_id IS NOT NULL
     GROUP BY p.id
-    ORDER BY p.frequency DESC
+    ORDER BY p.frequency DESC, p.id
   `);
   const visibleRows: VocabularyStatsRow[] = [];
   let offset = 0;

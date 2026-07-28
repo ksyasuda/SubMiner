@@ -483,11 +483,14 @@ export function isVideoWatched(db: DatabaseSync, videoId: number): boolean {
 
 export function deleteSession(db: DatabaseSync, sessionId: number): void {
   const sessionIds = [sessionId];
-  const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
-  const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
+    // Measured inside the write lock: the plan records what the delete removes,
+    // and applying a plan taken against a different snapshot would subtract the
+    // wrong totals from imm_words/imm_kanji.
+    const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
+    const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
     deleteSessionsByIds(db, sessionIds);
     applyLexicalRemovals(db, lexicalRemovals);
     rebuildLifetimeSummariesInTransaction(db);
@@ -501,11 +504,11 @@ export function deleteSession(db: DatabaseSync, sessionId: number): void {
 
 export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   if (sessionIds.length === 0) return;
-  const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
-  const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
 
   db.exec('BEGIN IMMEDIATE');
   try {
+    const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
+    const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
     deleteSessionsByIds(db, sessionIds);
     applyLexicalRemovals(db, lexicalRemovals);
     rebuildLifetimeSummariesInTransaction(db);
@@ -526,30 +529,30 @@ export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
  * pay for one full rebuild per episode.
  */
 export function deleteAnime(db: DatabaseSync, animeId: number): void {
-  const videoIds = (
-    db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?').all(animeId) as Array<{
-      video_id: number;
-    }>
-  ).map((row) => row.video_id);
-
-  const lexicalRemovals = planLexicalRemovalsForVideos(db, videoIds);
-  const coverBlobHashes: string[] = [];
-  const sessionIds: number[] = [];
-  for (const videoId of videoIds) {
-    const artRow = db
-      .prepare('SELECT cover_blob_hash AS coverBlobHash FROM imm_media_art WHERE video_id = ?')
-      .get(videoId) as { coverBlobHash: string | null } | undefined;
-    if (artRow?.coverBlobHash) {
-      coverBlobHashes.push(artRow.coverBlobHash);
-    }
-    const sessions = db
-      .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
-      .all(videoId) as Array<{ session_id: number }>;
-    sessionIds.push(...sessions.map((session) => session.session_id));
-  }
-
   db.exec('BEGIN IMMEDIATE');
   try {
+    const videoIds = (
+      db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?').all(animeId) as Array<{
+        video_id: number;
+      }>
+    ).map((row) => row.video_id);
+
+    const lexicalRemovals = planLexicalRemovalsForVideos(db, videoIds);
+    const coverBlobHashes: string[] = [];
+    const sessionIds: number[] = [];
+    for (const videoId of videoIds) {
+      const artRow = db
+        .prepare('SELECT cover_blob_hash AS coverBlobHash FROM imm_media_art WHERE video_id = ?')
+        .get(videoId) as { coverBlobHash: string | null } | undefined;
+      if (artRow?.coverBlobHash) {
+        coverBlobHashes.push(artRow.coverBlobHash);
+      }
+      const sessions = db
+        .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
+        .all(videoId) as Array<{ session_id: number }>;
+      sessionIds.push(...sessions.map((session) => session.session_id));
+    }
+
     deleteSessionsByIds(db, sessionIds);
     const deleteLinesStmt = db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?');
     const deleteDailyStmt = db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?');
@@ -578,22 +581,22 @@ export function deleteAnime(db: DatabaseSync, animeId: number): void {
 }
 
 export function deleteVideo(db: DatabaseSync, videoId: number): void {
-  const artRow = db
-    .prepare(
-      `
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const artRow = db
+      .prepare(
+        `
         SELECT cover_blob_hash AS coverBlobHash
         FROM imm_media_art
         WHERE video_id = ?
       `,
-    )
-    .get(videoId) as { coverBlobHash: string | null } | undefined;
-  const lexicalRemovals = planLexicalRemovalsForVideos(db, [videoId]);
-  const sessions = db
-    .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
-    .all(videoId) as Array<{ session_id: number }>;
+      )
+      .get(videoId) as { coverBlobHash: string | null } | undefined;
+    const lexicalRemovals = planLexicalRemovalsForVideos(db, [videoId]);
+    const sessions = db
+      .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
+      .all(videoId) as Array<{ session_id: number }>;
 
-  db.exec('BEGIN IMMEDIATE');
-  try {
     deleteSessionsByIds(
       db,
       sessions.map((session) => session.session_id),

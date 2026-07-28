@@ -80,7 +80,7 @@ body.overlay-mode #root {
 }
 
 /* Tab content entrance animation */
-@keyframes fadeSlideIn {
+@keyframes fade-slide-in {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -92,11 +92,11 @@ body.overlay-mode #root {
 }
 
 .animate-fade-in {
-  animation: fadeSlideIn 0.25s ease-out;
+  animation: fade-slide-in 0.25s ease-out;
 }
 
 /* Indeterminate progress sweep for the global delete indicator */
-@keyframes indeterminateSweep {
+@keyframes indeterminate-sweep {
   from {
     transform: translateX(-100%);
   }
@@ -106,5 +106,5 @@ body.overlay-mode #root {
 }
 
 .animate-indeterminate {
-  animation: indeterminateSweep 1.1s ease-in-out infinite;
+  animation: indeterminate-sweep 1.1s ease-in-out infinite;
 }

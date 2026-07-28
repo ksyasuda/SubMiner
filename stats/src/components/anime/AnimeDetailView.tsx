@@ -165,6 +165,9 @@ export function AnimeDetailView({
   const handleDeleteAnime = async () => {
     if (isDeletingAnimeRef.current) return;
     isDeletingAnimeRef.current = true;
+    // Cleared up front so cancelling a retry doesn't leave the previous
+    // attempt's failure on screen.
+    setDeleteError(null);
     let confirmed = false;
     try {
       confirmed = await confirmAnimeDelete(detail.canonicalTitle, detail.episodeCount);
