@@ -356,3 +356,78 @@ test('fetchIfMissing falls back to internal parser when guessit throws', async (
     cleanupDbPath(dbPath);
   }
 });
+
+test('fetchIfMissing keeps the cover but withholds metadata when the season is unresolved', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  ensureSchema(db);
+  const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-unresolved.mkv', {
+    canonicalTitle: 'Unresolved Show (2013) - S03E01 - Something [1080p].mkv',
+    sourcePath: '/tmp/cover-fetcher-unresolved.mkv',
+    sourceType: SOURCE_TYPE_LOCAL,
+    sourceUrl: null,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes('graphql')) {
+      return Promise.resolve(
+        new Response(Buffer.from('01020304'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      );
+    }
+
+    const payload = JSON.parse(String(init?.body ?? '{}')) as {
+      variables?: { search?: string; id?: number };
+    };
+    if (typeof payload.variables?.id === 'number') {
+      // No sequel edges, so season 3 cannot be reached from the season 1 anchor.
+      return Promise.resolve(createJsonResponse({ data: { Media: { relations: { edges: [] } } } }));
+    }
+    return Promise.resolve(
+      createJsonResponse({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 55,
+                episodes: 13,
+                format: 'TV',
+                seasonYear: 2013,
+                coverImage: { large: 'https://images.test/s1.jpg', medium: null },
+                title: { romaji: 'Unresolved Show', english: 'Unresolved Show', native: null },
+              },
+            ],
+          },
+        },
+      }),
+    );
+  }) as typeof fetch;
+
+  try {
+    const fetcher = createCoverArtFetcher(
+      { acquire: async () => {}, recordResponse: () => {} },
+      console,
+      {
+        runGuessit: async () =>
+          JSON.stringify({ title: 'Unresolved Show', season: 3, episode: 1, year: 2013 }),
+      },
+    );
+
+    const fetched = await fetcher.fetchIfMissing(db, videoId, 'Unresolved Show');
+    const stored = getCoverArt(db, videoId);
+
+    assert.equal(fetched, true);
+    // Artwork is a reasonable stand-in; the season 1 identity and episode count are not.
+    assert.ok(stored?.coverBlob);
+    assert.equal(stored?.anilistId, null);
+    assert.equal(stored?.episodesTotal, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});

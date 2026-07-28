@@ -325,9 +325,12 @@ export function pickByAirOrder(
   });
   if (franchise.length < season) return null;
 
+  // Ordering by air date is only meaningful when every entry has one: an unknown year
+  // would sort last and shift the season index while still reporting a resolved match.
+  if (franchise.some((entry) => airYear(entry) === null)) return null;
+
   const ordered = [...franchise].sort((a, b) => {
-    const yearDelta =
-      (airYear(a) ?? Number.MAX_SAFE_INTEGER) - (airYear(b) ?? Number.MAX_SAFE_INTEGER);
+    const yearDelta = (airYear(a) ?? 0) - (airYear(b) ?? 0);
     if (yearDelta !== 0) return yearDelta;
     return a.id - b.id;
   });

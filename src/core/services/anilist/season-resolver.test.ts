@@ -287,3 +287,21 @@ test('refuses a season beyond the sequel-hop cap instead of returning a partial 
   // Declines before spending any relation requests.
   assert.deepEqual(relationLookups, []);
 });
+
+test('air-order fallback declines when a franchise entry has no air year', async () => {
+  // The middle season has no year, so ordering it would shift every later season by one.
+  const { execute } = createExecutor(
+    [
+      { id: 1, episodes: 12, format: 'TV', seasonYear: 2013, title: { english: 'Show' } },
+      { id: 2, episodes: 12, format: 'TV', title: { english: 'Show Zoku' } },
+      { id: 3, episodes: 12, format: 'TV', seasonYear: 2020, title: { english: 'Show Kan' } },
+    ],
+    {},
+  );
+
+  const result = await resolveAnilistSeasonMedia({ title: 'Show', season: 2 }, { execute });
+
+  assert.equal(result?.id, 1);
+  assert.equal(result?.seasonResolved, false);
+  assert.equal(result?.via, 'anchor');
+});
