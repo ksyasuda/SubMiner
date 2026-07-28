@@ -66,7 +66,7 @@ Local stats dashboard tracking watch time, vocabulary growth, mining throughput,
 Browse sibling episode files and the active mpv queue in one overlay modal. Open it with `Ctrl+Alt+P` to append episodes from the current directory, jump to queued items, remove entries, or reorder the playlist without leaving playback.
 
 <div align="center">
-  <img src="docs-site/public/screenshots/playlist-browser.png" width="800" alt="Stats dashboard showing watch time, cards mined, streaks, and tracking data">
+  <img src="docs-site/public/screenshots/playlist-browser.png" width="800" alt="Playlist browser modal showing sibling episode files beside the active mpv queue">
 </div>
 
 <br>
@@ -91,6 +91,14 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
     <td>Search and download Japanese subtitles</td>
   </tr>
   <tr>
+    <td><b>TsukiHime</b></td>
+    <td>Search and download subtitles extracted from anime releases, with Japanese and secondary-language tabs (<code>Ctrl+Shift+T</code>) — no API key, requires <code>xz</code> on your <code>PATH</code></td>
+  </tr>
+  <tr>
+    <td><b>AniSkip</b></td>
+    <td>Automatic intro detection with chapter markers and a one-key skip (<code>TAB</code> by default)</td>
+  </tr>
+  <tr>
     <td><b>alass / ffsubsync</b></td>
     <td>Manual subtitle retiming — requires <code>alass</code> or <code>ffsubsync</code> on your <code>PATH</code> (optional; subtitle syncing is disabled without them)</td>
   </tr>
@@ -110,18 +118,19 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
 
 ## Requirements
 
-Only **mpv** and Anki+AnkiConnect are required. Everything else is optional but enhances the experience.
+Only **mpv** is required to run SubMiner. Anki + AnkiConnect are required to mine cards, which is the point of the app, but everything else is optional.
 
-| Dependency           | Status      | What it does                             |
-| -------------------- | ----------- | ---------------------------------------- |
-| mpv                  | Required    | The video player SubMiner overlays on    |
-| Anki + AnkiConnect   | Required    | Card creation from the Yomitan popup     |
-| ffmpeg               | Recommended | Audio clips & screenshots for Anki cards |
-| MeCab + mecab-ipadic | Recommended | More precise annotations and filtering   |
-| yt-dlp               | Optional    | YouTube playback                         |
-| fzf / rofi           | Optional    | Video picker in the launcher             |
-| alass / ffsubsync    | Optional    | Subtitle sync                            |
-| guessit              | Optional    | Better anime title and episode detection |
+| Dependency           | Status           | What it does                                             |
+| -------------------- | ---------------- | -------------------------------------------------------- |
+| mpv                  | Required         | The video player SubMiner overlays on                    |
+| Anki + AnkiConnect   | Required to mine | Card creation from the Yomitan popup                     |
+| ffmpeg               | Recommended      | Audio clips & screenshots for Anki cards                 |
+| MeCab + mecab-ipadic | Recommended      | More precise annotations and filtering                   |
+| yt-dlp               | Optional         | YouTube playback                                         |
+| xz                   | Optional         | TsukiHime subtitle downloads (not on Windows by default) |
+| alass / ffsubsync    | Optional         | Subtitle sync                                            |
+| guessit              | Optional         | Better anime title and episode detection                 |
+| fzf / rofi           | Optional         | Video picker in the `subminer` launcher (Linux/macOS)    |
 
 <details>
 <summary><b>Platform-specific install commands</b></summary>
@@ -138,9 +147,23 @@ sudo pacman -S --needed mpv ffmpeg mecab mecab-ipadic
 brew install mpv ffmpeg mecab mecab-ipadic
 ```
 
-**Windows:** Install [mpv](https://mpv.io/installation/) and [ffmpeg](https://ffmpeg.org/download.html) and ensure both are on `PATH`.
+**Windows:**
 
-See the [full requirements list](https://docs.subminer.moe/installation#1-install-requirements) for optional dependencies.
+```powershell
+winget install shinchiro.mpv
+winget install Gyan.FFmpeg
+```
+
+Then reopen your terminal and check `mpv --version` and `ffmpeg -version`. winget puts `ffmpeg` on `PATH` automatically; mpv uses a regular installer that may not, so if `mpv` is not found, either add its folder (usually `%LOCALAPPDATA%\Programs\mpv`) to `PATH` or set `mpv.executablePath` during first-run setup.
+
+[Scoop](https://scoop.sh) is the alternative if you want one package manager for everything, since it is the only one that also carries `xz`:
+
+```powershell
+scoop bucket add extras
+scoop install extras/mpv main/ffmpeg main/yt-dlp main/xz
+```
+
+See the [full requirements list](https://docs.subminer.moe/installation#_1-install-requirements) for optional dependencies.
 
 </details>
 
@@ -166,6 +189,11 @@ paru -S subminer-bin
 mkdir -p ~/.local/bin
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppImage -O ~/.local/bin/SubMiner.AppImage \
  && chmod +x ~/.local/bin/SubMiner.AppImage
+```
+
+The AppImage is all you need. The optional `subminer` command-line launcher runs on [Bun](https://bun.sh), and first-run setup can install both for you. To grab it manually instead, install Bun first, then:
+
+```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \
  && chmod +x ~/.local/bin/subminer
 ```

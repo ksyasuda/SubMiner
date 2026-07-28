@@ -183,12 +183,8 @@ Close and reopen your terminal, then verify with `mpv --version` and `ffmpeg -ve
 
 1. Download mpv from [mpv.io/installation](https://mpv.io/installation/) (the Windows builds link) and ffmpeg from [ffmpeg.org/download.html](https://ffmpeg.org/download.html).
 2. Unzip each one somewhere permanent, for example `C:\Tools\mpv` and `C:\Tools\ffmpeg`. Note the folder that actually contains `mpv.exe` and the one containing `ffmpeg.exe` (for ffmpeg this is usually a `bin` subfolder).
-3. Press `Win`, type **Edit the system environment variables**, and open it.
-4. Click **Environment Variables…**
-5. Under **User variables**, select **Path** and click **Edit…**
-6. Click **New** and paste the folder containing `mpv.exe`. Click **New** again and paste the folder containing `ffmpeg.exe`.
-7. Click **OK** on all three dialogs.
-8. Close and reopen your terminal (PATH changes only apply to newly opened windows), then check:
+3. Press `Win`, type **Edit the system environment variables**, and open it. Click **Environment Variables…**, select **Path** under **User variables**, click **Edit…**, then use **New** to add each of those two folders. Confirm with **OK** on every dialog. Microsoft documents this in more detail under [environment variables](https://learn.microsoft.com/windows/deployment/usmt/usmt-recognized-environment-variables).
+4. Close and reopen your terminal, since `PATH` changes only apply to newly opened windows. Then check:
 
 ```powershell
 mpv --version
@@ -197,8 +193,10 @@ ffmpeg -version
 
 If you see `not recognized as the name of a cmdlet`, the folder you added is not the one holding the `.exe`. Reopen the Path editor and double-check.
 
-::: tip Don't want to touch PATH at all?
-mpv is the only hard requirement, and you can point SubMiner straight at it instead: leave `PATH` alone and set `mpv.executablePath` to the full path of `mpv.exe` during first-run setup. ffmpeg still needs to be on `PATH` for card audio and screenshots.
+::: tip mpv can skip PATH, ffmpeg cannot
+If you would rather not edit `PATH` for mpv, set `mpv.executablePath` to the full path of `mpv.exe` during first-run setup instead.
+
+There is no equivalent setting for ffmpeg: SubMiner invokes it by bare name when generating card audio and screenshots, so ffmpeg has to be on `PATH`. Without it, cards are still created but their audio and image fields come out empty. (`subsync.ffmpeg_path` only affects subtitle sync, not card media.)
 :::
 
 </details>
