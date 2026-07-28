@@ -296,6 +296,20 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Enable fast local highlighting for words already known in Anki.',
     },
     {
+      path: 'ankiConnect.knownWords.maturityEnabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.knownWords.maturityEnabled,
+      description:
+        'Color known-word highlights by Anki card maturity (new, learning, young, mature) instead of a single color. Requires known-word highlighting.',
+    },
+    {
+      path: 'ankiConnect.knownWords.matureThresholdDays',
+      kind: 'number',
+      defaultValue: defaultConfig.ankiConnect.knownWords.matureThresholdDays,
+      description:
+        'Card interval in days at which a known word counts as mature (Anki convention: 21).',
+    },
+    {
       path: 'ankiConnect.knownWords.refreshMinutes',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.knownWords.refreshMinutes,

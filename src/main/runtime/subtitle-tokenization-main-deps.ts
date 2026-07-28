@@ -42,6 +42,12 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
       deps.recordLookup(hit);
       return hit;
     },
+    ...(deps.getKnownWordTier
+      ? {
+          getKnownWordTier: (text, reading, options) =>
+            deps.getKnownWordTier!(text, reading, options),
+        }
+      : {}),
     getKnownWordMatchMode: () => deps.getKnownWordMatchMode(),
     ...(deps.getKnownWordsEnabled
       ? {

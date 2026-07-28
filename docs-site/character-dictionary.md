@@ -223,7 +223,7 @@ SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355 --dictionary
 subminer app --session-action '{"actionId":"openCharacterDictionaryManager"}'
 ```
 
-Manual selections are stored in `character-dictionaries/anilist-overrides.json` using a series key derived from the episode's parent directory plus the filename guess. Later episodes in the same directory use the selected AniList ID automatically, while separate season directories can keep separate overrides and character dictionaries. When the override replaces a previous wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
+SubMiner stores manual selections in `character-dictionaries/anilist-overrides.json`. The episode's parent directory defines the override scope, so later episodes in the same season directory keep the selected AniList ID even if their filename guesses differ. Separate season directories can keep separate overrides and character dictionaries. When you replace a wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
 
 ## Managing Loaded Entries
 

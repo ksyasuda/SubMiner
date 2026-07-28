@@ -328,3 +328,54 @@ test('warns and falls back for invalid proxy settings', () => {
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.port'));
   assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.proxy.upstreamUrl'));
 });
+
+test('resolves knownWords maturity settings from config', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { highlightEnabled: true, maturityEnabled: true, matureThresholdDays: 30 },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.knownWords.maturityEnabled, true);
+  assert.equal(context.resolved.ankiConnect.knownWords.matureThresholdDays, 30);
+  assert.deepEqual(warnings, []);
+});
+
+test('warns and falls back for invalid knownWords maturity settings', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { maturityEnabled: 'yes', matureThresholdDays: 0 },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.maturityEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.maturityEnabled,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.matureThresholdDays,
+    DEFAULT_CONFIG.ankiConnect.knownWords.matureThresholdDays,
+  );
+  assert.ok(warnings.some((warning) => warning.path === 'ankiConnect.knownWords.maturityEnabled'));
+  assert.ok(
+    warnings.some((warning) => warning.path === 'ankiConnect.knownWords.matureThresholdDays'),
+  );
+});
+
+test('omitted knownWords maturity settings fall back to defaults', () => {
+  const { context, warnings } = makeContext({
+    knownWords: { highlightEnabled: true },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.maturityEnabled,
+    DEFAULT_CONFIG.ankiConnect.knownWords.maturityEnabled,
+  );
+  assert.equal(
+    context.resolved.ankiConnect.knownWords.matureThresholdDays,
+    DEFAULT_CONFIG.ankiConnect.knownWords.matureThresholdDays,
+  );
+  assert.deepEqual(warnings, []);
+});

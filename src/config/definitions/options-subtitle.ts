@@ -110,6 +110,34 @@ export function buildSubtitleConfigOptionRegistry(
       description: 'Color used for the single N+1 target token subtitle highlight.',
     },
     {
+      path: 'subtitleStyle.knownWordMaturityColors.new',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordMaturityColors.new,
+      description:
+        'Color for known words whose Anki cards are new (never reviewed), when maturity highlighting is enabled.',
+    },
+    {
+      path: 'subtitleStyle.knownWordMaturityColors.learning',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordMaturityColors.learning,
+      description:
+        'Color for known words whose Anki cards are in (re)learning, when maturity highlighting is enabled.',
+    },
+    {
+      path: 'subtitleStyle.knownWordMaturityColors.young',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordMaturityColors.young,
+      description:
+        'Color for known words whose Anki cards are in review below the mature threshold, when maturity highlighting is enabled.',
+    },
+    {
+      path: 'subtitleStyle.knownWordMaturityColors.mature',
+      kind: 'string',
+      defaultValue: defaultConfig.subtitleStyle.knownWordMaturityColors.mature,
+      description:
+        'Color for known words whose Anki cards are at or above the mature interval threshold, when maturity highlighting is enabled.',
+    },
+    {
       path: 'subtitleStyle.frequencyDictionary.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.subtitleStyle.frequencyDictionary.enabled,

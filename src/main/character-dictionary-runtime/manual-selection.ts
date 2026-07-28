@@ -107,6 +107,11 @@ function getLegacySeriesKeyCandidates(seriesKey: string): string[] {
   return [seriesKey, seriesKey.slice(scopedSeparatorIndex + 2)];
 }
 
+function getDirectoryScope(seriesKey: string): string | null {
+  const scopedSeparatorIndex = seriesKey.indexOf('--');
+  return scopedSeparatorIndex < 0 ? null : seriesKey.slice(0, scopedSeparatorIndex);
+}
+
 export function buildCharacterDictionarySeriesKey(input: {
   mediaPath: string | null;
   mediaTitle: string | null;
@@ -135,7 +140,23 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
     getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
       const candidates = getLegacySeriesKeyCandidates(seriesKey);
       const overrides = readOverrides(filePath);
-      for (const candidate of candidates) {
+      const exactMatch = overrides.find((entry) => entry.seriesKey === candidates[0]);
+      if (exactMatch) return exactMatch;
+      const directoryScope = getDirectoryScope(seriesKey);
+      if (directoryScope) {
+        const scopedMatches = overrides.filter(
+          (entry) => getDirectoryScope(entry.seriesKey) === directoryScope,
+        );
+        const selectedMediaIds = new Set(scopedMatches.map((entry) => entry.mediaId));
+        if (scopedMatches.length > 0 && selectedMediaIds.size === 1) {
+          const latest = scopedMatches.at(-1)!;
+          return {
+            ...latest,
+            staleMediaIds: dedupeNumbers(scopedMatches.flatMap((entry) => entry.staleMediaIds)),
+          };
+        }
+      }
+      for (const candidate of candidates.slice(1)) {
         const match = overrides.find((entry) => entry.seriesKey === candidate);
         if (match) return match;
       }
@@ -146,8 +167,11 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
       if (!normalized) {
         throw new Error('Invalid character dictionary manual selection.');
       }
-      const remaining = readOverrides(filePath).filter(
-        (entry) => entry.seriesKey !== normalized.seriesKey,
+      const directoryScope = getDirectoryScope(normalized.seriesKey);
+      const remaining = readOverrides(filePath).filter((entry) =>
+        directoryScope
+          ? getDirectoryScope(entry.seriesKey) !== directoryScope
+          : entry.seriesKey !== normalized.seriesKey,
       );
       writeOverrides(filePath, [...remaining, normalized]);
     },

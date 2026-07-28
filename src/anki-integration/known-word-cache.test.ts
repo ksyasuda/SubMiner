@@ -314,7 +314,7 @@ test('KnownWordCacheManager refresh incrementally reconciles deleted and edited 
       version: number;
       notes?: Record<string, Array<{ word: string; reading: string | null }>>;
     };
-    assert.equal(persisted.version, 3);
+    assert.equal(persisted.version, 4);
     assert.deepEqual(persisted.notes, {
       '1': [{ word: '鳥', reading: null }],
     });

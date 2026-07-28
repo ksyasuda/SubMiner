@@ -60,6 +60,8 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     },
     knownWords: {
       highlightEnabled: false,
+      maturityEnabled: false,
+      matureThresholdDays: 21,
       refreshMinutes: 1440,
       addMinedWordsImmediately: true,
       matchMode: 'headword',

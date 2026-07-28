@@ -1,4 +1,5 @@
 import type { ModalStateReader, RendererContext } from '../context';
+import type { RuntimeOptionId, RuntimeOptionState } from '../../types/runtime-options';
 import {
   buildSessionHelpSections,
   type SessionHelpSection,
@@ -18,6 +19,32 @@ type SessionHelpBindingInfo = {
   fallbackUsed: boolean;
   fallbackUnavailable: boolean;
 };
+
+/**
+ * Tiers only render when known-word highlighting is also on, matching
+ * getKnownWordMaturityEnabled in anki-integration/known-word-maturity.
+ */
+export function isKnownWordMaturityLegendEnabled(runtimeOptions: RuntimeOptionState[]): boolean {
+  const isOn = (id: RuntimeOptionId): boolean =>
+    runtimeOptions.some((option) => option.id === id && option.value === true);
+  return (
+    isOn('subtitle.annotation.knownWords.highlightEnabled') &&
+    isOn('subtitle.annotation.knownWords.maturityEnabled')
+  );
+}
+
+/**
+ * Maturity coloring is a live runtime toggle, so the color legend reads it from
+ * runtime options instead of the resolved subtitle style. A missing or failing
+ * runtime-options call falls back to the flat known-word color.
+ */
+async function readKnownWordMaturityEnabled(): Promise<boolean> {
+  try {
+    return isKnownWordMaturityLegendEnabled(await window.electronAPI.getRuntimeOptions());
+  } catch {
+    return false;
+  }
+}
 
 function formatBindingHint(info: SessionHelpBindingInfo): string {
   if (info.bindingKey === 'KeyK' && info.fallbackUsed) {
@@ -219,22 +246,29 @@ export function createSessionHelpModal(
 
   async function render(): Promise<boolean> {
     try {
-      const [sessionBindings, styleConfig, markWatchedKey, subtitleSidebarToggleKey] =
-        await Promise.all([
-          window.electronAPI.getSessionBindings(),
-          window.electronAPI.getSubtitleStyle(),
-          window.electronAPI.getMarkWatchedKey(),
-          window.electronAPI
-            .getSubtitleSidebarSnapshot()
-            .then((snapshot) => snapshot.config.toggleKey)
-            .catch(() => undefined),
-        ]);
+      const [
+        sessionBindings,
+        styleConfig,
+        markWatchedKey,
+        subtitleSidebarToggleKey,
+        knownWordMaturityEnabled,
+      ] = await Promise.all([
+        window.electronAPI.getSessionBindings(),
+        window.electronAPI.getSubtitleStyle(),
+        window.electronAPI.getMarkWatchedKey(),
+        window.electronAPI
+          .getSubtitleSidebarSnapshot()
+          .then((snapshot) => snapshot.config.toggleKey)
+          .catch(() => undefined),
+        readKnownWordMaturityEnabled(),
+      ]);
 
       helpSections = buildSessionHelpSections({
         sessionBindings,
         markWatchedKey,
         subtitleSidebarToggleKey,
         subtitleStyle: styleConfig ?? {},
+        knownWordMaturityEnabled,
       });
       applyFilterAndRender();
       return true;

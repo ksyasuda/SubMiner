@@ -116,6 +116,10 @@ export type RendererState = {
   subtitleSidebarPausedByHover: boolean;
 
   knownWordColor: string;
+  knownWordMaturityNewColor: string;
+  knownWordMaturityLearningColor: string;
+  knownWordMaturityYoungColor: string;
+  knownWordMaturityMatureColor: string;
   nPlusOneColor: string;
   nameMatchEnabled: boolean;
   nameMatchColor: string;
@@ -240,6 +244,10 @@ export function createRendererState(): RendererState {
     subtitleSidebarPausedByHover: false,
 
     knownWordColor: '#a6da95',
+    knownWordMaturityNewColor: '#ee99a0',
+    knownWordMaturityLearningColor: '#b7bdf8',
+    knownWordMaturityYoungColor: '#91d7e3',
+    knownWordMaturityMatureColor: '#a6da95',
     nPlusOneColor: '#c6a0f6',
     nameMatchEnabled: false,
     nameMatchColor: '#f5bde6',

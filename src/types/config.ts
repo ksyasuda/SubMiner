@@ -254,6 +254,8 @@ export interface ResolvedConfig {
     };
     knownWords: {
       highlightEnabled: boolean;
+      maturityEnabled: boolean;
+      matureThresholdDays: number;
       refreshMinutes: number;
       addMinedWordsImmediately: boolean;
       matchMode: NPlusOneMatchMode;

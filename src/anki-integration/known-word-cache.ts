@@ -4,7 +4,22 @@ import path from 'path';
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getConfiguredWordFieldName } from '../anki-field-config';
 import { AnkiConnectConfig } from '../types/anki';
+import type { KnownWordMaturityTier } from '../types/subtitle';
 import { createLogger } from '../logger';
+import {
+  KNOWN_WORD_MATURITY_RULES_VERSION,
+  classifyKnownWordNoteTier,
+  fetchKnownWordMaturityTierSets,
+  getKnownWordMaturityEnabled,
+  getMatureIntervalThresholdDays,
+  maxKnownWordMaturityTier,
+  sanitizeKnownWordMaturityTier,
+} from './known-word-maturity';
+import {
+  CurrentKnownWordCacheState,
+  assertNever,
+  parseKnownWordCacheState,
+} from './known-word-cache-format';
 import {
   DEFAULT_KNOWN_WORD_READING_FIELDS,
   KnownWordEntry,
@@ -62,41 +77,27 @@ export function getKnownWordCacheScopeForConfig(config: AnkiConnectConfig): stri
 }
 
 export function getKnownWordCacheLifecycleConfig(config: AnkiConnectConfig): string {
-  return JSON.stringify({
+  const payload: Record<string, unknown> = {
     refreshMinutes: getKnownWordCacheRefreshIntervalMinutes(config),
     scope: getKnownWordCacheScopeForConfig(config),
     fieldsWord: trimToNonEmptyString(config.fields?.word) ?? '',
-  });
+  };
+  // The maturity fields are only added while enabled so persisted caches from
+  // before the feature existed (or with it off) keep their identity.
+  // maturityRules is the classification-rule version: bump it whenever the tier
+  // queries change meaning so existing caches refetch instead of serving tiers
+  // computed under the old rules.
+  if (getKnownWordMaturityEnabled(config)) {
+    payload.maturity = getMatureIntervalThresholdDays(config);
+    payload.maturityRules = KNOWN_WORD_MATURITY_RULES_VERSION;
+  }
+  return JSON.stringify(payload);
 }
 
 export interface KnownWordCacheNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
-
-interface KnownWordCacheStateV1 {
-  readonly version: 1;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly words: string[];
-}
-
-interface KnownWordCacheStateV2 {
-  readonly version: 2;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly words: string[];
-  readonly notes: Record<string, string[]>;
-}
-
-interface KnownWordCacheStateV3 {
-  readonly version: 3;
-  readonly refreshedAtMs: number;
-  readonly scope: string;
-  readonly notes: Record<string, KnownWordEntry[]>;
-}
-
-type KnownWordCacheState = KnownWordCacheStateV1 | KnownWordCacheStateV2 | KnownWordCacheStateV3;
 
 const NO_READING_KEY = '';
 
@@ -125,12 +126,13 @@ type KnownWordQueryScope = {
 export class KnownWordCacheManager {
   private knownWordsLastRefreshedAtMs = 0;
   private knownWordsStateKey = '';
-  // word → (hiragana reading | NO_READING_KEY → note count). NO_READING_KEY
+  // word → (hiragana reading | NO_READING_KEY → note ids). NO_READING_KEY
   // entries fail open: the word matches regardless of the token's reading.
-  private wordReadingCounts = new Map<string, Map<string, number>>();
-  // hiragana reading → note count, so kana tokens still match by reading alone.
-  private readingCounts = new Map<string, number>();
+  private wordReadingNoteIds = new Map<string, Map<string, Set<number>>>();
+  // hiragana reading → note ids, so kana tokens still match by reading alone.
+  private readingNoteIds = new Map<string, Set<number>>();
   private noteEntriesById = new Map<number, KnownWordEntry[]>();
+  private noteTierById = new Map<number, KnownWordMaturityTier>();
   private knownWordsRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private knownWordsRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
   private isRefreshingKnownWords = false;
@@ -156,7 +158,7 @@ export class KnownWordCacheManager {
       return false;
     }
 
-    const knownReadings = this.wordReadingCounts.get(normalized);
+    const knownReadings = this.wordReadingNoteIds.get(normalized);
     if (knownReadings && knownReadings.size > 0) {
       const normalizedReading =
         typeof reading === 'string' ? normalizeKnownReadingForLookup(reading) : '';
@@ -168,7 +170,7 @@ export class KnownWordCacheManager {
     }
 
     // Callers that look up a kanji token's reading (not subtitle text) must
-    // opt out of the reading-only fallback: readingCounts holds readings of
+    // opt out of the reading-only fallback: readingNoteIds holds readings of
     // every note including kanji words, so 渓谷's けいこく would match a
     // mined 警告/けいこく.
     if (options?.allowReadingOnlyMatch === false) {
@@ -182,7 +184,86 @@ export class KnownWordCacheManager {
     if ([...hiragana].length === 1) {
       return false;
     }
-    return this.readingCounts.has(hiragana);
+    return this.readingNoteIds.has(hiragana);
+  }
+
+  // Maturity tier for a matching known word, following the exact matching
+  // rules of isKnownWord. A match with no tier data (tier fetch failed or
+  // pre-v4 cache) returns null so rendering falls back to the single
+  // known-word color.
+  getKnownWordTier(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): KnownWordMaturityTier | null {
+    if (!getKnownWordMaturityEnabled(this.deps.getConfig())) {
+      return null;
+    }
+
+    return this.maxTierForNotes(null, this.getKnownWordMatchNoteIds(text, reading, options));
+  }
+
+  // Note ids a known-word lookup matches, using the same matching rules as
+  // getKnownWordTier. Exposed for diagnostics (see
+  // scripts/verify-known-word-highlights.ts), which audits a rendered tier
+  // against the live card data of the notes that produced it.
+  getKnownWordMatchNoteIds(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): Set<number> {
+    const matches = new Set<number>();
+    const normalized = this.normalizeKnownWordForLookup(text);
+    if (normalized.length === 0) {
+      return matches;
+    }
+
+    const knownReadings = this.wordReadingNoteIds.get(normalized);
+    if (knownReadings && knownReadings.size > 0) {
+      const normalizedReading =
+        typeof reading === 'string' ? normalizeKnownReadingForLookup(reading) : '';
+      if (normalizedReading.length === 0) {
+        for (const noteIds of knownReadings.values()) {
+          for (const noteId of noteIds) {
+            matches.add(noteId);
+          }
+        }
+        return matches;
+      }
+      for (const key of [NO_READING_KEY, normalizedReading]) {
+        for (const noteId of knownReadings.get(key) ?? []) {
+          matches.add(noteId);
+        }
+      }
+      return matches;
+    }
+
+    if (options?.allowReadingOnlyMatch === false) {
+      return matches;
+    }
+
+    const hiragana = convertKatakanaToHiragana(normalized);
+    if ([...hiragana].length === 1) {
+      return matches;
+    }
+    for (const noteId of this.readingNoteIds.get(hiragana) ?? []) {
+      matches.add(noteId);
+    }
+    return matches;
+  }
+
+  private maxTierForNotes(
+    current: KnownWordMaturityTier | null,
+    noteIds: ReadonlySet<number>,
+  ): KnownWordMaturityTier | null {
+    let tier = current;
+    for (const noteId of noteIds) {
+      tier = maxKnownWordMaturityTier(tier, this.noteTierById.get(noteId) ?? null);
+      if (tier === 'mature') {
+        break;
+      }
+    }
+    return tier;
   }
 
   refresh(force = false): Promise<void> {
@@ -229,7 +310,7 @@ export class KnownWordCacheManager {
     let didMutateCache = false;
     const currentStateKey = this.getKnownWordCacheStateKey();
     if (this.knownWordsStateKey && this.knownWordsStateKey !== currentStateKey) {
-      didMutateCache = this.wordReadingCounts.size > 0 || this.noteEntriesById.size > 0;
+      didMutateCache = this.wordReadingNoteIds.size > 0 || this.noteEntriesById.size > 0;
       this.clearKnownWordCacheState();
     }
     if (!this.knownWordsStateKey) {
@@ -245,6 +326,15 @@ export class KnownWordCacheManager {
     const changed = this.replaceNoteSnapshot(noteInfo.noteId, nextEntries);
     if (!changed) {
       return didMutateCache;
+    }
+
+    // A just-mined card has never been reviewed.
+    if (
+      this.isMaturityTrackingEnabled() &&
+      this.noteEntriesById.has(noteInfo.noteId) &&
+      !this.noteTierById.has(noteInfo.noteId)
+    ) {
+      this.noteTierById.set(noteInfo.noteId, 'new');
     }
 
     if (this.knownWordsLastRefreshedAtMs <= 0) {
@@ -290,6 +380,21 @@ export class KnownWordCacheManager {
     this.isRefreshingKnownWords = true;
     try {
       const noteFieldsById = await this.fetchKnownWordNoteFieldsById();
+      const maturityTrackingEnabled = this.isMaturityTrackingEnabled();
+      let maturityFetchFailed = false;
+      let tierSets = null;
+      if (maturityTrackingEnabled) {
+        try {
+          tierSets = await fetchKnownWordMaturityTierSets(
+            (query, options) => this.deps.client.findNotes(query, options),
+            this.getKnownWordQueryScopes().map((scope) => scope.query),
+            getMatureIntervalThresholdDays(this.deps.getConfig()),
+          );
+        } catch (error) {
+          maturityFetchFailed = true;
+          log.warn('Failed to fetch known-word maturity tiers:', (error as Error).message);
+        }
+      }
       const currentNoteIds = Array.from(noteFieldsById.keys()).sort((a, b) => a - b);
 
       if (this.noteEntriesById.size === 0) {
@@ -316,13 +421,25 @@ export class KnownWordCacheManager {
         }
       }
 
+      this.noteTierById = new Map();
+      if (tierSets) {
+        for (const noteId of currentNoteIds) {
+          this.noteTierById.set(noteId, classifyKnownWordNoteTier(noteId, tierSets));
+        }
+      }
+
       this.knownWordsLastRefreshedAtMs = Date.now();
       this.knownWordsStateKey = frozenStateKey;
       this.persistKnownWordCacheState();
       log.info(
         'Known-word cache refreshed',
         `noteCount=${currentNoteIds.length}`,
-        `wordCount=${this.wordReadingCounts.size}`,
+        `wordCount=${this.wordReadingNoteIds.size}`,
+        tierSets
+          ? `maturityTiers=${this.noteTierById.size}`
+          : maturityFetchFailed
+            ? 'maturityTiers=fetch-failed'
+            : 'maturityTiers=off',
       );
     } catch (error) {
       log.warn('Failed to refresh known-word cache:', (error as Error).message);
@@ -335,6 +452,10 @@ export class KnownWordCacheManager {
   private isKnownWordCacheEnabled(): boolean {
     const config = this.deps.getConfig();
     return config.knownWords?.highlightEnabled === true || config.nPlusOne?.enabled === true;
+  }
+
+  private isMaturityTrackingEnabled(): boolean {
+    return getKnownWordMaturityEnabled(this.deps.getConfig());
   }
 
   private shouldAddMinedWordsImmediately(): boolean {
@@ -593,12 +714,13 @@ export class KnownWordCacheManager {
       return false;
     }
 
-    this.removeEntriesFromCounts(previousEntries);
+    this.removeEntriesFromIndexes(noteId, previousEntries);
     if (normalizedEntries.length > 0) {
       this.noteEntriesById.set(noteId, normalizedEntries);
-      this.addEntriesToCounts(normalizedEntries);
+      this.addEntriesToIndexes(noteId, normalizedEntries);
     } else {
       this.noteEntriesById.delete(noteId);
+      this.noteTierById.delete(noteId);
     }
     return true;
   }
@@ -609,54 +731,68 @@ export class KnownWordCacheManager {
       return;
     }
     this.noteEntriesById.delete(noteId);
-    this.removeEntriesFromCounts(previousEntries);
+    this.noteTierById.delete(noteId);
+    this.removeEntriesFromIndexes(noteId, previousEntries);
   }
 
-  private addEntriesToCounts(entries: KnownWordEntry[]): void {
+  private addEntriesToIndexes(noteId: number, entries: KnownWordEntry[]): void {
     for (const entry of entries) {
       const readingKey = entry.reading ?? NO_READING_KEY;
-      let readings = this.wordReadingCounts.get(entry.word);
+      let readings = this.wordReadingNoteIds.get(entry.word);
       if (!readings) {
         readings = new Map();
-        this.wordReadingCounts.set(entry.word, readings);
+        this.wordReadingNoteIds.set(entry.word, readings);
       }
-      readings.set(readingKey, (readings.get(readingKey) ?? 0) + 1);
+      let noteIds = readings.get(readingKey);
+      if (!noteIds) {
+        noteIds = new Set();
+        readings.set(readingKey, noteIds);
+      }
+      noteIds.add(noteId);
       if (entry.reading) {
-        this.readingCounts.set(entry.reading, (this.readingCounts.get(entry.reading) ?? 0) + 1);
+        let readingNotes = this.readingNoteIds.get(entry.reading);
+        if (!readingNotes) {
+          readingNotes = new Set();
+          this.readingNoteIds.set(entry.reading, readingNotes);
+        }
+        readingNotes.add(noteId);
       }
     }
   }
 
-  private removeEntriesFromCounts(entries: KnownWordEntry[]): void {
+  private removeEntriesFromIndexes(noteId: number, entries: KnownWordEntry[]): void {
     for (const entry of entries) {
       const readingKey = entry.reading ?? NO_READING_KEY;
-      const readings = this.wordReadingCounts.get(entry.word);
+      const readings = this.wordReadingNoteIds.get(entry.word);
       if (readings) {
-        const nextCount = (readings.get(readingKey) ?? 0) - 1;
-        if (nextCount > 0) {
-          readings.set(readingKey, nextCount);
-        } else {
-          readings.delete(readingKey);
-          if (readings.size === 0) {
-            this.wordReadingCounts.delete(entry.word);
+        const noteIds = readings.get(readingKey);
+        if (noteIds) {
+          noteIds.delete(noteId);
+          if (noteIds.size === 0) {
+            readings.delete(readingKey);
+            if (readings.size === 0) {
+              this.wordReadingNoteIds.delete(entry.word);
+            }
           }
         }
       }
       if (entry.reading) {
-        const nextReadingCount = (this.readingCounts.get(entry.reading) ?? 0) - 1;
-        if (nextReadingCount > 0) {
-          this.readingCounts.set(entry.reading, nextReadingCount);
-        } else {
-          this.readingCounts.delete(entry.reading);
+        const readingNotes = this.readingNoteIds.get(entry.reading);
+        if (readingNotes) {
+          readingNotes.delete(noteId);
+          if (readingNotes.size === 0) {
+            this.readingNoteIds.delete(entry.reading);
+          }
         }
       }
     }
   }
 
   private clearInMemoryState(): void {
-    this.wordReadingCounts = new Map();
-    this.readingCounts = new Map();
+    this.wordReadingNoteIds = new Map();
+    this.readingNoteIds = new Map();
     this.noteEntriesById = new Map();
+    this.noteTierById = new Map();
     this.knownWordsLastRefreshedAtMs = 0;
   }
 
@@ -675,8 +811,8 @@ export class KnownWordCacheManager {
         return;
       }
 
-      const parsed = JSON.parse(raw) as unknown;
-      if (!this.isKnownWordCacheStateValid(parsed)) {
+      const parsed = parseKnownWordCacheState(JSON.parse(raw) as unknown);
+      if (!parsed) {
         this.clearInMemoryState();
         this.knownWordsStateKey = this.getKnownWordCacheStateKey();
         return;
@@ -689,48 +825,63 @@ export class KnownWordCacheManager {
       }
 
       this.clearInMemoryState();
-      if (parsed.version === 3) {
-        for (const [noteIdKey, entries] of Object.entries(parsed.notes)) {
-          const noteId = Number.parseInt(noteIdKey, 10);
-          if (!Number.isInteger(noteId) || noteId <= 0) {
-            continue;
+      switch (parsed.version) {
+        case 1:
+          // v1 has no per-note snapshots to convert; refetch from Anki.
+          this.knownWordsStateKey = this.getKnownWordCacheStateKey();
+          return;
+        case 2:
+          // Older states have no readings; load them reading-less (fail-open,
+          // matching the old behavior) but leave the cache marked stale so the
+          // next refresh upgrades entries with readings from Anki.
+          for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
+            const noteId = Number.parseInt(noteIdKey, 10);
+            if (!Number.isInteger(noteId) || noteId <= 0) {
+              continue;
+            }
+            const normalizedEntries = normalizeKnownWordEntryList(
+              words.map((word) => ({
+                word: this.normalizeKnownWordForLookup(word),
+                reading: null,
+              })),
+            );
+            if (normalizedEntries.length === 0) {
+              continue;
+            }
+            this.noteEntriesById.set(noteId, normalizedEntries);
+            this.addEntriesToIndexes(noteId, normalizedEntries);
           }
-          const normalizedEntries = normalizeKnownWordEntryList(entries);
-          if (normalizedEntries.length === 0) {
-            continue;
+          this.knownWordsStateKey = parsed.scope;
+          return;
+        case 3:
+        case 4:
+          for (const [noteIdKey, entries] of Object.entries(parsed.notes)) {
+            const noteId = Number.parseInt(noteIdKey, 10);
+            if (!Number.isInteger(noteId) || noteId <= 0) {
+              continue;
+            }
+            const normalizedEntries = normalizeKnownWordEntryList(entries);
+            if (normalizedEntries.length === 0) {
+              continue;
+            }
+            this.noteEntriesById.set(noteId, normalizedEntries);
+            this.addEntriesToIndexes(noteId, normalizedEntries);
           }
-          this.noteEntriesById.set(noteId, normalizedEntries);
-          this.addEntriesToCounts(normalizedEntries);
-        }
-        this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
-        this.knownWordsStateKey = parsed.scope;
-        return;
+          if (parsed.version === 4) {
+            for (const [noteIdKey, tier] of Object.entries(parsed.tiers)) {
+              const noteId = Number.parseInt(noteIdKey, 10);
+              const sanitizedTier = sanitizeKnownWordMaturityTier(tier);
+              if (sanitizedTier && this.noteEntriesById.has(noteId)) {
+                this.noteTierById.set(noteId, sanitizedTier);
+              }
+            }
+          }
+          this.knownWordsLastRefreshedAtMs = parsed.refreshedAtMs;
+          this.knownWordsStateKey = parsed.scope;
+          return;
+        default:
+          assertNever(parsed);
       }
-
-      if (parsed.version === 2) {
-        // Older states have no readings; load them reading-less (fail-open,
-        // matching the old behavior) but leave the cache marked stale so the
-        // next refresh upgrades entries with readings from Anki.
-        for (const [noteIdKey, words] of Object.entries(parsed.notes)) {
-          const noteId = Number.parseInt(noteIdKey, 10);
-          if (!Number.isInteger(noteId) || noteId <= 0) {
-            continue;
-          }
-          const normalizedEntries = normalizeKnownWordEntryList(
-            words.map((word) => ({ word: this.normalizeKnownWordForLookup(word), reading: null })),
-          );
-          if (normalizedEntries.length === 0) {
-            continue;
-          }
-          this.noteEntriesById.set(noteId, normalizedEntries);
-          this.addEntriesToCounts(normalizedEntries);
-        }
-        this.knownWordsStateKey = parsed.scope;
-        return;
-      }
-
-      // v1 has no per-note snapshots to convert; refetch from Anki.
-      this.knownWordsStateKey = this.getKnownWordCacheStateKey();
     } catch (error) {
       log.warn('Failed to load known-word cache state:', (error as Error).message);
       this.clearInMemoryState();
@@ -741,64 +892,28 @@ export class KnownWordCacheManager {
   private persistKnownWordCacheState(): void {
     try {
       const notes: Record<string, KnownWordEntry[]> = {};
+      const tiers: Record<string, KnownWordMaturityTier> = {};
       for (const [noteId, entries] of this.noteEntriesById.entries()) {
         if (entries.length > 0) {
           notes[String(noteId)] = entries;
+          const tier = this.noteTierById.get(noteId);
+          if (tier) {
+            tiers[String(noteId)] = tier;
+          }
         }
       }
 
-      const state: KnownWordCacheStateV3 = {
-        version: 3,
+      const state: CurrentKnownWordCacheState = {
+        version: 4,
         refreshedAtMs: this.knownWordsLastRefreshedAtMs,
         scope: this.knownWordsStateKey,
         notes,
+        tiers,
       };
       fs.writeFileSync(this.statePath, JSON.stringify(state), 'utf-8');
     } catch (error) {
       log.warn('Failed to persist known-word cache state:', (error as Error).message);
     }
-  }
-
-  private isKnownWordCacheStateValid(value: unknown): value is KnownWordCacheState {
-    if (typeof value !== 'object' || value === null) return false;
-    const candidate = value as Record<string, unknown>;
-    if (candidate.version !== 1 && candidate.version !== 2 && candidate.version !== 3) {
-      return false;
-    }
-    if (typeof candidate.refreshedAtMs !== 'number') return false;
-    if (typeof candidate.scope !== 'string') return false;
-    if (candidate.version !== 3) {
-      if (!Array.isArray(candidate.words)) return false;
-      if (!candidate.words.every((entry: unknown) => typeof entry === 'string')) {
-        return false;
-      }
-    }
-    if (candidate.version === 2 || candidate.version === 3) {
-      if (
-        typeof candidate.notes !== 'object' ||
-        candidate.notes === null ||
-        Array.isArray(candidate.notes)
-      ) {
-        return false;
-      }
-      const isValidNoteEntry =
-        candidate.version === 2
-          ? (entry: unknown): boolean => typeof entry === 'string'
-          : (entry: unknown): boolean =>
-              typeof entry === 'object' &&
-              entry !== null &&
-              typeof (entry as KnownWordEntry).word === 'string' &&
-              ((entry as KnownWordEntry).reading === null ||
-                typeof (entry as KnownWordEntry).reading === 'string');
-      if (
-        !Object.values(candidate.notes as Record<string, unknown>).every(
-          (noteEntries) => Array.isArray(noteEntries) && noteEntries.every(isValidNoteEntry),
-        )
-      ) {
-        return false;
-      }
-    }
-    return true;
   }
 
   private extractKnownWordEntriesFromNoteInfo(

@@ -7,7 +7,13 @@ import {
   DEFAULT_ANNOTATION_POS2_EXCLUSION_CONFIG,
   resolveAnnotationPos2ExclusionSet,
 } from '../../../token-pos2-exclusions';
-import { JlptLevel, MergedToken, NPlusOneMatchMode, PartOfSpeech } from '../../../types';
+import {
+  JlptLevel,
+  KnownWordMaturityTier,
+  MergedToken,
+  NPlusOneMatchMode,
+  PartOfSpeech,
+} from '../../../types';
 import { shouldIgnoreJlptByTerm, shouldIgnoreJlptForMecabPos1 } from '../jlpt-token-filter';
 import {
   shouldExcludeTokenFromSubtitleAnnotations as sharedShouldExcludeTokenFromSubtitleAnnotations,
@@ -36,6 +42,11 @@ export interface AnnotationStageDeps {
     reading?: string,
     options?: { allowReadingOnlyMatch?: boolean },
   ) => boolean;
+  getKnownWordTier?: (
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ) => KnownWordMaturityTier | null;
   knownWordMatchMode: NPlusOneMatchMode;
   getJlptLevel: (text: string) => JlptLevel | null;
 }
@@ -52,7 +63,7 @@ export interface AnnotationStageOptions {
   sourceText?: string;
 }
 
-function resolveKnownWordText(
+export function resolveKnownWordText(
   surface: string,
   headword: string,
   matchMode: NPlusOneMatchMode,
@@ -560,7 +571,7 @@ function isCompleteReadingForSurface(surface: string, reading: string): boolean 
 // (see isCompleteReadingForSurface); undefined otherwise. Shared so the
 // known-word reading disambiguation and the reading fallback stay in sync if the
 // validity rule changes.
-function resolveCompleteTokenReading(token: MergedToken): string | undefined {
+export function resolveCompleteTokenReading(token: MergedToken): string | undefined {
   const normalizedReading = token.reading.trim();
   if (!normalizedReading || !isCompleteReadingForSurface(token.surface, normalizedReading)) {
     return undefined;
@@ -573,7 +584,7 @@ function resolveCompleteTokenReading(token: MergedToken): string | undefined {
 // inflected surface's reading does not match the dictionary form's reading,
 // and partial furigana readings (see isCompleteReadingForSurface) would cause
 // false negatives. Undefined falls back to text-only matching (fail-open).
-function resolveKnownWordReadingForMatch(
+export function resolveKnownWordReadingForMatch(
   token: MergedToken,
   knownWordMatchMode: NPlusOneMatchMode,
 ): string | undefined {
@@ -613,6 +624,30 @@ function computeTokenKnownStatus(
   return (
     fallbackReading !== matchText.trim() &&
     isKnownWord(fallbackReading, undefined, { allowReadingOnlyMatch: false })
+  );
+}
+
+// Maturity tier for a token already confirmed known, following the same
+// primary + kana-fallback lookup sequence as computeTokenKnownStatus so the
+// tier always describes a note the boolean match could have come from.
+function computeTokenKnownMaturity(
+  token: MergedToken,
+  getKnownWordTier: NonNullable<AnnotationStageDeps['getKnownWordTier']>,
+  knownWordMatchMode: NPlusOneMatchMode,
+): KnownWordMaturityTier | undefined {
+  const matchText = resolveKnownWordText(token.surface, token.headword, knownWordMatchMode);
+  const matchReading = resolveKnownWordReadingForMatch(token, knownWordMatchMode);
+  const primaryTier = matchText ? getKnownWordTier(matchText, matchReading) : null;
+  if (primaryTier) {
+    return primaryTier;
+  }
+
+  const fallbackReading = resolveCompleteTokenReading(token);
+  if (!fallbackReading || fallbackReading === matchText.trim()) {
+    return undefined;
+  }
+  return (
+    getKnownWordTier(fallbackReading, undefined, { allowReadingOnlyMatch: false }) ?? undefined
   );
 }
 
@@ -677,6 +712,11 @@ export function annotateTokens(
       : false;
     nPlusOneKnownStatuses[index] = isKnownForMatching;
 
+    const knownMaturity =
+      knownWordsEnabled && isKnownForMatching && deps.getKnownWordTier
+        ? computeTokenKnownMaturity(token, deps.getKnownWordTier, deps.knownWordMatchMode)
+        : undefined;
+
     const prioritizedNameMatch = nameMatchEnabled && token.isNameMatch === true;
 
     // A confirmed character-name match must survive the POS noise filter:
@@ -696,6 +736,7 @@ export function annotateTokens(
       return {
         ...strippedToken,
         isKnown: knownWordsEnabled ? isKnownForMatching : false,
+        knownMaturity,
       };
     }
 
@@ -712,6 +753,7 @@ export function annotateTokens(
     return {
       ...token,
       isKnown: knownWordsEnabled ? isKnownForMatching : false,
+      knownMaturity,
       isNPlusOneTarget: nPlusOneEnabled && !prioritizedNameMatch ? token.isNPlusOneTarget : false,
       frequencyRank,
       jlptLevel,

@@ -28,6 +28,7 @@ import {
   NotificationOptions,
 } from './types/anki';
 import { AiConfig } from './types/integrations';
+import type { KnownWordMaturityTier } from './types/subtitle';
 import { MpvClient } from './types/runtime';
 import { OPEN_ANKI_CARD_ACTION_ID } from './types/notification';
 import type { NotificationType, OverlayNotificationPayload } from './types/notification';
@@ -730,6 +731,14 @@ export class AnkiIntegration {
     options?: { allowReadingOnlyMatch?: boolean },
   ): boolean {
     return this.knownWordCache.isKnownWord(text, reading, options);
+  }
+
+  getKnownWordTier(
+    text: string,
+    reading?: string,
+    options?: { allowReadingOnlyMatch?: boolean },
+  ): KnownWordMaturityTier | null {
+    return this.knownWordCache.getKnownWordTier(text, reading, options);
   }
 
   getKnownWordMatchMode(): NPlusOneMatchMode {

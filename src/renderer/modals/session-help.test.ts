@@ -9,7 +9,9 @@ import {
   createSessionHelpModal,
   describeSessionHelpCommand,
   formatSessionHelpKeybinding,
+  isKnownWordMaturityLegendEnabled,
 } from './session-help.js';
+import type { RuntimeOptionId, RuntimeOptionState } from '../../types/runtime-options.js';
 
 test('session help describes sub-seek commands as subtitle-line navigation', () => {
   assert.equal(describeSessionHelpCommand(['sub-seek', 1]), 'Jump to next subtitle');
@@ -104,6 +106,101 @@ test('session help builds rows from canonical session bindings and fixed overlay
   assert.ok(rows.some((row) => row.shortcut === 'Y then D' && row.action === 'Toggle DevTools'));
 });
 
+function booleanRuntimeOption(id: RuntimeOptionId, value: boolean): RuntimeOptionState {
+  return {
+    id,
+    label: id,
+    scope: 'subtitle',
+    valueType: 'boolean',
+    value,
+    allowedValues: [true, false],
+    requiresRestart: false,
+  };
+}
+
+test('maturity legend requires both known-word highlighting and maturity coloring', () => {
+  const highlightOn = booleanRuntimeOption('subtitle.annotation.knownWords.highlightEnabled', true);
+  const highlightOff = booleanRuntimeOption(
+    'subtitle.annotation.knownWords.highlightEnabled',
+    false,
+  );
+  const maturityOn = booleanRuntimeOption('subtitle.annotation.knownWords.maturityEnabled', true);
+  const maturityOff = booleanRuntimeOption('subtitle.annotation.knownWords.maturityEnabled', false);
+
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOn, maturityOn]), true);
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOff, maturityOn]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([highlightOn, maturityOff]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([maturityOn]), false);
+  assert.equal(isKnownWordMaturityLegendEnabled([]), false);
+});
+
+function colorLegendRows(input: Parameters<typeof buildSessionHelpSections>[0]) {
+  const sections = buildSessionHelpSections(input);
+  return sections.find((section) => section.title === 'Color legend')?.rows ?? [];
+}
+
+test('color legend shows the flat known-word color when maturity coloring is off', () => {
+  const rows = colorLegendRows({
+    sessionBindings: [],
+    subtitleStyle: {
+      knownWordColor: '#a6da95',
+      knownWordMaturityColors: {
+        new: '#ee99a0',
+        learning: '#b7bdf8',
+        young: '#91d7e3',
+        mature: '#a6da95',
+      },
+    },
+  });
+
+  assert.deepEqual(
+    rows.filter((row) => row.shortcut.startsWith('Known words')),
+    [{ shortcut: 'Known words', action: '#a6da95', color: '#a6da95' }],
+  );
+});
+
+test('color legend swaps in maturity tiers when maturity coloring is on', () => {
+  const rows = colorLegendRows({
+    sessionBindings: [],
+    subtitleStyle: {
+      knownWordColor: '#a6da95',
+      knownWordMaturityColors: {
+        new: '#ee99a0',
+        learning: '#b7bdf8',
+        young: '#91d7e3',
+        mature: '#f0c6c6',
+      },
+    },
+    knownWordMaturityEnabled: true,
+  });
+
+  assert.deepEqual(
+    rows.filter((row) => row.shortcut.startsWith('Known words')),
+    [
+      { shortcut: 'Known words (new)', action: '#ee99a0', color: '#ee99a0' },
+      { shortcut: 'Known words (learning)', action: '#b7bdf8', color: '#b7bdf8' },
+      { shortcut: 'Known words (young)', action: '#91d7e3', color: '#91d7e3' },
+      { shortcut: 'Known words (mature)', action: '#f0c6c6', color: '#f0c6c6' },
+    ],
+  );
+  assert.ok(rows.some((row) => row.shortcut === 'N+1 words'));
+});
+
+test('color legend falls back to default maturity colors when overrides are invalid', () => {
+  const rows = colorLegendRows({
+    sessionBindings: [],
+    subtitleStyle: {
+      knownWordMaturityColors: { new: 'not-a-color', learning: 42 },
+    },
+    knownWordMaturityEnabled: true,
+  });
+
+  assert.deepEqual(
+    rows.filter((row) => row.shortcut.startsWith('Known words')).map((row) => row.color),
+    ['#ee99a0', '#b7bdf8', '#91d7e3', '#a6da95'],
+  );
+});
+
 function createClassList(initialTokens: string[] = []) {
   const tokens = new Set(initialTokens);
   return {
@@ -176,6 +273,7 @@ test('modal-layer session help does not focus hidden main overlay and still clos
           getSubtitleSidebarSnapshot: async () => ({
             config: { toggleKey: 'Backslash' },
           }),
+          getRuntimeOptions: async () => [],
         },
         focus: () => {},
         addEventListener: () => {},

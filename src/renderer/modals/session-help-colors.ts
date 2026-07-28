@@ -2,6 +2,12 @@ import type { SessionHelpSection } from './session-help-sections';
 
 export type SessionHelpSubtitleStyle = {
   knownWordColor?: unknown;
+  knownWordMaturityColors?: {
+    new?: unknown;
+    learning?: unknown;
+    young?: unknown;
+    mature?: unknown;
+  };
   nPlusOneColor?: unknown;
   nameMatchColor?: unknown;
   jlptColors?: {
@@ -13,10 +19,19 @@ export type SessionHelpSubtitleStyle = {
   };
 };
 
+export type SessionHelpColorOptions = {
+  /** When true, known words are colored per Anki card maturity instead of one flat color. */
+  knownWordMaturityEnabled?: boolean;
+};
+
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 const FALLBACK_COLORS = {
   knownWordColor: '#a6da95',
+  knownWordMaturityNewColor: '#ee99a0',
+  knownWordMaturityLearningColor: '#b7bdf8',
+  knownWordMaturityYoungColor: '#91d7e3',
+  knownWordMaturityMatureColor: '#a6da95',
   nPlusOneColor: '#c6a0f6',
   nameMatchColor: '#f5bde6',
   jlptN1Color: '#ed8796',
@@ -32,15 +47,53 @@ function normalizeColor(value: unknown, fallback: string): string {
   return HEX_COLOR_RE.test(next) ? next : fallback;
 }
 
-export function buildColorSection(style: SessionHelpSubtitleStyle): SessionHelpSection {
+function buildKnownWordRows(
+  style: SessionHelpSubtitleStyle,
+  options: SessionHelpColorOptions,
+): SessionHelpSection['rows'] {
+  if (!options.knownWordMaturityEnabled) {
+    const knownWordColor = normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor);
+    return [{ shortcut: 'Known words', action: knownWordColor, color: knownWordColor }];
+  }
+
+  const maturityColors = style.knownWordMaturityColors;
+  const tiers: Array<{ label: string; value: unknown; fallback: string }> = [
+    {
+      label: 'Known words (new)',
+      value: maturityColors?.new,
+      fallback: FALLBACK_COLORS.knownWordMaturityNewColor,
+    },
+    {
+      label: 'Known words (learning)',
+      value: maturityColors?.learning,
+      fallback: FALLBACK_COLORS.knownWordMaturityLearningColor,
+    },
+    {
+      label: 'Known words (young)',
+      value: maturityColors?.young,
+      fallback: FALLBACK_COLORS.knownWordMaturityYoungColor,
+    },
+    {
+      label: 'Known words (mature)',
+      value: maturityColors?.mature,
+      fallback: FALLBACK_COLORS.knownWordMaturityMatureColor,
+    },
+  ];
+
+  return tiers.map((tier) => {
+    const color = normalizeColor(tier.value, tier.fallback);
+    return { shortcut: tier.label, action: color, color };
+  });
+}
+
+export function buildColorSection(
+  style: SessionHelpSubtitleStyle,
+  options: SessionHelpColorOptions = {},
+): SessionHelpSection {
   return {
     title: 'Color legend',
     rows: [
-      {
-        shortcut: 'Known words',
-        action: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
-        color: normalizeColor(style.knownWordColor, FALLBACK_COLORS.knownWordColor),
-      },
+      ...buildKnownWordRows(style, options),
       {
         shortcut: 'N+1 words',
         action: normalizeColor(style.nPlusOneColor, FALLBACK_COLORS.nPlusOneColor),

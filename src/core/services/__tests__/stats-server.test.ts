@@ -497,6 +497,8 @@ describe('stats server API routes', () => {
         cachePath,
         JSON.stringify({
           version: 1,
+          refreshedAtMs: 1,
+          scope: 'deck:test',
           words: ['する'],
         }),
       );
@@ -561,6 +563,69 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('GET /api/stats/sessions enriches known-word metrics from a v4 maturity cache', async () => {
+    await withTempDir(async (dir) => {
+      const cachePath = path.join(dir, 'known-words.json');
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({
+          version: 4,
+          refreshedAtMs: 1,
+          scope: 'deck:test',
+          notes: {
+            '101': [{ word: 'する', reading: 'する' }],
+            '102': [{ word: '猫', reading: null }],
+          },
+          tiers: { '101': 'mature', '102': 'young' },
+        }),
+      );
+
+      const app = createStatsApp(
+        createMockTracker({
+          getSessionWordsByLine: async (sessionId: number) =>
+            sessionId === 1
+              ? [
+                  { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
+                  { lineIndex: 2, headword: '未知', occurrenceCount: 1 },
+                ]
+              : [],
+        }),
+        { knownWordCachePath: cachePath },
+      );
+
+      const res = await app.request('/api/stats/sessions?limit=5');
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      const first = body[0];
+      assert.equal(first.knownWordsSeen, 2);
+      assert.equal(first.knownWordRate, 66.7);
+    });
+  });
+
+  it('GET /api/stats/sessions reports no known words when the cache format is unrecognized', async () => {
+    await withTempDir(async (dir) => {
+      const cachePath = path.join(dir, 'known-words.json');
+      fs.writeFileSync(
+        cachePath,
+        JSON.stringify({ version: 99, refreshedAtMs: 1, scope: 'deck:test', notes: {} }),
+      );
+
+      const app = createStatsApp(
+        createMockTracker({
+          getSessionWordsByLine: async () => [
+            { lineIndex: 1, headword: 'する', occurrenceCount: 2 },
+          ],
+        }),
+        { knownWordCachePath: cachePath },
+      );
+
+      const res = await app.request('/api/stats/sessions?limit=5');
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body[0].knownWordsSeen, 0);
+    });
+  });
+
   it('GET /api/stats/sessions/:id/events forwards event type filters to the tracker', async () => {
     let seenSessionId = 0;
     let seenLimit = 0;
@@ -609,6 +674,8 @@ describe('stats server API routes', () => {
         cachePath,
         JSON.stringify({
           version: 1,
+          refreshedAtMs: 1,
+          scope: 'deck:test',
           words: ['知る', '猫'],
         }),
       );

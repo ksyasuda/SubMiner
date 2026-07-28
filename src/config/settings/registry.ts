@@ -163,6 +163,12 @@ const PATH_ORDER = new Map<string, number>(
     'ankiConnect.proxy.enabled',
     'ankiConnect.isLapis.enabled',
     'ankiConnect.isKiku.enabled',
+    'subtitleStyle.knownWordColor',
+    'ankiConnect.knownWords.matureThresholdDays',
+    'subtitleStyle.knownWordMaturityColors.new',
+    'subtitleStyle.knownWordMaturityColors.learning',
+    'subtitleStyle.knownWordMaturityColors.young',
+    'subtitleStyle.knownWordMaturityColors.mature',
     'subtitleStyle.fontColor',
     'subtitleStyle.backgroundColor',
     'subtitleStyle.hoverTokenColor',
@@ -353,6 +359,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
     path.startsWith('ankiConnect.nPlusOne.') ||
     path.startsWith('subtitleStyle.frequencyDictionary.') ||
     path.startsWith('subtitleStyle.jlptColors.') ||
+    path.startsWith('subtitleStyle.knownWordMaturityColors.') ||
     path === 'subtitleStyle.enableJlpt' ||
     path === 'subtitleStyle.knownWordColor' ||
     path === 'subtitleStyle.nPlusOneColor' ||
@@ -516,6 +523,7 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
     return 'key-code';
   }
   if (path.startsWith('subtitleStyle.jlptColors.')) return 'color';
+  if (path.startsWith('subtitleStyle.knownWordMaturityColors.')) return 'color';
   if (path === 'subtitleStyle.frequencyDictionary.bandedColors') return 'color-list';
   if (OPTION_BY_PATH.get(path)?.enumValues?.length) return 'select';
   if (JSON_OBJECT_FIELDS.has(path)) return 'json';
@@ -533,6 +541,9 @@ function controlForPath(path: string, value: unknown): ConfigSettingsControl {
 
 function subsectionForPath(path: string): string | undefined {
   if (path === 'ankiConnect.knownWords.highlightEnabled') return 'Known Words';
+  if (path === 'ankiConnect.knownWords.maturityEnabled') return 'Known Words';
+  if (path === 'ankiConnect.knownWords.matureThresholdDays') return 'Known Words';
+  if (path.startsWith('subtitleStyle.knownWordMaturityColors.')) return 'Known Words';
   if (path === 'ankiConnect.nPlusOne.enabled') return 'N+1';
   if (path === 'subtitleStyle.knownWordColor') return 'Known Words';
   if (path === 'subtitleStyle.nPlusOneColor') return 'N+1';

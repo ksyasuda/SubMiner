@@ -6,10 +6,17 @@ import {
   getConfiguredWordFieldName,
   getPreferredNoteFieldValue,
 } from '../../../anki-field-config.js';
+import {
+  knownWordsFromState,
+  parseKnownWordCacheState,
+} from '../../../anki-integration/known-word-cache-format.js';
+import { createLogger } from '../../../logger.js';
 import type { AnkiConnectConfig } from '../../../types.js';
 import type { StatsExcludedWord } from '../../../types/stats-wire.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import { splitSentenceSearchTerms } from '../immersion-tracker/query-lexical.js';
+
+const statsKnownWordsLogger = createLogger('stats:known-words');
 
 const STATS_STATIC_CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -84,24 +91,14 @@ export function parseExcludedWordsBody(body: unknown): StatsExcludedWord[] | nul
 export function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
   if (!cachePath || !existsSync(cachePath)) return null;
   try {
-    const raw = JSON.parse(readFileSync(cachePath, 'utf-8')) as {
-      version?: number;
-      words?: string[];
-      notes?: Record<string, Array<{ word?: unknown; reading?: unknown }>>;
-    };
-    if ((raw.version === 1 || raw.version === 2) && Array.isArray(raw.words)) {
-      return new Set(raw.words);
+    const state = parseKnownWordCacheState(JSON.parse(readFileSync(cachePath, 'utf-8')) as unknown);
+    if (!state) {
+      // A cache that exists but does not parse is a format mismatch, not an
+      // empty collection; say so instead of reporting zero known words.
+      statsKnownWordsLogger.warn(`Unrecognized known-word cache format at ${cachePath}`);
+      return null;
     }
-    if (raw.version === 3 && raw.notes && typeof raw.notes === 'object') {
-      const words = new Set<string>();
-      for (const entries of Object.values(raw.notes)) {
-        if (!Array.isArray(entries)) continue;
-        for (const entry of entries) {
-          if (entry && typeof entry.word === 'string' && entry.word) words.add(entry.word);
-        }
-      }
-      return words;
-    }
+    return knownWordsFromState(state);
   } catch {
     // Treat an unreadable cache as unavailable.
   }

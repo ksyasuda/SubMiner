@@ -43,6 +43,44 @@ Prefer expression/word fields for `ankiConnect.knownWords.decks`. Reading-only f
 Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.
 :::
 
+## Known-Word Maturity Highlighting
+
+Instead of one color for every known word, maturity highlighting tints each known token by the review state of its Anki cards (like asbplayer), giving an at-a-glance sense of how much of a line is solidly learned.
+
+**How it works:**
+
+1. During the known-word cache refresh, SubMiner classifies each note with Anki search filters (`prop:ivl`, `is:learn`) - no extra card data is downloaded.
+2. Each note gets the tier of its **most mature** card: `mature` (in review, interval ≥ threshold), `young` (in review, interval below the threshold), `learning` (in the learning or relearning queue), or `new` (never studied). The buckets are disjoint, matching Anki's own card counts: a lapsed card in relearning counts as `learning`, not `young`, even though its interval is ≥ 1 day. A note with a mature card plus a relearning card still shows `mature`.
+3. A word matched by several notes takes the most mature tier among them, with the same reading-aware matching as regular known-word highlighting.
+4. Known tokens render in the tier color instead of `subtitleStyle.knownWordColor`; if tier data is missing for a match, the token falls back to the single known-word color.
+
+**Key settings:**
+
+| Option                                           | Default   | Description                                                           |
+| ------------------------------------------------ | --------- | --------------------------------------------------------------------- |
+| `ankiConnect.knownWords.maturityEnabled`         | `false`   | Color known words by card maturity (requires known-word highlighting) |
+| `ankiConnect.knownWords.matureThresholdDays`     | `21`      | Card interval in days at which a word counts as mature                |
+| `subtitleStyle.knownWordMaturityColors.new`      | `#ee99a0` | Tier color for never-reviewed cards                                   |
+| `subtitleStyle.knownWordMaturityColors.learning` | `#b7bdf8` | Tier color for cards in the learning/relearning queue                 |
+| `subtitleStyle.knownWordMaturityColors.young`    | `#91d7e3` | Tier color for young review cards                                     |
+| `subtitleStyle.knownWordMaturityColors.mature`   | `#a6da95` | Tier color for mature cards                                           |
+
+Changing `maturityEnabled` or the threshold triggers a full known-word cache refresh so tiers are refetched, as does upgrading to a build that revises the tier rules.
+
+How often the `learning` color appears depends on your deck preset: with no relearning steps configured, a lapsed card returns straight to review and shows `young` instead.
+
+While maturity highlighting is on, the session help color legend replaces its single "Known words" swatch with one row per tier (new, learning, young, mature).
+
+**Checking the colors you actually see:**
+
+Tiers are only as fresh as the last known-word cache refresh (`ankiConnect.knownWords.refreshMinutes`), so a card that crosses the mature threshold mid-day keeps its old color until the next refresh. To check a whole episode offline, run the verifier against its subtitle file:
+
+```sh
+bun run verify-known-word-highlights:electron -- --input /path/to/episode.ja.srt --audit
+```
+
+It tokenizes every cue through the real Yomitan/MeCab pipeline with your live known-word cache, prints each line in your configured tier colors, and summarizes the tier counts. `--audit` re-derives each highlighted tier from live Anki card data (`notesInfo` + `cardsInfo` intervals) and lists any token whose color disagrees, with the note ids and intervals behind it. Electron locks the Yomitan profile, so quit SubMiner first or pass `--profile-copy` to run against a scratch copy. Other useful flags: `--refresh` (refresh the cache first), `--limit <n>`, `--quiet`, `--json`.
+
 ## Character-Name Highlighting
 
 Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.
@@ -131,6 +169,7 @@ All colors are customizable via the `subtitleStyle.jlptColors` object.
 These annotation layers can be toggled at runtime via the runtime options palette (`Ctrl/Cmd+Shift+O`) without restarting:
 
 - `ankiConnect.knownWords.highlightEnabled` (`On` / `Off`)
+- `ankiConnect.knownWords.maturityEnabled` (`On` / `Off`)
 - `ankiConnect.knownWords.matchMode`
 - `ankiConnect.nPlusOne.enabled` (`On` / `Off`)
 - `subtitleStyle.enableJlpt` (`On` / `Off`)
@@ -146,6 +185,6 @@ When multiple annotations apply to the same token, the visual priority is:
 
 1. **Character-name match** (highest) - dictionary-driven character-name token styling; it clears the token's N+1, frequency, and JLPT annotations
 2. **N+1 target** - the single unknown word in an N+1 sentence
-3. **Known-word color** - already-learned token tint
+3. **Known-word color** - already-learned token tint (per-tier maturity colors when `maturityEnabled` is on)
 4. **Frequency highlight** - common-word coloring (not applied when a higher layer already matched)
 5. **JLPT underline** - level-based underline (stacks with N+1/known/frequency since it uses underline rather than text color, but not with a character-name match)
