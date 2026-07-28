@@ -185,6 +185,7 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     line_id INTEGER NOT NULL,
     word_id INTEGER NOT NULL,
     occurrence_count INTEGER NOT NULL,
+    seen_ms INTEGER,
     PRIMARY KEY(line_id, word_id),
     FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
     FOREIGN KEY(word_id) REFERENCES imm_words(id) ON DELETE CASCADE
@@ -193,6 +194,7 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     line_id INTEGER NOT NULL,
     kanji_id INTEGER NOT NULL,
     occurrence_count INTEGER NOT NULL,
+    seen_ms INTEGER,
     PRIMARY KEY(line_id, kanji_id),
     FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
     FOREIGN KEY(kanji_id) REFERENCES imm_kanji(id) ON DELETE CASCADE
@@ -313,8 +315,8 @@ export const IMMERSION_DB_FIXTURE_DDL = `
   CREATE INDEX idx_subtitle_lines_session_line ON imm_subtitle_lines(session_id, line_index);
   CREATE INDEX idx_subtitle_lines_video_line ON imm_subtitle_lines(video_id, line_index);
   CREATE INDEX idx_subtitle_lines_anime_line ON imm_subtitle_lines(anime_id, line_index);
-  CREATE INDEX idx_word_line_occurrences_word ON imm_word_line_occurrences(word_id, line_id);
-  CREATE INDEX idx_kanji_line_occurrences_kanji ON imm_kanji_line_occurrences(kanji_id, line_id);
+  CREATE INDEX idx_word_line_occurrences_word_seen ON imm_word_line_occurrences(word_id, seen_ms, occurrence_count, line_id);
+  CREATE INDEX idx_kanji_line_occurrences_kanji_seen ON imm_kanji_line_occurrences(kanji_id, seen_ms, occurrence_count, line_id);
   CREATE INDEX idx_media_art_cover_blob_hash ON imm_media_art(cover_blob_hash);
   CREATE INDEX idx_media_art_anilist_id ON imm_media_art(anilist_id);
   CREATE INDEX idx_media_art_cover_url ON imm_media_art(cover_url);
