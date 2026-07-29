@@ -181,4 +181,7 @@ export type ResolvedAniListMedia = {
   id: number;
   title: string;
   staleMediaIds?: number[];
+  /** False when a season >= 2 was requested but only the season 1 entry could be found. */
+  seasonResolved?: boolean;
+  requestedSeason?: number | null;
 };

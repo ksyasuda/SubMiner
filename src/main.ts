@@ -3616,10 +3616,12 @@ const {
       );
     },
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
         season,
+        mediaId,
+        logInfo: (message) => logger.info(message),
       }),
     markSuccess: (key) => {
       anilistUpdateQueue.markSuccess(key);
@@ -3655,9 +3657,12 @@ const {
     hasAttemptedUpdateKey: (key) => anilistAttemptedUpdateKeys.has(key),
     processNextAnilistRetryUpdate: () => processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => refreshAnilistClientSecretState(),
-    enqueueRetry: (key, title, episode, season) => {
-      anilistUpdateQueue.enqueue(key, title, episode, season);
+    enqueueRetry: (key, title, episode, season, mediaId) => {
+      anilistUpdateQueue.enqueue(key, title, episode, season, mediaId);
     },
+    getCurrentMediaTitle: () => appState.currentMediaTitle,
+    resolvePinnedAnilistMediaId: ({ mediaPath, mediaTitle, guess }) =>
+      characterDictionaryRuntime.resolvePinnedMediaId({ mediaPath, mediaTitle, guess }),
     markRetryFailure: (key, message) => {
       anilistUpdateQueue.markFailure(key, message);
     },
@@ -3665,10 +3670,12 @@ const {
       anilistUpdateQueue.markSuccess(key);
     },
     refreshRetryQueueState: () => anilistStateRuntime.refreshRetryQueueState(),
-    updateAnilistPostWatchProgress: (accessToken, title, episode, season) =>
+    updateAnilistPostWatchProgress: (accessToken, title, episode, season, mediaId) =>
       updateAnilistPostWatchProgress(accessToken, title, episode, {
         rateLimiter: anilistRateLimiter,
         season,
+        mediaId,
+        logInfo: (message) => logger.info(message),
       }),
     rememberAttemptedUpdateKey: (key) => {
       rememberAnilistAttemptedUpdate(key);

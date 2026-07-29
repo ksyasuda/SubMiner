@@ -380,3 +380,155 @@ test('createMaybeRunAnilistPostWatchUpdateHandler notifies when retry already ha
   assert.equal(calls.includes('mark-failure'), false);
   assert.deepEqual(calls, ['inflight:true', 'process-retry', 'osd:retry ok', 'inflight:false']);
 });
+
+test('createMaybeRunAnilistPostWatchUpdateHandler passes the pinned override media id', async () => {
+  const updateArgs: Array<number | null | undefined> = [];
+  const pinInputs: Array<{ mediaPath: string | null; mediaTitle: string | null; guess: unknown }> =
+    [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: () => {},
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: 3, episode: 1 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => {},
+    getCurrentMediaTitle: () => 'Show S03E01.mkv',
+    resolvePinnedAnilistMediaId: async (input) => {
+      pinInputs.push(input);
+      return 108489;
+    },
+    markRetryFailure: () => {},
+    markRetrySuccess: () => {},
+    refreshRetryQueueState: () => {},
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, _season, mediaId) => {
+      updateArgs.push(mediaId);
+      return { status: 'updated', message: 'ok' };
+    },
+    rememberAttemptedUpdateKey: () => {},
+    showMpvOsd: () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+  assert.deepEqual(updateArgs, [108489]);
+  // Resolved against the media this run captured, not whatever is playing now.
+  assert.equal(pinInputs.length, 1);
+  assert.equal(pinInputs[0]!.mediaPath, '/tmp/video.mkv');
+  assert.equal(pinInputs[0]!.mediaTitle, 'Show S03E01.mkv');
+  assert.deepEqual(pinInputs[0]!.guess, { title: 'Show', season: 3, episode: 1 });
+});
+
+test('createMaybeRunAnilistPostWatchUpdateHandler queues the pinned media id for retry', async () => {
+  const enqueued: Array<number | null | undefined> = [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: () => {},
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: 3, episode: 1 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => null,
+    enqueueRetry: (_key, _title, _episode, _season, mediaId) => {
+      enqueued.push(mediaId);
+    },
+    resolvePinnedAnilistMediaId: async () => 108489,
+    markRetryFailure: () => {},
+    markRetrySuccess: () => {},
+    refreshRetryQueueState: () => {},
+    updateAnilistPostWatchProgress: async () => ({ status: 'updated', message: 'ok' }),
+    rememberAttemptedUpdateKey: () => {},
+    showMpvOsd: () => {},
+    logInfo: () => {},
+    logWarn: () => {},
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+  assert.deepEqual(enqueued, [108489]);
+});
+
+test('createMaybeRunAnilistPostWatchUpdateHandler still updates when the override lookup throws', async () => {
+  const updateArgs: Array<number | null | undefined> = [];
+  const warnings: string[] = [];
+  const handler = createMaybeRunAnilistPostWatchUpdateHandler({
+    getInFlight: () => false,
+    setInFlight: () => {},
+    getResolvedConfig: () => ({}),
+    isAnilistTrackingEnabled: () => true,
+    getCurrentMediaKey: () => '/tmp/video.mkv',
+    hasMpvClient: () => true,
+    getTrackedMediaKey: () => '/tmp/video.mkv',
+    resetTrackedMedia: () => {},
+    getWatchedSeconds: () => 1000,
+    maybeProbeAnilistDuration: async () => 1000,
+    ensureAnilistMediaGuess: async () => ({ title: 'Show', season: 3, episode: 1 }),
+    hasAttemptedUpdateKey: () => false,
+    processNextAnilistRetryUpdate: async () => ({ ok: true, message: 'noop' }),
+    refreshAnilistClientSecretState: async () => 'token',
+    enqueueRetry: () => {},
+    resolvePinnedAnilistMediaId: async () => {
+      throw new Error('store unreadable');
+    },
+    markRetryFailure: () => {},
+    markRetrySuccess: () => {},
+    refreshRetryQueueState: () => {},
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, _season, mediaId) => {
+      updateArgs.push(mediaId);
+      return { status: 'updated', message: 'ok' };
+    },
+    rememberAttemptedUpdateKey: () => {},
+    showMpvOsd: () => {},
+    logInfo: () => {},
+    logWarn: (message) => warnings.push(message),
+    minWatchSeconds: 600,
+    minWatchRatio: 0.85,
+  });
+
+  await handler();
+  assert.deepEqual(updateArgs, [null]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /override lookup failed/i);
+});
+
+test('createProcessNextAnilistRetryUpdateHandler forwards the queued media id', async () => {
+  const received: Array<number | null | undefined> = [];
+  const handler = createProcessNextAnilistRetryUpdateHandler({
+    nextReady: () => ({ key: 'k1', title: 'Show', season: 3, mediaId: 108489, episode: 1 }),
+    refreshRetryQueueState: () => {},
+    setLastAttemptAt: () => {},
+    setLastError: () => {},
+    refreshAnilistClientSecretState: async () => 'token',
+    updateAnilistPostWatchProgress: async (_accessToken, _title, _episode, _season, mediaId) => {
+      received.push(mediaId);
+      return { status: 'updated', message: 'ok' };
+    },
+    markSuccess: () => {},
+    rememberAttemptedUpdateKey: () => {},
+    markFailure: () => {},
+    logInfo: () => {},
+    now: () => 1,
+  });
+
+  await handler();
+  assert.deepEqual(received, [108489]);
+});

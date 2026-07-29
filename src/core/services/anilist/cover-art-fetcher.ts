@@ -11,42 +11,14 @@ import {
   runGuessit,
   type GuessAnilistMediaInfoDeps,
 } from './anilist-updater';
+import {
+  resolveAnilistSeasonMedia,
+  type AnilistQueryExecutor,
+  type AnilistSeasonResolution,
+} from './season-resolver';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 const NO_MATCH_RETRY_MS = 5 * 60 * 1000;
-
-const SEARCH_QUERY = `
-query ($search: String!) {
-  Page(perPage: 5) {
-    media(search: $search, type: ANIME) {
-      id
-      episodes
-      season
-      seasonYear
-      coverImage { large medium }
-      title { romaji english native }
-    }
-  }
-}
-`;
-
-interface AnilistMedia {
-  id: number;
-  episodes: number | null;
-  season: string | null;
-  seasonYear: number | null;
-  coverImage: { large: string | null; medium: string | null } | null;
-  title: { romaji: string | null; english: string | null; native: string | null } | null;
-}
-
-interface AnilistSearchResponse {
-  data?: {
-    Page?: {
-      media?: AnilistMedia[];
-    };
-  };
-  errors?: Array<{ message?: string }>;
-}
 
 export interface CoverArtFetcher {
   fetchIfMissing(db: DatabaseSync, videoId: number, canonicalTitle: string): Promise<boolean>;
@@ -99,151 +71,45 @@ export function stripFilenameTags(raw: string): string {
   return title.trim().replace(/\s{2,}/g, ' ');
 }
 
-function removeSeasonHint(title: string): string {
-  return title
-    .replace(/\bseason\s*\d+\b/gi, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-function normalizeTitle(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function extractCandidateSeasonHints(text: string): Set<number> {
-  const normalized = normalizeTitle(text);
-  const matches = [
-    ...normalized.matchAll(/\bseason\s*(\d{1,2})\b/gi),
-    ...normalized.matchAll(/\bs(\d{1,2})(?:\b|\D)/gi),
-  ];
-  const values = new Set<number>();
-  for (const match of matches) {
-    const value = Number.parseInt(match[1]!, 10);
-    if (Number.isInteger(value)) {
-      values.add(value);
-    }
+class AnilistRateLimitedError extends Error {
+  constructor() {
+    super('Anilist rate limit reached');
+    this.name = 'AnilistRateLimitedError';
   }
-  return values;
 }
 
-function isSeasonMentioned(titles: string[], season: number | null): boolean {
-  if (!season) {
-    return false;
-  }
-  const hints = titles.flatMap((title) => [...extractCandidateSeasonHints(title)]);
-  return hints.includes(season);
-}
-
-function pickBestSearchResult(
-  title: string,
-  episode: number | null,
-  season: number | null,
-  media: AnilistMedia[],
-): { id: number; title: string } | null {
-  const cleanedTitle = removeSeasonHint(title);
-  const targets = [title, cleanedTitle]
-    .map(normalizeTitle)
-    .map((value) => value.trim())
-    .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
-
-  const filtered =
-    episode === null
-      ? media
-      : media.filter((item) => {
-          const total = item.episodes;
-          return total === null || total >= episode;
-        });
-  const candidates = filtered.length > 0 ? filtered : media;
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  const scored = candidates.map((item) => {
-    const candidateTitles = [item.title?.romaji, item.title?.english, item.title?.native]
-      .filter((value): value is string => typeof value === 'string')
-      .map((value) => normalizeTitle(value));
-
-    let score = 0;
-
-    for (const target of targets) {
-      if (candidateTitles.includes(target)) {
-        score += 120;
-        continue;
-      }
-      if (candidateTitles.some((itemTitle) => itemTitle.includes(target))) {
-        score += 30;
-      }
-      if (candidateTitles.some((itemTitle) => target.includes(itemTitle))) {
-        score += 10;
-      }
-    }
-
-    if (episode !== null && item.episodes === episode) {
-      score += 20;
-    }
-
-    if (season !== null && isSeasonMentioned(candidateTitles, season)) {
-      score += 15;
-    }
-
-    return { item, score };
-  });
-
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return b.item.id - a.item.id;
-  });
-
-  const selected = scored[0]!;
-  const selectedTitle =
-    selected.item.title?.english ??
-    selected.item.title?.romaji ??
-    selected.item.title?.native ??
-    title;
-  return { id: selected.item.id, title: selectedTitle };
-}
-
-function buildSearchCandidates(parsed: CoverArtCandidate): string[] {
-  const candidateTitles = [
-    ...(parsed.source === 'guessit' && parsed.season !== null && parsed.season > 1
-      ? [`${parsed.title} Season ${parsed.season}`]
-      : []),
-    parsed.title,
-  ];
-  return candidateTitles
-    .map((title) => title.trim())
-    .filter((title, index, all) => title.length > 0 && all.indexOf(title) === index);
-}
-
-async function searchAnilist(
+async function executeAnilistQuery<T>(
   rateLimiter: AnilistRateLimiter,
-  title: string,
-): Promise<{ media: AnilistMedia[]; rateLimited: boolean }> {
+  query: string,
+  variables: Record<string, unknown>,
+): Promise<T> {
   await rateLimiter.acquire();
 
   const res = await fetch(ANILIST_GRAPHQL_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: SEARCH_QUERY, variables: { search: title } }),
+    body: JSON.stringify({ query, variables }),
   });
 
   rateLimiter.recordResponse(res.headers);
 
   if (res.status === 429) {
-    return { media: [], rateLimited: true };
+    throw new AnilistRateLimitedError();
   }
 
   if (!res.ok) {
     throw new Error(`Anilist search failed: ${res.status} ${res.statusText}`);
   }
 
-  const json = (await res.json()) as AnilistSearchResponse;
-  const mediaList = json.data?.Page?.media;
-  if (!mediaList || mediaList.length === 0) {
-    return { media: [], rateLimited: false };
+  const json = (await res.json()) as { data?: T; errors?: Array<{ message?: string }> };
+  const firstError = json.errors?.find((entry) => Boolean(entry?.message));
+  if (firstError?.message) {
+    throw new Error(firstError.message);
   }
-
-  return { media: mediaList, rateLimited: false };
+  if (!json.data) {
+    throw new Error('Anilist response missing data');
+  }
+  return json.data;
 }
 
 async function downloadImage(url: string): Promise<Buffer | null> {
@@ -376,49 +242,57 @@ export function createCoverArtFetcher(
 
       const parsedInfo = await resolveMediaInfo(db, videoId, canonicalTitle);
       const searchBase = parsedInfo?.title ?? cleaned;
-      const searchCandidates = parsedInfo ? buildSearchCandidates(parsedInfo) : [cleaned];
+      const searchTitles = searchBase === cleaned ? [searchBase] : ([searchBase, cleaned] as const);
 
-      const effectiveCandidates = searchCandidates.includes(cleaned)
-        ? searchCandidates
-        : [...searchCandidates, cleaned];
+      const execute: AnilistQueryExecutor = (query, variables) =>
+        executeAnilistQuery(rateLimiter, query, variables);
 
-      let selected: AnilistMedia | null = null;
-      let rateLimited = false;
-
-      for (const candidate of effectiveCandidates) {
-        logger.info('cover-art: searching Anilist for "%s" (videoId=%d)', candidate, videoId);
-
-        try {
-          const result = await searchAnilist(rateLimiter, candidate);
-          rateLimited = result.rateLimited;
-          if (result.media.length === 0) {
-            continue;
-          }
-
-          const picked = pickBestSearchResult(
-            searchBase,
-            parsedInfo?.episode ?? null,
-            parsedInfo?.season ?? null,
-            result.media,
+      let resolution: AnilistSeasonResolution | null = null;
+      try {
+        for (const searchTitle of searchTitles) {
+          logger.info('cover-art: searching Anilist for "%s" (videoId=%d)', searchTitle, videoId);
+          resolution = await resolveAnilistSeasonMedia(
+            {
+              title: searchTitle,
+              season: parsedInfo?.season ?? null,
+              episode: parsedInfo?.episode ?? null,
+            },
+            { execute, logInfo: (message) => logger.info('%s', message) },
           );
-          if (picked) {
-            const match = result.media.find((media) => media.id === picked.id);
-            if (match) {
-              selected = match;
-              break;
-            }
-          }
-        } catch (err) {
-          logger.error('cover-art: Anilist search error for "%s": %s', candidate, err);
+          if (resolution) break;
+        }
+      } catch (err) {
+        if (err instanceof AnilistRateLimitedError) {
+          logger.warn('cover-art: rate-limited by Anilist, skipping videoId=%d', videoId);
           return false;
         }
-      }
-
-      if (rateLimited) {
-        logger.warn('cover-art: rate-limited by Anilist, skipping videoId=%d', videoId);
+        logger.error('cover-art: Anilist search error for "%s": %s', searchBase, err);
         return false;
       }
 
+      if (resolution && !resolution.seasonResolved) {
+        // Only the season 1 entry was found. Storing its artwork would leave a cover with
+        // no AniList id, which the `existing.coverBlob` early return above serves forever,
+        // so the season could never re-resolve once AniList publishes the relation.
+        // Caching a plain no-match instead reuses the NO_MATCH_RETRY_MS retry window.
+        logger.warn(
+          'cover-art: could not find season %d of "%s" (only matched "%s"), caching no-match',
+          resolution.requestedSeason,
+          searchBase,
+          resolution.title,
+        );
+        upsertCoverArt(db, videoId, {
+          anilistId: null,
+          coverUrl: null,
+          coverBlob: null,
+          titleRomaji: null,
+          titleEnglish: null,
+          episodesTotal: null,
+        });
+        return false;
+      }
+
+      const selected = resolution?.media ?? null;
       if (!selected) {
         logger.info('cover-art: no Anilist results for "%s", caching no-match', searchBase);
         upsertCoverArt(db, videoId, {

@@ -8,6 +8,11 @@ export type CharacterDictionaryManualSelection = {
   mediaId: number;
   mediaTitle: string;
   staleMediaIds: number[];
+  /**
+   * Season this override was saved for. Recorded explicitly because inferring it from the
+   * key text is ambiguous for titles that themselves end in a season-like token.
+   */
+  season?: number | null;
 };
 
 type ManualSelectionStoreFile = {
@@ -18,6 +23,11 @@ function normalizeManualMediaId(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const mediaId = Math.floor(value);
   return mediaId > 0 ? mediaId : null;
+}
+
+function normalizeSeason(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) return null;
+  return value;
 }
 
 function normalizeSeriesKeyPart(value: string): string {
@@ -73,11 +83,13 @@ function normalizeOverride(value: unknown): CharacterDictionaryManualSelection |
   const mediaId = normalizeManualMediaId(raw.mediaId);
   const mediaTitle = typeof raw.mediaTitle === 'string' ? raw.mediaTitle.trim() : '';
   if (!seriesKey || mediaId === null || !mediaTitle) return null;
+  const season = normalizeSeason(raw.season);
   return {
     seriesKey,
     mediaId,
     mediaTitle,
     staleMediaIds: dedupeNumbers(Array.isArray(raw.staleMediaIds) ? raw.staleMediaIds : []),
+    ...(season === null ? {} : { season }),
   };
 }
 
@@ -112,10 +124,29 @@ function getDirectoryScope(seriesKey: string): string | null {
   return scopedSeparatorIndex < 0 ? null : seriesKey.slice(0, scopedSeparatorIndex);
 }
 
+/**
+ * Fallback season for override records saved before the season was stored explicitly:
+ * reads the "-s<N>" segment emitted by buildCharacterDictionarySeriesKey, which sits just
+ * before the optional trailing year. Season 1 keys carry no segment and parse as 1.
+ */
+function getSeasonScopeFromKey(seriesKey: string): number {
+  const match = /-s(\d{1,2})(?:-\d{4})?$/.exec(seriesKey);
+  if (!match) return 1;
+  const season = Number.parseInt(match[1]!, 10);
+  return Number.isInteger(season) && season > 0 ? season : 1;
+}
+
+/**
+ * The subset of a parsed guess the series key is built from. Kept structural so callers
+ * holding a narrower guess (the AniList post-watch runtime) can build the same key.
+ */
+export type CharacterDictionarySeriesKeyGuess = Pick<AnilistMediaGuess, 'title' | 'season'> &
+  Partial<Omit<AnilistMediaGuess, 'title' | 'season'>>;
+
 export function buildCharacterDictionarySeriesKey(input: {
   mediaPath: string | null;
   mediaTitle: string | null;
-  guess: AnilistMediaGuess | null;
+  guess: CharacterDictionarySeriesKeyGuess | null;
 }): string {
   const guessedTitle = input.guess?.title.trim() || input.guess?.alternativeTitle?.trim() || '';
   const sourceTitle =
@@ -130,22 +161,40 @@ export function buildCharacterDictionarySeriesKey(input: {
   const base = normalizeSeriesKeyPart(withoutEpisode) || 'unknown';
   const directoryKey = getMediaDirectoryKey(input.mediaPath);
   const scopedBase = directoryKey ? `${directoryKey}--${base}` : base;
-  return input.guess?.year ? `${scopedBase}-${input.guess.year}` : scopedBase;
+  // Season 1 stays unsuffixed so existing keys, snapshots and overrides keep matching.
+  const season = input.guess?.season;
+  const seasonSegment =
+    typeof season === 'number' && Number.isInteger(season) && season > 1 ? `-s${season}` : '';
+  const withSeason = `${scopedBase}${seasonSegment}`;
+  return input.guess?.year ? `${withSeason}-${input.guess.year}` : withSeason;
+}
+
+/** Season an override applies to: the recorded value, else parsed from its key. */
+function getOverrideSeason(entry: CharacterDictionaryManualSelection): number {
+  return normalizeSeason(entry.season) ?? getSeasonScopeFromKey(entry.seriesKey);
 }
 
 export function createCharacterDictionaryManualSelectionStore(deps: { userDataPath: string }) {
   const filePath = path.join(deps.userDataPath, 'character-dictionaries', 'anilist-overrides.json');
 
   return {
-    getOverride: async (seriesKey: string): Promise<CharacterDictionaryManualSelection | null> => {
+    getOverride: async (
+      seriesKey: string,
+      season?: number | null,
+    ): Promise<CharacterDictionaryManualSelection | null> => {
       const candidates = getLegacySeriesKeyCandidates(seriesKey);
       const overrides = readOverrides(filePath);
       const exactMatch = overrides.find((entry) => entry.seriesKey === candidates[0]);
       if (exactMatch) return exactMatch;
       const directoryScope = getDirectoryScope(seriesKey);
       if (directoryScope) {
+        // Same folder is only evidence of the same show when it is also the same season;
+        // a flat multi-season folder would otherwise spread one override across all of them.
+        const seasonScope = normalizeSeason(season) ?? getSeasonScopeFromKey(seriesKey);
         const scopedMatches = overrides.filter(
-          (entry) => getDirectoryScope(entry.seriesKey) === directoryScope,
+          (entry) =>
+            getDirectoryScope(entry.seriesKey) === directoryScope &&
+            getOverrideSeason(entry) === seasonScope,
         );
         const selectedMediaIds = new Set(scopedMatches.map((entry) => entry.mediaId));
         if (scopedMatches.length > 0 && selectedMediaIds.size === 1) {
@@ -168,9 +217,11 @@ export function createCharacterDictionaryManualSelectionStore(deps: { userDataPa
         throw new Error('Invalid character dictionary manual selection.');
       }
       const directoryScope = getDirectoryScope(normalized.seriesKey);
+      const seasonScope = getOverrideSeason(normalized);
       const remaining = readOverrides(filePath).filter((entry) =>
         directoryScope
-          ? getDirectoryScope(entry.seriesKey) !== directoryScope
+          ? getDirectoryScope(entry.seriesKey) !== directoryScope ||
+            getOverrideSeason(entry) !== seasonScope
           : entry.seriesKey !== normalized.seriesKey,
       );
       writeOverrides(filePath, [...remaining, normalized]);

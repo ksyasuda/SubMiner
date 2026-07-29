@@ -201,17 +201,45 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
   });
 
   const searchCalls: Array<{ search: string }> = [];
+  const relationCalls: number[] = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const raw = (init?.body as string | undefined) ?? '';
-    const payload = JSON.parse(raw) as { variables: { search: string } };
-    const search = payload.variables.search;
-    searchCalls.push({ search });
+    const payload = JSON.parse(raw) as { variables: { search?: string; id?: number } };
 
-    if (search.includes('Season 2')) {
-      return Promise.resolve(createJsonResponse({ data: { Page: { media: [] } } }));
+    if (typeof payload.variables.id === 'number') {
+      relationCalls.push(payload.variables.id);
+      return Promise.resolve(
+        createJsonResponse({
+          data: {
+            Media: {
+              relations: {
+                edges: [
+                  {
+                    relationType: 'SEQUEL',
+                    node: {
+                      id: 20,
+                      type: 'ANIME',
+                      episodes: 25,
+                      format: 'TV',
+                      seasonYear: 2017,
+                      coverImage: { large: 'https://images.test/cover-s2.jpg', medium: null },
+                      title: {
+                        romaji: 'Little Witch Academia 2',
+                        english: 'Little Witch Academia 2',
+                        native: null,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      );
     }
 
+    searchCalls.push({ search: String(payload.variables.search) });
     return Promise.resolve(
       createJsonResponse({
         data: {
@@ -220,6 +248,8 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
               {
                 id: 19,
                 episodes: 24,
+                format: 'TV',
+                seasonYear: 2013,
                 coverImage: { large: 'https://images.test/cover.jpg', medium: null },
                 title: {
                   romaji: 'Little Witch Academia',
@@ -251,9 +281,11 @@ test('fetchIfMissing uses guessit primary title and season when available', asyn
     const stored = getCoverArt(db, videoId);
 
     assert.equal(fetched, true);
-    assert.equal(searchCalls.length, 2);
-    assert.equal(searchCalls[0]!.search, 'Little Witch Academia Season 2');
-    assert.equal(stored?.anilistId, 19);
+    // One search on the bare title, then a sequel hop to reach season 2.
+    assert.equal(searchCalls.length, 1);
+    assert.equal(searchCalls[0]!.search, 'Little Witch Academia');
+    assert.deepEqual(relationCalls, [19]);
+    assert.equal(stored?.anilistId, 20);
   } finally {
     globalThis.fetch = originalFetch;
     db.close();
@@ -319,6 +351,190 @@ test('fetchIfMissing falls back to internal parser when guessit throws', async (
     assert.equal(requestCount, 2);
     assert.equal(stored?.anilistId, 21);
   } finally {
+    globalThis.fetch = originalFetch;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('fetchIfMissing caches a no-match when the season cannot be resolved', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  ensureSchema(db);
+  const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-unresolved.mkv', {
+    canonicalTitle: 'Unresolved Show (2013) - S03E01 - Something [1080p].mkv',
+    sourcePath: '/tmp/cover-fetcher-unresolved.mkv',
+    sourceType: SOURCE_TYPE_LOCAL,
+    sourceUrl: null,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes('graphql')) {
+      return Promise.resolve(
+        new Response(Buffer.from('01020304'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      );
+    }
+
+    const payload = JSON.parse(String(init?.body ?? '{}')) as {
+      variables?: { search?: string; id?: number };
+    };
+    if (typeof payload.variables?.id === 'number') {
+      // No sequel edges, so season 3 cannot be reached from the season 1 anchor.
+      return Promise.resolve(createJsonResponse({ data: { Media: { relations: { edges: [] } } } }));
+    }
+    return Promise.resolve(
+      createJsonResponse({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 55,
+                episodes: 13,
+                format: 'TV',
+                seasonYear: 2013,
+                coverImage: { large: 'https://images.test/s1.jpg', medium: null },
+                title: { romaji: 'Unresolved Show', english: 'Unresolved Show', native: null },
+              },
+            ],
+          },
+        },
+      }),
+    );
+  }) as typeof fetch;
+
+  try {
+    const fetcher = createCoverArtFetcher(
+      { acquire: async () => {}, recordResponse: () => {} },
+      console,
+      {
+        runGuessit: async () =>
+          JSON.stringify({ title: 'Unresolved Show', season: 3, episode: 1, year: 2013 }),
+      },
+    );
+
+    const fetched = await fetcher.fetchIfMissing(db, videoId, 'Unresolved Show');
+    const stored = getCoverArt(db, videoId);
+
+    assert.equal(fetched, false);
+    // Storing the season 1 artwork would leave a blob with no AniList id, which the
+    // `existing.coverBlob` early return serves forever - the season could then never
+    // re-resolve. A plain no-match keeps the existing retry window in play instead.
+    assert.equal(stored?.coverBlob, null);
+    assert.equal(stored?.coverUrl, null);
+    assert.equal(stored?.anilistId, null);
+    assert.equal(stored?.episodesTotal, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('fetchIfMissing re-resolves an unresolved season once AniList publishes the relation', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  ensureSchema(db);
+  const videoId = getOrCreateVideoRecord(db, 'local:/tmp/cover-fetcher-recovers.mkv', {
+    canonicalTitle: 'Recovering Show (2013) - S02E01 - Something [1080p].mkv',
+    sourcePath: '/tmp/cover-fetcher-recovers.mkv',
+    sourceType: SOURCE_TYPE_LOCAL,
+    sourceUrl: null,
+  });
+
+  let sequelPublished = false;
+  const originalFetch = globalThis.fetch;
+  const originalNow = Date.now;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!url.includes('graphql')) {
+      return Promise.resolve(
+        new Response(Buffer.from('01020304'), {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        }),
+      );
+    }
+
+    const payload = JSON.parse(String(init?.body ?? '{}')) as {
+      variables?: { search?: string; id?: number };
+    };
+    if (typeof payload.variables?.id === 'number') {
+      return Promise.resolve(
+        createJsonResponse({
+          data: {
+            Media: {
+              relations: {
+                edges: sequelPublished
+                  ? [
+                      {
+                        relationType: 'SEQUEL',
+                        node: {
+                          id: 66,
+                          type: 'ANIME',
+                          episodes: 12,
+                          format: 'TV',
+                          seasonYear: 2015,
+                          coverImage: { large: 'https://images.test/s2.jpg', medium: null },
+                          title: { romaji: 'Recovering Show 2', english: null, native: null },
+                        },
+                      },
+                    ]
+                  : [],
+              },
+            },
+          },
+        }),
+      );
+    }
+    return Promise.resolve(
+      createJsonResponse({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 65,
+                episodes: 13,
+                format: 'TV',
+                seasonYear: 2013,
+                coverImage: { large: 'https://images.test/s1.jpg', medium: null },
+                title: { romaji: 'Recovering Show', english: null, native: null },
+              },
+            ],
+          },
+        },
+      }),
+    );
+  }) as typeof fetch;
+
+  try {
+    const fetcher = createCoverArtFetcher(
+      { acquire: async () => {}, recordResponse: () => {} },
+      console,
+      {
+        runGuessit: async () =>
+          JSON.stringify({ title: 'Recovering Show', season: 2, episode: 1, year: 2013 }),
+      },
+    );
+
+    assert.equal(await fetcher.fetchIfMissing(db, videoId, 'Recovering Show'), false);
+    assert.equal(getCoverArt(db, videoId)?.anilistId, null);
+
+    // AniList publishes the sequel relation, and the no-match retry window elapses.
+    sequelPublished = true;
+    const base = originalNow();
+    Date.now = () => base + 10 * 60 * 1000;
+
+    assert.equal(await fetcher.fetchIfMissing(db, videoId, 'Recovering Show'), true);
+    const recovered = getCoverArt(db, videoId);
+    assert.equal(recovered?.anilistId, 66);
+    assert.equal(recovered?.episodesTotal, 12);
+  } finally {
+    Date.now = originalNow;
     globalThis.fetch = originalFetch;
     db.close();
     cleanupDbPath(dbPath);

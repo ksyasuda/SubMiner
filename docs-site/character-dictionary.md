@@ -223,7 +223,9 @@ SubMiner.AppImage --dictionary-select --dictionary-anilist-id 21355 --dictionary
 subminer app --session-action '{"actionId":"openCharacterDictionaryManager"}'
 ```
 
-SubMiner stores manual selections in `character-dictionaries/anilist-overrides.json`. The episode's parent directory defines the override scope, so later episodes in the same season directory keep the selected AniList ID even if their filename guesses differ. Separate season directories can keep separate overrides and character dictionaries. When you replace a wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
+SubMiner stores manual selections in `character-dictionaries/anilist-overrides.json`. The episode's parent directory **and detected season** define the override scope, so later episodes in the same season keep the selected AniList ID even if their filename guesses differ, while a different season never inherits the override -- including when every season sits in one flat folder. When you replace a wrong match, SubMiner removes that stale media ID from the merged dictionary's active set and rebuilds/imports the merged character dictionary.
+
+An override also pins the entry used for [AniList watch progress](/anilist-integration), so correcting a wrong match once fixes both the character dictionary and progress tracking.
 
 ## Managing Loaded Entries
 

@@ -1,4 +1,5 @@
 import type { AnilistMediaGuess } from '../../core/services/anilist/anilist-updater';
+import { resolveAnilistSeasonMedia } from '../../core/services/anilist/season-resolver';
 import { ANILIST_GRAPHQL_URL } from './constants';
 import type {
   AniListMediaCandidate,
@@ -72,57 +73,6 @@ type AniListCharacterPageResponse = {
     } | null;
   } | null;
 };
-
-function normalizeTitle(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function pickAniListSearchResult(
-  title: string,
-  episode: number | null,
-  media: Array<{
-    id: number;
-    episodes?: number | null;
-    title?: {
-      romaji?: string | null;
-      english?: string | null;
-      native?: string | null;
-    };
-  }>,
-): ResolvedAniListMedia | null {
-  if (media.length === 0) return null;
-
-  const episodeFiltered =
-    episode && episode > 0
-      ? media.filter((entry) => {
-          const totalEpisodes = entry.episodes;
-          return (
-            typeof totalEpisodes !== 'number' || totalEpisodes <= 0 || episode <= totalEpisodes
-          );
-        })
-      : media;
-  const candidates = episodeFiltered.length > 0 ? episodeFiltered : media;
-  const normalizedTitle = normalizeTitle(title);
-
-  const exact = candidates.find((entry) => {
-    const titles = [entry.title?.english, entry.title?.romaji, entry.title?.native]
-      .filter((value): value is string => typeof value === 'string')
-      .map((value) => normalizeTitle(value));
-    return titles.includes(normalizedTitle);
-  });
-  const selected = exact ?? candidates[0] ?? media[0];
-  if (!selected) return null;
-
-  const selectedTitle =
-    selected.title?.english?.trim() ||
-    selected.title?.romaji?.trim() ||
-    selected.title?.native?.trim() ||
-    title.trim();
-  return {
-    id: selected.id,
-    title: selectedTitle,
-  };
-}
 
 function toAniListMediaCandidate(
   entry: {
@@ -242,35 +192,24 @@ function inferImageExt(contentType: string | null, bytes: Buffer): string {
 export async function resolveAniListMediaIdFromGuess(
   guess: AnilistMediaGuess,
   beforeRequest?: () => Promise<void>,
+  logInfo?: (message: string) => void,
 ): Promise<ResolvedAniListMedia> {
-  const data = await fetchAniList<AniListSearchResponse>(
-    `
-      query($search: String!) {
-        Page(perPage: 10) {
-          media(search: $search, type: ANIME, sort: [SEARCH_MATCH, POPULARITY_DESC]) {
-            id
-            episodes
-            title {
-              romaji
-              english
-              native
-            }
-          }
-        }
-      }
-    `,
+  const resolution = await resolveAnilistSeasonMedia(
+    { title: guess.title, season: guess.season, episode: guess.episode },
     {
-      search: guess.title,
+      execute: (query, variables) => fetchAniList(query, variables, beforeRequest),
+      logInfo,
     },
-    beforeRequest,
   );
-
-  const media = data.Page?.media ?? [];
-  const resolved = pickAniListSearchResult(guess.title, guess.episode, media);
-  if (!resolved) {
+  if (!resolution) {
     throw new Error(`No AniList media match found for "${guess.title}".`);
   }
-  return resolved;
+  return {
+    id: resolution.id,
+    title: resolution.title,
+    seasonResolved: resolution.seasonResolved,
+    requestedSeason: resolution.requestedSeason,
+  };
 }
 
 export async function searchAniListMediaCandidates(

@@ -312,3 +312,131 @@ test('manual selection store keeps overrides separate for different season direc
   assert.notEqual(secondSeasonKey, firstSeasonKey);
   assert.equal(await store.getOverride(secondSeasonKey), null);
 });
+
+test('buildCharacterDictionarySeriesKey tags seasons past the first', () => {
+  const base = {
+    title: 'My Teen Romantic Comedy SNAFU',
+    year: 2013,
+    episode: 1,
+    source: 'guessit' as const,
+  };
+  const seasonOne = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S01E01.mkv',
+    mediaTitle: null,
+    guess: { ...base, season: 1 },
+  });
+  const seasonThree = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S03E01.mkv',
+    mediaTitle: null,
+    guess: { ...base, season: 3 },
+  });
+
+  // Season 1 keeps the pre-existing key shape so cached snapshots stay valid.
+  assert.equal(seasonOne, 'anime-oregairu--my-teen-romantic-comedy-snafu-2013');
+  assert.equal(seasonThree, 'anime-oregairu--my-teen-romantic-comedy-snafu-s3-2013');
+});
+
+test('manual selection store keeps seasons apart inside one flat directory', async () => {
+  const userDataPath = makeTempDir();
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+  const base = {
+    title: 'My Teen Romantic Comedy SNAFU',
+    year: 2013,
+    episode: 1,
+    source: 'guessit' as const,
+  };
+  const seasonOneKey = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S01E01.mkv',
+    mediaTitle: null,
+    guess: { ...base, season: 1 },
+  });
+  const seasonThreeKey = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S03E01.mkv',
+    mediaTitle: null,
+    guess: { ...base, season: 3 },
+  });
+
+  await store.setOverride({
+    seriesKey: seasonOneKey,
+    mediaId: 14813,
+    mediaTitle: 'My Teen Romantic Comedy SNAFU',
+    staleMediaIds: [],
+  });
+
+  // Same directory, different season: the season 1 override must not leak across.
+  assert.equal(await store.getOverride(seasonThreeKey), null);
+
+  await store.setOverride({
+    seriesKey: seasonThreeKey,
+    mediaId: 108489,
+    mediaTitle: 'My Teen Romantic Comedy SNAFU Climax!',
+    staleMediaIds: [],
+  });
+
+  assert.equal((await store.getOverride(seasonOneKey))?.mediaId, 14813);
+  assert.equal((await store.getOverride(seasonThreeKey))?.mediaId, 108489);
+});
+
+test('override scope uses the recorded season, not season-like text in the title', async () => {
+  const userDataPath = makeTempDir();
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+  // A title that itself normalizes to a trailing "-s2" would be misparsed as season 2.
+  const trickyTitleKey = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Mixed/Some Show S2 - S01E01.mkv',
+    mediaTitle: null,
+    guess: { title: 'Some Show S2', season: 1, episode: 1, source: 'guessit' },
+  });
+  const realSeasonTwoKey = buildCharacterDictionarySeriesKey({
+    mediaPath: '/anime/Mixed/Other Show - S02E01.mkv',
+    mediaTitle: null,
+    guess: { title: 'Other Show', season: 2, episode: 1, source: 'guessit' },
+  });
+
+  await store.setOverride({
+    seriesKey: trickyTitleKey,
+    mediaId: 111,
+    mediaTitle: 'Some Show S2',
+    staleMediaIds: [],
+    season: 1,
+  });
+  await store.setOverride({
+    seriesKey: realSeasonTwoKey,
+    mediaId: 222,
+    mediaTitle: 'Other Show 2',
+    staleMediaIds: [],
+    season: 2,
+  });
+
+  // Same directory, genuinely different seasons: neither override may replace the other.
+  assert.equal((await store.getOverride(trickyTitleKey, 1))?.mediaId, 111);
+  assert.equal((await store.getOverride(realSeasonTwoKey, 2))?.mediaId, 222);
+});
+
+test('override records without a stored season still resolve via the key', async () => {
+  const userDataPath = makeTempDir();
+  const store = createCharacterDictionaryManualSelectionStore({ userDataPath });
+  const legacyKey = buildCharacterDictionarySeriesKey({
+    mediaPath: REZERO_EP1,
+    mediaTitle: null,
+    guess: {
+      title: 'Re ZERO, Starting Life in Another World',
+      year: 2016,
+      season: 1,
+      episode: 1,
+      source: 'guessit',
+    },
+  });
+  const overridesPath = path.join(userDataPath, 'character-dictionaries', 'anilist-overrides.json');
+  fs.mkdirSync(path.dirname(overridesPath), { recursive: true });
+  fs.writeFileSync(
+    overridesPath,
+    JSON.stringify({
+      overrides: [
+        { seriesKey: legacyKey, mediaId: 21355, mediaTitle: 'Re:ZERO', staleMediaIds: [] },
+      ],
+    }),
+    'utf8',
+  );
+
+  assert.equal((await store.getOverride(legacyKey, 1))?.mediaId, 21355);
+});

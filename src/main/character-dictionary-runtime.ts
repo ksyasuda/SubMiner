@@ -36,6 +36,7 @@ import {
 import {
   buildCharacterDictionarySeriesKey,
   createCharacterDictionaryManualSelectionStore,
+  type CharacterDictionarySeriesKeyGuess,
 } from './character-dictionary-runtime/manual-selection';
 import { snapshotHasCharacterNameImages } from './character-dictionary-runtime/image-lookup';
 import { resolveJapaneseNameSplits } from './character-dictionary-runtime/name-split-resolver';
@@ -168,6 +169,11 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     targetPath?: string,
     options?: CharacterDictionaryGenerateOptions,
   ) => Promise<CharacterDictionaryBuildResult>;
+  resolvePinnedMediaId: (input: {
+    mediaPath: string | null;
+    mediaTitle: string | null;
+    guess: CharacterDictionarySeriesKeyGuess | null;
+  }) => Promise<number | null>;
 } {
   const outputDir = path.join(deps.userDataPath, 'character-dictionaries');
   const sleepMs = deps.sleep ?? sleep;
@@ -272,7 +278,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
           : ''
       }`,
     );
-    const override = await manualSelectionStore.getOverride(seriesKey);
+    const override = await manualSelectionStore.getOverride(seriesKey, guessed.season);
     if (override) {
       deps.logInfo?.(
         `[dictionary] manual AniList override: ${override.mediaTitle} -> AniList ${override.mediaId}`,
@@ -314,7 +320,17 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       };
     }
 
-    const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest);
+    const resolved = await resolveAniListMediaIdFromGuess(guessed, beforeRequest, (message) =>
+      deps.logInfo?.(message),
+    );
+    if (resolved.seasonResolved === false) {
+      deps.logWarn?.(
+        `[dictionary] could not find season ${resolved.requestedSeason} of "${guessed.title}"; using ${resolved.title} (AniList ${resolved.id}). Set a manual AniList match to correct it.`,
+      );
+      // Caching the fallback would make the wrong season stick silently for every later
+      // episode, so leave it uncached and re-resolve (and re-warn) until it is corrected.
+      return resolved;
+    }
     writeCachedMediaResolution(outputDir, {
       seriesKey,
       mediaId: resolved.id,
@@ -509,7 +525,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         ? await searchAniListMediaCandidates(candidateSearchTitle, waitForAniListRequestSlot)
         : [];
       const [override, current] = await Promise.all([
-        manualSelectionStore.getOverride(seriesKey),
+        manualSelectionStore.getOverride(seriesKey, guessed.season),
         shouldUseExplicitSearch
           ? Promise.resolve(null)
           : resolveAniListMediaIdFromGuess(guessed, waitForAniListRequestSlot)
@@ -553,6 +569,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         mediaId: selected.id,
         mediaTitle: selected.title,
         staleMediaIds,
+        season: guessed.season,
       });
       return {
         ok: true,
@@ -604,6 +621,15 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         dictionaryTitle,
         revision,
       };
+    },
+    resolvePinnedMediaId: async ({ mediaPath, mediaTitle, guess }) => {
+      const seriesKey = buildCharacterDictionarySeriesKey({
+        mediaPath: deps.resolveMediaPathForJimaku(mediaPath),
+        mediaTitle,
+        guess,
+      });
+      const override = await manualSelectionStore.getOverride(seriesKey, guess?.season ?? null);
+      return override?.mediaId ?? null;
     },
   };
 }

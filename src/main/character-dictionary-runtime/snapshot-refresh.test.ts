@@ -324,3 +324,102 @@ test('generateForCurrentMedia keeps same-version snapshots without images when i
     globalThis.fetch = originalFetch;
   }
 });
+
+test('an unresolvable season is not cached as a normal AniList match', async () => {
+  const userDataPath = makeTempDir();
+  const originalFetch = globalThis.fetch;
+  let searchCalls = 0;
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url !== GRAPHQL_URL) {
+      return new Response(PNG_1X1, { status: 200, headers: { 'content-type': 'image/png' } });
+    }
+
+    const body = JSON.parse(String(init?.body ?? '{}')) as {
+      query?: string;
+      variables?: { search?: string; id?: number };
+    };
+
+    if (body.query?.includes('characters(page: $page')) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            Media: {
+              title: { english: 'My Teen Romantic Comedy SNAFU' },
+              characters: {
+                pageInfo: { hasNextPage: false },
+                edges: [
+                  {
+                    role: 'MAIN',
+                    node: { id: 1, name: { full: 'Hachiman Hikigaya', native: '比企谷八幡' } },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }
+
+    if (typeof body.variables?.id === 'number') {
+      // No sequel edges: season 3 is unreachable from the season 1 anchor.
+      return new Response(JSON.stringify({ data: { Media: { relations: { edges: [] } } } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    searchCalls += 1;
+    return new Response(
+      JSON.stringify({
+        data: {
+          Page: {
+            media: [
+              {
+                id: 14813,
+                episodes: 13,
+                format: 'TV',
+                seasonYear: 2013,
+                title: { romaji: null, english: 'My Teen Romantic Comedy SNAFU', native: null },
+              },
+            ],
+          },
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }) as typeof globalThis.fetch;
+
+  const warnings: string[] = [];
+  try {
+    const runtime = createCharacterDictionaryRuntimeService({
+      userDataPath,
+      getCurrentMediaPath: () =>
+        '/anime/Oregairu/My Teen Romantic Comedy SNAFU (2013) - S03E01.mkv',
+      getCurrentMediaTitle: () => null,
+      resolveMediaPathForJimaku: (mediaPath) => mediaPath,
+      guessAnilistMediaInfo: async () => ({
+        title: 'My Teen Romantic Comedy SNAFU',
+        year: 2013,
+        season: 3,
+        episode: 1,
+        source: 'guessit',
+      }),
+      now: () => 1_700_000_000_000,
+      sleep: async () => {},
+      logWarn: (message) => warnings.push(message),
+    });
+
+    await runtime.getOrCreateCurrentSnapshot();
+    const searchesAfterFirst = searchCalls;
+    await runtime.getOrCreateCurrentSnapshot();
+
+    // Re-resolved rather than served from the resolution cache, and warned both times.
+    assert.ok(searchCalls > searchesAfterFirst);
+    assert.equal(warnings.filter((m) => /could not find season 3/i.test(m)).length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

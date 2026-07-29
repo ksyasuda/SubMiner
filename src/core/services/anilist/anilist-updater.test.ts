@@ -376,7 +376,7 @@ test('updateAnilistPostWatchProgress returns non-retryable error when media is n
   }
 });
 
-test('updateAnilistPostWatchProgress prefers season-specific AniList matches', async () => {
+test('updateAnilistPostWatchProgress resolves later seasons through the sequel chain', async () => {
   const originalFetch = globalThis.fetch;
   const searchTerms: string[] = [];
   let call = 0;
@@ -389,21 +389,45 @@ test('updateAnilistPostWatchProgress prefers season-specific AniList matches', a
         data: {
           Page: {
             media: [
-              { id: 202, episodes: 12, title: { english: 'Demo Show Season 2' } },
-              { id: 101, episodes: 12, title: { english: 'Demo Show' } },
+              { id: 101, episodes: 12, format: 'TV', title: { english: 'Demo Show' } },
+              { id: 202, episodes: 12, format: 'TV', title: { english: 'Demo Show Sequel' } },
             ],
           },
         },
       });
     }
     if (call === 2) {
-      assert.equal(body.variables?.mediaId, 202);
+      assert.equal(body.variables?.id, 101);
       return createJsonResponse({
         data: {
-          Media: { id: 202, mediaListEntry: null },
+          Media: {
+            relations: {
+              edges: [
+                {
+                  relationType: 'SEQUEL',
+                  node: {
+                    id: 202,
+                    type: 'ANIME',
+                    episodes: 12,
+                    format: 'TV',
+                    title: { english: 'Demo Show Sequel' },
+                  },
+                },
+              ],
+            },
+          },
         },
       });
     }
+    if (call === 3) {
+      assert.equal(body.variables?.mediaId, 202);
+      return createJsonResponse({
+        data: {
+          Media: { id: 202, mediaListEntry: { progress: 1, status: 'CURRENT' } },
+        },
+      });
+    }
+    assert.equal(body.variables?.mediaId, 202);
     return createJsonResponse({
       data: {
         SaveMediaListEntry: { progress: 2, status: 'CURRENT' },
@@ -415,11 +439,113 @@ test('updateAnilistPostWatchProgress prefers season-specific AniList matches', a
     const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 2, {
       season: 2,
     });
-    assert.deepEqual(searchTerms, ['Demo Show Season 2']);
+    // Searches the bare title: AniList has no "Demo Show Season 2" entry to find.
+    assert.deepEqual(searchTerms, ['Demo Show']);
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /Demo Show Sequel/);
+    assert.equal(call, 4);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress refuses to update season 1 when the season is unresolvable', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = (async () => {
+    call += 1;
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Page: {
+            media: [{ id: 101, episodes: 12, format: 'TV', title: { english: 'Demo Show' } }],
+          },
+        },
+      });
+    }
+    return createJsonResponse({ data: { Media: { relations: { edges: [] } } } });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 2, { season: 3 });
     assert.equal(result.status, 'error');
     assert.equal(result.retryable, false);
-    assert.match(result.message, /not in your AniList Planning or Watching list/i);
+    assert.match(result.message, /could not find season 3/i);
+    // Stops after search + relation lookup: no entry lookup, no save.
     assert.equal(call, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress uses a pinned media id without searching', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = (async (_input, init) => {
+    call += 1;
+    const body = JSON.parse(String(init?.body)) as { variables?: Record<string, unknown> };
+    if (call === 1) {
+      assert.equal(body.variables?.mediaId, 108489);
+      return createJsonResponse({
+        data: {
+          Media: {
+            id: 108489,
+            episodes: 12,
+            title: { english: 'Pinned Show' },
+            mediaListEntry: { progress: 4, status: 'CURRENT' },
+          },
+        },
+      });
+    }
+    assert.equal(body.variables?.mediaId, 108489);
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 5, status: 'CURRENT' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Wrong Guess', 5, {
+      season: 3,
+      mediaId: 108489,
+    });
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /Pinned Show/);
+    assert.equal(call, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress marks the final episode completed for a pinned media id', async () => {
+  const originalFetch = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = (async (_input, init) => {
+    call += 1;
+    const body = JSON.parse(String(init?.body)) as { variables?: Record<string, unknown> };
+    if (call === 1) {
+      return createJsonResponse({
+        data: {
+          Media: {
+            id: 108489,
+            episodes: 12,
+            title: { english: 'Pinned Show' },
+            mediaListEntry: { progress: 11, status: 'CURRENT' },
+          },
+        },
+      });
+    }
+    assert.equal(body.variables?.status, 'COMPLETED');
+    return createJsonResponse({
+      data: { SaveMediaListEntry: { progress: 12, status: 'COMPLETED' } },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Pinned Show', 12, {
+      mediaId: 108489,
+    });
+    assert.equal(result.status, 'updated');
+    assert.match(result.message, /completed/i);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -474,6 +600,36 @@ test('updateAnilistPostWatchProgress returns error when search fails', async () 
   try {
     const result = await updateAnilistPostWatchProgress('token', 'Bad', 1);
     assert.equal(result.status, 'error');
+    assert.match(result.message, /search failed/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress does not requeue a search that matched nothing', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    createJsonResponse({ data: { Page: { media: [] } } })) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Unknown Show', 3);
+    assert.equal(result.status, 'error');
+    assert.equal(result.retryable, false);
+    assert.match(result.message, /no matches/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('updateAnilistPostWatchProgress still allows retry when the search itself fails', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    createJsonResponse({ errors: [{ message: 'upstream exploded' }] })) as typeof fetch;
+
+  try {
+    const result = await updateAnilistPostWatchProgress('token', 'Demo Show', 3);
+    assert.equal(result.status, 'error');
+    assert.notEqual(result.retryable, false);
     assert.match(result.message, /search failed/i);
   } finally {
     globalThis.fetch = originalFetch;

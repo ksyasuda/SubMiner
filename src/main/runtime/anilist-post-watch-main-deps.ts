@@ -24,7 +24,8 @@ export function createBuildProcessNextAnilistRetryUpdateMainDepsHandler(
       title: string,
       episode: number,
       season?: number | null,
-    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season),
+      mediaId?: number | null,
+    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season, mediaId),
     markSuccess: (key: string) => deps.markSuccess(key),
     rememberAttemptedUpdateKey: (key: string) => deps.rememberAttemptedUpdateKey(key),
     markFailure: (key: string, message: string) => deps.markFailure(key, message),
@@ -52,8 +53,19 @@ export function createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler(
     hasAttemptedUpdateKey: (key: string) => deps.hasAttemptedUpdateKey(key),
     processNextAnilistRetryUpdate: () => deps.processNextAnilistRetryUpdate(),
     refreshAnilistClientSecretState: () => deps.refreshAnilistClientSecretState(),
-    enqueueRetry: (key: string, title: string, episode: number, season?: number | null) =>
-      deps.enqueueRetry(key, title, episode, season),
+    enqueueRetry: (
+      key: string,
+      title: string,
+      episode: number,
+      season?: number | null,
+      mediaId?: number | null,
+    ) => deps.enqueueRetry(key, title, episode, season, mediaId),
+    getCurrentMediaTitle: deps.getCurrentMediaTitle
+      ? () => deps.getCurrentMediaTitle!()
+      : undefined,
+    resolvePinnedAnilistMediaId: deps.resolvePinnedAnilistMediaId
+      ? (input) => deps.resolvePinnedAnilistMediaId!(input)
+      : undefined,
     markRetryFailure: (key: string, message: string) => deps.markRetryFailure(key, message),
     markRetrySuccess: (key: string) => deps.markRetrySuccess(key),
     refreshRetryQueueState: () => deps.refreshRetryQueueState(),
@@ -62,7 +74,8 @@ export function createBuildMaybeRunAnilistPostWatchUpdateMainDepsHandler(
       title: string,
       episode: number,
       season?: number | null,
-    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season),
+      mediaId?: number | null,
+    ) => deps.updateAnilistPostWatchProgress(accessToken, title, episode, season, mediaId),
     rememberAttemptedUpdateKey: (key: string) => deps.rememberAttemptedUpdateKey(key),
     showMpvOsd: (message: string) => deps.showMpvOsd(message),
     logInfo: (message: string) => deps.logInfo(message),
