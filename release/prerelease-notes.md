@@ -24,6 +24,11 @@
   - The mature-interval threshold and the four tier colors are configurable, and the in-session help legend shows the active tier colors while maturity highlighting is on.
   - Tiers follow Anki's own card state: a lapsed card correctly shows as learning rather than young, and a note is treated as mature if any of its cards are mature. Stats and other known-word tools stay accurate with this new data.
 
+- **Stats Library Entry Deletion**
+  - Added a "Delete Entry" action in the stats Library detail view that removes an entire title in one step: every episode, session, subtitle line, rollup, cover, and vocabulary count derived from it. Previously a mistaken entry had to be cleared episode by episode and still lingered in the Library.
+  - Delete progress (session, session group, episode, or full entry) now shows app-wide as a progress bar plus a status toast, staying visible across tabs and windows instead of disappearing when you switch away.
+  - Deletes are dramatically faster on large libraries, and opening the Vocabulary tab no longer stalls; the first launch after upgrading migrates the stats database in place to support this.
+
 ### Changed
 
 - **Clipboard-Video Shortcut**
@@ -34,8 +39,9 @@
 - **Word Highlighting Accuracy**
   - Fixed several incorrect word highlighting and annotation cases: inconsistent part-of-speech exclusions on merged quote-particle tokens, missing annotations for rare kanji, katakana punctuation wrongly treated as non-kana noise, and certain kanji vocabulary skipped for next-level ("N+1") highlighting.
 
-- **Character Dictionary Season Overrides**
-  - Manual AniList overrides for a series now stay in effect for every episode in the same season folder, even when individual episode filenames produce different automatic guesses.
+- **AniList Season Resolution**
+  - Season 2 and later episodes now resolve to the correct AniList entry by walking sequel relations instead of guessing from the title, so watch progress, the character dictionary, and cover art for later seasons no longer silently fall back to season 1.
+  - Manual AniList overrides now stay in effect for every episode in the same season (by folder and detected season), and setting an override now fixes both the character dictionary and AniList watch progress together instead of needing separate corrections.
 
 - **Startup Playback Pausing Too Early**
   - Fixed playback resuming before subtitle processing finished warming up, which could briefly show untranslated subtitles right after opening a video.
@@ -53,6 +59,9 @@
   - Hardened the stats server against malformed requests, stalled AniList lookups, media mismatches during word mining, and missing Yomitan connections.
   - AnkiConnect settings validation now preserves valid custom configurations while safely falling back on invalid values instead of failing.
 
+- **Stats Library Cover After Relink**
+  - Relinking a title to a different AniList entry now updates its cover art in the stats Library grid, not just the detail view, so unrelated titles no longer end up sharing the wrong cover.
+
 - **Rofi Menu Prompt Spacing**
   - Rofi menu prompts now keep a space between the prompt label and the input field instead of crowding the search placeholder text.
 
@@ -64,6 +73,8 @@
 - refactor: split anki-connect and stats-server resolvers into modules by @ksyasuda in #169
 - feat(launcher): add post-playback history menu with previous episode by @ksyasuda in #170
 - Anki maturity-based known-word highlighting by @ksyasuda in #172
+- fix(anilist): resolve later seasons via sequel relations, not title guessing by @ksyasuda in #173
+- feat(stats): add library entry deletion and app-wide delete progress by @ksyasuda in #174
 
 ## Installation
 
