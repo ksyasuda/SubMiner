@@ -1100,12 +1100,56 @@ describe('stats server API routes', () => {
     assert.deepEqual(assignments, [{ animeId: 1, body }]);
   });
 
-  it('GET /api/stats/anime/:animeId/cover returns cover art', async () => {
+  it('GET /api/stats/anime/:animeId/cover returns revalidated cover art', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anime/1/cover');
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('content-type'), 'image/jpeg');
-    assert.equal(res.headers.get('cache-control'), 'public, max-age=86400');
+    assert.equal(res.headers.get('cache-control'), 'no-cache');
+    assert.ok(res.headers.get('etag'));
+  });
+
+  it('GET /api/stats/anime/:animeId/cover answers 304 for a matching ETag', async () => {
+    const app = createStatsApp(createMockTracker());
+    const first = await app.request('/api/stats/anime/1/cover');
+    const etag = first.headers.get('etag');
+    assert.ok(etag);
+
+    const cached = await app.request('/api/stats/anime/1/cover', {
+      headers: { 'If-None-Match': `W/${etag}, "other"` },
+    });
+    assert.equal(cached.status, 304);
+    assert.equal(cached.headers.get('etag'), etag);
+  });
+
+  it('GET /api/stats/anime/:animeId/cover resends art when the ETag no longer matches', async () => {
+    // A relinked AniList entry swaps the bytes behind the same cover URL.
+    let coverBlob = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeCoverArt: async () => ({
+          videoId: 1,
+          anilistId: 21858,
+          coverUrl: 'https://example.com/cover.jpg',
+          coverBlob,
+          titleRomaji: 'Little Witch Academia',
+          titleEnglish: 'Little Witch Academia',
+          episodesTotal: 25,
+          fetchedAtMs: Date.now(),
+        }),
+      }),
+    );
+    const first = await app.request('/api/stats/anime/1/cover');
+    const staleEtag = first.headers.get('etag');
+    assert.ok(staleEtag);
+
+    coverBlob = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const res = await app.request('/api/stats/anime/1/cover', {
+      headers: { 'If-None-Match': staleEtag },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    assert.notEqual(res.headers.get('etag'), staleEtag);
   });
 
   it('GET /api/stats/anime/:animeId/cover serves detected cover MIME type', async () => {

@@ -99,6 +99,7 @@ export function AnimeTab({
             : undefined
         }
         onAnimeDeleted={reload}
+        onAnilistRelinked={reload}
       />
     );
   }

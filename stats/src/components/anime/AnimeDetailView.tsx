@@ -19,6 +19,12 @@ interface AnimeDetailViewProps {
   onOpenEpisodeDetail?: (videoId: number) => void;
   /** Called after the whole library entry is deleted, so the caller can refresh. */
   onAnimeDeleted?: () => void;
+  /**
+   * Called after the AniList link changes. The library list caches the old
+   * anilistId (and with it the cover URL), so it has to refetch or the grid
+   * keeps showing the previous title's art.
+   */
+  onAnilistRelinked?: () => void;
 }
 
 type Range = 14 | 30 | 90;
@@ -143,6 +149,7 @@ export function AnimeDetailView({
   onNavigateToWord,
   onOpenEpisodeDetail,
   onAnimeDeleted,
+  onAnilistRelinked,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
@@ -229,6 +236,7 @@ export function AnimeDetailView({
             setShowAnilistSelector(false);
             setCoverRetryToken((value) => value + 1);
             reload();
+            onAnilistRelinked?.();
           }}
         />
       )}

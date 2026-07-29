@@ -69,6 +69,8 @@ SubMiner fetches cover art from AniList for display in the stats dashboard. When
 
 A no-match result is cached for 5 minutes before SubMiner retries, preventing repeated API calls for unrecognized media.
 
+If the automatic match is wrong, use **Change AniList Entry** on a title in the stats Library. Relinking rewrites the cached art for every episode of that title, and both the detail view and the Library grid pick up the new cover right away: the grid refetches after a relink, and cover responses carry an ETag and are revalidated on each request instead of being cached for a day.
+
 ## Rate Limiting
 
 All AniList API calls go through a shared rate limiter that enforces a sliding window of 20 requests per minute. The limiter also reads AniList's `X-RateLimit-Remaining` and `Retry-After` response headers and pauses requests when the server signals throttling. This applies to both episode tracking and cover art fetching.
