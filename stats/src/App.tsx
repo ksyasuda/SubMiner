@@ -4,6 +4,7 @@ import { DeleteProgressToast } from './components/common/DeleteProgressToast';
 import { TabBar } from './components/layout/TabBar';
 import { OverviewTab } from './components/overview/OverviewTab';
 import { useExcludedWords } from './hooks/useExcludedWords';
+import { assetUrl } from './lib/asset-url';
 import type { TabId } from './components/layout/TabBar';
 import {
   closeMediaDetail,
@@ -141,7 +142,7 @@ export function App() {
           onClick={() => handleTabChange('overview')}
           className="flex items-center gap-2 mb-2 hover:opacity-80 transition-opacity"
         >
-          <img src="/favicon.png" alt="" className="h-6 object-contain" />
+          <img src={assetUrl('favicon.png')} alt="" className="h-6 object-contain" />
           <h1 className="text-lg font-semibold text-ctp-text">SubMiner Stats</h1>
         </button>
         <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
