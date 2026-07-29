@@ -108,3 +108,23 @@ body.overlay-mode #root {
 .animate-indeterminate {
   animation: indeterminate-sweep 1.1s ease-in-out infinite;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation-duration: 1ms;
+  }
+
+  /* Looping motion can't just be shortened the way a one-shot entrance can —
+     that speeds it up rather than removing it. The delete indicator holds a
+     static busy state instead: the bar fills its track and the spinner stops,
+     leaving the toast text to carry the meaning. */
+  .animate-indeterminate {
+    animation: none;
+    width: 100%;
+    transform: none;
+  }
+
+  .animate-spin {
+    animation: none;
+  }
+}
