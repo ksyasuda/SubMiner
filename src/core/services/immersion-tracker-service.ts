@@ -83,6 +83,7 @@ import {
 } from './immersion-tracker/query-library';
 import {
   cleanupVocabularyStats,
+  deleteAnime as deleteAnimeQuery,
   deleteSession as deleteSessionQuery,
   deleteSessions as deleteSessionsQuery,
   deleteVideo as deleteVideoQuery,
@@ -731,6 +732,28 @@ export class ImmersionTrackerService {
       return;
     }
     deleteVideoQuery(this.db, videoId);
+  }
+
+  async deleteAnime(animeId: number): Promise<void> {
+    // The active video's anime link is assigned asynchronously after the title
+    // is parsed, so a guard reading imm_videos too early sees a null and lets
+    // the delete through — then the late update recreates the anime row.
+    const pendingVideoId = this.sessionState?.videoId;
+    if (pendingVideoId !== undefined) {
+      await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
+    }
+
+    const activeVideoId = this.sessionState?.videoId;
+    if (activeVideoId !== undefined) {
+      const activeAnime = this.db
+        .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+        .get(activeVideoId) as { anime_id: number | null } | null;
+      if (activeAnime?.anime_id === animeId) {
+        this.logger.warn(`Ignoring delete request for active immersion anime ${animeId}`);
+        return;
+      }
+    }
+    deleteAnimeQuery(this.db, animeId);
   }
 
   async reassignAnimeAnilist(

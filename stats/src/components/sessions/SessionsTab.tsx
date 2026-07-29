@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSessions } from '../../hooks/useSessions';
 import { SessionRow } from './SessionRow';
 import { SessionDetail } from './SessionDetail';
-import { DeleteProgressToast } from '../common/DeleteProgressToast';
 import { apiClient } from '../../lib/api-client';
 import { confirmBucketDelete, confirmSessionDelete } from '../../lib/delete-confirm';
 import { formatDuration, formatNumber, formatSessionDayLabel } from '../../lib/formatters';
@@ -344,8 +343,6 @@ export function SessionsTab({
           {search.trim() ? 'No sessions matching your search.' : 'No sessions recorded yet.'}
         </div>
       )}
-
-      <DeleteProgressToast count={deletingSessionIds.size} />
     </div>
   );
 }

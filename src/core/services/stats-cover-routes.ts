@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Hono } from 'hono';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import { statsJson, type StatsCoverImagesRequest } from '../../types/stats-http-contract.js';
@@ -74,6 +75,31 @@ function detectImageContentType(bytes: Uint8Array): string {
   return 'application/octet-stream';
 }
 
+function ifNoneMatchHits(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  if (header.trim() === '*') return true;
+  return header
+    .split(',')
+    .map((candidate) => candidate.trim().replace(/^W\//, ''))
+    .some((candidate) => candidate === etag);
+}
+
+// Cover URLs are stable per anime/video, so relinking an AniList entry swaps the
+// bytes behind an unchanged URL. Long max-age would keep serving the old art from
+// the browser cache; revalidate instead and let the ETag skip the transfer.
+function coverResponse(bytes: Uint8Array<ArrayBuffer>, ifNoneMatch: string | undefined): Response {
+  const etag = `"${createHash('sha256').update(bytes).digest('hex')}"`;
+  const headers: Record<string, string> = {
+    'Content-Type': detectImageContentType(bytes),
+    'Cache-Control': 'no-cache',
+    ETag: etag,
+  };
+  if (ifNoneMatchHits(ifNoneMatch, etag)) {
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(bytes, { headers });
+}
+
 function createLimitedTaskRunner(maxConcurrentTasks: number): (task: () => Promise<void>) => void {
   const queue: Array<() => Promise<void>> = [];
   let activeTasks = 0;
@@ -137,13 +163,7 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
       art = await tracker.getAnimeCoverArt(animeId);
     }
     if (!art?.coverBlob) return c.body(null, 404);
-    const bytes = new Uint8Array(art.coverBlob);
-    return new Response(bytes, {
-      headers: {
-        'Content-Type': detectImageContentType(bytes),
-        'Cache-Control': 'public, max-age=86400',
-      },
-    });
+    return coverResponse(new Uint8Array(art.coverBlob), c.req.header('if-none-match'));
   });
 
   app.get('/api/stats/media/:videoId/cover', async (c) => {
@@ -155,12 +175,6 @@ export function registerStatsCoverRoutes(app: Hono, tracker: ImmersionTrackerSer
       art = await tracker.getCoverArt(videoId);
     }
     if (!art?.coverBlob) return c.body(null, 404);
-    const bytes = new Uint8Array(art.coverBlob);
-    return new Response(bytes, {
-      headers: {
-        'Content-Type': detectImageContentType(bytes),
-        'Cache-Control': 'public, max-age=604800',
-      },
-    });
+    return coverResponse(new Uint8Array(art.coverBlob), c.req.header('if-none-match'));
   });
 }

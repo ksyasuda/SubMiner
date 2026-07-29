@@ -53,7 +53,7 @@ export function AnimeTab({
   onNavigateToWord,
   onOpenEpisodeDetail,
 }: AnimeTabProps) {
-  const { anime, loading, error } = useAnimeLibrary();
+  const { anime, loading, error, reload } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
   const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
@@ -98,6 +98,8 @@ export function AnimeTab({
             ? (videoId) => onOpenEpisodeDetail(selectedAnimeId, videoId)
             : undefined
         }
+        onAnimeDeleted={reload}
+        onAnilistRelinked={reload}
       />
     );
   }

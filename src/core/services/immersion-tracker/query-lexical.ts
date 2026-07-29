@@ -115,18 +115,29 @@ export function getVocabularyStats(
   const whereClause = hasExclude
     ? `WHERE (part_of_speech IS NULL OR part_of_speech NOT IN (${placeholders}))`
     : '';
+  // The page is selected before the join so `animeCount` is only computed for the
+  // rows being returned. Aggregating first made every request walk each word's
+  // entire occurrence history — seconds of blocked event loop on a large library,
+  // because only the ordering, not the aggregate, decides which rows survive.
   const stmt = db.prepare(`
-    SELECT w.id AS wordId, w.headword, w.word, w.reading,
-      w.part_of_speech AS partOfSpeech, w.pos1, w.pos2, w.pos3,
-      w.frequency, w.frequency_rank AS frequencyRank,
-      w.first_seen AS firstSeen, w.last_seen AS lastSeen,
+    WITH page AS (
+      SELECT id, headword, word, reading, part_of_speech, pos1, pos2, pos3,
+             frequency, frequency_rank, first_seen, last_seen
+      FROM imm_words
+      ${whereClause}
+      ORDER BY frequency DESC, id
+      LIMIT ? OFFSET ?
+    )
+    SELECT p.id AS wordId, p.headword, p.word, p.reading,
+      p.part_of_speech AS partOfSpeech, p.pos1, p.pos2, p.pos3,
+      p.frequency, p.frequency_rank AS frequencyRank,
+      p.first_seen AS firstSeen, p.last_seen AS lastSeen,
       COUNT(DISTINCT sl.anime_id) AS animeCount
-    FROM imm_words w
-    LEFT JOIN imm_word_line_occurrences o ON o.word_id = w.id
+    FROM page p
+    LEFT JOIN imm_word_line_occurrences o ON o.word_id = p.id
     LEFT JOIN imm_subtitle_lines sl ON sl.line_id = o.line_id AND sl.anime_id IS NOT NULL
-    ${whereClause ? whereClause.replace('part_of_speech', 'w.part_of_speech') : ''}
-    GROUP BY w.id
-    ORDER BY w.frequency DESC LIMIT ? OFFSET ?
+    GROUP BY p.id
+    ORDER BY p.frequency DESC, p.id
   `);
   const visibleRows: VocabularyStatsRow[] = [];
   let offset = 0;

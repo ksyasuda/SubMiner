@@ -1466,6 +1466,190 @@ test('deleteVideo ignores the currently active video and keeps new writes flusha
   }
 });
 
+/**
+ * Attach the derived rows a real session would produce to every recorded line
+ * of `animeId`: word/kanji entries and their occurrences, monthly rollups, and
+ * cover art backed by a shared blob.
+ */
+function seedDerivedAnimeData(db: DatabaseSync, animeId: number): void {
+  const lines = db
+    .prepare(
+      'SELECT line_id AS lineId, CREATED_DATE AS seenMs FROM imm_subtitle_lines WHERE anime_id = ?',
+    )
+    .all(animeId) as Array<{ lineId: number; seenMs: number }>;
+  assert.ok(lines.length > 0, 'expected recorded subtitle lines to decorate');
+
+  db.prepare(
+    `INSERT INTO imm_words(id, headword, word, reading, part_of_speech, pos1, first_seen, last_seen, frequency)
+     VALUES (9001, '天気', '天気', 'てんき', 'noun', '名詞', 0, 0, 0)`,
+  ).run();
+  db.prepare(
+    `INSERT INTO imm_kanji(id, kanji, first_seen, last_seen, frequency) VALUES (9101, '気', 0, 0, 0)`,
+  ).run();
+
+  const insertWordOccurrence = db.prepare(
+    'INSERT INTO imm_word_line_occurrences(line_id, word_id, occurrence_count, seen_ms) VALUES (?, 9001, 1, ?)',
+  );
+  const insertKanjiOccurrence = db.prepare(
+    'INSERT INTO imm_kanji_line_occurrences(line_id, kanji_id, occurrence_count, seen_ms) VALUES (?, 9101, 1, ?)',
+  );
+  for (const line of lines) {
+    insertWordOccurrence.run(line.lineId, line.seenMs);
+    insertKanjiOccurrence.run(line.lineId, line.seenMs);
+  }
+  db.prepare(
+    `UPDATE imm_words SET frequency = ?, first_seen = ?, last_seen = ? WHERE id = 9001`,
+  ).run(lines.length, 0, 0);
+
+  const videoIds = (
+    db
+      .prepare('SELECT video_id AS videoId FROM imm_videos WHERE anime_id = ?')
+      .all(animeId) as Array<{ videoId: number }>
+  ).map((row) => row.videoId);
+  const insertMonthlyRollup = db.prepare(
+    `INSERT INTO imm_monthly_rollups(rollup_month, video_id, total_sessions, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (202401, ?, 1, '0', '0')`,
+  );
+  const insertArt = db.prepare(
+    `INSERT INTO imm_media_art(video_id, anilist_id, cover_url, cover_blob, cover_blob_hash, fetched_at_ms, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (?, 4242, 'https://example.test/cover.jpg', NULL, 'deadbeef', '0', '0', '0')`,
+  );
+  db.prepare(
+    `INSERT INTO imm_cover_art_blobs(blob_hash, cover_blob, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES ('deadbeef', X'FFD8FFD9', '0', '0')`,
+  ).run();
+  for (const videoId of videoIds) {
+    insertMonthlyRollup.run(videoId);
+    insertArt.run(videoId);
+  }
+}
+
+test('deleteAnime removes every episode, session and library row for the title', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+
+    for (const episode of ['S02E05', 'S02E06']) {
+      tracker = new Ctor({ dbPath });
+      tracker.handleMediaChange(`/tmp/Little Witch Academia ${episode}.mkv`, `Episode ${episode}`);
+      await waitForPendingAnimeMetadata(tracker);
+      tracker.recordSubtitleLine('今日は晴れです', 0, 1.2);
+      tracker.recordCardsMined(1);
+      tracker.destroy();
+      tracker = null;
+    }
+
+    tracker = new Ctor({ dbPath });
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const animeId = (
+      privateApi.db.prepare('SELECT anime_id FROM imm_anime LIMIT 1').get() as {
+        anime_id: number;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+
+    // The tokenizer does not run in this harness, so attach vocabulary, kanji,
+    // rollups and cover art to the recorded lines by hand. Without them the
+    // "everything is gone" assertions below would pass against empty tables.
+    seedDerivedAnimeData(privateApi.db, animeId);
+
+    const countOf = (sql: string): number =>
+      (privateApi.db.prepare(sql).get() as { total: number }).total;
+    for (const table of [
+      'imm_words',
+      'imm_kanji',
+      'imm_word_line_occurrences',
+      'imm_kanji_line_occurrences',
+      'imm_daily_rollups',
+      'imm_monthly_rollups',
+      'imm_media_art',
+      'imm_cover_art_blobs',
+    ]) {
+      assert.ok(
+        countOf(`SELECT COUNT(*) AS total FROM ${table}`) > 0,
+        `precondition: ${table} should hold rows before the delete`,
+      );
+    }
+
+    const libraryBefore = await tracker.getAnimeLibrary();
+    assert.equal(libraryBefore.length, 1);
+    assert.equal(libraryBefore[0]?.episodeCount, 2);
+
+    await tracker.deleteAnime(animeId);
+
+    const libraryAfter = await tracker.getAnimeLibrary();
+    assert.equal(libraryAfter.length, 0);
+
+    for (const table of [
+      'imm_anime',
+      'imm_lifetime_anime',
+      'imm_videos',
+      'imm_sessions',
+      'imm_subtitle_lines',
+      'imm_daily_rollups',
+      'imm_monthly_rollups',
+      'imm_lifetime_media',
+      'imm_words',
+      'imm_kanji',
+      'imm_word_line_occurrences',
+      'imm_kanji_line_occurrences',
+      'imm_media_art',
+      'imm_cover_art_blobs',
+    ]) {
+      assert.equal(
+        countOf(`SELECT COUNT(*) AS total FROM ${table}`),
+        0,
+        `${table} should be empty after deleting the only title`,
+      );
+    }
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('deleteAnime ignores the title of the currently active session', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    tracker.handleMediaChange('/tmp/Little Witch Academia S02E05.mkv', 'Episode 5');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { sessionId: number; videoId: number } | null;
+    };
+    const videoId = privateApi.sessionState?.videoId;
+    assert.ok(videoId);
+    const animeId = (
+      privateApi.db.prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?').get(videoId) as {
+        anime_id: number | null;
+      } | null
+    )?.anime_id;
+    assert.ok(animeId);
+
+    await tracker.deleteAnime(animeId);
+
+    const animeCountRow = privateApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_anime WHERE anime_id = ?')
+      .get(animeId) as { total: number };
+    const videoCountRow = privateApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { total: number };
+
+    assert.equal(animeCountRow.total, 1);
+    assert.equal(videoCountRow.total, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('handleMediaChange links parsed anime metadata on the active video row', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

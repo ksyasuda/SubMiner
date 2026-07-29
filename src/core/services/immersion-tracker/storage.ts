@@ -192,6 +192,33 @@ function addColumnIfMissing(
   }
 }
 
+/**
+ * Copy each subtitle line's timestamp onto its word/kanji occurrence rows.
+ *
+ * Vocabulary aggregates used to be recomputed by joining every occurrence back
+ * to `imm_subtitle_lines` just to read two timestamps, which meant one random
+ * read into the widest table per occurrence — the reason deleting a session cost
+ * seconds on a large library. With the timestamp stored alongside the count, the
+ * covering index answers those aggregates on its own.
+ */
+function backfillLexicalOccurrenceSeenMs(db: DatabaseSync): void {
+  for (const table of ['imm_word_line_occurrences', 'imm_kanji_line_occurrences']) {
+    addColumnIfMissing(db, table, 'seen_ms', 'INTEGER');
+    db.exec(`
+      UPDATE ${table}
+      SET seen_ms = (
+        SELECT COALESCE(sl.CREATED_DATE, sl.LAST_UPDATE_DATE)
+        FROM imm_subtitle_lines sl
+        WHERE sl.line_id = ${table}.line_id
+      )
+      WHERE seen_ms IS NULL
+    `);
+  }
+  // Superseded by the covering (entity, seen_ms, occurrence_count, line_id) indexes.
+  db.exec('DROP INDEX IF EXISTS idx_word_line_occurrences_word');
+  db.exec('DROP INDEX IF EXISTS idx_kanji_line_occurrences_kanji');
+}
+
 function dropColumnIfExists(db: DatabaseSync, tableName: string, columnName: string): void {
   if (hasColumn(db, tableName, columnName)) {
     db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${columnName}`);
@@ -923,6 +950,7 @@ export function ensureSchema(db: DatabaseSync): void {
       line_id INTEGER NOT NULL,
       word_id INTEGER NOT NULL,
       occurrence_count INTEGER NOT NULL,
+      seen_ms INTEGER,
       PRIMARY KEY(line_id, word_id),
       FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
       FOREIGN KEY(word_id) REFERENCES imm_words(id) ON DELETE CASCADE
@@ -933,6 +961,7 @@ export function ensureSchema(db: DatabaseSync): void {
       line_id INTEGER NOT NULL,
       kanji_id INTEGER NOT NULL,
       occurrence_count INTEGER NOT NULL,
+      seen_ms INTEGER,
       PRIMARY KEY(line_id, kanji_id),
       FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
       FOREIGN KEY(kanji_id) REFERENCES imm_kanji(id) ON DELETE CASCADE
@@ -1093,6 +1122,7 @@ export function ensureSchema(db: DatabaseSync): void {
         line_id INTEGER NOT NULL,
         word_id INTEGER NOT NULL,
         occurrence_count INTEGER NOT NULL,
+        seen_ms INTEGER,
         PRIMARY KEY(line_id, word_id),
         FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
         FOREIGN KEY(word_id) REFERENCES imm_words(id) ON DELETE CASCADE
@@ -1103,6 +1133,7 @@ export function ensureSchema(db: DatabaseSync): void {
         line_id INTEGER NOT NULL,
         kanji_id INTEGER NOT NULL,
         occurrence_count INTEGER NOT NULL,
+        seen_ms INTEGER,
         PRIMARY KEY(line_id, kanji_id),
         FOREIGN KEY(line_id) REFERENCES imm_subtitle_lines(line_id) ON DELETE CASCADE,
         FOREIGN KEY(kanji_id) REFERENCES imm_kanji(id) ON DELETE CASCADE
@@ -1349,13 +1380,19 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_subtitle_lines_anime_line
     ON imm_subtitle_lines(anime_id, line_index)
   `);
+  if (currentVersion?.schema_version && currentVersion.schema_version < 19) {
+    backfillLexicalOccurrenceSeenMs(db);
+  }
+
+  // Covering indexes: vocabulary aggregates (frequency, first/last seen) are
+  // answered from the index alone, without reading the wide subtitle-line rows.
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_word_line_occurrences_word
-    ON imm_word_line_occurrences(word_id, line_id)
+    CREATE INDEX IF NOT EXISTS idx_word_line_occurrences_word_seen
+    ON imm_word_line_occurrences(word_id, seen_ms, occurrence_count, line_id)
   `);
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_kanji_line_occurrences_kanji
-    ON imm_kanji_line_occurrences(kanji_id, line_id)
+    CREATE INDEX IF NOT EXISTS idx_kanji_line_occurrences_kanji_seen
+    ON imm_kanji_line_occurrences(kanji_id, seen_ms, occurrence_count, line_id)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_media_art_cover_blob_hash
@@ -1475,21 +1512,23 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     `),
     wordLineOccurrenceUpsertStmt: db.prepare(`
       INSERT INTO imm_word_line_occurrences (
-        line_id, word_id, occurrence_count
+        line_id, word_id, occurrence_count, seen_ms
       ) VALUES (
-        ?, ?, ?
+        ?, ?, ?, ?
       )
       ON CONFLICT(line_id, word_id) DO UPDATE SET
-        occurrence_count = imm_word_line_occurrences.occurrence_count + excluded.occurrence_count
+        occurrence_count = imm_word_line_occurrences.occurrence_count + excluded.occurrence_count,
+        seen_ms = COALESCE(imm_word_line_occurrences.seen_ms, excluded.seen_ms)
     `),
     kanjiLineOccurrenceUpsertStmt: db.prepare(`
       INSERT INTO imm_kanji_line_occurrences (
-        line_id, kanji_id, occurrence_count
+        line_id, kanji_id, occurrence_count, seen_ms
       ) VALUES (
-        ?, ?, ?
+        ?, ?, ?, ?
       )
       ON CONFLICT(line_id, kanji_id) DO UPDATE SET
-        occurrence_count = imm_kanji_line_occurrences.occurrence_count + excluded.occurrence_count
+        occurrence_count = imm_kanji_line_occurrences.occurrence_count + excluded.occurrence_count,
+        seen_ms = COALESCE(imm_kanji_line_occurrences.seen_ms, excluded.seen_ms)
     `),
     videoAnimeIdSelectStmt: db.prepare(`
       SELECT anime_id FROM imm_videos
@@ -1630,11 +1669,16 @@ export function executeQueuedWrite(write: QueuedWrite, stmts: TrackerPreparedSta
     const lineId = Number(lineResult.lastInsertRowid);
     for (const occurrence of write.wordOccurrences) {
       const wordId = incrementWordAggregate(stmts, occurrence, write.firstSeen, write.lastSeen);
-      stmts.wordLineOccurrenceUpsertStmt.run(lineId, wordId, occurrence.occurrenceCount);
+      stmts.wordLineOccurrenceUpsertStmt.run(lineId, wordId, occurrence.occurrenceCount, currentMs);
     }
     for (const occurrence of write.kanjiOccurrences) {
       const kanjiId = incrementKanjiAggregate(stmts, occurrence, write.firstSeen, write.lastSeen);
-      stmts.kanjiLineOccurrenceUpsertStmt.run(lineId, kanjiId, occurrence.occurrenceCount);
+      stmts.kanjiLineOccurrenceUpsertStmt.run(
+        lineId,
+        kanjiId,
+        occurrence.occurrenceCount,
+        currentMs,
+      );
     }
     return;
   }

@@ -60,6 +60,13 @@ export function confirmAnimeGroupDelete(title: string, count: number): Promise<b
   );
 }
 
+export function confirmAnimeDelete(title: string, episodeCount: number): Promise<boolean> {
+  const episodes = `${episodeCount} episode${episodeCount === 1 ? '' : 's'}`;
+  return confirmWithStatsNativeDialogLayer(
+    `Delete "${title}" from your library? This removes ${episodes} plus every session and stat recorded for them.`,
+  );
+}
+
 export function confirmEpisodeDelete(title: string): Promise<boolean> {
   return confirmWithStatsNativeDialogLayer(`Delete "${title}" and all its sessions?`);
 }

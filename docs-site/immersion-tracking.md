@@ -57,6 +57,8 @@ Jellyfin stream URLs are normalized to stable item links before stats titles are
 
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
+Open a title and use **Delete Entry** in its header to remove a mistakenly tracked show outright. This deletes every episode of that title along with their sessions, subtitle lines, rollups and cover art, drops the words and kanji that were only seen there, and removes the card from the Library grid. Individual episodes and sessions can still be deleted on their own from the episode list and session rows. Entry deletion is refused while that title is the one currently playing.
+
 ![Stats Library](/screenshots/stats-library.png)
 
 #### Trends
