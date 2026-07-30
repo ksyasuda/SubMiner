@@ -1,4 +1,5 @@
 import { ResolvedConfig } from '../../types/config';
+import { WORD_CARD_KINDS } from '../../anki-integration/card-kinds';
 import { MPV_LAUNCH_MODE_VALUES } from '../../shared/mpv-launch-mode';
 import {
   NOTIFICATION_TYPE_VALUES,
@@ -377,7 +378,7 @@ export function buildIntegrationConfigOptionRegistry(
     {
       path: 'ankiConnect.lapisKiku.wordCardKind',
       kind: 'enum',
-      enumValues: ['word-and-sentence', 'click', 'sentence', 'audio', 'none'],
+      enumValues: WORD_CARD_KINDS,
       enumLabels: {
         'word-and-sentence': 'Word and sentence card (IsWordAndSentenceCard)',
         click: 'Click card (IsClickCard)',
