@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.19.0 (2026-07-29)
+
+### Added
+- Anki Maturity Highlighting: Known-word subtitle highlights can now be colored by Anki card maturity (new, learning, young, mature), similar to asbplayer. Tier thresholds and colors are configurable, with a runtime toggle and an updated help legend.
+- Post-Playback Menu: After a watch-history episode ends, the fzf/rofi launcher returns to that series with options to play the previous or next episode, rewatch, pick another episode, or quit. The pre-playback series menu now offers the previous episode too.
+- Delete Library Entries: The stats Library detail view can now delete an entire title in one step (episodes, sessions, subtitle lines, rollups, cover art, and vocabulary counts). Delete progress is now shown app-wide via a progress bar and status toast instead of disappearing when you switch tabs.
+- Cross-Machine Sync: Added SSH-based syncing of stats and watch history between machines, available from the tray ("Sync Stats & History") or `subminer sync`, with saved devices, per-host sync direction, background auto-sync, connection testing, manual snapshots, and support for Windows remotes.
+- TsukiHime Subtitle Downloads: Added subtitle downloads for the current video via TsukiHime, loading Japanese as the primary track and your configured secondary language directly into mpv.
+
+### Changed
+- Clipboard-Video Shortcut: The "append clipboard video to queue" shortcut is now configurable.
+
+### Fixed
+- AniList Season Resolution: Season 2+ files now resolve to the correct AniList entry instead of silently falling back to season 1 (which mismatched character dictionaries and watch progress). Manual overrides now stay scoped per season, fix both the dictionary and progress tracking together, and also correct per-season cover art.
+- Subtitle Annotation Accuracy: Fixed several annotation edge cases, including inconsistent POS exclusions on merged quote-particle tokens, dropped annotations on supplementary-plane kanji, katakana punctuation wrongly treated as noise, and certain kanji vocabulary losing N+1 highlighting eligibility.
+- AnkiConnect Proxy Port Conflict: Video startup no longer crashes when another process already holds the configured AnkiConnect proxy port; a notification now explains how to resolve it.
+- AppImage Quit Crash: Fixed a "Service Crash" desktop notification appearing after closing a video when running the Linux AppImage.
+- Autoplay Pause Timing: Fixed playback resuming a few seconds before subtitle tokenization warmup finished, most noticeable when resuming mid-episode or when a cue starts within the first two seconds.
+- Stats Known-Word Count: Fixed stats reporting 0 known words for every session after the known-word cache format changed.
+- Stats Library Cover Art: Relinking a title to a different AniList entry now updates its cover in the Library grid immediately instead of leaving a stale, mismatched cover cached.
+- Rofi Prompt Spacing: Rofi menu prompts now keep a space before the input field instead of running into the placeholder text.
+- Stats Settings & Reliability: Hardened stats settings validation (nested/legacy AnkiConnect config now falls back safely instead of breaking) and stats routes against malformed requests and other edge cases.
+- Stats Delete Performance: Deleting sessions, episodes, and library entries is now dramatically faster and no longer stalls playback (e.g. a 12-episode title dropped from about a minute to under a second on a large library); the Vocabulary tab also loads much faster. The first launch after upgrading runs a one-time database migration.
+
+<details>
+<summary>Internal changes</summary>
+
+### Internal
+- Added a golden-file regression test corpus for the tokenizer/annotation pipeline, plus scripts to record new fixtures and diff against stock Yomitan.
+- Consolidated renderer modal state handling into a descriptor registry.
+- Consolidated CI quality checks (PR, stable, and prerelease) into one reusable workflow with mpv plugin tests and dependency audits.
+- Removed the unused stats IPC transport and unified stats dashboard HTTP types with the backend contract.
+- Added a script to verify known-word highlight tiers against live Anki data outside of playback.
+
+</details>
+
 ## v0.18.0 (2026-07-10)
 
 ### Added

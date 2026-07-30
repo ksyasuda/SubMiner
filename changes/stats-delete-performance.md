@@ -1,7 +1,0 @@
-type: fixed
-area: stats
-
-- Made deleting stats data much faster and stopped it stalling playback. Every delete used to recompute each affected word's totals by re-reading that word's whole occurrence history across the library, which meant one random read into the largest table per occurrence. On a 960-session library that cost 3.8s to delete a single session and over a minute to clear a 12-episode title, and because the stats server runs in the app process when the app owns it, that time was spent blocking mpv.
-- Word and kanji occurrences now store the subtitle line's timestamp alongside the count, so those totals are answered from a covering index instead of the subtitle-line table, and a delete only subtracts what it actually removed rather than recomputing untouched entries. Measured on the same 960-session library: deleting one session 3832ms to 190ms, a ten-session day group 6453ms to 433ms, one episode 5437ms to 263ms, and a whole 12-episode title 60556ms to 621ms.
-- Opening the Vocabulary tab no longer stalls either. It was computing "seen in N titles" for every word in the library before ordering by frequency and keeping the top 100, so the whole occurrence history was walked to produce one page. It now picks the page first and counts only those rows: 2136ms to 62ms on the same library.
-- The first launch after upgrading migrates the existing stats database in place (about 3s for a 288k-line library) and it grows roughly 20% from the added index. Vocabulary dates recorded before the upgrade keep working while the migration runs.
