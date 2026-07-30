@@ -221,6 +221,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'ankiConnect.nPlusOne.enabled': 'Enabled',
   'ankiConnect.isLapis.enabled': 'Enable Lapis Features',
   'ankiConnect.isKiku.enabled': 'Enable Kiku Features',
+  'ankiConnect.lapisKiku.wordCardKind': 'Word Card Type',
   'stats.toggleKey': 'Toggle Stats Overlay',
   'shortcuts.openCharacterDictionaryManager': 'Open Character Dictionary Manager',
   'subtitleSidebar.pauseVideoOnHover': 'Pause Video On Hover - Sidebar',
@@ -255,6 +256,8 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
     'Enable Lapis-specific mining behavior and sentence-card model targeting. When Kiku is enabled, Lapis features still work and Kiku-specific features are added on top.',
   'ankiConnect.isLapis.sentenceCardModel':
     'Anki note type used for Lapis sentence cards. Select from note types reported by AnkiConnect.',
+  'ankiConnect.lapisKiku.wordCardKind':
+    'Card-type flag marked on mined word cards: word-and-sentence sets IsWordAndSentenceCard, click sets IsClickCard, sentence sets IsSentenceCard, audio sets IsAudioCard, and none leaves the flags untouched. The other flags are cleared so a note never claims two card types. Requires Kiku or Lapis features to be enabled. Applies to Yomitan auto-enrichment, manual clipboard updates, and stats-dashboard word mining; cards mined with Mine Sentence or Mine Audio keep their own flag.',
   'subtitleStyle.css':
     'CSS declarations applied to primary subtitles. Includes color, background-color, and all font properties.',
   'subtitleStyle.secondary.css':
@@ -401,7 +404,11 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('ankiConnect.media.')) {
     return { category: 'mining-anki', section: 'Media Capture' };
   }
-  if (path.startsWith('ankiConnect.isKiku.') || path.startsWith('ankiConnect.isLapis.')) {
+  if (
+    path.startsWith('ankiConnect.isKiku.') ||
+    path.startsWith('ankiConnect.isLapis.') ||
+    path.startsWith('ankiConnect.lapisKiku.')
+  ) {
     return { category: 'mining-anki', section: 'Kiku/Lapis Features' };
   }
   if (path.startsWith('ankiConnect.ai.')) {
@@ -702,6 +709,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.fields.miscInfo' ||
     path === 'ankiConnect.isLapis.sentenceCardModel' ||
     path === 'ankiConnect.isKiku.fieldGrouping' ||
+    path === 'ankiConnect.lapisKiku.wordCardKind' ||
     path === 'mpv.aniskipEnabled' ||
     path === 'mpv.aniskipButtonKey' ||
     path === 'stats.toggleKey' ||

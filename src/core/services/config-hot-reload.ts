@@ -85,6 +85,7 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'ankiConnect.fields.miscInfo',
   'ankiConnect.isLapis.sentenceCardModel',
   'ankiConnect.isKiku.fieldGrouping',
+  'ankiConnect.lapisKiku.wordCardKind',
 ] as const;
 
 function hotReloadFieldForChangedPath(path: string): string | null {

@@ -289,6 +289,21 @@ Trigger with the mine sentence shortcut (`Ctrl/Cmd+S` by default). The card is c
 
 To mine multiple subtitle lines as one sentence card, use `Ctrl/Cmd+Shift+S` followed by a digit (1–9) to select how many recent lines to combine.
 
+## Word Card Type (Kiku/Lapis)
+
+Word cards get a card-type flag when SubMiner fills their sentence, whether that comes from Yomitan auto-enrichment, a manual clipboard update, or stats-dashboard word mining. By default the flag is `IsWordAndSentenceCard`; pick a different one with `ankiConnect.lapisKiku.wordCardKind`.
+
+```jsonc
+"ankiConnect": {
+  "isKiku": { "enabled": true },
+  "lapisKiku": {
+    "wordCardKind": "click" // word-and-sentence (default), click, sentence, audio, none
+  }
+}
+```
+
+`click` marks `IsClickCard`, `sentence` marks `IsSentenceCard`, `audio` marks `IsAudioCard`, and `none` leaves the flags untouched for templates that manage them elsewhere. Whichever flag is chosen, the other card-type flags are cleared so the note never claims two card types. The setting is only read when `isKiku` or `isLapis` is enabled, and cards mined with Mine Sentence or Mine Audio keep their own flag.
+
 ## Field Grouping (Kiku)
 
 When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/youyoumu/kiku) that support grouped sentence/audio/image fields.
@@ -313,11 +328,11 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 
 ### What Gets Merged
 
-| Field    | Merge behavior                          |
-| -------- | ---------------------------------------- |
+| Field    | Merge behavior                                |
+| -------- | --------------------------------------------- |
 | Sentence | Both cards' sentences kept as grouped entries |
-| Audio    | Both cards' `[sound:...]` entries kept  |
-| Image    | Both cards' images kept                 |
+| Audio    | Both cards' `[sound:...]` entries kept        |
+| Image    | Both cards' images kept                       |
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
 

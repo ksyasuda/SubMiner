@@ -398,30 +398,30 @@ See `config.example.jsonc` for detailed configuration options.
 }
 ```
 
-| Option                             | Values   | Description                                                                                                                  |
-| ---------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `primaryDefaultMode`               | string   | Default primary subtitle bar visibility mode: `"hidden"`, `"visible"`, or `"hover"` (default: `"visible"`)                   |
-| `subtitleStyle.css`                | object   | CSS declaration object applied to primary subtitles after normal style defaults. Use CSS property names such as `font-size`. |
-| `secondary.css`                    | object   | CSS declaration object applied to secondary subtitles after normal secondary style defaults.                                 |
-| `enableJlpt`                       | boolean  | Enable JLPT level underline styling (`false` by default)                                                                     |
-| `preserveLineBreaks`               | boolean  | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.           |
-| `autoPauseVideoOnHover`            | boolean  | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                   |
-| `autoPauseVideoOnYomitanPopup`     | boolean  | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                       |
-| `primaryVisibleOnYomitanPopup`     | boolean  | Keep hover-mode primary subtitles visible while the Yomitan popup is open (`true` by default).                               |
-| `nameMatchEnabled`                 | boolean  | Enable character dictionary sync and subtitle token coloring for character-name matches (`false` by default)                 |
-| `nameMatchImagesEnabled`           | boolean  | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                      |
-| `nameMatchColor`                   | string   | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                       |
-| `knownWordColor`                   | string   | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                       |
+| Option                             | Values   | Description                                                                                                                                                               |
+| ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `primaryDefaultMode`               | string   | Default primary subtitle bar visibility mode: `"hidden"`, `"visible"`, or `"hover"` (default: `"visible"`)                                                                |
+| `subtitleStyle.css`                | object   | CSS declaration object applied to primary subtitles after normal style defaults. Use CSS property names such as `font-size`.                                              |
+| `secondary.css`                    | object   | CSS declaration object applied to secondary subtitles after normal secondary style defaults.                                                                              |
+| `enableJlpt`                       | boolean  | Enable JLPT level underline styling (`false` by default)                                                                                                                  |
+| `preserveLineBreaks`               | boolean  | Preserve line breaks in visible overlay subtitle rendering (`false` by default). Enable to mirror mpv line layout.                                                        |
+| `autoPauseVideoOnHover`            | boolean  | Pause playback while mouse hovers subtitle text, then resume on leave (`true` by default).                                                                                |
+| `autoPauseVideoOnYomitanPopup`     | boolean  | Pause playback while the Yomitan popup is open, then resume when the popup closes (`true` by default).                                                                    |
+| `primaryVisibleOnYomitanPopup`     | boolean  | Keep hover-mode primary subtitles visible while the Yomitan popup is open (`true` by default).                                                                            |
+| `nameMatchEnabled`                 | boolean  | Enable character dictionary sync and subtitle token coloring for character-name matches (`false` by default)                                                              |
+| `nameMatchImagesEnabled`           | boolean  | Show small cached AniList character portraits beside matched character-name tokens (`false` by default)                                                                   |
+| `nameMatchColor`                   | string   | Hex color used for subtitle tokens matched from the SubMiner character dictionary (default: `#f5bde6`)                                                                    |
+| `knownWordColor`                   | string   | Hex color used for known-word subtitle highlights (default: `#a6da95`)                                                                                                    |
 | `knownWordMaturityColors`          | object   | Per-tier known-word colors used when `ankiConnect.knownWords.maturityEnabled` is on: `new` (`#ee99a0`), `learning` (`#b7bdf8`), `young` (`#91d7e3`), `mature` (`#a6da95`) |
-| `nPlusOneColor`                    | string   | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                             |
-| `frequencyDictionary.enabled`      | boolean  | Enable frequency highlighting from dictionary lookups (`false` by default)                                                   |
-| `frequencyDictionary.sourcePath`   | string   | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.   |
-| `frequencyDictionary.topX`         | number   | Only color tokens whose frequency rank is `<= topX` (`10000` by default)                                                     |
-| `frequencyDictionary.mode`         | string   | `"single"` or `"banded"` (`"single"` by default)                                                                             |
-| `frequencyDictionary.matchMode`    | string   | `"headword"` or `"surface"` (`"headword"` by default)                                                                        |
-| `frequencyDictionary.singleColor`  | string   | Color used for all highlighted tokens in single mode                                                                         |
-| `frequencyDictionary.bandedColors` | string[] | Array of five hex colors used for ranked bands in banded mode                                                                |
-| `jlptColors`                       | object   | JLPT level underline colors object (`N1`..`N5`)                                                                              |
+| `nPlusOneColor`                    | string   | Hex color used for the single N+1 target subtitle highlight (default: `#c6a0f6`)                                                                                          |
+| `frequencyDictionary.enabled`      | boolean  | Enable frequency highlighting from dictionary lookups (`false` by default)                                                                                                |
+| `frequencyDictionary.sourcePath`   | string   | Path to a local frequency dictionary root. Leave empty or omit to use installed/default frequency-dictionary search paths.                                                |
+| `frequencyDictionary.topX`         | number   | Only color tokens whose frequency rank is `<= topX` (`10000` by default)                                                                                                  |
+| `frequencyDictionary.mode`         | string   | `"single"` or `"banded"` (`"single"` by default)                                                                                                                          |
+| `frequencyDictionary.matchMode`    | string   | `"headword"` or `"surface"` (`"headword"` by default)                                                                                                                     |
+| `frequencyDictionary.singleColor`  | string   | Color used for all highlighted tokens in single mode                                                                                                                      |
+| `frequencyDictionary.bandedColors` | string[] | Array of five hex colors used for ranked bands in banded mode                                                                                                             |
+| `jlptColors`                       | object   | JLPT level underline colors object (`N1`..`N5`)                                                                                                                           |
 
 Subtitle CSS custom properties:
 
@@ -555,11 +555,11 @@ Secondary subtitles do **not** auto-load by default. To turn them on for local a
 }
 ```
 
-| Option                  | Values                             | Description                                                                                                                                                             |
-| ----------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`); non-Signs/Songs tracks are preferred when several tracks match. Default is empty (`[]`).                            |
-| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load a matching secondary subtitle track for local/Jellyfin sidecar files (default: `false`)                                                             |
-| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)                                                                                                                               |
+| Option                  | Values                             | Description                                                                                                                                   |
+| ----------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secondarySubLanguages` | string[]                           | Language codes to auto-load (e.g., `["eng", "en"]`); non-Signs/Songs tracks are preferred when several tracks match. Default is empty (`[]`). |
+| `autoLoadSecondarySub`  | `true`, `false`                    | Auto-detect and load a matching secondary subtitle track for local/Jellyfin sidecar files (default: `false`)                                  |
+| `defaultMode`           | `"hidden"`, `"visible"`, `"hover"` | Initial display mode (default: `"hover"`)                                                                                                     |
 
 These two settings apply to local and Jellyfin playback only. YouTube secondary selection is fixed to English and ignores them; see [YouTube Integration](/youtube-integration#secondary-subtitle-languages). `defaultMode` still controls how the loaded secondary bar is displayed in every case.
 
@@ -1043,7 +1043,7 @@ This example is intentionally compact. The option table below documents availabl
 | `ankiConnect.knownWords.refreshMinutes`           | number                                      | Minutes between known-word cache refreshes (default: `1440`)                                                                                                                                                                    |
 | `ankiConnect.knownWords.decks`                    | object                                      | Deck→fields mapping used for known-word cache query scope (e.g. `{ "Kaishi 1.5k": ["Word"] }`).                                                                                                                                 |
 | `ankiConnect.knownWords.maturityEnabled`          | `true`, `false`                             | Color known words by Anki card maturity (new/learning/young/mature) instead of one color. Requires `knownWords.highlightEnabled` (default: `false`). Tier colors come from `subtitleStyle.knownWordMaturityColors`.             |
-| `ankiConnect.knownWords.matureThresholdDays`      | number                                      | Card interval in days at which a known word counts as mature (default: `21`, matching Anki's own convention)                                                                                                                   |
+| `ankiConnect.knownWords.matureThresholdDays`      | number                                      | Card interval in days at which a known word counts as mature (default: `21`, matching Anki's own convention)                                                                                                                    |
 | `ankiConnect.nPlusOne.enabled`                    | `true`, `false`                             | Enable N+1 subtitle highlighting (highlights the one unknown word in a sentence). Independent from `knownWords.highlightEnabled`. Requires known-word cache data (default: `false`).                                            |
 | `ankiConnect.nPlusOne.minSentenceWords`           | number                                      | Minimum number of words required in a sentence before single unknown-word N+1 highlighting can trigger (default: `3`).                                                                                                          |
 | `behavior.notificationType`                       | `"overlay"`, `"system"`, `"both"`, `"none"` | Notification type on card update (default: `"overlay"`). `"both"` means overlay + system. `osd` and `osd-system` are legacy config-file-only values; use `"osd-system"` to keep the old OSD + system behavior.                  |
@@ -1069,6 +1069,9 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
     "enabled": true,
     "fieldGrouping": "manual",
     "deleteDuplicateInAuto": true
+  },
+  "lapisKiku": {
+    "wordCardKind": "word-and-sentence"
   }
 }
 ```
@@ -1077,6 +1080,21 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 - Enable `isKiku` to turn on duplicate merge behavior for mined Word/Expression hits.
 - When both are enabled, Kiku behavior is applied for grouping while sentence-card model settings are still read from `isLapis`.
 - `isKiku.fieldGrouping` supports `disabled`, `auto`, and `manual` merge modes; see [Field Grouping Modes](#field-grouping-modes).
+- `lapisKiku.wordCardKind` picks the card-type flag set on word cards; see [Word Card Type](#word-card-type). It is read only while `isLapis` or `isKiku` is enabled.
+
+### Word Card Type
+
+When SubMiner fills the sentence on a mined word card - from Yomitan auto-enrichment, a manual clipboard update, or stats-dashboard word mining - it marks which card that note should generate. `ankiConnect.lapisKiku.wordCardKind` chooses the flag:
+
+| Value                         | Flag set                |
+| ----------------------------- | ----------------------- |
+| `word-and-sentence` (default) | `IsWordAndSentenceCard` |
+| `click`                       | `IsClickCard`           |
+| `sentence`                    | `IsSentenceCard`        |
+| `audio`                       | `IsAudioCard`           |
+| `none`                        | none; flags left as-is  |
+
+The other card-type flags are cleared so a note never claims two card types at once. Notes are skipped when the note type has no field for the chosen flag, and when the note was already mined as a sentence or audio card. Cards created by Mine Sentence and Mine Audio keep their own flag regardless of this setting.
 
 ### N+1 Word Highlighting
 
@@ -1167,10 +1185,10 @@ TsukiHime subtitle search works out of the box and needs no account or API key. 
 }
 ```
 
-| Option                       | Values       | Description                                                                                          |
-| ---------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| Option                       | Values       | Description                                                                                           |
+| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------- |
 | `tsukihime.apiBaseUrl`       | string (URL) | Base URL of the TsukiHime API (default: `https://api.tsukihime.org/v1`). Only change it for a mirror. |
-| `tsukihime.maxSearchResults` | number       | Maximum releases returned per search (default: `10`; the API caps this at 100)                       |
+| `tsukihime.maxSearchResults` | number       | Maximum releases returned per search (default: `10`; the API caps this at 100)                        |
 
 The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift+T`; set to `null` to disable). The older `animetosho` section and `shortcuts.openAnimetosho` are still accepted as deprecated aliases, with the current names taking precedence when both are set.
 
@@ -1228,17 +1246,17 @@ AniList integration is opt-in and disabled by default. Enable it to allow SubMin
 }
 ```
 
-| Option                                                         | Values              | Description                                                                                                   |
-| -------------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `anilist.enabled`                                              | `true`, `false`     | Enable AniList post-watch progress updates (default: `false`)                                                 |
-| `accessToken`                                                  | string              | Optional explicit AniList access token override (default: empty string)                                       |
-| `characterDictionary.maxLoaded`                                | number              | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
-| `characterDictionary.refreshTtlHours`                          | number              | Hours before a cached media snapshot is refreshed (default: `168`, clamped to 1–8760)                         |
-| `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | What happens to snapshots evicted beyond `maxLoaded` (default: `"delete"`)                                |
-| `characterDictionary.collapsibleSections.description`          | `true`, `false`     | Open the Description section by default in generated dictionary entries                                       |
-| `characterDictionary.collapsibleSections.characterInformation` | `true`, `false`     | Open the Character Information section by default in generated dictionary entries                             |
-| `characterDictionary.collapsibleSections.voicedBy`             | `true`, `false`     | Open the Voiced by section by default in generated dictionary entries                                         |
-| `characterDictionary.profileScope`                             | `"all"`, `"active"` | Apply dictionary settings updates to all Yomitan profiles or only active profile                              |
+| Option                                                         | Values                  | Description                                                                                                   |
+| -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `anilist.enabled`                                              | `true`, `false`         | Enable AniList post-watch progress updates (default: `false`)                                                 |
+| `accessToken`                                                  | string                  | Optional explicit AniList access token override (default: empty string)                                       |
+| `characterDictionary.maxLoaded`                                | number                  | Maximum number of most-recently-used AniList media snapshots included in the merged dictionary (default: `3`) |
+| `characterDictionary.refreshTtlHours`                          | number                  | Hours before a cached media snapshot is refreshed (default: `168`, clamped to 1–8760)                         |
+| `characterDictionary.evictionPolicy`                           | `"delete"`, `"disable"` | What happens to snapshots evicted beyond `maxLoaded` (default: `"delete"`)                                    |
+| `characterDictionary.collapsibleSections.description`          | `true`, `false`         | Open the Description section by default in generated dictionary entries                                       |
+| `characterDictionary.collapsibleSections.characterInformation` | `true`, `false`         | Open the Character Information section by default in generated dictionary entries                             |
+| `characterDictionary.collapsibleSections.voicedBy`             | `true`, `false`         | Open the Voiced by section by default in generated dictionary entries                                         |
+| `characterDictionary.profileScope`                             | `"all"`, `"active"`     | Apply dictionary settings updates to all Yomitan profiles or only active profile                              |
 
 When `enabled` is `true` and `accessToken` is empty, SubMiner opens an AniList setup helper window. Keep `enabled` as `false` to disable all AniList setup/update behavior.
 
@@ -1539,18 +1557,18 @@ Configure the mpv executable, profile, and window state for SubMiner-managed mpv
 }
 ```
 
-| Option                   | Values                                                                      | Description                                                                                                                                 |
-| ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`)         |
-| `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                                |
-| `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                                  |
+| Option                   | Values                                                                      | Description                                                                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `executablePath`         | string                                                                      | Absolute path to `mpv.exe` for Windows launch flows. Leave empty to auto-discover from `SUBMINER_MPV_PATH` or `PATH` (default `""`)                                                 |
+| `profile`                | string                                                                      | mpv profile name passed as `--profile=<name>`. Leave empty to pass no profile (default `""`)                                                                                        |
+| `launchMode`             | `"normal"` \| `"maximized"` \| `"fullscreen"`                               | Window state when SubMiner spawns mpv (default `"normal"`)                                                                                                                          |
 | `socketPath`             | string                                                                      | mpv IPC socket path used by SubMiner-managed playback and the bundled mpv plugin (platform-dependent default: `/tmp/subminer-socket`, or `\\\\.\\pipe\\subminer-socket` on Windows) |
-| `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                             |
-| `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                                   |
-| `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness, with a 30-second fallback (default: `true`) |
-| `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)                |
-| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection, chapter markers, and the skip-intro key (default: `true`)                                                   |
-| `aniskipButtonKey`       | string                                                                      | mpv key used to skip the detected intro while the skip prompt is visible (default: `"TAB"`)                                                 |
+| `backend`                | `"auto"` \| `"hyprland"` \| `"sway"` \| `"x11"` \| `"macos"` \| `"windows"` | Window tracking backend passed to the bundled mpv plugin. Auto detects the current platform (default: `"auto"`)                                                                     |
+| `autoStartSubMiner`      | `true`, `false`                                                             | Start SubMiner in the background when SubMiner-managed mpv loads a file (default: `true`)                                                                                           |
+| `pauseUntilOverlayReady` | `true`, `false`                                                             | Pause mpv on visible-overlay auto-start until SubMiner signals subtitle tokenization readiness, with a 30-second fallback (default: `true`)                                         |
+| `subminerBinaryPath`     | string                                                                      | SubMiner app binary path passed to the bundled mpv plugin. Leave empty to use the launcher-detected app path (default: `""`)                                                        |
+| `aniskipEnabled`         | `true`, `false`                                                             | Enable AniSkip intro detection, chapter markers, and the skip-intro key (default: `true`)                                                                                           |
+| `aniskipButtonKey`       | string                                                                      | mpv key used to skip the detected intro while the skip prompt is visible (default: `"TAB"`)                                                                                         |
 
 If `mpv.profile` is configured and the launcher also receives `--profile`, SubMiner passes both as a comma-separated mpv profile list.
 

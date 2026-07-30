@@ -2738,6 +2738,43 @@ test('ignores deprecated isLapis sentence-card field overrides', () => {
   );
 });
 
+test('accepts a Kiku/Lapis word card kind and warns on an unknown one', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "isKiku": { "enabled": true },
+        "lapisKiku": { "wordCardKind": "click" }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  assert.equal(service.getConfig().ankiConnect.lapisKiku.wordCardKind, 'click');
+  assert.equal(service.getWarnings().length, 0);
+
+  const invalidDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(invalidDir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "lapisKiku": { "wordCardKind": "isClickCard" }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const invalidService = new ConfigService(invalidDir);
+  assert.equal(invalidService.getConfig().ankiConnect.lapisKiku.wordCardKind, 'word-and-sentence');
+  assert.ok(
+    invalidService
+      .getWarnings()
+      .some((warning) => warning.path === 'ankiConnect.lapisKiku.wordCardKind'),
+  );
+});
+
 test('accepts valid ankiConnect knownWords deck object', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

@@ -3,7 +3,7 @@ import {
   getConfiguredWordFieldName,
   getPreferredWordValueFromExtractedFields,
 } from '../anki-field-config';
-import { AnkiConnectConfig } from '../types/anki';
+import { AnkiConnectConfig, type CardKind, type WordCardKind } from '../types/anki';
 import { createLogger } from '../logger';
 import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
@@ -15,7 +15,7 @@ import {
   resolveAudioStreamIndexForMediaGeneration,
   type MediaGenerationInputResolverOptions,
 } from './media-source';
-import { shouldMarkWordAndSentenceCard } from './note-field-utils';
+import { resolveWordCardKind } from './note-field-utils';
 import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
 import { resolveMpvVolumeScale } from './mpv-volume';
 
@@ -41,8 +41,6 @@ export interface CardCreationNoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
-
-type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 interface CardCreationClient {
   addNote(
@@ -136,6 +134,7 @@ interface CardCreationDeps {
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
+    wordCardKind?: WordCardKind;
   };
   getFallbackDurationSeconds: () => number;
   appendKnownWordsFromNoteInfo: (noteInfo: CardCreationNoteInfo) => void;
@@ -274,12 +273,9 @@ export class CardCreationService {
         if (sentenceField) {
           const processedSentence = this.deps.processSentence(sentence, fields);
           updatedFields[sentenceField] = processedSentence;
-          if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
-            this.deps.setCardTypeFields(
-              updatedFields,
-              Object.keys(noteInfo.fields),
-              'word-and-sentence',
-            );
+          const wordCardKind = resolveWordCardKind(noteInfo, sentenceCardConfig);
+          if (wordCardKind) {
+            this.deps.setCardTypeFields(updatedFields, Object.keys(noteInfo.fields), wordCardKind);
           }
           updatePerformed = true;
         }

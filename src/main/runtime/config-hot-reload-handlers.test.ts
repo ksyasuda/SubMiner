@@ -73,6 +73,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
   config.ankiConnect.fields.miscInfo = 'MiscInfoCustom';
   config.ankiConnect.isLapis.sentenceCardModel = 'Sentence Card Custom';
   config.ankiConnect.isKiku.fieldGrouping = 'manual';
+  config.ankiConnect.lapisKiku.wordCardKind = 'click';
   config.logging.level = 'debug';
   config.logging.rotation = 14;
   config.logging.files.mpv = true;
@@ -114,6 +115,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
         'ankiConnect.fields.miscInfo',
         'ankiConnect.isLapis.sentenceCardModel',
         'ankiConnect.isKiku.fieldGrouping',
+        'ankiConnect.lapisKiku.wordCardKind',
         'logging.level',
         'logging.rotation',
         'logging.files.mpv',
@@ -138,6 +140,7 @@ test('createConfigHotReloadAppliedHandler applies safe Anki, annotation, and log
       },
       isLapis: { sentenceCardModel: 'Sentence Card Custom' },
       isKiku: { fieldGrouping: 'manual' },
+      lapisKiku: { wordCardKind: 'click' },
     },
   ]);
   assert.ok(calls.includes('invalidate:tokens'));

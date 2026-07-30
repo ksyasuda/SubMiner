@@ -6,26 +6,21 @@ import {
   type NoteUpdateWorkflowNoteInfo,
 } from './note-update-workflow';
 import type { SubtitleMiningContext } from '../types/subtitle';
+import type { CardKind } from '../types/anki';
+import { applyCardKindFlagFields } from './card-kinds';
 
-function setWordAndSentenceCardTypeFields(
+function setCardTypeFields(
   updatedFields: Record<string, string>,
   availableFieldNames: string[],
-  cardKind: 'word-and-sentence',
+  cardKind: CardKind,
 ): void {
-  assert.equal(cardKind, 'word-and-sentence');
-  const resolveFieldName = (preferredName: string): string | null =>
-    availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ?? null;
-
-  const wordAndSentenceFlag = resolveFieldName('IsWordAndSentenceCard');
-  if (!wordAndSentenceFlag) return;
-
-  updatedFields[wordAndSentenceFlag] = 'x';
-  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
-    const resolved = resolveFieldName(flagName);
-    if (resolved && resolved !== wordAndSentenceFlag) {
-      updatedFields[resolved] = '';
-    }
-  }
+  applyCardKindFlagFields(
+    updatedFields,
+    cardKind,
+    (preferredName) =>
+      availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ??
+      null,
+  );
 }
 
 function createWorkflowHarness() {
@@ -79,7 +74,7 @@ function createWorkflowHarness() {
     handleFieldGroupingManual: async (_originalNoteId, _newNoteId, _newNoteInfo, _expression) =>
       false,
     processSentence: (text: string, _noteFields: Record<string, string>) => text,
-    setCardTypeFields: setWordAndSentenceCardTypeFields,
+    setCardTypeFields,
     resolveConfiguredFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo, preferred?: string) => {
       if (!preferred) return null;
       const names = Object.keys(noteInfo.fields);
@@ -180,6 +175,73 @@ test('NoteUpdateWorkflow marks enriched Kiku word cards as word-and-sentence car
     IsWordAndSentenceCard: 'x',
     IsSentenceCard: '',
     IsAudioCard: '',
+  });
+});
+
+test('NoteUpdateWorkflow marks the configured word card kind instead of word-and-sentence', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: false,
+    kikuEnabled: true,
+    kikuFieldGrouping: 'manual',
+    wordCardKind: 'click',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          IsWordAndSentenceCard: { value: 'x' },
+          IsClickCard: { value: '' },
+          IsSentenceCard: { value: '' },
+          IsAudioCard: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
+    IsClickCard: 'x',
+    IsWordAndSentenceCard: '',
+    IsSentenceCard: '',
+    IsAudioCard: '',
+  });
+});
+
+test('NoteUpdateWorkflow leaves card type flags alone when the word card kind is none', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: false,
+    kikuEnabled: true,
+    kikuFieldGrouping: 'manual',
+    wordCardKind: 'none',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          IsWordAndSentenceCard: { value: '' },
+          IsSentenceCard: { value: '' },
+          IsAudioCard: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Sentence: 'subtitle-text',
   });
 });
 

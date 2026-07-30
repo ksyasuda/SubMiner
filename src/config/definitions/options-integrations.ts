@@ -375,6 +375,21 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Note type name used by Lapis sentence cards.',
     },
     {
+      path: 'ankiConnect.lapisKiku.wordCardKind',
+      kind: 'enum',
+      enumValues: ['word-and-sentence', 'click', 'sentence', 'audio', 'none'],
+      enumLabels: {
+        'word-and-sentence': 'Word and sentence card (IsWordAndSentenceCard)',
+        click: 'Click card (IsClickCard)',
+        sentence: 'Sentence card (IsSentenceCard)',
+        audio: 'Audio card (IsAudioCard)',
+        none: 'Leave card type flags untouched',
+      },
+      defaultValue: defaultConfig.ankiConnect.lapisKiku.wordCardKind,
+      description:
+        'Card-type flag SubMiner marks on Kiku/Lapis word cards: word-and-sentence (IsWordAndSentenceCard), click (IsClickCard), sentence (IsSentenceCard), audio (IsAudioCard), or none to leave the flags untouched. Only applies when isKiku.enabled or isLapis.enabled; the other card-type flags are cleared so a note never claims two kinds. Cards mined with the dedicated sentence/audio actions keep their own flag.',
+    },
+    {
       path: 'ankiConnect.metadata.pattern',
       kind: 'string',
       defaultValue: defaultConfig.ankiConnect.metadata.pattern,

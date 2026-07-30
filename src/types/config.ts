@@ -1,4 +1,4 @@
-import type { AnkiConnectConfig } from './anki';
+import type { AnkiConnectConfig, WordCardKind } from './anki';
 import type {
   AiConfig,
   AiFeatureConfig,
@@ -284,6 +284,9 @@ export interface ResolvedConfig {
       enabled: boolean;
       fieldGrouping: 'auto' | 'manual' | 'disabled';
       deleteDuplicateInAuto: boolean;
+    };
+    lapisKiku: {
+      wordCardKind: WordCardKind;
     };
   };
   shortcuts: Required<ShortcutsConfig>;

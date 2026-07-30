@@ -1,7 +1,8 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 import type { SubtitleMiningContext } from '../types/subtitle';
-import { shouldMarkWordAndSentenceCard } from './note-field-utils';
+import type { CardKind, WordCardKind } from '../types/anki';
+import { resolveWordCardKind } from './note-field-utils';
 
 export interface NoteUpdateWorkflowNoteInfo {
   noteId: number;
@@ -39,6 +40,7 @@ export interface NoteUpdateWorkflowDeps {
     lapisEnabled: boolean;
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
+    wordCardKind?: WordCardKind;
   };
   appendKnownWordsFromNoteInfo: (noteInfo: NoteUpdateWorkflowNoteInfo) => void;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
@@ -67,7 +69,7 @@ export interface NoteUpdateWorkflowDeps {
   setCardTypeFields: (
     updatedFields: Record<string, string>,
     availableFieldNames: string[],
-    cardKind: 'word-and-sentence',
+    cardKind: CardKind,
   ) => void;
   resolveConfiguredFieldName: (
     noteInfo: NoteUpdateWorkflowNoteInfo,
@@ -207,12 +209,9 @@ export class NoteUpdateWorkflow {
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
-        if (shouldMarkWordAndSentenceCard(noteInfo, sentenceCardConfig)) {
-          this.deps.setCardTypeFields(
-            updatedFields,
-            Object.keys(noteInfo.fields),
-            'word-and-sentence',
-          );
+        const wordCardKind = resolveWordCardKind(noteInfo, sentenceCardConfig);
+        if (wordCardKind) {
+          this.deps.setCardTypeFields(updatedFields, Object.keys(noteInfo.fields), wordCardKind);
         }
         updatePerformed = true;
       }
