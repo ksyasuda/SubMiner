@@ -336,8 +336,8 @@ test('tick only writes interaction state on change', () => {
       state.active = active;
     },
   });
-  tickLinuxOverlayPointerInteraction(deps); // off→on
-  tickLinuxOverlayPointerInteraction(deps); // no change
+  tickLinuxOverlayPointerInteraction(deps, 'linux'); // off→on
+  tickLinuxOverlayPointerInteraction(deps, 'linux'); // no change
   assert.deepEqual(calls, [true]);
 });
 
@@ -352,7 +352,7 @@ test('tick reapplies an unchanged inactive state when the window passthrough sta
     },
   });
 
-  tickLinuxOverlayPointerInteraction(deps);
+  tickLinuxOverlayPointerInteraction(deps, 'linux');
   assert.deepEqual(calls, [false]);
 });
 
@@ -363,7 +363,7 @@ test('tick does not flip state when suspended (returns null)', () => {
     shouldSuspend: () => true,
     setInteractionActive: (active) => calls.push(active),
   });
-  tickLinuxOverlayPointerInteraction(deps);
+  tickLinuxOverlayPointerInteraction(deps, 'linux');
   assert.deepEqual(calls, []);
 });
 
@@ -379,8 +379,24 @@ test('tick clears active hover while a separate SubMiner window suppresses overl
   });
 
   state.active = true;
-  tickLinuxOverlayPointerInteraction(deps);
+  tickLinuxOverlayPointerInteraction(deps, 'linux');
   assert.deepEqual(calls, [false]);
+});
+
+test('tick never clears interaction state on macOS/Windows, where renderer hover owns it', () => {
+  for (const platform of ['darwin', 'win32'] as const) {
+    const calls: boolean[] = [];
+    // Pointer is off the measured subtitle rect (e.g. sitting on a Yomitan popup) while the
+    // renderer has marked the overlay interactive.
+    const { deps } = makeDeps({
+      getCursorScreenPoint: () => ({ x: 200, y: 200 }),
+      getInteractionActive: () => true,
+      setInteractionActive: (active) => calls.push(active),
+    });
+
+    tickLinuxOverlayPointerInteraction(deps, platform);
+    assert.deepEqual(calls, [], `expected no interaction writes on ${platform}`);
+  }
 });
 
 test('tick skips cursor-driven mouse-ignore toggles when Linux input shape owns hit rects', () => {
@@ -391,7 +407,7 @@ test('tick skips cursor-driven mouse-ignore toggles when Linux input shape owns 
     setInteractionActive: (active) => calls.push(active),
   });
 
-  tickLinuxOverlayPointerInteraction(deps);
+  tickLinuxOverlayPointerInteraction(deps, 'linux');
   assert.deepEqual(calls, []);
 });
 
