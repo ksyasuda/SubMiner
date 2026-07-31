@@ -270,7 +270,16 @@ export function resolveDesiredOverlayInteractive(
   );
 }
 
-export function tickLinuxOverlayPointerInteraction(deps: LinuxOverlayPointerInteractionDeps): void {
+export function tickLinuxOverlayPointerInteraction(
+  deps: LinuxOverlayPointerInteractionDeps,
+  platform: NodeJS.Platform = process.platform,
+): void {
+  // Linux-only. Windows/macOS drive interaction state from renderer hover (setIgnoreMouseEvents),
+  // which knows about Yomitan popups and modals that sit off the measured subtitle rects. This
+  // cursor poll only hit-tests those rects, so running it elsewhere would clear interaction state
+  // (and re-enable window passthrough) whenever a measurement lands while the pointer is on a
+  // popup, swallowing popup clicks and scroll.
+  if (platform !== 'linux') return;
   if (deps.shouldUseInputShape?.()) return;
   const desired = resolveDesiredOverlayInteractive(deps);
   if (desired === null) return;

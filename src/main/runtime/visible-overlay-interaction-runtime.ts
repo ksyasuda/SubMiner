@@ -827,6 +827,9 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
   };
 
   function tickLinuxOverlayPointerInteractionNow(): void {
+    if (process.platform !== 'linux') {
+      return;
+    }
     if (applyLinuxOverlayInputShapeFromLatestMeasurement()) {
       return;
     }
