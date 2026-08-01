@@ -134,6 +134,9 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.isKiku.fieldGrouping')) {
     patch.isKiku = { fieldGrouping: config.ankiConnect.isKiku.fieldGrouping };
   }
+  if (diff.hotReloadFields.includes('ankiConnect.lapisKiku.wordCardKind')) {
+    patch.lapisKiku = { wordCardKind: config.ankiConnect.lapisKiku.wordCardKind };
+  }
 
   return Object.keys(patch).length > 0 ? patch : null;
 }

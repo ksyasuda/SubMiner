@@ -11,7 +11,7 @@ import {
   resolveSecondarySubtitleTextFromSidecar,
 } from '../secondary-subtitle-sidecar.js';
 import {
-  applyStatsWordAndSentenceCardFields,
+  applyStatsWordCardFields,
   createStatsMiningContext,
   getStatsDirectMiningAudioFieldNames,
   getStatsWordMiningAudioFieldName,
@@ -272,7 +272,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
       const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
 
       mediaFields[sentenceFieldName] = highlightedSentence;
-      applyStatsWordAndSentenceCardFields(mediaFields, noteInfo, ankiConfig);
+      applyStatsWordCardFields(mediaFields, noteInfo, ankiConfig);
 
       if (audioBuffer) {
         const audioFilename = `subminer_audio_${timestamp}_${noteId}.mp3`;

@@ -1,5 +1,7 @@
 import type { MediaGenerator } from '../../../media-generator.js';
 import type { AnkiConnectConfig } from '../../../types.js';
+import { applyCardKindFlagFields } from '../../../anki-integration/card-kinds.js';
+import { resolveWordCardKind } from '../../../anki-integration/note-field-utils.js';
 import { createLogger } from '../../../logger.js';
 import type { RetimedSecondarySubtitleInput } from '../secondary-subtitle-sidecar.js';
 
@@ -94,20 +96,22 @@ export function shouldUseStatsLapisKikuCardFields(ankiConfig: AnkiConnectConfig)
   return ankiConfig.isLapis?.enabled === true || ankiConfig.isKiku?.enabled === true;
 }
 
-export function applyStatsWordAndSentenceCardFields(
+export function applyStatsWordCardFields(
   fields: Record<string, string>,
   noteInfo: StatsServerNoteInfo | null,
   ankiConfig: AnkiConnectConfig,
 ): void {
-  if (!shouldUseStatsLapisKikuCardFields(ankiConfig) || !noteInfo) return;
-  const wordAndSentenceFlag = resolveStatsNoteFieldName(noteInfo, 'IsWordAndSentenceCard');
-  if (!wordAndSentenceFlag) return;
+  if (!noteInfo) return;
+  const cardKind = resolveWordCardKind(noteInfo, {
+    lapisEnabled: ankiConfig.isLapis?.enabled === true,
+    kikuEnabled: ankiConfig.isKiku?.enabled === true,
+    wordCardKind: ankiConfig.lapisKiku?.wordCardKind,
+  });
+  if (!cardKind) return;
 
-  fields[wordAndSentenceFlag] = 'x';
-  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
-    const resolved = resolveStatsNoteFieldName(noteInfo, flagName);
-    if (resolved && resolved !== wordAndSentenceFlag) fields[resolved] = '';
-  }
+  applyCardKindFlagFields(fields, cardKind, (preferredName) =>
+    resolveStatsNoteFieldName(noteInfo, preferredName),
+  );
 }
 
 export function getStatsDirectMiningAudioFieldNames(

@@ -77,5 +77,8 @@ export function initializeAnkiConnectResolution(
         ? (ankiConnect.isKiku as (typeof context.resolved)['ankiConnect']['isKiku'])
         : {}),
     },
+    lapisKiku: {
+      ...context.resolved.ankiConnect.lapisKiku,
+    },
   };
 }

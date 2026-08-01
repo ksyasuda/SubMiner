@@ -91,6 +91,9 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       fieldGrouping: 'disabled',
       deleteDuplicateInAuto: true,
     },
+    lapisKiku: {
+      wordCardKind: 'word-and-sentence',
+    },
   },
   jimaku: {
     apiBaseUrl: 'https://jimaku.cc',

@@ -22,10 +22,12 @@ import { MediaGenerator } from './media-generator';
 import path from 'path';
 import {
   AnkiConnectConfig,
+  type CardKind,
   KikuDuplicateCardInfo,
   KikuFieldGroupingChoice,
   KikuMergePreviewResponse,
   NotificationOptions,
+  type WordCardKind,
 } from './types/anki';
 import { AiConfig } from './types/integrations';
 import type { KnownWordMaturityTier } from './types/subtitle';
@@ -50,6 +52,7 @@ import {
   withUpdateProgress,
   UiFeedbackState,
 } from './anki-integration/ui-feedback';
+import { applyCardKindFlagFields, resolveWordCardKindSetting } from './anki-integration/card-kinds';
 import { KnownWordCacheManager } from './anki-integration/known-word-cache';
 import { PollingRunner } from './anki-integration/polling';
 import type { AnkiConnectProxyServer } from './anki-integration/anki-connect-proxy';
@@ -82,8 +85,6 @@ interface NoteInfo {
   noteId: number;
   fields: Record<string, { value: string }>;
 }
-
-type CardKind = 'sentence' | 'audio' | 'word-and-sentence';
 
 function trimToNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -840,6 +841,7 @@ export class AnkiIntegration {
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
+    wordCardKind: WordCardKind;
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
@@ -852,6 +854,7 @@ export class AnkiIntegration {
       kikuEnabled: kiku.enabled,
       kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',
       kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
+      wordCardKind: resolveWordCardKindSetting(this.config.lapisKiku?.wordCardKind),
     };
   }
 
@@ -1315,79 +1318,9 @@ export class AnkiIntegration {
     availableFieldNames: string[],
     cardKind: CardKind,
   ): void {
-    const audioFlagNames = ['IsAudioCard'];
-
-    if (cardKind === 'word-and-sentence') {
-      const wordAndSentenceFlag = this.resolveFieldName(
-        availableFieldNames,
-        'IsWordAndSentenceCard',
-      );
-      if (!wordAndSentenceFlag) {
-        return;
-      }
-      updatedFields[wordAndSentenceFlag] = 'x';
-
-      const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
-      if (sentenceFlag && sentenceFlag !== wordAndSentenceFlag) {
-        updatedFields[sentenceFlag] = '';
-      }
-
-      for (const audioFlagName of audioFlagNames) {
-        const resolved = this.resolveFieldName(availableFieldNames, audioFlagName);
-        if (resolved && resolved !== wordAndSentenceFlag) {
-          updatedFields[resolved] = '';
-        }
-      }
-      return;
-    }
-
-    if (cardKind === 'sentence') {
-      const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
-      if (sentenceFlag) {
-        updatedFields[sentenceFlag] = 'x';
-      }
-
-      for (const audioFlagName of audioFlagNames) {
-        const resolved = this.resolveFieldName(availableFieldNames, audioFlagName);
-        if (resolved && resolved !== sentenceFlag) {
-          updatedFields[resolved] = '';
-        }
-      }
-
-      const wordAndSentenceFlag = this.resolveFieldName(
-        availableFieldNames,
-        'IsWordAndSentenceCard',
-      );
-      if (wordAndSentenceFlag && wordAndSentenceFlag !== sentenceFlag) {
-        updatedFields[wordAndSentenceFlag] = '';
-      }
-      return;
-    }
-
-    const resolvedAudioFlags = Array.from(
-      new Set(
-        audioFlagNames
-          .map((name) => this.resolveFieldName(availableFieldNames, name))
-          .filter((name): name is string => Boolean(name)),
-      ),
+    applyCardKindFlagFields(updatedFields, cardKind, (preferredName) =>
+      this.resolveFieldName(availableFieldNames, preferredName),
     );
-    const audioFlagName = resolvedAudioFlags[0] || null;
-    if (audioFlagName) {
-      updatedFields[audioFlagName] = 'x';
-    }
-    for (const extraAudioFlag of resolvedAudioFlags.slice(1)) {
-      updatedFields[extraAudioFlag] = '';
-    }
-
-    const sentenceFlag = this.resolveFieldName(availableFieldNames, 'IsSentenceCard');
-    if (sentenceFlag && sentenceFlag !== audioFlagName) {
-      updatedFields[sentenceFlag] = '';
-    }
-
-    const wordAndSentenceFlag = this.resolveFieldName(availableFieldNames, 'IsWordAndSentenceCard');
-    if (wordAndSentenceFlag && wordAndSentenceFlag !== audioFlagName) {
-      updatedFields[wordAndSentenceFlag] = '';
-    }
   }
 
   private async showNotification(

@@ -1,4 +1,5 @@
 import { ResolvedConfig } from '../../types/config';
+import { WORD_CARD_KINDS } from '../../anki-integration/card-kinds';
 import { MPV_LAUNCH_MODE_VALUES } from '../../shared/mpv-launch-mode';
 import {
   NOTIFICATION_TYPE_VALUES,
@@ -373,6 +374,21 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.ankiConnect.isLapis.sentenceCardModel,
       description: 'Note type name used by Lapis sentence cards.',
+    },
+    {
+      path: 'ankiConnect.lapisKiku.wordCardKind',
+      kind: 'enum',
+      enumValues: WORD_CARD_KINDS,
+      enumLabels: {
+        'word-and-sentence': 'Word and sentence card (IsWordAndSentenceCard)',
+        click: 'Click card (IsClickCard)',
+        sentence: 'Sentence card (IsSentenceCard)',
+        audio: 'Audio card (IsAudioCard)',
+        none: 'Leave card type flags untouched',
+      },
+      defaultValue: defaultConfig.ankiConnect.lapisKiku.wordCardKind,
+      description:
+        'Card-type flag SubMiner marks on Kiku/Lapis word cards. Only one flag is set at a time; the others are cleared. Requires isKiku.enabled or isLapis.enabled.',
     },
     {
       path: 'ankiConnect.metadata.pattern',

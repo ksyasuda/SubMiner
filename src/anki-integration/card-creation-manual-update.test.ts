@@ -4,29 +4,23 @@ import test from 'node:test';
 import { CardCreationService } from './card-creation';
 import { toMpvEdlValue } from './mpv-edl-test-utils';
 import type { MediaInput } from '../media-generator';
-import type { AnkiConnectConfig } from '../types/anki';
+import type { AnkiConnectConfig, CardKind } from '../types/anki';
+import { applyCardKindFlagFields } from './card-kinds';
 
 type CardCreationDeps = ConstructorParameters<typeof CardCreationService>[0];
 
-function setWordAndSentenceCardTypeFields(
+function setCardTypeFields(
   updatedFields: Record<string, string>,
   availableFieldNames: string[],
-  cardKind: 'sentence' | 'audio' | 'word-and-sentence',
+  cardKind: CardKind,
 ): void {
-  if (cardKind !== 'word-and-sentence') return;
-
-  const resolveFieldName = (preferredName: string): string | null =>
-    availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ?? null;
-  const wordAndSentenceFlag = resolveFieldName('IsWordAndSentenceCard');
-  if (!wordAndSentenceFlag) return;
-
-  updatedFields[wordAndSentenceFlag] = 'x';
-  for (const flagName of ['IsSentenceCard', 'IsAudioCard']) {
-    const resolved = resolveFieldName(flagName);
-    if (resolved && resolved !== wordAndSentenceFlag) {
-      updatedFields[resolved] = '';
-    }
-  }
+  applyCardKindFlagFields(
+    updatedFields,
+    cardKind,
+    (preferredName) =>
+      availableFieldNames.find((name) => name.toLowerCase() === preferredName.toLowerCase()) ??
+      null,
+  );
 }
 
 function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
@@ -217,7 +211,7 @@ test('manual clipboard subtitle update marks Kiku word cards as word-and-sentenc
       kikuFieldGrouping: 'disabled',
       kikuDeleteDuplicateInAuto: false,
     }),
-    setCardTypeFields: setWordAndSentenceCardTypeFields,
+    setCardTypeFields,
   });
 
   await service.updateLastAddedFromClipboard('字幕');

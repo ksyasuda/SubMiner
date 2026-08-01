@@ -116,6 +116,10 @@ export function normalizeAnkiIntegrationConfig(config: AnkiConnectConfig): AnkiC
       ...DEFAULT_ANKI_CONNECT_CONFIG.isKiku,
       ...(config.isKiku ?? {}),
     },
+    lapisKiku: {
+      ...DEFAULT_ANKI_CONNECT_CONFIG.lapisKiku,
+      ...(config.lapisKiku ?? {}),
+    },
   } as AnkiConnectConfig;
 }
 
@@ -205,6 +209,10 @@ export class AnkiIntegrationRuntime {
         patch.isKiku !== undefined
           ? { ...this.config.isKiku, ...patch.isKiku }
           : this.config.isKiku,
+      lapisKiku:
+        patch.lapisKiku !== undefined
+          ? { ...this.config.lapisKiku, ...patch.lapisKiku }
+          : this.config.lapisKiku,
     };
     this.config = normalizeAnkiIntegrationConfig(mergedConfig);
     this.deps.onConfigChanged?.(this.config);

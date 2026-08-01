@@ -2,6 +2,15 @@ import type { AiFeatureConfig } from './integrations';
 import type { NotificationType } from './notification';
 import type { NPlusOneMatchMode } from './subtitle';
 
+/**
+ * Card that a Kiku/Lapis note generates. The note types mark this with mutually
+ * exclusive `Is...Card` flag fields, so only one kind may be flagged per note.
+ */
+export type CardKind = 'sentence' | 'audio' | 'word-and-sentence' | 'click';
+
+/** Card kind SubMiner flags on word cards; 'none' leaves the flag fields untouched. */
+export type WordCardKind = CardKind | 'none';
+
 export interface NotificationOptions {
   body?: string;
   icon?: string;
@@ -114,5 +123,8 @@ export interface AnkiConnectConfig {
     enabled?: boolean;
     fieldGrouping?: 'auto' | 'manual' | 'disabled';
     deleteDuplicateInAuto?: boolean;
+  };
+  lapisKiku?: {
+    wordCardKind?: WordCardKind;
   };
 }
