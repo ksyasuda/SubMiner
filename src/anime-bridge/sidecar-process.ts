@@ -107,6 +107,11 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
       child.kill('SIGKILL');
       await Promise.race([hasExited, delay(STOP_TIMEOUT_MS)]);
     }
+    // Never report success while the child may still hold the port: a caller
+    // that restarts on the same port would race the survivor.
+    if (exited === null) {
+      throw new Error('Anime bridge did not exit after SIGKILL.');
+    }
   };
 
   const client = new AnimeBridgeClient({ baseUrl });
@@ -122,11 +127,14 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
         `Anime bridge exited before becoming ready (code ${code}, signal ${signal}).`,
       );
     }
-    if (await client.isReady()) return { baseUrl, port, client, stop };
+    // Cap the probe at the time actually left, so a short readiness budget is
+    // not overrun by a single stalled capabilities request.
+    if (await client.isReady(deadline - Date.now())) return { baseUrl, port, client, stop };
     await delay(READY_POLL_INTERVAL_MS);
   }
 
-  await stop();
+  // A failed shutdown must not mask why startup failed.
+  await stop().catch(() => {});
   throw new Error(
     `Anime bridge did not become ready within ${options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS}ms.`,
   );

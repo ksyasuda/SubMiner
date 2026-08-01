@@ -74,9 +74,13 @@ export class AnimeBridgeClient {
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   }
 
-  async getCapabilities(): Promise<BridgeCapabilities> {
+  /**
+   * `timeoutMs` lets a caller with its own deadline (the readiness loop) cap the
+   * probe below the default, so a short readiness budget is actually honored.
+   */
+  async getCapabilities(timeoutMs = CAPABILITIES_TIMEOUT_MS): Promise<BridgeCapabilities> {
     const response = await this.fetchImpl(`${this.baseUrl}/capabilities`, {
-      signal: AbortSignal.timeout(Math.min(CAPABILITIES_TIMEOUT_MS, this.requestTimeoutMs)),
+      signal: AbortSignal.timeout(Math.max(0, Math.min(timeoutMs, this.requestTimeoutMs))),
     });
     if (!response.ok) {
       throw new Error(`Anime bridge capabilities check failed (${response.status}).`);
@@ -85,9 +89,9 @@ export class AnimeBridgeClient {
   }
 
   /** True once the bridge is up and reports the features this client needs. */
-  async isReady(): Promise<boolean> {
+  async isReady(timeoutMs?: number): Promise<boolean> {
     try {
-      const capabilities = await this.getCapabilities();
+      const capabilities = await this.getCapabilities(timeoutMs);
       return (
         capabilities.mangatanMihonBridge === 1 &&
         capabilities.sourceFactory === true &&

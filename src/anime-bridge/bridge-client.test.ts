@@ -55,6 +55,20 @@ test('isReady requires every capability the client depends on', async () => {
   assert.equal(await partial.isReady(), false);
 });
 
+test('isReady caps the probe at the deadline the caller passes', async () => {
+  // A bridge that accepts the socket and then stalls: only the abort ends it.
+  const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    await new Promise((resolve) => init?.signal?.addEventListener('abort', resolve));
+    throw new Error('aborted');
+  }) as typeof fetch;
+  const client = new AnimeBridgeClient({ baseUrl: 'http://127.0.0.1:9', fetchImpl });
+
+  const started = Date.now();
+  assert.equal(await client.isReady(50), false);
+  // Well under the 5s default, so the per-call deadline is what applied.
+  assert.ok(Date.now() - started < 1000, 'probe outlived the caller deadline');
+});
+
 test('isReady reports false instead of throwing when the bridge is down', async () => {
   const client = new AnimeBridgeClient({
     baseUrl: 'http://127.0.0.1:9',

@@ -11,9 +11,16 @@ const binaries: BundleBinaries = {
 };
 
 /** A ChildProcess stand-in: an EventEmitter with the bits startSidecar touches. */
-function fakeChild(): ChildProcess {
+function fakeChild(onKill?: (child: EventEmitter) => void): ChildProcess {
   const child = new EventEmitter();
-  Object.assign(child, { stdout: null, stderr: null, kill: () => true });
+  Object.assign(child, {
+    stdout: null,
+    stderr: null,
+    kill: () => {
+      onKill?.(child);
+      return true;
+    },
+  });
   return child as unknown as ChildProcess;
 }
 
@@ -29,6 +36,18 @@ test('a failed spawn rejects instead of throwing an unhandled error event', asyn
   await assert.rejects(
     () => startSidecar({ binaries, port, readyTimeoutMs: 2000, spawnImpl }),
     /could not start.*ENOENT/,
+  );
+});
+
+test('a readiness timeout shuts the child down and reports the timeout', async () => {
+  const port = await allocatePort();
+  // Never becomes ready, but does go down on the first signal.
+  const child = fakeChild((emitter) => queueMicrotask(() => emitter.emit('exit', 0, 'SIGTERM')));
+  const spawnImpl = (() => child) as unknown as typeof spawnType;
+
+  await assert.rejects(
+    () => startSidecar({ binaries, port, readyTimeoutMs: 50, spawnImpl }),
+    /did not become ready within 50ms/,
   );
 });
 
