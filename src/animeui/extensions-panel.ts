@@ -1,5 +1,12 @@
 import { describe, el } from './dom';
 import { describeInstalled } from './format';
+import {
+  collectLanguages,
+  filterByLanguage,
+  languageLabel,
+  pruneSelection,
+  toggleLanguage,
+} from './language-filter';
 import type {
   AnimeBrowserAPI,
   AvailableExtension,
@@ -90,9 +97,19 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   const installedList = el<HTMLDivElement>('installed-list');
   const installedCount = el<HTMLSpanElement>('installed-count');
   const availableList = el<HTMLDivElement>('extensions-list');
+  const availableCount = el<HTMLSpanElement>('available-count');
+  const langFilter = el<HTMLDivElement>('lang-filter');
   const repoInput = el<HTMLInputElement>('repo-input');
   const repoAddButton = el<HTMLButtonElement>('repo-add');
   const repoList = el<HTMLDivElement>('repo-list');
+
+  // What the last refresh found, kept so toggling a language chip re-renders
+  // the list without re-fetching every repository index.
+  let installable: AvailableExtension[] = [];
+  let repoFailures: Array<{ name: string; error: string }> = [];
+  let hasRepos = false;
+  /** Selected language codes; empty means "All". */
+  let selectedLangs = new Set<string>();
 
   async function afterChange(extensionName: string, verb: string): Promise<void> {
     await refresh();
@@ -179,20 +196,62 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     );
   }
 
-  function renderAvailable(
-    available: AvailableExtension[],
-    repoFailures: Array<{ name: string; error: string }>,
-    hasRepos: boolean,
-  ): void {
+  function languageChip(label: string, active: boolean, onClick: () => void): HTMLButtonElement {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = active ? 'lang-chip is-active' : 'lang-chip';
+    chip.textContent = label;
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+    chip.addEventListener('click', onClick);
+    return chip;
+  }
+
+  function renderLanguageFilter(languages: string[]): void {
+    // One language, or none: there is nothing to choose between.
+    if (languages.length < 2) {
+      langFilter.replaceChildren();
+      return;
+    }
+
+    langFilter.replaceChildren(
+      // "All" is the empty selection, so picking a language always replaces it
+      // rather than sitting alongside it.
+      languageChip('All', selectedLangs.size === 0, () => {
+        if (selectedLangs.size === 0) return;
+        selectedLangs = new Set();
+        renderAvailable();
+      }),
+      ...languages.map((code) =>
+        languageChip(languageLabel(code), selectedLangs.has(code), () => {
+          selectedLangs = toggleLanguage(selectedLangs, code);
+          renderAvailable();
+        }),
+      ),
+    );
+  }
+
+  function renderAvailable(): void {
+    const languages = collectLanguages(installable);
+    selectedLangs = pruneSelection(selectedLangs, languages);
+    renderLanguageFilter(languages);
+
+    const shown = filterByLanguage(installable, selectedLangs);
+    availableCount.textContent =
+      shown.length === installable.length
+        ? installable.length === 0
+          ? ''
+          : String(installable.length)
+        : `${shown.length} of ${installable.length}`;
+
     const rows: HTMLElement[] = repoFailures.map((failure) =>
       extensionRow({ name: failure.name, sub: failure.error, isError: true }),
     );
 
-    for (const extension of available) {
+    for (const extension of shown) {
       rows.push(
         extensionRow({
           name: extension.name,
-          sub: `${extension.lang} · v${extension.version}`,
+          sub: `${languageLabel(extension.lang)} · v${extension.version}`,
           tags: extension.nsfw ? [{ text: '18+', className: 'nsfw' }] : [],
           actions: [
             {
@@ -216,9 +275,11 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     if (rows.length === 0) {
       rows.push(
         emptyNote(
-          hasRepos
-            ? 'Every extension the configured repositories offer is already installed.'
-            : 'No repository configured, so there is nothing to install from.',
+          selectedLangs.size > 0
+            ? 'No available extension matches the selected languages.'
+            : hasRepos
+              ? 'Every extension the configured repositories offer is already installed.'
+              : 'No repository configured, so there is nothing to install from.',
         ),
       );
     }
@@ -231,7 +292,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     extensionsDirLabel.textContent = snapshot.extensionsDir;
     renderRepos(snapshot.repos);
 
-    const repoFailures: Array<{ name: string; error: string }> = [];
+    repoFailures = [];
     let available;
     try {
       available = await api.listAvailableExtensions();
@@ -245,13 +306,11 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
 
     const offeredPkgs = new Set(available.extensions.map((extension) => extension.pkg));
     renderInstalled(snapshot.installed, offeredPkgs, snapshot.extensionsDir);
-    renderAvailable(
-      // Installed extensions have their own section; leaving them here too
-      // would list every one of them twice.
-      available.extensions.filter((extension) => !extension.installed),
-      repoFailures,
-      snapshot.repos.length > 0,
-    );
+    // Installed extensions have their own section; leaving them here too would
+    // list every one of them twice.
+    installable = available.extensions.filter((extension) => !extension.installed);
+    hasRepos = snapshot.repos.length > 0;
+    renderAvailable();
   }
 
   repoAddButton.addEventListener('click', () => {

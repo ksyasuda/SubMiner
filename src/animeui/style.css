@@ -823,6 +823,46 @@ body {
   display: none;
 }
 
+.lang-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lang-filter:not(:empty) {
+  margin-bottom: 10px;
+}
+
+.lang-chip {
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--ctp-crust);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.lang-chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.lang-chip.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lang-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .ext-list {
   display: flex;
   flex-direction: column;
