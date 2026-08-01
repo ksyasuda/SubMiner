@@ -388,7 +388,7 @@ export function buildIntegrationConfigOptionRegistry(
       },
       defaultValue: defaultConfig.ankiConnect.lapisKiku.wordCardKind,
       description:
-        'Card-type flag SubMiner marks on Kiku/Lapis word cards: word-and-sentence (IsWordAndSentenceCard), click (IsClickCard), sentence (IsSentenceCard), audio (IsAudioCard), or none to leave the flags untouched. Only applies when isKiku.enabled or isLapis.enabled; the other card-type flags are cleared so a note never claims two kinds. Cards mined with the dedicated sentence/audio actions keep their own flag.',
+        'Card-type flag SubMiner marks on Kiku/Lapis word cards. Only one flag is set at a time; the others are cleared. Requires isKiku.enabled or isLapis.enabled.',
     },
     {
       path: 'ankiConnect.metadata.pattern',

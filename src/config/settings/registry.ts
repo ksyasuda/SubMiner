@@ -257,7 +257,7 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
   'ankiConnect.isLapis.sentenceCardModel':
     'Anki note type used for Lapis sentence cards. Select from note types reported by AnkiConnect.',
   'ankiConnect.lapisKiku.wordCardKind':
-    'Card-type flag marked on mined word cards: word-and-sentence sets IsWordAndSentenceCard, click sets IsClickCard, sentence sets IsSentenceCard, audio sets IsAudioCard, and none leaves the flags untouched. The other flags are cleared so a note never claims two card types. Requires Kiku or Lapis features to be enabled. Applies to Yomitan auto-enrichment, manual clipboard updates, and stats-dashboard word mining; cards mined with Mine Sentence or Mine Audio keep their own flag.',
+    'Card-type flag marked on mined word cards. Only one flag is set at a time; the others are cleared. Requires Kiku or Lapis to be enabled.',
   'subtitleStyle.css':
     'CSS declarations applied to primary subtitles. Includes color, background-color, and all font properties.',
   'subtitleStyle.secondary.css':
