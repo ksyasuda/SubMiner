@@ -6,6 +6,10 @@
 
 - Anime Browser Language Filter: The Extensions tab's available list now has a language chip row above it. Pick one or more languages to narrow a repository index that otherwise lists every language it knows, or "All" to clear the filter — selecting a language replaces "All" rather than sitting beside it. Extension rows name the language ("Japanese" instead of `ja`), and the Available heading shows how many of the offered extensions the filter leaves.
 
+### Changed
+
+- Anime Browser Subtitles: A stream's subtitle tracks are now downloaded to a temp directory and loaded into mpv as files instead of streamed from the source URL, so they can serve as the alass reference in Subsync (the same way Jellyfin subtitles do) — a streamed track had no file on disk and was rejected by the source picker. The format is detected from the file's own content, a track that fails to download falls back to its URL so the episode still plays, and the directory is removed when the next episode starts or the app exits.
+
 ### Fixed
 
 - Anime Browser Window Switching: Opening the anime browser now shows a tray icon on every platform and, on macOS, puts the app in the Cmd+Tab switcher (which requires the Dock icon; the two are inseparable on macOS), so you can switch between it and mpv. Previously the subtitle overlay's fullscreen support hid the whole app from the Dock and Cmd+Tab, leaving no way to reach the window. The Dock icon is released again when the window closes during playback.

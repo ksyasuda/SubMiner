@@ -26,6 +26,11 @@ import {
   type ExtensionSource,
   type InstalledExtension,
 } from '../../anime-bridge/extension-store';
+import {
+  cacheSubtitleTracks,
+  removeSubtitleCache,
+  type SubtitleCacheIo,
+} from '../../anime-bridge/subtitle-cache';
 import { interleave, mapSourcesConcurrently } from '../../anime-bridge/multi-source-search';
 import { startSidecar, type SidecarHandle } from '../../anime-bridge/sidecar-process';
 import {
@@ -84,6 +89,8 @@ export interface AnimeBrowserRuntimeDeps {
   showVisibleOverlay?: () => void;
   /** Lets tests drive the pause between `loadfile` and the track commands. */
   wait?: (ms: number) => Promise<void>;
+  /** Overrides the filesystem/network the subtitle cache uses. Tests only. */
+  subtitleCacheIo?: SubtitleCacheIo;
   onBridgeState: (state: AnimeBrowserBridgeState) => void;
   /**
    * Streams per-source progress while a search invoke is pending. Optional so
@@ -110,9 +117,53 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let loadFailures: ExtensionLoadFailure[] = [];
   // Monotonic; identifies the newest browse so stale ones stop emitting.
   let searchToken = 0;
+  // Temp directory holding the playing episode's downloaded subtitles. Kept
+  // until the next episode replaces it, because alass reads it mid-playback.
+  let subtitleCacheDir: string | null = null;
   const preferenceStore = new PreferenceStore(deps.preferencesFile);
   const wait =
     deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+  /**
+   * Drop the previous episode's downloaded subtitles.
+   *
+   * Deliberately not done at end-file: alass reads those files for as long as
+   * the episode is up, so they only go once another one replaces them.
+   */
+  async function clearSubtitleCache(): Promise<void> {
+    const previousDir = subtitleCacheDir;
+    subtitleCacheDir = null;
+    await removeSubtitleCache(previousDir, deps.subtitleCacheIo);
+  }
+
+  /**
+   * Download the stream's subtitle tracks so mpv loads files instead of URLs.
+   *
+   * alass needs the reference track on disk, and the subsync picker rejects an
+   * external track whose `external-filename` is not a real file, so a streamed
+   * track cannot be used to retime anything.
+   */
+  async function cacheStreamSubtitles(stream: {
+    headers: Record<string, string>;
+    subtitles: Array<{ url: string; lang: string }>;
+  }): Promise<Array<{ url: string; lang: string }>> {
+    const cached = await cacheSubtitleTracks({
+      tracks: stream.subtitles,
+      headers: stream.headers,
+      io: deps.subtitleCacheIo,
+      log: deps.log,
+    });
+    subtitleCacheDir = cached.dir;
+
+    const localCount = cached.tracks.filter((track) => track.local).length;
+    if (cached.tracks.length > 0) {
+      deps.log(
+        `[anime-browser] cached ${localCount}/${cached.tracks.length} subtitle track(s) to disk` +
+          (cached.dir ? ` in ${cached.dir}` : ''),
+      );
+    }
+    return cached.tracks.map((track) => ({ url: track.url, lang: track.lang }));
+  }
 
   function setState(state: AnimeBrowserBridgeState): void {
     bridgeState = state;
@@ -564,18 +615,23 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           for (const command of buildPlaybackCommands({ stream, title })) {
             deps.sendMpvCommand(command);
           }
+          // The old episode's subtitles are dead the moment this one loads,
+          // whether or not the new one brings any of its own.
+          await clearSubtitleCache();
 
-          const trackCommands = buildTrackCommands(stream);
-          if (trackCommands.length > 0) {
+          if (stream.audios.length > 0 || stream.subtitles.length > 0) {
             deps.log(
               `[anime-browser] ${stream.audios.length} external audio, ` +
                 `${stream.subtitles.length} external subtitle track(s)`,
             );
             // mpv attaches added tracks to the file that is loading, so give the
             // loadfile a moment to take effect first. Same pause the Jellyfin
-            // subtitle preload uses.
-            await wait(TRACK_ATTACH_DELAY_MS);
-            for (const command of trackCommands) {
+            // subtitle preload uses. The download runs inside that pause.
+            const [subtitles] = await Promise.all([
+              cacheStreamSubtitles(stream),
+              wait(TRACK_ATTACH_DELAY_MS),
+            ]);
+            for (const command of buildTrackCommands({ ...stream, subtitles })) {
               deps.sendMpvCommand(command);
             }
           }
@@ -603,10 +659,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     async dispose(): Promise<void> {
       const handle = sidecar;
       const proxy = stripProxy;
+      const cacheDir = subtitleCacheDir;
       sidecar = null;
       stripProxy = null;
       starting = null;
+      subtitleCacheDir = null;
       setState(IDLE_STATE);
+      await removeSubtitleCache(cacheDir, deps.subtitleCacheIo);
       await proxy?.close();
       await handle?.stop();
     },
