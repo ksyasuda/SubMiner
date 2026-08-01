@@ -156,6 +156,42 @@ test('proxy rewrites absolute upstream playlist entries to its own origin', asyn
   }
 });
 
+test('proxy strips even when the client asks for a byte range', async () => {
+  // ffmpeg opens every HLS segment with `Range: bytes=0-`; the bridge answers
+  // some of those with 206, which must not bypass the strip.
+  const ts = makeTsPackets(8);
+  const disguised = Buffer.concat([PNG_HEADER, ts]);
+  const upstream = http.createServer((req, res) => {
+    if (req.headers.range !== undefined) {
+      res.writeHead(206, {
+        'content-type': 'image/png',
+        'content-range': `bytes 0-${disguised.length - 1}/${disguised.length}`,
+      });
+      res.end(disguised);
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'image/png' });
+    res.end(disguised);
+  });
+  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamOrigin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+  const proxy = await startStreamStripProxy({
+    upstreamOrigin: () => upstreamOrigin,
+    retryDelayMs: 5,
+  });
+  try {
+    const response = await fetch(`${proxy.origin}/video/seg.ts`, {
+      headers: { Range: 'bytes=0-' },
+    });
+    const body = Buffer.from(await response.arrayBuffer());
+    assert.equal(response.status, 200);
+    assert.deepEqual(body, ts);
+  } finally {
+    await proxy.close();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+  }
+});
+
 test('proxy forwards error statuses without touching the body', async () => {
   await withProxy(
     { '/video/gone.ts': { status: 404, contentType: 'text/plain', body: Buffer.from('nope') } },

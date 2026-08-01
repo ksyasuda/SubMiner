@@ -119,6 +119,11 @@ export function startStreamStripProxy(
 
     const requestHeaders = forwardableHeaders(req.headers);
     delete requestHeaders.host;
+    // Never forward Range: ffmpeg opens every segment with `bytes=0-`, the
+    // bridge answers some of those 206, and a partial response cannot be
+    // stripped (only full 200 bodies are). Byte ranges into a resource whose
+    // bytes this proxy rewrites would be incoherent anyway.
+    delete requestHeaders.range;
     res.on('error', () => {});
 
     requestUpstream(req, res, upstreamUrl, requestHeaders, 0);

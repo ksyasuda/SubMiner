@@ -15,6 +15,7 @@ area: anime
 - The primary subtitle slot stays reserved for Japanese: a source that only has, say, English subtitles gets them added with a normalized language tag (`English` → `en`) but not selected, so the regular `secondarySub` auto-load can route them to the secondary slot instead.
 - HLS streams pass through a local strip proxy that removes fake image headers some hosts glue onto their video segments, so streams ffmpeg would otherwise probe as "a PNG" and abandon now play in mpv.
 - The strip proxy retries a failed segment fetch once after a short pause and logs upstream error statuses; a host that errors on the very first fetches right after an episode resolves no longer kills the whole playback.
+- The strip proxy no longer forwards `Range` headers to the bridge: ffmpeg opens every HLS segment with `Range: bytes=0-`, the bridge answers some of those with 206, and a partial response bypassed the disguise strip, so whether an episode played depended on the bridge's cache state.
 - "Playing" is only reported once mpv actually configures a video output; when a stream fails to decode, the browser shows mpv's error instead of claiming playback started while no window ever appeared.
 - The Linux x64 bridge bundle is verified and pinned, so the anime browser starts on Linux instead of refusing with "No pinned checksum for linux-x64-bundle.zip".
 - The bridge bundle is fetched from the pinned release tag rather than whatever release is newest, so an upstream publish no longer breaks every install with a checksum mismatch.
