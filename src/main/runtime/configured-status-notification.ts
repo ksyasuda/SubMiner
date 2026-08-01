@@ -12,6 +12,8 @@ export interface ConfiguredStatusNotificationDeps {
 
 export interface ConfiguredStatusNotificationOptions {
   id?: string;
+  /** Overrides the overlay card body (the OSD/desktop paths keep the raw message). */
+  overlayBody?: string;
   title?: string;
   variant?: OverlayNotificationPayload['variant'];
   persistent?: boolean;
@@ -29,6 +31,23 @@ export function getPlaybackFeedbackNotificationOptions(
     return { id: 'secondary-subtitle-mode-feedback' };
   }
   return {};
+}
+
+export function getSubsyncStatusNotificationOptions(
+  message: string,
+): ConfiguredStatusNotificationOptions {
+  const syncing = message.startsWith('Subsync: syncing');
+  const failed = message.toLowerCase().includes('failed');
+  return {
+    id: 'subsync-status',
+    title: 'Subsync',
+    // The overlay card renders its own animated spinner, so drop the ASCII
+    // spinner frame that the OSD path still needs.
+    overlayBody: syncing ? message.replace(/\s+[|/\-\\]$/, '') : message,
+    variant: failed ? 'error' : syncing ? 'progress' : 'info',
+    persistent: syncing,
+    desktop: !syncing,
+  };
 }
 
 export function getYoutubeFlowStatusNotificationOptions(
@@ -74,7 +93,7 @@ export function notifyConfiguredStatus(
       deps.showOverlayNotification({
         id: options.id,
         title: options.title ?? 'SubMiner',
-        body: message,
+        body: options.overlayBody ?? message,
         variant: options.variant ?? 'info',
         persistent: options.persistent ?? false,
       });

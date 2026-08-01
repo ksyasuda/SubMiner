@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   getPlaybackFeedbackNotificationOptions,
+  getSubsyncStatusNotificationOptions,
   getYoutubeFlowStatusNotificationOptions,
   notifyConfiguredStatus,
 } from './configured-status-notification';
@@ -156,6 +157,64 @@ test('notifyConfiguredStatus can suppress desktop delivery for progress ticks', 
   );
 
   assert.deepEqual(calls, ['overlay:subsync-status:Subsync:Subsync: syncing |:progress:pin']);
+});
+
+test('subsync progress keeps the osd spinner frame but strips it from the overlay card', () => {
+  const calls: string[] = [];
+
+  for (const frame of ['|', '/', '-', '\\']) {
+    const message = `Subsync: syncing ${frame}`;
+    notifyConfiguredStatus(
+      message,
+      {
+        getNotificationType: () => 'both',
+        showOsd: (osdMessage) => {
+          calls.push(`osd:${osdMessage}`);
+        },
+        showOverlayNotification: (payload) =>
+          calls.push(
+            `overlay:${payload.body}:${payload.variant}:${payload.persistent ? 'pin' : 'auto'}`,
+          ),
+        showDesktopNotification: (title, options) =>
+          calls.push(`desktop:${title}:${options.body ?? ''}`),
+      },
+      getSubsyncStatusNotificationOptions(message),
+    );
+  }
+
+  assert.deepEqual(calls, [
+    'overlay:Subsync: syncing:progress:pin',
+    'overlay:Subsync: syncing:progress:pin',
+    'overlay:Subsync: syncing:progress:pin',
+    'overlay:Subsync: syncing:progress:pin',
+  ]);
+
+  calls.length = 0;
+  notifyConfiguredStatus(
+    'Subsync: syncing /',
+    {
+      getNotificationType: () => 'osd',
+      showOsd: (osdMessage) => {
+        calls.push(`osd:${osdMessage}`);
+      },
+      showOverlayNotification: (payload) => calls.push(`overlay:${payload.body}`),
+      showDesktopNotification: (title, options) =>
+        calls.push(`desktop:${title}:${options.body ?? ''}`),
+    },
+    getSubsyncStatusNotificationOptions('Subsync: syncing /'),
+  );
+
+  assert.deepEqual(calls, ['osd:Subsync: syncing /']);
+});
+
+test('subsync result notifications keep their message intact', () => {
+  assert.equal(
+    getSubsyncStatusNotificationOptions('Subtitle synchronized with ffsubsync').overlayBody,
+    'Subtitle synchronized with ffsubsync',
+  );
+  const failure = getSubsyncStatusNotificationOptions('ffsubsync synchronization failed: boom');
+  assert.equal(failure.variant, 'error');
+  assert.equal(failure.overlayBody, 'ffsubsync synchronization failed: boom');
 });
 
 test('notifyConfiguredStatus routes feedback through overlay without desktop delivery', () => {

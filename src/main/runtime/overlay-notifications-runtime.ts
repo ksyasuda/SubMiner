@@ -22,6 +22,7 @@ import { withConfiguredOverlayNotificationPosition } from './overlay-notificatio
 import { createOverlayNotificationDelivery } from './overlay-notification-delivery';
 import {
   getPlaybackFeedbackNotificationOptions,
+  getSubsyncStatusNotificationOptions,
   getYoutubeFlowStatusNotificationOptions,
   notifyConfiguredStatus,
   type ConfiguredStatusNotificationOptions,
@@ -195,15 +196,7 @@ export function createOverlayNotificationsRuntime(deps: OverlayNotificationsRunt
   }
 
   function showSubsyncStatusNotification(message: string): void {
-    const syncing = message.startsWith('Subsync: syncing');
-    const failed = message.toLowerCase().includes('failed');
-    showConfiguredStatusNotification(message, {
-      id: 'subsync-status',
-      title: 'Subsync',
-      variant: failed ? 'error' : syncing ? 'progress' : 'info',
-      persistent: syncing,
-      desktop: !syncing,
-    });
+    showConfiguredStatusNotification(message, getSubsyncStatusNotificationOptions(message));
   }
 
   function showYoutubeFlowStatusNotification(message: string): void {
