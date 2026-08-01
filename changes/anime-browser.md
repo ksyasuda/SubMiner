@@ -16,6 +16,7 @@ area: anime
 - HLS streams pass through a local strip proxy that removes fake image headers some hosts glue onto their video segments, so streams ffmpeg would otherwise probe as "a PNG" and abandon now play in mpv.
 - The strip proxy retries a failed segment fetch once after a short pause and logs upstream error statuses; a host that errors on the very first fetches right after an episode resolves no longer kills the whole playback.
 - The strip proxy no longer forwards `Range` headers to the bridge: ffmpeg opens every HLS segment with `Range: bytes=0-`, the bridge answers some of those with 206, and a partial response bypassed the disguise strip, so whether an episode played depended on the bridge's cache state.
+- A bridge that dies out from under the app (killed, crashed, or stopped mid-operation) no longer leaves the browser failing every request until an app restart: the exit is detected, surfaced in the status bar, and the bridge restarts on the next request.
 - "Playing" is only reported once mpv actually configures a video output; when a stream fails to decode, the browser shows mpv's error instead of claiming playback started while no window ever appeared.
 - The Linux x64 bridge bundle is verified and pinned, so the anime browser starts on Linux instead of refusing with "No pinned checksum for linux-x64-bundle.zip".
 - The bridge bundle is fetched from the pinned release tag rather than whatever release is newest, so an upstream publish no longer breaks every install with a checksum mismatch.

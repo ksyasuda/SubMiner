@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import type { spawn as spawnType, ChildProcess } from 'node:child_process';
 import { allocatePort, startSidecar } from './sidecar-process';
@@ -63,4 +64,42 @@ test('an early exit is reported with its code rather than waiting out the deadli
     () => startSidecar({ binaries, port, readyTimeoutMs: 2000, spawnImpl }),
     /exited before becoming ready \(code 1/,
   );
+});
+
+test('onExit reports a death after readiness, including to late subscribers', async () => {
+  const port = await allocatePort();
+  // Fake the bridge's capabilities endpoint so startSidecar reports ready.
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({ mangatanMihonBridge: 1, sourceFactory: true, preferenceCallbacks: true }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  const child = fakeChild();
+  const spawnImpl = (() => child) as unknown as typeof spawnType;
+
+  try {
+    const handle = await startSidecar({ binaries, port, readyTimeoutMs: 5000, spawnImpl });
+    const exits: Array<{ code: number | null; signal: NodeJS.Signals | null }> = [];
+    handle.onExit((info) => exits.push(info));
+    assert.equal(exits.length, 0);
+
+    child.emit('exit', 137, null);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual([...exits], [{ code: 137, signal: null }]);
+
+    // A listener attached after the death still hears about it.
+    handle.onExit((info) => exits.push(info));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(
+      [...exits],
+      [
+        { code: 137, signal: null },
+        { code: 137, signal: null },
+      ],
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

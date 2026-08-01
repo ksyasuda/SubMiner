@@ -35,6 +35,14 @@ export async function allocatePort(): Promise<number> {
 export interface SidecarHandle {
   baseUrl: string;
   port: number;
+  /**
+   * Fires once when the child process goes away, however it goes away —
+   * including deliberate stops. Fires immediately for a subscriber that
+   * attaches after the death, so a caller cannot miss it.
+   */
+  onExit: (
+    listener: (info: { code: number | null; signal: NodeJS.Signals | null }) => void,
+  ) => void;
   client: AnimeBridgeClient;
   stop: () => Promise<void>;
 }
@@ -129,7 +137,12 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
     }
     // Cap the probe at the time actually left, so a short readiness budget is
     // not overrun by a single stalled capabilities request.
-    if (await client.isReady(deadline - Date.now())) return { baseUrl, port, client, stop };
+    if (await client.isReady(deadline - Date.now())) {
+      const onExit: SidecarHandle['onExit'] = (listener) => {
+        void hasExited.then(() => listener(exited ?? { code: null, signal: null }));
+      };
+      return { baseUrl, port, client, stop, onExit };
+    }
     await delay(READY_POLL_INTERVAL_MS);
   }
 

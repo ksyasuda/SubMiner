@@ -129,8 +129,17 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     return { ...toBridgeSource(extension, source.id), preferences: saved };
   }
 
-  function requireBridge(): { client: AnimeBridgeClient; baseUrl: string } {
-    if (!sidecar) throw new Error('The anime bridge is not running yet.');
+  /**
+   * The live bridge, starting (or restarting) it first when there is none.
+   * A bridge that died out from under the app — killed, crashed, stopped —
+   * comes back on the next request instead of failing every call until the
+   * app restarts.
+   */
+  async function bridge(): Promise<{ client: AnimeBridgeClient; baseUrl: string }> {
+    if (!sidecar) await ensureBridge();
+    if (!sidecar) {
+      throw new Error(bridgeState.message ?? 'The anime bridge is not running.');
+    }
     return { client: sidecar.client, baseUrl: sidecar.baseUrl };
   }
 
@@ -145,6 +154,27 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       onLog: (line) => deps.log(`[anime-bridge] ${line}`),
     });
     sidecar = handle;
+
+    // A deliberate stop detaches first (dispose nulls `sidecar` before
+    // stopping, a restart replaces it), so reaching the body means the bridge
+    // died out from under us and the next request should bring it back.
+    handle.onExit(({ code, signal }) => {
+      if (sidecar !== handle) return;
+      sidecar = null;
+      starting = null;
+      const proxy = stripProxy;
+      stripProxy = null;
+      void proxy?.close();
+      deps.log(
+        `[anime-browser] bridge exited unexpectedly (code ${code}, signal ${signal}); ` +
+          'it will restart on the next request',
+      );
+      setState({
+        stage: 'idle',
+        progress: null,
+        message: 'The anime bridge stopped. It restarts on the next search.',
+      });
+    });
 
     try {
       stripProxy = await startStreamStripProxy({
@@ -256,7 +286,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       page: number,
     ) => Promise<BridgeAnimePage>,
   ): Promise<AnimeBrowserSearchResult> {
-    const { baseUrl } = requireBridge();
+    const { baseUrl } = await bridge();
     const targets =
       selectedSourceId === ALL_SOURCES_ID ? sources : [requireSource(selectedSourceId)];
     if (targets.length === 0) throw new Error('No sources are installed.');
@@ -402,7 +432,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
      * what it has no memory of between requests.
      */
     async getPreferences(sourceId: string): Promise<SourcePreferenceView[]> {
-      const { client } = requireBridge();
+      const { client } = await bridge();
       const source = requireSource(sourceId);
       const schema = await client.getSourcePreferences(await sourceFor(source.id));
       return parsePreferences(schema);
@@ -417,7 +447,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       key: string,
       value: string | string[] | boolean,
     ): Promise<SourcePreferenceView[]> {
-      const { client } = requireBridge();
+      const { client } = await bridge();
       const source = await sourceFor(sourceId);
 
       // Start from the extension's own schema so saved values never go stale
@@ -436,19 +466,19 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     async search(query: string, page = 1): Promise<AnimeBrowserSearchResult> {
-      const { client } = requireBridge();
+      const { client } = await bridge();
       return browse(page, (source, requestedPage) =>
         client.searchAnime(source, query, requestedPage),
       );
     },
 
     async getPopular(page = 1): Promise<AnimeBrowserSearchResult> {
-      const { client } = requireBridge();
+      const { client } = await bridge();
       return browse(page, (source, requestedPage) => client.getPopularAnime(source, requestedPage));
     },
 
     async getDetails(animeUrl: string, sourceId?: string): Promise<AnimeBrowserDetails> {
-      const { client, baseUrl } = requireBridge();
+      const { client, baseUrl } = await bridge();
       const source = requireSource(sourceId ?? selectedSourceId);
       const details = await client.getAnimeDetails(await sourceFor(source.id), animeUrl);
       return {
@@ -461,7 +491,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     async getEpisodes(animeUrl: string, sourceId?: string): Promise<AnimeBrowserEpisode[]> {
-      const { client } = requireBridge();
+      const { client } = await bridge();
       const source = requireSource(sourceId ?? selectedSourceId);
       const episodes = await client.getEpisodeList(await sourceFor(source.id), animeUrl);
       return episodes.map((episode) => ({
@@ -478,7 +508,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
 
     async playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
       try {
-        const { client, baseUrl } = requireBridge();
+        const { client, baseUrl } = await bridge();
         const videos = await client.getVideoList(
           await sourceFor(request.sourceId),
           request.episodeUrl,
