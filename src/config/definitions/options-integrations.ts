@@ -567,6 +567,27 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'mpv key used to skip the detected intro while the skip prompt is visible.',
     },
     {
+      path: 'anime.extensionsDir',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.extensionsDir,
+      description:
+        'Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.',
+    },
+    {
+      path: 'anime.repos',
+      kind: 'array',
+      defaultValue: defaultConfig.anime.repos,
+      description:
+        'Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.',
+    },
+    {
+      path: 'anime.preferredQuality',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.preferredQuality,
+      description:
+        'Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

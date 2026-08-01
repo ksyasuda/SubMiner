@@ -45,9 +45,9 @@ Results are cached per file for the app session; only definitive "no intro found
 
 You can trigger AniSkip actions from mpv script-messages:
 
-| Command | Effect |
-| ------- | ------ |
-| `script-message subminer-skip-intro` | Skip to the intro end immediately (same as pressing the key) |
+| Command                                   | Effect                                                                  |
+| ----------------------------------------- | ----------------------------------------------------------------------- |
+| `script-message subminer-skip-intro`      | Skip to the intro end immediately (same as pressing the key)            |
 | `script-message subminer-aniskip-refresh` | Force a fresh lookup for the current file, discarding any cached result |
 
 These are handled by the SubMiner app over the IPC socket.

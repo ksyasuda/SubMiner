@@ -425,6 +425,7 @@ import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
+import { releaseDockIcon, retainDockIcon } from './core/services/dock-icon-visibility';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
@@ -532,7 +533,11 @@ import {
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
   createCreateSyncUiWindowHandler,
+  createCreateAnimeBrowserWindowHandler,
 } from './main/runtime/setup-window-factory';
+import { createAnimeBrowserRuntime } from './main/runtime/anime-browser-runtime';
+import { registerAnimeBrowserIpcHandlers } from './main/runtime/anime-browser-ipc-handlers';
+import { ensureBridgeBinaries } from './main/runtime/anime-bridge-installer';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
 import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
@@ -2954,6 +2959,7 @@ const {
   runJellyfinCommand,
   openJellyfinSetupWindow,
   getJellyfinClientInfo,
+  ensureMpvConnectedForPlayback,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => configService.getConfig(),
@@ -3246,6 +3252,99 @@ const {
     hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
   },
 });
+
+const DEFAULT_ANIME_EXTENSIONS_DIR = path.join(USER_DATA_PATH, 'anime-extensions');
+
+function resolveAnimeExtensionsDir(): string {
+  const configured = configService.getConfig().anime?.extensionsDir?.trim();
+  return configured && configured.length > 0 ? configured : DEFAULT_ANIME_EXTENSIONS_DIR;
+}
+
+const animeBrowserRuntime = createAnimeBrowserRuntime({
+  extensionsDir: () => resolveAnimeExtensionsDir(),
+  repos: () => configService.getConfig().anime?.repos ?? [],
+  setRepos: (repos) => {
+    configService.patchRawConfig({ anime: { repos } });
+  },
+  preferredQuality: () => configService.getConfig().anime?.preferredQuality || undefined,
+  preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
+  ensureBinaries: (onProgress) =>
+    ensureBridgeBinaries({
+      installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
+      onProgress,
+    }),
+  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+  ensureMpvConnected: () => ensureMpvConnectedForPlayback(),
+  showVisibleOverlay: () => {
+    // Launching a video turns a browse-only instance into a regular SubMiner
+    // playback session: tray icon plus the overlay runtime that
+    // setVisibleOverlayVisible initializes on demand.
+    ensureTrayHandler();
+    setVisibleOverlayVisible(true);
+  },
+  showMpvOsd: (text) =>
+    overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
+  onBridgeState: (state) => {
+    const window = appState.animeBrowserWindow;
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.event.animeBrowserBridgeState, state);
+    }
+  },
+  onSearchUpdate: (update) => {
+    const window = appState.animeBrowserWindow;
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.event.animeBrowserSearchUpdate, update);
+    }
+  },
+  log: (message) => logger.info(message),
+});
+
+registerAnimeBrowserIpcHandlers({ ipcMain, runtime: animeBrowserRuntime });
+
+let animeBrowserDockIconRetained = false;
+const openAnimeBrowserWindowBase = createOpenConfigSettingsWindowHandler({
+  getSettingsWindow: () => appState.animeBrowserWindow,
+  setSettingsWindow: (window) => {
+    appState.animeBrowserWindow = window as BrowserWindow | null;
+  },
+  createSettingsWindow: createCreateAnimeBrowserWindowHandler({
+    createBrowserWindow: (options) => new BrowserWindow(options),
+    preloadPath: path.join(__dirname, 'preload-animeui.js'),
+  }),
+  settingsHtmlPath: path.join(__dirname, 'animeui', 'index.html'),
+  promoteSettingsWindowAboveOverlay: (window) =>
+    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  onClosed: () => {
+    animeBrowserDockIconRetained = false;
+    releaseDockIcon({
+      dock: app.dock,
+      shouldRehide: () => {
+        const mainWindow = overlayManager.getMainWindow();
+        return Boolean(mainWindow && !mainWindow.isDestroyed());
+      },
+    });
+    // The bridge holds the stream-proxy tokens mpv is playing through, so it
+    // must outlive the window. Only tear it down when the window was the
+    // app's whole reason to be running — and once a video has launched, the
+    // instance has become a regular playback session (tray, overlay, mpv
+    // stream), so closing the browser must not kill it either.
+    if (appState.initialArgs?.animeBrowser && !appState.mpvClient?.connected) {
+      void animeBrowserRuntime.dispose().finally(() => requestAppQuit());
+    }
+  },
+  log: (message) => logger.error(message),
+});
+const openAnimeBrowserWindowHandler = (): boolean => {
+  const opened = openAnimeBrowserWindowBase();
+  if (opened) {
+    if (!animeBrowserDockIconRetained) {
+      animeBrowserDockIconRetained = true;
+      retainDockIcon({ dock: app.dock });
+    }
+    ensureTrayHandler();
+  }
+  return opened;
+};
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,
@@ -5940,6 +6039,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
     openSyncUiWindow: () => openSyncUiWindowHandler(),
+    openAnimeBrowserWindow: () => openAnimeBrowserWindowHandler(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -6193,6 +6293,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
       openSyncUiWindow: () => openSyncUiWindowHandler(),
+      openAnimeBrowserWindow: () => openAnimeBrowserWindowHandler(),
       exportLogs: () => {
         void exportLogsFromTray();
       },

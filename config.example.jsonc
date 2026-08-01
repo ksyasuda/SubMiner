@@ -612,6 +612,18 @@
   }, // Automatic Anki updates and media generation options.
 
   // ==========================================
+  // Anime Browser
+  // Anime browser sources. SubMiner ships no extension repositories and bundles no sources;
+  // add a repository index URL here (or drop .apk files in the extensions directory) to have any.
+  // Hot-reload: anime changes apply the next time the anime browser opens.
+  // ==========================================
+  "anime": {
+    "extensionsDir": "", // Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.
+    "repos": [], // Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.
+    "preferredQuality": "" // Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.
+  }, // Anime browser sources. SubMiner ships no extension repositories and bundles no sources;
+
+  // ==========================================
   // Jimaku
   // Jimaku API configuration and defaults.
   // Hot-reload: Jimaku changes apply to the next Jimaku request.

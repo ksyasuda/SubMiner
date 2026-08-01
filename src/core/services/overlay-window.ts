@@ -15,6 +15,7 @@ import {
   type HyprlandPlacementStatus,
 } from './hyprland-window-placement';
 import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
+import { isDockIconRetained } from './dock-icon-visibility';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import {
   OVERLAY_WINDOW_CONTENT_READY_FLAG,
@@ -82,7 +83,12 @@ export function updateOverlayWindowBounds(
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
   if (process.platform === 'darwin') {
     window.setAlwaysOnTop(true, 'screen-saver', 1);
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // While a regular window (anime browser, ...) holds the Dock icon, skip the
+    // accessory process transform so the app stays in the Dock and Cmd+Tab.
+    window.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: isDockIconRetained(),
+    });
     window.setFullScreenable(false);
     window.moveTop();
     return;

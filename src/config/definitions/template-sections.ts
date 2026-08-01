@@ -142,6 +142,15 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'ankiConnect',
   },
   {
+    title: 'Anime Browser',
+    description: [
+      'Anime browser sources. SubMiner ships no extension repositories and bundles no sources;',
+      'add a repository index URL here (or drop .apk files in the extensions directory) to have any.',
+    ],
+    notes: ['Hot-reload: anime changes apply the next time the anime browser opens.'],
+    key: 'anime',
+  },
+  {
     title: 'Jimaku',
     description: ['Jimaku API configuration and defaults.'],
     notes: ['Hot-reload: Jimaku changes apply to the next Jimaku request.'],

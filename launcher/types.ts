@@ -152,6 +152,7 @@ export interface Args {
   version: boolean;
   update?: boolean;
   settings: boolean;
+  animeBrowser: boolean;
   configPath: boolean;
   configShow: boolean;
   mpvIdle: boolean;

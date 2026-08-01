@@ -1,0 +1,182 @@
+# Anime Browser
+
+Search anime sources, pick an episode, and play it in mpv with SubMiner's overlay
+and mining tools attached — the same way a local file or a Jellyfin stream works.
+
+Open it with `subminer anime`, with `SubMiner.AppImage --anime`, or from
+**Browse Anime** in the tray menu. The window stays open while you watch, so you
+can queue the next episode without reopening it.
+
+While the window is open, SubMiner shows a tray icon and — on macOS — appears
+in the Cmd+Tab switcher and the Dock (macOS ties the two together), so you can
+flip between the browser and mpv. SubMiner normally hides itself from the Dock
+because the subtitle overlay needs that to float above fullscreen video; it
+hides again when the window closes during playback.
+
+Launching an episode starts a full SubMiner playback session, the same as
+playing a local file: the overlay and mining tools attach, and the tray icon
+stays available. In standalone `subminer anime` mode, closing the window while
+a video is playing leaves playback running — reopen the browser from the tray
+(**Browse Anime**). The app only exits with the window when nothing is playing.
+
+## How it works
+
+SubMiner does not implement any anime source itself. It runs **Aniyomi extension
+APKs** through a bundled JVM sidecar ([M-Extension-Server][mes]), asks the
+selected extension to resolve an episode, and hands the resulting URL to mpv.
+
+```
+extension APK  →  bridge (JVM)  →  { url, headers }  →  mpv  →  SubMiner overlay
+```
+
+Because the extension resolves the stream, whichever sources you install decide
+what is available. SubMiner only hosts them.
+
+## Installing extensions
+
+**SubMiner ships no extension repositories and bundles no sources.** There is no
+default repository, no suggested list, and no discovery. Until you add one, the
+browser has nothing to search — that is deliberate, and it is what keeps SubMiner
+a neutral host rather than a distributor.
+
+There are two ways to add extensions.
+
+### From a repository
+
+The window has three tabs — **Browse**, **Extensions**, and **Source settings** —
+and each one fills the window, so a long extension list is not squeezed in above
+the search results.
+
+Open the **Extensions** tab, paste a repository index URL, and choose
+**Add repository**. The URL must be `https` and point at a `.json` index file —
+`index.min.json` is the common Aniyomi name, but repositories are free to publish
+under another one (for example `video.min.json`). Anything else is rejected
+immediately rather than failing later. Everything before the file name is treated
+as the repository root, so `.apk` and icon URLs are resolved relative to it.
+
+Extensions your repositories offer but you do not have appear under
+**Available**, each with **Install**. Repositories are stored in config under
+`anime.repos`, so you can also manage them there and keep them in a dotfile.
+
+### Managing what is installed
+
+The Extensions tab opens with an **Installed** section listing everything in the
+extensions directory, with the sources each one provides and a **Remove**
+button. It is built from the directory rather than from a repository, so an
+extension you dropped in by hand — or one whose repository you have since
+removed — is still listed and still removable.
+
+**Update** appears next to an extension a configured repository still carries;
+it downloads the current version over the existing APK.
+
+### From a file
+
+Drop Aniyomi `.apk` files into the extensions directory, shown at the top of the
+Extensions tab. It defaults to `<userData>/anime-extensions` — on macOS,
+`~/Library/Application Support/SubMiner/anime-extensions` — and can be moved with
+`anime.extensionsDir`.
+
+A single APK may provide several sources; each appears separately in the
+**Source** picker. Extensions that fail to load are listed in the Installed
+section with the reason, so a broken APK is visible rather than silently
+missing.
+
+An extension that fails to load is skipped rather than blocking the others, so
+one bad APK will not hide the rest.
+
+## Searching every source at once
+
+With more than one source installed, the **Source** picker gains an
+**All sources** entry. Searching with it selected runs the query against every
+installed source at once, and each source's results appear the moment that
+source answers — a fast source is on screen while a slow one is still
+resolving. The status bar counts sources as they finish
+(`Searching… 3/5 sources · 42 results`).
+
+Each cover is labelled with the source it came from, and opening one always
+queries that source, whatever the picker says afterwards.
+
+A source that errors is named in the status bar and the rest still show their
+results; one extension that needs a login cannot blank the grid. If every
+source fails, the first error is shown in full.
+
+Typing a new search while one is still running simply starts over: results
+from the superseded search are discarded, even if its sources answer late.
+
+Source settings belong to a single extension, so the **Source settings** tab
+asks you to pick one while **All sources** is selected.
+
+## Settings
+
+| Key                      | Purpose                                                              |
+| ------------------------ | -------------------------------------------------------------------- |
+| `anime.repos`            | Repository index URLs. Empty by default.                             |
+| `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.  |
+| `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`). |
+
+## Source settings
+
+Most extensions need configuration before they return anything — a server
+address and credentials, a preferred quality, a language filter. Open the
+**Source settings** tab to edit them. Changes save as you make them and
+persist across restarts in `<userData>/anime-source-preferences.json`.
+
+Each save is handed back to the extension, so it can react: the Jellyfin source
+logs in when the address and password land, then fills in its media-library
+picker. Password-like fields are masked. Because that file can hold
+credentials, it is written with owner-only permissions.
+
+## The bridge
+
+The first launch downloads a platform bundle (~130 MB) containing the server and
+a matching Java runtime, so no system JDK is required. It is verified against a
+pinned SHA-256 before running, unpacked into `<userData>/anime-bridge`, and
+reused after that. Progress appears in the banner at the top of the window.
+
+The bridge stays running while the window is open. Resolved video URLs point at
+its own loopback proxy so the extension's cookies and headers apply, which means
+those URLs stop working once it exits — the window keeps it alive for the whole
+session.
+
+Two known limits:
+
+- There is no Android WebView, so extensions that need one (typically for
+  Cloudflare challenges) will fail with an error from the source.
+- Bundles are published for macOS (arm64, x64), Linux (x64), and Windows (x64).
+  Other platforms are unsupported.
+
+## Playback
+
+Selecting an episode resolves the best available stream, applies the source's
+required headers as mpv `http-header-fields`, and loads it. The headers are
+readable back off mpv, so Anki card audio and screenshots fetch correctly too.
+
+### Japanese audio, and switching tracks
+
+Sources often return a dub and the original audio as two separate entries — or
+as two audio tracks of one stream — and the dub is frequently listed first.
+SubMiner always aims at the Japanese audio:
+
+- Entries labelled as a dub are skipped as long as another entry exists. This
+  outranks `anime.preferredQuality`: a 1080p dub is the wrong file, not a better
+  one. If every entry is a dub, it still plays.
+- mpv's `alang` is set to `ja,jpn,jp,japanese` before the file loads, so a
+  stream carrying several audio tracks starts on the Japanese one. With no
+  Japanese track, mpv falls back to the first one as usual.
+- Any audio or subtitle tracks the extension supplies separately are added to
+  mpv with `audio-add` / `sub-add`, tagged with their language, and the
+  Japanese one is selected.
+
+The primary subtitle slot is reserved for Japanese — it is what the overlay
+mines. A source that only carries, say, English subtitles does not get them
+promoted to primary; instead the track is added with a normalized language tag
+(`English` → `en`), and the regular [dual-subtitle settings](configuration.md)
+apply: with `secondarySub.autoLoadSecondarySub` enabled and the language listed
+in `secondarySub.secondarySubLanguages`, it is picked up as the secondary
+subtitle, exactly as it would be for a local file.
+
+Every track is added, including the ones that are not selected, so all of them
+appear in mpv's track menu and can be switched by hand while watching
+(`#` cycles audio, `j` cycles subtitles by default).
+
+[mes]: https://github.com/1Selxo/M-Extension-Server

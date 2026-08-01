@@ -1,0 +1,66 @@
+import { contextBridge, ipcRenderer } from 'electron';
+import { IPC_CHANNELS } from './shared/ipc/contracts';
+import type {
+  AnimeBrowserAPI,
+  AnimeBrowserBridgeState,
+  AnimeBrowserDetails,
+  AnimeBrowserEpisode,
+  AnimeBrowserPlayRequest,
+  AnimeBrowserPlayResult,
+  AnimeBrowserSearchResult,
+  AnimeBrowserSearchUpdate,
+  AnimeBrowserSnapshot,
+  AvailableExtensionsResult,
+  SourcePreferenceView,
+} from './types/anime-browser';
+
+const request = IPC_CHANNELS.request;
+
+const animeBrowserAPI: AnimeBrowserAPI = {
+  getSnapshot: (): Promise<AnimeBrowserSnapshot> =>
+    ipcRenderer.invoke(request.animeBrowserGetSnapshot),
+  ensureBridge: (): Promise<AnimeBrowserBridgeState> =>
+    ipcRenderer.invoke(request.animeBrowserEnsureBridge),
+  selectSource: (sourceId: string): Promise<void> =>
+    ipcRenderer.invoke(request.animeBrowserSelectSource, sourceId),
+  search: (query: string, page?: number): Promise<AnimeBrowserSearchResult> =>
+    ipcRenderer.invoke(request.animeBrowserSearch, query, page),
+  getPopular: (page?: number): Promise<AnimeBrowserSearchResult> =>
+    ipcRenderer.invoke(request.animeBrowserGetPopular, page),
+  getDetails: (animeUrl: string, sourceId?: string): Promise<AnimeBrowserDetails> =>
+    ipcRenderer.invoke(request.animeBrowserGetDetails, animeUrl, sourceId),
+  getEpisodes: (animeUrl: string, sourceId?: string): Promise<AnimeBrowserEpisode[]> =>
+    ipcRenderer.invoke(request.animeBrowserGetEpisodes, animeUrl, sourceId),
+  playEpisode: (playRequest: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> =>
+    ipcRenderer.invoke(request.animeBrowserPlayEpisode, playRequest),
+  getPreferences: (sourceId: string): Promise<SourcePreferenceView[]> =>
+    ipcRenderer.invoke(request.animeBrowserGetPreferences, sourceId),
+  setPreference: (
+    sourceId: string,
+    key: string,
+    value: string | string[] | boolean,
+  ): Promise<SourcePreferenceView[]> =>
+    ipcRenderer.invoke(request.animeBrowserSetPreference, sourceId, key, value),
+  listAvailableExtensions: (): Promise<AvailableExtensionsResult> =>
+    ipcRenderer.invoke(request.animeBrowserListAvailableExtensions),
+  installExtension: (pkg: string): Promise<void> =>
+    ipcRenderer.invoke(request.animeBrowserInstallExtension, pkg),
+  removeExtension: (pkg: string): Promise<void> =>
+    ipcRenderer.invoke(request.animeBrowserRemoveExtension, pkg),
+  rescanExtensions: (): Promise<void> => ipcRenderer.invoke(request.animeBrowserRescanExtensions),
+  addRepo: (url: string): Promise<void> => ipcRenderer.invoke(request.animeBrowserAddRepo, url),
+  removeRepo: (url: string): Promise<void> =>
+    ipcRenderer.invoke(request.animeBrowserRemoveRepo, url),
+  onBridgeState: (listener: (state: AnimeBrowserBridgeState) => void): (() => void) => {
+    const handler = (_event: unknown, state: AnimeBrowserBridgeState): void => listener(state);
+    ipcRenderer.on(IPC_CHANNELS.event.animeBrowserBridgeState, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserBridgeState, handler);
+  },
+  onSearchUpdate: (listener: (update: AnimeBrowserSearchUpdate) => void): (() => void) => {
+    const handler = (_event: unknown, update: AnimeBrowserSearchUpdate): void => listener(update);
+    ipcRenderer.on(IPC_CHANNELS.event.animeBrowserSearchUpdate, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserSearchUpdate, handler);
+  },
+};
+
+contextBridge.exposeInMainWorld('animeBrowserAPI', animeBrowserAPI);

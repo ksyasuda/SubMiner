@@ -10,7 +10,5 @@ test('status line file path formats version archive home without trailing slash'
 });
 
 test('status line file path keeps normal docs routes as markdown files', () => {
-  expect(formatStatusLineFilePath('/v/0.12.0/configuration')).toBe(
-    'v/0.12.0/configuration.md',
-  );
+  expect(formatStatusLineFilePath('/v/0.12.0/configuration')).toBe('v/0.12.0/configuration.md');
 });

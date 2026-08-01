@@ -186,7 +186,8 @@ export function startAppLifecycle(initialArgs: CliArgs, deps: AppLifecycleServic
       (!deps.isDarwinPlatform() ||
         initialArgs.settings ||
         initialArgs.setup ||
-        initialArgs.syncWindow)
+        initialArgs.syncWindow ||
+        initialArgs.animeBrowser)
     ) {
       deps.quitApp();
     }

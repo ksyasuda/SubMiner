@@ -75,6 +75,7 @@ test('build cli command context deps maps handlers and values', () => {
     openYomitanSettings: () => calls.push('yomitan'),
     openConfigSettingsWindow: () => calls.push('config-settings'),
     openSyncUiWindow: () => {},
+    openAnimeBrowserWindow: () => {},
     cycleSecondarySubMode: () => calls.push('cycle-secondary'),
     openRuntimeOptionsPalette: () => calls.push('runtime-options'),
     printHelp: () => calls.push('help'),

@@ -4,6 +4,7 @@ import { getDefaultMpvSocketPath } from '../../shared/mpv-socket-path';
 export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   ResolvedConfig,
   | 'ankiConnect'
+  | 'anime'
   | 'jimaku'
   | 'tsukihime'
   | 'anilist'
@@ -94,6 +95,13 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     lapisKiku: {
       wordCardKind: 'word-and-sentence',
     },
+  },
+  anime: {
+    // Empty by default: SubMiner ships no extension repositories and performs
+    // no discovery. Sources exist only once the user adds a repo or an APK.
+    extensionsDir: '',
+    repos: [],
+    preferredQuality: '',
   },
   jimaku: {
     apiBaseUrl: 'https://jimaku.cc',

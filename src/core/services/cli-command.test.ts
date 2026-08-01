@@ -22,6 +22,7 @@ function makeArgs(overrides: Partial<CliArgs> = {}): CliArgs {
     yomitan: false,
     settings: false,
     syncWindow: false,
+    animeBrowser: false,
     setup: false,
     show: false,
     hide: false,
@@ -141,6 +142,9 @@ function createDeps(overrides: Partial<CliCommandServiceDeps> = {}) {
     },
     openSyncUiWindow: () => {
       calls.push('openSyncUiWindow');
+    },
+    openAnimeBrowserWindow: () => {
+      calls.push('openAnimeBrowserWindow');
     },
     openFirstRunSetup: (force?: boolean) => {
       calls.push(`openFirstRunSetup:${force === true ? 'force' : 'default'}`);
@@ -665,6 +669,7 @@ test('createCliCommandDepsRuntime reconnects MPV client when reconnect hook exis
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
+      openAnimeBrowserWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

@@ -45,7 +45,9 @@
   border: 1px solid var(--vp-c-border);
   border-radius: 0;
   background: var(--vp-c-bg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 24px 64px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 24px 64px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -62,7 +64,9 @@
   font-family: var(--tui-font-mono);
   font-size: 12px;
   cursor: pointer;
-  transition: border-color 180ms ease, color 180ms ease;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .mermaid-modal__close:hover {

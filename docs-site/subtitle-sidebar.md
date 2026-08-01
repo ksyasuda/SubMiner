@@ -62,23 +62,23 @@ Styling lives under the `css` object, using CSS property names and CSS custom pr
 | `pauseVideoOnHover` | boolean | `true`        | Pause playback while hovering the cue list                                 |
 | `autoScroll`        | boolean | `true`        | Keep the active cue in view during playback                                |
 
-| `css` property                              | Default                     | Description                  |
-| ------------------------------------------- | --------------------------- | ---------------------------- |
-| `font-family`                               | `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP` | Cue text font family |
-| `color`                                     | `#cad3f5`                   | Default cue text color       |
-| `background-color`                          | `rgba(73, 77, 100, 0.9)`    | Sidebar shell background color |
-| `font-size`                                 | `16px`                      | Base cue font size           |
-| `opacity`                                   | `0.95`                      | Sidebar opacity between `0` and `1` |
-| `--subtitle-sidebar-max-width`              | `420px`                     | Maximum sidebar width        |
-| `--subtitle-sidebar-timestamp-color`        | `#a5adcb`                   | Cue timestamp color          |
-| `--subtitle-sidebar-active-line-color`      | `#f5bde6`                   | Active cue text color        |
-| `--subtitle-sidebar-active-background-color`| `rgba(138, 173, 244, 0.22)` | Active cue background color  |
-| `--subtitle-sidebar-hover-background-color` | `rgba(54, 58, 79, 0.84)`    | Hovered cue background color |
+| `css` property                               | Default                                                         | Description                         |
+| -------------------------------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| `font-family`                                | `Hiragino Sans, M PLUS 1, Source Han Sans JP, Noto Sans CJK JP` | Cue text font family                |
+| `color`                                      | `#cad3f5`                                                       | Default cue text color              |
+| `background-color`                           | `rgba(73, 77, 100, 0.9)`                                        | Sidebar shell background color      |
+| `font-size`                                  | `16px`                                                          | Base cue font size                  |
+| `opacity`                                    | `0.95`                                                          | Sidebar opacity between `0` and `1` |
+| `--subtitle-sidebar-max-width`               | `420px`                                                         | Maximum sidebar width               |
+| `--subtitle-sidebar-timestamp-color`         | `#a5adcb`                                                       | Cue timestamp color                 |
+| `--subtitle-sidebar-active-line-color`       | `#f5bde6`                                                       | Active cue text color               |
+| `--subtitle-sidebar-active-background-color` | `rgba(138, 173, 244, 0.22)`                                     | Active cue background color         |
+| `--subtitle-sidebar-hover-background-color`  | `rgba(54, 58, 79, 0.84)`                                        | Hovered cue background color        |
 
 ## Keyboard Shortcut
 
-| Key | Action                  | Config key                     |
-| --- | ----------------------- | ------------------------------ |
-| `\` | Toggle subtitle sidebar | `subtitleSidebar.toggleKey`    |
+| Key | Action                  | Config key                  |
+| --- | ----------------------- | --------------------------- |
+| `\` | Toggle subtitle sidebar | `subtitleSidebar.toggleKey` |
 
 The toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source. See [Keyboard Shortcuts](/shortcuts) for the full shortcut reference.

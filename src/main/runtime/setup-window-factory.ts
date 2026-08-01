@@ -99,3 +99,19 @@ export function createCreateSyncUiWindowHandler<TWindow>(deps: {
     backgroundColor: '#24273a',
   });
 }
+
+export function createCreateAnimeBrowserWindowHandler<TWindow>(deps: {
+  createBrowserWindow: (options: Electron.BrowserWindowConstructorOptions) => TWindow;
+  preloadPath: string;
+}) {
+  return createSetupWindowHandler(deps, {
+    // Wider than the other surfaces: this one is a cover-art grid.
+    width: 1180,
+    height: 820,
+    title: 'SubMiner Anime',
+    show: false,
+    resizable: true,
+    preloadPath: deps.preloadPath,
+    backgroundColor: '#24273a',
+  });
+}

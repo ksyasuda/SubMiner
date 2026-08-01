@@ -31,20 +31,20 @@ input-ipc-server=\\.\pipe\subminer-socket
 
 The plugin reads options from `script-opts` with the `subminer-` prefix (for example `--script-opts=subminer-backend=hyprland`). Managed launches inject these automatically from your SubMiner config; the shipped `subminer.conf` is intentionally empty so command-line opts always win.
 
-| Option                                             | Default          | Description                                                                     |
-| -------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| `binary_path`                                      | `""`             | Path to the SubMiner binary; empty enables [auto-detection](#binary-auto-detection) |
-| `socket_path`                                      | platform default | mpv IPC socket path (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows) |
-| `texthooker_enabled`                               | `no`             | Start the texthooker server with the overlay                                    |
-| `texthooker_port`                                  | `5174`           | Texthooker server port                                                          |
-| `backend`                                          | `auto`           | Window backend (`auto`, `hyprland`, `sway`, `x11`, `macos`)                     |
-| `auto_start`                                       | `no`             | Start the overlay app on `file-loaded` (managed launches set this from `mpv.autoStartSubMiner`) |
-| `auto_start_visible_overlay`                       | `no`             | Show the visible overlay on auto-start (from `auto_start_overlay` in config)    |
-| `overlay_loading_osd`                              | `no`             | Show an OSD loading spinner while the overlay starts                            |
-| `auto_start_pause_until_ready`                     | `yes`            | Keep mpv paused until the overlay reports tokenization-ready                    |
-| `auto_start_pause_until_ready_timeout_seconds`     | `30`             | Timeout before resuming playback anyway                                         |
-| `osd_messages`                                     | `yes`            | Show plugin OSD status messages                                                 |
-| `log_level`                                        | `info`           | Plugin log verbosity                                                            |
+| Option                                         | Default          | Description                                                                                     |
+| ---------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------- |
+| `binary_path`                                  | `""`             | Path to the SubMiner binary; empty enables [auto-detection](#binary-auto-detection)             |
+| `socket_path`                                  | platform default | mpv IPC socket path (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows)          |
+| `texthooker_enabled`                           | `no`             | Start the texthooker server with the overlay                                                    |
+| `texthooker_port`                              | `5174`           | Texthooker server port                                                                          |
+| `backend`                                      | `auto`           | Window backend (`auto`, `hyprland`, `sway`, `x11`, `macos`)                                     |
+| `auto_start`                                   | `no`             | Start the overlay app on `file-loaded` (managed launches set this from `mpv.autoStartSubMiner`) |
+| `auto_start_visible_overlay`                   | `no`             | Show the visible overlay on auto-start (from `auto_start_overlay` in config)                    |
+| `overlay_loading_osd`                          | `no`             | Show an OSD loading spinner while the overlay starts                                            |
+| `auto_start_pause_until_ready`                 | `yes`            | Keep mpv paused until the overlay reports tokenization-ready                                    |
+| `auto_start_pause_until_ready_timeout_seconds` | `30`             | Timeout before resuming playback anyway                                                         |
+| `osd_messages`                                 | `yes`            | Show plugin OSD status messages                                                                 |
+| `log_level`                                    | `info`           | Plugin log verbosity                                                                            |
 
 ## Keybindings
 

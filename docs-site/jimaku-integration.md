@@ -23,12 +23,12 @@ If no files match the current episode filter, a "Show all files" button lets you
 
 ### Modal Keyboard Shortcuts
 
-| Key | Action |
-| --- | --- |
-| `Enter` (in text field) | Search |
-| `Enter` (in list) | Select entry / download file |
-| `Arrow Up` / `Arrow Down` | Navigate entries or files |
-| `Escape` | Close modal |
+| Key                       | Action                       |
+| ------------------------- | ---------------------------- |
+| `Enter` (in text field)   | Search                       |
+| `Enter` (in list)         | Select entry / download file |
+| `Arrow Up` / `Arrow Down` | Navigate entries or files    |
+| `Escape`                  | Close modal                  |
 
 ## Configuration
 
@@ -41,26 +41,26 @@ Add a `jimaku` section to your `config.jsonc`:
     "apiKeyCommand": "cat ~/.jimaku_key",
     "apiBaseUrl": "https://jimaku.cc",
     "languagePreference": "ja",
-    "maxEntryResults": 10
-  }
+    "maxEntryResults": 10,
+  },
 }
 ```
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `jimaku.apiKey` | `string` | - | Jimaku API key (plaintext). Mutually exclusive with `apiKeyCommand`. |
-| `jimaku.apiKeyCommand` | `string` | - | Shell command that prints the API key to stdout. Useful for secret managers (e.g., `pass jimaku/api-key`). |
-| `jimaku.apiBaseUrl` | `string` | `"https://jimaku.cc"` | Base URL for the Jimaku API. Only change this if using a mirror or local instance. |
-| `jimaku.languagePreference` | `"ja"` \| `"en"` \| `"none"` | `"ja"` | Sort subtitle files by language tag. `"ja"` pushes Japanese-tagged files to the top; `"en"` does the same for English. `"none"` preserves the API order. |
-| `jimaku.maxEntryResults` | `number` | `10` | Maximum number of anime entries returned per search. |
+| Option                      | Type                         | Default               | Description                                                                                                                                              |
+| --------------------------- | ---------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jimaku.apiKey`             | `string`                     | -                     | Jimaku API key (plaintext). Mutually exclusive with `apiKeyCommand`.                                                                                     |
+| `jimaku.apiKeyCommand`      | `string`                     | -                     | Shell command that prints the API key to stdout. Useful for secret managers (e.g., `pass jimaku/api-key`).                                               |
+| `jimaku.apiBaseUrl`         | `string`                     | `"https://jimaku.cc"` | Base URL for the Jimaku API. Only change this if using a mirror or local instance.                                                                       |
+| `jimaku.languagePreference` | `"ja"` \| `"en"` \| `"none"` | `"ja"`                | Sort subtitle files by language tag. `"ja"` pushes Japanese-tagged files to the top; `"en"` does the same for English. `"none"` preserves the API order. |
+| `jimaku.maxEntryResults`    | `number`                     | `10`                  | Maximum number of anime entries returned per search.                                                                                                     |
 
 The keyboard shortcut is configured separately under `shortcuts`:
 
 ```jsonc
 {
   "shortcuts": {
-    "openJimaku": "Ctrl+Shift+J"
-  }
+    "openJimaku": "Ctrl+Shift+J",
+  },
 }
 ```
 

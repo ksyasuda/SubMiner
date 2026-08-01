@@ -170,6 +170,7 @@ export function createDefaultArgs(
     version: false,
     update: false,
     settings: false,
+    animeBrowser: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,
@@ -355,6 +356,12 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
       );
   }
 
+  if (invocations.animeInvocation) {
+    if (invocations.animeInvocation.logLevel) {
+      parsed.logLevel = parseLogLevel(invocations.animeInvocation.logLevel);
+    }
+    parsed.animeBrowser = true;
+  }
   if (invocations.settingsInvocation) {
     if (invocations.settingsInvocation.logLevel) {
       parsed.logLevel = parseLogLevel(invocations.settingsInvocation.logLevel);

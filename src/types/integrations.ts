@@ -42,6 +42,24 @@ export interface YoutubePickerResolveResult {
   message: string;
 }
 
+export interface AnimeConfig {
+  /**
+   * Directory holding Aniyomi extension `.apk` files. Defaults to
+   * `<userData>/anime-extensions` when unset.
+   */
+  extensionsDir?: string;
+  /**
+   * Extension repository index URLs (any https `.json` index, such as
+   * `https://.../index.min.json`).
+   *
+   * Ships empty and stays empty unless the user adds one. SubMiner performs no
+   * repository discovery and bundles no sources.
+   */
+  repos?: string[];
+  /** Preferred stream label, matched as a substring, e.g. "1080". */
+  preferredQuality?: string;
+}
+
 export interface JimakuConfig {
   apiKey?: string;
   apiKeyCommand?: string;
