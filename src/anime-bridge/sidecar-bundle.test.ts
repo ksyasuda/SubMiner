@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  bundleReleaseUrl,
   findBundleBinaries,
   PINNED_BUNDLE_SHA256,
   PINNED_BUNDLE_TAG,
@@ -26,32 +27,69 @@ test('resolveBundleAssetName returns null for unpublished combinations', () => {
   assert.equal(resolveBundleAssetName('freebsd', 'x64'), null);
 });
 
-test('selectBundleAsset skips releases without a matching asset', () => {
-  const releases = [
-    // The iOS runtime release carries no desktop bundle.
-    { tag_name: 'ios-runtime-v7', assets: [{ name: 'MExtensionServer-ios.jar' }] },
+const PINNED_RELEASE = {
+  tag_name: PINNED_BUNDLE_TAG,
+  assets: [
     {
-      tag_name: 'v1.0.6.0',
-      assets: [
-        {
-          name: 'macOS-arm64-bundle.zip',
-          browser_download_url: 'https://example.test/macOS-arm64-bundle.zip',
-          size: 133_058_560,
-        },
-      ],
+      name: 'macOS-arm64-bundle.zip',
+      browser_download_url: 'https://example.test/macOS-arm64-bundle.zip',
+      size: 133_058_560,
     },
-  ];
+  ],
+};
 
-  const asset = selectBundleAsset(releases, 'macOS-arm64-bundle.zip');
-  assert.equal(asset?.tagName, 'v1.0.6.0');
+test('selectBundleAsset reads the by-tag endpoint payload', () => {
+  const asset = selectBundleAsset(PINNED_RELEASE, 'macOS-arm64-bundle.zip');
+  assert.equal(asset?.tagName, PINNED_BUNDLE_TAG);
   assert.equal(asset?.downloadUrl, 'https://example.test/macOS-arm64-bundle.zip');
   assert.equal(asset?.sizeBytes, 133_058_560);
 });
 
+test('selectBundleAsset skips releases without a matching asset', () => {
+  const releases = [
+    // The iOS runtime release carries no desktop bundle.
+    { tag_name: 'ios-runtime-v7', assets: [{ name: 'MExtensionServer-ios.jar' }] },
+    PINNED_RELEASE,
+  ];
+
+  const asset = selectBundleAsset(releases, 'macOS-arm64-bundle.zip');
+  assert.equal(asset?.tagName, PINNED_BUNDLE_TAG);
+});
+
+test('selectBundleAsset ignores releases newer than the pin', () => {
+  const releases = [
+    {
+      tag_name: 'v9.9.9.9',
+      assets: [
+        {
+          name: 'macOS-arm64-bundle.zip',
+          browser_download_url: 'https://example.test/unpinned.zip',
+          size: 1,
+        },
+      ],
+    },
+    PINNED_RELEASE,
+  ];
+
+  const asset = selectBundleAsset(releases, 'macOS-arm64-bundle.zip');
+  assert.equal(asset?.tagName, PINNED_BUNDLE_TAG);
+  assert.equal(asset?.downloadUrl, 'https://example.test/macOS-arm64-bundle.zip');
+});
+
 test('selectBundleAsset returns null when nothing matches', () => {
-  assert.equal(selectBundleAsset([{ tag_name: 'v1', assets: [] }], 'linux-x64-bundle.zip'), null);
+  assert.equal(
+    selectBundleAsset([{ tag_name: PINNED_BUNDLE_TAG, assets: [] }], 'linux-x64-bundle.zip'),
+    null,
+  );
   assert.equal(selectBundleAsset([], 'linux-x64-bundle.zip'), null);
   assert.equal(selectBundleAsset({ message: 'rate limited' }, 'linux-x64-bundle.zip'), null);
+});
+
+test('bundleReleaseUrl targets the pinned tag', () => {
+  assert.equal(
+    bundleReleaseUrl(),
+    `https://api.github.com/repos/1Selxo/M-Extension-Server/releases/tags/${PINNED_BUNDLE_TAG}`,
+  );
 });
 
 test('findBundleBinaries locates the nested jre and jar', async () => {
@@ -103,15 +141,19 @@ test('verifyPinnedBundle accepts a matching hash and rejects a mismatch', () => 
 });
 
 test('verifyPinnedBundle refuses an asset that has no pin', () => {
-  const result = verifyPinnedBundle('linux-x64-bundle.zip', new Uint8Array([1, 2, 3]));
+  const result = verifyPinnedBundle('windows-x64-bundle.zip', new Uint8Array([1, 2, 3]));
   assert.equal(result.ok, false);
   assert.match((result as { reason: string }).reason, /No pinned checksum/);
 });
 
-test('the pinned tag and macOS arm64 hash are the verified release', () => {
+test('the pinned tag and hashes are the verified release', () => {
   assert.equal(PINNED_BUNDLE_TAG, 'v1.0.6.0');
   assert.equal(
     PINNED_BUNDLE_SHA256['macOS-arm64-bundle.zip'],
     '5f4fb03abfe88bc46ddf5f4d8221156ee2d66b9cbad7c4bc3ade4baf3a4266e6',
+  );
+  assert.equal(
+    PINNED_BUNDLE_SHA256['linux-x64-bundle.zip'],
+    'c2b869d3905b06a308517fec0b44f70ff76f7212230c60710bba39a7025c3a69',
   );
 });

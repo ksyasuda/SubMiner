@@ -129,9 +129,11 @@ credentials, it is written with owner-only permissions.
 ## The bridge
 
 The first launch downloads a platform bundle (~130 MB) containing the server and
-a matching Java runtime, so no system JDK is required. It is verified against a
-pinned SHA-256 before running, unpacked into `<userData>/anime-bridge`, and
-reused after that. Progress appears in the banner at the top of the window.
+a matching Java runtime, so no system JDK is required. SubMiner pins one
+upstream release tag and the SHA-256 of each asset it has verified; the download
+is checked against that hash before anything runs, then unpacked into
+`<userData>/anime-bridge` and reused after that. Progress appears in the banner
+at the top of the window.
 
 The bridge stays running while the window is open. Resolved video URLs point at
 its own loopback proxy so the extension's cookies and headers apply, which means
@@ -142,8 +144,10 @@ Two known limits:
 
 - There is no Android WebView, so extensions that need one (typically for
   Cloudflare challenges) will fail with an error from the source.
-- Bundles are published for macOS (arm64, x64), Linux (x64), and Windows (x64).
-  Other platforms are unsupported.
+- Bundles are published for macOS (arm64, x64), Linux (x64), and Windows (x64),
+  but only the ones we have hashed ourselves will run: currently macOS arm64 and
+  Linux x64. The rest stop with "No pinned checksum for …" until a maintainer
+  verifies them. Other platforms are unsupported outright.
 
 ## Playback
 

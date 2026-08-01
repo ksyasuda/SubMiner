@@ -8,8 +8,15 @@ import path from 'node:path';
  * required.
  */
 
-export const BUNDLE_RELEASES_URL =
-  'https://api.github.com/repos/1Selxo/M-Extension-Server/releases?page=1&per_page=10';
+const BUNDLE_REPO_API = 'https://api.github.com/repos/1Selxo/M-Extension-Server';
+
+/**
+ * Fetch the pinned release by tag rather than listing releases: upstream ships
+ * several a week, so a paged list would scroll the pinned tag off page one.
+ */
+export function bundleReleaseUrl(tagName: string = PINNED_BUNDLE_TAG): string {
+  return `${BUNDLE_REPO_API}/releases/tags/${encodeURIComponent(tagName)}`;
+}
 
 /**
  * The bridge release this integration was verified against.
@@ -24,6 +31,7 @@ export const PINNED_BUNDLE_TAG = 'v1.0.6.0';
 /** SHA-256 of each pinned asset, keyed by release asset name. */
 export const PINNED_BUNDLE_SHA256: Readonly<Record<string, string>> = {
   'macOS-arm64-bundle.zip': '5f4fb03abfe88bc46ddf5f4d8221156ee2d66b9cbad7c4bc3ade4baf3a4266e6',
+  'linux-x64-bundle.zip': 'c2b869d3905b06a308517fec0b44f70ff76f7212230c60710bba39a7025c3a69',
 };
 
 /**
@@ -130,12 +138,23 @@ interface GithubRelease {
 }
 
 /**
- * Pick the newest release carrying an asset for this platform. Releases are
- * returned newest-first, and some (the iOS runtime) carry no desktop bundle.
+ * Pick the asset for this platform from the pinned release. Selecting "newest"
+ * instead would download a release whose checksum we never computed, so every
+ * upstream publish would break the install with a mismatch.
  */
-export function selectBundleAsset(releases: unknown, assetName: string): BundleAsset | null {
-  if (!Array.isArray(releases)) return null;
-  for (const release of releases as GithubRelease[]) {
+export function selectBundleAsset(
+  releases: unknown,
+  assetName: string,
+  tagName: string = PINNED_BUNDLE_TAG,
+): BundleAsset | null {
+  // Accepts either a single release (the by-tag endpoint) or a list.
+  const candidates = Array.isArray(releases)
+    ? releases
+    : releases && typeof releases === 'object'
+      ? [releases]
+      : [];
+  for (const release of candidates as GithubRelease[]) {
+    if (release.tag_name !== tagName) continue;
     const asset = release.assets?.find((candidate) => candidate.name === assetName);
     if (asset?.browser_download_url && release.tag_name) {
       return {

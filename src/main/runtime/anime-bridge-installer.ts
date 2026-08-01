@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process';
 import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
-  BUNDLE_RELEASES_URL,
+  bundleReleaseUrl,
   findBundleBinaries,
+  PINNED_BUNDLE_TAG,
   resolveBundleAssetName,
   selectBundleAsset,
   verifyPinnedBundle,
@@ -121,16 +122,18 @@ export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promis
   }
 
   options.onProgress?.({ stage: 'locating', progress: null });
-  const releasesResponse = await fetchImpl(BUNDLE_RELEASES_URL, {
+  const releasesResponse = await fetchImpl(bundleReleaseUrl(), {
     headers: { Accept: 'application/vnd.github+json' },
     signal: AbortSignal.timeout(RELEASES_TIMEOUT_MS),
   });
   if (!releasesResponse.ok) {
-    throw new Error(`Could not list anime bridge releases (${releasesResponse.status}).`);
+    throw new Error(
+      `Could not read anime bridge release ${PINNED_BUNDLE_TAG} (${releasesResponse.status}).`,
+    );
   }
   const asset = selectBundleAsset(await releasesResponse.json(), assetName);
   if (asset === null) {
-    throw new Error(`No published anime bridge release contains ${assetName}.`);
+    throw new Error(`Anime bridge release ${PINNED_BUNDLE_TAG} has no ${assetName}.`);
   }
 
   options.onProgress?.({ stage: 'downloading', progress: 0 });
