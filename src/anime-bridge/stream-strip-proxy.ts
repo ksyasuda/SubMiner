@@ -68,7 +68,11 @@ export interface StreamStripProxyOptions {
   /** Read per request so a bridge restart on a new port keeps working. */
   upstreamOrigin: () => string;
   log?: (message: string) => void;
+  /** Pause before the single retry of a failed upstream GET. */
+  retryDelayMs?: number;
 }
+
+const DEFAULT_RETRY_DELAY_MS = 400;
 
 export interface StreamStripProxyHandle {
   origin: string;
@@ -97,6 +101,7 @@ export function startStreamStripProxy(
   options: StreamStripProxyOptions,
 ): Promise<StreamStripProxyHandle> {
   const log = options.log ?? (() => {});
+  const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 
   const server = http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -114,19 +119,61 @@ export function startStreamStripProxy(
 
     const requestHeaders = forwardableHeaders(req.headers);
     delete requestHeaders.host;
+    res.on('error', () => {});
+
+    requestUpstream(req, res, upstreamUrl, requestHeaders, 0);
+  });
+
+  /**
+   * One delayed retry on a failed GET: right after an episode resolve, the
+   * bridge (or the host behind it) can error on the very first segment
+   * fetches and be fine a moment later — mpv treats a playlist full of failed
+   * segments as a dead file and gives up for good.
+   */
+  function requestUpstream(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    upstreamUrl: URL,
+    requestHeaders: http.OutgoingHttpHeaders,
+    attempt: number,
+  ): void {
+    const mayRetry = req.method === 'GET' && attempt === 0;
+    const retry = (): void => {
+      setTimeout(
+        () => requestUpstream(req, res, upstreamUrl, requestHeaders, attempt + 1),
+        retryDelayMs,
+      );
+    };
 
     const upstreamRequest = http.request(
       upstreamUrl,
       { method: req.method, headers: requestHeaders },
-      (upstream) => handleUpstreamResponse(req, res, upstream),
+      (upstream) => {
+        const status = upstream.statusCode ?? 502;
+        if (status === 404 || status >= 500) {
+          if (mayRetry) {
+            log(`[stream-proxy] upstream ${status} for ${upstreamUrl.pathname}; retrying once`);
+            upstream.resume();
+            retry();
+            return;
+          }
+          log(`[stream-proxy] upstream ${status} for ${upstreamUrl.pathname}`);
+        }
+        handleUpstreamResponse(req, res, upstream);
+      },
     );
     upstreamRequest.on('error', (error) => {
+      if (mayRetry) {
+        log(`[stream-proxy] upstream request failed: ${String(error)}; retrying once`);
+        retry();
+        return;
+      }
       log(`[stream-proxy] upstream request failed: ${String(error)}`);
       if (!res.headersSent) res.writeHead(502);
       res.end();
     });
     upstreamRequest.end();
-  });
+  }
 
   function handleUpstreamResponse(
     req: http.IncomingMessage,

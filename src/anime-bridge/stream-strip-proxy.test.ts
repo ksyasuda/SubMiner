@@ -80,7 +80,10 @@ async function withProxy(
   await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
   const upstreamOrigin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
 
-  const proxy = await startStreamStripProxy({ upstreamOrigin: () => upstreamOrigin });
+  const proxy = await startStreamStripProxy({
+    upstreamOrigin: () => upstreamOrigin,
+    retryDelayMs: 5,
+  });
   try {
     await run(proxy.origin, upstreamOrigin);
   } finally {
@@ -160,6 +163,69 @@ test('proxy forwards error statuses without touching the body', async () => {
       const { status, body } = await fetchBytes(`${origin}/video/gone.ts`);
       assert.equal(status, 404);
       assert.equal(body.toString('utf8'), 'nope');
+    },
+  );
+});
+
+/**
+ * Upstream that fails the first `failures` hits per path, then serves the
+ * route. Mirrors the bridge right after an episode resolve: mpv's immediate
+ * segment fetch errors, the same fetch a moment later works.
+ */
+async function withFlakyUpstream(
+  failures: number,
+  failStatus: number,
+  route: Route,
+  run: (proxyOrigin: string, hits: () => number) => Promise<void>,
+): Promise<void> {
+  let hits = 0;
+  const upstream = http.createServer((_req, res) => {
+    hits += 1;
+    if (hits <= failures) {
+      res.writeHead(failStatus, { 'content-type': 'text/plain' }).end('not ready');
+      return;
+    }
+    res.writeHead(route.status, { 'content-type': route.contentType });
+    res.end(route.body);
+  });
+  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamOrigin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+  const proxy = await startStreamStripProxy({
+    upstreamOrigin: () => upstreamOrigin,
+    retryDelayMs: 5,
+  });
+  try {
+    await run(proxy.origin, () => hits);
+  } finally {
+    await proxy.close();
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+  }
+}
+
+test('proxy retries a failed segment fetch once and serves the retry', async () => {
+  const ts = makeTsPackets(8);
+  await withFlakyUpstream(
+    1,
+    404,
+    { status: 200, contentType: 'video/mp2t', body: ts },
+    async (origin, hits) => {
+      const { status, body } = await fetchBytes(`${origin}/video/seg.ts`);
+      assert.equal(status, 200);
+      assert.deepEqual(body, ts);
+      assert.equal(hits(), 2);
+    },
+  );
+});
+
+test('proxy gives up after one retry and forwards the error', async () => {
+  await withFlakyUpstream(
+    Infinity,
+    503,
+    { status: 200, contentType: 'video/mp2t', body: makeTsPackets(8) },
+    async (origin, hits) => {
+      const { status } = await fetchBytes(`${origin}/video/seg.ts`);
+      assert.equal(status, 503);
+      assert.equal(hits(), 2);
     },
   );
 });
