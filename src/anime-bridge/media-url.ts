@@ -47,6 +47,30 @@ export function resolveBridgeMediaUrl(bridgeBaseUrl: string, mediaUrl: string): 
   return rebased.toString();
 }
 
+/**
+ * Send a bridge-served HLS stream through the local strip proxy instead. Only
+ * `.m3u8` URLs on the bridge origin qualify: direct files need no fixing, and
+ * an external URL would not resolve through a proxy that forwards to the
+ * bridge. Anything unparseable comes back unchanged.
+ */
+export function routeHlsThroughProxy(
+  streamUrl: string,
+  bridgeBaseUrl: string,
+  proxyOrigin: string,
+): string {
+  let stream: URL;
+  let bridge: URL;
+  try {
+    stream = new URL(streamUrl);
+    bridge = new URL(bridgeBaseUrl);
+  } catch {
+    return streamUrl;
+  }
+  if (stream.origin !== bridge.origin) return streamUrl;
+  if (!stream.pathname.endsWith('.m3u8')) return streamUrl;
+  return `${proxyOrigin}${stream.pathname}${stream.search}`;
+}
+
 /** Aniyomi's SAnime status constants. */
 export type AnimeStatus =
   | 'unknown'

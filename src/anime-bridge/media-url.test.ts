@@ -1,8 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseAnimeStatus, resolveBridgeMediaUrl } from './media-url';
+import { parseAnimeStatus, resolveBridgeMediaUrl, routeHlsThroughProxy } from './media-url';
 
 const BRIDGE = 'http://127.0.0.1:56037';
+const PROXY = 'http://127.0.0.1:60001';
+
+test('a bridge m3u8 stream is routed through the strip proxy', () => {
+  assert.equal(
+    routeHlsThroughProxy(`${BRIDGE}/video/master.m3u8?q=1080`, BRIDGE, PROXY),
+    `${PROXY}/video/master.m3u8?q=1080`,
+  );
+});
+
+test('non-HLS bridge streams stay on the bridge', () => {
+  const direct = `${BRIDGE}/video/movie-token`;
+  assert.equal(routeHlsThroughProxy(direct, BRIDGE, PROXY), direct);
+});
+
+test('external m3u8 streams are not routed through the proxy', () => {
+  const remote = 'https://cdn.example.com/hls/master.m3u8';
+  assert.equal(routeHlsThroughProxy(remote, BRIDGE, PROXY), remote);
+});
+
+test('unparseable stream urls pass through routeHlsThroughProxy unchanged', () => {
+  assert.equal(routeHlsThroughProxy('not a url', BRIDGE, PROXY), 'not a url');
+  assert.equal(
+    routeHlsThroughProxy(`${BRIDGE}/video/a.m3u8`, 'garbage', PROXY),
+    `${BRIDGE}/video/a.m3u8`,
+  );
+});
 
 test('a loopback proxy url is rebased onto the live bridge port', () => {
   assert.equal(

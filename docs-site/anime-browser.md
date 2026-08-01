@@ -155,6 +155,21 @@ Selecting an episode resolves the best available stream, applies the source's
 required headers as mpv `http-header-fields`, and loads it. The headers are
 readable back off mpv, so Anki card audio and screenshots fetch correctly too.
 
+HLS streams are routed through a small local proxy before mpv sees them. Some
+hosts disguise their video segments by prepending a fake image header (a real
+1x1 PNG) so scrapers back off; Aniyomi's own player strips this, but ffmpeg
+probes the segment as a picture and playback dies with "no audio or video data
+played". The proxy scans each segment for the first genuine MPEG-TS packet run
+and drops whatever junk sits in front of it. Segments that are not TS (fMP4,
+subtitles, encryption keys) pass through untouched, and direct-file streams
+skip the proxy entirely.
+
+"Playing" in the status bar means playing: after handing mpv the stream,
+SubMiner waits until mpv actually configures a video output before reporting
+success. If mpv gives up instead — a dead host, an undecodable stream — the
+browser shows mpv's error rather than pretending playback started (a failed
+load leaves no mpv window, because the player idles windowless).
+
 ### Japanese audio, and switching tracks
 
 Sources often return a dub and the original audio as two separate entries — or

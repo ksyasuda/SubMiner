@@ -3275,6 +3275,17 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
     }),
   sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
   ensureMpvConnected: () => ensureMpvConnectedForPlayback(),
+  onPlaybackEndFile: (listener) => {
+    const client = appState.mpvClient;
+    if (!client) return () => {};
+    client.on('end-file', listener);
+    return () => client.off('end-file', listener);
+  },
+  readMpvProperty: (name) => {
+    const client = appState.mpvClient;
+    if (!client) return Promise.reject(new Error('mpv is not connected.'));
+    return client.requestProperty(name);
+  },
   showVisibleOverlay: () => {
     // Launching a video turns a browse-only instance into a regular SubMiner
     // playback session: tray icon plus the overlay runtime that

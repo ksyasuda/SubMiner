@@ -1,6 +1,18 @@
 import { AnimeBridgeClient } from '../../anime-bridge/bridge-client';
 import { resolveStream } from '../../anime-bridge/headers';
-import { parseAnimeStatus, resolveBridgeMediaUrl } from '../../anime-bridge/media-url';
+import {
+  parseAnimeStatus,
+  resolveBridgeMediaUrl,
+  routeHlsThroughProxy,
+} from '../../anime-bridge/media-url';
+import {
+  watchPlaybackOutcome,
+  type PlaybackEndFileEvent,
+} from '../../anime-bridge/playback-outcome';
+import {
+  startStreamStripProxy,
+  type StreamStripProxyHandle,
+} from '../../anime-bridge/stream-strip-proxy';
 import {
   buildPlaybackCommands,
   buildTrackCommands,
@@ -60,6 +72,14 @@ export interface AnimeBrowserRuntimeDeps {
   sendMpvCommand: (command: Array<string | number>) => void;
   /** Brings mpv up if it is not already connected. Resolves false on failure. */
   ensureMpvConnected: () => Promise<boolean>;
+  /**
+   * Subscribe to mpv end-file events; returns the unsubscribe. Together with
+   * readMpvProperty this lets playEpisode confirm playback really started
+   * instead of reporting success the moment the commands were written.
+   */
+  onPlaybackEndFile?: (listener: (event: PlaybackEndFileEvent) => void) => () => void;
+  /** One-shot mpv property read; rejects while the property is unavailable. */
+  readMpvProperty?: (name: string) => Promise<unknown>;
   showMpvOsd?: (message: string) => void;
   showVisibleOverlay?: () => void;
   /** Lets tests drive the pause between `loadfile` and the track commands. */
@@ -82,6 +102,7 @@ const TRACK_ATTACH_DELAY_MS = 300;
 export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let bridgeState: AnimeBrowserBridgeState = IDLE_STATE;
   let sidecar: SidecarHandle | null = null;
+  let stripProxy: StreamStripProxyHandle | null = null;
   let starting: Promise<SidecarHandle> | null = null;
   let extensions: InstalledExtension[] = [];
   let sources: ExtensionSource[] = [];
@@ -124,6 +145,16 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       onLog: (line) => deps.log(`[anime-bridge] ${line}`),
     });
     sidecar = handle;
+
+    try {
+      stripProxy = await startStreamStripProxy({
+        upstreamOrigin: () => sidecar?.baseUrl ?? handle.baseUrl,
+        log: deps.log,
+      });
+    } catch (error) {
+      // Playback still works for undisguised streams; log and carry on.
+      deps.log(`[anime-browser] stream proxy failed to start: ${describeError(error)}`);
+    }
 
     await scanExtensions(handle);
     return handle;
@@ -470,10 +501,15 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
             })),
           }));
 
-        const stream = selectPreferredStream(streams, deps.preferredQuality?.());
-        if (!stream) {
+        const selected = selectPreferredStream(streams, deps.preferredQuality?.());
+        if (!selected) {
           return { ok: false, error: 'That source returned no playable video.', quality: null };
         }
+        // HLS goes through the local strip proxy, which undoes fake-image
+        // segment disguises mpv cannot decode around.
+        const stream = stripProxy
+          ? { ...selected, url: routeHlsThroughProxy(selected.url, baseUrl, stripProxy.origin) }
+          : selected;
 
         if (!(await deps.ensureMpvConnected())) {
           return {
@@ -483,29 +519,51 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           };
         }
 
-        const title = `${request.animeTitle} — ${request.episodeName}`;
-        for (const command of buildPlaybackCommands({ stream, title })) {
-          deps.sendMpvCommand(command);
-        }
+        // Subscribed before loadfile so a fast failure cannot slip past it.
+        const watch =
+          deps.onPlaybackEndFile && deps.readMpvProperty
+            ? watchPlaybackOutcome({
+                onEndFile: deps.onPlaybackEndFile,
+                readProperty: deps.readMpvProperty,
+                wait,
+              })
+            : null;
 
-        const trackCommands = buildTrackCommands(stream);
-        if (trackCommands.length > 0) {
-          deps.log(
-            `[anime-browser] ${stream.audios.length} external audio, ` +
-              `${stream.subtitles.length} external subtitle track(s)`,
-          );
-          // mpv attaches added tracks to the file that is loading, so give the
-          // loadfile a moment to take effect first. Same pause the Jellyfin
-          // subtitle preload uses.
-          await wait(TRACK_ATTACH_DELAY_MS);
-          for (const command of trackCommands) {
+        try {
+          const title = `${request.animeTitle} — ${request.episodeName}`;
+          for (const command of buildPlaybackCommands({ stream, title })) {
             deps.sendMpvCommand(command);
           }
-        }
 
-        deps.showVisibleOverlay?.();
-        deps.showMpvOsd?.(title);
-        return { ok: true, error: null, quality: stream.quality || null };
+          const trackCommands = buildTrackCommands(stream);
+          if (trackCommands.length > 0) {
+            deps.log(
+              `[anime-browser] ${stream.audios.length} external audio, ` +
+                `${stream.subtitles.length} external subtitle track(s)`,
+            );
+            // mpv attaches added tracks to the file that is loading, so give the
+            // loadfile a moment to take effect first. Same pause the Jellyfin
+            // subtitle preload uses.
+            await wait(TRACK_ATTACH_DELAY_MS);
+            for (const command of trackCommands) {
+              deps.sendMpvCommand(command);
+            }
+          }
+
+          if (watch) {
+            const outcome = await watch.wait();
+            if (!outcome.ok) {
+              deps.log(`[anime-browser] playback failed to start: ${outcome.error}`);
+              return { ok: false, error: outcome.error, quality: null };
+            }
+          }
+
+          deps.showVisibleOverlay?.();
+          deps.showMpvOsd?.(title);
+          return { ok: true, error: null, quality: stream.quality || null };
+        } finally {
+          watch?.dispose();
+        }
       } catch (error) {
         deps.log(`[anime-browser] playback failed: ${String(error)}`);
         return { ok: false, error: describeError(error), quality: null };
@@ -514,9 +572,12 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
 
     async dispose(): Promise<void> {
       const handle = sidecar;
+      const proxy = stripProxy;
       sidecar = null;
+      stripProxy = null;
       starting = null;
       setState(IDLE_STATE);
+      await proxy?.close();
       await handle?.stop();
     },
   };
