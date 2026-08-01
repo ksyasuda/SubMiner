@@ -207,8 +207,8 @@ body {
 
 .source-picker {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
   flex: none;
   min-width: 190px;
 }
@@ -218,6 +218,12 @@ body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint);
+  white-space: nowrap;
+}
+
+.source-picker .text-input {
+  flex: 1 1 auto;
+  width: auto;
 }
 
 /* ---------- bridge banner ---------- */
@@ -446,9 +452,9 @@ body {
 
 .detail-cover {
   flex: none;
+  align-self: flex-start;
   width: clamp(140px, 18vw, 232px);
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
+  height: auto;
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--ctp-crust);
@@ -536,7 +542,7 @@ body {
 .cue-rail::before {
   content: '';
   position: absolute;
-  left: 41px;
+  left: 48px;
   top: 6px;
   bottom: 6px;
   width: 1px;
@@ -546,8 +552,8 @@ body {
 .cue {
   position: relative;
   display: grid;
-  grid-template-columns: 40px 1fr;
-  gap: 14px;
+  grid-template-columns: 34px 1fr;
+  gap: 26px;
   align-items: baseline;
   width: 100%;
   padding: 9px 10px 9px 0;
@@ -564,7 +570,7 @@ body {
 .cue::after {
   content: '';
   position: absolute;
-  left: 37px;
+  left: 43px;
   top: 15px;
   width: 7px;
   height: 7px;
