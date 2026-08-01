@@ -51,6 +51,8 @@ export interface StartSidecarOptions {
   binaries: BundleBinaries;
   port?: number;
   readyTimeoutMs?: number;
+  /** How long to wait for the child to go after each stop signal. Tests only. */
+  stopTimeoutMs?: number;
   spawnImpl?: typeof spawn;
   onLog?: (line: string) => void;
 }
@@ -83,6 +85,8 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
 
   let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
   let spawnError: Error | null = null;
+  let killError: Error | null = null;
+  const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
   const hasExited = new Promise<void>((resolve) => {
     child.once('exit', (code, signal) => {
       exited = { code, signal };
@@ -90,16 +94,24 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
     });
     // A ChildProcess is an EventEmitter: without this listener a failed spawn
     // (a missing or non-executable java) throws in the main process instead of
-    // failing the readiness loop below.
-    child.once('error', (error: Error) => {
-      spawnError = error;
-      if (exited === null) exited = { code: null, signal: null };
-      resolve();
+    // failing the readiness loop below. `error` never proves the child is gone
+    // -- only `exit` does -- so it must never set `exited`, or a kill that
+    // failed would look like a clean shutdown. A spawn failure is told apart
+    // from a later kill failure by the missing pid.
+    child.on('error', (error: Error) => {
+      if (child.pid === undefined) {
+        spawnError = error;
+        resolve();
+        return;
+      }
+      killError = error;
     });
   });
 
   const stop = async (): Promise<void> => {
     if (exited !== null) return;
+    // Nothing was ever spawned, so there is nothing to signal or wait for.
+    if (spawnError !== null) return;
     // Graceful first: the server exposes a shutdown endpoint.
     try {
       await fetch(`${baseUrl}/stop`, { signal: AbortSignal.timeout(2000) });
@@ -110,14 +122,20 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
     child.kill();
     // kill() only sends the signal. Wait for the process to actually go, so a
     // restart cannot race the old one still holding the port.
-    await Promise.race([hasExited, delay(STOP_TIMEOUT_MS)]);
+    await Promise.race([hasExited, delay(stopTimeoutMs)]);
     if (exited === null) {
       child.kill('SIGKILL');
-      await Promise.race([hasExited, delay(STOP_TIMEOUT_MS)]);
+      await Promise.race([hasExited, delay(stopTimeoutMs)]);
     }
     // Never report success while the child may still hold the port: a caller
     // that restarts on the same port would race the survivor.
     if (exited === null) {
+      const failedKill = killError as Error | null;
+      if (failedKill !== null) {
+        throw new Error(`Anime bridge could not be killed: ${failedKill.message}`, {
+          cause: failedKill,
+        });
+      }
       throw new Error('Anime bridge did not exit after SIGKILL.');
     }
   };
@@ -143,12 +161,20 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
       };
       return { baseUrl, port, client, stop, onExit };
     }
-    await delay(READY_POLL_INTERVAL_MS);
+    // Sleeping past the deadline would only delay the timeout report.
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await delay(Math.min(READY_POLL_INTERVAL_MS, remaining));
   }
 
-  // A failed shutdown must not mask why startup failed.
-  await stop().catch(() => {});
-  throw new Error(
+  const timeout = new Error(
     `Anime bridge did not become ready within ${options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS}ms.`,
   );
+  // A failed shutdown must not mask why startup failed, but it must not be
+  // dropped either: a surviving child still holds the port, which decides
+  // whether a caller may retry on it.
+  await stop().catch((error: unknown) => {
+    timeout.cause = error;
+  });
+  throw timeout;
 }

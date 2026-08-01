@@ -11,12 +11,17 @@ const binaries: BundleBinaries = {
   jarPath: '/tmp/MExtensionServer.jar',
 };
 
-/** A ChildProcess stand-in: an EventEmitter with the bits startSidecar touches. */
-function fakeChild(onKill?: (child: EventEmitter) => void): ChildProcess {
+/**
+ * A ChildProcess stand-in: an EventEmitter with the bits startSidecar touches.
+ * A `pid` marks a child that did spawn, which is how a kill failure is told
+ * apart from a spawn failure.
+ */
+function fakeChild(onKill?: (child: EventEmitter) => void, pid?: number): ChildProcess {
   const child = new EventEmitter();
   Object.assign(child, {
     stdout: null,
     stderr: null,
+    pid,
     kill: () => {
       onKill?.(child);
       return true;
@@ -49,6 +54,26 @@ test('a readiness timeout shuts the child down and reports the timeout', async (
   await assert.rejects(
     () => startSidecar({ binaries, port, readyTimeoutMs: 50, spawnImpl }),
     /did not become ready within 50ms/,
+  );
+});
+
+test('a kill that fails without an exit is reported, not counted as a shutdown', async () => {
+  const port = await allocatePort();
+  // Signalling fails (EPERM-style) and the child never goes: it may still hold
+  // the port, so the stop must not report success.
+  const child = fakeChild(
+    (emitter) => queueMicrotask(() => emitter.emit('error', new Error('kill EPERM'))),
+    4242,
+  );
+  const spawnImpl = (() => child) as unknown as typeof spawnType;
+
+  await assert.rejects(
+    () => startSidecar({ binaries, port, readyTimeoutMs: 50, stopTimeoutMs: 10, spawnImpl }),
+    (error: Error) => {
+      assert.match(error.message, /did not become ready within 50ms/);
+      assert.match((error.cause as Error).message, /could not be killed.*EPERM/);
+      return true;
+    },
   );
 });
 
