@@ -57,6 +57,17 @@ test('the escape length counts the full header string including separators', () 
   assert.ok(options.includes(`%${fields.length}%${fields}`));
 });
 
+test('the escape length is counted in utf-8 bytes, not js string units', () => {
+  // An extension may put a non-ASCII value in a header; mpv reads %n% as a
+  // byte count, so counting string units would truncate the value.
+  const options = buildLoadfileOptions({
+    stream: stream({ headers: { 'X-Title': '日本語' } }),
+  });
+  const fields = 'X-Title: 日本語';
+  assert.ok(options.includes(`%${Buffer.byteLength(fields, 'utf8')}%${fields}`));
+  assert.ok(!options.includes(`%${fields.length}%`));
+});
+
 test('no header option is emitted when the stream carries no headers', () => {
   const options = buildLoadfileOptions({ stream: stream() });
   assert.ok(!options.includes('http-header-fields'));

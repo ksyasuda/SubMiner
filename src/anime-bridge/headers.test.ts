@@ -28,6 +28,13 @@ test('toMpvHeaderFields joins entries and escapes commas in values', () => {
   assert.equal(fields, 'Referer: https://origin.example/,Cookie: a=1\\, b=2');
 });
 
+test('toMpvHeaderFields escapes backslashes so a trailing one cannot eat the separator', () => {
+  const fields = toMpvHeaderFields({ Referer: 'https://origin.example/path\\', Cookie: 'a=1' });
+  // Without doubling, the value's trailing backslash would escape the comma
+  // and merge Cookie into the Referer entry.
+  assert.equal(fields, 'Referer: https://origin.example/path\\\\,Cookie: a=1');
+});
+
 test('toMpvHeaderFields returns an empty string when there are no headers', () => {
   assert.equal(toMpvHeaderFields({}), '');
 });

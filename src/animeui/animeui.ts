@@ -488,18 +488,25 @@ api.onBridgeState(renderBridgeState);
 
 void (async () => {
   renderBridgeState({ stage: 'idle', progress: null, message: null });
-  const state = await api.ensureBridge();
-  renderBridgeState(state);
+  try {
+    const state = await api.ensureBridge();
+    renderBridgeState(state);
 
-  const snapshot = await api.getSnapshot();
-  renderSources(snapshot.sources, snapshot.selectedSourceId);
+    const snapshot = await api.getSnapshot();
+    renderSources(snapshot.sources, snapshot.selectedSourceId);
 
-  if (state.stage === 'ready' && snapshot.sources.length > 0) {
-    searchInput.focus();
-    await runSearch('');
-  } else if (state.stage === 'ready') {
-    setStatus(state.message ?? 'No extensions installed.', 'error');
-  } else {
-    setStatus(state.message ?? 'The extension bridge is not available.', 'error');
+    if (state.stage === 'ready' && snapshot.sources.length > 0) {
+      searchInput.focus();
+      await runSearch('');
+    } else if (state.stage === 'ready') {
+      setStatus(state.message ?? 'No extensions installed.', 'error');
+    } else {
+      setStatus(state.message ?? 'The extension bridge is not available.', 'error');
+    }
+  } catch (error) {
+    // Without this the window keeps the "starting" banner up forever, with the
+    // search box disabled and nothing saying why.
+    renderBridgeState({ stage: 'failed', progress: null, message: describe(error) });
+    setStatus(describe(error), 'error');
   }
 })();

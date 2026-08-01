@@ -19,6 +19,29 @@ function isSecretKey(view: SourcePreferenceView): boolean {
   return /password|token|api[-_ ]?key|secret/i.test(`${view.key} ${view.title}`);
 }
 
+/**
+ * Structure of a schema, ignoring the values.
+ *
+ * A commit hands back the whole schema, but re-rendering on every save would
+ * throw away the "Saved" note, move focus off the control that was just
+ * committed, and rebuild a `multi` group out from under a second toggle that is
+ * still in flight. Only a structural change is worth a rebuild — which is
+ * exactly the case that matters, Jellyfin filling in its library picker after a
+ * successful login.
+ */
+function schemaShape(views: SourcePreferenceView[]): string {
+  return JSON.stringify(
+    views.map((view) => [
+      view.key,
+      view.kind,
+      view.title,
+      view.summary,
+      view.entries,
+      view.entryValues,
+    ]),
+  );
+}
+
 function renderPreferenceField(
   container: HTMLElement,
   view: SourcePreferenceView,
@@ -46,10 +69,14 @@ function renderPreferenceField(
     state.removeAttribute('data-tone');
     state.textContent = 'Saving…';
     try {
-      const refreshed = await commit(view.key, value);
+      // Commits are chained so a second toggle cannot land before the first
+      // one's round trip finishes and overwrite it with a stale array.
+      const refreshed = await enqueueCommit(container, () => commit(view.key, value));
       state.dataset.tone = 'ok';
       state.textContent = 'Saved';
-      renderPreferences(container, refreshed, commit);
+      if (schemaShape(refreshed) !== renderedShapes.get(container)) {
+        renderPreferences(container, refreshed, commit);
+      }
     } catch (error) {
       state.dataset.tone = 'error';
       state.textContent = describe(error);
@@ -120,11 +147,33 @@ function renderPreferenceField(
   return field;
 }
 
+/** Shape currently on screen, per container, so a save can skip a no-op rebuild. */
+const renderedShapes = new WeakMap<HTMLElement, string>();
+
+/** Serializes commits per container; see the comment in `save`. */
+const commitQueues = new WeakMap<HTMLElement, Promise<unknown>>();
+
+function enqueueCommit(
+  container: HTMLElement,
+  run: () => Promise<SourcePreferenceView[]>,
+): Promise<SourcePreferenceView[]> {
+  const previous = commitQueues.get(container) ?? Promise.resolve();
+  const result = previous.then(run, run);
+  // Swallow here only so one failed commit does not wedge the queue; the
+  // caller still sees the rejection.
+  commitQueues.set(
+    container,
+    result.catch(() => undefined),
+  );
+  return result;
+}
+
 export function renderPreferences(
   container: HTMLElement,
   views: SourcePreferenceView[],
   commit: PreferenceCommit,
 ): void {
+  renderedShapes.set(container, schemaShape(views));
   container.replaceChildren(...views.map((view) => renderPreferenceField(container, view, commit)));
   if (views.length === 0) {
     const empty = document.createElement('p');

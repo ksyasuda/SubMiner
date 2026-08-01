@@ -10,6 +10,16 @@
 const ANIME_PACKAGE_PREFIX = 'eu.kanade.tachiyomi.animeextension';
 
 /**
+ * A package name becomes the on-disk APK file name, and a repository index is
+ * unauthenticated content the user pointed us at. Only plain dotted identifiers
+ * are accepted, so nothing in an index can carry `/` or `..` into a file path.
+ */
+const PACKAGE_NAME_PATTERN = /^[A-Za-z0-9_.]+$/;
+
+/** The APK file name is appended to the repo URL, so keep it a bare name. */
+const APK_FILE_NAME_PATTERN = /^[A-Za-z0-9_.+-]+$/;
+
+/**
  * Repos are identified by their index URL. The file name is not fixed:
  * `index.min.json` is the Aniyomi convention, but repositories publish under
  * other names too (e.g. `video.min.json`), so only https and a `.json` file
@@ -81,7 +91,8 @@ export function parseRepoIndex(indexUrl: string, payload: unknown): RepoExtensio
     if (raw === null || typeof raw !== 'object') continue;
     const pkg = typeof raw.pkg === 'string' ? raw.pkg : '';
     const apk = typeof raw.apk === 'string' ? raw.apk : '';
-    if (!pkg.startsWith(ANIME_PACKAGE_PREFIX) || apk.length === 0) continue;
+    if (!pkg.startsWith(ANIME_PACKAGE_PREFIX) || !PACKAGE_NAME_PATTERN.test(pkg)) continue;
+    if (apk.length === 0 || !APK_FILE_NAME_PATTERN.test(apk)) continue;
 
     const versionCode = Number(raw.code);
     extensions.push({

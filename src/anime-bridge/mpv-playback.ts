@@ -77,9 +77,13 @@ export function buildLoadfileOptions(options: BuildPlaybackOptions): string {
  * mpv splits `loadfile` options on commas and `=`-separates keys, so a value
  * containing either must be quoted. Percent-encoding is mpv's own escape for
  * embedded separators in option values.
+ *
+ * The count is in UTF-8 bytes of the decoded value, not JS string units, so a
+ * non-ASCII header value (extensions supply these) would otherwise under-count
+ * and mpv would cut the value short.
  */
 function escapeOptionValue(value: string): string {
-  return `%${value.length}%${value}`;
+  return `%${Buffer.byteLength(value, 'utf8')}%${value}`;
 }
 
 /**

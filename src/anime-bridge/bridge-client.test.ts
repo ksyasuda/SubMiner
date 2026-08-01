@@ -4,7 +4,12 @@ import { AnimeBridgeClient, BridgeExtensionError } from './bridge-client';
 import { BRIDGE_CONTEXT_KEY } from './types';
 
 const EXTENSION_ID = 'a'.repeat(64);
-const source = { apkBase64: 'QVBLLUJZVEVT', sourceId: 'source-1' };
+const APK_BASE64 = 'QVBLLUJZVEVT';
+const source = {
+  fingerprint: 'sha-1',
+  loadApkBase64: async () => APK_BASE64,
+  sourceId: 'source-1',
+};
 
 interface Recorded {
   url: string;
@@ -69,7 +74,7 @@ test('getVideoList posts the APK and episode url with a bridge context preferenc
   assert.equal(calls[0]?.url, 'http://127.0.0.1:9/dalvik');
   assert.equal(calls[0]?.body.method, 'getVideoList');
   assert.deepEqual(calls[0]?.body.episodeData, { url: 'https://origin.example/ep/1' });
-  assert.equal(calls[0]?.body.data, source.apkBase64);
+  assert.equal(calls[0]?.body.data, APK_BASE64);
   assert.deepEqual(calls[0]?.body.preferences, [{ key: BRIDGE_CONTEXT_KEY, sourceId: 'source-1' }]);
   assert.equal(videos.length, 1);
 });
@@ -81,10 +86,23 @@ test('a cached extension id replaces the APK upload on later calls', async () =>
   await client.getVideoList(source, 'https://origin.example/ep/1');
   await client.getVideoList(source, 'https://origin.example/ep/2');
 
-  assert.equal(calls[0]?.body.data, source.apkBase64);
+  assert.equal(calls[0]?.body.data, APK_BASE64);
   assert.equal(calls[0]?.body.extensionId, undefined);
   assert.equal(calls[1]?.body.data, undefined);
   assert.equal(calls[1]?.body.extensionId, EXTENSION_ID);
+});
+
+test('an upgraded APK re-uploads instead of reusing the previous extension id', async () => {
+  const { fetchImpl, calls } = stubFetch(() => jsonResponse([], EXTENSION_ID));
+  const client = new AnimeBridgeClient({ baseUrl: 'http://127.0.0.1:9', fetchImpl });
+
+  await client.getVideoList(source, 'https://origin.example/ep/1');
+  // Same source id, new build in the same file: the id cache must miss.
+  const upgraded = { ...source, fingerprint: 'sha-2', loadApkBase64: async () => 'TkVXLUFQSw==' };
+  await client.getVideoList(upgraded, 'https://origin.example/ep/2');
+
+  assert.equal(calls[1]?.body.extensionId, undefined);
+  assert.equal(calls[1]?.body.data, 'TkVXLUFQSw==');
 });
 
 test('a 409 re-uploads the APK once and succeeds', async () => {
@@ -101,7 +119,7 @@ test('a 409 re-uploads the APK once and succeeds', async () => {
 
   assert.equal(calls.length, 3);
   assert.equal(calls[1]?.body.extensionId, EXTENSION_ID);
-  assert.equal(calls[2]?.body.data, source.apkBase64);
+  assert.equal(calls[2]?.body.data, APK_BASE64);
   assert.equal(videos.length, 1);
 });
 

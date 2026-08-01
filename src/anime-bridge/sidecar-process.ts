@@ -7,6 +7,12 @@ import type { BundleBinaries } from './sidecar-bundle';
 /** Cold start includes JVM boot plus AndroidCompat init; be generous. */
 export const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const READY_POLL_INTERVAL_MS = 500;
+/** How long to wait for the child to go after each signal before escalating. */
+const STOP_TIMEOUT_MS = 5_000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /** Ask the OS for a free loopback port, then hand it to the JVM. */
 export async function allocatePort(): Promise<number> {
@@ -68,8 +74,20 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
   }
 
   let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
-  child.once('exit', (code, signal) => {
-    exited = { code, signal };
+  let spawnError: Error | null = null;
+  const hasExited = new Promise<void>((resolve) => {
+    child.once('exit', (code, signal) => {
+      exited = { code, signal };
+      resolve();
+    });
+    // A ChildProcess is an EventEmitter: without this listener a failed spawn
+    // (a missing or non-executable java) throws in the main process instead of
+    // failing the readiness loop below.
+    child.once('error', (error: Error) => {
+      spawnError = error;
+      if (exited === null) exited = { code: null, signal: null };
+      resolve();
+    });
   });
 
   const stop = async (): Promise<void> => {
@@ -80,13 +98,24 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
     } catch {
       // Falling through to a signal is fine; the endpoint may already be gone.
     }
-    if (exited === null) child.kill();
+    if (exited !== null) return;
+    child.kill();
+    // kill() only sends the signal. Wait for the process to actually go, so a
+    // restart cannot race the old one still holding the port.
+    await Promise.race([hasExited, delay(STOP_TIMEOUT_MS)]);
+    if (exited === null) {
+      child.kill('SIGKILL');
+      await Promise.race([hasExited, delay(STOP_TIMEOUT_MS)]);
+    }
   };
 
   const client = new AnimeBridgeClient({ baseUrl });
   const deadline = Date.now() + (options.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS);
 
   while (Date.now() < deadline) {
+    if (spawnError !== null) {
+      throw new Error(`Anime bridge could not start: ${(spawnError as Error).message}`);
+    }
     if (exited !== null) {
       const { code, signal } = exited as { code: number | null; signal: NodeJS.Signals | null };
       throw new Error(
@@ -94,7 +123,7 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
       );
     }
     if (await client.isReady()) return { baseUrl, port, client, stop };
-    await new Promise((resolve) => setTimeout(resolve, READY_POLL_INTERVAL_MS));
+    await delay(READY_POLL_INTERVAL_MS);
   }
 
   await stop();

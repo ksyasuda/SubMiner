@@ -87,6 +87,26 @@ test('malformed entries are skipped rather than failing the repo', () => {
   assert.equal(parsed.length, 1);
 });
 
+test('a package name that is not a plain identifier is rejected', () => {
+  // The package name becomes the on-disk file name, and a repo index is
+  // unauthenticated: path separators here would write outside the extensions
+  // directory even though the prefix check passes.
+  const parsed = parseRepoIndex(INDEX, [
+    animeEntry({ pkg: 'eu.kanade.tachiyomi.animeextension/../../../../etc/cron.d/x' }),
+    animeEntry({ pkg: 'eu.kanade.tachiyomi.animeextension\\..\\evil' }),
+    animeEntry({ pkg: 'eu.kanade.tachiyomi.animeextension.all.ok' }),
+  ]);
+  assert.deepEqual(
+    parsed.map((extension) => extension.pkg),
+    ['eu.kanade.tachiyomi.animeextension.all.ok'],
+  );
+});
+
+test('an apk file name with path characters is rejected', () => {
+  const parsed = parseRepoIndex(INDEX, [animeEntry({ apk: '../../../etc/passwd' })]);
+  assert.deepEqual(parsed, []);
+});
+
 test('parseRepoIndex tolerates a non-array payload', () => {
   assert.deepEqual(parseRepoIndex(INDEX, { message: 'Not Found' }), []);
   assert.deepEqual(parseRepoIndex(INDEX, null), []);

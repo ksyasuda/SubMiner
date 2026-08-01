@@ -19,11 +19,13 @@ export function parseOkHttpHeaders(headers: OkHttpHeaders | undefined): Record<s
 
 /**
  * Render headers as mpv's `--http-header-fields` string list. mpv splits
- * entries on commas, so commas inside a value must be escaped.
+ * entries on commas, so commas inside a value must be escaped — and the
+ * backslash that does the escaping has to be escaped first, or a value ending
+ * in `\` would neutralise the separator and swallow the next header.
  */
 export function toMpvHeaderFields(headers: Record<string, string>): string {
   return Object.entries(headers)
-    .map(([name, value]) => `${name}: ${value.replace(/,/g, '\\,')}`)
+    .map(([name, value]) => `${name}: ${value.replace(/\\/g, '\\\\').replace(/,/g, '\\,')}`)
     .join(',');
 }
 

@@ -138,6 +138,49 @@ test('an oversized download is refused even when the length header lies', async 
   assert.equal(existsSync(path.join(dir, `${PKG}.apk`)), false);
 });
 
+test('the byte limit stops the read instead of buffering the whole body', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
+  let pushed = 0;
+  // Endless body: if the limit were only checked after buffering, this hangs.
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pushed += 1;
+      controller.enqueue(new Uint8Array(512));
+    },
+  });
+  const fetchImpl = (async () => new Response(body, { status: 200 })) as typeof fetch;
+
+  await assert.rejects(
+    () =>
+      installExtension({
+        extensionsDir: dir,
+        extension: repoExtension(),
+        fetchImpl,
+        maxBytes: 1024,
+      }),
+    /larger than the 1024 byte limit/,
+  );
+  // Only enough chunks to cross the limit were ever read.
+  assert.ok(pushed <= 4, `read ${pushed} chunks before aborting`);
+});
+
+test('a package name carrying path separators cannot escape the extensions dir', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
+  const dir = path.join(root, 'extensions');
+  const escaping = `eu.kanade.tachiyomi.animeextension${path.sep}..${path.sep}..${path.sep}pwned`;
+
+  await assert.rejects(
+    () =>
+      installExtension({
+        extensionsDir: dir,
+        extension: repoExtension({ pkg: escaping }),
+        fetchImpl: respondWith(apkBytes()),
+      }),
+    /not a valid file name/,
+  );
+  assert.equal(existsSync(path.join(root, 'pwned.apk')), false);
+});
+
 test('removeExtension deletes the file and tolerates a missing one', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
   const file = path.join(dir, `${PKG}.apk`);

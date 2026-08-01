@@ -17,6 +17,10 @@ import {
 
 export type InstallStage = 'locating' | 'downloading' | 'verifying' | 'extracting';
 
+/** Neither call has a default deadline, so a hung network would stall install. */
+const RELEASES_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 300_000;
+
 export interface InstallProgress {
   stage: InstallStage;
   /** 0-1 during download, otherwise null. */
@@ -119,6 +123,7 @@ export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promis
   options.onProgress?.({ stage: 'locating', progress: null });
   const releasesResponse = await fetchImpl(BUNDLE_RELEASES_URL, {
     headers: { Accept: 'application/vnd.github+json' },
+    signal: AbortSignal.timeout(RELEASES_TIMEOUT_MS),
   });
   if (!releasesResponse.ok) {
     throw new Error(`Could not list anime bridge releases (${releasesResponse.status}).`);
@@ -129,7 +134,9 @@ export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promis
   }
 
   options.onProgress?.({ stage: 'downloading', progress: 0 });
-  const downloadResponse = await fetchImpl(asset.downloadUrl);
+  const downloadResponse = await fetchImpl(asset.downloadUrl, {
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+  });
   if (!downloadResponse.ok) {
     throw new Error(`Downloading the anime bridge failed (${downloadResponse.status}).`);
   }

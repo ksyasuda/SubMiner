@@ -13,8 +13,16 @@ const EXTENSION_ID_HEADER = 'x-mangatan-extension-id';
 const EXTENSION_ID_PATTERN = /^[0-9a-f]{64}$/;
 
 export interface BridgeSource {
-  /** Base64-encoded extension APK. */
-  apkBase64: string;
+  /**
+   * Identity of the APK's contents. Keys the extension-id cache, so an upgraded
+   * APK is re-uploaded instead of reusing the previous build's id.
+   */
+  fingerprint: string;
+  /**
+   * Reads and base64-encodes the APK. Called only when the bridge actually
+   * needs the bytes, so multi-megabyte payloads are not held on the heap.
+   */
+  loadApkBase64: () => Promise<string>;
   /** Selects one source inside a multi-source (SourceFactory) APK. */
   sourceId?: string;
   preferences?: BridgePreference[];
@@ -24,7 +32,18 @@ export interface BridgeClientOptions {
   /** Loopback base URL of the running bridge, e.g. `http://127.0.0.1:53112`. */
   baseUrl: string;
   fetchImpl?: typeof fetch;
+  /**
+   * Per-request deadline. Node's `fetch` has none, so a sidecar that accepts
+   * the socket and then stalls would leave every call pending forever.
+   */
+  requestTimeoutMs?: number;
 }
+
+/** Extension calls can be slow (a source may scrape several pages). */
+const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
+
+/** The readiness probe is a local health check; it should answer at once. */
+const CAPABILITIES_TIMEOUT_MS = 5_000;
 
 /** The bridge reports extension failures as HTTP 200 with an error body. */
 export class BridgeExtensionError extends Error {
@@ -46,15 +65,19 @@ export class BridgeExtensionError extends Error {
 export class AnimeBridgeClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly requestTimeoutMs: number;
   private readonly extensionIds = new Map<string, string>();
 
   constructor(options: BridgeClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   }
 
   async getCapabilities(): Promise<BridgeCapabilities> {
-    const response = await this.fetchImpl(`${this.baseUrl}/capabilities`);
+    const response = await this.fetchImpl(`${this.baseUrl}/capabilities`, {
+      signal: AbortSignal.timeout(Math.min(CAPABILITIES_TIMEOUT_MS, this.requestTimeoutMs)),
+    });
     if (!response.ok) {
       throw new Error(`Anime bridge capabilities check failed (${response.status}).`);
     }
@@ -153,7 +176,10 @@ export class AnimeBridgeClient {
     extras: Record<string, unknown>,
     changedPreferenceKey?: string,
   ): Promise<T> {
-    const cacheKey = source.sourceId ?? source.apkBase64;
+    // Keyed by APK contents, not by source id: an in-place upgrade keeps the
+    // same source id, and reusing its cached extension id would silently run
+    // the previous build (the bridge has no reason to answer 409).
+    const cacheKey = `${source.fingerprint}:${source.sourceId ?? ''}`;
     const cachedId = this.extensionIds.get(cacheKey);
 
     let response = await this.post(method, extras, source, cachedId, changedPreferenceKey);
@@ -177,7 +203,7 @@ export class AnimeBridgeClient {
     return body;
   }
 
-  private post(
+  private async post(
     method: string,
     extras: Record<string, unknown>,
     source: BridgeSource,
@@ -188,7 +214,7 @@ export class AnimeBridgeClient {
       method,
       ...extras,
       preferences: this.buildPreferences(source, changedPreferenceKey),
-      ...(extensionId === undefined ? { data: source.apkBase64 } : { extensionId }),
+      ...(extensionId === undefined ? { data: await source.loadApkBase64() } : { extensionId }),
     };
 
     return this.fetchImpl(`${this.baseUrl}/dalvik`, {
@@ -198,6 +224,7 @@ export class AnimeBridgeClient {
         Accept: 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
   }
 }

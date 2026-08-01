@@ -1,4 +1,7 @@
+import { createReadStream } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import type { AnimeBridgeClient } from './bridge-client';
 import type { BridgeSource } from './bridge-client';
@@ -15,7 +18,11 @@ export interface InstalledExtension {
   file: string;
   /** File name without extension, used when the bridge reports no name. */
   fallbackName: string;
-  apkBase64: string;
+  /**
+   * SHA-256 of the APK. Identifies the build rather than the slot, so the
+   * bridge's extension-id cache misses after an in-place upgrade.
+   */
+  sha256: string;
 }
 
 export interface ExtensionSource {
@@ -27,7 +34,14 @@ export interface ExtensionSource {
   file: string;
 }
 
-/** Read every .apk in `directory`. A missing directory yields no extensions. */
+/**
+ * Discover every .apk in `directory`. A missing directory yields no extensions.
+ *
+ * Only a hash is kept, never the bytes: APKs run to several MB each and a
+ * base64 copy adds a third on top, so holding the whole set for the lifetime of
+ * the Anime Browser would cost far more than re-reading a file on the rare
+ * upload. Hashing streams, so peak memory stays flat regardless of APK size.
+ */
 export async function readInstalledExtensions(directory: string): Promise<InstalledExtension[]> {
   let entries;
   try {
@@ -40,14 +54,19 @@ export async function readInstalledExtensions(directory: string): Promise<Instal
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.apk')) continue;
     const file = path.join(directory, entry.name);
-    const bytes = await readFile(file);
     extensions.push({
       file,
       fallbackName: entry.name.replace(/\.apk$/i, ''),
-      apkBase64: bytes.toString('base64'),
+      sha256: await hashFile(file),
     });
   }
   return extensions;
+}
+
+async function hashFile(file: string): Promise<string> {
+  const hash = createHash('sha256');
+  await pipeline(createReadStream(file), hash);
+  return hash.digest('hex');
 }
 
 /**
@@ -75,9 +94,18 @@ export function toInstalledExtensionViews(
   });
 }
 
-/** The bridge payload for a specific source inside an extension. */
+/**
+ * The bridge payload for a specific source inside an extension.
+ *
+ * The APK is read on demand: after the first upload the bridge answers by
+ * extension id, so most calls never touch the file at all.
+ */
 export function toBridgeSource(extension: InstalledExtension, sourceId?: string): BridgeSource {
-  return { apkBase64: extension.apkBase64, ...(sourceId ? { sourceId } : {}) };
+  return {
+    fingerprint: extension.sha256,
+    loadApkBase64: async () => (await readFile(extension.file)).toString('base64'),
+    ...(sourceId ? { sourceId } : {}),
+  };
 }
 
 /**

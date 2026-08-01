@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -22,18 +23,36 @@ async function makeExtensionDir(files: Record<string, string>): Promise<string> 
 }
 
 function fakeClient(
-  impl: (source: { apkBase64: string }) => Promise<unknown[]>,
+  impl: (source: { fingerprint: string }) => Promise<unknown[]>,
 ): AnimeBridgeClient {
   return { listAnimeSources: impl } as unknown as AnimeBridgeClient;
 }
 
-test('readInstalledExtensions reads apks and base64-encodes them', async () => {
+test('readInstalledExtensions fingerprints apks without holding their bytes', async () => {
   const dir = await makeExtensionDir({ 'my-source.apk': 'APK-BYTES' });
   const extensions = await readInstalledExtensions(dir);
 
   assert.equal(extensions.length, 1);
   assert.equal(extensions[0]?.fallbackName, 'my-source');
-  assert.equal(Buffer.from(extensions[0]!.apkBase64, 'base64').toString(), 'APK-BYTES');
+  assert.equal(extensions[0]?.sha256, createHash('sha256').update('APK-BYTES').digest('hex'));
+});
+
+test('the fingerprint changes when an apk is replaced in place', async () => {
+  const dir = await makeExtensionDir({ 'my-source.apk': 'V1' });
+  const before = (await readInstalledExtensions(dir))[0]?.sha256;
+  await writeFile(path.join(dir, 'my-source.apk'), 'V2');
+  const after = (await readInstalledExtensions(dir))[0]?.sha256;
+
+  assert.notEqual(before, after);
+});
+
+test('toBridgeSource reads the apk only when the bridge asks for it', async () => {
+  const dir = await makeExtensionDir({ 'lazy.apk': 'APK-BYTES' });
+  const extension = (await readInstalledExtensions(dir))[0]!;
+
+  const bridgeSource = toBridgeSource(extension);
+  assert.equal(bridgeSource.fingerprint, extension.sha256);
+  assert.equal(Buffer.from(await bridgeSource.loadApkBase64(), 'base64').toString(), 'APK-BYTES');
 });
 
 test('readInstalledExtensions ignores non-apk files and subdirectories', async () => {
@@ -50,21 +69,15 @@ test('readInstalledExtensions returns empty for a missing directory', async () =
 });
 
 test('toBridgeSource includes sourceId only when selecting inside a factory apk', () => {
-  const extension: InstalledExtension = {
-    file: '/x/a.apk',
-    fallbackName: 'a',
-    apkBase64: 'QQ==',
-  };
-  assert.deepEqual(toBridgeSource(extension), { apkBase64: 'QQ==' });
-  assert.deepEqual(toBridgeSource(extension, 'src-1'), {
-    apkBase64: 'QQ==',
-    sourceId: 'src-1',
-  });
+  const extension: InstalledExtension = { file: '/x/a.apk', fallbackName: 'a', sha256: 'hash-a' };
+  assert.equal(toBridgeSource(extension).sourceId, undefined);
+  assert.equal(toBridgeSource(extension, 'src-1').sourceId, 'src-1');
+  assert.equal(toBridgeSource(extension, 'src-1').fingerprint, 'hash-a');
 });
 
 test('listExtensionSources flattens every source a factory apk provides', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/multi.apk', fallbackName: 'multi', apkBase64: 'QQ==' },
+    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a' },
   ];
   const client = fakeClient(async () => [
     { id: 101, name: 'Source One', lang: 'en' },
@@ -82,7 +95,7 @@ test('listExtensionSources flattens every source a factory apk provides', async 
 
 test('listExtensionSources falls back to the file name and a default language', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/my-ext.apk', fallbackName: 'my-ext', apkBase64: 'QQ==' },
+    { file: '/x/my-ext.apk', fallbackName: 'my-ext', sha256: 'hash-a' },
   ];
   const client = fakeClient(async () => [{ id: '1', name: '   ' }]);
 
@@ -94,14 +107,14 @@ test('listExtensionSources falls back to the file name and a default language', 
 test('listExtensionSources drops descriptors with no usable id', async () => {
   const client = fakeClient(async () => [{ name: 'No Id' }, { id: '', name: 'Empty' }]);
   const sources = await listExtensionSources(client, [
-    { file: '/x/a.apk', fallbackName: 'a', apkBase64: 'QQ==' },
+    { file: '/x/a.apk', fallbackName: 'a', sha256: 'hash-a' },
   ]);
   assert.deepEqual(sources, []);
 });
 
 test('toInstalledExtensionViews names an extension after the sources it provides', () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/multi.apk', fallbackName: 'multi', apkBase64: 'QQ==' },
+    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a' },
   ];
   const sources: ExtensionSource[] = [
     { id: '1', name: 'One', lang: 'en', pkg: 'multi', file: '/x/multi.apk' },
@@ -115,7 +128,7 @@ test('toInstalledExtensionViews names an extension after the sources it provides
 
 test('toInstalledExtensionViews lists an extension that loaded nothing, with its reason', () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/broken.apk', fallbackName: 'broken', apkBase64: 'QQ==' },
+    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a' },
   ];
 
   // A broken APK is still installed, so it must stay listed and removable.
@@ -127,12 +140,12 @@ test('toInstalledExtensionViews lists an extension that loaded nothing, with its
 
 test('one broken extension does not hide the working ones', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/broken.apk', fallbackName: 'broken', apkBase64: 'QQ==' },
-    { file: '/x/good.apk', fallbackName: 'good', apkBase64: 'Qg==' },
+    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a' },
+    { file: '/x/good.apk', fallbackName: 'good', sha256: 'hash-b' },
   ];
   const failures: string[] = [];
   const client = fakeClient(async (source) => {
-    if (source.apkBase64 === 'QQ==') throw new Error('dex2jar failed');
+    if (source.fingerprint === 'hash-a') throw new Error('dex2jar failed');
     return [{ id: '7', name: 'Good Source', lang: 'en' }];
   });
 
