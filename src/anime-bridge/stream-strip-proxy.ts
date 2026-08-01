@@ -73,6 +73,12 @@ export interface StreamStripProxyOptions {
 }
 
 const DEFAULT_RETRY_DELAY_MS = 400;
+/**
+ * Socket timeout on the upstream GET, cleared once its headers arrive. Node's
+ * http client has no deadline of its own, so a host that accepts the
+ * connection and then says nothing would hang mpv on that segment forever.
+ */
+const UPSTREAM_TIMEOUT_MS = 15_000;
 
 export interface StreamStripProxyHandle {
   origin: string;
@@ -152,8 +158,10 @@ export function startStreamStripProxy(
 
     const upstreamRequest = http.request(
       upstreamUrl,
-      { method: req.method, headers: requestHeaders },
+      { method: req.method, headers: requestHeaders, timeout: UPSTREAM_TIMEOUT_MS },
       (upstream) => {
+        // Body streaming has its own pace; only the wait for headers is capped.
+        upstreamRequest.setTimeout(0);
         const status = upstream.statusCode ?? 502;
         if (status === 404 || status >= 500) {
           if (mayRetry) {
@@ -167,6 +175,10 @@ export function startStreamStripProxy(
         handleUpstreamResponse(req, res, upstream);
       },
     );
+    // Destroying with an error routes the stall through the retry/502 path.
+    upstreamRequest.on('timeout', () => {
+      upstreamRequest.destroy(new Error(`upstream silent for ${UPSTREAM_TIMEOUT_MS}ms`));
+    });
     upstreamRequest.on('error', (error) => {
       if (mayRetry) {
         log(`[stream-proxy] upstream request failed: ${String(error)}; retrying once`);

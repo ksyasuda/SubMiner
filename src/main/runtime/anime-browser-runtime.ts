@@ -228,10 +228,15 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     });
 
     try {
-      stripProxy = await startStreamStripProxy({
+      const proxy = await startStreamStripProxy({
         upstreamOrigin: () => sidecar?.baseUrl ?? handle.baseUrl,
         log: deps.log,
       });
+      // The bridge can die while the proxy is coming up, in which case onExit
+      // already ran and cleared `stripProxy`; adopting this one would leak a
+      // listening server pointed at a dead upstream.
+      if (sidecar === handle) stripProxy = proxy;
+      else void proxy.close();
     } catch (error) {
       // Playback still works for undisguised streams; log and carry on.
       deps.log(`[anime-browser] stream proxy failed to start: ${describeError(error)}`);

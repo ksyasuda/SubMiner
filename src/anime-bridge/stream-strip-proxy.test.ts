@@ -64,11 +64,16 @@ test('rewritePlaylistOrigins swaps absolute upstream URLs and keeps relative lin
 
 type Route = { status: number; contentType: string; body: Buffer };
 
+/** Either a static routing table or a handler, for upstreams that need one. */
 async function withProxy(
-  routes: Record<string, Route>,
+  routes: Record<string, Route> | http.RequestListener,
   run: (proxyOrigin: string, upstreamOrigin: string) => Promise<void>,
 ): Promise<void> {
   const upstream = http.createServer((req, res) => {
+    if (typeof routes === 'function') {
+      routes(req, res);
+      return;
+    }
     const route = routes[req.url ?? ''];
     if (!route) {
       res.writeHead(404).end('missing');
@@ -133,63 +138,54 @@ test('proxy leaves non-TS bodies alone', async () => {
 });
 
 test('proxy rewrites absolute upstream playlist entries to its own origin', async () => {
-  const upstream = http.createServer((req, res) => {
-    const origin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
-    if (req.url === '/video/list.m3u8') {
+  await withProxy(
+    (req, res) => {
+      if (req.url !== '/video/list.m3u8') {
+        res.writeHead(404).end();
+        return;
+      }
+      // The proxy rewrites the Host header to the upstream it dialled, so this
+      // is that origin — the one the playlist must not leak to mpv.
       res.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl' });
-      res.end(`#EXTM3U\n#EXTINF:6,\n${origin}/video/abs.ts\n`);
-      return;
-    }
-    res.writeHead(404).end();
-  });
-  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
-  const upstreamOrigin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
-  const proxy = await startStreamStripProxy({ upstreamOrigin: () => upstreamOrigin });
-  try {
-    const { body } = await fetchBytes(`${proxy.origin}/video/list.m3u8`);
-    const text = body.toString('utf8');
-    assert.ok(text.includes(`${proxy.origin}/video/abs.ts`));
-    assert.ok(!text.includes(upstreamOrigin));
-  } finally {
-    await proxy.close();
-    await new Promise<void>((resolve) => upstream.close(() => resolve()));
-  }
+      res.end(`#EXTM3U\n#EXTINF:6,\nhttp://${req.headers.host}/video/abs.ts\n`);
+    },
+    async (proxyOrigin, upstreamOrigin) => {
+      const { body } = await fetchBytes(`${proxyOrigin}/video/list.m3u8`);
+      const text = body.toString('utf8');
+      assert.ok(text.includes(`${proxyOrigin}/video/abs.ts`));
+      assert.ok(!text.includes(upstreamOrigin));
+    },
+  );
 });
 
 test('proxy strips even when the client asks for a byte range', async () => {
-  // ffmpeg opens every HLS segment with `Range: bytes=0-`; the bridge answers
-  // some of those with 206, which must not bypass the strip.
+  // ffmpeg opens every HLS segment with `Range: bytes=0-`. The proxy drops the
+  // header, so the upstream answers 200 with the whole body and the strip
+  // applies; a 206 would have been forwarded untouched.
   const ts = makeTsPackets(8);
   const disguised = Buffer.concat([PNG_HEADER, ts]);
-  const upstream = http.createServer((req, res) => {
-    if (req.headers.range !== undefined) {
-      res.writeHead(206, {
-        'content-type': 'image/png',
-        'content-range': `bytes 0-${disguised.length - 1}/${disguised.length}`,
-      });
+  await withProxy(
+    (req, res) => {
+      if (req.headers.range !== undefined) {
+        res.writeHead(206, {
+          'content-type': 'image/png',
+          'content-range': `bytes 0-${disguised.length - 1}/${disguised.length}`,
+        });
+        res.end(disguised);
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'image/png' });
       res.end(disguised);
-      return;
-    }
-    res.writeHead(200, { 'content-type': 'image/png' });
-    res.end(disguised);
-  });
-  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
-  const upstreamOrigin = `http://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
-  const proxy = await startStreamStripProxy({
-    upstreamOrigin: () => upstreamOrigin,
-    retryDelayMs: 5,
-  });
-  try {
-    const response = await fetch(`${proxy.origin}/video/seg.ts`, {
-      headers: { Range: 'bytes=0-' },
-    });
-    const body = Buffer.from(await response.arrayBuffer());
-    assert.equal(response.status, 200);
-    assert.deepEqual(body, ts);
-  } finally {
-    await proxy.close();
-    await new Promise<void>((resolve) => upstream.close(() => resolve()));
-  }
+    },
+    async (proxyOrigin) => {
+      const response = await fetch(`${proxyOrigin}/video/seg.ts`, {
+        headers: { Range: 'bytes=0-' },
+      });
+      const body = Buffer.from(await response.arrayBuffer());
+      assert.equal(response.status, 200);
+      assert.deepEqual(body, ts);
+    },
+  );
 });
 
 test('proxy forwards error statuses without touching the body', async () => {
