@@ -202,10 +202,16 @@ function createCard(entry: AnimeBrowserEntry, showSource: boolean): HTMLButtonEl
   return card;
 }
 
-function renderEntries(entries: AnimeBrowserEntry[], emptyMessage: string): void {
-  // Which source a cover came from only matters when they are mixed together.
+/** Drops every card and the empty-state message so a fresh page can build up. */
+function resetGrid(): void {
   seenEntries.clear();
   grid.replaceChildren();
+  gridEmpty.classList.add('hidden');
+}
+
+function renderEntries(entries: AnimeBrowserEntry[], emptyMessage: string): void {
+  // Which source a cover came from only matters when they are mixed together.
+  resetGrid();
   appendEntries(entries);
 
   const empty = grid.childElementCount === 0;
@@ -255,11 +261,7 @@ api.onSearchUpdate((update) => {
     const request = soleBrowseRequest(inFlightBrowses);
     activeStreamRequestId = request?.id ?? 0;
     const append = request?.append === true;
-    if (!append) {
-      seenEntries.clear();
-      grid.replaceChildren();
-      gridEmpty.classList.add('hidden');
-    }
+    if (!append) resetGrid();
     return;
   }
   if (activeStreamRequestId !== browseState.requestId) return;
@@ -317,9 +319,7 @@ async function runSearch(query: string): Promise<void> {
   // A new search means new results; leave the detail page for them.
   if (detailPanel.isOpen()) detailPanel.close();
   setStatus(query ? `Searching for “${query}”…` : 'Loading popular…');
-  seenEntries.clear();
-  grid.replaceChildren();
-  gridEmpty.classList.add('hidden');
+  resetGrid();
   await runBrowse(started.request);
 }
 

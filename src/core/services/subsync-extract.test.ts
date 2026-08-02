@@ -185,6 +185,7 @@ test('internal WebVTT extraction uses ffmpeg webvtt muxer with a vtt output file
 
     assert.equal(args[formatIndex + 1], 'webvtt');
     assert.equal(path.extname(result.path), '.vtt');
+    assert.ok(fs.existsSync(result.path), 'the extracted file was not written');
     cleanupTemporaryFile(result);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

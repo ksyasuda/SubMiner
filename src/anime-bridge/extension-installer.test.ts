@@ -166,11 +166,13 @@ test('the byte limit stops the read instead of buffering the whole body', async 
 
 test('a failed reader cancellation does not hide the size-limit error', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
+  let cancellationAttempted = false;
   const body = new ReadableStream<Uint8Array>({
     pull(controller) {
       controller.enqueue(new Uint8Array(1025));
     },
     async cancel() {
+      cancellationAttempted = true;
       throw new Error('cancel failed');
     },
   });
@@ -186,6 +188,7 @@ test('a failed reader cancellation does not hide the size-limit error', async ()
       }),
     /larger than the 1024 byte limit/,
   );
+  assert.ok(cancellationAttempted, 'the reader was never cancelled');
 });
 
 test('a failed staged write preserves the installed apk and removes the partial file', async () => {

@@ -25,6 +25,7 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
   let selectedAnime: { url: string; title: string; sourceId: string } | null = null;
   let resultsScrollTop = 0;
   const requests = new LatestRequest();
+  const playbacks = new LatestRequest();
 
   function formatEpisodeIndex(episode: AnimeBrowserEpisode, fallbackIndex: number): string {
     const value = episode.number ?? fallbackIndex;
@@ -38,6 +39,9 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
     const anime = selectedAnime;
     if (!anime) return;
 
+    // Only the newest click owns the button states and the status line; an
+    // earlier episode resolving late must not overwrite them.
+    const playback = playbacks.begin();
     for (const other of episodes.querySelectorAll<HTMLButtonElement>('.cue')) {
       other.removeAttribute('data-state');
     }
@@ -54,6 +58,8 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
         episodeNumber: episode.number,
       }),
     );
+
+    if (!playbacks.isCurrent(playback)) return;
 
     if (!attempt.ok) {
       button.removeAttribute('data-state');
@@ -163,6 +169,7 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
 
   function close(): void {
     requests.cancel();
+    playbacks.cancel();
     detail.classList.add('hidden');
     results.classList.remove('hidden');
     results.scrollTop = resultsScrollTop;

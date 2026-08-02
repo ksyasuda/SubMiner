@@ -27,24 +27,34 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   const wait =
     deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let subtitleCacheDir: string | null = null;
+  // Overlapping playEpisode calls share subtitleCacheDir, so each call carries a
+  // generation and only writes the shared slot while it is still the newest one.
+  let cacheGeneration = 0;
 
-  async function clearSubtitleCache(): Promise<void> {
+  async function clearSubtitleCache(generation: number): Promise<void> {
     const previousDir = subtitleCacheDir;
-    subtitleCacheDir = null;
+    if (generation === cacheGeneration) subtitleCacheDir = null;
     await removeSubtitleCache(previousDir, deps.subtitleCacheIo);
   }
 
-  async function cacheStreamSubtitles(stream: {
-    headers: Record<string, string>;
-    subtitles: Array<{ url: string; lang: string }>;
-  }): Promise<Array<{ url: string; lang: string }>> {
+  async function cacheStreamSubtitles(
+    stream: {
+      headers: Record<string, string>;
+      subtitles: Array<{ url: string; lang: string }>;
+    },
+    generation: number,
+  ): Promise<Array<{ url: string; lang: string }>> {
     const cached = await cacheSubtitleTracks({
       tracks: stream.subtitles,
       headers: stream.headers,
       io: deps.subtitleCacheIo,
       log: deps.log,
     });
-    subtitleCacheDir = cached.dir;
+    if (generation === cacheGeneration) {
+      subtitleCacheDir = cached.dir;
+    } else {
+      await removeSubtitleCache(cached.dir, deps.subtitleCacheIo);
+    }
 
     const localCount = cached.tracks.filter((track) => track.local).length;
     if (cached.tracks.length > 0) {
@@ -57,6 +67,7 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   }
 
   async function playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
+    const generation = ++cacheGeneration;
     try {
       const { client, baseUrl } = await bridge();
       const videos = await client.getVideoList(
@@ -116,20 +127,26 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
         for (const command of buildPlaybackCommands({ stream, title })) {
           deps.sendMpvCommand(command);
         }
-        await clearSubtitleCache();
+        // The file is already loading; a subtitle cache or track attach failure
+        // costs extra tracks, not the episode, so it must not fail playback.
+        try {
+          await clearSubtitleCache(generation);
 
-        if (stream.audios.length > 0 || stream.subtitles.length > 0) {
-          deps.log(
-            `[anime-browser] ${stream.audios.length} external audio, ` +
-              `${stream.subtitles.length} external subtitle track(s)`,
-          );
-          const [subtitles] = await Promise.all([
-            cacheStreamSubtitles(stream),
-            wait(TRACK_ATTACH_DELAY_MS),
-          ]);
-          for (const command of buildTrackCommands({ ...stream, subtitles })) {
-            deps.sendMpvCommand(command);
+          if (stream.audios.length > 0 || stream.subtitles.length > 0) {
+            deps.log(
+              `[anime-browser] ${stream.audios.length} external audio, ` +
+                `${stream.subtitles.length} external subtitle track(s)`,
+            );
+            const [subtitles] = await Promise.all([
+              cacheStreamSubtitles(stream, generation),
+              wait(TRACK_ATTACH_DELAY_MS),
+            ]);
+            for (const command of buildTrackCommands({ ...stream, subtitles })) {
+              deps.sendMpvCommand(command);
+            }
           }
+        } catch (error) {
+          deps.log(`[anime-browser] external track setup failed: ${String(error)}`);
         }
 
         if (watch) {
