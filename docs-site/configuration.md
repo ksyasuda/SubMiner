@@ -1214,10 +1214,14 @@ Sync a subtitle track from the overlay picker using `alass` or `ffsubsync`. The 
 
 | Option           | Values          | Description                                                                                                               |
 | ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `alass_path`     | string path     | Path to `alass` executable. Empty falls back to `/usr/bin/alass`. `alass` must be installed separately.                   |
-| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty falls back to `/usr/bin/ffsubsync`. `ffsubsync` must be installed separately.       |
-| `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
+| `alass_path`     | string path     | Path to `alass` executable. Empty auto-discovers `alass` or `alass-cli`. `alass` must be installed separately.            |
+| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty auto-discovers `ffsubsync`. `ffsubsync` must be installed separately.               |
+| `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` auto-discovers `ffmpeg`.                        |
 | `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
+
+Auto-discovery searches `PATH`, then the usual install prefixes (`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`, `/usr/bin`, `/bin`) — a GUI launch inherits a minimal `PATH` that often omits the first two. Set the option explicitly if your binary lives elsewhere.
+
+Subtitle tracks that mpv loaded from a URL (Aniyomi extension streams, Jellyfin) are downloaded to a temporary file first, reusing mpv's own request headers, so they can be used as either the sync target or the alass reference.
 
 Stats dashboard sentence mining also uses `alass_path` when available to align a local English sidecar against the local Japanese sidecar before filling the card translation field. This stats-only retime writes a temporary cached copy and never edits the original subtitle files.
 

@@ -256,19 +256,27 @@ Full guides on configuration, Anki setup, Jellyfin, immersion tracking, and more
 
 SubMiner builds on the work of these open-source projects:
 
-| Project                                                                                     | Role                                                                    |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [ani-skip](https://github.com/synacktraa/ani-skip)                                          | AniSkip API client for anime intro/outro skip timestamps                |
-| [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                     |
-| [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing |
-| [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                 |
-| [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                          | Inspiration for Electron overlay with Yomitan integration               |
-| [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
-| [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
-| [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                        | Base for the WebSocket texthooker integration                           |
-| [Yomitan](https://github.com/yomidevs/yomitan)                                              | Dictionary engine powering all lookups and the morphological parser     |
-| [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                       | JLPT level tags for vocabulary                                          |
+| Project                                                                                              | Role                                                                         |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| [ani-skip](https://github.com/synacktraa/ani-skip)                                                   | AniSkip API client for anime intro/outro skip timestamps                     |
+| [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                                   | Inspiration for the mining workflow                                          |
+| [Aniyomi](https://github.com/aniyomiorg/aniyomi)                                                     | Anime extension API and data model the anime browser targets                 |
+| [asbplayer](https://github.com/killergerbah/asbplayer)                                               | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing      |
+| [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary)          | Character name recognition in subtitles                                      |
+| [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                                   | Inspiration for Electron overlay with Yomitan integration                    |
+| [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                                   | Jellyfin integration                                                         |
+| [Jimaku.cc](https://jimaku.cc)                                                                       | Japanese subtitle search and downloads                                       |
+| [M-Extension-Server](https://github.com/1Selxo/M-Extension-Server)                                   | Runs Aniyomi extension APKs off Android; the bridge the anime browser drives |
+| [Mangatan](https://github.com/1Selxo/Mangatan) / [Mangayomi](https://github.com/kodjodevf/mangayomi) | Reference implementation for the extension bridge protocol                   |
+| [Renji's Texthooker Page](https://github.com/Renji-XD/texthooker-ui)                                 | Base for the WebSocket texthooker integration                                |
+| [Yomitan](https://github.com/yomidevs/yomitan)                                                       | Dictionary engine powering all lookups and the morphological parser          |
+| [yomitan-jlpt-vocab](https://github.com/stephenmk/yomitan-jlpt-vocab)                                | JLPT level tags for vocabulary                                               |
 
 ## License
 
 [GNU General Public License v3.0](LICENSE)
+
+The anime browser drives [M-Extension-Server](https://github.com/1Selxo/M-Extension-Server)
+(Mozilla Public License 2.0), downloaded at runtime rather than bundled. MPL-2.0 is
+compatible with the GPL. Aniyomi and Mihon are Apache-2.0; Mangatan and Mangayomi are
+GPL-3.0. SubMiner ships no extension repositories and bundles no extensions.

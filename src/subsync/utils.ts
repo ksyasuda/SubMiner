@@ -23,12 +23,6 @@ export interface SubsyncResolvedConfig {
   replace?: boolean;
 }
 
-const DEFAULT_SUBSYNC_EXECUTABLE_PATHS = {
-  alass: '/usr/bin/alass',
-  ffsubsync: '/usr/bin/ffsubsync',
-  ffmpeg: '/usr/bin/ffmpeg',
-} as const;
-
 export interface SubsyncContext {
   videoPath: string;
   primaryTrack: MpvTrack;
@@ -82,22 +76,35 @@ function resolveCommandInvocation(
   return { command: executable, args };
 }
 
+/**
+ * An unset path stays empty here on purpose: hard-coding `/usr/bin/<tool>` made
+ * the documented "leave empty to auto-discover from PATH" a lie and broke every
+ * default-config macOS install, where none of these live in /usr/bin.
+ * Discovery happens at run time in `resolveSubsyncExecutable`.
+ */
 export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncResolvedConfig {
-  const resolvePath = (value: string | undefined, fallback: string): string => {
-    const trimmed = value?.trim();
-    return trimmed && trimmed.length > 0 ? trimmed : fallback;
-  };
+  const trim = (value: string | undefined): string => value?.trim() ?? '';
 
   return {
-    alassPath: resolvePath(config?.alass_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.alass),
-    ffsubsyncPath: resolvePath(config?.ffsubsync_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffsubsync),
-    ffmpegPath: resolvePath(config?.ffmpeg_path, DEFAULT_SUBSYNC_EXECUTABLE_PATHS.ffmpeg),
+    alassPath: trim(config?.alass_path),
+    ffsubsyncPath: trim(config?.ffsubsync_path),
+    ffmpegPath: trim(config?.ffmpeg_path),
     replace: config?.replace ?? DEFAULT_CONFIG.subsync.replace,
   };
 }
 
-export function hasPathSeparators(value: string): boolean {
-  return value.includes('/') || value.includes('\\');
+export function summarizeCommandFailure(command: string, result: CommandResult): string {
+  const parts = [
+    `code=${result.code ?? 'n/a'}`,
+    result.stderr ? `stderr: ${result.stderr}` : '',
+    result.stdout ? `stdout: ${result.stdout}` : '',
+    result.error ? `error: ${result.error}` : '',
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return `command failed (${command})`;
+  return `command failed (${command}) ${parts.join(' | ')}`;
 }
 
 export function fileExists(pathOrEmpty: string): boolean {

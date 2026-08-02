@@ -209,21 +209,26 @@ Resume playback and wait for the next subtitle to appear, then try mining again.
 
 Both **alass** and **ffsubsync** are optional external dependencies. Subtitle syncing requires at least one of them to be installed.
 
-**"Configured alass executable not found"**
+Subsync writes to the application log under the `subsync` scope, so the full command failure — exit code, stderr, resolved file paths — is recorded there as well as on the OSD.
+
+**"Could not find alass" / "Configured alass executable not found"**
 
 Install alass or configure the path:
 
+- **Homebrew**: `brew install alass`
 - **Arch Linux (AUR)**: `paru -S alass`
 - **Cargo**: `cargo install alass-cli`
 - Set the path: `subsync.alass_path` in your config.
 
-**"Configured ffsubsync executable not found"**
+Leaving the option empty searches `PATH` plus the usual install prefixes, and accepts either `alass` or `alass-cli`. Set the option explicitly when the binary lives somewhere else. The second message means the configured path itself does not exist — SubMiner never silently substitutes a different binary for one you named.
+
+**"Could not find ffsubsync" / "Configured ffsubsync executable not found"**
 
 Install ffsubsync or configure the path:
 
 - **Arch Linux (AUR)**: `paru -S python-ffsubsync`
 - **pip**: `pip install ffsubsync`
-- Must be on `PATH` or configured via `subsync.ffsubsync_path` in your config.
+- Must be discoverable, or configured via `subsync.ffsubsync_path` in your config.
 
 **"alass synchronization failed" / "ffsubsync synchronization failed"**
 
@@ -233,6 +238,12 @@ If subtitle sync fails (the error message is prefixed with the engine name):
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).
 - Try running the sync tool manually to see detailed error output.
 - ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).
+
+**Syncing subtitles on a stream (Aniyomi extensions, Jellyfin)**
+
+Subtitle tracks mpv loaded from a URL are downloaded to a temporary file first, reusing mpv's own request headers, so they work as either the sync target or the alass reference. Downloading a Japanese track from Jimaku or TsukiHime while a stream is playing also works — it becomes the primary track and therefore the sync target.
+
+Internal subtitle tracks of a stream still go through `ffmpeg`, which has to reach the origin itself. If that fails, prefer an external track or a Jimaku download as the reference.
 
 ## TsukiHime
 

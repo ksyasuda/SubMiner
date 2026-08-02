@@ -4,6 +4,9 @@ import {
   SubsyncManualRunRequest,
   SubsyncResult,
 } from '../../types';
+import { createLogger } from '../../logger';
+
+const logger = createLogger('subsync');
 
 export interface HandleMpvCommandFromIpcOptions {
   specialCommands: {
@@ -193,6 +196,8 @@ export async function runSubsyncManualFromIpc(
     return result;
   } catch (error) {
     const message = `Subsync failed: ${(error as Error).message}`;
+    // An OSD toast is the only other trace of this, and it is gone in seconds.
+    logger.error(message, error);
     options.showMpvOsd(message);
     return { ok: false, message };
   } finally {
