@@ -27,13 +27,15 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   const wait =
     deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let subtitleCacheDir: string | null = null;
-  // Overlapping playEpisode calls share subtitleCacheDir, so each call carries a
-  // generation and only writes the shared slot while it is still the newest one.
-  let cacheGeneration = 0;
+  // Overlapping playEpisode calls share mpv and subtitleCacheDir, so each call
+  // carries a generation and only acts while it is still the newest one.
+  let playbackGeneration = 0;
 
   async function clearSubtitleCache(generation: number): Promise<void> {
+    // A stale call must not delete the directory a newer playback now owns.
+    if (generation !== playbackGeneration) return;
     const previousDir = subtitleCacheDir;
-    if (generation === cacheGeneration) subtitleCacheDir = null;
+    subtitleCacheDir = null;
     await removeSubtitleCache(previousDir, deps.subtitleCacheIo);
   }
 
@@ -50,7 +52,7 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
       io: deps.subtitleCacheIo,
       log: deps.log,
     });
-    if (generation === cacheGeneration) {
+    if (generation === playbackGeneration) {
       subtitleCacheDir = cached.dir;
     } else {
       await removeSubtitleCache(cached.dir, deps.subtitleCacheIo);
@@ -67,7 +69,8 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   }
 
   async function playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
-    const generation = ++cacheGeneration;
+    const generation = ++playbackGeneration;
+    const isCurrent = (): boolean => generation === playbackGeneration;
     try {
       const { client, baseUrl } = await bridge();
       const videos = await client.getVideoList(
@@ -102,6 +105,10 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
       if (!(await deps.ensureMpvConnected())) {
         return { ok: false, error: 'mpv is not running and could not be started.', quality: null };
       }
+
+      // Resolving the stream can outlast a newer click; from here on every step
+      // touches mpv or the overlay, so a superseded call stops instead.
+      if (!isCurrent()) return superseded();
 
       const watch =
         deps.onPlaybackEndFile && deps.readMpvProperty
@@ -141,6 +148,7 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
               cacheStreamSubtitles(stream, generation),
               wait(TRACK_ATTACH_DELAY_MS),
             ]);
+            if (!isCurrent()) return superseded();
             for (const command of buildTrackCommands({ ...stream, subtitles })) {
               deps.sendMpvCommand(command);
             }
@@ -149,8 +157,13 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
           deps.log(`[anime-browser] external track setup failed: ${String(error)}`);
         }
 
+        if (!isCurrent()) return superseded();
+
         if (watch) {
           const outcome = await watch.wait();
+          // The outcome belongs to whichever file mpv is playing now, so a
+          // superseded call must not read it as its own.
+          if (!isCurrent()) return superseded();
           if (!outcome.ok) {
             deps.log(`[anime-browser] playback failed to start: ${outcome.error}`);
             return { ok: false, error: outcome.error, quality: null };
@@ -176,6 +189,10 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   }
 
   return { playEpisode, dispose };
+}
+
+function superseded(): AnimeBrowserPlayResult {
+  return { ok: false, error: 'A newer episode replaced this playback.', quality: null };
 }
 
 function describeError(error: unknown): string {
