@@ -6,7 +6,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { YoutubeMediaCacheMode } from '../../../types/integrations';
-import { getYoutubeYtDlpCommand } from './ytdlp-command';
+import { getYoutubeYtDlpCommand, YTDLP_SINGLE_VIDEO_ARG } from './ytdlp-command';
 
 type MediaCacheSessionState = 'running' | 'ready' | 'failed';
 
@@ -88,7 +88,7 @@ function normalizeMaxHeight(maxHeight: number | undefined): number {
 
 function createYtDlpArgs(url: string, outputTemplate: string, maxHeight?: number): string[] {
   return [
-    '--no-playlist',
+    YTDLP_SINGLE_VIDEO_ARG,
     '--no-warnings',
     '--force-ipv4',
     '--retries',

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { YoutubeVideoMetadata } from '../immersion-tracker/types';
-import { getYoutubeYtDlpCommand } from './ytdlp-command';
+import { getYoutubeYtDlpCommand, YTDLP_SINGLE_VIDEO_ARG } from './ytdlp-command';
 
 const YOUTUBE_METADATA_PROBE_TIMEOUT_MS = 15_000;
 
@@ -85,15 +85,23 @@ function pickChannelThumbnail(thumbnails: YtDlpThumbnail[] | undefined): string 
   return null;
 }
 
-export async function probeYoutubeVideoMetadata(
-  targetUrl: string,
-): Promise<YoutubeVideoMetadata | null> {
-  const { stdout } = await runCapture(getYoutubeYtDlpCommand(), [
+export function buildYoutubeMetadataProbeArgs(targetUrl: string): string[] {
+  return [
+    YTDLP_SINGLE_VIDEO_ARG,
     '--dump-single-json',
     '--no-warnings',
     '--skip-download',
     targetUrl,
-  ]);
+  ];
+}
+
+export async function probeYoutubeVideoMetadata(
+  targetUrl: string,
+): Promise<YoutubeVideoMetadata | null> {
+  const { stdout } = await runCapture(
+    getYoutubeYtDlpCommand(),
+    buildYoutubeMetadataProbeArgs(targetUrl),
+  );
   let info: YtDlpYoutubeMetadata;
   try {
     info = JSON.parse(stdout) as YtDlpYoutubeMetadata;

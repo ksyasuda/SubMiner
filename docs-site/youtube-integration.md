@@ -11,7 +11,7 @@ SubMiner auto-loads Japanese subtitles when you play a YouTube URL, giving you t
 
 When SubMiner detects a YouTube URL (or `ytsearch:` target), it pauses mpv at startup and runs a subtitle pipeline before resuming playback:
 
-1. **Probe** --- `yt-dlp --dump-single-json` extracts all available subtitle tracks (manual uploads and auto-generated captions) along with video metadata.
+1. **Probe** --- `yt-dlp --dump-single-json` extracts all available subtitle tracks (manual uploads and auto-generated captions) along with video metadata. Every yt-dlp call passes `--no-playlist`, so playlist links (for example a Watch Later URL with `list=`/`index=`) resolve to the single video instead of the whole playlist.
 2. **Discover** --- Each track is normalized into a `YoutubeTrackOption` with language code, kind (`manual` or `auto`), display label, and direct download URL.
 3. **Select** --- SubMiner picks the best primary track (Japanese, preferring manual over auto) and secondary track (English, preferring manual over auto).
 4. **Download** --- Selected tracks are fetched via direct URL when available, falling back to `yt-dlp --write-subs` / `--write-auto-subs`. YouTube TimedText XML formats (`srv1`/`srv2`/`srv3`) are converted to VTT on the fly. Auto-generated VTT captions are normalized to remove rolling-caption duplication.

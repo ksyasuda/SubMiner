@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { YoutubeTrackOption } from './track-probe';
-import { getYoutubeYtDlpCommand } from './ytdlp-command';
+import { getYoutubeYtDlpCommand, YTDLP_SINGLE_VIDEO_ARG } from './ytdlp-command';
 import {
   convertYoutubeTimedTextToVtt,
   isYoutubeTimedTextExtension,
@@ -126,14 +126,14 @@ function pickLatestSubtitleFileForLanguage(
   return candidates[0] ?? null;
 }
 
-function buildDownloadArgs(input: {
+export function buildDownloadArgs(input: {
   targetUrl: string;
   outputTemplate: string;
   sourceLanguages: string[];
   includeAutoSubs: boolean;
   includeManualSubs: boolean;
 }): string[] {
-  const args = ['--skip-download', '--no-warnings'];
+  const args = [YTDLP_SINGLE_VIDEO_ARG, '--skip-download', '--no-warnings'];
   if (input.includeAutoSubs) {
     args.push('--write-auto-subs');
   }

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { getYoutubeYtDlpCommand } from './ytdlp-command';
+import { getYoutubeYtDlpCommand, YTDLP_SINGLE_VIDEO_ARG } from './ytdlp-command';
 
 const YOUTUBE_PLAYBACK_RESOLVE_TIMEOUT_MS = 15_000;
 const DEFAULT_PLAYBACK_FORMAT = 'b';
@@ -85,17 +85,18 @@ function runCapture(
   });
 }
 
+export function buildYoutubePlaybackResolveArgs(targetUrl: string, format: string): string[] {
+  return [YTDLP_SINGLE_VIDEO_ARG, '--get-url', '--no-warnings', '-f', format, targetUrl];
+}
+
 export async function resolveYoutubePlaybackUrl(
   targetUrl: string,
   format = DEFAULT_PLAYBACK_FORMAT,
 ): Promise<string> {
-  const { stdout } = await runCapture(getYoutubeYtDlpCommand(), [
-    '--get-url',
-    '--no-warnings',
-    '-f',
-    format,
-    targetUrl,
-  ]);
+  const { stdout } = await runCapture(
+    getYoutubeYtDlpCommand(),
+    buildYoutubePlaybackResolveArgs(targetUrl, format),
+  );
   const playbackUrl =
     stdout
       .split(/\r?\n/)
