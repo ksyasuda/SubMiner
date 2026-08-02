@@ -293,9 +293,8 @@ async function subsyncToReference(
   slot: SubtitleSlot,
   httpHeaders: ResolvedMpvHttpHeaders | null,
 ): Promise<SubsyncResult> {
-  const ffmpegPath = resolveSubsyncExecutable(resolved.ffmpegPath, 'ffmpeg');
   const targetExtraction = await extractSubtitleTrackToFile({
-    ffmpegPath,
+    resolveFfmpegPath: () => resolveSubsyncExecutable(resolved.ffmpegPath, 'ffmpeg'),
     videoPath: context.videoPath,
     track: targetTrack,
     httpHeaders,
@@ -444,11 +443,10 @@ export async function runSubsyncManual(
     return { ok: false, message: 'Reference and out-of-sync subtitles must be different tracks' };
   }
 
-  const ffmpegPath = resolveSubsyncExecutable(resolved.ffmpegPath, 'ffmpeg');
   let referenceExtraction: FileExtractionResult | null = null;
   try {
     referenceExtraction = await extractSubtitleTrackToFile({
-      ffmpegPath,
+      resolveFfmpegPath: () => resolveSubsyncExecutable(resolved.ffmpegPath, 'ffmpeg'),
       videoPath: context.videoPath,
       track: referenceTrack,
       httpHeaders,

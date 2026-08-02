@@ -28,9 +28,17 @@ function unique(values: string[]): string[] {
   return values.filter((value, index) => value.length > 0 && values.indexOf(value) === index);
 }
 
+/**
+ * A same-named non-executable file earlier on PATH would otherwise shadow the
+ * real binary and surface as a spawn EACCES rather than "keep looking". Windows
+ * has no execute bit, so the regular-file check is all it can offer there.
+ */
 export function isExecutableFile(filePath: string): boolean {
   try {
-    return fs.statSync(filePath).isFile();
+    if (!fs.statSync(filePath).isFile()) return false;
+    if (process.platform === 'win32') return true;
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
   } catch {
     return false;
   }

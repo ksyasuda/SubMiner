@@ -7,16 +7,21 @@
  */
 
 const BLOCKED_HTTP_HEADER_NAMES = new Set(['authorization', 'cookie', 'proxy-authorization']);
+// Least specific first: every list is merged in order and later entries
+// overwrite earlier ones, so the file-local headers win.
 const HTTP_HEADER_FIELD_PROPERTY_NAMES = [
   'http-header-fields',
   'options/http-header-fields',
   'file-local-options/http-header-fields',
 ] as const;
+// Most specific first: these resolve through requestFirstNonEmptyStringProperty,
+// which stops at the first match, so the file-local value has to lead.
 const USER_AGENT_PROPERTY_NAMES = [
   'file-local-options/user-agent',
   'options/user-agent',
   'user-agent',
 ] as const;
+// Most specific first, for the same first-match reason as the user agent.
 const REFERRER_PROPERTY_NAMES = [
   'file-local-options/referrer',
   'options/referrer',

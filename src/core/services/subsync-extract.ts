@@ -24,7 +24,11 @@ export interface FileExtractionResult {
 }
 
 export interface SubtitleExtractionInput {
-  ffmpegPath: string;
+  /**
+   * Resolved lazily: an external track never shells out to ffmpeg, so a stream
+   * whose subtitles arrive by URL must not fail just because ffmpeg is absent.
+   */
+  resolveFfmpegPath: () => string;
   videoPath: string;
   track: MpvTrack;
   /** mpv's request context, so stream-hosted tracks stay reachable. */
@@ -42,6 +46,19 @@ function extensionForUrl(url: string, fallback: string): string {
 }
 
 /**
+ * Drop a scratch directory whose extraction never completed.
+ *
+ * Removal is recursive here — unlike `cleanupTemporaryFile`, nothing in a failed
+ * directory is worth keeping, and a half-written download would otherwise leave
+ * the directory behind for the life of the machine.
+ */
+function discardTemporaryDirectory(tempDir: string): void {
+  try {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  } catch {}
+}
+
+/**
  * Pull a subtitle track mpv loaded from a URL down to disk.
  *
  * Extension-backed and Jellyfin streams add their subtitles by URL, and neither
@@ -53,18 +70,25 @@ async function downloadRemoteSubtitleTrack(
   httpHeaders: ResolvedMpvHttpHeaders | null,
 ): Promise<FileExtractionResult> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
-  const outputPath = path.join(tempDir, `remote_track.${extensionForUrl(url, 'srt')}`);
+  try {
+    const outputPath = path.join(tempDir, `remote_track.${extensionForUrl(url, 'srt')}`);
 
-  const result = await downloadToFile(url, outputPath, toRequestHeaders(httpHeaders));
-  if (!result.ok) {
-    throw new Error(`Failed to download subtitle track: ${result.error?.error ?? 'unknown error'}`);
-  }
-  if (!fileExists(outputPath)) {
-    throw new Error(`Downloaded subtitle track is missing: ${url}`);
-  }
+    const result = await downloadToFile(url, outputPath, toRequestHeaders(httpHeaders));
+    if (!result.ok) {
+      throw new Error(
+        `Failed to download subtitle track: ${result.error?.error ?? 'unknown error'}`,
+      );
+    }
+    if (!fileExists(outputPath)) {
+      throw new Error(`Downloaded subtitle track is missing: ${url}`);
+    }
 
-  logger.info(`Downloaded remote subtitle track to ${outputPath}`);
-  return { path: outputPath, temporary: true };
+    logger.info(`Downloaded remote subtitle track to ${outputPath}`);
+    return { path: outputPath, temporary: true };
+  } catch (error) {
+    discardTemporaryDirectory(tempDir);
+    throw error;
+  }
 }
 
 async function extractInternalTrack(input: SubtitleExtractionInput): Promise<FileExtractionResult> {
@@ -78,40 +102,45 @@ async function extractInternalTrack(input: SubtitleExtractionInput): Promise<Fil
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
-  const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
-  // Header args configure the HTTP demuxer, so they belong before `-i`.
-  const httpArgs = isRemoteMediaPath(input.videoPath)
-    ? toFfmpegInputHttpArgs(input.httpHeaders)
-    : [];
+  try {
+    const outputPath = path.join(tempDir, `track_${ffIndex}.${extension}`);
+    // Header args configure the HTTP demuxer, so they belong before `-i`.
+    const httpArgs = isRemoteMediaPath(input.videoPath)
+      ? toFfmpegInputHttpArgs(input.httpHeaders)
+      : [];
 
-  const extraction = await runCommand(input.ffmpegPath, [
-    '-hide_banner',
-    '-nostdin',
-    '-y',
-    '-loglevel',
-    'error',
-    ...httpArgs,
-    '-an',
-    '-vn',
-    '-i',
-    input.videoPath,
-    '-map',
-    `0:${ffIndex}`,
-    '-f',
-    extension,
-    outputPath,
-  ]);
+    const extraction = await runCommand(input.resolveFfmpegPath(), [
+      '-hide_banner',
+      '-nostdin',
+      '-y',
+      '-loglevel',
+      'error',
+      ...httpArgs,
+      '-an',
+      '-vn',
+      '-i',
+      input.videoPath,
+      '-map',
+      `0:${ffIndex}`,
+      '-f',
+      extension,
+      outputPath,
+    ]);
 
-  if (!extraction.ok || !fileExists(outputPath)) {
-    throw new Error(
-      `Failed to extract internal subtitle track with ffmpeg: ${summarizeCommandFailure(
-        'ffmpeg',
-        extraction,
-      )}`,
-    );
+    if (!extraction.ok || !fileExists(outputPath)) {
+      throw new Error(
+        `Failed to extract internal subtitle track with ffmpeg: ${summarizeCommandFailure(
+          'ffmpeg',
+          extraction,
+        )}`,
+      );
+    }
+
+    return { path: outputPath, temporary: true };
+  } catch (error) {
+    discardTemporaryDirectory(tempDir);
+    throw error;
   }
-
-  return { path: outputPath, temporary: true };
 }
 
 export async function extractSubtitleTrackToFile(

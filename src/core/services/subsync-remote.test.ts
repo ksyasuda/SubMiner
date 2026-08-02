@@ -94,7 +94,10 @@ test('runSubsyncManual syncs stream subtitle tracks served over http', async (t)
     getResolvedConfig: () => ({
       alassPath,
       ffsubsyncPath: '',
-      ffmpegPath: '',
+      // Points nowhere on purpose: both tracks are external, so resolving ffmpeg
+      // at all would throw. An empty path would just auto-discover the real
+      // ffmpeg on a dev machine and prove nothing.
+      ffmpegPath: path.join(tmpDir, 'no-such-ffmpeg'),
       replace: true,
     }),
   };

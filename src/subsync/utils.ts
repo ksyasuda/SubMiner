@@ -93,11 +93,23 @@ export function getSubsyncConfig(config: SubsyncConfig | undefined): SubsyncReso
   };
 }
 
+/**
+ * ffsubsync streams a progress bar to stderr, so an unbounded summary reaches
+ * the OSD (and the error log) as tens of kilobytes of carriage returns. The tail
+ * is the part that says what went wrong.
+ */
+const COMMAND_OUTPUT_SUMMARY_LIMIT = 2000;
+
+function tailForSummary(value: string): string {
+  if (value.length <= COMMAND_OUTPUT_SUMMARY_LIMIT) return value;
+  return `…${value.slice(-COMMAND_OUTPUT_SUMMARY_LIMIT)}`;
+}
+
 export function summarizeCommandFailure(command: string, result: CommandResult): string {
   const parts = [
     `code=${result.code ?? 'n/a'}`,
-    result.stderr ? `stderr: ${result.stderr}` : '',
-    result.stdout ? `stdout: ${result.stdout}` : '',
+    result.stderr ? `stderr: ${tailForSummary(result.stderr)}` : '',
+    result.stdout ? `stdout: ${tailForSummary(result.stdout)}` : '',
     result.error ? `error: ${result.error}` : '',
   ]
     .map((value) => value.trim())

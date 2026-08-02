@@ -46,9 +46,16 @@ test('extractSubtitleTrackToFile downloads an external track served over http', 
   const server = await startSubtitleServer();
   try {
     const result = await extractSubtitleTrackToFile({
-      ffmpegPath: '/unused/ffmpeg',
+      resolveFfmpegPath: () => {
+        throw new Error('external tracks must not resolve ffmpeg');
+      },
       videoPath: server.url('/stream.mp4'),
-      track: { id: 2, type: 'sub', external: true, 'external-filename': server.url('/subs/ja.srt') },
+      track: {
+        id: 2,
+        type: 'sub',
+        external: true,
+        'external-filename': server.url('/subs/ja.srt'),
+      },
       httpHeaders: null,
     });
 
@@ -72,9 +79,16 @@ test('extractSubtitleTrackToFile forwards mpv request headers to the subtitle ho
 
   try {
     const result = await extractSubtitleTrackToFile({
-      ffmpegPath: '/unused/ffmpeg',
+      resolveFfmpegPath: () => {
+        throw new Error('external tracks must not resolve ffmpeg');
+      },
       videoPath: server.url('/stream.mp4'),
-      track: { id: 2, type: 'sub', external: true, 'external-filename': server.url('/subs/ja.srt') },
+      track: {
+        id: 2,
+        type: 'sub',
+        external: true,
+        'external-filename': server.url('/subs/ja.srt'),
+      },
       httpHeaders,
     });
     cleanupTemporaryFile(result);
@@ -92,7 +106,9 @@ test('extractSubtitleTrackToFile reports the HTTP status when the download fails
   try {
     await assert.rejects(
       extractSubtitleTrackToFile({
-        ffmpegPath: '/unused/ffmpeg',
+        resolveFfmpegPath: () => {
+          throw new Error('external tracks must not resolve ffmpeg');
+        },
         videoPath: server.url('/stream.mp4'),
         track: {
           id: 2,
@@ -116,7 +132,9 @@ test('extractSubtitleTrackToFile still uses a local external track in place', as
 
   try {
     const result = await extractSubtitleTrackToFile({
-      ffmpegPath: '/unused/ffmpeg',
+      resolveFfmpegPath: () => {
+        throw new Error('external tracks must not resolve ffmpeg');
+      },
       videoPath: path.join(dir, 'video.mkv'),
       track: { id: 2, type: 'sub', external: true, 'external-filename': localPath },
       httpHeaders: null,
@@ -134,7 +152,9 @@ test('extractSubtitleTrackToFile still uses a local external track in place', as
 test('extractSubtitleTrackToFile rejects a missing local external track', async () => {
   await assert.rejects(
     extractSubtitleTrackToFile({
-      ffmpegPath: '/unused/ffmpeg',
+      resolveFfmpegPath: () => {
+        throw new Error('external tracks must not resolve ffmpeg');
+      },
       videoPath: '/tmp/video.mkv',
       track: { id: 2, type: 'sub', external: true, 'external-filename': '/tmp/does-not-exist.srt' },
       httpHeaders: null,
