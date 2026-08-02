@@ -115,7 +115,11 @@ export function parseRepoIndex(indexUrl: string, payload: unknown): RepoExtensio
 export interface FetchRepoOptions {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
+  /** Applied when no signal is supplied, so one stalled repo cannot block the catalogue. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_REPO_TIMEOUT_MS = 15_000;
 
 /** Fetch and parse one repository index. */
 export async function fetchRepoIndex(
@@ -126,9 +130,11 @@ export async function fetchRepoIndex(
     throw new Error(`Not a valid repository index URL: ${indexUrl}`);
   }
   const fetchImpl = options.fetchImpl ?? fetch;
+  const signal =
+    options.signal ?? AbortSignal.timeout(options.timeoutMs ?? DEFAULT_REPO_TIMEOUT_MS);
   const response = await fetchImpl(indexUrl.trim(), {
     headers: { Accept: 'application/json' },
-    ...(options.signal ? { signal: options.signal } : {}),
+    signal,
   });
   if (!response.ok) {
     throw new Error(`Repository returned ${response.status} for ${indexUrl}`);

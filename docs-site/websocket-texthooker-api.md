@@ -2,7 +2,7 @@
 
 **Who this page is for:** developers and tinkerers who want to consume SubMiner's live subtitle stream from their own tools - a browser tab, an automation script, or another mpv plugin. If you just want subtitles in a browser tab for Yomitan, skip to [Texthooker Integration Guide](#texthooker-integration-guide); the rest is reference for building custom clients.
 
-A _texthooker_ is a page/tool that receives the text currently on screen so a dictionary extension (like Yomitan) can look words up. SubMiner ships its own texthooker UI and also broadcasts subtitle text over local WebSockets that any client can connect to.
+A *texthooker* is a page/tool that receives the text currently on screen so a dictionary extension (like Yomitan) can look words up. SubMiner ships its own texthooker UI and also broadcasts subtitle text over local WebSockets that any client can connect to.
 
 SubMiner exposes a small set of local integration surfaces for browser tools, automation helpers, and mpv-driven workflows:
 
@@ -15,12 +15,12 @@ This page documents those integration points and shows how to build custom consu
 
 ## Quick Reference
 
-| Surface               | Default                     | Purpose                                            |
-| --------------------- | --------------------------- | -------------------------------------------------- |
-| `websocket`           | `ws://127.0.0.1:6677`       | Basic subtitle broadcast stream                    |
-| `annotationWebsocket` | `ws://127.0.0.1:6678`       | Structured stream with token metadata              |
-| `texthooker`          | `http://127.0.0.1:5174`     | Local texthooker UI with injected websocket config |
-| mpv plugin            | `script-message subminer-*` | Start/stop/toggle/status automation inside mpv     |
+| Surface | Default | Purpose |
+| --- | --- | --- |
+| `websocket` | `ws://127.0.0.1:6677` | Basic subtitle broadcast stream |
+| `annotationWebsocket` | `ws://127.0.0.1:6678` | Structured stream with token metadata |
+| `texthooker` | `http://127.0.0.1:5174` | Local texthooker UI with injected websocket config |
+| mpv plugin | `script-message subminer-*` | Start/stop/toggle/status automation inside mpv |
 
 ## Enable and Configure the Services
 
@@ -30,16 +30,16 @@ SubMiner's integration ports are configured in `config.jsonc`. All three service
 {
   "websocket": {
     "enabled": "auto",
-    "port": 6677,
+    "port": 6677
   },
   "annotationWebsocket": {
     "enabled": true,
-    "port": 6678,
+    "port": 6678
   },
   "texthooker": {
     "launchAtStartup": true,
-    "openBrowser": false,
-  },
+    "openBrowser": false
+  }
 }
 ```
 
@@ -79,12 +79,12 @@ When a client connects, SubMiner immediately sends the latest subtitle payload i
 
 #### Field reference
 
-| Field      | Type   | Notes                                                                                          |
-| ---------- | ------ | ---------------------------------------------------------------------------------------------- |
-| `version`  | number | Current websocket payload version. Today this is `1`.                                          |
-| `text`     | string | Raw subtitle text.                                                                             |
+| Field | Type | Notes |
+| --- | --- | --- |
+| `version` | number | Current websocket payload version. Today this is `1`. |
+| `text` | string | Raw subtitle text. |
 | `sentence` | string | Plain subtitle text with line breaks represented as `<br>`. No annotation spans or attributes. |
-| `tokens`   | array  | Always empty on the basic subtitle websocket.                                                  |
+| `tokens` | array | Always empty on the basic subtitle websocket. |
 
 ### 2. Annotation WebSocket
 
@@ -129,22 +129,22 @@ On a tokenization cache miss, this stream first sends the cue as plain text with
 
 Each annotation token may include:
 
-| Token field           | Type             | Notes                                            |
-| --------------------- | ---------------- | ------------------------------------------------ |
-| `surface`             | string           | Display text for the token                       |
-| `reading`             | string           | Kana reading when available                      |
-| `headword`            | string           | Dictionary headword when available               |
-| `startPos` / `endPos` | number           | Character offsets in the subtitle text           |
-| `partOfSpeech`        | string           | SubMiner token POS label                         |
-| `isMerged`            | boolean          | Whether this token represents merged content     |
-| `isKnown`             | boolean          | Marked known by SubMiner's known-word logic      |
-| `isNPlusOneTarget`    | boolean          | True when the token is the sentence's N+1 target |
-| `isNameMatch`         | boolean          | True for prioritized character-name matches      |
-| `frequencyRank`       | number           | Frequency rank when available                    |
-| `jlptLevel`           | string           | JLPT level when available                        |
-| `className`           | string           | CSS-ready class list derived from token state    |
-| `frequencyRankLabel`  | string or `null` | Preformatted rank label for UIs                  |
-| `jlptLevelLabel`      | string or `null` | Preformatted JLPT label for UIs                  |
+| Token field | Type | Notes |
+| --- | --- | --- |
+| `surface` | string | Display text for the token |
+| `reading` | string | Kana reading when available |
+| `headword` | string | Dictionary headword when available |
+| `startPos` / `endPos` | number | Character offsets in the subtitle text |
+| `partOfSpeech` | string | SubMiner token POS label |
+| `isMerged` | boolean | Whether this token represents merged content |
+| `isKnown` | boolean | Marked known by SubMiner's known-word logic |
+| `isNPlusOneTarget` | boolean | True when the token is the sentence's N+1 target |
+| `isNameMatch` | boolean | True for prioritized character-name matches |
+| `frequencyRank` | number | Frequency rank when available |
+| `jlptLevel` | string | JLPT level when available |
+| `className` | string | CSS-ready class list derived from token state |
+| `frequencyRankLabel` | string or `null` | Preformatted rank label for UIs |
+| `jlptLevelLabel` | string or `null` | Preformatted JLPT label for UIs |
 
 ### 3. HTML markup conventions
 

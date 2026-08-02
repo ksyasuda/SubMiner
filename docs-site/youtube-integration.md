@@ -110,8 +110,8 @@ Background cache downloads are capped at 720p by default (`youtube.mediaCache.ma
 }
 ```
 
-| Option                | Type       | Description                                                                                                                                                                              |
-| --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option                | Type       | Description                                                                           |
+| --------------------- | ---------- | ------------------------------------------------------------------------------------- |
 | `primarySubLanguages` | `string[]` | Languages that count as a satisfactory primary subtitle (default `["ja", "jpn"]`). Used by the "primary subtitle missing" notification and by managed local/playlist subtitle selection. |
 
 YouTube auto-selection itself always picks a Japanese track first (manual over auto), then falls back to any manual track — `primarySubLanguages` does not change which YouTube track is auto-picked.
@@ -130,11 +130,11 @@ YouTube secondary selection is fixed: SubMiner always tries an English track (ma
 }
 ```
 
-| Option                  | Type                                 | Description                                                                                                                                                             |
-| ----------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option                  | Type                                 | Description                                                                                                                                                                                         |
+| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `secondarySubLanguages` | `string[]`                           | Extra language codes (e.g. `["eng", "en"]`) used when auto-selecting a secondary track for local/Jellyfin sidecar files. Default is empty (`[]`). Not used for YouTube. |
 | `autoLoadSecondarySub`  | `boolean`                            | Auto-detect and load a matching secondary sidecar track for local files (default: `false`). Not used for YouTube.                                                       |
-| `defaultMode`           | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`)                                                                                                       |
+| `defaultMode`           | `"hidden"` / `"visible"` / `"hover"` | Initial display mode for secondary subtitles (default: `"hover"`)                                                                                                                                   |
 
 These settings come from `config.jsonc` (or built-in defaults); there are no CLI flags or environment variables for subtitle language selection.
 

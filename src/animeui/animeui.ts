@@ -2,13 +2,23 @@ import { describe, el } from './dom';
 import { sourceOptionLabel, summarizeSearch } from './format';
 import { applySearchUpdate, idleSearchProgress, summarizeProgress } from './search-progress';
 import { createExtensionsPanel } from './extensions-panel';
+import { createDetailPanel } from './detail-panel';
 import { renderPreferences, renderPreferencesUnavailable } from './preferences-fields';
+import {
+  beginBrowse,
+  beginNextPage,
+  createBrowseState,
+  failBrowse,
+  finishBrowse,
+  soleBrowseRequest,
+  takeUnseenEntries,
+} from './browse-state';
+import type { BrowseRequest } from './browse-state';
 import { ALL_SOURCES_ID } from '../types/anime-browser';
 import type {
   AnimeBrowserAPI,
   AnimeBrowserBridgeState,
   AnimeBrowserEntry,
-  AnimeBrowserEpisode,
   AnimeBrowserSource,
 } from '../types/anime-browser';
 
@@ -26,15 +36,7 @@ const searchButton = el<HTMLButtonElement>('search-button');
 const sourceSelect = el<HTMLSelectElement>('source-select');
 const grid = el<HTMLDivElement>('grid');
 const gridEmpty = el<HTMLParagraphElement>('grid-empty');
-const results = el<HTMLElement>('results');
-const detail = el<HTMLElement>('detail');
-const detailBack = el<HTMLButtonElement>('detail-back');
-const detailCover = el<HTMLImageElement>('detail-cover');
-const detailTitle = el<HTMLHeadingElement>('detail-title');
-const detailChips = el<HTMLDivElement>('detail-chips');
-const detailDescription = el<HTMLParagraphElement>('detail-description');
-const episodes = el<HTMLOListElement>('episodes');
-const episodesCount = el<HTMLSpanElement>('episodes-count');
+const loadMoreButton = el<HTMLButtonElement>('load-more');
 const banner = el<HTMLDivElement>('bridge-banner');
 const bannerMessage = el<HTMLSpanElement>('bridge-message');
 const bannerMeter = el<HTMLSpanElement>('bridge-meter');
@@ -49,11 +51,8 @@ const settingsPanel = el<HTMLElement>('settings');
 const settingsFields = el<HTMLDivElement>('settings-fields');
 const settingsTitle = el<HTMLHeadingElement>('settings-title');
 
-/** The anime the detail page is showing, with the source that produced it. */
-let selectedAnime: { url: string; title: string; sourceId: string } | null = null;
-
-/** Where the results grid was scrolled to before the detail page covered it. */
-let resultsScrollTop = 0;
+/** Last source accepted by the main process, used to roll back a rejected change. */
+let selectedSourceId: string | null = null;
 
 /* ---------- tabs ---------- */
 
@@ -80,6 +79,8 @@ function setStatus(message: string, tone: 'info' | 'ok' | 'error' = 'info'): voi
   statusMessage.textContent = message;
   statusMessage.parentElement?.setAttribute('data-tone', tone);
 }
+
+const detailPanel = createDetailPanel({ api, setStatus });
 
 const BRIDGE_LABELS: Record<AnimeBrowserBridgeState['stage'], string> = {
   idle: 'Starting the extension bridge',
@@ -150,6 +151,7 @@ function renderSources(sources: AnimeBrowserSource[], selectedId: string | null)
 
   sourceSelect.replaceChildren(...options);
   sourceSelect.disabled = options.length <= 1;
+  selectedSourceId = selectedId;
 }
 
 function searchingAllSources(): boolean {
@@ -195,17 +197,18 @@ function createCard(entry: AnimeBrowserEntry, showSource: boolean): HTMLButtonEl
   card.append(art, title);
   card.title = showSource ? `${entry.title} — ${entry.sourceName}` : entry.title;
   card.addEventListener('click', () => {
-    void openDetail(entry);
+    void detailPanel.open(entry);
   });
   return card;
 }
 
 function renderEntries(entries: AnimeBrowserEntry[], emptyMessage: string): void {
   // Which source a cover came from only matters when they are mixed together.
-  const showSource = searchingAllSources();
-  grid.replaceChildren(...entries.map((entry) => createCard(entry, showSource)));
+  seenEntries.clear();
+  grid.replaceChildren();
+  appendEntries(entries);
 
-  const empty = entries.length === 0;
+  const empty = grid.childElementCount === 0;
   gridEmpty.classList.toggle('hidden', !empty);
   gridEmpty.textContent = emptyMessage;
 }
@@ -213,139 +216,9 @@ function renderEntries(entries: AnimeBrowserEntry[], emptyMessage: string): void
 /** Streamed results land at the end of the grid, in arrival order. */
 function appendEntries(entries: AnimeBrowserEntry[]): void {
   const showSource = searchingAllSources();
-  grid.append(...entries.map((entry) => createCard(entry, showSource)));
-}
-
-function formatEpisodeIndex(episode: AnimeBrowserEpisode, fallbackIndex: number): string {
-  const value = episode.number ?? fallbackIndex;
-  return Number.isInteger(value) ? String(value).padStart(2, '0') : value.toFixed(1);
-}
-
-function renderEpisodes(list: AnimeBrowserEpisode[]): void {
-  episodesCount.textContent = list.length === 0 ? '' : `${list.length}`;
-  episodes.replaceChildren(
-    ...list.map((episode, index) => {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'cue';
-
-      const cueIndex = document.createElement('span');
-      cueIndex.className = 'cue-index';
-      cueIndex.textContent = formatEpisodeIndex(episode, list.length - index);
-
-      const name = document.createElement('span');
-      name.className = 'cue-name';
-      name.textContent = episode.name;
-      if (episode.uploadedAt !== null) {
-        const sub = document.createElement('span');
-        sub.className = 'cue-sub';
-        sub.textContent = new Date(episode.uploadedAt).toISOString().slice(0, 10);
-        name.append(sub);
-      }
-
-      button.append(cueIndex, name);
-      button.addEventListener('click', () => {
-        void playEpisode(button, episode);
-      });
-      item.append(button);
-      return item;
-    }),
-  );
-}
-
-/**
- * The detail page replaces the results grid rather than squeezing in beside
- * it. The grid stays in the DOM with its scroll position remembered, so Back
- * returns to the same results without re-running the search.
- */
-async function openDetail(entry: AnimeBrowserEntry): Promise<void> {
-  selectedAnime = { url: entry.url, title: entry.title, sourceId: entry.sourceId };
-  resultsScrollTop = results.scrollTop;
-  results.classList.add('hidden');
-  detail.classList.remove('hidden');
-  detail.scrollTop = 0;
-  detailTitle.textContent = entry.title;
-  detailDescription.textContent = 'Loading…';
-  detailChips.replaceChildren();
-  episodes.replaceChildren();
-  episodesCount.textContent = '';
-  detailCover.src = entry.thumbnailUrl ?? '';
-
-  try {
-    // Always ask the entry's own source: after an all-sources search the
-    // picker's selection says nothing about where this cover came from.
-    const [details, episodeList] = await Promise.all([
-      api.getDetails(entry.url, entry.sourceId),
-      api.getEpisodes(entry.url, entry.sourceId),
-    ]);
-
-    detailTitle.textContent = details.title;
-    detailDescription.textContent = details.description ?? 'No description from this source.';
-    if (details.thumbnailUrl) detailCover.src = details.thumbnailUrl;
-
-    const chips: HTMLSpanElement[] = [];
-    const source = document.createElement('span');
-    source.className = 'chip source';
-    source.textContent = entry.sourceName;
-    chips.push(source);
-    if (details.status !== 'unknown') {
-      const status = document.createElement('span');
-      status.className = 'chip status';
-      status.textContent = details.status.replace(/-/g, ' ');
-      chips.push(status);
-    }
-    for (const genre of details.genres.slice(0, 6)) {
-      const chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.textContent = genre;
-      chips.push(chip);
-    }
-    detailChips.replaceChildren(...chips);
-
-    renderEpisodes(episodeList);
-    setStatus(`${details.title} · ${episodeList.length} episodes`);
-  } catch (error) {
-    detailDescription.textContent = '';
-    setStatus(describe(error), 'error');
-  }
-}
-
-function closeDetail(): void {
-  detail.classList.add('hidden');
-  results.classList.remove('hidden');
-  results.scrollTop = resultsScrollTop;
-  selectedAnime = null;
-}
-
-async function playEpisode(button: HTMLButtonElement, episode: AnimeBrowserEpisode): Promise<void> {
-  if (!selectedAnime) return;
-
-  for (const other of episodes.querySelectorAll<HTMLButtonElement>('.cue')) {
-    other.removeAttribute('data-state');
-  }
-  button.dataset.state = 'loading';
-  setStatus(`Resolving ${episode.name}…`);
-
-  const result = await api.playEpisode({
-    sourceId: selectedAnime.sourceId,
-    animeUrl: selectedAnime.url,
-    animeTitle: selectedAnime.title,
-    episodeUrl: episode.url,
-    episodeName: episode.name,
-    episodeNumber: episode.number,
-  });
-
-  if (result.ok) {
-    button.dataset.state = 'playing';
-    setStatus(
-      result.quality ? `Playing ${episode.name} · ${result.quality}` : `Playing ${episode.name}`,
-      'ok',
-    );
-  } else {
-    button.removeAttribute('data-state');
-    setStatus(result.error ?? 'Could not play that episode.', 'error');
-  }
+  const unseen = takeUnseenEntries(entries, seenEntries);
+  grid.append(...unseen.map((entry) => createCard(entry, showSource)));
+  if (unseen.length > 0) gridEmpty.classList.add('hidden');
 }
 
 /* ---------- streamed search ---------- */
@@ -358,8 +231,17 @@ async function playEpisode(button: HTMLButtonElement, episode: AnimeBrowserEpiso
  */
 let progress = idleSearchProgress();
 
-/** Orders runSearch calls so a slow search cannot finish over a newer one. */
-let searchRequest = 0;
+let browseState = createBrowseState();
+const inFlightBrowses = new Map<number, BrowseRequest>();
+let activeStreamRequestId = 0;
+const seenEntries = new Set<string>();
+
+function renderLoadMore(): void {
+  const loadingNextPage = browseState.loading && browseState.page > 1;
+  loadMoreButton.classList.toggle('hidden', !browseState.hasNextPage && !loadingNextPage);
+  loadMoreButton.disabled = browseState.loading;
+  loadMoreButton.textContent = loadingNextPage ? 'Loading…' : 'Load more';
+}
 
 api.onSearchUpdate((update) => {
   const applied = applySearchUpdate(progress, update);
@@ -367,51 +249,86 @@ api.onSearchUpdate((update) => {
   progress = applied.progress;
 
   if (applied.started) {
-    grid.replaceChildren();
-    gridEmpty.classList.add('hidden');
+    // The runtime token does not carry the renderer request id. When calls
+    // overlap their starts may arrive in either order, so stream only when the
+    // association is unambiguous; the final response still backfills the grid.
+    const request = soleBrowseRequest(inFlightBrowses);
+    activeStreamRequestId = request?.id ?? 0;
+    const append = request?.append === true;
+    if (!append) {
+      seenEntries.clear();
+      grid.replaceChildren();
+      gridEmpty.classList.add('hidden');
+    }
     return;
   }
+  if (activeStreamRequestId !== browseState.requestId) return;
   if (applied.entries.length > 0) appendEntries(applied.entries);
   if (!progress.done) {
     setStatus(summarizeProgress(progress), progress.failures.length > 0 ? 'error' : 'info');
   }
 });
 
-async function runSearch(query: string): Promise<void> {
-  const request = ++searchRequest;
-  // A new search means new results; leave the detail page for them.
-  if (!detail.classList.contains('hidden')) closeDetail();
-  setStatus(query ? `Searching for “${query}”…` : 'Loading popular…');
-  grid.replaceChildren();
-  gridEmpty.classList.add('hidden');
+async function runBrowse(request: BrowseRequest): Promise<void> {
+  inFlightBrowses.set(request.id, request);
+  renderLoadMore();
 
   try {
-    const result = query ? await api.search(query) : await api.getPopular();
-    // A newer search owns the grid now; this one's result is history.
-    if (request !== searchRequest) return;
+    const result = request.query
+      ? await api.search(request.query, request.page)
+      : await api.getPopular(request.page);
+    if (request.id !== browseState.requestId) return;
+    browseState = finishBrowse(browseState, request.id, result.hasNextPage);
+    renderLoadMore();
 
     // Every source failing is an error, not an empty result set.
     if (result.entries.length === 0 && result.failures.length > 0) {
       const first = result.failures[0];
-      renderEntries([], `${first?.sourceName}: ${first?.error}`);
+      if (!request.append) renderEntries([], `${first?.sourceName}: ${first?.error}`);
       setStatus(summarizeSearch(result), 'error');
       return;
     }
 
-    // The stream already filled the grid; only render from the result when no
-    // update arrived (covers a host without streaming wired up).
-    if (grid.childElementCount === 0 || result.entries.length === 0) {
+    // The final response backfills a host without streaming. Entries already
+    // pushed by the stream are filtered out, including sources that repeat a
+    // final page while another source still has more.
+    appendEntries(result.entries);
+    if (!request.append && grid.childElementCount === 0) {
       renderEntries(
-        result.entries,
-        query ? `Nothing found for “${query}”.` : 'This source returned nothing.',
+        [],
+        request.query ? `Nothing found for “${request.query}”.` : 'This source returned nothing.',
       );
     }
     setStatus(summarizeSearch(result), result.failures.length > 0 ? 'error' : 'info');
   } catch (error) {
-    if (request !== searchRequest) return;
-    renderEntries([], describe(error));
+    if (request.id !== browseState.requestId) return;
+    browseState = failBrowse(browseState, request);
+    renderLoadMore();
+    if (!request.append) renderEntries([], describe(error));
     setStatus(describe(error), 'error');
+  } finally {
+    inFlightBrowses.delete(request.id);
   }
+}
+
+async function runSearch(query: string): Promise<void> {
+  const started = beginBrowse(browseState, query);
+  browseState = started.state;
+  // A new search means new results; leave the detail page for them.
+  if (detailPanel.isOpen()) detailPanel.close();
+  setStatus(query ? `Searching for “${query}”…` : 'Loading popular…');
+  seenEntries.clear();
+  grid.replaceChildren();
+  gridEmpty.classList.add('hidden');
+  await runBrowse(started.request);
+}
+
+async function loadNextPage(): Promise<void> {
+  const started = beginNextPage(browseState);
+  if (!started) return;
+  browseState = started.state;
+  setStatus(`Loading page ${started.request.page}…`);
+  await runBrowse(started.request);
 }
 
 /* ---------- source settings ---------- */
@@ -470,20 +387,21 @@ searchForm.addEventListener('submit', (event) => {
 
 sourceSelect.addEventListener('change', () => {
   void (async () => {
-    await api.selectSource(sourceSelect.value);
-    // Settings belong to the source, so reload them rather than showing stale fields.
-    if (currentView === 'settings') await openSettings();
-    await runSearch(searchInput.value.trim());
+    const requestedSourceId = sourceSelect.value;
+    try {
+      await api.selectSource(requestedSourceId);
+      selectedSourceId = requestedSourceId;
+      // Settings belong to the source, so reload them rather than showing stale fields.
+      if (currentView === 'settings') await openSettings();
+      await runSearch(searchInput.value.trim());
+    } catch (error) {
+      if (selectedSourceId !== null) sourceSelect.value = selectedSourceId;
+      setStatus(describe(error), 'error');
+    }
   })();
 });
 
-detailBack.addEventListener('click', closeDetail);
-
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !detail.classList.contains('hidden')) {
-    closeDetail();
-  }
-});
+loadMoreButton.addEventListener('click', () => void loadNextPage());
 
 api.onBridgeState(renderBridgeState);
 

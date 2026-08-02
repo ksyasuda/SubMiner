@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { extensionFileName, type RepoExtension } from './extension-repo';
 
@@ -19,7 +20,23 @@ export interface InstallExtensionOptions {
   signal?: AbortSignal;
   /** Applied when no `signal` is given, so a download can never hang forever. */
   timeoutMs?: number;
+  /** Injectable filesystem boundary for failure-path tests. */
+  fileIo?: ExtensionInstallerFileIo;
 }
+
+export interface ExtensionInstallerFileIo {
+  mkdir: (dir: string) => Promise<unknown>;
+  writeFile: (filePath: string, bytes: Uint8Array) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
+  removeFile: (filePath: string) => Promise<void>;
+}
+
+const DEFAULT_FILE_IO: ExtensionInstallerFileIo = {
+  mkdir: (dir) => mkdir(dir, { recursive: true }),
+  writeFile: (filePath, bytes) => writeFile(filePath, bytes),
+  rename,
+  removeFile: (filePath) => rm(filePath, { force: true }),
+};
 
 /** APKs are a few MB; anything far past that is not an extension. */
 const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
@@ -41,6 +58,7 @@ export function looksLikeApk(bytes: Uint8Array): boolean {
  */
 export async function installExtension(options: InstallExtensionOptions): Promise<string> {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const fileIo = options.fileIo ?? DEFAULT_FILE_IO;
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const signal = options.signal ?? AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
@@ -59,9 +77,17 @@ export async function installExtension(options: InstallExtensionOptions): Promis
     throw new Error(`${options.extension.name} did not download as an APK.`);
   }
 
-  await mkdir(options.extensionsDir, { recursive: true });
+  await fileIo.mkdir(options.extensionsDir);
   const target = resolveTarget(options.extensionsDir, options.extension.pkg);
-  await writeFile(target, bytes);
+  const staged = `${target}.${randomUUID()}.tmp`;
+  try {
+    await fileIo.writeFile(staged, bytes);
+    await fileIo.rename(staged, target);
+  } finally {
+    try {
+      await fileIo.removeFile(staged);
+    } catch {}
+  }
   return target;
 }
 
@@ -93,7 +119,9 @@ async function readBounded(
     if (done) break;
     total += value.byteLength;
     if (total > maxBytes) {
-      await reader.cancel();
+      try {
+        await reader.cancel();
+      } catch {}
       throw new Error(`${name} is larger than the ${maxBytes} byte limit.`);
     }
     chunks.push(value);

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createStreamPlaybackMetadataStore,
+  matchRequestedStreamPlaybackMetadata,
   toAnilistMediaGuess,
   toJimakuMediaInfo,
 } from './stream-playback-metadata';
@@ -42,6 +43,18 @@ test('the store stops answering once the player moves on', () => {
   assert.equal(store.match(metadata().mediaPath), null);
 });
 
+test('an explicit target path does not inherit the current stream metadata', () => {
+  const store = createStreamPlaybackMetadataStore();
+  const current = metadata();
+  store.set(current);
+
+  assert.equal(
+    matchRequestedStreamPlaybackMetadata(store, '/home/user/Videos/other.mkv', current.mediaPath),
+    null,
+  );
+  assert.equal(matchRequestedStreamPlaybackMetadata(store, null, current.mediaPath), current);
+});
+
 test('toJimakuMediaInfo prefills the modals with the source-reported fields', () => {
   assert.deepEqual(toJimakuMediaInfo(metadata()), {
     title: 'Mushoku Tensei: Jobless Reincarnation',
@@ -58,6 +71,12 @@ test('toJimakuMediaInfo drops to low confidence when there is no episode', () =>
   assert.equal(info.episode, null);
   assert.equal(info.confidence, 'low');
   assert.equal(info.title, 'Mushoku Tensei: Jobless Reincarnation');
+});
+
+test('toJimakuMediaInfo reports low confidence when a fractional episode is omitted', () => {
+  const info = toJimakuMediaInfo(metadata({ episodeNumber: 6.5 }));
+  assert.equal(info.episode, null);
+  assert.equal(info.confidence, 'low');
 });
 
 test('toAnilistMediaGuess reports the stream fields verbatim', () => {

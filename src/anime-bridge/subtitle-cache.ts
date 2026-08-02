@@ -58,6 +58,7 @@ export interface SubtitleCacheResult {
 interface FetchResponseLike {
   ok: boolean;
   status: number;
+  body?: ReadableStream<Uint8Array> | null;
   arrayBuffer: () => Promise<ArrayBuffer>;
 }
 
@@ -150,7 +151,7 @@ async function downloadTrack(
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    bytes = new Uint8Array(await response.arrayBuffer());
+    bytes = await readBounded(response, MAX_SUBTITLE_BYTES);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -169,6 +170,40 @@ async function downloadTrack(
   // mpv's own charset detection would otherwise handle.
   await io.writeFile(filePath, bytes);
   return filePath;
+}
+
+async function readBounded(response: FetchResponseLike, maxBytes: number): Promise<Uint8Array> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) {
+      throw new Error(`response too large (${bytes.byteLength} bytes)`);
+    }
+    return bytes;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      try {
+        await reader.cancel();
+      } catch {}
+      throw new Error(`response too large (${total} bytes)`);
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
 }
 
 /**

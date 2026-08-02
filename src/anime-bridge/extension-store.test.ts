@@ -87,10 +87,29 @@ test('listExtensionSources flattens every source a factory apk provides', async 
   const sources = await listExtensionSources(client, extensions);
 
   assert.equal(sources.length, 2);
-  // Numeric ids are normalized to strings so they can key UI state.
-  assert.equal(sources[0]?.id, '101');
+  // Numeric bridge ids are normalized and package-qualified for UI state.
+  assert.equal(sources[0]?.id, 'multi:101');
+  assert.equal(sources[0]?.bridgeId, '101');
   assert.equal(sources[0]?.name, 'Source One');
   assert.equal(sources[1]?.lang, 'ja');
+});
+
+test('sources with the same bridge id in different packages have distinct runtime ids', async () => {
+  const extensions: InstalledExtension[] = [
+    { file: '/x/one.apk', fallbackName: 'pkg.one', sha256: 'hash-one' },
+    { file: '/x/two.apk', fallbackName: 'pkg.two', sha256: 'hash-two' },
+  ];
+  const client = fakeClient(async () => [{ id: 'shared', name: 'Source', lang: 'en' }]);
+
+  const sources = await listExtensionSources(client, extensions);
+
+  assert.deepEqual(
+    sources.map(({ id, bridgeId, pkg }) => ({ id, bridgeId, pkg })),
+    [
+      { id: 'pkg.one:shared', bridgeId: 'shared', pkg: 'pkg.one' },
+      { id: 'pkg.two:shared', bridgeId: 'shared', pkg: 'pkg.two' },
+    ],
+  );
 });
 
 test('listExtensionSources falls back to the file name and a default language', async () => {
@@ -117,8 +136,8 @@ test('toInstalledExtensionViews names an extension after the sources it provides
     { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a' },
   ];
   const sources: ExtensionSource[] = [
-    { id: '1', name: 'One', lang: 'en', pkg: 'multi', file: '/x/multi.apk' },
-    { id: '2', name: 'Two', lang: 'ja', pkg: 'multi', file: '/x/multi.apk' },
+    { id: 'multi:1', bridgeId: '1', name: 'One', lang: 'en', pkg: 'multi', file: '/x/multi.apk' },
+    { id: 'multi:2', bridgeId: '2', name: 'Two', lang: 'ja', pkg: 'multi', file: '/x/multi.apk' },
   ];
 
   assert.deepEqual(toInstalledExtensionViews(extensions, sources, []), [

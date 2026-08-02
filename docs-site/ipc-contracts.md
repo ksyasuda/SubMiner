@@ -38,7 +38,7 @@ flowchart TB
 
 ## Runtime Sockets
 
-The renderer↔main bridge above lives _inside_ the Electron app. A separate set of OS sockets connects the app to the other runtimes - mpv and the launcher/plugin. These carry no renderer payloads and bypass the contract/validator layer; they are command and property channels between processes.
+The renderer↔main bridge above lives *inside* the Electron app. A separate set of OS sockets connects the app to the other runtimes - mpv and the launcher/plugin. These carry no renderer payloads and bypass the contract/validator layer; they are command and property channels between processes.
 
 - **mpv IPC socket** (`/tmp/subminer-socket`, or `\\.\pipe\subminer-socket` on Windows): the `MpvIpcClient` in the main process connects here to send JSON commands and subscribe to playback/subtitle properties via `observe_property`. Created by mpv's `--input-ipc-server`.
 - **App control socket** (`/tmp/subminer-control-<uid>-<hash>.sock`, or a named pipe on Windows): the launcher and the mpv plugin send CLI-style commands (`--start`, `--show-visible-overlay`, `--texthooker`) to a running app here. It also dedupes a second `subminer` invocation into the existing instance instead of launching twice.
@@ -69,15 +69,15 @@ How these sockets are established during launch is covered in [Playback Startup 
 
 ## Core Surfaces
 
-| File                                   | Role                                                                                                                    |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `src/shared/ipc/contracts.ts`          | Canonical channel names and payload type contracts. Single source of truth for both processes.                          |
-| `src/shared/ipc/validators.ts`         | Runtime payload parsers and type guards. Every `invoke` payload is validated here before the handler runs.              |
-| `src/preload.ts`                       | Renderer-side bridge. Exposes a typed API surface to the renderer - only approved channels are accessible.              |
-| `src/main/ipc-runtime.ts`              | Main-process handler registration and routing. Wires validated channels to domain handlers.                             |
-| `src/core/services/ipc.ts`             | Service-level invoke handling. Applies guardrails (validation, error wrapping) before calling domain logic.             |
-| `src/core/services/anki-jimaku-ipc.ts` | Integration-specific IPC boundary for Anki and Jimaku operations.                                                       |
-| `src/main/cli-runtime.ts`              | CLI/runtime command boundary. Handles commands that originate from the launcher or mpv plugin rather than the renderer. |
+| File | Role |
+| --- | --- |
+| `src/shared/ipc/contracts.ts` | Canonical channel names and payload type contracts. Single source of truth for both processes. |
+| `src/shared/ipc/validators.ts` | Runtime payload parsers and type guards. Every `invoke` payload is validated here before the handler runs. |
+| `src/preload.ts` | Renderer-side bridge. Exposes a typed API surface to the renderer - only approved channels are accessible. |
+| `src/main/ipc-runtime.ts` | Main-process handler registration and routing. Wires validated channels to domain handlers. |
+| `src/core/services/ipc.ts` | Service-level invoke handling. Applies guardrails (validation, error wrapping) before calling domain logic. |
+| `src/core/services/anki-jimaku-ipc.ts` | Integration-specific IPC boundary for Anki and Jimaku operations. |
+| `src/main/cli-runtime.ts` | CLI/runtime command boundary. Handles commands that originate from the launcher or mpv plugin rather than the renderer. |
 
 ## Contract Rules
 

@@ -186,8 +186,14 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
             {
               label: 'Remove',
               onClick: async () => {
-                await api.removeRepo(repoUrl);
-                await refresh();
+                setStatus('Removing repository…');
+                try {
+                  await api.removeRepo(repoUrl);
+                  await refresh();
+                  setStatus('Repository removed', 'ok');
+                } catch (error) {
+                  setStatus(describe(error), 'error');
+                }
               },
             },
           ],

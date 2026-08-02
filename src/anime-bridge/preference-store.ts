@@ -1,9 +1,27 @@
-import { readFile, writeFile, rename, rm, mkdir } from 'node:fs/promises';
+import { chmod, readFile, writeFile, rename, rm, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { BridgePreference } from './types';
 
+function parseStoredPreferences(value: unknown): Record<string, BridgePreference[]> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  const parsed: Record<string, BridgePreference[]> = {};
+  for (const [key, entries] of Object.entries(value)) {
+    if (!Array.isArray(entries)) continue;
+    parsed[key] = entries.filter(
+      (entry): entry is BridgePreference =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        !Array.isArray(entry) &&
+        typeof (entry as Record<string, unknown>).key === 'string',
+    );
+  }
+  return parsed;
+}
+
 /**
- * Persists each source's preference array verbatim, keyed by bridge source id.
+ * Persists each source's preference array verbatim, keyed by extension package
+ * and bridge source id.
  *
  * Extensions keep credentials in here (the Jellyfin source stores a password),
  * so the file is written with owner-only permissions.
@@ -33,10 +51,7 @@ export class PreferenceStore {
     if (this.cache !== null) return this.cache;
     try {
       const parsed = JSON.parse(await readFile(this.file, 'utf8')) as unknown;
-      this.cache =
-        parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
-          ? (parsed as Record<string, BridgePreference[]>)
-          : {};
+      this.cache = parseStoredPreferences(parsed);
     } catch {
       // Missing or corrupt file starts empty rather than blocking the browser.
       this.cache = {};
@@ -44,17 +59,27 @@ export class PreferenceStore {
     return this.cache;
   }
 
-  async get(sourceId: string): Promise<BridgePreference[]> {
+  async get(pkg: string, sourceId: string): Promise<BridgePreference[]> {
     return this.enqueue(async () => {
       const all = await this.load();
-      return all[sourceId] ?? [];
+      const key = `${pkg}:${sourceId}`;
+      if (all[key]) return all[key];
+
+      // Bare source IDs predate package scoping and have no trustworthy owner.
+      // Never assign their credentials to whichever package happens to ask first.
+      const legacy = all[sourceId];
+      if (legacy) {
+        delete all[sourceId];
+        await this.persist(all);
+      }
+      return [];
     });
   }
 
-  async set(sourceId: string, preferences: BridgePreference[]): Promise<void> {
+  async set(pkg: string, sourceId: string, preferences: BridgePreference[]): Promise<void> {
     await this.enqueue(async () => {
       const all = await this.load();
-      all[sourceId] = preferences;
+      all[`${pkg}:${sourceId}`] = preferences;
       await this.persist(all);
     });
   }
@@ -91,7 +116,11 @@ export class PreferenceStore {
     await mkdir(path.dirname(this.file), { recursive: true });
     const temporary = `${this.file}.tmp`;
     try {
+      await chmod(temporary, 0o600).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') throw error;
+      });
       await writeFile(temporary, JSON.stringify(all, null, 2), { mode: 0o600 });
+      await chmod(temporary, 0o600);
       await rename(temporary, this.file);
     } catch (error) {
       await rm(temporary, { force: true }).catch(() => undefined);

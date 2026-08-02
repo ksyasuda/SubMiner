@@ -26,8 +26,10 @@ export interface InstalledExtension {
 }
 
 export interface ExtensionSource {
-  /** Stable id: the bridge source id, which selects it inside a factory APK. */
+  /** Package-qualified id used by the UI and runtime. */
   id: string;
+  /** Raw bridge id, which selects this source inside a factory APK. */
+  bridgeId: string;
   name: string;
   lang: string;
   pkg: string;
@@ -126,10 +128,11 @@ export async function listExtensionSources(
     try {
       const descriptors = await client.listAnimeSources(toBridgeSource(extension));
       for (const descriptor of descriptors) {
-        const id = descriptor.id === undefined ? null : String(descriptor.id);
-        if (id === null || id.length === 0) continue;
+        const bridgeId = descriptor.id === undefined ? null : String(descriptor.id);
+        if (bridgeId === null || bridgeId.length === 0) continue;
         sources.push({
-          id,
+          id: `${extension.fallbackName}:${bridgeId}`,
+          bridgeId,
           name: descriptor.name?.trim() || extension.fallbackName,
           lang: descriptor.lang ?? 'all',
           pkg: extension.fallbackName,

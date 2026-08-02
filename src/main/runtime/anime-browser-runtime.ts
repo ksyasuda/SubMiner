@@ -1,27 +1,9 @@
 import { AnimeBridgeClient } from '../../anime-bridge/bridge-client';
-import { resolveStream } from '../../anime-bridge/headers';
-import {
-  parseAnimeStatus,
-  resolveBridgeMediaUrl,
-  routeHlsThroughProxy,
-} from '../../anime-bridge/media-url';
-import {
-  watchPlaybackOutcome,
-  type PlaybackEndFileEvent,
-} from '../../anime-bridge/playback-outcome';
+import { parseAnimeStatus, resolveBridgeMediaUrl } from '../../anime-bridge/media-url';
 import {
   startStreamStripProxy,
   type StreamStripProxyHandle,
 } from '../../anime-bridge/stream-strip-proxy';
-import {
-  buildPlaybackCommands,
-  buildTrackCommands,
-  selectPreferredStream,
-} from '../../anime-bridge/mpv-playback';
-import {
-  buildAnimeStreamMetadata,
-  type AnimeStreamMetadata,
-} from '../../anime-bridge/episode-metadata';
 import {
   listExtensionSources,
   readInstalledExtensions,
@@ -30,11 +12,6 @@ import {
   type ExtensionSource,
   type InstalledExtension,
 } from '../../anime-bridge/extension-store';
-import {
-  cacheSubtitleTracks,
-  removeSubtitleCache,
-  type SubtitleCacheIo,
-} from '../../anime-bridge/subtitle-cache';
 import { interleave, mapSourcesConcurrently } from '../../anime-bridge/multi-source-search';
 import { startSidecar, type SidecarHandle } from '../../anime-bridge/sidecar-process';
 import {
@@ -49,73 +26,24 @@ import {
 import { PreferenceStore } from '../../anime-bridge/preference-store';
 import { applyPreferenceValue, parsePreferences } from '../../anime-bridge/preferences';
 import type { SourcePreferenceView } from '../../anime-bridge/preferences';
-import type { BundleBinaries } from '../../anime-bridge/sidecar-bundle';
-import type { InstallProgress } from './anime-bridge-installer';
 import { ALL_SOURCES_ID } from '../../types/anime-browser';
 import type {
   AnimeBrowserBridgeState,
   AnimeBrowserDetails,
   AnimeBrowserEntry,
   AnimeBrowserEpisode,
-  AnimeBrowserPlayRequest,
-  AnimeBrowserPlayResult,
   AnimeBrowserSearchResult,
   AnimeBrowserSearchUpdate,
   AnimeBrowserSnapshot,
   AvailableExtensionsResult,
   ExtensionLoadFailure,
 } from '../../types/anime-browser';
-import type { BridgeAnimePage } from '../../anime-bridge/types';
-
-export interface AnimeBrowserRuntimeDeps {
-  /** Where user-supplied Aniyomi extension APKs live. Read lazily so config edits apply. */
-  extensionsDir: () => string;
-  /** Configured repository index URLs. Empty unless the user added one. */
-  repos: () => string[];
-  /** Persists the repository list. Config stays the source of truth. */
-  setRepos: (repos: string[]) => void;
-  /** JSON file holding each source's saved preference values. */
-  preferencesFile: string;
-  ensureBinaries: (onProgress: (progress: InstallProgress) => void) => Promise<BundleBinaries>;
-  /** Sends mpv an IPC command; same transport the Jellyfin path uses. */
-  sendMpvCommand: (command: Array<string | number>) => void;
-  /** Brings mpv up if it is not already connected. Resolves false on failure. */
-  ensureMpvConnected: () => Promise<boolean>;
-  /**
-   * Subscribe to mpv end-file events; returns the unsubscribe. Together with
-   * readMpvProperty this lets playEpisode confirm playback really started
-   * instead of reporting success the moment the commands were written.
-   */
-  onPlaybackEndFile?: (listener: (event: PlaybackEndFileEvent) => void) => () => void;
-  /** One-shot mpv property read; rejects while the property is unavailable. */
-  readMpvProperty?: (name: string) => Promise<unknown>;
-  showMpvOsd?: (message: string) => void;
-  showVisibleOverlay?: () => void;
-  /**
-   * Publishes what is about to play. Called *before* `loadfile` so the title
-   * and the episode's identity are already known when mpv reports the path
-   * change — otherwise stats sees only the proxy URL and groups every stream
-   * under its file extension.
-   */
-  onPlaybackMetadata?: (metadata: AnimeStreamMetadata) => void;
-  /** Lets tests drive the pause between `loadfile` and the track commands. */
-  wait?: (ms: number) => Promise<void>;
-  /** Overrides the filesystem/network the subtitle cache uses. Tests only. */
-  subtitleCacheIo?: SubtitleCacheIo;
-  onBridgeState: (state: AnimeBrowserBridgeState) => void;
-  /**
-   * Streams per-source progress while a search invoke is pending. Optional so
-   * a host that has no window to push to can leave it out.
-   */
-  onSearchUpdate?: (update: AnimeBrowserSearchUpdate) => void;
-  preferredQuality?: () => string | undefined;
-  log: (message: string) => void;
-}
+import type { BridgeAnimePage, BridgePreference } from '../../anime-bridge/types';
+import { createAnimeBrowserPlayback } from './anime-browser-playback';
+import type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
+export type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
 
 const IDLE_STATE: AnimeBrowserBridgeState = { stage: 'idle', progress: null, message: null };
-
-/** How long to let `loadfile` settle before adding external tracks. */
-const TRACK_ATTACH_DELAY_MS = 300;
 
 export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let bridgeState: AnimeBrowserBridgeState = IDLE_STATE;
@@ -128,53 +56,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let loadFailures: ExtensionLoadFailure[] = [];
   // Monotonic; identifies the newest browse so stale ones stop emitting.
   let searchToken = 0;
-  // Temp directory holding the playing episode's downloaded subtitles. Kept
-  // until the next episode replaces it, because alass reads it mid-playback.
-  let subtitleCacheDir: string | null = null;
   const preferenceStore = new PreferenceStore(deps.preferencesFile);
-  const wait =
-    deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-
-  /**
-   * Drop the previous episode's downloaded subtitles.
-   *
-   * Deliberately not done at end-file: alass reads those files for as long as
-   * the episode is up, so they only go once another one replaces them.
-   */
-  async function clearSubtitleCache(): Promise<void> {
-    const previousDir = subtitleCacheDir;
-    subtitleCacheDir = null;
-    await removeSubtitleCache(previousDir, deps.subtitleCacheIo);
-  }
-
-  /**
-   * Download the stream's subtitle tracks so mpv loads files instead of URLs.
-   *
-   * alass needs the reference track on disk, and the subsync picker rejects an
-   * external track whose `external-filename` is not a real file, so a streamed
-   * track cannot be used to retime anything.
-   */
-  async function cacheStreamSubtitles(stream: {
-    headers: Record<string, string>;
-    subtitles: Array<{ url: string; lang: string }>;
-  }): Promise<Array<{ url: string; lang: string }>> {
-    const cached = await cacheSubtitleTracks({
-      tracks: stream.subtitles,
-      headers: stream.headers,
-      io: deps.subtitleCacheIo,
-      log: deps.log,
-    });
-    subtitleCacheDir = cached.dir;
-
-    const localCount = cached.tracks.filter((track) => track.local).length;
-    if (cached.tracks.length > 0) {
-      deps.log(
-        `[anime-browser] cached ${localCount}/${cached.tracks.length} subtitle track(s) to disk` +
-          (cached.dir ? ` in ${cached.dir}` : ''),
-      );
-    }
-    return cached.tracks.map((track) => ({ url: track.url, lang: track.lang }));
-  }
 
   function setState(state: AnimeBrowserBridgeState): void {
     bridgeState = state;
@@ -187,8 +69,19 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     const extension = extensions.find((candidate) => candidate.file === source.file);
     if (!extension) throw new Error(`Extension file missing for ${source.name}.`);
     // Saved values ride along on every call; the extension is stateless per request.
-    const saved = await preferenceStore.get(source.id);
-    return { ...toBridgeSource(extension, source.id), preferences: saved };
+    const saved = await preferenceStore.get(source.pkg, source.bridgeId);
+    return { ...toBridgeSource(extension, source.bridgeId), preferences: saved };
+  }
+
+  function overlaySavedPreferences(
+    schema: BridgePreference[],
+    saved: BridgePreference[],
+  ): BridgePreference[] {
+    let merged = schema;
+    for (const preference of parsePreferences(saved)) {
+      merged = applyPreferenceValue(merged, preference.key, preference.value);
+    }
+    return merged;
   }
 
   /**
@@ -211,7 +104,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     );
 
     setState({ stage: 'starting', progress: null, message: null });
-    const handle = await startSidecar({
+    const handle = await (deps.startSidecar ?? startSidecar)({
       binaries,
       onLog: (line) => deps.log(`[anime-bridge] ${line}`),
     });
@@ -239,7 +132,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     });
 
     try {
-      const proxy = await startStreamStripProxy({
+      const proxy = await (deps.startStreamStripProxy ?? startStreamStripProxy)({
         upstreamOrigin: () => sidecar?.baseUrl ?? handle.baseUrl,
         log: deps.log,
       });
@@ -397,6 +290,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     };
   }
 
+  const playback = createAnimeBrowserPlayback({
+    deps,
+    bridge,
+    sourceFor,
+    stripProxy: () => stripProxy,
+  });
+
   return {
     getSnapshot(): AnimeBrowserSnapshot {
       return {
@@ -501,8 +401,9 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     async getPreferences(sourceId: string): Promise<SourcePreferenceView[]> {
       const { client } = await bridge();
       const source = requireSource(sourceId);
-      const schema = await client.getSourcePreferences(await sourceFor(source.id));
-      return parsePreferences(schema);
+      const bridgeSource = await sourceFor(source.id);
+      const schema = await client.getSourcePreferences(bridgeSource);
+      return parsePreferences(overlaySavedPreferences(schema, bridgeSource.preferences ?? []));
     },
 
     /**
@@ -515,20 +416,21 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       value: string | string[] | boolean,
     ): Promise<SourcePreferenceView[]> {
       const { client } = await bridge();
-      const source = await sourceFor(sourceId);
+      const extensionSource = requireSource(sourceId);
+      const source = await sourceFor(extensionSource.id);
 
       // Start from the extension's own schema so saved values never go stale
       // against an updated extension.
-      const current =
-        source.preferences && source.preferences.length > 0
-          ? source.preferences
-          : await client.getSourcePreferences(source);
+      const schema = await client.getSourcePreferences(source);
+      const current = overlaySavedPreferences(schema, source.preferences ?? []);
 
       const updated = applyPreferenceValue(current, key, value);
-      await preferenceStore.set(sourceId, updated);
+      await preferenceStore.set(extensionSource.pkg, extensionSource.bridgeId, updated);
 
       const refreshed = await client.setSourcePreference({ ...source, preferences: updated }, key);
-      if (refreshed.length > 0) await preferenceStore.set(sourceId, refreshed);
+      if (refreshed.length > 0) {
+        await preferenceStore.set(extensionSource.pkg, extensionSource.bridgeId, refreshed);
+      }
       return parsePreferences(refreshed.length > 0 ? refreshed : updated);
     },
 
@@ -573,127 +475,16 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       }));
     },
 
-    async playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
-      try {
-        const { client, baseUrl } = await bridge();
-        const videos = await client.getVideoList(
-          await sourceFor(request.sourceId),
-          request.episodeUrl,
-        );
-        const streams = videos
-          .map((video) => resolveStream(video))
-          .filter((stream): stream is NonNullable<typeof stream> => stream !== null)
-          // External tracks come off the same loopback proxy as the video, so
-          // they need the same rebase onto the port the bridge really uses.
-          .map((stream) => ({
-            ...stream,
-            url: resolveBridgeMediaUrl(baseUrl, stream.url),
-            audios: stream.audios.map((track) => ({
-              ...track,
-              url: resolveBridgeMediaUrl(baseUrl, track.url),
-            })),
-            subtitles: stream.subtitles.map((track) => ({
-              ...track,
-              url: resolveBridgeMediaUrl(baseUrl, track.url),
-            })),
-          }));
-
-        const selected = selectPreferredStream(streams, deps.preferredQuality?.());
-        if (!selected) {
-          return { ok: false, error: 'That source returned no playable video.', quality: null };
-        }
-        // HLS goes through the local strip proxy, which undoes fake-image
-        // segment disguises mpv cannot decode around.
-        const stream = stripProxy
-          ? { ...selected, url: routeHlsThroughProxy(selected.url, baseUrl, stripProxy.origin) }
-          : selected;
-
-        if (!(await deps.ensureMpvConnected())) {
-          return {
-            ok: false,
-            error: 'mpv is not running and could not be started.',
-            quality: null,
-          };
-        }
-
-        // Subscribed before loadfile so a fast failure cannot slip past it.
-        const watch =
-          deps.onPlaybackEndFile && deps.readMpvProperty
-            ? watchPlaybackOutcome({
-                onEndFile: deps.onPlaybackEndFile,
-                readProperty: deps.readMpvProperty,
-                wait,
-              })
-            : null;
-
-        try {
-          const metadata = buildAnimeStreamMetadata({
-            sourceId: request.sourceId,
-            animeUrl: request.animeUrl,
-            animeTitle: request.animeTitle,
-            episodeUrl: request.episodeUrl,
-            episodeName: request.episodeName,
-            episodeNumber: request.episodeNumber ?? null,
-            mediaPath: stream.url,
-          });
-          const title = metadata.displayTitle;
-          // Before loadfile: mpv's path change is what starts a stats session,
-          // and it must find this already recorded.
-          deps.onPlaybackMetadata?.(metadata);
-          for (const command of buildPlaybackCommands({ stream, title })) {
-            deps.sendMpvCommand(command);
-          }
-          // The old episode's subtitles are dead the moment this one loads,
-          // whether or not the new one brings any of its own.
-          await clearSubtitleCache();
-
-          if (stream.audios.length > 0 || stream.subtitles.length > 0) {
-            deps.log(
-              `[anime-browser] ${stream.audios.length} external audio, ` +
-                `${stream.subtitles.length} external subtitle track(s)`,
-            );
-            // mpv attaches added tracks to the file that is loading, so give the
-            // loadfile a moment to take effect first. Same pause the Jellyfin
-            // subtitle preload uses. The download runs inside that pause.
-            const [subtitles] = await Promise.all([
-              cacheStreamSubtitles(stream),
-              wait(TRACK_ATTACH_DELAY_MS),
-            ]);
-            for (const command of buildTrackCommands({ ...stream, subtitles })) {
-              deps.sendMpvCommand(command);
-            }
-          }
-
-          if (watch) {
-            const outcome = await watch.wait();
-            if (!outcome.ok) {
-              deps.log(`[anime-browser] playback failed to start: ${outcome.error}`);
-              return { ok: false, error: outcome.error, quality: null };
-            }
-          }
-
-          deps.showVisibleOverlay?.();
-          deps.showMpvOsd?.(title);
-          return { ok: true, error: null, quality: stream.quality || null };
-        } finally {
-          watch?.dispose();
-        }
-      } catch (error) {
-        deps.log(`[anime-browser] playback failed: ${String(error)}`);
-        return { ok: false, error: describeError(error), quality: null };
-      }
-    },
+    playEpisode: playback.playEpisode,
 
     async dispose(): Promise<void> {
       const handle = sidecar;
       const proxy = stripProxy;
-      const cacheDir = subtitleCacheDir;
       sidecar = null;
       stripProxy = null;
       starting = null;
-      subtitleCacheDir = null;
       setState(IDLE_STATE);
-      await removeSubtitleCache(cacheDir, deps.subtitleCacheIo);
+      await playback.dispose();
       await proxy?.close();
       await handle?.stop();
     },

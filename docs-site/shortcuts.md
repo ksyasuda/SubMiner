@@ -12,10 +12,10 @@ All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindi
 
 ## App-Wide Shortcuts
 
-| Shortcut      | Action                 | Scope                                    | Configurable                           |
-| ------------- | ---------------------- | ---------------------------------------- | -------------------------------------- |
-| `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus | `shortcuts.toggleVisibleOverlayGlobal` |
-| `Alt+Shift+Y` | Open Yomitan settings  | OS-global (registered with the OS)       | Fixed (not configurable)               |
+| Shortcut      | Action                 | Scope                                       | Configurable                           |
+| ------------- | ---------------------- | -------------------------------------------- | -------------------------------------- |
+| `Alt+Shift+O` | Toggle visible overlay | Works while the overlay or mpv has focus     | `shortcuts.toggleVisibleOverlayGlobal` |
+| `Alt+Shift+Y` | Open Yomitan settings  | OS-global (registered with the OS)           | Fixed (not configurable)               |
 
 ::: tip
 `Alt+Shift+O` is dispatched by the overlay window and the mpv plugin, so it works from either surface without OS registration. Only `Alt+Shift+Y` is registered with the OS; if it conflicts with another application, that binding cannot be changed. All `shortcuts.*` keys hot-reload - no restart needed.
@@ -75,21 +75,21 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 
 ## Subtitle & Feature Shortcuts
 
-| Shortcut           | Action                                                   | Config key                                                                                      |
-| ------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`                                                                  |
-| `Ctrl/Cmd+D`       | Open loaded character dictionary manager                 | `shortcuts.openCharacterDictionaryManager`                                                      |
-| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`                                                                  |
-| `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                                                                     |
-| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                                                                          |
-| `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)        | `shortcuts.openTsukihime`                                                                       |
-| `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`                                                           |
-| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                                                                                   |
-| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                                                                      |
-| `Ctrl/Cmd+A`       | Append clipboard video path to mpv playlist              | `shortcuts.appendClipboardVideoToQueue`                                                         |
+| Shortcut           | Action                                                   | Config key                                 |
+| ------------------ | -------------------------------------------------------- | ------------------------------------------ |
+| `Ctrl/Cmd+Shift+V` | Cycle secondary subtitle mode (hidden → visible → hover) | `shortcuts.toggleSecondarySub`             |
+| `Ctrl/Cmd+D`       | Open loaded character dictionary manager                 | `shortcuts.openCharacterDictionaryManager` |
+| `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`             |
+| `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                |
+| `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                     |
+| `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)       | `shortcuts.openTsukihime`                 |
+| `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
+| `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
+| `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                 |
+| `Ctrl/Cmd+A`       | Append clipboard video path to mpv playlist              | `shortcuts.appendClipboardVideoToQueue`    |
 | `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey` (overlay) / `shortcuts.toggleSubtitleSidebar` (mpv session binding) |
-| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                                                                               |
-| `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                                                                          |
+| `` ` ``            | Toggle stats overlay                                     | `stats.toggleKey`                          |
+| `W`                | Mark current video watched and advance to next in queue  | `stats.markWatchedKey`                     |
 
 `shortcuts.openAnimetosho` remains accepted as a deprecated alias for `shortcuts.openTsukihime`. The current name takes precedence when both are configured.
 

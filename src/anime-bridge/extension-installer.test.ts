@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -162,6 +162,61 @@ test('the byte limit stops the read instead of buffering the whole body', async 
   );
   // Only enough chunks to cross the limit were ever read.
   assert.ok(pushed <= 4, `read ${pushed} chunks before aborting`);
+});
+
+test('a failed reader cancellation does not hide the size-limit error', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(1025));
+    },
+    async cancel() {
+      throw new Error('cancel failed');
+    },
+  });
+  const fetchImpl = (async () => new Response(body, { status: 200 })) as typeof fetch;
+
+  await assert.rejects(
+    () =>
+      installExtension({
+        extensionsDir: dir,
+        extension: repoExtension(),
+        fetchImpl,
+        maxBytes: 1024,
+      }),
+    /larger than the 1024 byte limit/,
+  );
+});
+
+test('a failed staged write preserves the installed apk and removes the partial file', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'subminer-install-'));
+  const target = path.join(dir, `${PKG}.apk`);
+  await writeFile(target, apkBytes('OLD'));
+  let stagedPath = '';
+
+  await assert.rejects(
+    () =>
+      installExtension({
+        extensionsDir: dir,
+        extension: repoExtension({ version: '2.0.0', versionCode: 20 }),
+        fetchImpl: respondWith(apkBytes('NEW')),
+        fileIo: {
+          mkdir: (dirPath) => mkdir(dirPath, { recursive: true }),
+          async writeFile(filePath, bytes) {
+            stagedPath = filePath;
+            await writeFile(filePath, bytes.subarray(0, 5));
+            throw new Error('simulated disk write failure');
+          },
+          rename,
+          removeFile: (filePath) => rm(filePath, { force: true }),
+        },
+      }),
+    /simulated disk write failure/,
+  );
+
+  assert.match((await readFile(target)).toString(), /OLD/);
+  assert.notEqual(stagedPath, target);
+  assert.equal(existsSync(stagedPath), false);
 });
 
 test('a package name carrying path separators cannot escape the extensions dir', async () => {

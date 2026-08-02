@@ -144,6 +144,18 @@ test('fetchRepoIndex surfaces a non-ok response', async () => {
   await assert.rejects(() => fetchRepoIndex(INDEX, { fetchImpl }), /404/);
 });
 
+test('fetchRepoIndex applies a deadline when the caller supplies no signal', async () => {
+  let receivedSignal: AbortSignal | undefined;
+  const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    receivedSignal = init?.signal instanceof AbortSignal ? init.signal : undefined;
+    return new Response('[]');
+  }) as typeof fetch;
+
+  await fetchRepoIndex(INDEX, { fetchImpl, timeoutMs: 50 });
+
+  assert.ok(receivedSignal, 'repository request should receive a deadline signal');
+});
+
 test('fetchRepoCatalogue merges repos and keeps the highest version code', async () => {
   const second = 'https://other.example/anime/index.min.json';
   const fetchImpl = (async (input: RequestInfo | URL) => {

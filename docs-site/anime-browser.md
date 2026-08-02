@@ -111,6 +111,10 @@ source fails, the first error is shown in full.
 Typing a new search while one is still running simply starts over: results
 from the superseded search are discarded, even if its sources answer late.
 
+When a source reports another page, **Load more** appears below the covers.
+It appends the next page without duplicating entries that already arrived in
+the live result stream. A failed next-page request remains available to retry.
+
 Source settings belong to a single extension, so the **Source settings** tab
 asks you to pick one while **All sources** is selected.
 
@@ -132,7 +136,11 @@ persist across restarts in `<userData>/anime-source-preferences.json`.
 Each save is handed back to the extension, so it can react: the Jellyfin source
 logs in when the address and password land, then fills in its media-library
 picker. Password-like fields are masked. Because that file can hold
-credentials, it is written with owner-only permissions.
+credentials, it is written with owner-only permissions. Values are scoped to
+the exact extension package and source, so two extensions that reuse the same
+internal source ID cannot read each other's settings. Preferences saved by an
+older build without package ownership are discarded; re-enter those source
+settings once after upgrading.
 
 ## The bridge
 

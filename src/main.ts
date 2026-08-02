@@ -489,6 +489,7 @@ import {
 import { createMediaRuntimeService } from './main/media-runtime';
 import {
   createStreamPlaybackMetadataStore,
+  matchRequestedStreamPlaybackMetadata,
   toAnilistMediaGuess,
   toJimakuMediaInfo,
 } from './main/runtime/stream-playback-metadata';
@@ -2420,9 +2421,13 @@ const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-d
  */
 const streamPlaybackMetadata = createStreamPlaybackMetadataStore();
 
-/** The stream metadata for whatever mpv currently has open, if it is a stream. */
-function getActiveStreamMetadata() {
-  return streamPlaybackMetadata.match(appState.currentMediaPath);
+/** Stream metadata for the requested path, or current media when none was supplied. */
+function getActiveStreamMetadata(mediaPath: string | null = null) {
+  return matchRequestedStreamPlaybackMetadata(
+    streamPlaybackMetadata,
+    mediaPath,
+    appState.currentMediaPath,
+  );
 }
 
 /**
@@ -2433,7 +2438,7 @@ async function guessAnilistMediaInfoForCurrentMedia(
   mediaPath: string | null,
   mediaTitle: string | null,
 ): Promise<AnilistMediaGuess | null> {
-  const stream = getActiveStreamMetadata();
+  const stream = getActiveStreamMetadata(mediaPath);
   const streamGuess = stream ? toAnilistMediaGuess(stream) : null;
   return streamGuess ?? guessAnilistMediaInfo(mediaPath, mediaTitle);
 }

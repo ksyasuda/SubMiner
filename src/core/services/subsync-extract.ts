@@ -100,6 +100,7 @@ async function extractInternalTrack(input: SubtitleExtractionInput): Promise<Fil
   if (!extension) {
     throw new Error(`Unsupported subtitle codec: ${input.track.codec ?? 'unknown'}`);
   }
+  const ffmpegMuxer = extension === 'vtt' ? 'webvtt' : extension;
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-subsync-'));
   try {
@@ -123,7 +124,7 @@ async function extractInternalTrack(input: SubtitleExtractionInput): Promise<Fil
       '-map',
       `0:${ffIndex}`,
       '-f',
-      extension,
+      ffmpegMuxer,
       outputPath,
     ]);
 

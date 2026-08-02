@@ -163,6 +163,34 @@ test('extractSubtitleTrackToFile rejects a missing local external track', async 
   );
 });
 
+test('internal WebVTT extraction uses ffmpeg webvtt muxer with a vtt output file', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-extract-'));
+  const ffmpegPath = path.join(dir, 'ffmpeg-stub');
+  const argsPath = path.join(dir, 'args.txt');
+  fs.writeFileSync(
+    ffmpegPath,
+    `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsPath}'\nfor arg in "$@"; do output="$arg"; done\n: > "$output"\n`,
+    { mode: 0o755 },
+  );
+
+  try {
+    const result = await extractSubtitleTrackToFile({
+      resolveFfmpegPath: () => ffmpegPath,
+      videoPath: path.join(dir, 'video.mkv'),
+      track: { id: 2, type: 'sub', codec: 'webvtt', 'ff-index': 3 },
+      httpHeaders: null,
+    });
+    const args = fs.readFileSync(argsPath, 'utf8').trimEnd().split('\n');
+    const formatIndex = args.indexOf('-f');
+
+    assert.equal(args[formatIndex + 1], 'webvtt');
+    assert.equal(path.extname(result.path), '.vtt');
+    cleanupTemporaryFile(result);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('cleanupTemporaryFile preserves the retimed output sharing the temp directory', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-extract-'));
   const sourcePath = path.join(dir, 'remote_track.srt');

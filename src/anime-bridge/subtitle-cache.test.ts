@@ -120,6 +120,51 @@ test('a failed download keeps its url so the episode still plays', async () => {
   assert.deepEqual(io.removed, []);
 });
 
+test('an oversized streamed subtitle stops early and falls back to its remote url', async () => {
+  const io = fakeIo({});
+  const logged: string[] = [];
+  let chunksRead = 0;
+  let buffered = false;
+  const chunk = new Uint8Array(20 * 1024 * 1024);
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        chunksRead += 1;
+        controller.enqueue(chunk);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  io.fetch = async () => ({
+    ok: true,
+    status: 200,
+    body,
+    async arrayBuffer() {
+      buffered = true;
+      throw new Error('stream should not be buffered');
+    },
+  });
+
+  const result = await cacheSubtitleTracks({
+    tracks: [{ url: 'http://bridge/sub/oversized', lang: 'Japanese' }],
+    io,
+    log: (message) => logged.push(message),
+  });
+
+  assert.equal(buffered, false);
+  assert.equal(chunksRead, 2);
+  assert.equal(result.dir, null);
+  assert.deepEqual(result.tracks, [
+    {
+      url: 'http://bridge/sub/oversized',
+      lang: 'Japanese',
+      sourceUrl: 'http://bridge/sub/oversized',
+      local: false,
+    },
+  ]);
+  assert.ok(logged.some((message) => message.includes('response too large')));
+});
+
 test('a directory with nothing in it is removed and not reported', async () => {
   const io = fakeIo({ 'http://bridge/sub/ja': { status: 500 } });
   const result = await cacheSubtitleTracks({

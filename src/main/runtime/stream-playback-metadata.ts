@@ -41,6 +41,18 @@ export function createStreamPlaybackMetadataStore(): StreamPlaybackMetadataStore
   };
 }
 
+/**
+ * Match metadata for the path a caller requested, falling back to the active
+ * player path only when the caller has no path of its own.
+ */
+export function matchRequestedStreamPlaybackMetadata(
+  store: StreamPlaybackMetadataStore,
+  requestedMediaPath: string | null,
+  currentMediaPath: string | null,
+): AnimeStreamMetadata | null {
+  return store.match(requestedMediaPath ?? currentMediaPath);
+}
+
 /** AniList counts whole episodes, so a special numbered 6.5 cannot drive it. */
 function wholeEpisode(episode: number | null): number | null {
   return typeof episode === 'number' && Number.isInteger(episode) && episode > 0 ? episode : null;
@@ -52,11 +64,12 @@ function wholeEpisode(episode: number | null): number | null {
  * modals may search on them without waiting for the user to confirm.
  */
 export function toJimakuMediaInfo(metadata: AnimeStreamMetadata): JimakuMediaInfo {
+  const episode = wholeEpisode(metadata.episodeNumber);
   return {
     title: metadata.seriesTitle,
     season: metadata.seasonNumber,
-    episode: wholeEpisode(metadata.episodeNumber),
-    confidence: metadata.episodeNumber !== null ? 'high' : 'low',
+    episode,
+    confidence: episode !== null ? 'high' : 'low',
     filename: metadata.displayTitle,
     rawTitle: metadata.displayTitle,
   };

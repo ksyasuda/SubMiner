@@ -27,9 +27,11 @@ function copyFile(sourcePath, outputPath) {
   fs.copyFileSync(sourcePath, outputPath);
 }
 
-function copyAssets(sourceDir, outputDir, label) {
+function copyAssets(sourceDir, outputDir, label, stylesheets = ['style.css']) {
   copyFile(path.join(sourceDir, 'index.html'), path.join(outputDir, 'index.html'));
-  copyFile(path.join(sourceDir, 'style.css'), path.join(outputDir, 'style.css'));
+  for (const stylesheet of stylesheets) {
+    copyFile(path.join(sourceDir, stylesheet), path.join(outputDir, stylesheet));
+  }
   fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(outputDir, 'fonts'), {
     recursive: true,
     force: true,
@@ -50,7 +52,11 @@ function copySyncUiAssets() {
 }
 
 function copyAnimeUiAssets() {
-  copyAssets(animeUiSourceDir, animeUiOutputDir, 'animeui');
+  copyAssets(animeUiSourceDir, animeUiOutputDir, 'animeui', [
+    'style.css',
+    'detail.css',
+    'panels.css',
+  ]);
 }
 
 function fallbackToMacosSource() {

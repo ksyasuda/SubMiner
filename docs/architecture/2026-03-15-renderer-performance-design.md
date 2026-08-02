@@ -64,7 +64,6 @@ External subtitle files only (SRT, VTT, ASS). Embedded subtitle tracks are out o
 A cue parser extracts both timing and text content from subtitle files for prefetching.
 
 **Parsed cue structure:**
-
 ```typescript
 interface SubtitleCue {
   startTime: number; // seconds
@@ -74,7 +73,6 @@ interface SubtitleCue {
 ```
 
 **Supported formats:**
-
 - SRT/VTT: Regex-based parsing of timing lines + text content between timing blocks.
 - ASS: Parse `[Events]` section, extract `Dialogue:` lines, read the field order from the `Format:` row, and take everything after the Text field index as the text (Text can itself contain commas).
 
@@ -158,7 +156,6 @@ tokens (already have frequencyRank values from parser-level applyFrequencyRanks)
 ### Dependency Analysis
 
 All annotations either depend on MeCab POS data or benefit from running after it:
-
 - **Known word marking:** Needs base tokens (surface/headword). No POS dependency, but no reason to run separately.
 - **Frequency filtering:** Uses `pos1Exclusions` and `pos2Exclusions` to clear frequency ranks on excluded tokens (particles, noise). Depends on MeCab POS data.
 - **JLPT marking:** Uses `shouldIgnoreJlptForMecabPos1` to filter. Depends on MeCab POS data.
@@ -175,14 +172,18 @@ function annotateTokens(tokens, deps, options): MergedToken[] {
 
   // Single pass: known word + frequency filtering + JLPT computed together
   const annotated = tokens.map((token) => {
-    const isKnown = nPlusOneEnabled ? token.isKnown || computeIsKnown(token, deps) : false;
+    const isKnown = nPlusOneEnabled
+      ? token.isKnown || computeIsKnown(token, deps)
+      : false;
 
     // Filter frequency rank using POS exclusions (rank values already set at parser level)
     const frequencyRank = frequencyEnabled
       ? filterFrequencyRank(token, pos1Exclusions, pos2Exclusions)
       : undefined;
 
-    const jlptLevel = jlptEnabled ? computeJlptLevel(token, deps.getJlptLevel) : undefined;
+    const jlptLevel = jlptEnabled
+      ? computeJlptLevel(token, deps.getJlptLevel)
+      : undefined;
 
     return { ...token, isKnown, frequencyRank, jlptLevel };
   });
@@ -223,7 +224,6 @@ Replace `document.createElement('span')` calls in the renderer with `templateSpa
 ### Current Behavior
 
 In `renderWithTokens` (`subtitle-render.ts`), each render cycle:
-
 1. Clears DOM with `innerHTML = ''`
 2. Creates a `DocumentFragment`
 3. Calls `document.createElement('span')` for each token (~10-15 per subtitle)
@@ -259,30 +259,27 @@ Full recycling (collecting old nodes, clearing attributes, reusing them) require
 
 ## Combined Impact Summary
 
-| Scenario                          | Before     | After      | Improvement |
-| --------------------------------- | ---------- | ---------- | ----------- |
-| Normal playback (prefetch-warmed) | ~200-320ms | ~30-50ms   | ~80-85%     |
-| Cache hit (repeated subtitle)     | ~72ms      | ~55-65ms   | ~10-20%     |
-| Cache miss (immediate seek)       | ~200-320ms | ~150-260ms | ~20-25%     |
+| Scenario | Before | After | Improvement |
+|----------|--------|-------|-------------|
+| Normal playback (prefetch-warmed) | ~200-320ms | ~30-50ms | ~80-85% |
+| Cache hit (repeated subtitle) | ~72ms | ~55-65ms | ~10-20% |
+| Cache miss (immediate seek) | ~200-320ms | ~150-260ms | ~20-25% |
 
 ---
 
 ## Files Summary
 
 ### New Files
-
 - `src/core/services/subtitle-prefetch.ts`
 - `src/core/services/subtitle-cue-parser.ts`
 
 ### Modified Files
-
 - `src/core/services/subtitle-processing-controller.ts` (expose `preCacheTokenization`)
 - `src/core/services/tokenizer/annotation-stage.ts` (batched single-pass)
 - `src/renderer/subtitle-render.ts` (template cloneNode)
 - `src/main.ts` (wire up prefetch service)
 
 ### Test Files
-
 - New tests for subtitle cue parser (SRT, VTT, ASS formats)
 - New tests for subtitle prefetch service (priority window, seek, pause/resume)
 - Updated tests for annotation stage (same behavior, new implementation)

@@ -22,8 +22,17 @@
 :root {
   --tui-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
   --tui-font-body:
-    'Manrope Default', 'M PLUS 1', 'Manrope', 'Noto Sans CJK JP', 'Noto Sans JP',
-    'Hiragino Kaku Gothic ProN', 'Meiryo', 'Yu Gothic', 'Hiragino Sans', system-ui, sans-serif;
+    'Manrope Default',
+    'M PLUS 1',
+    'Manrope',
+    'Noto Sans CJK JP',
+    'Noto Sans JP',
+    'Hiragino Kaku Gothic ProN',
+    'Meiryo',
+    'Yu Gothic',
+    'Hiragino Sans',
+    system-ui,
+    sans-serif;
   --tui-transition: 180ms ease;
 
   /* Theme-specific values — overridden in .dark below */
@@ -87,11 +96,8 @@ button,
 .VPFeature,
 .VPNavBarMenuLink,
 .VPSidebarItem .text {
-  transition:
-    color var(--tui-transition),
-    background var(--tui-transition),
-    border-color var(--tui-transition),
-    opacity var(--tui-transition);
+  transition: color var(--tui-transition), background var(--tui-transition),
+    border-color var(--tui-transition), opacity var(--tui-transition);
 }
 
 /* === Nav bar === */
@@ -212,7 +218,8 @@ button,
   background: var(--vp-c-bg-soft);
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-brand-1);
-  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP', monospace;
+  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
+    monospace;
   font-variant-ligatures: none;
 }
 
@@ -221,7 +228,8 @@ button,
   border-radius: 0;
   border: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-alt) !important;
-  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP', monospace;
+  font-family: var(--tui-font-mono), 'M PLUS 1', 'Noto Sans CJK JP', 'Noto Sans JP',
+    monospace;
   font-variant-ligatures: none;
 }
 
@@ -265,9 +273,7 @@ button,
 .vp-doc a {
   text-decoration: none;
   border-bottom: 1px solid var(--tui-link-underline);
-  transition:
-    border-color var(--tui-transition),
-    color var(--tui-transition);
+  transition: border-color var(--tui-transition), color var(--tui-transition);
 }
 
 .vp-doc a:hover {
@@ -306,45 +312,20 @@ button,
   border-left-width: 1px;
 }
 
-.vp-doc .custom-block.tip {
-  border-color: var(--vp-c-brand-1);
-}
-.vp-doc .custom-block.tip::before {
-  content: '-- tip';
-  color: var(--vp-c-brand-1);
-}
+.vp-doc .custom-block.tip { border-color: var(--vp-c-brand-1); }
+.vp-doc .custom-block.tip::before { content: '-- tip'; color: var(--vp-c-brand-1); }
 
-.vp-doc .custom-block.info {
-  border-color: var(--vp-c-brand-2);
-}
-.vp-doc .custom-block.info::before {
-  content: '-- info';
-  color: var(--vp-c-brand-2);
-}
+.vp-doc .custom-block.info { border-color: var(--vp-c-brand-2); }
+.vp-doc .custom-block.info::before { content: '-- info'; color: var(--vp-c-brand-2); }
 
-.vp-doc .custom-block.warning {
-  border-color: var(--vp-c-warning-1);
-}
-.vp-doc .custom-block.warning::before {
-  content: '-- warning';
-  color: var(--vp-c-warning-1);
-}
+.vp-doc .custom-block.warning { border-color: var(--vp-c-warning-1); }
+.vp-doc .custom-block.warning::before { content: '-- warning'; color: var(--vp-c-warning-1); }
 
-.vp-doc .custom-block.danger {
-  border-color: var(--vp-c-danger-1);
-}
-.vp-doc .custom-block.danger::before {
-  content: '-- danger';
-  color: var(--vp-c-danger-1);
-}
+.vp-doc .custom-block.danger { border-color: var(--vp-c-danger-1); }
+.vp-doc .custom-block.danger::before { content: '-- danger'; color: var(--vp-c-danger-1); }
 
-.vp-doc .custom-block.details {
-  border-color: var(--vp-c-divider);
-}
-.vp-doc .custom-block.details::before {
-  content: '-- details';
-  color: var(--vp-c-text-2);
-}
+.vp-doc .custom-block.details { border-color: var(--vp-c-divider); }
+.vp-doc .custom-block.details::before { content: '-- details'; color: var(--vp-c-text-2); }
 
 .vp-doc .custom-block .custom-block-title {
   font-family: var(--tui-font-mono);
@@ -432,14 +413,10 @@ button,
 }
 
 @keyframes tui-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
+
 
 /* === Statusline === */
 .tui-statusline {
@@ -480,7 +457,7 @@ button,
   margin-left: -12px;
 }
 
-.tui-statusline__mode[data-mode='HOME'] {
+.tui-statusline__mode[data-mode="HOME"] {
   background: var(--vp-c-brand-2);
 }
 
@@ -584,9 +561,7 @@ body {
 .VPFeatures .VPFeature {
   border-radius: 8px !important;
   border: 1px solid var(--vp-c-divider) !important;
-  transition:
-    border-color var(--tui-transition),
-    background var(--tui-transition),
+  transition: border-color var(--tui-transition), background var(--tui-transition),
     transform var(--tui-transition);
   position: relative;
   overflow: hidden;
@@ -697,7 +672,11 @@ body {
   transform: translateX(-50%);
   width: 600px;
   height: 400px;
-  background: radial-gradient(ellipse at center, var(--tui-hero-glow) 0%, transparent 70%);
+  background: radial-gradient(
+    ellipse at center,
+    var(--tui-hero-glow) 0%,
+    transparent 70%
+  );
   pointer-events: none;
   z-index: -1;
 }

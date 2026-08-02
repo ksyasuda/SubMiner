@@ -96,7 +96,8 @@ export function scheduleOverlayContentReadyFallback(deps: {
   delayMs?: number;
 }): void {
   const setTimeoutFn =
-    deps.setTimeoutFn ?? ((callback: () => void, delayMs: number): unknown => setTimeout(callback, delayMs));
+    deps.setTimeoutFn ??
+    ((callback: () => void, delayMs: number): unknown => setTimeout(callback, delayMs));
   setTimeoutFn(() => {
     if (deps.isContentReady() || deps.isDestroyed()) {
       return;
