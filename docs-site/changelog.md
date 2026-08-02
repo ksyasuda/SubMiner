@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.19.1 (2026-08-01)
+
+**Added**
+- Word Card Type: Adds a setting (Settings > Mining/Anki > Kiku/Lapis Features > "Word Card Type") to choose which card-type flag SubMiner marks on Kiku/Lapis word cards — `word-and-sentence` (default), `click`, `sentence`, `audio`, or `none`. Click cards (`IsClickCard`) can now be flagged, and setting any card-type flag clears the others so a note can't claim two types at once.
+
+**Fixed**
+- Yomitan Popup: Fixes the macOS Yomitan popup going inert after mining a card — clicks outside the popup no longer pass through to mpv, and scrolling over the popup scrolls its definitions instead of seeking playback.
+- YouTube Playlist Links: Fixes opening a video from a playlist URL (e.g. a Watch Later link with `list=`/`index=`) timing out while probing subtitles, metadata, or the playback URL.
+
 ## v0.19.0 (2026-07-29)
 
 **Added**
