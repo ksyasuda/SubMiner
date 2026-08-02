@@ -191,16 +191,27 @@ export function createTsukihimeModal(
     });
   }
 
+  function readNumericInput(input: HTMLInputElement): number | null {
+    if (!input.value) return null;
+    const parsed = Number.parseInt(input.value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
   function getSearchQuery(): string {
     const title = ctx.dom.tsukihimeTitleInput.value.trim();
     if (!title) return '';
-    const episodeValue = ctx.dom.tsukihimeEpisodeInput.value
-      ? Number.parseInt(ctx.dom.tsukihimeEpisodeInput.value, 10)
-      : null;
-    if (episodeValue !== null && Number.isFinite(episodeValue)) {
-      return `${title} ${String(episodeValue).padStart(2, '0')}`;
+    const season = readNumericInput(ctx.dom.tsukihimeSeasonInput);
+    const episode = readNumericInput(ctx.dom.tsukihimeEpisodeInput);
+    // Season 1 is left out on purpose: releases of a first season almost never
+    // put "S01" in the name, so adding it narrows the search to nothing.
+    const parts = [title];
+    if (season !== null && season > 1) {
+      parts.push(`S${String(season).padStart(2, '0')}`);
     }
-    return title;
+    if (episode !== null) {
+      parts.push(String(episode).padStart(2, '0'));
+    }
+    return parts.join(' ');
   }
 
   async function performTsukihimeSearch(): Promise<void> {
@@ -369,6 +380,7 @@ export function createTsukihimeModal(
       .getJimakuMediaInfo()
       .then(async (info: JimakuMediaInfo) => {
         ctx.dom.tsukihimeTitleInput.value = info.title || '';
+        ctx.dom.tsukihimeSeasonInput.value = info.season ? String(info.season) : '';
         ctx.dom.tsukihimeEpisodeInput.value = info.episode ? String(info.episode) : '';
 
         if (info.confidence === 'high' && info.title && info.episode) {

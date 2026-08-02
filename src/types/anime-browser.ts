@@ -166,6 +166,11 @@ export interface AnimeBrowserPlayRequest {
   animeTitle: string;
   episodeUrl: string;
   episodeName: string;
+  /**
+   * The episode's number as the source reported it. Carried rather than
+   * re-parsed out of `episodeName`, which is free-form and often lacks one.
+   */
+  episodeNumber: number | null;
 }
 
 export interface AnimeBrowserPlayResult {

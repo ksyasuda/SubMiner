@@ -9,6 +9,7 @@ import {
 import {
   guessAnilistMediaInfo,
   runGuessit,
+  type AnilistMediaGuess,
   type GuessAnilistMediaInfoDeps,
 } from './anilist-updater';
 import {
@@ -32,7 +33,7 @@ interface Logger {
 
 interface CoverArtCandidate {
   title: string;
-  source: 'guessit' | 'fallback';
+  source: AnilistMediaGuess['source'];
   season: number | null;
   episode: number | null;
 }

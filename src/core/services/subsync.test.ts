@@ -903,6 +903,85 @@ test('runSubsyncManual keeps a retimed secondary track in the secondary slot', a
   );
 });
 
+test('runSubsyncManual converts VTT stream tracks to SRT before running alass', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-vtt-'));
+  const alassLogPath = path.join(tmpDir, 'alass-args.log');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = 'https://example.com/stream.m3u8';
+  const primaryPath = path.join(tmpDir, 'track-1.vtt');
+  const sourcePath = path.join(tmpDir, 'track-0.vtt');
+
+  fs.writeFileSync(primaryPath, 'WEBVTT\n\n00:00:05.000 --> 00:00:06.000\nしっかし\n');
+  fs.writeFileSync(sourcePath, 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nWell then\n');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(
+    alassPath,
+    `#!/bin/sh\n: > "${toShellPath(alassLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(alassLogPath)}"; done\ncp "$2" "$3"\nexit 0\n`,
+  );
+
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return null;
+        if (name === 'track-list') {
+          return [
+            {
+              id: 1,
+              type: 'sub',
+              selected: true,
+              external: true,
+              'external-filename': primaryPath,
+            },
+            {
+              id: 2,
+              type: 'sub',
+              selected: false,
+              external: true,
+              'external-filename': sourcePath,
+            },
+          ];
+        }
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+    }),
+  });
+
+  const result = await runSubsyncManual({ engine: 'alass', referenceTrackId: 2 }, deps);
+
+  assert.equal(result.ok, true);
+  const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
+  assert.equal(alassArgs.length, 3);
+  for (const arg of alassArgs) {
+    assert.equal(path.extname(arg), '.srt');
+  }
+  // The originals stay put; only the alass copies are rewritten.
+  assert.equal(fs.existsSync(primaryPath), true);
+  assert.equal(fs.existsSync(sourcePath), true);
+
+  const loadedPath = sentCommands[0]?.[1];
+  assert.equal(sentCommands[0]?.[0], 'sub-add');
+  assert.equal(typeof loadedPath, 'string');
+  assert.match(fs.readFileSync(fromShellPath(String(loadedPath)), 'utf8'), /しっかし/);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 test('runSubsyncManual keeps internal alass source file alive until sync finishes', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-internal-source-'));
   const alassPath = path.join(tmpDir, 'alass.sh');

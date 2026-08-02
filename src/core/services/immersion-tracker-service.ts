@@ -341,6 +341,31 @@ export interface JellyfinPlaybackMetadataInput {
   itemId: string;
 }
 
+/**
+ * An episode the anime browser is about to stream.
+ *
+ * Reported up front for the same reason the Jellyfin variant is: the stream URL
+ * mpv sees is a per-playback proxy address ending in `.m3u8`, so a session
+ * started from it alone lands in a series named after the file extension.
+ */
+export interface StreamPlaybackMetadataInput {
+  /** The URL handed to mpv; recorded as an alias of `statsPath`. */
+  mediaPath: string;
+  /** Stable per-episode identity. Survives the proxy port and token changing. */
+  statsPath: string;
+  displayTitle: string;
+  seriesTitle: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+}
+
+/**
+ * Parser sources that are recorded before playback starts. A video carrying one
+ * already has better metadata than filename guessing could produce, so the
+ * guess is skipped rather than allowed to overwrite it.
+ */
+const PREPLAYBACK_PARSER_SOURCES = new Set(['jellyfin', 'anime-browser']);
+
 function normalizeMetadataInt(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
 }
@@ -374,7 +399,7 @@ function deleteSearchParamsCaseInsensitive(searchParams: URLSearchParams, names:
   }
 }
 
-function buildJellyfinMediaPathAliasCandidates(mediaPath: string): string[] {
+function buildMediaPathAliasCandidates(mediaPath: string): string[] {
   const candidates = new Set<string>([mediaPath]);
   try {
     const parsed = new URL(mediaPath);
@@ -1421,15 +1446,11 @@ export class ImmersionTrackerService {
     if (!rawPath) {
       return;
     }
-    const normalizedPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
-    for (const alias of buildJellyfinMediaPathAliasCandidates(rawPath)) {
-      this.mediaPathAliases.set(alias, normalizedPath);
-    }
-
+    const statsPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
     const displayTitle =
       normalizeText(metadata.displayTitle) ||
       normalizeText(metadata.itemTitle) ||
-      deriveCanonicalTitle(normalizedPath);
+      deriveCanonicalTitle(statsPath);
     const itemTitle = normalizeText(metadata.itemTitle) || displayTitle;
     const seriesTitle = normalizeText(metadata.seriesTitle);
     const libraryTitle = seriesTitle || itemTitle;
@@ -1439,49 +1460,112 @@ export class ImmersionTrackerService {
       return;
     }
 
+    this.recordPrePlaybackMetadata({
+      statsPath,
+      aliases: buildMediaPathAliasCandidates(rawPath),
+      displayTitle,
+      libraryTitle,
+      seasonNumber,
+      episodeNumber,
+      parserSource: 'jellyfin',
+      metadataJson: JSON.stringify({
+        source: 'jellyfin',
+        itemId: normalizeText(metadata.itemId) || null,
+        itemTitle,
+        seriesTitle: seriesTitle || null,
+        displayTitle,
+        seasonNumber,
+        episodeNumber,
+      }),
+    });
+  }
+
+  recordStreamPlaybackMetadata(metadata: StreamPlaybackMetadataInput): void {
+    const rawPath = normalizeMediaPath(metadata.mediaPath);
+    const statsPath = normalizeMediaPath(metadata.statsPath) || rawPath;
+    if (!statsPath) {
+      return;
+    }
+    const seriesTitle = normalizeText(metadata.seriesTitle);
+    const displayTitle =
+      normalizeText(metadata.displayTitle) || seriesTitle || deriveCanonicalTitle(statsPath);
+    const libraryTitle = seriesTitle || displayTitle;
+    if (!libraryTitle) {
+      return;
+    }
+    const seasonNumber = normalizeMetadataInt(metadata.seasonNumber);
+    const episodeNumber = normalizeMetadataInt(metadata.episodeNumber);
+
+    this.recordPrePlaybackMetadata({
+      statsPath,
+      aliases: rawPath ? buildMediaPathAliasCandidates(rawPath) : [],
+      displayTitle,
+      libraryTitle,
+      seasonNumber,
+      episodeNumber,
+      parserSource: 'anime-browser',
+      metadataJson: JSON.stringify({
+        source: 'anime-browser',
+        seriesTitle: seriesTitle || null,
+        displayTitle,
+        seasonNumber,
+        episodeNumber,
+      }),
+    });
+  }
+
+  /**
+   * Creates the video row and its series link ahead of playback, so the session
+   * mpv's path change starts already belongs to the right anime.
+   */
+  private recordPrePlaybackMetadata(params: {
+    statsPath: string;
+    aliases: string[];
+    displayTitle: string;
+    libraryTitle: string;
+    seasonNumber: number | null;
+    episodeNumber: number | null;
+    parserSource: string;
+    metadataJson: string;
+  }): void {
+    for (const alias of params.aliases) {
+      this.mediaPathAliases.set(alias, params.statsPath);
+    }
+
     const videoId = getOrCreateVideoRecord(
       this.db,
-      buildVideoKey(normalizedPath, SOURCE_TYPE_REMOTE),
+      buildVideoKey(params.statsPath, SOURCE_TYPE_REMOTE),
       {
-        canonicalTitle: displayTitle,
+        canonicalTitle: params.displayTitle,
         sourcePath: null,
-        sourceUrl: normalizedPath,
+        sourceUrl: params.statsPath,
         sourceType: SOURCE_TYPE_REMOTE,
       },
     );
     const previousLink = this.db
       .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { animeId: number | null } | null;
-    const metadataJson = JSON.stringify({
-      source: 'jellyfin',
-      itemId: normalizeText(metadata.itemId) || null,
-      itemTitle,
-      seriesTitle: seriesTitle || null,
-      displayTitle,
-      seasonNumber,
-      episodeNumber,
-    });
     const animeId =
       getManualAnimeAssignment(this.db, videoId) ??
       getOrCreateAnimeRecord(this.db, {
-        parsedTitle: libraryTitle,
-        canonicalTitle: libraryTitle,
-        seasonScope: seasonNumber,
+        parsedTitle: params.libraryTitle,
+        canonicalTitle: params.libraryTitle,
+        seasonScope: params.seasonNumber,
         anilistId: null,
         titleRomaji: null,
         titleEnglish: null,
         titleNative: null,
-        metadataJson,
+        metadataJson: params.metadataJson,
       });
     linkVideoToAnimeRecord(this.db, videoId, {
       animeId,
       parsedBasename: null,
-      parsedTitle: libraryTitle,
-      parsedSeason: seasonNumber,
-      parsedEpisode: episodeNumber,
-      parserSource: 'jellyfin',
+      parsedTitle: params.libraryTitle,
+      parsedSeason: params.seasonNumber,
+      parsedEpisode: params.episodeNumber,
+      parserSource: params.parserSource,
       parserConfidence: 1,
-      parseMetadataJson: metadataJson,
+      parseMetadataJson: params.metadataJson,
     });
 
     const hasLifetimeMedia = Boolean(
@@ -1506,17 +1590,17 @@ export class ImmersionTrackerService {
     }
   }
 
-  private hasJellyfinMetadata(videoId: number): boolean {
+  private hasPrePlaybackMetadata(videoId: number): boolean {
     const row = this.db
       .prepare('SELECT parser_source AS parserSource FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { parserSource: string | null } | null;
-    return row?.parserSource === 'jellyfin';
+    return row?.parserSource !== null && PREPLAYBACK_PARSER_SOURCES.has(row?.parserSource ?? '');
   }
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
     const rawPath = normalizeMediaPath(mediaPath);
     const normalizedPath =
-      buildJellyfinMediaPathAliasCandidates(rawPath)
+      buildMediaPathAliasCandidates(rawPath)
         .map((alias) => this.mediaPathAliases.get(alias))
         .find((alias): alias is string => Boolean(alias)) ?? rawPath;
     const normalizedTitle = normalizeText(mediaTitle);
@@ -1566,7 +1650,7 @@ export class ImmersionTrackerService {
     if (youtubeVideoId) {
       void this.ensureYouTubeCoverArt(sessionInfo.videoId, normalizedPath, youtubeVideoId);
       this.captureYoutubeMetadataAsync(sessionInfo.videoId, normalizedPath);
-    } else if (!this.hasJellyfinMetadata(sessionInfo.videoId)) {
+    } else if (!this.hasPrePlaybackMetadata(sessionInfo.videoId)) {
       this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
     }
     if (!youtubeVideoId) {

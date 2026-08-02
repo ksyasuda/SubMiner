@@ -24,6 +24,7 @@ export type RendererDom = {
 
   tsukihimeModal: HTMLDivElement;
   tsukihimeTitleInput: HTMLInputElement;
+  tsukihimeSeasonInput: HTMLInputElement;
   tsukihimeEpisodeInput: HTMLInputElement;
   tsukihimeSearchButton: HTMLButtonElement;
   tsukihimeCloseButton: HTMLButtonElement;
@@ -180,6 +181,7 @@ export function resolveRendererDom(): RendererDom {
 
     tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
     tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),
+    tsukihimeSeasonInput: getRequiredElement<HTMLInputElement>('tsukihimeSeason'),
     tsukihimeEpisodeInput: getRequiredElement<HTMLInputElement>('tsukihimeEpisode'),
     tsukihimeSearchButton: getRequiredElement<HTMLButtonElement>('tsukihimeSearch'),
     tsukihimeCloseButton: getRequiredElement<HTMLButtonElement>('tsukihimeClose'),

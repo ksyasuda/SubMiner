@@ -19,6 +19,10 @@ import {
   selectPreferredStream,
 } from '../../anime-bridge/mpv-playback';
 import {
+  buildAnimeStreamMetadata,
+  type AnimeStreamMetadata,
+} from '../../anime-bridge/episode-metadata';
+import {
   listExtensionSources,
   readInstalledExtensions,
   toBridgeSource,
@@ -87,6 +91,13 @@ export interface AnimeBrowserRuntimeDeps {
   readMpvProperty?: (name: string) => Promise<unknown>;
   showMpvOsd?: (message: string) => void;
   showVisibleOverlay?: () => void;
+  /**
+   * Publishes what is about to play. Called *before* `loadfile` so the title
+   * and the episode's identity are already known when mpv reports the path
+   * change — otherwise stats sees only the proxy URL and groups every stream
+   * under its file extension.
+   */
+  onPlaybackMetadata?: (metadata: AnimeStreamMetadata) => void;
   /** Lets tests drive the pause between `loadfile` and the track commands. */
   wait?: (ms: number) => Promise<void>;
   /** Overrides the filesystem/network the subtitle cache uses. Tests only. */
@@ -616,7 +627,19 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
             : null;
 
         try {
-          const title = `${request.animeTitle} — ${request.episodeName}`;
+          const metadata = buildAnimeStreamMetadata({
+            sourceId: request.sourceId,
+            animeUrl: request.animeUrl,
+            animeTitle: request.animeTitle,
+            episodeUrl: request.episodeUrl,
+            episodeName: request.episodeName,
+            episodeNumber: request.episodeNumber ?? null,
+            mediaPath: stream.url,
+          });
+          const title = metadata.displayTitle;
+          // Before loadfile: mpv's path change is what starts a stats session,
+          // and it must find this already recorded.
+          deps.onPlaybackMetadata?.(metadata);
           for (const command of buildPlaybackCommands({ stream, title })) {
             deps.sendMpvCommand(command);
           }

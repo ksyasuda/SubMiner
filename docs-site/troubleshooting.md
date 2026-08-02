@@ -245,6 +245,8 @@ Subtitle tracks mpv loaded from a URL are downloaded to a temporary file first, 
 
 Internal subtitle tracks of a stream still go through `ffmpeg`, which has to reach the origin itself. If that fails, prefer an external track or a Jimaku download as the reference.
 
+Streams usually serve WebVTT, which alass cannot parse — it picks its parser from the file extension and treats a `.vtt` file as a video, failing with "no audio stream in file". SubMiner rewrites both the target and the reference as SRT for alass, so this is handled automatically; the retimed track mpv loads is that SRT.
+
 ## TsukiHime
 
 **"xz binary not found"**

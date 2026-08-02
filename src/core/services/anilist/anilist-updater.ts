@@ -13,7 +13,8 @@ export interface AnilistMediaGuess {
   year?: number;
   season: number | null;
   episode: number | null;
-  source: 'guessit' | 'fallback';
+  /** `stream` means the player was handed these fields, not that we parsed them. */
+  source: 'guessit' | 'fallback' | 'stream';
 }
 
 export interface AnilistPostWatchUpdateResult {

@@ -21,6 +21,7 @@ import {
   extractSubtitleTrackToFile,
   FileExtractionResult,
 } from './subsync-extract';
+import { convertSubtitleForAlass } from './subsync-alass-input';
 import { resolveMpvHttpHeaders, ResolvedMpvHttpHeaders } from './mpv-http-headers';
 import { isRemoteMediaPath } from '../../jimaku/utils';
 import { createLogger } from '../../logger';
@@ -299,23 +300,45 @@ async function subsyncToReference(
     track: targetTrack,
     httpHeaders,
   });
-  const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
-  const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
+
+  // alass reads neither the target nor the reference as WebVTT, so both are
+  // rewritten as SRT first; ffsubsync parses VTT itself. A video reference is
+  // left alone: alass reads its audio, and there are no cues to convert.
+  const referenceIsVideo = referenceFilePath === context.videoPath;
+  let convertedTarget: FileExtractionResult | null = null;
+  let convertedReference: FileExtractionResult | null = null;
+  if (engine === 'alass') {
+    try {
+      convertedTarget = convertSubtitleForAlass(targetExtraction.path);
+      convertedReference = referenceIsVideo ? null : convertSubtitleForAlass(referenceFilePath);
+    } catch (error) {
+      if (convertedTarget) cleanupTemporaryFile(convertedTarget);
+      cleanupTemporaryFile(targetExtraction);
+      const message = `alass synchronization failed: ${(error as Error).message}`;
+      logger.error(message);
+      return { ok: false, message };
+    }
+  }
+
+  const target = convertedTarget ?? targetExtraction;
+  const referencePath = convertedReference?.path ?? referenceFilePath;
+  const replaceTarget = resolved.replace !== false && !target.temporary;
+  const outputPath = buildRetimedPath(target.path, replaceTarget);
   logger.info(
-    `Running ${engine}: target=${targetExtraction.path} reference=${referenceFilePath} output=${outputPath}`,
+    `Running ${engine}: target=${target.path} reference=${referencePath} output=${outputPath}`,
   );
 
   try {
     let result: CommandResult;
     if (engine === 'alass') {
       const alassPath = resolveSubsyncExecutable(resolved.alassPath, 'alass');
-      result = await runAlassSync(alassPath, referenceFilePath, targetExtraction.path, outputPath);
+      result = await runAlassSync(alassPath, referencePath, target.path, outputPath);
     } else {
       const ffsubsyncPath = resolveSubsyncExecutable(resolved.ffsubsyncPath, 'ffsubsync');
       result = await runFfsubsyncSync(
         ffsubsyncPath,
         context.videoPath,
-        targetExtraction.path,
+        target.path,
         outputPath,
         context.audioStreamIndex,
       );
@@ -337,6 +360,8 @@ async function subsyncToReference(
       message: `Subtitle synchronized with ${engine}`,
     };
   } finally {
+    if (convertedReference) cleanupTemporaryFile(convertedReference);
+    if (convertedTarget) cleanupTemporaryFile(convertedTarget, outputPath);
     cleanupTemporaryFile(targetExtraction, outputPath);
   }
 }

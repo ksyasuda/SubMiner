@@ -420,6 +420,7 @@ import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update
 import {
   guessAnilistMediaInfo,
   updateAnilistPostWatchProgress,
+  type AnilistMediaGuess,
 } from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
@@ -486,6 +487,11 @@ import {
   getJlptDictionarySearchPaths,
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
+import {
+  createStreamPlaybackMetadataStore,
+  toAnilistMediaGuess,
+  toJimakuMediaInfo,
+} from './main/runtime/stream-playback-metadata';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
@@ -2407,6 +2413,31 @@ const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroup
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
 const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-delays.json');
 
+/**
+ * What the anime browser resolved for the stream that is playing. Consulted by
+ * everything that would otherwise have to parse the mpv title, or — worse — the
+ * stream URL, which names only the proxy and the container format.
+ */
+const streamPlaybackMetadata = createStreamPlaybackMetadataStore();
+
+/** The stream metadata for whatever mpv currently has open, if it is a stream. */
+function getActiveStreamMetadata() {
+  return streamPlaybackMetadata.match(appState.currentMediaPath);
+}
+
+/**
+ * The AniList guess for what is playing. A stream answers from the fields its
+ * source reported; everything else goes through the usual title parsers.
+ */
+async function guessAnilistMediaInfoForCurrentMedia(
+  mediaPath: string | null,
+  mediaTitle: string | null,
+): Promise<AnilistMediaGuess | null> {
+  const stream = getActiveStreamMetadata();
+  const streamGuess = stream ? toAnilistMediaGuess(stream) : null;
+  return streamGuess ?? guessAnilistMediaInfo(mediaPath, mediaTitle);
+}
+
 const mediaRuntime = createMediaRuntimeService(
   createBuildMediaRuntimeMainDepsHandler({
     isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
@@ -2439,7 +2470,8 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath,
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
-  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  guessAnilistMediaInfo: (mediaPath, mediaTitle) =>
+    guessAnilistMediaInfoForCurrentMedia(mediaPath, mediaTitle),
   getNameMatchImagesEnabled: () => configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
   getCollapsibleSectionOpenState: (section) =>
     configService.getConfig().anilist.characterDictionary.collapsibleSections[section],
@@ -3295,6 +3327,22 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
   },
   showMpvOsd: (text) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
+  onPlaybackMetadata: (metadata) => {
+    streamPlaybackMetadata.set(metadata);
+    // Set before mpv reports the path change, so the session that change starts
+    // is titled and grouped from the source's own listing rather than from the
+    // proxy URL, whose only readable part is the `.m3u8` extension.
+    mediaRuntime.updateCurrentMediaTitle(metadata.displayTitle);
+    ensureImmersionTrackerStarted();
+    appState.immersionTracker?.recordStreamPlaybackMetadata({
+      mediaPath: metadata.mediaPath,
+      statsPath: metadata.statsPath,
+      displayTitle: metadata.displayTitle,
+      seriesTitle: metadata.seriesTitle,
+      seasonNumber: metadata.seasonNumber,
+      episodeNumber: metadata.episodeNumber,
+    });
+  },
   onBridgeState: (state) => {
     const window = appState.animeBrowserWindow;
     if (window && !window.isDestroyed()) {
@@ -3751,7 +3799,8 @@ const {
       mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
     getCurrentMediaPath: () => appState.currentMediaPath,
     getCurrentMediaTitle: () => appState.currentMediaTitle,
-    guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+    guessAnilistMediaInfo: (mediaPath, mediaTitle) =>
+      guessAnilistMediaInfoForCurrentMedia(mediaPath, mediaTitle),
   },
   processNextRetryUpdateMainDeps: {
     nextReady: () => anilistUpdateQueue.nextReady(),
@@ -5939,8 +5988,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getFieldGroupingResolver: () => getFieldGroupingResolverHandler(),
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
         setFieldGroupingResolverHandler(resolver),
-      parseMediaInfo: (mediaPath: string | null) =>
-        parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
+      parseMediaInfo: (mediaPath: string | null) => {
+        // A stream already knows its series, season and episode; parsing the
+        // title back out of a string would only lose what the source told us.
+        const stream = getActiveStreamMetadata();
+        if (stream) return toJimakuMediaInfo(stream);
+        return parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath));
+      },
       getCurrentMediaPath: () => appState.currentMediaPath,
       jimakuFetchJson: <T>(
         endpoint: string,

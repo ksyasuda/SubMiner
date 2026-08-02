@@ -333,6 +333,7 @@ async function playEpisode(button: HTMLButtonElement, episode: AnimeBrowserEpiso
     animeTitle: selectedAnime.title,
     episodeUrl: episode.url,
     episodeName: episode.name,
+    episodeNumber: episode.number,
   });
 
   if (result.ok) {
