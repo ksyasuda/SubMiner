@@ -58,6 +58,14 @@ Extensions your repositories offer but you do not have appear under
 **Available**, each with **Install**. Repositories are stored in config under
 `anime.repos`, so you can also manage them there and keep them in a dotfile.
 
+A repository index lists every language it knows about, which is far more than
+any one person reads, so the **Available** list has a language chip row above
+it. Pick one or more languages to narrow it, or **All** to clear the filter;
+picking a language replaces **All** rather than sitting beside it. Rows name the
+language in full ("Japanese" rather than `ja`), extensions whose sources span
+languages are grouped under **Multi-language**, and the Available heading counts
+how many of the offered extensions the filter leaves.
+
 ### Managing what is installed
 
 The Extensions tab opens with an **Installed** section listing everything in the
@@ -140,6 +148,11 @@ its own loopback proxy so the extension's cookies and headers apply, which means
 those URLs stop working once it exits — the window keeps it alive for the whole
 session.
 
+If the bridge dies anyway (killed by hand, crashed, or stopped mid-operation),
+the exit is detected and named in the status bar, and the next request starts a
+new one. Playback already in flight still ends when its stream URL dies, but the
+browser recovers without an app restart.
+
 Two known limits:
 
 - There is no Android WebView, so extensions that need one (typically for
@@ -197,5 +210,29 @@ subtitle, exactly as it would be for a local file.
 Every track is added, including the ones that are not selected, so all of them
 appear in mpv's track menu and can be switched by hand while watching
 (`#` cycles audio, `j` cycles subtitles by default).
+
+The extension hands over subtitle tracks as URLs, but SubMiner downloads each
+one to a temporary directory and gives mpv the local file. mpv is happy either
+way; [Subsync](/troubleshooting#subtitle-sync-subsync) is not, because alass
+needs a file on disk to use as the timing reference. A track that fails to
+download falls back to its URL so the episode still plays, the format is
+detected from the file's own content rather than its URL, and the directory is
+removed when the next episode starts or the app exits.
+
+### Series, season, and episode
+
+The episode's identity travels with it instead of being guessed back out of the
+stream URL, which carries nothing but a proxy path and a file extension. The
+title and episode label from the source's own listing are split into series,
+season, and episode number once, at launch, and everything downstream reads
+those fields:
+
+- mpv's title reads `Series S03E04 - Episode Name`.
+- Stats group by series, and rewatching an episode reuses its entry instead of
+  creating a new one.
+- The [Jimaku](/jimaku-integration) and [TsukiHime](/tsukihime-integration)
+  modals open with Title, Season, and Episode already filled in, so a subtitle
+  search is one keypress rather than a retype.
+- [AniList](/anilist-integration) progress updates use those fields directly.
 
 [mes]: https://github.com/1Selxo/M-Extension-Server

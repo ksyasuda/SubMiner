@@ -79,6 +79,8 @@ SubMiner extracts media info from the current video path to pre-fill the search 
 
 - **Season + episode patterns:** `S01E03`, `1x03`
 - **Episode-only patterns:** `E03`, `EP03`, or dash-separated numbers like `Title - 03 -`
+- **Spelled-out episode labels:** `Episode 4`, `第4話`
+- **Season named at the end of the title:** `… Season 3`, `… 3rd Season`, `… S3`, `… 第3期` - the season goes in the Season field instead of being searched for as part of the series name
 - **Season folders:** a parent directory named `Season 2` or `S2` fills in the season when the filename lacks one
 - **Bracket tags:** `[SubGroup]`, `[1080p]`, `[HEVC]` - stripped before title extraction
 - **Year tags:** `(2024)` - stripped
@@ -86,6 +88,8 @@ SubMiner extracts media info from the current video path to pre-fill the search 
 - **Remote/streamed URLs:** SubMiner checks URL query parameters (`title`, `name`, `q`) and path segments to extract a meaningful title
 
 If the parser produces a high-confidence result (title + episode both detected), the search runs automatically when the modal opens. Otherwise, you can adjust the fields manually before searching.
+
+Episodes launched from the [anime browser](/anime-browser) skip parsing entirely: Title, Season, and Episode come from the source's own listing, which is why the search runs immediately even though the stream URL says nothing about the episode.
 
 ## Troubleshooting
 

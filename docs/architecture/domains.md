@@ -3,7 +3,7 @@
 # Domain Ownership
 
 Status: active
-Last verified: 2026-07-15
+Last verified: 2026-08-02
 Owner: Kyle Yasuda
 Read when: you need to find the owner module for a behavior or test surface
 
@@ -29,6 +29,10 @@ Read when: you need to find the owner module for a behavior or test surface
   `delete-maintenance-scheduler.ts` coalesces and serializes stats deletes; the expensive work runs in `delete-maintenance-worker-thread.ts` while the tracker queues playback writes. Each batch uses one transaction, lexical update, rollup refresh, and incremental lifetime subtraction (`planLifetimeRemovals`/`applyLifetimeRemovals` in `lifetime.ts`). Merges, moves, AniList reassignments, and `stats cleanup -l` use `repairLifetimeSummariesFromMedia` (recompute from the per-video media ledger). The full lifetime rebuild survives only as the empty-table bootstrap; anywhere else it would collapse lifetime totals to the session retention window.
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
+- Anime browser: extension bridge client, sidecar, and stream handling in `src/anime-bridge/`;
+  browser window UI in `src/animeui/` (preload `src/preload-animeui.ts`); runtime wiring in
+  `src/main/runtime/anime-browser-runtime.ts`, `src/main/runtime/anime-browser-ipc-handlers.ts`,
+  `src/main/runtime/anime-bridge-installer.ts`, `src/main/runtime/stream-playback-metadata.ts`
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
   in `src/core/services/stats-server/`
@@ -46,6 +50,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Settings UI contracts: `src/types/settings.ts`
 - Session-binding contracts: `src/types/session-bindings.ts`
 - Stats HTTP wire contracts: `src/types/stats-wire.ts`, `src/types/stats-http-contract.ts`
+- Anime browser contracts: `src/types/anime-browser.ts`, bridge wire types in `src/anime-bridge/types.ts`
 - Compatibility-only barrel: `src/types.ts`
 
 ## Ownership Heuristics

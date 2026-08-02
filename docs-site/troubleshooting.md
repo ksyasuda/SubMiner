@@ -247,6 +247,30 @@ Internal subtitle tracks of a stream still go through `ffmpeg`, which has to rea
 
 Streams usually serve WebVTT, which alass cannot parse — it picks its parser from the file extension and treats a `.vtt` file as a video, failing with "no audio stream in file". SubMiner rewrites both the target and the reference as SRT for alass, so this is handled automatically; the retimed track mpv loads is that SRT.
 
+## Anime Browser
+
+See the [anime browser guide](/anime-browser) for how sources and the bridge work.
+
+**Nothing to search**
+
+SubMiner ships no extension repositories and bundles no sources. Until you add a repository index URL in the **Extensions** tab (or drop Aniyomi `.apk` files into the extensions directory) the browser has nothing to query.
+
+**"No pinned checksum for …"**
+
+The bridge bundle is verified against a SHA-256 that a maintainer has checked by hand. Bundles exist for macOS (arm64, x64), Linux (x64), and Windows (x64), but only macOS arm64 and Linux x64 are pinned so far; the rest stop with this message rather than running an unverified download. Other platforms are unsupported outright.
+
+**A source returns nothing, or asks for a login**
+
+Most extensions need configuration first - a server address, credentials, a preferred quality. Open the **Source settings** tab and fill them in; each save is handed straight back to the extension. Sources that need an Android WebView (typically for Cloudflare challenges) cannot work here, because the bridge has none.
+
+**"Playback failed" with an mpv error**
+
+"Playing" is only reported once mpv actually configures a video output, so this is a real failure rather than a silent one: a dead host, an expired stream URL, or an undecodable stream. Resolve the episode again; if it keeps failing, try another source or quality entry.
+
+**The browser starts failing every request**
+
+A bridge that dies (killed, crashed, stopped mid-operation) is named in the status bar and restarted on the next request. Anything already playing ends with it, since stream URLs point at its loopback proxy.
+
 ## TsukiHime
 
 **"xz binary not found"**

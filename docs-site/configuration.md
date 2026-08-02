@@ -154,6 +154,7 @@ The configuration file includes several main sections:
 
 **External Integrations**
 
+- [**Anime Browser**](#anime-browser) - Extension repositories and stream preferences for the anime browser
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**TsukiHime**](#tsukihime) - Multi-language subtitle search and download
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
@@ -1153,6 +1154,30 @@ When the manual merge popup opens, SubMiner pauses playback and closes any open 
 <a :href="withBase('/assets/kiku-integration.webm')" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 
 ## External Integrations
+
+### Anime Browser
+
+Sources for the [anime browser](/anime-browser). SubMiner ships no extension repositories and bundles no sources, so these are empty until you add one:
+
+```json
+{
+  "anime": {
+    "extensionsDir": "",
+    "repos": [],
+    "preferredQuality": ""
+  }
+}
+```
+
+| Option                   | Type       | Default | Description                                                                                                                                                                   |
+| ------------------------ | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                   |
+| `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                           |
+| `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub. |
+
+Repositories added from the browser's Extensions tab are written back to `anime.repos`, so the list can also be kept in a dotfile. Changes apply the next time the anime browser opens.
+
+Per-source settings (server addresses, credentials, per-extension quality or language options) are not part of `config.jsonc`. They belong to the extension, are edited in the browser's **Source settings** tab, and persist in `<userData>/anime-source-preferences.json` with owner-only permissions.
 
 ### Jimaku
 
