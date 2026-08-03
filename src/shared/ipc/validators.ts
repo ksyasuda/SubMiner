@@ -304,7 +304,7 @@ export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRe
   const parseOptionalTrackId = (raw: unknown): number | null | undefined | false => {
     if (raw === undefined) return undefined;
     if (raw === null) return null;
-    return isInteger(raw) ? (raw as number) : false;
+    return isInteger(raw) ? raw : false;
   };
 
   const parsedReferenceTrackId = parseOptionalTrackId(referenceTrackId);

@@ -204,6 +204,65 @@ test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async (
   assert.equal(payloadTrackCount, 2);
 });
 
+test('triggerSubsyncFromConfig keeps both active tracks when they share a file', async () => {
+  let payload: SubsyncManualPayload | null = null;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return '/tmp/video.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'track-list') {
+            // mpv appends a duplicate entry when the same file is re-added, so
+            // the primary and secondary slots can point at one path.
+            return [
+              {
+                id: 1,
+                type: 'sub',
+                selected: true,
+                external: true,
+                'external-filename': '/tmp/ref.srt',
+              },
+              {
+                id: 2,
+                type: 'sub',
+                selected: true,
+                external: true,
+                'external-filename': '/tmp/ref.srt',
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: false,
+                external: true,
+                'external-filename': '/tmp/ref.srt',
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: (nextPayload) => {
+        payload = nextPayload;
+      },
+    }),
+  );
+
+  assert.ok(payload);
+  const resolved = payload as SubsyncManualPayload;
+  assert.deepEqual(
+    resolved.subtitleTracks.map((track) => track.id),
+    [1, 2],
+  );
+  assert.equal(resolved.defaultReferenceTrackId, 2);
+  assert.equal(resolved.defaultTargetTrackId, 1);
+});
+
 test('triggerSubsyncFromConfig reports failures to OSD', async () => {
   const osd: string[] = [];
   await triggerSubsyncFromConfig(
@@ -489,7 +548,7 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
   const ffOutputFlagIndex = ffArgs.indexOf('-o');
   assert.equal(ffOutputFlagIndex >= 0, true);
   assert.equal(ffArgs[ffOutputFlagIndex + 1], toShellPath(primaryPath));
-  assert.equal(sentCommands[0]?.[0], 'sub_add');
+  assert.equal(sentCommands[0]?.[0], 'sub-add');
   assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
 });
 
@@ -831,11 +890,11 @@ test('runSubsyncManual keeps a retimed secondary track in the secondary slot', a
   assert.deepEqual(sentCommands[1], ['set_property', 'secondary-sub-delay', 0]);
   assert.deepEqual(sentCommands[2], ['set_property', 'secondary-sid', 3]);
   assert.equal(
-    sentCommands.some((command) => command[0] === 'sub_add'),
+    sentCommands.some((command) => command[1] === 'sub-delay'),
     false,
   );
   assert.equal(
-    sentCommands.some((command) => command[1] === 'sub-delay'),
+    sentCommands.some((command) => command[1] === 'sid'),
     false,
   );
   assert.equal(
@@ -909,7 +968,7 @@ test('runSubsyncManual keeps internal alass source file alive until sync finishe
 
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Subtitle synchronized with alass');
-  assert.equal(sentCommands[0]?.[0], 'sub_add');
+  assert.equal(sentCommands[0]?.[0], 'sub-add');
   assert.deepEqual(sentCommands[1], ['set_property', 'sub-delay', 0]);
 });
 

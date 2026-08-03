@@ -99,21 +99,24 @@ function isPinned(track: MpvTrack, pinnedIds: Set<number>): boolean {
   return typeof track.id === 'number' && pinnedIds.has(track.id);
 }
 
+// Pinned tracks (the active primary/secondary) always survive, even when two of
+// them point at the same file; only unpinned duplicates are collapsed.
 function dedupeSubtitleTracks(tracks: MpvTrack[], pinnedIds: Set<number>): MpvTrack[] {
+  const pinnedIdentities = new Set(
+    tracks.filter((track) => isPinned(track, pinnedIds)).map(getSourceTrackIdentity),
+  );
   const winners = new Map<string, MpvTrack>();
   for (const track of tracks) {
+    if (isPinned(track, pinnedIds)) continue;
     const identity = getSourceTrackIdentity(track);
+    if (pinnedIdentities.has(identity)) continue;
     const existing = winners.get(identity);
-    if (!existing) {
-      winners.set(identity, track);
-      continue;
-    }
-    if (isPinned(existing, pinnedIds)) continue;
-    if (isPinned(track, pinnedIds) || (track.selected && !existing.selected)) {
+    if (!existing || (track.selected && !existing.selected)) {
       winners.set(identity, track);
     }
   }
-  return tracks.filter((track) => winners.get(getSourceTrackIdentity(track)) === track);
+  const kept = new Set(winners.values());
+  return tracks.filter((track) => isPinned(track, pinnedIds) || kept.has(track));
 }
 
 export interface TriggerSubsyncFromConfigDeps extends SubsyncCoreDeps {
@@ -290,10 +293,18 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// mpv may echo the path back with different separators, and Windows paths are
+// case-insensitive, so compare normalized forms instead of raw strings.
+function normalizeSubtitlePathForCompare(value: string): string {
+  const normalized = value.replace(/\\/g, '/');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
 async function findAddedSubtitleTrackId(
   client: MpvClientLike,
   pathToLoad: string,
 ): Promise<number | null> {
+  const wanted = normalizeSubtitlePathForCompare(pathToLoad);
   // sub-add is queued, so the track may not appear in the first track-list reply.
   for (let attempt = 0; attempt < SYNCED_TRACK_LOOKUP_ATTEMPTS; attempt += 1) {
     let tracks: MpvTrack[] = [];
@@ -305,14 +316,18 @@ async function findAddedSubtitleTrackId(
     }
     // Re-adding a file mpv already knows appends a duplicate entry; the newest
     // one holds the retimed content, so prefer the last match.
-    const matches = tracks.filter(
-      (track) => track.type === 'sub' && track['external-filename'] === pathToLoad,
-    );
+    const matches = tracks.filter((track) => {
+      if (track.type !== 'sub') return false;
+      const filename = track['external-filename'];
+      return typeof filename === 'string' && normalizeSubtitlePathForCompare(filename) === wanted;
+    });
     const added = matches[matches.length - 1];
     if (added && typeof added.id === 'number') {
       return added.id;
     }
-    await delay(SYNCED_TRACK_LOOKUP_RETRY_MS);
+    if (attempt < SYNCED_TRACK_LOOKUP_ATTEMPTS - 1) {
+      await delay(SYNCED_TRACK_LOOKUP_RETRY_MS);
+    }
   }
   return null;
 }
@@ -339,7 +354,7 @@ async function loadSyncedSubtitle(
     return;
   }
 
-  client.send({ command: ['sub_add', pathToLoad] });
+  client.send({ command: ['sub-add', pathToLoad] });
   client.send({ command: ['set_property', 'sub-delay', 0] });
 }
 
