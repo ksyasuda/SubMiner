@@ -227,7 +227,7 @@ Install ffsubsync or configure the path:
 
 If subtitle sync fails (the error message is prefixed with the engine name):
 
-- Ensure the reference subtitle track exists in the video (alass requires a source track).
+- Ensure a reference is selected (alass needs either a second subtitle track or the local video file, and it cannot be the same track that is being retimed).
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).
 - Try running the sync tool manually to see detailed error output.
 - ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).

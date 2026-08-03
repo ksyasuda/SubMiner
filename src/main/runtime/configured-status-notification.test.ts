@@ -11,7 +11,7 @@ import { createOverlayNotificationDelivery } from './overlay-notification-delive
 test('notifyConfiguredStatus routes both to overlay and system without osd', () => {
   const calls: string[] = [];
 
-  notifyConfiguredStatus('Subsync: choose engine and source', {
+  notifyConfiguredStatus('Subsync: choose engine and subtitles', {
     getNotificationType: () => 'both',
     showOsd: (message) => {
       calls.push(`osd:${message}`);
@@ -25,8 +25,8 @@ test('notifyConfiguredStatus routes both to overlay and system without osd', () 
   });
 
   assert.deepEqual(calls, [
-    'overlay::SubMiner:Subsync: choose engine and source:info:auto',
-    'desktop:SubMiner:Subsync: choose engine and source',
+    'overlay::SubMiner:Subsync: choose engine and subtitles:info:auto',
+    'desktop:SubMiner:Subsync: choose engine and subtitles',
   ]);
 });
 

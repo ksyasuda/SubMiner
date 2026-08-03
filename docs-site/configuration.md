@@ -1196,9 +1196,9 @@ See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, lang
 
 ### Subtitle Sync
 
-Sync the active subtitle track from the overlay picker using `alass` or `ffsubsync`. Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
+Sync a subtitle track from the overlay picker using `alass` or `ffsubsync`. The picker lets you choose which track gets retimed (the active primary track by default) and, for alass, which reference it is aligned against (the secondary subtitle track by default). Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
 
-- [`alass`](https://github.com/kaegi/alass) - fast, audio-independent sync using a secondary subtitle as reference
+- [`alass`](https://github.com/kaegi/alass) - fast, audio-independent sync using another subtitle as reference; it can also take the local video file as reference (alass extracts the audio itself)
 - [`ffsubsync`](https://github.com/smacke/ffsubsync) - audio-based sync using the video file as reference
 
 ```json

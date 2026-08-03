@@ -5,7 +5,13 @@ import type { SubsyncManualPayload } from '../../types';
 
 const payload: SubsyncManualPayload = {
   ffsubsyncAvailable: true,
-  sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
+  videoReferenceAvailable: true,
+  subtitleTracks: [
+    { id: 1, label: 'Internal #1 - jpn (active)' },
+    { id: 2, label: 'External #2 - eng' },
+  ],
+  defaultReferenceTrackId: 2,
+  defaultTargetTrackId: 1,
 };
 
 test('subsync manual open prefers dedicated modal window on first attempt', async () => {

@@ -21,6 +21,11 @@ interface FileExtractionResult {
   temporary: boolean;
 }
 
+type SubtitleSlot = 'primary' | 'secondary';
+
+const SYNCED_TRACK_LOOKUP_ATTEMPTS = 5;
+const SYNCED_TRACK_LOOKUP_RETRY_MS = 100;
+
 function summarizeCommandFailure(command: string, result: CommandResult): string {
   const parts = [
     `code=${result.code ?? 'n/a'}`,
@@ -90,16 +95,25 @@ function getSourceTrackIdentity(track: MpvTrack): string {
   return 'unknown';
 }
 
-function dedupeSourceTracks(tracks: MpvTrack[]): MpvTrack[] {
-  const deduped = new Map<string, MpvTrack>();
+function isPinned(track: MpvTrack, pinnedIds: Set<number>): boolean {
+  return typeof track.id === 'number' && pinnedIds.has(track.id);
+}
+
+function dedupeSubtitleTracks(tracks: MpvTrack[], pinnedIds: Set<number>): MpvTrack[] {
+  const winners = new Map<string, MpvTrack>();
   for (const track of tracks) {
     const identity = getSourceTrackIdentity(track);
-    const existing = deduped.get(identity);
-    if (!existing || (track.selected && !existing.selected)) {
-      deduped.set(identity, track);
+    const existing = winners.get(identity);
+    if (!existing) {
+      winners.set(identity, track);
+      continue;
+    }
+    if (isPinned(existing, pinnedIds)) continue;
+    if (isPinned(track, pinnedIds) || (track.selected && !existing.selected)) {
+      winners.set(identity, track);
     }
   }
-  return [...deduped.values()];
+  return tracks.filter((track) => winners.get(getSourceTrackIdentity(track)) === track);
 }
 
 export interface TriggerSubsyncFromConfigDeps extends SubsyncCoreDeps {
@@ -142,20 +156,21 @@ async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncConte
   }
 
   const secondaryTrack = subtitleTracks.find((track) => track.id === secondarySid) ?? null;
-  const sourceTracks = subtitleTracks
-    .filter((track) => track.id !== sid)
-    .filter((track) => {
-      if (!track.external) return true;
-      const filename = track['external-filename'];
-      return typeof filename === 'string' && filename.length > 0;
-    });
-  const uniqueSourceTracks = dedupeSourceTracks(sourceTracks);
+  const usableTracks = subtitleTracks.filter((track) => {
+    if (typeof track.id !== 'number') return false;
+    if (!track.external) return true;
+    const filename = track['external-filename'];
+    return typeof filename === 'string' && filename.length > 0;
+  });
 
   return {
     videoPath,
     primaryTrack,
     secondaryTrack,
-    sourceTracks: uniqueSourceTracks,
+    subtitleTracks: dedupeSubtitleTracks(
+      usableTracks,
+      new Set([sid, secondarySid].filter((id): id is number => typeof id === 'number')),
+    ),
     audioStreamIndex: client.currentAudioStreamIndex,
   };
 }
@@ -271,10 +286,59 @@ async function runFfsubsyncSync(
   return runCommand(ffsubsyncPath, args);
 }
 
-function loadSyncedSubtitle(client: MpvClientLike, pathToLoad: string): void {
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findAddedSubtitleTrackId(
+  client: MpvClientLike,
+  pathToLoad: string,
+): Promise<number | null> {
+  // sub-add is queued, so the track may not appear in the first track-list reply.
+  for (let attempt = 0; attempt < SYNCED_TRACK_LOOKUP_ATTEMPTS; attempt += 1) {
+    let tracks: MpvTrack[] = [];
+    try {
+      const trackListRaw = await client.requestProperty('track-list');
+      tracks = Array.isArray(trackListRaw) ? normalizeTrackIds(trackListRaw as MpvTrack[]) : [];
+    } catch {
+      return null;
+    }
+    // Re-adding a file mpv already knows appends a duplicate entry; the newest
+    // one holds the retimed content, so prefer the last match.
+    const matches = tracks.filter(
+      (track) => track.type === 'sub' && track['external-filename'] === pathToLoad,
+    );
+    const added = matches[matches.length - 1];
+    if (added && typeof added.id === 'number') {
+      return added.id;
+    }
+    await delay(SYNCED_TRACK_LOOKUP_RETRY_MS);
+  }
+  return null;
+}
+
+async function loadSyncedSubtitle(
+  client: MpvClientLike,
+  pathToLoad: string,
+  slot: SubtitleSlot,
+): Promise<void> {
   if (!client.connected) {
     throw new Error('MPV disconnected while loading subtitle');
   }
+
+  if (slot === 'secondary') {
+    // Keep the primary track untouched: load without selecting, then point
+    // secondary-sid at the freshly added track.
+    client.send({ command: ['sub-add', pathToLoad, 'auto'] });
+    client.send({ command: ['set_property', 'secondary-sub-delay', 0] });
+    const addedTrackId = await findAddedSubtitleTrackId(client, pathToLoad);
+    if (addedTrackId === null) {
+      throw new Error('Synchronized subtitle did not appear in the mpv track list');
+    }
+    client.send({ command: ['set_property', 'secondary-sid', addedTrackId] });
+    return;
+  }
+
   client.send({ command: ['sub_add', pathToLoad] });
   client.send({ command: ['set_property', 'sub-delay', 0] });
 }
@@ -282,30 +346,32 @@ function loadSyncedSubtitle(client: MpvClientLike, pathToLoad: string): void {
 async function subsyncToReference(
   engine: 'alass' | 'ffsubsync',
   referenceFilePath: string,
+  targetTrack: MpvTrack,
   context: SubsyncContext,
   resolved: SubsyncResolvedConfig,
   client: MpvClientLike,
+  slot: SubtitleSlot,
 ): Promise<SubsyncResult> {
   const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
-  const primaryExtraction = await extractSubtitleTrackToFile(
+  const targetExtraction = await extractSubtitleTrackToFile(
     ffmpegPath,
     context.videoPath,
-    context.primaryTrack,
+    targetTrack,
   );
-  const replacePrimary = resolved.replace !== false && !primaryExtraction.temporary;
-  const outputPath = buildRetimedPath(primaryExtraction.path, replacePrimary);
+  const replaceTarget = resolved.replace !== false && !targetExtraction.temporary;
+  const outputPath = buildRetimedPath(targetExtraction.path, replaceTarget);
 
   try {
     let result: CommandResult;
     if (engine === 'alass') {
       const alassPath = ensureExecutablePath(resolved.alassPath, 'alass');
-      result = await runAlassSync(alassPath, referenceFilePath, primaryExtraction.path, outputPath);
+      result = await runAlassSync(alassPath, referenceFilePath, targetExtraction.path, outputPath);
     } else {
       const ffsubsyncPath = ensureExecutablePath(resolved.ffsubsyncPath, 'ffsubsync');
       result = await runFfsubsyncSync(
         ffsubsyncPath,
         context.videoPath,
-        primaryExtraction.path,
+        targetExtraction.path,
         outputPath,
         context.audioStreamIndex,
       );
@@ -319,13 +385,13 @@ async function subsyncToReference(
       };
     }
 
-    loadSyncedSubtitle(client, outputPath);
+    await loadSyncedSubtitle(client, outputPath, slot);
     return {
       ok: true,
       message: `Subtitle synchronized with ${engine}`,
     };
   } finally {
-    cleanupTemporaryFile(primaryExtraction);
+    cleanupTemporaryFile(targetExtraction);
   }
 }
 
@@ -337,6 +403,25 @@ function validateFfsubsyncReference(videoPath: string): void {
   }
 }
 
+function resolveTargetTrack(
+  request: SubsyncManualRunRequest,
+  context: SubsyncContext,
+): MpvTrack | null {
+  if (request.targetTrackId === undefined || request.targetTrackId === null) {
+    return context.primaryTrack;
+  }
+  return getTrackById(context.subtitleTracks, request.targetTrackId);
+}
+
+// Retiming the secondary track must not steal the primary slot: the synced file
+// goes back where the out-of-sync one was.
+function resolveTargetSlot(targetTrack: MpvTrack, context: SubsyncContext): SubtitleSlot {
+  if (typeof targetTrack.id !== 'number') return 'primary';
+  if (targetTrack.id === context.primaryTrack.id) return 'primary';
+  if (context.secondaryTrack && targetTrack.id === context.secondaryTrack.id) return 'secondary';
+  return 'primary';
+}
+
 export async function runSubsyncManual(
   request: SubsyncManualRunRequest,
   deps: SubsyncCoreDeps,
@@ -344,6 +429,12 @@ export async function runSubsyncManual(
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
   const resolved = deps.getResolvedConfig();
+
+  const targetTrack = resolveTargetTrack(request, context);
+  if (!targetTrack) {
+    return { ok: false, message: 'Select the out-of-sync subtitle track to retime' };
+  }
+  const targetSlot = resolveTargetSlot(targetTrack, context);
 
   if (request.engine === 'ffsubsync') {
     try {
@@ -354,22 +445,64 @@ export async function runSubsyncManual(
         message: `ffsubsync synchronization failed: ${(error as Error).message}`,
       };
     }
-    return subsyncToReference('ffsubsync', context.videoPath, context, resolved, client);
+    return subsyncToReference(
+      'ffsubsync',
+      context.videoPath,
+      targetTrack,
+      context,
+      resolved,
+      client,
+      targetSlot,
+    );
   }
 
-  const sourceTrack = getTrackById(context.sourceTracks, request.sourceTrackId ?? null);
-  if (!sourceTrack) {
-    return { ok: false, message: 'Select a subtitle source track for alass' };
+  if (request.referenceMode === 'video') {
+    if (isRemoteMediaPath(context.videoPath)) {
+      return {
+        ok: false,
+        message:
+          'alass cannot use a stream URL as reference. Pick a reference subtitle track instead.',
+      };
+    }
+    return subsyncToReference(
+      'alass',
+      context.videoPath,
+      targetTrack,
+      context,
+      resolved,
+      client,
+      targetSlot,
+    );
+  }
+
+  const referenceTrack = getTrackById(context.subtitleTracks, request.referenceTrackId ?? null);
+  if (!referenceTrack) {
+    return { ok: false, message: 'Select a reference subtitle track for alass' };
+  }
+  if (referenceTrack.id === targetTrack.id) {
+    return { ok: false, message: 'Reference and out-of-sync subtitles must be different tracks' };
   }
 
   const ffmpegPath = ensureExecutablePath(resolved.ffmpegPath, 'ffmpeg');
-  let sourceExtraction: FileExtractionResult | null = null;
+  let referenceExtraction: FileExtractionResult | null = null;
   try {
-    sourceExtraction = await extractSubtitleTrackToFile(ffmpegPath, context.videoPath, sourceTrack);
-    return await subsyncToReference('alass', sourceExtraction.path, context, resolved, client);
+    referenceExtraction = await extractSubtitleTrackToFile(
+      ffmpegPath,
+      context.videoPath,
+      referenceTrack,
+    );
+    return await subsyncToReference(
+      'alass',
+      referenceExtraction.path,
+      targetTrack,
+      context,
+      resolved,
+      client,
+      targetSlot,
+    );
   } finally {
-    if (sourceExtraction) {
-      cleanupTemporaryFile(sourceExtraction);
+    if (referenceExtraction) {
+      cleanupTemporaryFile(referenceExtraction);
     }
   }
 }
@@ -377,14 +510,27 @@ export async function runSubsyncManual(
 export async function openSubsyncManualPicker(deps: TriggerSubsyncFromConfigDeps): Promise<void> {
   const client = getMpvClientForSubsync(deps);
   const context = await gatherSubsyncContext(client);
+  const subtitleTracks = context.subtitleTracks
+    .filter((track) => typeof track.id === 'number')
+    .map((track) => ({
+      id: track.id as number,
+      label: formatTrackLabel(track),
+    }));
+  const primaryTrackId =
+    typeof context.primaryTrack.id === 'number' ? context.primaryTrack.id : null;
+  const secondaryTrackId =
+    typeof context.secondaryTrack?.id === 'number' ? context.secondaryTrack.id : null;
   const payload: SubsyncManualPayload = {
+    subtitleTracks,
+    // The secondary track can be filtered or deduped out of the emitted list,
+    // so only default to it when the picker actually offers it.
+    defaultReferenceTrackId:
+      subtitleTracks.find((track) => track.id === secondaryTrackId)?.id ??
+      subtitleTracks.find((track) => track.id !== primaryTrackId)?.id ??
+      null,
+    defaultTargetTrackId: primaryTrackId,
+    videoReferenceAvailable: !isRemoteMediaPath(context.videoPath),
     ffsubsyncAvailable: !isRemoteMediaPath(context.videoPath),
-    sourceTracks: context.sourceTracks
-      .filter((track) => typeof track.id === 'number')
-      .map((track) => ({
-        id: track.id as number,
-        label: formatTrackLabel(track),
-      })),
   };
   deps.openManualPicker(payload);
 }
@@ -397,7 +543,7 @@ export async function triggerSubsyncFromConfig(deps: TriggerSubsyncFromConfigDep
 
   try {
     await openSubsyncManualPicker(deps);
-    deps.showMpvOsd('Subsync: choose engine and source');
+    deps.showMpvOsd('Subsync: choose engine and subtitles');
   } catch (error) {
     deps.showMpvOsd(`Subsync failed: ${(error as Error).message}`);
   } finally {

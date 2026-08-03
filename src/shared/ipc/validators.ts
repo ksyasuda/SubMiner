@@ -295,14 +295,27 @@ export function parseControllerConfigUpdate(value: unknown): ControllerConfigUpd
 
 export function parseSubsyncManualRunRequest(value: unknown): SubsyncManualRunRequest | null {
   if (!isObject(value)) return null;
-  const { engine, sourceTrackId } = value;
+  const { engine, referenceMode, referenceTrackId, targetTrackId } = value;
   if (engine !== 'alass' && engine !== 'ffsubsync') return null;
-  if (sourceTrackId !== undefined && sourceTrackId !== null && !isInteger(sourceTrackId)) {
+  if (referenceMode !== undefined && referenceMode !== 'track' && referenceMode !== 'video') {
     return null;
   }
+
+  const parseOptionalTrackId = (raw: unknown): number | null | undefined | false => {
+    if (raw === undefined) return undefined;
+    if (raw === null) return null;
+    return isInteger(raw) ? (raw as number) : false;
+  };
+
+  const parsedReferenceTrackId = parseOptionalTrackId(referenceTrackId);
+  const parsedTargetTrackId = parseOptionalTrackId(targetTrackId);
+  if (parsedReferenceTrackId === false || parsedTargetTrackId === false) return null;
+
   return {
     engine,
-    sourceTrackId: sourceTrackId === undefined ? undefined : (sourceTrackId as number | null),
+    referenceMode,
+    referenceTrackId: parsedReferenceTrackId,
+    targetTrackId: parsedTargetTrackId,
   };
 }
 

@@ -8,6 +8,7 @@ import {
   runSubsyncManual,
   triggerSubsyncFromConfig,
 } from './subsync';
+import type { SubsyncManualPayload } from '../../types';
 
 function makeDeps(
   overrides: Partial<TriggerSubsyncFromConfigDeps> = {},
@@ -76,7 +77,7 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
   await triggerSubsyncFromConfig(
     makeDeps({
       openManualPicker: (payload) => {
-        payloadTrackCount = payload.sourceTracks.length;
+        payloadTrackCount = payload.subtitleTracks.length;
         ffsubsyncAvailable = payload.ffsubsyncAvailable;
       },
       showMpvOsd: (text) => {
@@ -88,9 +89,9 @@ test('triggerSubsyncFromConfig opens manual picker', async () => {
     }),
   );
 
-  assert.equal(payloadTrackCount, 1);
+  assert.equal(payloadTrackCount, 2);
   assert.equal(ffsubsyncAvailable, true);
-  assert.ok(osd.includes('Subsync: choose engine and source'));
+  assert.ok(osd.includes('Subsync: choose engine and subtitles'));
   assert.equal(inProgressState, false);
 });
 
@@ -140,7 +141,7 @@ test('triggerSubsyncFromConfig does not run automatic sync', async () => {
   await triggerSubsyncFromConfig(
     makeDeps({
       openManualPicker: (payload) => {
-        payloadTrackCount = payload.sourceTracks.length;
+        payloadTrackCount = payload.subtitleTracks.length;
       },
       showMpvOsd: (text) => {
         osd.push(text);
@@ -152,9 +153,9 @@ test('triggerSubsyncFromConfig does not run automatic sync', async () => {
     }),
   );
 
-  assert.equal(payloadTrackCount, 1);
+  assert.equal(payloadTrackCount, 2);
   assert.equal(spinnerRan, false);
-  assert.deepEqual(osd, ['Subsync: choose engine and source']);
+  assert.deepEqual(osd, ['Subsync: choose engine and subtitles']);
 });
 
 test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async () => {
@@ -195,12 +196,12 @@ test('triggerSubsyncFromConfig dedupes repeated subtitle source tracks', async (
         },
       }),
       openManualPicker: (payload) => {
-        payloadTrackCount = payload.sourceTracks.length;
+        payloadTrackCount = payload.subtitleTracks.length;
       },
     }),
   );
 
-  assert.equal(payloadTrackCount, 1);
+  assert.equal(payloadTrackCount, 2);
 });
 
 test('triggerSubsyncFromConfig reports failures to OSD', async () => {
@@ -217,13 +218,155 @@ test('triggerSubsyncFromConfig reports failures to OSD', async () => {
   assert.ok(osd.some((line) => line.startsWith('Subsync failed: MPV not connected')));
 });
 
-test('runSubsyncManual requires a source track for alass', async () => {
-  const result = await runSubsyncManual({ engine: 'alass', sourceTrackId: null }, makeDeps());
+test('runSubsyncManual requires a reference track for alass', async () => {
+  const result = await runSubsyncManual({ engine: 'alass', referenceTrackId: null }, makeDeps());
 
   assert.deepEqual(result, {
     ok: false,
-    message: 'Select a subtitle source track for alass',
+    message: 'Select a reference subtitle track for alass',
   });
+});
+
+test('runSubsyncManual rejects alass when reference and target are the same track', async () => {
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceTrackId: 2, targetTrackId: 2 },
+    makeDeps(),
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: 'Reference and out-of-sync subtitles must be different tracks',
+  });
+});
+
+test('runSubsyncManual rejects an unknown target track', async () => {
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceTrackId: 2, targetTrackId: 99 },
+    makeDeps(),
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    message: 'Select the out-of-sync subtitle track to retime',
+  });
+});
+
+test('runSubsyncManual rejects the video reference for remote media', async () => {
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceMode: 'video' },
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return 'https://jellyfin.example/Videos/movie/stream.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return null;
+          if (name === 'track-list') {
+            return [{ id: 1, type: 'sub', selected: true, lang: 'jpn' }];
+          }
+          return null;
+        },
+      }),
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /cannot use a stream URL as reference/);
+});
+
+test('openSubsyncManualPicker defaults the reference to the secondary subtitle track', async () => {
+  let payload: SubsyncManualPayload | null = null;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return '/tmp/video.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 3;
+          if (name === 'track-list') {
+            return [
+              { id: 1, type: 'sub', selected: true, lang: 'jpn' },
+              {
+                id: 2,
+                type: 'sub',
+                selected: false,
+                external: true,
+                lang: 'eng',
+                'external-filename': '/tmp/other.srt',
+              },
+              {
+                id: 3,
+                type: 'sub',
+                selected: true,
+                external: true,
+                lang: 'eng',
+                'external-filename': '/tmp/secondary.srt',
+              },
+            ];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: (nextPayload) => {
+        payload = nextPayload;
+      },
+    }),
+  );
+
+  assert.ok(payload);
+  const resolved = payload as SubsyncManualPayload;
+  assert.deepEqual(
+    resolved.subtitleTracks.map((track) => track.id),
+    [1, 2, 3],
+  );
+  assert.equal(resolved.defaultReferenceTrackId, 3);
+  assert.equal(resolved.defaultTargetTrackId, 1);
+  assert.equal(resolved.videoReferenceAvailable, true);
+});
+
+test('openSubsyncManualPicker never defaults to a reference missing from the track list', async () => {
+  let payload: SubsyncManualPayload | null = null;
+
+  await triggerSubsyncFromConfig(
+    makeDeps({
+      getMpvClient: () => ({
+        connected: true,
+        currentAudioStreamIndex: null,
+        send: () => {},
+        requestProperty: async (name: string) => {
+          if (name === 'path') return '/tmp/video.mkv';
+          if (name === 'sid') return 1;
+          if (name === 'secondary-sid') return 2;
+          if (name === 'track-list') {
+            return [
+              { id: 1, type: 'sub', selected: true, lang: 'jpn' },
+              // Secondary track with no usable file path: filtered out of the picker.
+              { id: 2, type: 'sub', selected: true, external: true, 'external-filename': '' },
+              { id: 3, type: 'sub', selected: false, lang: 'eng' },
+            ];
+          }
+          return null;
+        },
+      }),
+      openManualPicker: (nextPayload) => {
+        payload = nextPayload;
+      },
+    }),
+  );
+
+  assert.ok(payload);
+  const resolved = payload as SubsyncManualPayload;
+  assert.deepEqual(
+    resolved.subtitleTracks.map((track) => track.id),
+    [1, 3],
+  );
+  assert.equal(resolved.defaultReferenceTrackId, 3);
 });
 
 test('triggerSubsyncFromConfig does not validate sync tool paths before manual selection', async () => {
@@ -242,7 +385,7 @@ test('triggerSubsyncFromConfig does not validate sync tool paths before manual s
         inProgress.push(value);
       },
       openManualPicker: (payload) => {
-        payloadTrackCount = payload.sourceTracks.length;
+        payloadTrackCount = payload.subtitleTracks.length;
       },
       showMpvOsd: (text) => {
         osd.push(text);
@@ -251,8 +394,8 @@ test('triggerSubsyncFromConfig does not validate sync tool paths before manual s
   );
 
   assert.deepEqual(inProgress, [false]);
-  assert.equal(payloadTrackCount, 1);
-  assert.deepEqual(osd, ['Subsync: choose engine and source']);
+  assert.equal(payloadTrackCount, 2);
+  assert.deepEqual(osd, ['Subsync: choose engine and subtitles']);
 });
 
 function writeExecutableScript(filePath: string, content: string): void {
@@ -333,7 +476,7 @@ test('runSubsyncManual constructs ffsubsync command and returns success', async 
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
 
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Subtitle synchronized with ffsubsync');
@@ -399,7 +542,7 @@ test('runSubsyncManual writes deterministic _retimed filename when replace is fa
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
 
   assert.equal(result.ok, true);
   const ffArgs = fs.readFileSync(ffsubsyncLogPath, 'utf8').trim().split('\n');
@@ -453,7 +596,7 @@ test('runSubsyncManual reports ffsubsync command failures with details', async (
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
 
   assert.equal(result.ok, false);
   assert.equal(result.message.startsWith('ffsubsync synchronization failed'), true);
@@ -518,7 +661,7 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'alass', sourceTrackId: 2 }, deps);
+  const result = await runSubsyncManual({ engine: 'alass', referenceTrackId: 2 }, deps);
 
   assert.equal(result.ok, false);
   assert.equal(typeof result.message, 'string');
@@ -526,6 +669,179 @@ test('runSubsyncManual constructs alass command and returns failure on non-zero 
   const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
   assert.equal(alassArgs[0], toShellPath(sourcePath));
   assert.equal(alassArgs[1], toShellPath(primaryPath));
+});
+
+function makeAlassSelectionDeps(tmpDir: string): {
+  deps: TriggerSubsyncFromConfigDeps;
+  alassLogPath: string;
+  videoPath: string;
+  primaryPath: string;
+  sourcePath: string;
+  sentCommands: Array<Array<string | number>>;
+} {
+  const alassLogPath = path.join(tmpDir, 'alass-args.log');
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'primary.srt');
+  const sourcePath = path.join(tmpDir, 'source.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'sub');
+  fs.writeFileSync(sourcePath, 'sub2');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(
+    alassPath,
+    `#!/bin/sh\n: > "${toShellPath(alassLogPath)}"\nfor arg in "$@"; do printf '%s\\n' "$arg" >> "${toShellPath(alassLogPath)}"; done\n: > "$3"\nexit 0\n`,
+  );
+
+  const trackList: Array<Record<string, unknown>> = [
+    { id: 1, type: 'sub', selected: true, external: true, 'external-filename': primaryPath },
+    { id: 2, type: 'sub', selected: true, external: true, 'external-filename': sourcePath },
+  ];
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+        if (payload.command[0] === 'sub-add' || payload.command[0] === 'sub_add') {
+          trackList.push({
+            id: trackList.length + 1,
+            type: 'sub',
+            selected: false,
+            external: true,
+            'external-filename': payload.command[1],
+          });
+        }
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return trackList;
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+      replace: false,
+    }),
+  });
+
+  return { deps, alassLogPath, videoPath, primaryPath, sourcePath, sentCommands };
+}
+
+test('runSubsyncManual uses the video file as alass reference when requested', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-video-ref-'));
+  const { deps, alassLogPath, videoPath, primaryPath } = makeAlassSelectionDeps(tmpDir);
+
+  const result = await runSubsyncManual({ engine: 'alass', referenceMode: 'video' }, deps);
+
+  assert.equal(result.ok, true);
+  const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
+  assert.equal(alassArgs[0], toShellPath(videoPath));
+  assert.equal(alassArgs[1], toShellPath(primaryPath));
+});
+
+test('runSubsyncManual retimes the selected target track instead of the primary', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-target-'));
+  const { deps, alassLogPath, primaryPath, sourcePath, sentCommands } =
+    makeAlassSelectionDeps(tmpDir);
+
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceTrackId: 1, targetTrackId: 2 },
+    deps,
+  );
+
+  assert.equal(result.ok, true);
+  const alassArgs = fs.readFileSync(alassLogPath, 'utf8').trim().split('\n');
+  assert.equal(alassArgs[0], toShellPath(primaryPath));
+  assert.equal(alassArgs[1], toShellPath(sourcePath));
+  assert.equal(sentCommands[0]?.[0], 'sub-add');
+  assert.equal(sentCommands[0]?.[2], 'auto');
+});
+
+test('runSubsyncManual keeps a retimed secondary track in the secondary slot', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-secondary-slot-'));
+  const alassPath = path.join(tmpDir, 'alass.sh');
+  const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
+  const ffsubsyncPath = path.join(tmpDir, 'ffsubsync.sh');
+  const videoPath = path.join(tmpDir, 'video.mkv');
+  const primaryPath = path.join(tmpDir, 'ja.srt');
+  const secondaryPath = path.join(tmpDir, 'en.srt');
+  const retimedPath = path.join(tmpDir, 'en_retimed.srt');
+
+  fs.writeFileSync(videoPath, 'video');
+  fs.writeFileSync(primaryPath, 'ja');
+  fs.writeFileSync(secondaryPath, 'en');
+  writeExecutableScript(ffmpegPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(ffsubsyncPath, '#!/bin/sh\nexit 0\n');
+  writeExecutableScript(alassPath, '#!/bin/sh\n: > "$3"\nexit 0\n');
+
+  const trackList: Array<Record<string, unknown>> = [
+    { id: 1, type: 'sub', selected: true, external: true, 'external-filename': primaryPath },
+    { id: 2, type: 'sub', selected: true, external: true, 'external-filename': secondaryPath },
+  ];
+  const sentCommands: Array<Array<string | number>> = [];
+  const deps = makeDeps({
+    getMpvClient: () => ({
+      connected: true,
+      currentAudioStreamIndex: null,
+      send: (payload) => {
+        sentCommands.push(payload.command);
+        if (payload.command[0] === 'sub-add') {
+          trackList.push({
+            id: 3,
+            type: 'sub',
+            selected: false,
+            external: true,
+            'external-filename': payload.command[1],
+          });
+        }
+      },
+      requestProperty: async (name: string) => {
+        if (name === 'path') return videoPath;
+        if (name === 'sid') return 1;
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return trackList;
+        return null;
+      },
+    }),
+    getResolvedConfig: () => ({
+      alassPath,
+      ffsubsyncPath,
+      ffmpegPath,
+      replace: false,
+    }),
+  });
+
+  const result = await runSubsyncManual(
+    { engine: 'alass', referenceTrackId: 1, targetTrackId: 2 },
+    deps,
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(sentCommands[0], ['sub-add', retimedPath, 'auto']);
+  assert.deepEqual(sentCommands[1], ['set_property', 'secondary-sub-delay', 0]);
+  assert.deepEqual(sentCommands[2], ['set_property', 'secondary-sid', 3]);
+  assert.equal(
+    sentCommands.some((command) => command[0] === 'sub_add'),
+    false,
+  );
+  assert.equal(
+    sentCommands.some((command) => command[1] === 'sub-delay'),
+    false,
+  );
+  assert.equal(
+    sentCommands.some((command) => command[1] === 'sid'),
+    false,
+  );
 });
 
 test('runSubsyncManual keeps internal alass source file alive until sync finishes', async () => {
@@ -589,7 +905,7 @@ test('runSubsyncManual keeps internal alass source file alive until sync finishe
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'alass', sourceTrackId: 2 }, deps);
+  const result = await runSubsyncManual({ engine: 'alass', referenceTrackId: 2 }, deps);
 
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Subtitle synchronized with alass');
@@ -645,7 +961,7 @@ test('runSubsyncManual resolves string sid values from mpv stream properties', a
     }),
   });
 
-  const result = await runSubsyncManual({ engine: 'ffsubsync', sourceTrackId: null }, deps);
+  const result = await runSubsyncManual({ engine: 'ffsubsync' }, deps);
 
   assert.equal(result.ok, true);
   assert.equal(result.message, 'Subtitle synchronized with ffsubsync');

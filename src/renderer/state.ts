@@ -18,7 +18,7 @@ import type {
   SubtitlePosition,
   SubtitleSidebarSnapshotConfig,
   SubtitleCue,
-  SubsyncSourceTrack,
+  SubsyncSubtitleTrack,
   YoutubePickerOpenPayload,
 } from '../types';
 
@@ -85,7 +85,7 @@ export type RendererState = {
   characterDictionaryStatus: string;
 
   subsyncModalOpen: boolean;
-  subsyncSourceTracks: SubsyncSourceTrack[];
+  subsyncSubtitleTracks: SubsyncSubtitleTrack[];
   subsyncSubmitting: boolean;
 
   controllerSelectModalOpen: boolean;
@@ -213,7 +213,7 @@ export function createRendererState(): RendererState {
     characterDictionaryStatus: '',
 
     subsyncModalOpen: false,
-    subsyncSourceTracks: [],
+    subsyncSubtitleTracks: [],
     subsyncSubmitting: false,
 
     controllerSelectModalOpen: false,
