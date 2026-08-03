@@ -47,6 +47,11 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
    */
   let cueState: { url: string; state: 'loading' | 'playing' } | null = null;
   const watchStateRequests = new LatestRequest();
+  /**
+   * Mark writes carry their own token: a background refresh starting mid-write
+   * must not make the write look superseded and drop its repaint on the floor.
+   */
+  const markWrites = new LatestRequest();
   const playbacks = new LatestRequest();
 
   function formatEpisodeIndex(item: ListedEpisode): string {
@@ -199,7 +204,7 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
     const anime = selectedAnime();
     if (!anime || items.length === 0) return;
 
-    const request = watchStateRequests.begin();
+    const request = markWrites.begin();
     const attempt = await capture(() =>
       api.setWatched({
         sourceId: anime.sourceId,
@@ -213,7 +218,7 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
         })),
       }),
     );
-    if (!watchStateRequests.isCurrent(request)) return;
+    if (!markWrites.isCurrent(request)) return;
 
     if (!attempt.ok) {
       setStatus(describe(attempt.error), 'error');
@@ -233,6 +238,9 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
       if (isMarked === mark) changed += 1;
     }
     paint();
+    // A refresh that read the store before this write landed would repaint stale
+    // marks over the ones above, so re-read from the store to settle the list.
+    void refreshWatchState();
 
     // Nothing came back marked when marking is what was asked for: the write
     // had nowhere to land, which is what a disabled stats history looks like.
@@ -308,6 +316,7 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
     // A menu opened against the list that is going away has nothing left to act on.
     closeContextMenu();
     watchStateRequests.cancel();
+    markWrites.cancel();
     playbacks.cancel();
     listed = [];
     watched = new Set();

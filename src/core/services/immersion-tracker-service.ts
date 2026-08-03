@@ -32,6 +32,7 @@ import {
   applySessionLifetimeSummary,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
+  rebuildLifetimeSummariesInTransaction,
   recomputeLifetimeAnimeFromMedia,
   recomputeLifetimeGlobalFromSummaries,
   repairLifetimeSummariesFromMedia,
@@ -837,28 +838,40 @@ export class ImmersionTrackerService {
     // Every row this creates would otherwise rebuild the lifetime summaries on
     // its own, and a season's worth of episodes arrives in one call.
     let needsLifetimeRebuild = false;
-    for (const episode of episodes) {
-      const statsPath = normalizeMediaPath(episode.statsPath);
-      if (!statsPath) continue;
-      if (watched) {
-        needsLifetimeRebuild =
-          this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true }) ||
-          needsLifetimeRebuild;
+    // A half-applied batch would leave rows created without their marks, so the
+    // whole span of episodes and the summary rebuild land together or not at all.
+    let clearedActiveVideo = false;
+
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const episode of episodes) {
+        const statsPath = normalizeMediaPath(episode.statsPath);
+        if (!statsPath) continue;
+        if (watched) {
+          needsLifetimeRebuild =
+            this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true }) ||
+            needsLifetimeRebuild;
+        }
+
+        const videoId = getVideoIdByVideoKey(this.db, buildVideoKey(statsPath, SOURCE_TYPE_REMOTE));
+        if (videoId === null) continue;
+        markVideoWatched(this.db, videoId, watched);
+        changed += 1;
+
+        if (!watched && this.sessionState?.videoId === videoId) clearedActiveVideo = true;
       }
 
-      const videoId = getVideoIdByVideoKey(this.db, buildVideoKey(statsPath, SOURCE_TYPE_REMOTE));
-      if (videoId === null) continue;
-      markVideoWatched(this.db, videoId, watched);
-      changed += 1;
-
-      // Clearing the mark on what is playing right now would otherwise be undone
-      // the moment the session passes the completion threshold again.
-      if (!watched && this.sessionState?.videoId === videoId) {
-        this.sessionState.markedWatched = true;
-      }
+      if (needsLifetimeRebuild) rebuildLifetimeSummariesInTransaction(this.db);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
 
-    if (needsLifetimeRebuild) rebuildLifetimeSummaryTables(this.db);
+    // Clearing the mark on what is playing right now would otherwise be undone
+    // the moment the session passes the completion threshold again. Set after the
+    // commit, so a rolled back clear does not suppress the automatic mark.
+    if (clearedActiveVideo && this.sessionState) this.sessionState.markedWatched = true;
     return changed;
   }
 
