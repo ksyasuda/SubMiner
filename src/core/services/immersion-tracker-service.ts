@@ -102,6 +102,10 @@ import {
   type DuplicateSubtitleLineCleanupOptions,
   type DuplicateSubtitleLineCleanupSummary,
 } from './immersion-tracker/duplicate-line-cleanup';
+import {
+  getVideoIdByVideoKey,
+  getWatchStateByVideoKeys,
+} from './immersion-tracker/query-watch-state';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   dismissAnimeMergeRecommendation,
@@ -357,6 +361,15 @@ export interface StreamPlaybackMetadataInput {
   seriesTitle: string;
   seasonNumber: number | null;
   episodeNumber: number | null;
+}
+
+/** What a caller needs to show "already watched" against a streamed episode. */
+export interface StreamWatchState {
+  /** Set once a session passed the completion threshold, or marked by hand. */
+  watched: boolean;
+  /** Start of the most recent session, or null when it was never played. */
+  lastWatchedMs: number | null;
+  sessionCount: number;
 }
 
 /**
@@ -802,6 +815,77 @@ export class ImmersionTrackerService {
 
   async setVideoWatched(videoId: number, watched: boolean): Promise<void> {
     markVideoWatched(this.db, videoId, watched);
+  }
+
+  /**
+   * Set the watch mark on streamed episodes by hand.
+   *
+   * Marking watched creates the video row when the episode was never played, so
+   * a series watched elsewhere can be caught up on; the row carries the same
+   * series/season/episode metadata playback would have recorded. Both library
+   * views join the lifetime tables, so a row created this way stays out of the
+   * stats lists until it is actually watched.
+   *
+   * Clearing a mark never creates anything: with no row there is nothing to
+   * clear.
+   */
+  async setStreamWatchState(
+    episodes: StreamPlaybackMetadataInput[],
+    watched: boolean,
+  ): Promise<number> {
+    let changed = 0;
+    // Every row this creates would otherwise rebuild the lifetime summaries on
+    // its own, and a season's worth of episodes arrives in one call.
+    let needsLifetimeRebuild = false;
+    for (const episode of episodes) {
+      const statsPath = normalizeMediaPath(episode.statsPath);
+      if (!statsPath) continue;
+      if (watched) {
+        needsLifetimeRebuild =
+          this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true }) ||
+          needsLifetimeRebuild;
+      }
+
+      const videoId = getVideoIdByVideoKey(this.db, buildVideoKey(statsPath, SOURCE_TYPE_REMOTE));
+      if (videoId === null) continue;
+      markVideoWatched(this.db, videoId, watched);
+      changed += 1;
+
+      // Clearing the mark on what is playing right now would otherwise be undone
+      // the moment the session passes the completion threshold again.
+      if (!watched && this.sessionState?.videoId === videoId) {
+        this.sessionState.markedWatched = true;
+      }
+    }
+
+    if (needsLifetimeRebuild) rebuildLifetimeSummaryTables(this.db);
+    return changed;
+  }
+
+  /**
+   * Watch state for streamed episodes, keyed by the stats path the anime
+   * browser derives for each one. Paths never played are absent from the map,
+   * so a caller can treat "missing" as unwatched without a probe per episode.
+   */
+  async getStreamWatchState(statsPaths: string[]): Promise<Map<string, StreamWatchState>> {
+    const byKey = new Map<string, string>();
+    for (const path of statsPaths) {
+      const normalized = normalizeMediaPath(path);
+      if (!normalized) continue;
+      byKey.set(buildVideoKey(normalized, SOURCE_TYPE_REMOTE), normalized);
+    }
+
+    const state = new Map<string, StreamWatchState>();
+    for (const row of getWatchStateByVideoKeys(this.db, [...byKey.keys()])) {
+      const statsPath = byKey.get(row.videoKey);
+      if (!statsPath) continue;
+      state.set(statsPath, {
+        watched: row.watched,
+        lastWatchedMs: row.lastWatchedMs,
+        sessionCount: row.sessionCount,
+      });
+    }
+    return state;
   }
 
   async markActiveVideoWatched(): Promise<boolean> {
@@ -1480,23 +1564,29 @@ export class ImmersionTrackerService {
     });
   }
 
-  recordStreamPlaybackMetadata(metadata: StreamPlaybackMetadataInput): void {
+  /** Returns whether the lifetime summaries still need rebuilding; see
+   * `recordPrePlaybackMetadata` for why a batch defers that. */
+  recordStreamPlaybackMetadata(
+    metadata: StreamPlaybackMetadataInput,
+    options: { deferLifetimeRebuild?: boolean } = {},
+  ): boolean {
     const rawPath = normalizeMediaPath(metadata.mediaPath);
     const statsPath = normalizeMediaPath(metadata.statsPath) || rawPath;
     if (!statsPath) {
-      return;
+      return false;
     }
     const seriesTitle = normalizeText(metadata.seriesTitle);
     const displayTitle =
       normalizeText(metadata.displayTitle) || seriesTitle || deriveCanonicalTitle(statsPath);
     const libraryTitle = seriesTitle || displayTitle;
     if (!libraryTitle) {
-      return;
+      return false;
     }
     const seasonNumber = normalizeMetadataInt(metadata.seasonNumber);
     const episodeNumber = normalizeMetadataInt(metadata.episodeNumber);
 
-    this.recordPrePlaybackMetadata({
+    return this.recordPrePlaybackMetadata({
+      deferLifetimeRebuild: options.deferLifetimeRebuild,
       statsPath,
       aliases: rawPath ? buildMediaPathAliasCandidates(rawPath) : [],
       displayTitle,
@@ -1517,6 +1607,10 @@ export class ImmersionTrackerService {
   /**
    * Creates the video row and its series link ahead of playback, so the session
    * mpv's path change starts already belongs to the right anime.
+   *
+   * Returns whether the lifetime summaries need rebuilding. A new row always
+   * does, so a caller recording a batch passes `deferLifetimeRebuild` and
+   * rebuilds once at the end rather than once per episode.
    */
   private recordPrePlaybackMetadata(params: {
     statsPath: string;
@@ -1527,7 +1621,8 @@ export class ImmersionTrackerService {
     episodeNumber: number | null;
     parserSource: string;
     metadataJson: string;
-  }): void {
+    deferLifetimeRebuild?: boolean;
+  }): boolean {
     for (const alias of params.aliases) {
       this.mediaPathAliases.set(alias, params.statsPath);
     }
@@ -1571,7 +1666,10 @@ export class ImmersionTrackerService {
     const hasLifetimeMedia = Boolean(
       this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
     );
-    if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
+    const needsRebuild = Boolean(
+      hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId),
+    );
+    if (needsRebuild && !params.deferLifetimeRebuild) {
       // Playback-time relink: only the old and new anime are affected, so
       // recompute just those from the media ledger instead of a full repair.
       const affectedAnimeIds = new Set<number>([animeId]);
@@ -1588,6 +1686,7 @@ export class ImmersionTrackerService {
         throw error;
       }
     }
+    return needsRebuild;
   }
 
   private hasPrePlaybackMetadata(videoId: number): boolean {

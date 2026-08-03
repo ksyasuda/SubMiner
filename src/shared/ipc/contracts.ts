@@ -132,6 +132,8 @@ export const IPC_CHANNELS = {
     animeBrowserGetPopular: 'anime-browser:get-popular',
     animeBrowserGetDetails: 'anime-browser:get-details',
     animeBrowserGetEpisodes: 'anime-browser:get-episodes',
+    animeBrowserGetWatchState: 'anime-browser:get-watch-state',
+    animeBrowserSetWatched: 'anime-browser:set-watched',
     animeBrowserPlayEpisode: 'anime-browser:play-episode',
     animeBrowserGetPreferences: 'anime-browser:get-preferences',
     animeBrowserSetPreference: 'anime-browser:set-preference',

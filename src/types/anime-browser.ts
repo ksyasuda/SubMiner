@@ -46,6 +46,46 @@ export interface AnimeBrowserEpisode {
   scanlator: string | null;
 }
 
+/**
+ * Whether an episode has already been watched, as the stats database records
+ * it. Playback marks an episode watched once a session passes the completion
+ * threshold, so this is history the app already keeps rather than a second
+ * list maintained by the browser.
+ */
+export interface AnimeBrowserEpisodeWatchState {
+  /** The episode's own url, matching the entry it belongs to. */
+  episodeUrl: string;
+  watched: boolean;
+  /** Start of the most recent session, or null when it was never played. */
+  lastWatchedMs: number | null;
+  sessionCount: number;
+}
+
+export interface AnimeBrowserWatchStateRequest {
+  sourceId: string;
+  animeUrl: string;
+  episodeUrls: string[];
+}
+
+/**
+ * One episode a manual mark applies to. The name and number ride along because
+ * marking an episode nobody has played yet has to create its stats row, and
+ * that row wants the same series/season/episode fields playback would record.
+ */
+export interface AnimeBrowserEpisodeMark {
+  episodeUrl: string;
+  episodeName: string;
+  episodeNumber: number | null;
+}
+
+export interface AnimeBrowserSetWatchedRequest {
+  sourceId: string;
+  animeUrl: string;
+  animeTitle: string;
+  episodes: AnimeBrowserEpisodeMark[];
+  watched: boolean;
+}
+
 /** One source that errored while the others answered. */
 export interface SourceSearchFailure {
   sourceId: string;
@@ -189,6 +229,12 @@ export interface AnimeBrowserAPI {
   /** `sourceId` is required after an all-sources search; pass the entry's own. */
   getDetails: (animeUrl: string, sourceId?: string) => Promise<AnimeBrowserDetails>;
   getEpisodes: (animeUrl: string, sourceId?: string) => Promise<AnimeBrowserEpisode[]>;
+  /** Watch marks for the listed episodes; empty when stats tracking is off. */
+  getWatchState: (
+    request: AnimeBrowserWatchStateRequest,
+  ) => Promise<AnimeBrowserEpisodeWatchState[]>;
+  /** Set or clear the mark by hand; resolves to the state after the write. */
+  setWatched: (request: AnimeBrowserSetWatchedRequest) => Promise<AnimeBrowserEpisodeWatchState[]>;
   playEpisode: (request: AnimeBrowserPlayRequest) => Promise<AnimeBrowserPlayResult>;
   getPreferences: (sourceId: string) => Promise<SourcePreferenceView[]>;
   setPreference: (

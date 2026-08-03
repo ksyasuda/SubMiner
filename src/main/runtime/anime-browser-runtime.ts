@@ -23,6 +23,10 @@ import {
   installExtension,
   removeExtension as removeExtensionFile,
 } from '../../anime-bridge/extension-installer';
+import {
+  buildAnimeStreamMetadata,
+  buildAnimeStreamStatsPath,
+} from '../../anime-bridge/episode-metadata';
 import { PreferenceStore } from '../../anime-bridge/preference-store';
 import { applyPreferenceValue, parsePreferences } from '../../anime-bridge/preferences';
 import type { SourcePreferenceView } from '../../anime-bridge/preferences';
@@ -32,6 +36,9 @@ import type {
   AnimeBrowserDetails,
   AnimeBrowserEntry,
   AnimeBrowserEpisode,
+  AnimeBrowserEpisodeWatchState,
+  AnimeBrowserSetWatchedRequest,
+  AnimeBrowserWatchStateRequest,
   AnimeBrowserSearchResult,
   AnimeBrowserSearchUpdate,
   AnimeBrowserSnapshot,
@@ -290,6 +297,52 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     };
   }
 
+  /**
+   * Which of these episodes have already been watched.
+   *
+   * The stats database is the only store: playback records every streamed
+   * episode under the same derived path, and marks it watched once a session
+   * runs far enough. With tracking disabled there is no history to read, so
+   * every episode comes back unwatched rather than the call failing.
+   *
+   * A closure rather than a method, so `setWatched` can reuse it without
+   * depending on how the runtime object was called.
+   */
+  async function getWatchState(
+    request: AnimeBrowserWatchStateRequest,
+  ): Promise<AnimeBrowserEpisodeWatchState[]> {
+    const episodeUrls = request.episodeUrls.filter((url) => url.length > 0);
+    if (episodeUrls.length === 0 || !deps.getWatchState) return [];
+
+    const statsPaths = new Map(
+      episodeUrls.map((episodeUrl) => [
+        episodeUrl,
+        buildAnimeStreamStatsPath(request.sourceId, request.animeUrl, episodeUrl),
+      ]),
+    );
+
+    try {
+      const state = await deps.getWatchState([...statsPaths.values()]);
+      const watchState: AnimeBrowserEpisodeWatchState[] = [];
+      for (const [episodeUrl, statsPath] of statsPaths) {
+        const entry = state.get(statsPath);
+        if (!entry) continue;
+        watchState.push({
+          episodeUrl,
+          watched: entry.watched,
+          lastWatchedMs: entry.lastWatchedMs,
+          sessionCount: entry.sessionCount,
+        });
+      }
+      return watchState;
+    } catch (error) {
+      // Watch marks are decoration on a list that is already usable; a stats
+      // read that fails must not take the episode list down with it.
+      deps.log(`[anime-browser] watch state lookup failed: ${describeError(error)}`);
+      return [];
+    }
+  }
+
   const playback = createAnimeBrowserPlayback({
     deps,
     bridge,
@@ -473,6 +526,50 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
             : null,
         scanlator: episode.scanlator ?? null,
       }));
+    },
+
+    getWatchState,
+
+    /**
+     * Set or clear the watch mark on the given episodes, then report the state
+     * that write left behind so the browser paints from the store rather than
+     * from what it hoped happened.
+     */
+    async setWatched(
+      request: AnimeBrowserSetWatchedRequest,
+    ): Promise<AnimeBrowserEpisodeWatchState[]> {
+      const episodes = request.episodes.filter((episode) => episode.episodeUrl.length > 0);
+      if (episodes.length === 0 || !deps.setWatchState) return [];
+
+      // The same metadata playback records, so an episode marked before it is
+      // ever played still lands under the right series, season and episode.
+      const marks = episodes.map((episode) => {
+        const metadata = buildAnimeStreamMetadata({
+          sourceId: request.sourceId,
+          animeUrl: request.animeUrl,
+          animeTitle: request.animeTitle,
+          episodeUrl: episode.episodeUrl,
+          episodeName: episode.episodeName,
+          episodeNumber: episode.episodeNumber,
+          // No stream was resolved: there is no media path to alias.
+          mediaPath: '',
+        });
+        return {
+          mediaPath: '',
+          statsPath: metadata.statsPath,
+          displayTitle: metadata.displayTitle,
+          seriesTitle: metadata.seriesTitle,
+          seasonNumber: metadata.seasonNumber,
+          episodeNumber: metadata.episodeNumber,
+        };
+      });
+
+      await deps.setWatchState(marks, request.watched);
+      return getWatchState({
+        sourceId: request.sourceId,
+        animeUrl: request.animeUrl,
+        episodeUrls: episodes.map((episode) => episode.episodeUrl),
+      });
     },
 
     playEpisode: playback.playEpisode,

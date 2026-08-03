@@ -1,6 +1,10 @@
 import { IPC_CHANNELS } from '../../shared/ipc/contracts';
 import type { AnimeBrowserRuntime } from './anime-browser-runtime';
-import type { AnimeBrowserPlayRequest } from '../../types/anime-browser';
+import type {
+  AnimeBrowserPlayRequest,
+  AnimeBrowserSetWatchedRequest,
+  AnimeBrowserWatchStateRequest,
+} from '../../types/anime-browser';
 
 export interface AnimeBrowserIpcDeps {
   // Structurally typed so tests can pass a fake without importing Electron.
@@ -39,6 +43,12 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserGetEpisodes, (_event, animeUrl, sourceId) =>
     runtime.getEpisodes(String(animeUrl), toOptionalId(sourceId)),
   );
+  handle(channels.animeBrowserGetWatchState, (_event, request) =>
+    runtime.getWatchState(toWatchStateRequest(request)),
+  );
+  handle(channels.animeBrowserSetWatched, (_event, request) =>
+    runtime.setWatched(toSetWatchedRequest(request)),
+  );
   handle(channels.animeBrowserListAvailableExtensions, () => runtime.listAvailableExtensions());
   handle(channels.animeBrowserInstallExtension, (_event, pkg) =>
     runtime.installExtension(String(pkg)),
@@ -58,6 +68,37 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserSetPreference, (_event, sourceId, key, value) =>
     runtime.setPreference(String(sourceId), String(key), value as string | string[] | boolean),
   );
+}
+
+/** Coerce a watch-state request; the renderer's arrays arrive untyped. */
+function toWatchStateRequest(value: unknown): AnimeBrowserWatchStateRequest {
+  const request = (value ?? {}) as Partial<AnimeBrowserWatchStateRequest>;
+  return {
+    sourceId: String(request.sourceId ?? ''),
+    animeUrl: String(request.animeUrl ?? ''),
+    episodeUrls: Array.isArray(request.episodeUrls)
+      ? request.episodeUrls.filter((url): url is string => typeof url === 'string')
+      : [],
+  };
+}
+
+/** Coerce a manual watch-mark request, including its per-episode entries. */
+function toSetWatchedRequest(value: unknown): AnimeBrowserSetWatchedRequest {
+  const request = (value ?? {}) as Partial<AnimeBrowserSetWatchedRequest>;
+  const episodes = Array.isArray(request.episodes) ? request.episodes : [];
+  return {
+    sourceId: String(request.sourceId ?? ''),
+    animeUrl: String(request.animeUrl ?? ''),
+    animeTitle: String(request.animeTitle ?? ''),
+    episodes: episodes.map((episode) => ({
+      episodeUrl: String(episode?.episodeUrl ?? ''),
+      episodeName: String(episode?.episodeName ?? ''),
+      // NaN and Infinity are numbers as far as typeof is concerned, and either
+      // one would reach the stats row as a nonsense episode number.
+      episodeNumber: Number.isFinite(episode?.episodeNumber) ? episode.episodeNumber! : null,
+    })),
+    watched: request.watched === true,
+  };
 }
 
 /**

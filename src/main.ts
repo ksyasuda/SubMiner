@@ -3332,6 +3332,16 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
   },
   showMpvOsd: (text) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
+  getWatchState: async (statsPaths) => {
+    // Browsing can precede any playback, so the tracker may not be up yet; it
+    // is the same instance playback records into once it is.
+    ensureImmersionTrackerStarted();
+    return (await appState.immersionTracker?.getStreamWatchState(statsPaths)) ?? new Map();
+  },
+  setWatchState: async (episodes, watched) => {
+    ensureImmersionTrackerStarted();
+    return (await appState.immersionTracker?.setStreamWatchState(episodes, watched)) ?? 0;
+  },
   onPlaybackMetadata: (metadata) => {
     streamPlaybackMetadata.set(metadata);
     // Set before mpv reports the path change, so the session that change starts

@@ -118,6 +118,62 @@ the live result stream. A failed next-page request remains available to retry.
 Source settings belong to a single extension, so the **Source settings** tab
 asks you to pick one while **All sources** is selected.
 
+## Finding an episode, and what you have watched
+
+An episode list can run to hundreds of entries, so the episode header carries a
+filter box:
+
+- A number, `12`, keeps that episode. Sources that report no numbers at all
+  are still searched by name, so `12` also matches `Episode 12` in a title.
+- A range, `12-18`, keeps the episodes between the two, in either order
+  (`18-12` reads the same). Episodes the source gave no number are left out of
+  a range.
+- Anything else is a case-insensitive substring of the episode name, so `beach`
+  finds `OVA: Beach Special`.
+
+The counter next to **Episodes** reads `6 of 25` while a filter is applied.
+Pressing Escape in the filter box clears it; pressing it anywhere else goes back
+to the results grid.
+
+Episodes you have already watched are dimmed and marked `✓ watched`, with a
+count in the header. This is not a separate list the browser keeps: it reads the
+same stats history the rest of SubMiner writes to, where an episode is marked
+watched once a session runs past the completion threshold. Streams are recorded
+under a stable per-episode identity, so the mark survives the stream URL
+changing between playbacks, and it is the same mark the stats window and
+`--mark-watched` use.
+
+Because playback marks an episode partway through the session, the marks
+refresh when the browser window comes back to the front: finish an episode in
+mpv, switch back, and it is marked. With
+[immersion tracking](configuration.md) disabled there is no history to read, so
+no episode is marked.
+
+### Marking by hand, and catching up
+
+Right-click an episode for:
+
+- **Mark watched** / **Mark unwatched**: the single episode, whichever way it
+  is not already.
+- **Mark this and N below watched** / **... unwatched**: that episode and every
+  episode listed below it. Sources list newest first, so "below" is the back
+  catalogue: right-click the last episode you saw and mark everything down to
+  the start, which is how you catch up a series you watched somewhere else.
+
+A filter narrows what you are looking at, not what you mark: a span always
+covers the full episode list, and the status bar says how many episodes it
+touched. The oldest episode has nothing below it, so it only offers the single
+entry. Escape closes the menu.
+
+Marking an episode you have never played creates its stats row so the mark has
+somewhere to live. That row carries the same series, season and episode fields
+playback would have recorded, and both stats library views join the lifetime
+tables, so a manually marked episode does not appear there as watch time you
+never spent. Clearing a mark never creates anything.
+
+Marks are written to the stats history, so with immersion tracking disabled
+there is nowhere to write them and the status bar says so.
+
 ## Settings
 
 | Key                      | Purpose                                                              |

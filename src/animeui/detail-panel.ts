@@ -1,10 +1,7 @@
-import { capture, LatestRequest, safeUploadDate } from './browse-state';
+import { LatestRequest } from './browse-state';
 import { describe, el } from './dom';
-import type {
-  AnimeBrowserAPI,
-  AnimeBrowserEntry,
-  AnimeBrowserEpisode,
-} from '../types/anime-browser';
+import { createEpisodeList, type SelectedAnime } from './episode-list';
+import type { AnimeBrowserAPI, AnimeBrowserEntry } from '../types/anime-browser';
 
 interface DetailPanelOptions {
   api: AnimeBrowserAPI;
@@ -19,100 +16,15 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
   const detailTitle = el<HTMLHeadingElement>('detail-title');
   const detailChips = el<HTMLDivElement>('detail-chips');
   const detailDescription = el<HTMLParagraphElement>('detail-description');
-  const episodes = el<HTMLOListElement>('episodes');
-  const episodesCount = el<HTMLSpanElement>('episodes-count');
 
-  let selectedAnime: { url: string; title: string; sourceId: string } | null = null;
+  let selectedAnime: SelectedAnime | null = null;
   let resultsScrollTop = 0;
   const requests = new LatestRequest();
-  const playbacks = new LatestRequest();
-
-  function formatEpisodeIndex(episode: AnimeBrowserEpisode, fallbackIndex: number): string {
-    const value = episode.number ?? fallbackIndex;
-    return Number.isInteger(value) ? String(value).padStart(2, '0') : value.toFixed(1);
-  }
-
-  async function playEpisode(
-    button: HTMLButtonElement,
-    episode: AnimeBrowserEpisode,
-  ): Promise<void> {
-    const anime = selectedAnime;
-    if (!anime) return;
-
-    // Only the newest click owns the button states and the status line; an
-    // earlier episode resolving late must not overwrite them.
-    const playback = playbacks.begin();
-    for (const other of episodes.querySelectorAll<HTMLButtonElement>('.cue')) {
-      other.removeAttribute('data-state');
-    }
-    button.dataset.state = 'loading';
-    setStatus(`Resolving ${episode.name}…`);
-
-    const attempt = await capture(() =>
-      api.playEpisode({
-        sourceId: anime.sourceId,
-        animeUrl: anime.url,
-        animeTitle: anime.title,
-        episodeUrl: episode.url,
-        episodeName: episode.name,
-        episodeNumber: episode.number,
-      }),
-    );
-
-    if (!playbacks.isCurrent(playback)) return;
-
-    if (!attempt.ok) {
-      button.removeAttribute('data-state');
-      setStatus(describe(attempt.error), 'error');
-      return;
-    }
-
-    const result = attempt.value;
-    if (result.ok) {
-      button.dataset.state = 'playing';
-      setStatus(
-        result.quality ? `Playing ${episode.name} · ${result.quality}` : `Playing ${episode.name}`,
-        'ok',
-      );
-    } else {
-      button.removeAttribute('data-state');
-      setStatus(result.error ?? 'Could not play that episode.', 'error');
-    }
-  }
-
-  function renderEpisodes(list: AnimeBrowserEpisode[]): void {
-    episodesCount.textContent = list.length === 0 ? '' : `${list.length}`;
-    episodes.replaceChildren(
-      ...list.map((episode, index) => {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'cue';
-
-        const cueIndex = document.createElement('span');
-        cueIndex.className = 'cue-index';
-        cueIndex.textContent = formatEpisodeIndex(episode, list.length - index);
-
-        const name = document.createElement('span');
-        name.className = 'cue-name';
-        name.textContent = episode.name;
-        if (episode.uploadedAt !== null) {
-          const uploaded = safeUploadDate(episode.uploadedAt);
-          if (uploaded) {
-            const sub = document.createElement('span');
-            sub.className = 'cue-sub';
-            sub.textContent = uploaded;
-            name.append(sub);
-          }
-        }
-
-        button.append(cueIndex, name);
-        button.addEventListener('click', () => void playEpisode(button, episode));
-        item.append(button);
-        return item;
-      }),
-    );
-  }
+  const episodeList = createEpisodeList({
+    api,
+    setStatus,
+    selectedAnime: () => selectedAnime,
+  });
 
   async function open(entry: AnimeBrowserEntry): Promise<void> {
     const request = requests.begin();
@@ -124,12 +36,11 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
     detailTitle.textContent = entry.title;
     detailDescription.textContent = 'Loading…';
     detailChips.replaceChildren();
-    episodes.replaceChildren();
-    episodesCount.textContent = '';
+    episodeList.clear();
     detailCover.src = entry.thumbnailUrl ?? '';
 
     try {
-      const [details, episodeList] = await Promise.all([
+      const [details, episodes] = await Promise.all([
         api.getDetails(entry.url, entry.sourceId),
         api.getEpisodes(entry.url, entry.sourceId),
       ]);
@@ -158,8 +69,8 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
       }
       detailChips.replaceChildren(...chips);
 
-      renderEpisodes(episodeList);
-      setStatus(`${details.title} · ${episodeList.length} episodes`);
+      episodeList.render(episodes);
+      setStatus(`${details.title} · ${episodes.length} episodes`);
     } catch (error) {
       if (!requests.isCurrent(request)) return;
       detailDescription.textContent = '';
@@ -169,7 +80,7 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
 
   function close(): void {
     requests.cancel();
-    playbacks.cancel();
+    episodeList.clear();
     detail.classList.add('hidden');
     results.classList.remove('hidden');
     results.scrollTop = resultsScrollTop;

@@ -96,7 +96,7 @@
 .episodes-head {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line);
@@ -115,6 +115,21 @@
   font-family: var(--mono);
   font-size: 11px;
   color: var(--faint);
+}
+
+/* How much of the series the stats history already has a watch mark for. */
+.episodes-watched {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ok);
+}
+
+/* Pushed to the far end so the counters stay next to the heading. */
+.episodes-filter {
+  margin-left: auto;
+  width: clamp(160px, 24vw, 260px);
+  padding: 5px 10px;
+  font-size: 12px;
 }
 
 /*
@@ -205,6 +220,29 @@
   margin-top: 2px;
 }
 
+/*
+ * Watched episodes stay readable rather than being hidden: the mark says "you
+ * have been here", it does not remove the episode from the list.
+ */
+.cue[data-watched='true'] .cue-name,
+.cue[data-watched='true'] .cue-index {
+  color: var(--faint);
+}
+
+.cue[data-watched='true']::after {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.cue-watched {
+  margin-left: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ok);
+  white-space: nowrap;
+}
+
 .cue[data-state='loading'] {
   background: var(--panel-elevated);
 }
@@ -218,6 +256,55 @@
 .cue[data-state='playing']::after {
   background: var(--mine);
   border-color: var(--mine);
+}
+
+/* ---------- right-click menu ---------- */
+
+.context-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 210px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  /* Opaque on purpose: the panel colours are translucent, and episode rows
+     showing through a menu makes both unreadable. */
+  background: var(--ctp-mantle);
+  box-shadow: 0 20px 44px -22px var(--shadow);
+  animation: detail-in 0.12s ease both;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.context-menu-item[data-separated='true'] {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  border-radius: 0 0 6px 6px;
+}
+
+.context-menu-item:hover:not(:disabled),
+.context-menu-item:focus-visible:not(:disabled) {
+  background: var(--ctp-surface0);
+  outline: none;
+}
+
+.context-menu-item:disabled {
+  color: var(--faint);
+  cursor: default;
 }
 
 /* ---------- status bar ---------- */

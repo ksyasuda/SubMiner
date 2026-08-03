@@ -1,4 +1,11 @@
 import type { AnimeStreamMetadata } from '../../anime-bridge/episode-metadata';
+import type {
+  StreamPlaybackMetadataInput,
+  StreamWatchState,
+} from '../../core/services/immersion-tracker-service';
+
+/** What the stats store needs to record a mark against one episode. */
+export type StreamWatchMark = StreamPlaybackMetadataInput;
 import type { PlaybackEndFileEvent } from '../../anime-bridge/playback-outcome';
 import type { SubtitleCacheIo } from '../../anime-bridge/subtitle-cache';
 import type { BundleBinaries } from '../../anime-bridge/sidecar-bundle';
@@ -29,6 +36,18 @@ export interface AnimeBrowserRuntimeDeps {
   showVisibleOverlay?: () => void;
   /** Publishes stream identity before loadfile starts the stats session. */
   onPlaybackMetadata?: (metadata: AnimeStreamMetadata) => void;
+  /**
+   * Watch state for the given stats paths, from the same store playback writes
+   * to. Absent (or resolving empty) when stats tracking is disabled, which the
+   * browser shows as "no watch history" rather than as an error.
+   */
+  getWatchState?: (statsPaths: string[]) => Promise<Map<string, StreamWatchState>>;
+  /**
+   * Sets or clears the watch mark by hand. Marking creates the stats row for an
+   * episode nobody has played yet, which is what makes catching up on a series
+   * watched elsewhere possible.
+   */
+  setWatchState?: (episodes: StreamWatchMark[], watched: boolean) => Promise<number>;
   /** Lets tests drive the pause between loadfile and track attachment. */
   wait?: (ms: number) => Promise<void>;
   /** Overrides the filesystem/network the subtitle cache uses. Tests only. */

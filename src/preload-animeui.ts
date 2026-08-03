@@ -5,6 +5,9 @@ import type {
   AnimeBrowserBridgeState,
   AnimeBrowserDetails,
   AnimeBrowserEpisode,
+  AnimeBrowserEpisodeWatchState,
+  AnimeBrowserWatchStateRequest,
+  AnimeBrowserSetWatchedRequest,
   AnimeBrowserPlayRequest,
   AnimeBrowserPlayResult,
   AnimeBrowserSearchResult,
@@ -31,6 +34,14 @@ const animeBrowserAPI: AnimeBrowserAPI = {
     ipcRenderer.invoke(request.animeBrowserGetDetails, animeUrl, sourceId),
   getEpisodes: (animeUrl: string, sourceId?: string): Promise<AnimeBrowserEpisode[]> =>
     ipcRenderer.invoke(request.animeBrowserGetEpisodes, animeUrl, sourceId),
+  getWatchState: (
+    watchRequest: AnimeBrowserWatchStateRequest,
+  ): Promise<AnimeBrowserEpisodeWatchState[]> =>
+    ipcRenderer.invoke(request.animeBrowserGetWatchState, watchRequest),
+  setWatched: (
+    watchedRequest: AnimeBrowserSetWatchedRequest,
+  ): Promise<AnimeBrowserEpisodeWatchState[]> =>
+    ipcRenderer.invoke(request.animeBrowserSetWatched, watchedRequest),
   playEpisode: (playRequest: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> =>
     ipcRenderer.invoke(request.animeBrowserPlayEpisode, playRequest),
   getPreferences: (sourceId: string): Promise<SourcePreferenceView[]> =>
