@@ -4,7 +4,7 @@ import { composeIpcRuntimeHandlers } from './ipc-runtime-composer';
 
 test('composeIpcRuntimeHandlers returns callable IPC handlers and registration bridge', async () => {
   let registered = false;
-  let receivedSourceTrackId: number | null | undefined;
+  let receivedReferenceTrackId: number | null | undefined;
 
   const composed = composeIpcRuntimeHandlers({
     mpvCommandMainDeps: {
@@ -25,7 +25,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
     },
     handleMpvCommandFromIpcRuntime: () => {},
     runSubsyncManualFromIpc: async (request) => {
-      receivedSourceTrackId = request.sourceTrackId;
+      receivedReferenceTrackId = request.referenceTrackId;
       return {
         ok: true,
         message: 'ok',
@@ -124,10 +124,10 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
 
   const result = await composed.runSubsyncManualFromIpc({
     engine: 'alass',
-    sourceTrackId: 7,
+    referenceTrackId: 7,
   });
   assert.deepEqual(result, { ok: true, message: 'ok' });
-  assert.equal(receivedSourceTrackId, 7);
+  assert.equal(receivedReferenceTrackId, 7);
 
   composed.registerIpcRuntimeHandlers();
   assert.equal(registered, true);

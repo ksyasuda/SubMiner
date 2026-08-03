@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createSubsyncModal } from './subsync.js';
+import type { SubsyncManualPayload, SubsyncManualRunRequest } from '../../types';
 
 type Listener = () => void;
 
@@ -52,17 +53,53 @@ function createDeferred<T>() {
   return { promise, resolve };
 }
 
-function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; message: string }>) {
+function createSelectStub() {
+  const options: Array<{ value: string; textContent: string }> = [];
+  const events = createEventTarget();
+  let innerHTML = '';
+  let value = '';
+
+  return {
+    options,
+    disabled: false,
+    addEventListener: events.addEventListener,
+    dispatch: events.dispatch,
+    get innerHTML(): string {
+      return innerHTML;
+    },
+    set innerHTML(next: string) {
+      innerHTML = next;
+      if (next === '') {
+        options.length = 0;
+        value = '';
+      }
+    },
+    get value(): string {
+      return value;
+    },
+    set value(next: string) {
+      value = next;
+    },
+    appendChild(option: { value: string; textContent: string }) {
+      options.push(option);
+      if (!value) value = option.value;
+      return option;
+    },
+  };
+}
+
+function createTestHarness(
+  runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<{ ok: boolean; message: string }>,
+) {
   const overlayClassList = createClassList();
   const modalClassList = createClassList();
   const statusClassList = createClassList();
-  const sourceLabelClassList = createClassList();
+  const referenceLabelClassList = createClassList();
+  const targetLabelClassList = createClassList();
   const runButtonEvents = createEventTarget();
   const closeButtonEvents = createEventTarget();
   const engineAlassEvents = createEventTarget();
   const engineFfsubsyncEvents = createEventTarget();
-
-  const sourceOptions: Array<{ value: string; textContent: string }> = [];
 
   const runButton = {
     disabled: false,
@@ -77,6 +114,7 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
 
   const subsyncEngineAlass = {
     checked: false,
+    disabled: false,
     addEventListener: engineAlassEvents.addEventListener,
     dispatch: engineAlassEvents.dispatch,
   };
@@ -88,18 +126,8 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
     dispatch: engineFfsubsyncEvents.dispatch,
   };
 
-  const sourceSelect = {
-    innerHTML: '',
-    value: '',
-    disabled: false,
-    appendChild: (option: { value: string; textContent: string }) => {
-      sourceOptions.push(option);
-      if (!sourceSelect.value) {
-        sourceSelect.value = option.value;
-      }
-      return option;
-    },
-  };
+  const referenceSelect = createSelectStub();
+  const targetSelect = createSelectStub();
 
   let notifyClosedCalls = 0;
   let notifyOpenedCalls = 0;
@@ -139,8 +167,10 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
       subsyncCloseButton: closeButton,
       subsyncEngineAlass,
       subsyncEngineFfsubsync,
-      subsyncSourceLabel: { classList: sourceLabelClassList },
-      subsyncSourceSelect: sourceSelect,
+      subsyncReferenceLabel: { classList: referenceLabelClassList },
+      subsyncReferenceSelect: referenceSelect,
+      subsyncTargetLabel: { classList: targetLabelClassList },
+      subsyncTargetSelect: targetSelect,
       subsyncRunButton: runButton,
       subsyncStatus: {
         textContent: '',
@@ -149,7 +179,7 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
     },
     state: {
       subsyncModalOpen: false,
-      subsyncSourceTracks: [],
+      subsyncSubtitleTracks: [],
       subsyncSubmitting: false,
       isOverSubtitle: false,
     },
@@ -166,6 +196,9 @@ function createTestHarness(runSubsyncManual: () => Promise<{ ok: boolean; messag
     ctx,
     modal,
     runButton,
+    referenceSelect,
+    targetSelect,
+    referenceLabelClassList,
     statusClassList,
     getNotifyClosedCalls: () => notifyClosedCalls,
     getNotifyOpenedCalls: () => notifyOpenedCalls,
@@ -187,16 +220,28 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+const BASE_PAYLOAD: SubsyncManualPayload = {
+  subtitleTracks: [
+    { id: 1, label: 'External #1 - jpn (active)' },
+    { id: 2, label: 'External #2 - eng' },
+  ],
+  defaultReferenceTrackId: 2,
+  defaultTargetTrackId: 1,
+  videoReferenceAvailable: true,
+  ffsubsyncAvailable: true,
+};
+
+function payloadWith(overrides: Partial<SubsyncManualPayload>): SubsyncManualPayload {
+  return { ...BASE_PAYLOAD, ...overrides };
+}
+
 test('manual subsync failure closes during run, then reopens modal with error', async () => {
   const deferred = createDeferred<{ ok: boolean; message: string }>();
   const harness = createTestHarness(async () => deferred.promise);
 
   try {
     harness.modal.wireDomEvents();
-    harness.modal.openSubsyncModal({
-      sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
-      ffsubsyncAvailable: true,
-    });
+    harness.modal.openSubsyncModal(BASE_PAYLOAD);
 
     harness.runButton.dispatch('click');
     await Promise.resolve();
@@ -219,7 +264,8 @@ test('manual subsync failure closes during run, then reopens modal with error', 
     assert.equal(harness.statusClassList.contains('error'), true);
     assert.equal(harness.ctx.dom.subsyncRunButton.disabled, false);
     assert.equal(harness.ctx.dom.subsyncEngineAlass.checked, true);
-    assert.equal(harness.ctx.dom.subsyncSourceSelect.value, '2');
+    assert.equal(harness.referenceSelect.value, '2');
+    assert.equal(harness.targetSelect.value, '1');
     assert.equal(harness.getNotifyClosedCalls(), 1);
     assert.equal(harness.getNotifyOpenedCalls(), 1);
   } finally {
@@ -231,15 +277,17 @@ test('subsync modal disables ffsubsync when payload marks it unavailable', () =>
   const harness = createTestHarness(async () => ({ ok: true, message: 'ok' }));
 
   try {
-    harness.modal.openSubsyncModal({
-      sourceTracks: [{ id: 2, label: 'External #2 - eng' }],
-      ffsubsyncAvailable: false,
-    });
+    harness.modal.openSubsyncModal(
+      payloadWith({ ffsubsyncAvailable: false, videoReferenceAvailable: false }),
+    );
 
     assert.equal(harness.ctx.dom.subsyncEngineAlass.checked, true);
     assert.equal(harness.ctx.dom.subsyncEngineFfsubsync.checked, false);
     assert.equal(harness.ctx.dom.subsyncEngineFfsubsync.disabled, true);
-    assert.equal(harness.ctx.dom.subsyncStatus.textContent, 'Choose alass source, then run.');
+    assert.equal(
+      harness.ctx.dom.subsyncStatus.textContent,
+      'Choose the alass reference and out-of-sync subtitle, then run.',
+    );
   } finally {
     harness.restoreGlobals();
   }
@@ -253,10 +301,14 @@ test('subsync modal ignores enter submission when no sync engine is available', 
   });
 
   try {
-    harness.modal.openSubsyncModal({
-      sourceTracks: [],
-      ffsubsyncAvailable: false,
-    });
+    harness.modal.openSubsyncModal(
+      payloadWith({
+        subtitleTracks: [{ id: 1, label: 'External #1 - jpn (active)' }],
+        defaultReferenceTrackId: null,
+        videoReferenceAvailable: false,
+        ffsubsyncAvailable: false,
+      }),
+    );
 
     harness.modal.handleSubsyncKeydown({
       key: 'Enter',
@@ -266,6 +318,105 @@ test('subsync modal ignores enter submission when no sync engine is available', 
 
     assert.equal(runCalls, 0);
     assert.equal(harness.ctx.state.subsyncModalOpen, true);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('subsync modal defaults reference to the secondary track and target to the primary', async () => {
+  let request: SubsyncManualRunRequest | null = null;
+  const harness = createTestHarness(async (nextRequest) => {
+    request = nextRequest;
+    return { ok: true, message: 'ok' };
+  });
+
+  try {
+    harness.modal.wireDomEvents();
+    harness.modal.openSubsyncModal(BASE_PAYLOAD);
+
+    assert.equal(harness.referenceSelect.value, '2');
+    assert.equal(harness.targetSelect.value, '1');
+
+    harness.runButton.dispatch('click');
+    await flushMicrotasks();
+
+    assert.deepEqual(request, {
+      engine: 'alass',
+      targetTrackId: 1,
+      referenceMode: 'track',
+      referenceTrackId: 2,
+    });
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('subsync modal offers the video file as an alass reference and excludes the target track', () => {
+  const harness = createTestHarness(async () => ({ ok: true, message: 'ok' }));
+
+  try {
+    harness.modal.wireDomEvents();
+    harness.modal.openSubsyncModal(BASE_PAYLOAD);
+
+    assert.deepEqual(
+      harness.referenceSelect.options.map((option) => option.value),
+      ['2', 'video'],
+    );
+
+    harness.targetSelect.value = '2';
+    harness.targetSelect.dispatch('change');
+
+    assert.deepEqual(
+      harness.referenceSelect.options.map((option) => option.value),
+      ['1', 'video'],
+    );
+    assert.equal(harness.referenceSelect.value, '1');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('subsync modal sends the video reference mode when the video file is selected', async () => {
+  let request: SubsyncManualRunRequest | null = null;
+  const harness = createTestHarness(async (nextRequest) => {
+    request = nextRequest;
+    return { ok: true, message: 'ok' };
+  });
+
+  try {
+    harness.modal.wireDomEvents();
+    harness.modal.openSubsyncModal(BASE_PAYLOAD);
+
+    harness.referenceSelect.value = 'video';
+    harness.runButton.dispatch('click');
+    await flushMicrotasks();
+
+    assert.deepEqual(request, {
+      engine: 'alass',
+      targetTrackId: 1,
+      referenceMode: 'video',
+      referenceTrackId: null,
+    });
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('subsync modal hides the reference picker for ffsubsync but keeps the target picker', () => {
+  const harness = createTestHarness(async () => ({ ok: true, message: 'ok' }));
+
+  try {
+    harness.modal.wireDomEvents();
+    harness.modal.openSubsyncModal(BASE_PAYLOAD);
+
+    assert.equal(harness.referenceLabelClassList.contains('hidden'), false);
+
+    harness.ctx.dom.subsyncEngineAlass.checked = false;
+    harness.ctx.dom.subsyncEngineFfsubsync.checked = true;
+    harness.ctx.dom.subsyncEngineFfsubsync.dispatch('change');
+
+    assert.equal(harness.referenceLabelClassList.contains('hidden'), true);
+    assert.equal(harness.targetSelect.value, '1');
   } finally {
     harness.restoreGlobals();
   }

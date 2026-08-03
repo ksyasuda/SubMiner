@@ -90,8 +90,10 @@ export type RendererDom = {
   subsyncCloseButton: HTMLButtonElement;
   subsyncEngineAlass: HTMLInputElement;
   subsyncEngineFfsubsync: HTMLInputElement;
-  subsyncSourceLabel: HTMLLabelElement;
-  subsyncSourceSelect: HTMLSelectElement;
+  subsyncReferenceLabel: HTMLLabelElement;
+  subsyncReferenceSelect: HTMLSelectElement;
+  subsyncTargetLabel: HTMLLabelElement;
+  subsyncTargetSelect: HTMLSelectElement;
   subsyncRunButton: HTMLButtonElement;
   subsyncStatus: HTMLDivElement;
 
@@ -255,8 +257,10 @@ export function resolveRendererDom(): RendererDom {
     subsyncCloseButton: getRequiredElement<HTMLButtonElement>('subsyncClose'),
     subsyncEngineAlass: getRequiredElement<HTMLInputElement>('subsyncEngineAlass'),
     subsyncEngineFfsubsync: getRequiredElement<HTMLInputElement>('subsyncEngineFfsubsync'),
-    subsyncSourceLabel: getRequiredElement<HTMLLabelElement>('subsyncSourceLabel'),
-    subsyncSourceSelect: getRequiredElement<HTMLSelectElement>('subsyncSourceSelect'),
+    subsyncReferenceLabel: getRequiredElement<HTMLLabelElement>('subsyncReferenceLabel'),
+    subsyncReferenceSelect: getRequiredElement<HTMLSelectElement>('subsyncReferenceSelect'),
+    subsyncTargetLabel: getRequiredElement<HTMLLabelElement>('subsyncTargetLabel'),
+    subsyncTargetSelect: getRequiredElement<HTMLSelectElement>('subsyncTargetSelect'),
     subsyncRunButton: getRequiredElement<HTMLButtonElement>('subsyncRun'),
     subsyncStatus: getRequiredElement<HTMLDivElement>('subsyncStatus'),
 

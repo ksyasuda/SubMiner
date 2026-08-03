@@ -1,5 +1,13 @@
-import type { SubsyncManualPayload } from '../../types';
+import type { SubsyncManualPayload, SubsyncManualRunRequest } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
+
+const VIDEO_REFERENCE_VALUE = 'video';
+
+interface SubsyncSelection {
+  engine: 'alass' | 'ffsubsync';
+  referenceValue: string;
+  targetTrackId: number | null;
+}
 
 export function createSubsyncModal(
   ctx: RendererContext,
@@ -8,27 +16,103 @@ export function createSubsyncModal(
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
-  let ffsubsyncAvailable = true;
+  let currentPayload: SubsyncManualPayload | null = null;
 
   function setSubsyncStatus(message: string, isError = false): void {
     ctx.dom.subsyncStatus.textContent = message;
     ctx.dom.subsyncStatus.classList.toggle('error', isError);
   }
 
-  function updateSubsyncSourceVisibility(): void {
-    const useAlass = ctx.dom.subsyncEngineAlass.checked;
-    ctx.dom.subsyncSourceLabel.classList.toggle('hidden', !useAlass);
+  function hasAlassReference(): boolean {
+    if (!currentPayload) return false;
+    return currentPayload.videoReferenceAvailable || currentPayload.subtitleTracks.length > 1;
   }
 
-  function renderSubsyncSourceTracks(): void {
-    ctx.dom.subsyncSourceSelect.innerHTML = '';
-    for (const track of ctx.state.subsyncSourceTracks) {
-      const option = document.createElement('option');
-      option.value = String(track.id);
-      option.textContent = track.label;
-      ctx.dom.subsyncSourceSelect.appendChild(option);
+  function updateSubsyncFieldVisibility(): void {
+    const useAlass = ctx.dom.subsyncEngineAlass.checked;
+    ctx.dom.subsyncReferenceLabel.classList.toggle('hidden', !useAlass);
+    ctx.dom.subsyncTargetLabel.classList.toggle(
+      'hidden',
+      ctx.state.subsyncSubtitleTracks.length === 0,
+    );
+  }
+
+  function appendOption(select: HTMLSelectElement, value: string, label: string): void {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.appendChild(option);
+  }
+
+  function getSelectedTargetTrackId(): number | null {
+    const raw = Number.parseInt(ctx.dom.subsyncTargetSelect.value, 10);
+    return Number.isFinite(raw) ? raw : null;
+  }
+
+  function renderTargetTracks(preferredTrackId: number | null): void {
+    const select = ctx.dom.subsyncTargetSelect;
+    select.innerHTML = '';
+    select.value = '';
+    for (const track of ctx.state.subsyncSubtitleTracks) {
+      appendOption(select, String(track.id), track.label);
     }
-    ctx.dom.subsyncSourceSelect.disabled = ctx.state.subsyncSourceTracks.length === 0;
+    select.disabled = ctx.state.subsyncSubtitleTracks.length === 0;
+
+    const preferred = ctx.state.subsyncSubtitleTracks.find(
+      (track) => track.id === preferredTrackId,
+    );
+    const fallback = ctx.state.subsyncSubtitleTracks[0];
+    const selected = preferred ?? fallback;
+    if (selected) {
+      select.value = String(selected.id);
+    }
+  }
+
+  function renderReferenceTracks(preferredValue: string | null): void {
+    const select = ctx.dom.subsyncReferenceSelect;
+    const targetTrackId = getSelectedTargetTrackId();
+    const values: string[] = [];
+
+    select.innerHTML = '';
+    select.value = '';
+    for (const track of ctx.state.subsyncSubtitleTracks) {
+      if (track.id === targetTrackId) continue;
+      appendOption(select, String(track.id), track.label);
+      values.push(String(track.id));
+    }
+    if (currentPayload?.videoReferenceAvailable) {
+      appendOption(select, VIDEO_REFERENCE_VALUE, 'Video file (audio reference)');
+      values.push(VIDEO_REFERENCE_VALUE);
+    }
+    select.disabled = values.length === 0;
+
+    const preferred = preferredValue && values.includes(preferredValue) ? preferredValue : null;
+    const defaultTrackValue =
+      currentPayload?.defaultReferenceTrackId !== null &&
+      currentPayload?.defaultReferenceTrackId !== undefined
+        ? String(currentPayload.defaultReferenceTrackId)
+        : null;
+    const fallback =
+      defaultTrackValue && values.includes(defaultTrackValue) ? defaultTrackValue : values[0];
+    const selected = preferred ?? fallback;
+    if (selected) {
+      select.value = selected;
+    }
+  }
+
+  function describeSubsyncState(): string {
+    if (!currentPayload) return '';
+    const alassReady = hasAlassReference();
+    if (alassReady && currentPayload.ffsubsyncAvailable) {
+      return 'Choose engine, reference and out-of-sync subtitle, then run.';
+    }
+    if (alassReady) {
+      return 'Choose the alass reference and out-of-sync subtitle, then run.';
+    }
+    if (currentPayload.ffsubsyncAvailable) {
+      return 'No reference available for alass. Use ffsubsync.';
+    }
+    return 'No sync engine available for current media.';
   }
 
   function closeSubsyncModal(): void {
@@ -46,30 +130,27 @@ export function createSubsyncModal(
     }
   }
 
-  function openSubsyncModal(payload: SubsyncManualPayload): void {
+  function openSubsyncModal(payload: SubsyncManualPayload, selection?: SubsyncSelection): void {
     ctx.state.subsyncSubmitting = false;
-    ctx.state.subsyncSourceTracks = payload.sourceTracks;
-    ffsubsyncAvailable = payload.ffsubsyncAvailable;
+    ctx.state.subsyncSubtitleTracks = payload.subtitleTracks;
+    currentPayload = payload;
 
-    const hasSources = ctx.state.subsyncSourceTracks.length > 0;
-    ctx.dom.subsyncEngineAlass.checked = hasSources;
-    ctx.dom.subsyncEngineFfsubsync.checked = !hasSources && ffsubsyncAvailable;
-    ctx.dom.subsyncEngineFfsubsync.disabled = !ffsubsyncAvailable;
-    ctx.dom.subsyncRunButton.disabled = !hasSources && !ffsubsyncAvailable;
+    const alassReady = hasAlassReference();
+    const useAlass = selection ? selection.engine === 'alass' && alassReady : alassReady;
+    ctx.dom.subsyncEngineAlass.checked = useAlass;
+    ctx.dom.subsyncEngineFfsubsync.checked = !useAlass && payload.ffsubsyncAvailable;
+    ctx.dom.subsyncEngineAlass.disabled = !alassReady;
+    ctx.dom.subsyncEngineFfsubsync.disabled = !payload.ffsubsyncAvailable;
+    ctx.dom.subsyncRunButton.disabled = !alassReady && !payload.ffsubsyncAvailable;
 
-    renderSubsyncSourceTracks();
-    updateSubsyncSourceVisibility();
-
-    setSubsyncStatus(
-      !ffsubsyncAvailable && hasSources
-        ? 'Choose alass source, then run.'
-        : !ffsubsyncAvailable
-          ? 'No source subtitles available for alass.'
-          : hasSources
-            ? 'Choose engine and source, then run.'
-            : 'No source subtitles available for alass. Use ffsubsync.',
-      false,
+    renderTargetTracks(
+      selection
+        ? (selection.targetTrackId ?? payload.defaultTargetTrackId)
+        : payload.defaultTargetTrackId,
     );
+    renderReferenceTracks(selection?.referenceValue ?? null);
+    updateSubsyncFieldVisibility();
+    setSubsyncStatus(describeSubsyncState(), false);
 
     ctx.state.subsyncModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
@@ -80,25 +161,11 @@ export function createSubsyncModal(
   }
 
   function reopenSubsyncModalWithError(
-    sourceTracks: SubsyncManualPayload['sourceTracks'],
-    engine: 'alass' | 'ffsubsync',
-    sourceTrackId: number | null,
+    payload: SubsyncManualPayload,
+    selection: SubsyncSelection,
     message: string,
   ): void {
-    openSubsyncModal({ sourceTracks, ffsubsyncAvailable });
-
-    if (engine === 'alass' && sourceTracks.length > 0) {
-      ctx.dom.subsyncEngineAlass.checked = true;
-      ctx.dom.subsyncEngineFfsubsync.checked = false;
-      if (Number.isFinite(sourceTrackId)) {
-        ctx.dom.subsyncSourceSelect.value = String(sourceTrackId);
-      }
-    } else if (ffsubsyncAvailable) {
-      ctx.dom.subsyncEngineAlass.checked = false;
-      ctx.dom.subsyncEngineFfsubsync.checked = true;
-    }
-
-    updateSubsyncSourceVisibility();
+    openSubsyncModal(payload, selection);
     setSubsyncStatus(message, true);
     window.electronAPI.notifyOverlayModalOpened('subsync');
   }
@@ -106,6 +173,7 @@ export function createSubsyncModal(
   async function runSubsyncManualFromModal(): Promise<void> {
     if (ctx.state.subsyncSubmitting) return;
     if (ctx.dom.subsyncRunButton.disabled) return;
+    if (!currentPayload) return;
 
     const useAlass = ctx.dom.subsyncEngineAlass.checked;
     const useFfsubsync = ctx.dom.subsyncEngineFfsubsync.checked;
@@ -115,33 +183,46 @@ export function createSubsyncModal(
     }
 
     const engine = useAlass ? 'alass' : 'ffsubsync';
-    const sourceTrackId =
-      engine === 'alass' && ctx.dom.subsyncSourceSelect.value
-        ? Number.parseInt(ctx.dom.subsyncSourceSelect.value, 10)
-        : null;
+    const referenceValue = ctx.dom.subsyncReferenceSelect.value;
+    const targetTrackId = getSelectedTargetTrackId();
 
-    if (engine === 'alass' && !Number.isFinite(sourceTrackId)) {
-      setSubsyncStatus('Select a source subtitle track for alass.', true);
+    if (targetTrackId === null) {
+      setSubsyncStatus('Select the out-of-sync subtitle track to retime.', true);
+      return;
+    }
+    if (engine === 'alass' && !referenceValue) {
+      setSubsyncStatus('Select a reference for alass.', true);
       return;
     }
 
-    const sourceTracksSnapshot = ctx.state.subsyncSourceTracks.map((track) => ({ ...track }));
+    const useVideoReference = referenceValue === VIDEO_REFERENCE_VALUE;
+    const request: SubsyncManualRunRequest = {
+      engine,
+      targetTrackId,
+    };
+    if (engine === 'alass') {
+      request.referenceMode = useVideoReference ? 'video' : 'track';
+      request.referenceTrackId = useVideoReference ? null : Number.parseInt(referenceValue, 10);
+    }
+
+    const payloadSnapshot: SubsyncManualPayload = {
+      ...currentPayload,
+      subtitleTracks: currentPayload.subtitleTracks.map((track) => ({ ...track })),
+    };
+    const selection: SubsyncSelection = { engine, referenceValue, targetTrackId };
+
     ctx.state.subsyncSubmitting = true;
     ctx.dom.subsyncRunButton.disabled = true;
     closeSubsyncModal();
 
     try {
-      const result = await window.electronAPI.runSubsyncManual({
-        engine,
-        sourceTrackId,
-      });
+      const result = await window.electronAPI.runSubsyncManual(request);
       if (result.ok) return;
-      reopenSubsyncModalWithError(sourceTracksSnapshot, engine, sourceTrackId, result.message);
+      reopenSubsyncModalWithError(payloadSnapshot, selection, result.message);
     } catch (error) {
       reopenSubsyncModalWithError(
-        sourceTracksSnapshot,
-        engine,
-        sourceTrackId,
+        payloadSnapshot,
+        selection,
         `Subsync failed: ${(error as Error).message}`,
       );
     } finally {
@@ -171,10 +252,13 @@ export function createSubsyncModal(
       closeSubsyncModal();
     });
     ctx.dom.subsyncEngineAlass.addEventListener('change', () => {
-      updateSubsyncSourceVisibility();
+      updateSubsyncFieldVisibility();
     });
     ctx.dom.subsyncEngineFfsubsync.addEventListener('change', () => {
-      updateSubsyncSourceVisibility();
+      updateSubsyncFieldVisibility();
+    });
+    ctx.dom.subsyncTargetSelect.addEventListener('change', () => {
+      renderReferenceTracks(ctx.dom.subsyncReferenceSelect.value || null);
     });
     ctx.dom.subsyncRunButton.addEventListener('click', () => {
       void runSubsyncManualFromModal();

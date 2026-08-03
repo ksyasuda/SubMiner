@@ -161,10 +161,13 @@ If your subtitle file is out of sync with the audio, SubMiner can resynchronize 
 
 1. Open the subsync modal from the overlay.
 2. Select the sync engine (alass or ffsubsync).
-3. For alass, select a reference subtitle track from the video.
-4. SubMiner runs the sync and reloads the corrected subtitle.
+3. For alass, pick the **reference** - the subtitle with correct timing. This defaults to the secondary subtitle track. The loaded video file can also be used as the reference (alass extracts the audio itself), but it is never the default.
+4. Pick the **out-of-sync subtitle** - the track that gets retimed. This defaults to the active primary subtitle track and applies to both engines.
+5. SubMiner runs the sync and reloads the corrected subtitle into the slot the out-of-sync track came from: retiming the secondary track keeps it secondary and leaves the primary track selected.
 
-For remote streams, including Jellyfin playback, the modal only offers alass. Jellyfin subtitle URLs are cached as temporary subtitle files so alass can read them, but the video stream is not downloaded. ffsubsync needs direct access to the local media file and is unavailable for stream URLs.
+The reference and the out-of-sync subtitle must be different tracks; the reference list hides whichever track is selected as the target.
+
+For remote streams, including Jellyfin playback, the modal only offers alass with a subtitle reference. Jellyfin subtitle URLs are cached as temporary subtitle files so alass can read them, but the video stream is not downloaded. ffsubsync and the video-file reference need direct access to the local media file and are unavailable for stream URLs.
 
 When you mine a sentence card from the stats dashboard, SubMiner can also use `alass` automatically to align a local English sidecar against the matching local Japanese sidecar before filling the card translation field. The source subtitle files are not modified; SubMiner writes a temporary retimed copy and reuses it while the stats server is running.
 

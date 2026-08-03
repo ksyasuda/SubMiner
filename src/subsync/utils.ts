@@ -33,7 +33,8 @@ export interface SubsyncContext {
   videoPath: string;
   primaryTrack: MpvTrack;
   secondaryTrack: MpvTrack | null;
-  sourceTracks: MpvTrack[];
+  /** Every usable subtitle track, including the primary one. */
+  subtitleTracks: MpvTrack[];
   audioStreamIndex: number | null;
 }
 

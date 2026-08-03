@@ -78,19 +78,28 @@ export interface MpvClient {
   send(command: { command: unknown[]; request_id?: number }): boolean;
 }
 
-export interface SubsyncSourceTrack {
+export interface SubsyncSubtitleTrack {
   id: number;
   label: string;
 }
 
 export interface SubsyncManualPayload {
-  sourceTracks: SubsyncSourceTrack[];
+  subtitleTracks: SubsyncSubtitleTrack[];
+  defaultReferenceTrackId: number | null;
+  defaultTargetTrackId: number | null;
+  videoReferenceAvailable: boolean;
   ffsubsyncAvailable: boolean;
 }
 
+export type SubsyncReferenceMode = 'track' | 'video';
+
 export interface SubsyncManualRunRequest {
   engine: 'alass' | 'ffsubsync';
-  sourceTrackId?: number | null;
+  /** alass reference source: another subtitle track, or the loaded media file itself. */
+  referenceMode?: SubsyncReferenceMode;
+  referenceTrackId?: number | null;
+  /** Subtitle track to retime. Defaults to the active primary track. */
+  targetTrackId?: number | null;
 }
 
 export interface SubsyncResult {
