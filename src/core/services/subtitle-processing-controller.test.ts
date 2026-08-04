@@ -321,12 +321,47 @@ test('isCacheFull returns true when cache reaches limit', async () => {
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
     emitSubtitle: () => {},
+    cacheLimit: 8,
   });
 
-  // Fill cache to the 256 limit
-  for (let i = 0; i < 256; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
   }
 
   assert.equal(controller.isCacheFull(), true);
+});
+
+test('cache evicts least recently used entries once the limit is reached', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+    cacheLimit: 3,
+  });
+
+  for (const line of ['a', 'b', 'c']) {
+    controller.preCacheTokenization(line, { text: line, tokens: [] });
+  }
+  // Touching 'a' makes 'b' the eviction candidate.
+  controller.consumeCachedSubtitle('a');
+  controller.preCacheTokenization('d', { text: 'd', tokens: [] });
+
+  assert.equal(controller.hasCachedSubtitle('b'), false);
+  assert.deepEqual(
+    ['a', 'c', 'd'].map((line) => controller.hasCachedSubtitle(line)),
+    [true, true, true],
+  );
+});
+
+test('default cache limit covers a full-length title without evicting', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+  });
+
+  for (let i = 0; i < 2000; i += 1) {
+    controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
+  }
+
+  assert.equal(controller.isCacheFull(), false);
+  assert.equal(controller.hasCachedSubtitle('line-0'), true);
 });

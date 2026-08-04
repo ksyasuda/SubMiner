@@ -1988,7 +1988,11 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
   createRefreshSubtitlePrefetchFromActiveTrackHandler({
     getMpvClient: () => appState.mpvClient,
     getLastObservedTimePos: () => lastObservedTimePos,
-    shouldKeepExistingCuesOnMissingSource: (videoPath) => isYoutubeMediaPath(videoPath),
+    // Remote media has no extractable on-disk track to fall back to, so a transient
+    // resolve miss (sid briefly 'no', a cycle onto an embedded stream track) would
+    // otherwise drop a working cue list for the rest of the episode.
+    shouldKeepExistingCuesOnMissingSource: (videoPath) =>
+      isYoutubeMediaPath(videoPath) || isRemoteMediaPath(videoPath),
     subtitlePrefetchInitController,
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
   });
@@ -2994,6 +2998,8 @@ const {
         streamIndex,
         delaySeconds,
       }),
+    initSubtitlePrefetch: (sourcePath) =>
+      subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
     logDebug: (message, error) => {
       logger.debug(message, error);
     },

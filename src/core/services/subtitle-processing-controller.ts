@@ -5,7 +5,16 @@ export interface SubtitleProcessingControllerDeps {
   emitSubtitle: (payload: SubtitleData) => void;
   logDebug?: (message: string) => void;
   now?: () => number;
+  cacheLimit?: number;
 }
+
+/**
+ * Sized to hold every line of a single feature-length title (a 24-minute episode runs
+ * 300-400 lines, a 2-hour film ~2000). The prefetcher stops once `isCacheFull()` trips,
+ * so a limit below the line count leaves the tail of the media permanently uncached
+ * rather than just evicting.
+ */
+export const DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT = 2500;
 
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
@@ -24,7 +33,10 @@ export function normalizeSubtitleCacheKey(text: string): string {
 export function createSubtitleProcessingController(
   deps: SubtitleProcessingControllerDeps,
 ): SubtitleProcessingController {
-  const SUBTITLE_TOKENIZATION_CACHE_LIMIT = 256;
+  const SUBTITLE_TOKENIZATION_CACHE_LIMIT =
+    deps.cacheLimit && deps.cacheLimit > 0
+      ? deps.cacheLimit
+      : DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT;
   let latestText = '';
   let lastEmittedText = '';
   let cacheGeneration = 0;

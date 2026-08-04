@@ -320,6 +320,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   setActiveSubtitleDelayKey?: (key: JellyfinSubtitleDelayKey | null) => void;
   loadSubtitleSourceText?: (source: string) => Promise<string>;
   saveSubtitleDelay?: (itemId: string, streamIndex: number, delaySeconds: number) => boolean | void;
+  initSubtitlePrefetch?: (sourcePath: string) => void | Promise<void>;
   logDebug: (message: string, error: unknown) => void;
 }): PreloadJellyfinExternalSubtitlesHandler {
   const activeCacheDirs = new Set<string>();
@@ -327,6 +328,18 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
 
   function resetManagedSubtitleDelay(): void {
     deps.sendMpvCommand(['set_property', 'sub-delay', 0]);
+  }
+
+  // mpv's sid property-change is the only thing that normally starts prefetching, so a
+  // coalesced or missed event leaves the whole episode uncached. The downloaded path is
+  // known here, so seed the pipeline directly instead of waiting on the observer.
+  function startSubtitlePrefetchForCachedTrack(sourcePath: string): void {
+    if (!deps.initSubtitlePrefetch) return;
+    void Promise.resolve()
+      .then(() => deps.initSubtitlePrefetch!(sourcePath))
+      .catch((error) => {
+        deps.logDebug('Failed to start subtitle prefetch for Jellyfin subtitle', error);
+      });
   }
 
   function cleanupActiveCache(): void {
@@ -438,6 +451,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
             }
           }
           deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
+          startSubtitlePrefetchForCachedTrack(selectedCachedTrack.path);
         } else {
           deps.setActiveSubtitleDelayKey?.(null);
           resetManagedSubtitleDelay();

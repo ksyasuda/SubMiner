@@ -28,6 +28,9 @@ export function createBuildPreloadJellyfinExternalSubtitlesMainDepsHandler(
       ? (itemId, streamIndex, delaySeconds) =>
           deps.saveSubtitleDelay!(itemId, streamIndex, delaySeconds)
       : undefined,
+    initSubtitlePrefetch: deps.initSubtitlePrefetch
+      ? (sourcePath) => deps.initSubtitlePrefetch!(sourcePath)
+      : undefined,
     logDebug: (message: string, error: unknown) => deps.logDebug(message, error),
   });
 }
