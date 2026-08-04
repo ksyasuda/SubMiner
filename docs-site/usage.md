@@ -149,7 +149,7 @@ Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for sta
 
 - `--log-level` controls logger verbosity.
 - `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
-- `--background` defaults to quieter logging (`warn`) unless `--log-level` is set.
+- `--background` starts at the default quieter logging level (`warn`), then follows `logging.level` after config loads. An explicit `--log-level` remains the override.
 - `--background` launched from a terminal detaches and returns the prompt; stop it with tray Quit or `SubMiner.AppImage --stop` (`SubMiner.exe --stop` on Windows).
 - Linux desktop launcher starts SubMiner with `--background` by default (via electron-builder `linux.executableArgs`).
 - On Hyprland and other Wayland compositors, the tray icon appears only when your panel provides a StatusNotifier/AppIndicator tray host.

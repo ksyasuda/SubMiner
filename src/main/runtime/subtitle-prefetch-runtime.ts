@@ -86,6 +86,7 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
     videoPath: string,
     track: MpvSubtitleTrackLike,
   ) => Promise<{ path: string; cleanup: () => Promise<void> } | null>;
+  logDebug?: (message: string) => void;
 }) {
   return async (input: {
     currentExternalFilenameRaw: unknown;
@@ -104,6 +105,7 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
 
     const track = getActiveSubtitleTrack(input.currentTrackRaw, input.trackListRaw, input.sidRaw);
     if (!track) {
+      deps.logDebug?.('[subtitle-prefetch] no active subtitle track selected yet');
       return null;
     }
 
@@ -114,6 +116,7 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
     }
 
     if (isRemoteMediaPath(input.videoPath)) {
+      deps.logDebug?.('[subtitle-prefetch] skipping internal subtitle extraction for remote media');
       return null;
     }
 
@@ -123,6 +126,9 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       track,
     );
     if (!extracted) {
+      deps.logDebug?.(
+        `[subtitle-prefetch] internal subtitle extraction unavailable (codec=${String(track.codec ?? 'unknown')}, ff-index=${String(track['ff-index'] ?? 'unknown')})`,
+      );
       return null;
     }
 
@@ -144,10 +150,13 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
   resolveActiveSubtitleSidebarSource: (
     input: Parameters<ReturnType<typeof createResolveActiveSubtitleSidebarSourceHandler>>[0],
   ) => Promise<ActiveSubtitleSidebarSource | null>;
+  logDebug?: (message: string) => void;
+  logWarn?: (message: string) => void;
 }) {
   return async (): Promise<void> => {
     const client = deps.getMpvClient();
     if (!client?.connected) {
+      deps.logDebug?.('[subtitle-prefetch] skipped refresh: mpv client not connected');
       return;
     }
 
@@ -162,6 +171,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
         ]);
       const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
       if (!videoPath) {
+        deps.logDebug?.('[subtitle-prefetch] skipped refresh: no media path');
         deps.subtitlePrefetchInitController.cancelPendingInit();
         return;
       }
@@ -175,8 +185,14 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
       });
       if (!resolvedSource) {
         if (deps.shouldKeepExistingCuesOnMissingSource?.(videoPath) === true) {
+          deps.logDebug?.(
+            '[subtitle-prefetch] no active subtitle source resolved; keeping existing cues',
+          );
           return;
         }
+        deps.logDebug?.(
+          '[subtitle-prefetch] no active subtitle source resolved; cancelling prefetch',
+        );
         deps.subtitlePrefetchInitController.cancelPendingInit();
         return;
       }
@@ -190,8 +206,12 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
       } finally {
         await resolvedSource.cleanup?.();
       }
-    } catch {
-      // Skip refresh when the track query fails.
+    } catch (error) {
+      deps.logWarn?.(
+        `[subtitle-prefetch] failed to refresh from active track: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   };
 }

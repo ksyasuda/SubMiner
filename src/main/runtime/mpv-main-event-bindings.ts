@@ -47,6 +47,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
+  logSubtitleProcessingDebug?: (message: string) => void;
   refreshDiscordPresence: () => void;
 
   setCurrentSubAssText: (text: string) => void;
@@ -123,6 +124,9 @@ export function createBindMpvMainEventHandlersHandler(deps: {
         : undefined,
       broadcastSubtitle: (payload) => deps.broadcastSubtitle(payload),
       onSubtitleChange: (text) => deps.onSubtitleChange(text),
+      logDebug: deps.logSubtitleProcessingDebug
+        ? (message) => deps.logSubtitleProcessingDebug?.(message)
+        : undefined,
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
     });
     const handleMpvSubtitleAssChange = createHandleMpvSubtitleAssChangeHandler({

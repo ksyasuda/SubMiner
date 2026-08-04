@@ -70,6 +70,24 @@ test('subtitle change handler broadcasts cached annotated payload immediately wh
   ]);
 });
 
+test('subtitle change handler logs debug when a cached payload is emitted immediately', () => {
+  const debugs: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    setCurrentSubText: () => {},
+    getImmediateSubtitlePayload: (text) => (text ? { text, tokens: [] } : null),
+    broadcastSubtitle: () => {},
+    onSubtitleChange: () => {},
+    refreshDiscordPresence: () => {},
+    logDebug: (message) => debugs.push(message),
+  });
+
+  handler({ text: 'キャッシュ済みの行' });
+  handler({ text: '' });
+
+  assert.equal(debugs.length, 1);
+  assert.match(debugs[0]!, /cached subtitle/);
+});
+
 test('subtitle change handler emits cached annotation after forwarding the subtitle change', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({
