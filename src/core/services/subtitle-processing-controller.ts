@@ -107,13 +107,16 @@ export function createSubtitleProcessingController(
               lastPlainEmittedText = text;
             }
             const tokenized = await deps.tokenizeSubtitle(text);
+            // A null result is a transient tokenizer failure, not a verdict on
+            // the line: caching the plain fallback would pin it untokenized for
+            // every later occurrence.
             if (tokenized) {
               output = tokenized;
-            }
-            // A result computed before an invalidation must not repopulate the
-            // fresh cache, or the retry below would serve the stale entry.
-            if (generation === cacheGeneration) {
-              setCachedTokenization(text, output);
+              // A result computed before an invalidation must not repopulate the
+              // fresh cache, or the retry below would serve the stale entry.
+              if (generation === cacheGeneration) {
+                setCachedTokenization(text, tokenized);
+              }
             }
           }
         } catch (error) {

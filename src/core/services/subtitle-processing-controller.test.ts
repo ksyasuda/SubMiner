@@ -236,6 +236,43 @@ test('subtitle processing falls back to plain subtitle when tokenization returns
   );
 });
 
+test('null tokenization is not cached and a later cue retries tokenization', async () => {
+  const emitted: SubtitleData[] = [];
+  const callsByText = new Map<string, number>();
+  let failNext = true;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      callsByText.set(text, (callsByText.get(text) ?? 0) + 1);
+      if (text === 'fallback' && failNext) {
+        failNext = false;
+        return null;
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('fallback');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('fallback'), 1);
+  assert.equal(
+    controller.hasCachedSubtitle('fallback'),
+    false,
+    'plain fallback must not be cached when tokenization yields nothing',
+  );
+  assert.deepEqual(emitted, [{ text: 'fallback', tokens: null }]);
+
+  controller.onSubtitleChange('other');
+  await flushMicrotasks();
+  controller.onSubtitleChange('fallback');
+  await flushMicrotasks();
+
+  assert.equal(callsByText.get('fallback'), 2, 'later cue should retry tokenization');
+  assert.equal(controller.hasCachedSubtitle('fallback'), true);
+  assert.deepEqual(emitted.at(-1), { text: 'fallback', tokens: [] });
+});
+
 test('subtitle processing ignores duplicate current subtitle refresh without cache invalidation', async () => {
   const emitted: SubtitleData[] = [];
   let tokenizeCalls = 0;
