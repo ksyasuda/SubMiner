@@ -40,6 +40,9 @@ function makeDeps(overrides: {
   >[0]['setActiveSubtitleDelayKey'];
   loadSubtitleSourceText?: (source: string) => Promise<string>;
   saveSubtitleDelay?: (itemId: string, streamIndex: number, delaySeconds: number) => void;
+  initSubtitlePrefetch?: Parameters<
+    typeof createPreloadJellyfinExternalSubtitlesHandler
+  >[0]['initSubtitlePrefetch'];
   logDebug?: Parameters<typeof createPreloadJellyfinExternalSubtitlesHandler>[0]['logDebug'];
 }) {
   return {
@@ -58,6 +61,7 @@ function makeDeps(overrides: {
     setActiveSubtitleDelayKey: overrides.setActiveSubtitleDelayKey,
     loadSubtitleSourceText: overrides.loadSubtitleSourceText,
     saveSubtitleDelay: overrides.saveSubtitleDelay,
+    initSubtitlePrefetch: overrides.initSubtitlePrefetch,
     logDebug: overrides.logDebug ?? (() => {}),
   };
 }
@@ -132,6 +136,92 @@ test('preload jellyfin subtitles caches external tracks locally and chooses japa
     ['set_property', 'sid', 5],
     ['set_property', 'secondary-sid', 6],
   ]);
+});
+
+test('preload jellyfin subtitles starts prefetch for the selected japanese track', async () => {
+  const prefetched: string[] = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/a.srt' },
+        { index: 1, language: 'eng', title: 'English', deliveryUrl: 'https://sub/b.srt' },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => [
+          {
+            type: 'sub',
+            id: 5,
+            lang: 'jpn',
+            title: 'Japanese',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+          },
+          {
+            type: 'sub',
+            id: 6,
+            lang: 'eng',
+            title: 'English',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/1.srt',
+          },
+        ],
+      }),
+      cacheSubtitleTrack: async (track) => ({
+        path: `/tmp/subminer-jellyfin-subtitles/${track.index}.srt`,
+        cleanupDir: '/tmp/subminer-jellyfin-subtitles',
+      }),
+      initSubtitlePrefetch: (sourcePath) => {
+        prefetched.push(sourcePath);
+      },
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(prefetched, ['/tmp/subminer-jellyfin-subtitles/0.srt']);
+});
+
+test('preload jellyfin subtitles survives prefetch start failures', async () => {
+  const logs: string[] = [];
+  const commands: Array<Array<string | number>> = [];
+  const preload = createPreloadJellyfinExternalSubtitlesHandler(
+    makeDeps({
+      listJellyfinSubtitleTracks: async () => [
+        { index: 0, language: 'jpn', title: 'Japanese', deliveryUrl: 'https://sub/a.srt' },
+      ],
+      getMpvClient: () => ({
+        requestProperty: async () => [
+          {
+            type: 'sub',
+            id: 5,
+            lang: 'jpn',
+            title: 'Japanese',
+            external: true,
+            'external-filename': '/tmp/subminer-jellyfin-subtitles/0.srt',
+          },
+        ],
+      }),
+      sendMpvCommand: (command) => commands.push(command),
+      cacheSubtitleTrack: async (track) => ({
+        path: `/tmp/subminer-jellyfin-subtitles/${track.index}.srt`,
+        cleanupDir: '/tmp/subminer-jellyfin-subtitles',
+      }),
+      initSubtitlePrefetch: async () => {
+        throw new Error('parse failed');
+      },
+      logDebug: (message) => logs.push(message),
+    }),
+  );
+
+  await preload({ session, clientInfo, itemId: 'item-1' });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(logs, ['Failed to start subtitle prefetch for Jellyfin subtitle']);
+  assert.ok(
+    commands.some((command) => command[0] === 'set_property' && command[1] === 'sid'),
+    'subtitle selection still happens when prefetch start fails',
+  );
 });
 
 test('preload jellyfin subtitles stages tracks without temporary subtitle selection', async () => {

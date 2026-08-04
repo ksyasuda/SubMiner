@@ -308,25 +308,54 @@ test('hasCachedSubtitle checks prefetched entries without consuming them', async
   assert.equal(controller.hasCachedSubtitle('猫\nです'), false);
 });
 
-test('isCacheFull returns false when cache is below limit', () => {
+test('cache keeps every entry while below the limit', () => {
   const controller = createSubtitleProcessingController({
-    tokenizeSubtitle: async (text) => ({ text, tokens: null }),
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
     emitSubtitle: () => {},
+    cacheLimit: 8,
   });
 
-  assert.equal(controller.isCacheFull(), false);
+  for (let i = 0; i < 8; i += 1) {
+    controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
+  }
+
+  assert.deepEqual(
+    Array.from({ length: 8 }, (_, i) => controller.hasCachedSubtitle(`line-${i}`)),
+    Array.from({ length: 8 }, () => true),
+  );
 });
 
-test('isCacheFull returns true when cache reaches limit', async () => {
+test('cache evicts least recently used entries once the limit is reached', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+    cacheLimit: 3,
+  });
+
+  for (const line of ['a', 'b', 'c']) {
+    controller.preCacheTokenization(line, { text: line, tokens: [] });
+  }
+  // Touching 'a' makes 'b' the eviction candidate.
+  controller.consumeCachedSubtitle('a');
+  controller.preCacheTokenization('d', { text: 'd', tokens: [] });
+
+  assert.equal(controller.hasCachedSubtitle('b'), false);
+  assert.deepEqual(
+    ['a', 'c', 'd'].map((line) => controller.hasCachedSubtitle(line)),
+    [true, true, true],
+  );
+});
+
+test('default cache limit covers a full-length title without evicting', () => {
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
     emitSubtitle: () => {},
   });
 
-  // Fill cache to the 256 limit
-  for (let i = 0; i < 256; i += 1) {
+  for (let i = 0; i < 2000; i += 1) {
     controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
   }
 
-  assert.equal(controller.isCacheFull(), true);
+  assert.equal(controller.hasCachedSubtitle('line-0'), true);
+  assert.equal(controller.hasCachedSubtitle('line-1999'), true);
 });

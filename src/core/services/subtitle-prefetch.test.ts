@@ -74,7 +74,6 @@ test('prefetch service tokenizes priority window cues and caches them', async ()
     preCacheTokenization: (text, data) => {
       cached.set(text, data);
     },
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 
@@ -91,32 +90,38 @@ test('prefetch service tokenizes priority window cues and caches them', async ()
   assert.ok(cached.has('line-2'));
 });
 
-test('prefetch service stops when cache is full', async () => {
+test('prefetch service warms every cue even when the cache evicts along the way', async () => {
   const cues = makeCues(20);
-  let tokenizeCalls = 0;
-  let cacheSize = 0;
+  const tokenized: string[] = [];
+  // Stand-in for the LRU: only the last 5 entries survive, so later cues evict earlier ones.
+  const cache = new Set<string>();
 
   const service = createSubtitlePrefetchService({
     cues,
     tokenizeSubtitle: async (text) => {
-      tokenizeCalls += 1;
+      tokenized.push(text);
       return { text, tokens: [] };
     },
-    preCacheTokenization: () => {
-      cacheSize += 1;
+    preCacheTokenization: (text) => {
+      cache.add(text);
+      while (cache.size > 5) {
+        const oldest = cache.values().next().value;
+        if (oldest === undefined) break;
+        cache.delete(oldest);
+      }
     },
-    isCacheFull: () => cacheSize >= 5,
+    hasCachedTokenization: (text) => cache.has(text),
     priorityWindowSize: 3,
   });
 
   service.start(0);
-  for (let i = 0; i < 30; i += 1) {
+  for (let i = 0; i < 60; i += 1) {
     await flushMicrotasks();
   }
   service.stop();
 
-  // Should have stopped at 5 (cache full), not tokenized all 20
-  assert.ok(tokenizeCalls <= 6, `Expected <= 6 tokenize calls, got ${tokenizeCalls}`);
+  assert.equal(tokenized.length, 20, `Expected all 20 cues warmed, got ${tokenized.length}`);
+  assert.equal(new Set(tokenized).size, 20, 'Each cue is tokenized at most once per run');
 });
 
 test('prefetch service can be stopped mid-flight', async () => {
@@ -130,7 +135,6 @@ test('prefetch service can be stopped mid-flight', async () => {
       return { text, tokens: [] };
     },
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 
@@ -159,7 +163,6 @@ test('prefetch service onSeek re-prioritizes from new position', async () => {
     preCacheTokenization: (text) => {
       cachedTexts.push(text);
     },
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 
@@ -183,7 +186,7 @@ test('prefetch service onSeek re-prioritizes from new position', async () => {
   assert.ok(hasPostSeekCue, 'Should have cached cues after seek position');
 });
 
-test('prefetch service still warms the priority window when cache is full', async () => {
+test('prefetch service warms the priority window ahead of the rest of the file', async () => {
   const cues = makeCues(20);
   const cachedTexts: string[] = [];
 
@@ -193,7 +196,6 @@ test('prefetch service still warms the priority window when cache is full', asyn
     preCacheTokenization: (text) => {
       cachedTexts.push(text);
     },
-    isCacheFull: () => true,
     priorityWindowSize: 3,
   });
 
@@ -217,7 +219,6 @@ test('prefetch service pause/resume halts and continues tokenization', async () 
       return { text, tokens: [] };
     },
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 
@@ -255,7 +256,6 @@ test('prefetch service skips cues already present in tokenization cache', async 
     },
     preCacheTokenization: () => {},
     hasCachedTokenization: (text) => text === 'line-0' || text === 'line-1',
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 
@@ -285,7 +285,6 @@ test('prefetch service deduplicates repeated cue text within a run', async () =>
       return { text, tokens: [] };
     },
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     priorityWindowSize: 3,
   });
 

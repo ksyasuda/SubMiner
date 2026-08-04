@@ -176,6 +176,29 @@ test('subtitle sidebar media path tag is assigned after prefetch succeeds', () =
   );
 });
 
+test('remote media keeps parsed cues when the active subtitle source cannot be resolved', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /createRefreshSubtitlePrefetchFromActiveTrackHandler\(\{(?<body>[\s\S]*?)\n  \}\);/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(actionBlock, /isYoutubeMediaPath\(videoPath\) \|\| isRemoteMediaPath\(videoPath\)/);
+});
+
+test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
+  const source = readMainSource();
+  const actionBlock = source.match(
+    /preloadJellyfinExternalSubtitlesMainDeps:\s*\{(?<body>[\s\S]*?)\n  \},/,
+  )?.groups?.body;
+
+  assert.ok(actionBlock);
+  assert.match(
+    actionBlock,
+    /initSubtitlePrefetch: \(sourcePath\) =>\s*subtitlePrefetchRuntime\.refreshSubtitleSidebarFromSource\(sourcePath\),/,
+  );
+});
+
 test('update overlay notification action triggers install flow', () => {
   const source = readMainSource();
   const runtimeSource = readSource('src/main/runtime/overlay-notifications-runtime.ts');

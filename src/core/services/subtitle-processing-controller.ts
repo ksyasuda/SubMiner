@@ -5,7 +5,16 @@ export interface SubtitleProcessingControllerDeps {
   emitSubtitle: (payload: SubtitleData) => void;
   logDebug?: (message: string) => void;
   now?: () => number;
+  cacheLimit?: number;
 }
+
+/**
+ * Pure memory bound on the LRU, not a coverage limit: prefetching runs to the end of a
+ * file regardless of cache pressure. Sized to hold a feature-length title (a 24-minute
+ * episode runs 300-400 lines, a 2-hour film ~2000) plus room for lines that repeat across
+ * episodes of a series, so openings and endings stay warm between titles.
+ */
+export const DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT = 2500;
 
 export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => void;
@@ -14,7 +23,6 @@ export interface SubtitleProcessingController {
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
   hasCachedSubtitle: (text: string) => boolean;
-  isCacheFull: () => boolean;
 }
 
 export function normalizeSubtitleCacheKey(text: string): string {
@@ -24,7 +32,10 @@ export function normalizeSubtitleCacheKey(text: string): string {
 export function createSubtitleProcessingController(
   deps: SubtitleProcessingControllerDeps,
 ): SubtitleProcessingController {
-  const SUBTITLE_TOKENIZATION_CACHE_LIMIT = 256;
+  const SUBTITLE_TOKENIZATION_CACHE_LIMIT =
+    deps.cacheLimit && deps.cacheLimit > 0
+      ? deps.cacheLimit
+      : DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT;
   let latestText = '';
   let lastEmittedText = '';
   let cacheGeneration = 0;
@@ -173,9 +184,6 @@ export function createSubtitleProcessingController(
     },
     hasCachedSubtitle: (text: string) => {
       return tokenizationCache.has(normalizeSubtitleCacheKey(text));
-    },
-    isCacheFull: () => {
-      return tokenizationCache.size >= SUBTITLE_TOKENIZATION_CACHE_LIMIT;
     },
   };
 }
