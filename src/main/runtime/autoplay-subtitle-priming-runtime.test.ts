@@ -96,10 +96,10 @@ test('primeCurrentSubtitleForAutoplay refreshes active subtitle cues when mpv su
       onSubtitleChange: (text) => calls.push(`change:${text}`),
       refreshCurrentSubtitle: (text) => calls.push(`refresh:${text ?? ''}`),
     },
-    emitSubtitlePayload: (payload) => calls.push(`emit:${payload.text}`),
+    emitSubtitlePayload: (payload, options) =>
+      calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
     getSubtitlePrefetchService: () => ({
       pause: () => calls.push('prefetch:pause'),
-      onSeek: (timePos) => calls.push(`prefetch:seek:${timePos}`),
     }),
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
@@ -120,7 +120,7 @@ test('primeCurrentSubtitleForAutoplay refreshes active subtitle cues when mpv su
     'request:time-pos',
     'set:起動字幕',
     'prefetch:pause',
-    'emit:起動字幕',
+    'emit:起動字幕:resume=false',
     'change:起動字幕',
   ]);
 });
@@ -154,10 +154,10 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
       onSubtitleChange: (text) => calls.push(`change:${text}`),
       refreshCurrentSubtitle: (text) => calls.push(`refresh:${text ?? ''}`),
     },
-    emitSubtitlePayload: (payload) => calls.push(`emit:${payload.text}`),
+    emitSubtitlePayload: (payload, options) =>
+      calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
     getSubtitlePrefetchService: () => ({
       pause: () => calls.push('prefetch:pause'),
-      onSeek: (timePos) => calls.push(`prefetch:seek:${timePos}`),
     }),
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
@@ -175,7 +175,7 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
     'request:sub-text',
     'set:起動字幕',
     'prefetch:pause',
-    'emit:起動字幕',
+    'emit:起動字幕:resume=false',
     'change:起動字幕',
   ]);
 });

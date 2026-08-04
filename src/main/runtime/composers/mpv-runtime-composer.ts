@@ -225,24 +225,35 @@ export function composeMpvRuntimeHandlers<
     }
     return tokenizationWarmupInFlight;
   };
+  // Built once and reused for every tokenization: per-call rebuilds create
+  // fresh closures, which defeats identity-keyed caches downstream (the JLPT
+  // lookup cache keys on the getJlptLevel function, and the mecab availability
+  // WeakSet keys on the runtime deps instance).
+  let cachedTokenizerRuntimeDeps: TTokenizerRuntimeDeps | null = null;
+  const getTokenizerRuntimeDeps = (): TTokenizerRuntimeDeps => {
+    if (cachedTokenizerRuntimeDeps) {
+      return cachedTokenizerRuntimeDeps;
+    }
+    const tokenizerMainDeps = buildTokenizerDepsHandler();
+    const baseOnTokenizationReady = tokenizerMainDeps.onTokenizationReady;
+    tokenizerMainDeps.onTokenizationReady = (tokenizedText: string): void => {
+      if (!shouldWarmupAnnotationDictionaries()) {
+        baseOnTokenizationReady?.(tokenizedText);
+        return;
+      }
+      markTokenizationPlaybackReady();
+      baseOnTokenizationReady?.(tokenizedText);
+      if (!tokenizationWarmupCompleted) {
+        void prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {});
+      }
+    };
+    cachedTokenizerRuntimeDeps = options.tokenizer.createTokenizerRuntimeDeps(tokenizerMainDeps);
+    return cachedTokenizerRuntimeDeps;
+  };
   const tokenizeSubtitle = async (text: string): Promise<TTokenizedSubtitle> => {
     if (!tokenizationWarmupCompleted) void startTokenizationWarmups();
     await ensureTokenizationPrerequisites();
-    const tokenizerMainDeps = buildTokenizerDepsHandler();
-    if (shouldWarmupAnnotationDictionaries()) {
-      const onTokenizationReady = tokenizerMainDeps.onTokenizationReady;
-      tokenizerMainDeps.onTokenizationReady = (tokenizedText: string): void => {
-        markTokenizationPlaybackReady();
-        onTokenizationReady?.(tokenizedText);
-        if (!tokenizationWarmupCompleted) {
-          void prewarmSubtitleDictionaries({ showLoadingOsd: true }).catch(() => {});
-        }
-      };
-    }
-    return options.tokenizer.tokenizeSubtitle(
-      text,
-      options.tokenizer.createTokenizerRuntimeDeps(tokenizerMainDeps),
-    );
+    return options.tokenizer.tokenizeSubtitle(text, getTokenizerRuntimeDeps());
   };
 
   const launchBackgroundWarmupTask = createLaunchBackgroundWarmupTaskFromStartup(

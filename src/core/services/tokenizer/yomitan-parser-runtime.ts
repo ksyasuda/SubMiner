@@ -81,6 +81,13 @@ const yomitanFrequencyCacheByWindow = new WeakMap<
   BrowserWindow,
   Map<string, YomitanTermFrequency[]>
 >();
+// Epoch passed with every scan request; the in-window termsFind cache clears
+// itself when the epoch changes (dictionary imports, settings changes).
+const yomitanScanCacheEpochByWindow = new WeakMap<BrowserWindow, number>();
+
+function getYomitanScanCacheEpoch(window: BrowserWindow): number {
+  return yomitanScanCacheEpochByWindow.get(window) ?? 0;
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object');
@@ -99,6 +106,7 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
         typeof entry.startPos === 'number' &&
         typeof entry.endPos === 'number' &&
         (entry.isNameMatch === undefined || typeof entry.isNameMatch === 'boolean') &&
+        (entry.isUnparsedRun === undefined || typeof entry.isUnparsedRun === 'boolean') &&
         (entry.frequencyRank === undefined || typeof entry.frequencyRank === 'number') &&
         (entry.wordClasses === undefined ||
           (Array.isArray(entry.wordClasses) &&
@@ -107,13 +115,9 @@ function isScanTokenArray(value: unknown): value is YomitanScanToken[] {
   );
 }
 
-function scanTokenSpanKey(token: YomitanScanToken): string {
-  return `${token.startPos}:${token.endPos}:${token.surface}`;
-}
-
 // Maps a parse-selected token to the scanner-token shape carried out of the
-// parser runtime. Shared by both selectYomitanParseTokens fallback paths so the
-// projected fields stay in sync as the shape changes.
+// parser runtime, used by the parseText fallback path when the in-window
+// scanner is unavailable.
 function toYomitanScanToken(token: {
   surface: string;
   reading: string;
@@ -132,66 +136,6 @@ function toYomitanScanToken(token: {
   };
 }
 
-// parseText segmentation is authoritative (it emits filler chunks for text the
-// termsFind scanner skips), but only the termsFind scanner carries annotation
-// metadata (isNameMatch, frequencyRank, headwordReading, wordClasses). Graft
-// scanner tokens onto the parseText segmentation per matching span so one
-// unmatched chunk degrades only itself instead of dropping the whole line's
-// metadata.
-//
-// Exception: character-name tokens. The greedy name scan can re-segment text
-// around a name (e.g. とヨータ → と + ヨータ instead of とヨー + タ), so
-// parseText segmentation cannot be authoritative there. Each name span is
-// expanded until it aligns with token boundaries in both segmentations, then
-// the parse tokens inside are replaced with the scanner tokens.
-function mergeScannerTokensIntoParseTokens(
-  parseScanTokens: YomitanScanToken[],
-  scannerTokens: YomitanScanToken[],
-): YomitanScanToken[] {
-  const scannerTokensBySpan = new Map<string, YomitanScanToken>();
-  for (const token of scannerTokens) {
-    scannerTokensBySpan.set(scanTokenSpanKey(token), token);
-  }
-  const graftedTokens = parseScanTokens.map(
-    (token) => scannerTokensBySpan.get(scanTokenSpanKey(token)) ?? token,
-  );
-
-  const nameTokens = scannerTokens.filter((token) => token.isNameMatch === true);
-  if (nameTokens.length === 0) {
-    return graftedTokens;
-  }
-
-  const regions = nameTokens.map((token) => ({ start: token.startPos, end: token.endPos }));
-  const allTokens = [...parseScanTokens, ...scannerTokens];
-  let expanded = true;
-  while (expanded) {
-    expanded = false;
-    for (const region of regions) {
-      for (const token of allTokens) {
-        const overlaps = token.startPos < region.end && token.endPos > region.start;
-        const extendsBeyond = token.startPos < region.start || token.endPos > region.end;
-        if (overlaps && extendsBeyond) {
-          region.start = Math.min(region.start, token.startPos);
-          region.end = Math.max(region.end, token.endPos);
-          expanded = true;
-        }
-      }
-    }
-  }
-
-  const isInsideNameRegion = (token: YomitanScanToken): boolean =>
-    regions.some((region) => token.startPos >= region.start && token.endPos <= region.end);
-
-  const merged = graftedTokens.filter((token) => !isInsideNameRegion(token));
-  for (const token of scannerTokens) {
-    if (isInsideNameRegion(token)) {
-      merged.push(token);
-    }
-  }
-  merged.sort((a, b) => a.startPos - b.startPos || a.endPos - b.endPos);
-  return merged;
-}
-
 function makeTermReadingCacheKey(term: string, reading: string | null): string {
   return `${term}\u0000${reading ?? ''}`;
 }
@@ -208,6 +152,7 @@ function getWindowFrequencyCache(window: BrowserWindow): Map<string, YomitanTerm
 function clearWindowCaches(window: BrowserWindow): void {
   yomitanProfileMetadataByWindow.delete(window);
   yomitanFrequencyCacheByWindow.delete(window);
+  yomitanScanCacheEpochByWindow.set(window, getYomitanScanCacheEpoch(window) + 1);
 }
 export function clearYomitanParserCachesForWindow(window: BrowserWindow): void {
   clearWindowCaches(window);
@@ -704,6 +649,10 @@ async function ensureYomitanParserWindow(
       if (readyPromise) {
         await readyPromise;
       }
+      // Eagerly install the scan runtime so the first subtitle line does not
+      // pay the install round trip; failures fall back to the per-request
+      // install-and-retry path.
+      await installYomitanScanRuntime(parserWindow).catch(() => {});
 
       return true;
     } catch (err) {
@@ -1362,58 +1311,144 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
       }
 `;
 
-function buildYomitanScanningScript(
-  text: string,
-  profileIndex: number,
-  scanLength: number,
-  includeNameMatchMetadata: boolean,
-  greedyNameScanEnabled: boolean,
-  currentCharacterDictionaryMediaId: number | null,
-  dictionaryPriorityByName: Record<string, number>,
-  dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>,
-): string {
-  return `
-    (async () => {
-      const invoke = (action, params) =>
-        new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ action, params }, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-              return;
-            }
-            if (!response || typeof response !== "object") {
-              reject(new Error("Invalid response from Yomitan backend"));
-              return;
-            }
-            if (response.error) {
-              reject(new Error(response.error.message || "Yomitan backend error"));
-              return;
-            }
-            resolve(response.result);
-          });
+// Bump whenever the install script below changes so already-loaded parser
+// windows re-install the new scan runtime instead of running the stale one.
+const YOMITAN_SCAN_RUNTIME_VERSION = 1;
+const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
+
+interface YomitanScanRequestParams {
+  text: string;
+  profileIndex: number;
+  scanLength: number;
+  includeNameMatchMetadata: boolean;
+  greedyNameScanEnabled: boolean;
+  currentCharacterDictionaryMediaId: number | null;
+  dictionaryPriorityByName: Record<string, number>;
+  dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>;
+  cacheEpoch: number;
+}
+
+// Installed once per parser window (and re-installed after in-page reloads):
+// keeps V8 from re-parsing the helper bundle on every subtitle line, and hosts
+// the cross-line termsFind cache. Each subtitle line then only evaluates a tiny
+// call into globalThis.__subminerYomitanScan.
+const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
+  (() => {
+    if (globalThis.__subminerYomitanScanVersion === ${YOMITAN_SCAN_RUNTIME_VERSION}) {
+      return true;
+    }
+    const invoke = (action, params) =>
+      new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ action, params }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || typeof response !== "object") {
+            reject(new Error("Invalid response from Yomitan backend"));
+            return;
+          }
+          if (response.error) {
+            reject(new Error(response.error.message || "Yomitan backend error"));
+            return;
+          }
+          resolve(response.result);
         });
+      });
+    // Cross-line termsFind LRU keyed by profile + substring: subtitle lines
+    // repeat particles and inflections constantly, so most lookups hit here.
+    // Entries hold in-flight promises so concurrent identical lookups dedupe.
+    const termsFindCache = new Map();
+    const TERMS_FIND_CACHE_LIMIT = 2000;
+    let termsFindCacheEpoch = -1;
+    const MAX_SHRINKING_WINDOW_RETRY_LOOKUPS = 4;
+    globalThis.__subminerYomitanScanVersion = ${YOMITAN_SCAN_RUNTIME_VERSION};
+    globalThis.__subminerYomitanScan = async (scanParams) => {
+      const {
+        text,
+        profileIndex,
+        scanLength,
+        includeNameMatchMetadata,
+        greedyNameScanEnabled,
+        currentCharacterDictionaryMediaId,
+        dictionaryPriorityByName,
+        dictionaryFrequencyModeByName,
+        cacheEpoch
+      } = scanParams;
+      if (cacheEpoch !== termsFindCacheEpoch) {
+        termsFindCache.clear();
+        termsFindCacheEpoch = cacheEpoch;
+      }
 ${YOMITAN_SCANNING_HELPERS}
-      const includeNameMatchMetadata = ${includeNameMatchMetadata ? 'true' : 'false'};
-      const greedyNameScanEnabled = ${greedyNameScanEnabled ? 'true' : 'false'};
-      const currentCharacterDictionaryMediaId = ${
-        currentCharacterDictionaryMediaId !== null
-          ? String(currentCharacterDictionaryMediaId)
-          : 'null'
-      };
-      const dictionaryPriorityByName = ${JSON.stringify(dictionaryPriorityByName)};
-      const dictionaryFrequencyModeByName = ${JSON.stringify(dictionaryFrequencyModeByName)};
-      const text = ${JSON.stringify(text)};
+      const CAPTION_OPENING_BRACKETS = new Set(["(", "（", "[", "［", "{", "｛", "「", "『", "【", "〈", "《", "≪", "＜", "<"]);
+      function shouldEmitUnparsedRunAsToken(runText) {
+        if (!/[\p{L}\p{N}]/u.test(runText)) { return false; }
+        const firstChar = Array.from(runText.trim())[0];
+        return firstChar !== undefined && !CAPTION_OPENING_BRACKETS.has(firstChar);
+      }
+      function isLookupWorthyCodePoint(codePoint) {
+        if (isCodePointJapanese(codePoint)) { return true; }
+        return /[\p{L}\p{N}]/u.test(String.fromCodePoint(codePoint));
+      }
+      function isKanaOnlyRunText(runText) {
+        const chars = Array.from(runText);
+        return chars.length > 0 && chars.every((char) => isCodePointKana(char.codePointAt(0)));
+      }
       const details = {matchType: "exact", deinflect: true};
       const tokens = [];
-      const termsFindCache = new Map();
       async function termsFindAt(position, windowLength) {
-        const cacheKey = position + ":" + windowLength;
-        const cached = termsFindCache.get(cacheKey);
-        if (cached) { return cached; }
         const substring = text.substring(position, position + windowLength);
-        const result = await invoke("termsFind", { text: substring, details, optionsContext: { index: ${profileIndex} } });
-        termsFindCache.set(cacheKey, result);
-        return result;
+        const cacheKey = profileIndex + " " + substring;
+        const cached = termsFindCache.get(cacheKey);
+        if (cached !== undefined) {
+          termsFindCache.delete(cacheKey);
+          termsFindCache.set(cacheKey, cached);
+          return await cached;
+        }
+        const pending = invoke("termsFind", { text: substring, details, optionsContext: { index: profileIndex } });
+        termsFindCache.set(cacheKey, pending);
+        while (termsFindCache.size > TERMS_FIND_CACHE_LIMIT) {
+          const oldestKey = termsFindCache.keys().next().value;
+          if (oldestKey === undefined) { break; }
+          termsFindCache.delete(oldestKey);
+        }
+        try {
+          return await pending;
+        } catch (error) {
+          termsFindCache.delete(cacheKey);
+          throw error;
+        }
+      }
+      // Text the walk skips accumulates into unparsed runs, mirroring the
+      // filler chunks the parseText segmentation used to provide: runs stay
+      // hoverable (flagged isUnparsedRun) unless they are punctuation-only or
+      // caption-style asides, and kana continuations of a longer headword
+      // extend the previous token instead.
+      function flushUnparsedRun(runStart, runEnd) {
+        if (runStart === null || runEnd <= runStart) { return; }
+        const runText = text.substring(runStart, runEnd);
+        const previousToken = tokens[tokens.length - 1];
+        if (
+          previousToken &&
+          previousToken.endPos === runStart &&
+          isKanaOnlyRunText(runText) &&
+          typeof previousToken.headword === "string" &&
+          previousToken.headword.length > previousToken.surface.length &&
+          previousToken.headword.startsWith(previousToken.surface + runText)
+        ) {
+          previousToken.surface += runText;
+          previousToken.endPos = runEnd;
+          return;
+        }
+        if (!shouldEmitUnparsedRunAsToken(runText)) { return; }
+        tokens.push({
+          surface: runText,
+          reading: "",
+          headword: runText,
+          startPos: runStart,
+          endPos: runEnd,
+          isUnparsedRun: true
+        });
       }
       function buildScanToken(position, source, preferredHeadword) {
         const reading = typeof preferredHeadword.reading === "string" ? preferredHeadword.reading : "";
@@ -1469,9 +1504,9 @@ ${YOMITAN_SCANNING_HELPERS}
             namePos += String.fromCodePoint(codePoint).length;
             continue;
           }
-          const result = await termsFindAt(namePos, ${scanLength});
+          const result = await termsFindAt(namePos, scanLength);
           const dictionaryEntries = Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries : [];
-          const textWindow = text.substring(namePos, namePos + ${scanLength});
+          const textWindow = text.substring(namePos, namePos + scanLength);
           const nameMatch = findLongestNameMatch(dictionaryEntries, textWindow);
           // A name only claims its span when no strictly longer generic word
           // starts at the same position (a character named 空 must not split
@@ -1502,26 +1537,42 @@ ${YOMITAN_SCANNING_HELPERS}
       }
       let i = 0;
       let nameIndex = 0;
+      let unparsedRunStart = null;
       while (i < text.length) {
         while (nameIndex < nameTokens.length && nameTokens[nameIndex].startPos < i) { nameIndex += 1; }
         const nextNameToken = nameIndex < nameTokens.length ? nameTokens[nameIndex] : null;
         if (nextNameToken && nextNameToken.startPos === i) {
+          flushUnparsedRun(unparsedRunStart, i);
+          unparsedRunStart = null;
           tokens.push(nextNameToken);
           i = nextNameToken.endPos;
           nameIndex += 1;
           continue;
         }
+        const codePoint = text.codePointAt(i);
+        // Punctuation and whitespace can never start a token: skip the backend
+        // round trip entirely. Latin letters and digits stay lookup-worthy
+        // (terms like Tシャツ start on an ASCII letter).
+        if (!isLookupWorthyCodePoint(codePoint)) {
+          if (unparsedRunStart === null) { unparsedRunStart = i; }
+          i += String.fromCodePoint(codePoint).length;
+          continue;
+        }
         // Cap the window at the next reserved name span so a generic match
         // cannot consume into it.
-        const windowLength = nextNameToken ? Math.min(${scanLength}, nextNameToken.startPos - i) : ${scanLength};
+        const windowLength = nextNameToken ? Math.min(scanLength, nextNameToken.startPos - i) : scanLength;
         let attempt = await findTokenAt(i, windowLength);
         // Yomitan text normalization can consume characters (whitespace,
         // punctuation) beyond the matched term, leaving no headword whose
         // source equals the consumed text. Retry with shorter windows so a
         // valid prefix term (e.g. a character name before a paren) still
-        // tokenizes instead of the position being skipped.
+        // tokenizes instead of the position being skipped. The ladder is
+        // capped: without a cap it degrades to O(scanLength) lookups at a
+        // single position.
         let retryLength = Math.min(attempt.matchedLength, windowLength) - 1;
-        while (!attempt.token && retryLength >= 1) {
+        let retryLookupsRemaining = MAX_SHRINKING_WINDOW_RETRY_LOOKUPS;
+        while (!attempt.token && retryLength >= 1 && retryLookupsRemaining > 0) {
+          retryLookupsRemaining -= 1;
           const retry = await findTokenAt(i, retryLength);
           if (retry.token) {
             attempt = retry;
@@ -1530,15 +1581,35 @@ ${YOMITAN_SCANNING_HELPERS}
           retryLength = Math.min(retryLength - 1, retry.matchedLength - 1);
         }
         if (attempt.token) {
+          flushUnparsedRun(unparsedRunStart, i);
+          unparsedRunStart = null;
           tokens.push(attempt.token);
           i += attempt.matchedLength;
           continue;
         }
+        if (unparsedRunStart === null) { unparsedRunStart = i; }
         i += String.fromCodePoint(text.codePointAt(i)).length;
       }
+      flushUnparsedRun(unparsedRunStart, text.length);
       return tokens;
+    };
+    return true;
+  })();
+`;
+
+function buildYomitanScanCallScript(params: YomitanScanRequestParams): string {
+  return `
+    (async () => {
+      if (typeof globalThis.__subminerYomitanScan !== "function") {
+        return ${JSON.stringify(YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL)};
+      }
+      return await globalThis.__subminerYomitanScan(${JSON.stringify(params)});
     })();
   `;
+}
+
+async function installYomitanScanRuntime(parserWindow: BrowserWindow): Promise<void> {
+  await parserWindow.webContents.executeJavaScript(YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT, true);
 }
 
 export async function requestYomitanParseResults(
@@ -1635,6 +1706,20 @@ export async function requestYomitanParseResults(
   }
 }
 
+// parseText fallback for when the in-window scanner cannot run (script eval
+// failure, unexpected payload). The scanner walk is the primary tokenizer and
+// emits its own filler runs, so this extra full parse only happens on errors.
+async function requestYomitanParseFallbackTokens(
+  text: string,
+  deps: YomitanParserRuntimeDeps,
+  logger: LoggerLike,
+): Promise<YomitanScanToken[] | null> {
+  const parseResults = await requestYomitanParseResults(text, deps, logger);
+  const selectedTokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
+  const parseScanTokens = selectedTokens?.map(toYomitanScanToken) ?? null;
+  return parseScanTokens && parseScanTokens.length > 0 ? parseScanTokens : null;
+}
+
 export async function requestYomitanScanTokens(
   text: string,
   deps: YomitanParserRuntimeDeps,
@@ -1655,10 +1740,6 @@ export async function requestYomitanScanTokens(
     return null;
   }
 
-  const parseResults = await requestYomitanParseResults(text, deps, logger);
-  const selectedParseTokens = selectYomitanParseTokens(parseResults, () => false, 'headword');
-  const parseScanTokens = selectedParseTokens?.map(toYomitanScanToken) ?? null;
-
   const metadata = await requestYomitanProfileMetadata(parserWindow, logger);
   const profileIndex = metadata?.profileIndex ?? 0;
   const scanLength = metadata?.scanLength ?? DEFAULT_YOMITAN_SCAN_LENGTH;
@@ -1669,44 +1750,41 @@ export async function requestYomitanScanTokens(
       name.startsWith(CHARACTER_DICTIONARY_TITLE_PREFIX),
     );
 
+  const callScript = buildYomitanScanCallScript({
+    text,
+    profileIndex,
+    scanLength,
+    includeNameMatchMetadata,
+    greedyNameScanEnabled,
+    currentCharacterDictionaryMediaId:
+      typeof options?.currentCharacterDictionaryMediaId === 'number' &&
+      Number.isFinite(options.currentCharacterDictionaryMediaId) &&
+      options.currentCharacterDictionaryMediaId > 0
+        ? Math.floor(options.currentCharacterDictionaryMediaId)
+        : null,
+    dictionaryPriorityByName: metadata?.dictionaryPriorityByName ?? {},
+    dictionaryFrequencyModeByName: metadata?.dictionaryFrequencyModeByName ?? {},
+    cacheEpoch: getYomitanScanCacheEpoch(parserWindow),
+  });
+
   try {
-    const rawResult = await parserWindow.webContents.executeJavaScript(
-      buildYomitanScanningScript(
-        text,
-        profileIndex,
-        scanLength,
-        includeNameMatchMetadata,
-        greedyNameScanEnabled,
-        typeof options?.currentCharacterDictionaryMediaId === 'number' &&
-          Number.isFinite(options.currentCharacterDictionaryMediaId) &&
-          options.currentCharacterDictionaryMediaId > 0
-          ? Math.floor(options.currentCharacterDictionaryMediaId)
-          : null,
-        metadata?.dictionaryPriorityByName ?? {},
-        metadata?.dictionaryFrequencyModeByName ?? {},
-      ),
-      true,
-    );
+    let rawResult = await parserWindow.webContents.executeJavaScript(callScript, true);
+    if (rawResult === YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL) {
+      // First request for this window, or the page reloaded and dropped the
+      // installed runtime: install and retry once.
+      await installYomitanScanRuntime(parserWindow);
+      rawResult = await parserWindow.webContents.executeJavaScript(callScript, true);
+    }
     if (isScanTokenArray(rawResult)) {
-      if (parseScanTokens && parseScanTokens.length > 0) {
-        return mergeScannerTokensIntoParseTokens(parseScanTokens, rawResult);
-      }
-      return rawResult;
+      // Filler-only results carry no dictionary match; keep the historical
+      // contract of returning null so callers fall back to raw text.
+      return rawResult.some((token) => token.isUnparsedRun !== true) ? rawResult : null;
     }
-    if (Array.isArray(rawResult)) {
-      const selectedTokens = selectYomitanParseTokens(rawResult, () => false, 'headword');
-      return selectedTokens?.map(toYomitanScanToken) ?? null;
-    }
-    if (parseScanTokens && parseScanTokens.length > 0) {
-      return parseScanTokens;
-    }
-    return null;
+    logger.error('Yomitan scanner returned an unexpected payload; using parseText fallback.');
+    return await requestYomitanParseFallbackTokens(text, deps, logger);
   } catch (err) {
-    if (parseScanTokens && parseScanTokens.length > 0) {
-      return parseScanTokens;
-    }
     logger.error('Yomitan scanner request failed:', (err as Error).message);
-    return null;
+    return await requestYomitanParseFallbackTokens(text, deps, logger);
   }
 }
 

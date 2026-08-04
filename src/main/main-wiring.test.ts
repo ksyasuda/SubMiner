@@ -223,7 +223,7 @@ test('update overlay notification action triggers install flow', () => {
   assert.match(runtimeSource, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
-test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
+test('subtitle change pauses prefetch without restarting its run before tokenizing current line', () => {
   const source = readMainSource();
   const actionBlock = source.match(
     /onSubtitleChange:\s*\(text\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    refreshDiscordPresence:/,
@@ -231,14 +231,12 @@ test('subtitle change re-prioritizes prefetch around live playback before tokeni
 
   assert.ok(actionBlock);
   assert.match(actionBlock, /subtitlePrefetchService\?\.pause\(\);/);
-  assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
+  // Restarting the run per line (onSeek) discards in-flight prefetch work;
+  // only real seeks restart via onTimePosUpdate.
+  assert.doesNotMatch(actionBlock, /subtitlePrefetchService\?\.onSeek\(/);
   assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\);/);
   assert.ok(
     actionBlock.indexOf('subtitlePrefetchService?.pause();') <
-      actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);'),
-  );
-  assert.ok(
-    actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);') <
       actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text);'),
   );
 });
@@ -593,7 +591,7 @@ test('YouTube media cache lifecycle routes through configured status notificatio
 test('subtitle broadcasts share one frequency options snapshot per emitted payload', () => {
   const source = readMainSource();
   const emitBlock = source.match(
-    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
   const frequencyOptionsSnapshot = emitBlock?.match(
     /const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;(?<body>[\s\S]*?)\n  \};/,

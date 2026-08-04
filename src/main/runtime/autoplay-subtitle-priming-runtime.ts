@@ -17,7 +17,6 @@ type AutoplaySubtitlePrimingMpvClient = {
 
 type AutoplaySubtitlePrimingPrefetchService = {
   pause: () => void;
-  onSeek: (timePos: number) => void;
 };
 
 export interface AutoplaySubtitlePrimingRuntimeDeps {
@@ -33,7 +32,7 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
     onSubtitleChange: (text: string) => void;
     refreshCurrentSubtitle: (text: string) => void;
   };
-  emitSubtitlePayload: (payload: SubtitleData) => void;
+  emitSubtitlePayload: (payload: SubtitleData, options?: { resumePrefetch?: boolean }) => void;
   getSubtitlePrefetchService: () => AutoplaySubtitlePrimingPrefetchService | null;
   getLastObservedTimePos: () => number;
   getVisibleOverlayVisible: () => boolean;
@@ -108,7 +107,9 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       return true;
     }
 
-    emitSubtitlePayload({ text, tokens: null });
+    // Provisional raw emit: keep prefetch paused until the tokenized payload
+    // for this line is delivered by the processing controller.
+    emitSubtitlePayload({ text, tokens: null }, { resumePrefetch: false });
     subtitleProcessingController.onSubtitleChange(text);
     return true;
   }
@@ -154,12 +155,10 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       consumeCachedSubtitle: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
       onSubtitleChange: (text) => {
         deps.getSubtitlePrefetchService()?.pause();
-        deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
         subtitleProcessingController.onSubtitleChange(text);
       },
       refreshCurrentSubtitle: (text) => {
         deps.getSubtitlePrefetchService()?.pause();
-        deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
         subtitleProcessingController.refreshCurrentSubtitle(text);
       },
       deferUncachedRefresh: true,
@@ -205,7 +204,6 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
         return;
       }
       deps.getSubtitlePrefetchService()?.pause();
-      deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
       subtitleProcessingController.refreshCurrentSubtitle(text);
     }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
     visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();

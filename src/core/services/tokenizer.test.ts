@@ -2934,44 +2934,12 @@ test('tokenizeSubtitle preserves Yomitan compound token when MeCab components ar
                 return [];
               }
 
-              if (script.includes('parseText')) {
-                return [
-                  {
-                    source: 'scanning-parser',
-                    index: 0,
-                    content: [
-                      [
-                        {
-                          text: '取り組んで',
-                          reading: 'とりくんで',
-                          headwords: [[{ term: '取り組む' }]],
-                        },
-                      ],
-                      [
-                        {
-                          text: 'もらいます',
-                          reading: 'もらいます',
-                          headwords: [[{ term: 'もらう' }]],
-                        },
-                      ],
-                    ],
-                  },
-                ];
-              }
-
               return [
                 {
-                  surface: '取り',
-                  reading: 'とり',
-                  headword: '取る',
+                  surface: '取り組んで',
+                  reading: 'とりくんで',
+                  headword: '取り組む',
                   startPos: 0,
-                  endPos: 2,
-                },
-                {
-                  surface: '組んで',
-                  reading: 'くんで',
-                  headword: '組む',
-                  startPos: 2,
                   endPos: 5,
                 },
                 {

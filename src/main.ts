@@ -1816,7 +1816,7 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
     endTime: appState.mpvClient?.currentSubEnd ?? null,
   };
 }
-function emitSubtitlePayload(payload: SubtitleData): void {
+function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?: boolean }): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
   const currentSubtitleData = appState.currentSubtitleData;
   const isAnnotationUpgrade = isSubtitleAnnotationUpgrade(currentSubtitleData, timedPayload);
@@ -1833,7 +1833,12 @@ function emitSubtitlePayload(payload: SubtitleData): void {
   }
   annotationSubtitleWsService.broadcast(timedPayload, frequencyOptions);
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
-  subtitlePrefetchService?.resume();
+  // resumePrefetch: false marks a provisional pre-tokenization emit; prefetch
+  // stays paused until the tokenized payload for the line lands so it does not
+  // compete with the on-screen line for the single Yomitan parser window.
+  if (options?.resumePrefetch !== false) {
+    subtitlePrefetchService?.resume();
+  }
 }
 function getCurrentAutoplaySubtitlePayload(): SubtitleData | null {
   const payload = appState.currentSubtitleData;
@@ -1926,7 +1931,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
     appState.activeParsedSubtitleMediaPath = mediaPath;
   },
   subtitleProcessingController,
-  emitSubtitlePayload: (payload) => emitSubtitlePayload(payload),
+  emitSubtitlePayload: (payload, options) => emitSubtitlePayload(payload, options),
   getSubtitlePrefetchService: () => subtitlePrefetchService,
   getLastObservedTimePos: () => lastObservedTimePos,
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
@@ -4372,8 +4377,9 @@ const {
       emitSubtitlePayload(payload);
     },
     onSubtitleChange: (text) => {
+      // Pause only; restarting the prefetch run here would discard in-flight
+      // tokenization work on every line. Real seeks restart via onTimePosUpdate.
       subtitlePrefetchService?.pause();
-      subtitlePrefetchService?.onSeek(lastObservedTimePos);
       subtitleProcessingController.onSubtitleChange(text);
     },
     refreshDiscordPresence: () => {

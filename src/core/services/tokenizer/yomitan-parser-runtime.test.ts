@@ -6,6 +6,7 @@ import test from 'node:test';
 import * as vm from 'node:vm';
 import {
   addYomitanNoteViaSearch,
+  clearYomitanParserCachesForWindow,
   extractYomitanCurrentAnkiDeckName,
   getYomitanDictionaryInfo,
   importYomitanDictionaryFromZip,
@@ -42,11 +43,8 @@ function createDeps(
   };
 }
 
-async function runInjectedYomitanScript(
-  script: string,
-  handler: (action: string, params: unknown) => unknown,
-): Promise<unknown> {
-  return await vm.runInNewContext(script, {
+function createYomitanScriptSandbox(handler: (action: string, params: unknown) => unknown) {
+  return {
     chrome: {
       runtime: {
         lastError: null,
@@ -73,7 +71,43 @@ async function runInjectedYomitanScript(
     RegExp,
     Set,
     String,
+  };
+}
+
+async function runInjectedYomitanScript(
+  script: string,
+  handler: (action: string, params: unknown) => unknown,
+): Promise<unknown> {
+  return await vm.runInNewContext(script, createYomitanScriptSandbox(handler));
+}
+
+// Persistent page context shared across executeJavaScript calls, matching the
+// real parser window: the scan runtime is installed once via
+// globalThis.__subminerYomitanScan and per-line calls reuse it (and its
+// cross-line termsFind cache).
+function createPersistentYomitanScriptRunner(
+  handler: (action: string, params: unknown) => unknown,
+): (script: string) => Promise<unknown> {
+  const context = vm.createContext(createYomitanScriptSandbox(handler));
+  return async (script: string) => await vm.runInContext(script, context);
+}
+
+// Deps whose parser window executes every injected script (profile metadata,
+// scan runtime install, per-line scan calls, parseText fallback) inside one
+// persistent vm context, dispatching backend actions to `handler`.
+function createScanDeps(
+  handler: (action: string, params: unknown) => unknown,
+  options?: { onScript?: (script: string) => void },
+) {
+  const runScript = createPersistentYomitanScriptRunner(handler);
+  return createDeps(async (script) => {
+    options?.onScript?.(script);
+    return await runScript(script);
   });
+}
+
+function countTermsFindLookups(lookups: string[], prefix: string): number {
+  return lookups.filter((lookupText) => lookupText.startsWith(prefix)).length;
 }
 
 test('syncYomitanDefaultAnkiServer updates default profile server when script reports update', async () => {
@@ -650,56 +684,45 @@ test('requestYomitanTermFrequencies caches repeated term+reading lookups', async
   assert.equal(frequencyCalls, 1);
 });
 
-test('requestYomitanScanTokens prefers parseText tokenization over termsFind fragments', async () => {
+test('requestYomitanScanTokens tokenizes with the in-window scanner and no parseText request', async () => {
   const scripts: string[] = [];
-  const deps = createDeps(async (script) => {
-    scripts.push(script);
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
+  const actions: string[] = [];
+  const deps = createScanDeps(
+    (action, params) => {
+      actions.push(action);
+      if (action === 'optionsGetFull') {
+        return {
+          profileCurrent: 0,
+          profiles: [{ options: { scanning: { length: 40 } } }],
+        };
+      }
+      if (action === 'getDictionaryInfo') {
+        return [];
+      }
+      if (action === 'termsFind') {
+        const text = (params as { text?: string } | undefined)?.text ?? '';
+        if (!text.startsWith('取り組んで')) {
+          return { originalTextLength: 0, dictionaryEntries: [] };
+        }
+        return {
+          originalTextLength: 5,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term: '取り組む',
+                  reading: 'とりくむ',
+                  sources: [{ originalText: '取り組んで', isPrimary: true, matchType: 'exact' }],
+                },
+              ],
             },
-          },
-        ],
-      };
-    }
-    if (script.includes('parseText')) {
-      return [
-        {
-          source: 'scanning-parser',
-          index: 0,
-          content: [
-            [
-              {
-                text: '取り組んで',
-                reading: 'とりくんで',
-                headwords: [[{ term: '取り組む' }]],
-              },
-            ],
           ],
-        },
-      ];
-    }
-    return [
-      {
-        surface: '取り',
-        reading: 'とり',
-        headword: '取る',
-        startPos: 0,
-        endPos: 2,
-      },
-      {
-        surface: '組んで',
-        reading: 'くんで',
-        headword: '組む',
-        startPos: 2,
-        endPos: 5,
-      },
-    ];
-  });
+        };
+      }
+      throw new Error(`unexpected action: ${action}`);
+    },
+    { onScript: (script) => scripts.push(script) },
+  );
 
   const result = await requestYomitanScanTokens('取り組んで', deps, {
     error: () => undefined,
@@ -710,18 +733,26 @@ test('requestYomitanScanTokens prefers parseText tokenization over termsFind fra
       surface: '取り組んで',
       reading: 'とりくんで',
       headword: '取り組む',
+      headwordReading: 'とりくむ',
       startPos: 0,
       endPos: 5,
+      isNameMatch: false,
+      frequencyRank: undefined,
     },
   ]);
-  assert.ok(scripts.some((script) => script.includes('parseText')));
-  assert.ok(scripts.some((script) => script.includes('termsFind')));
+  // The duplicate full parse per line is gone: the scanner walk is the only
+  // tokenization request.
+  assert.ok(!actions.includes('parseText'));
+  const installScript = scripts.find((script) => script.includes('termsFind'));
+  assert.ok(installScript, 'expected the scan runtime install script');
+  assert.match(installScript ?? '', /matchType:\s*"exact"/);
+  assert.match(installScript ?? '', /deinflect:\s*true/);
 });
 
 test('requestYomitanScanTokens warns when active Yomitan profile has no dictionaries', async () => {
   const warnings: Array<{ message: string; details: unknown }> = [];
-  const deps = createDeps(async (script) => {
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -734,13 +765,10 @@ test('requestYomitanScanTokens warns when active Yomitan profile has no dictiona
         ],
       };
     }
-    if (script.includes('parseText')) {
+    if (action === 'getDictionaryInfo') {
       return [];
     }
-    if (script.includes('termsFind')) {
-      return [];
-    }
-    return null;
+    return { originalTextLength: 0, dictionaryEntries: [] };
   });
 
   await requestYomitanScanTokens('字幕', deps, {
@@ -759,270 +787,86 @@ test('requestYomitanScanTokens warns when active Yomitan profile has no dictiona
   });
 });
 
-test('requestYomitanScanTokens keeps scanner metadata when parse spans agree', async () => {
-  const deps = createDeps(async (script) => {
-    if (script.includes('optionsGetFull')) {
+test('requestYomitanScanTokens emits unparsed filler runs for text the scanner skips', async () => {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    const singleCharEntry = (term: string, reading: string) => ({
+      originalTextLength: 1,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term,
+              reading,
+              sources: [{ originalText: text[0], isPrimary: true, matchType: 'exact' }],
             },
+          ],
+        },
+      ],
+    });
+    if (text.startsWith('や')) {
+      return singleCharEntry('や', 'や');
+    }
+    if (text.startsWith('ほ')) {
+      return singleCharEntry('帆', 'ほ');
+    }
+    if (text.startsWith('ミナト')) {
+      return {
+        originalTextLength: 3,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: 'ミナト',
+                reading: 'みなと',
+                sources: [{ originalText: 'ミナト', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
           },
         ],
       };
     }
-    if (script.includes('parseText')) {
-      return [
-        {
-          source: 'scanning-parser',
-          index: 0,
-          content: [
-            [
-              {
-                text: 'アクア',
-                reading: 'あくあ',
-                headwords: [[{ term: 'アクア' }]],
-              },
-            ],
-          ],
-        },
-      ];
-    }
-    return [
-      {
-        surface: 'アクア',
-        reading: 'あくあ',
-        headword: 'アクア',
-        startPos: 0,
-        endPos: 3,
-        isNameMatch: true,
-        wordClasses: ['n'],
-      },
-    ];
-  });
-
-  const result = await requestYomitanScanTokens('アクア', deps, {
-    error: () => undefined,
-  });
-
-  assert.deepEqual(result, [
-    {
-      surface: 'アクア',
-      reading: 'あくあ',
-      headword: 'アクア',
-      startPos: 0,
-      endPos: 3,
-      isNameMatch: true,
-      wordClasses: ['n'],
-    },
-  ]);
-});
-
-test('requestYomitanScanTokens keeps scanner metadata for matching spans when parse segmentation has filler chunks', async () => {
-  const deps = createDeps(async (script) => {
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-            },
-          },
-        ],
-      };
-    }
-    if (script.includes('parseText')) {
-      return [
-        {
-          source: 'scanning-parser',
-          index: 0,
-          content: [
-            [
-              {
-                text: 'や',
-                reading: '',
-                headwords: [[{ term: 'や' }]],
-              },
-            ],
-            [
-              {
-                text: 'ほ',
-                reading: '',
-                headwords: [[{ term: '帆' }]],
-              },
-            ],
-            [
-              {
-                text: 'っ ',
-                reading: '',
-              },
-            ],
-            [
-              {
-                text: 'ミナト',
-                reading: '',
-                headwords: [[{ term: 'ミナト' }]],
-              },
-            ],
-          ],
-        },
-      ];
-    }
-    // The termsFind scanner skips the unmatched っ+space chunk, so its spans
-    // do not line up 1:1 with the parseText segmentation above.
-    return [
-      {
-        surface: 'や',
-        reading: 'や',
-        headword: 'や',
-        headwordReading: 'や',
-        startPos: 0,
-        endPos: 1,
-        frequencyRank: 57,
-      },
-      {
-        surface: 'ほ',
-        reading: 'ほ',
-        headword: '帆',
-        headwordReading: 'ほ',
-        startPos: 1,
-        endPos: 2,
-        frequencyRank: 15414,
-      },
-      {
-        surface: 'ミナト',
-        reading: 'ミナト',
-        headword: 'ミナト',
-        headwordReading: 'みなと',
-        startPos: 4,
-        endPos: 7,
-        isNameMatch: true,
-        frequencyRank: 75133,
-      },
-    ];
+    return { originalTextLength: 0, dictionaryEntries: [] };
   });
 
   const result = await requestYomitanScanTokens('やほっ ミナト', deps, {
     error: () => undefined,
   });
 
-  assert.deepEqual(result, [
-    {
-      surface: 'や',
-      reading: 'や',
-      headword: 'や',
-      headwordReading: 'や',
-      startPos: 0,
-      endPos: 1,
-      frequencyRank: 57,
-    },
-    {
-      surface: 'ほ',
-      reading: 'ほ',
-      headword: '帆',
-      headwordReading: 'ほ',
-      startPos: 1,
-      endPos: 2,
-      frequencyRank: 15414,
-    },
-    {
-      surface: 'っ ',
-      reading: '',
-      headword: 'っ ',
-      startPos: 2,
-      endPos: 4,
-      isUnparsedRun: true,
-    },
-    {
-      surface: 'ミナト',
-      reading: 'ミナト',
-      headword: 'ミナト',
-      headwordReading: 'みなと',
-      startPos: 4,
-      endPos: 7,
-      isNameMatch: true,
-      frequencyRank: 75133,
-    },
-  ]);
-});
-
-test('requestYomitanScanTokens falls back to left-to-right termsFind scanning', async () => {
-  const scripts: string[] = [];
-  const deps = createDeps(async (script) => {
-    scripts.push(script);
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-            },
-          },
-        ],
-      };
-    }
-    if (script.includes('parseText')) {
-      return [];
-    }
-    return [
-      {
-        surface: 'カズマ',
-        reading: 'かずま',
-        headword: 'カズマ',
-        startPos: 0,
-        endPos: 3,
-      },
-    ];
-  });
-
-  const result = await requestYomitanScanTokens('カズマ', deps, {
-    error: () => undefined,
-  });
-
-  assert.deepEqual(result, [
-    {
-      surface: 'カズマ',
-      reading: 'かずま',
-      headword: 'カズマ',
-      startPos: 0,
-      endPos: 3,
-    },
-  ]);
-  assert.ok(scripts.some((script) => script.includes('parseText')));
-  const scannerScript = scripts.find((script) => script.includes('termsFind'));
-  assert.ok(scannerScript, 'expected termsFind scanning request script');
-  assert.doesNotMatch(scannerScript ?? '', /parseText/);
-  assert.match(scannerScript ?? '', /matchType:\s*"exact"/);
-  assert.match(scannerScript ?? '', /deinflect:\s*true/);
+  assert.deepEqual(
+    result?.map(({ surface, headword, startPos, endPos, isUnparsedRun }) => ({
+      surface,
+      headword,
+      startPos,
+      endPos,
+      isUnparsedRun,
+    })),
+    [
+      { surface: 'や', headword: 'や', startPos: 0, endPos: 1, isUnparsedRun: undefined },
+      { surface: 'ほ', headword: '帆', startPos: 1, endPos: 2, isUnparsedRun: undefined },
+      // The unmatched っ + space becomes a hoverable filler run, replacing the
+      // parseText filler chunks the pipeline used to rely on.
+      { surface: 'っ ', headword: 'っ ', startPos: 2, endPos: 4, isUnparsedRun: true },
+      { surface: 'ミナト', headword: 'ミナト', startPos: 4, endPos: 7, isUnparsedRun: undefined },
+    ],
+  );
+  assert.equal(result?.[2]?.reading, '');
 });
 
 test('requestYomitanScanTokens extracts best frequency rank from selected termsFind entry', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profileIndex: 0,
-        scanLength: 40,
-        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
-        dictionaryPriorityByName: {
-          'JPDBv2㋕': 0,
-          Jiten: 1,
-          CC100: 2,
-        },
-        dictionaryFrequencyModeByName: {
-          'JPDBv2㋕': 'rank-based',
-          Jiten: 'rank-based',
-          CC100: 'rank-based',
-        },
         profiles: [
           {
             options: {
@@ -1037,14 +881,9 @@ test('requestYomitanScanTokens extracts best frequency rank from selected termsF
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('潜み', deps, {
-    error: () => undefined,
-  });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1090,6 +929,10 @@ test('requestYomitanScanTokens extracts best frequency rank from selected termsF
     };
   });
 
+  const result = await requestYomitanScanTokens('潜み', deps, {
+    error: () => undefined,
+  });
+
   assert.deepEqual(result, [
     {
       surface: '潜み',
@@ -1105,20 +948,10 @@ test('requestYomitanScanTokens extracts best frequency rank from selected termsF
 });
 
 test('requestYomitanScanTokens retries shorter windows when a greedy match has no exact-source headword', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profileIndex: 0,
-        scanLength: 40,
-        dictionaries: ['JMdict'],
-        dictionaryPriorityByName: { JMdict: 0 },
-        dictionaryFrequencyModeByName: {},
         profiles: [
           {
             options: {
@@ -1129,14 +962,9 @@ test('requestYomitanScanTokens retries shorter windows when a greedy match has n
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('平 （平）', deps, {
-    error: () => undefined,
-  });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1179,6 +1007,10 @@ test('requestYomitanScanTokens retries shorter windows when a greedy match has n
     };
   });
 
+  const result = await requestYomitanScanTokens('平 （平）', deps, {
+    error: () => undefined,
+  });
+
   assert.deepEqual(result, [
     {
       surface: '平',
@@ -1204,13 +1036,8 @@ test('requestYomitanScanTokens retries shorter windows when a greedy match has n
 });
 
 test('requestYomitanScanTokens emits complete readings for kanji-kana compounds', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -1223,14 +1050,9 @@ test('requestYomitanScanTokens emits complete readings for kanji-kana compounds'
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('待ち合わせてる', deps, {
-    error: () => undefined,
-  });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1256,6 +1078,10 @@ test('requestYomitanScanTokens emits complete readings for kanji-kana compounds'
     };
   });
 
+  const result = await requestYomitanScanTokens('待ち合わせてる', deps, {
+    error: () => undefined,
+  });
+
   assert.deepEqual(result, [
     {
       surface: '待ち合わせてる',
@@ -1271,28 +1097,10 @@ test('requestYomitanScanTokens emits complete readings for kanji-kana compounds'
 });
 
 test('requestYomitanScanTokens uses frequency from later exact-match entry when first exact entry has none', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profileIndex: 0,
-        scanLength: 40,
-        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
-        dictionaryPriorityByName: {
-          'JPDBv2㋕': 0,
-          Jiten: 1,
-          CC100: 2,
-        },
-        dictionaryFrequencyModeByName: {
-          'JPDBv2㋕': 'rank-based',
-          Jiten: 'rank-based',
-          CC100: 'rank-based',
-        },
         profiles: [
           {
             options: {
@@ -1307,14 +1115,9 @@ test('requestYomitanScanTokens uses frequency from later exact-match entry when 
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('者', deps, {
-    error: () => undefined,
-  });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1364,6 +1167,10 @@ test('requestYomitanScanTokens uses frequency from later exact-match entry when 
     };
   });
 
+  const result = await requestYomitanScanTokens('者', deps, {
+    error: () => undefined,
+  });
+
   assert.deepEqual(result, [
     {
       surface: '者',
@@ -1379,28 +1186,10 @@ test('requestYomitanScanTokens uses frequency from later exact-match entry when 
 });
 
 test('requestYomitanScanTokens can use frequency from later exact secondary-match entry', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profileIndex: 0,
-        scanLength: 40,
-        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
-        dictionaryPriorityByName: {
-          'JPDBv2㋕': 0,
-          Jiten: 1,
-          CC100: 2,
-        },
-        dictionaryFrequencyModeByName: {
-          'JPDBv2㋕': 'rank-based',
-          Jiten: 'rank-based',
-          CC100: 'rank-based',
-        },
         profiles: [
           {
             options: {
@@ -1415,14 +1204,9 @@ test('requestYomitanScanTokens can use frequency from later exact secondary-matc
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('者', deps, {
-    error: () => undefined,
-  });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1466,6 +1250,10 @@ test('requestYomitanScanTokens can use frequency from later exact secondary-matc
     };
   });
 
+  const result = await requestYomitanScanTokens('者', deps, {
+    error: () => undefined,
+  });
+
   assert.deepEqual(result, [
     {
       surface: '者',
@@ -1481,28 +1269,10 @@ test('requestYomitanScanTokens can use frequency from later exact secondary-matc
 });
 
 test('requestYomitanScanTokens uses exact frequency entry when selected reading differs', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
-        profileIndex: 0,
-        scanLength: 40,
-        dictionaries: ['JPDBv2㋕', 'Jiten', 'CC100'],
-        dictionaryPriorityByName: {
-          'JPDBv2㋕': 0,
-          Jiten: 1,
-          CC100: 2,
-        },
-        dictionaryFrequencyModeByName: {
-          'JPDBv2㋕': 'rank-based',
-          Jiten: 'rank-based',
-          CC100: 'rank-based',
-        },
         profiles: [
           {
             options: {
@@ -1517,14 +1287,9 @@ test('requestYomitanScanTokens uses exact frequency entry when selected reading 
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('第二走者', deps, {
-    error: () => undefined,
-  });
-
-  const result = (await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1566,7 +1331,11 @@ test('requestYomitanScanTokens uses exact frequency entry when selected reading 
         },
       ],
     };
-  })) as Array<Record<string, unknown>>;
+  });
+
+  const result = await requestYomitanScanTokens('第二走者', deps, {
+    error: () => undefined,
+  });
 
   assert.deepEqual(result?.[0], {
     surface: '第二',
@@ -1625,10 +1394,10 @@ test('requestYomitanScanTokens marks tokens backed by SubMiner character diction
 });
 
 test('requestYomitanScanTokens skips name-match work when disabled', async () => {
-  let scannerScript = '';
+  let scanCallScript = '';
   const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
+    if (script.includes('__subminerYomitanScan(')) {
+      scanCallScript = script;
     }
     if (script.includes('optionsGetFull')) {
       return {
@@ -1663,72 +1432,69 @@ test('requestYomitanScanTokens skips name-match work when disabled', async () =>
 
   assert.equal(result?.length, 1);
   assert.equal((result?.[0] as { isNameMatch?: boolean } | undefined)?.isNameMatch, undefined);
-  assert.match(scannerScript, /const includeNameMatchMetadata = false;/);
+  assert.match(scanCallScript, /"includeNameMatchMetadata":false/);
 });
 
 test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary alias only exists on definitions', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
+  const scripts: string[] = [];
+  const deps = createScanDeps(
+    (action, params) => {
+      if (action === 'optionsGetFull') {
+        return {
+          profileCurrent: 0,
+          profiles: [
+            {
+              options: {
+                scanning: { length: 40 },
+              },
             },
-          },
-        ],
-      };
-    }
-    return null;
-  });
+          ],
+        };
+      }
+      if (action === 'getDictionaryInfo') {
+        return [];
+      }
+      if (action === 'termsFind') {
+        const text = (params as { text?: string } | undefined)?.text;
+        if (text === 'カズマ') {
+          return {
+            originalTextLength: 3,
+            dictionaryEntries: [
+              {
+                dictionaryAlias: '',
+                headwords: [
+                  {
+                    term: 'カズマ',
+                    reading: 'かずま',
+                    sources: [{ originalText: 'カズマ', isPrimary: true, matchType: 'exact' }],
+                  },
+                ],
+                definitions: [
+                  { dictionary: 'JMdict', dictionaryAlias: 'JMdict' },
+                  {
+                    dictionary: 'SubMiner Character Dictionary (AniList 130298)',
+                    dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
+                  },
+                ],
+              },
+            ],
+          };
+        }
+        return { originalTextLength: 0, dictionaryEntries: [] };
+      }
+      throw new Error(`unexpected action: ${action}`);
+    },
+    { onScript: (script) => scripts.push(script) },
+  );
 
-  await requestYomitanScanTokens(
+  const result = await requestYomitanScanTokens(
     'カズマ',
     deps,
     { error: () => undefined },
     { includeNameMatchMetadata: true },
   );
 
-  assert.match(scannerScript, /getPreferredHeadword/);
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
-    if (action === 'termsFind') {
-      const text = (params as { text?: string } | undefined)?.text;
-      if (text === 'カズマ') {
-        return {
-          originalTextLength: 3,
-          dictionaryEntries: [
-            {
-              dictionaryAlias: '',
-              headwords: [
-                {
-                  term: 'カズマ',
-                  reading: 'かずま',
-                  sources: [{ originalText: 'カズマ', isPrimary: true, matchType: 'exact' }],
-                },
-              ],
-              definitions: [
-                { dictionary: 'JMdict', dictionaryAlias: 'JMdict' },
-                {
-                  dictionary: 'SubMiner Character Dictionary (AniList 130298)',
-                  dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
-                },
-              ],
-            },
-          ],
-        };
-      }
-      return { originalTextLength: 0, dictionaryEntries: [] };
-    }
-    throw new Error(`unexpected action: ${action}`);
-  });
-
+  assert.ok(scripts.some((script) => script.includes('getPreferredHeadword')));
   assert.equal(Array.isArray(result), true);
   assert.equal((result as { length?: number } | null)?.length, 1);
   assert.equal((result as Array<{ surface?: string }>)[0]?.surface, 'カズマ');
@@ -1739,13 +1505,8 @@ test('requestYomitanScanTokens marks grouped entries when SubMiner dictionary al
 });
 
 test('requestYomitanScanTokens ignores SubMiner character entries from other media', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -1757,17 +1518,9 @@ test('requestYomitanScanTokens ignores SubMiner character entries from other med
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens(
-    'カズ',
-    deps,
-    { error: () => undefined },
-    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21202 },
-  );
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1807,17 +1560,21 @@ test('requestYomitanScanTokens ignores SubMiner character entries from other med
     };
   });
 
-  assert.deepEqual(result, []);
+  const result = await requestYomitanScanTokens(
+    'カズ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21202 },
+  );
+
+  // No dictionary-backed token survives (the only match belongs to another
+  // media's character dictionary), so the line reports no tokenization.
+  assert.equal(result, null);
 });
 
 test('requestYomitanScanTokens accepts SubMiner character entries with structured-content media data', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -1829,17 +1586,9 @@ test('requestYomitanScanTokens accepts SubMiner character entries with structure
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens(
-    'アクア',
-    deps,
-    { error: () => undefined },
-    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21699 },
-  );
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -1885,46 +1634,20 @@ test('requestYomitanScanTokens accepts SubMiner character entries with structure
     };
   });
 
+  const result = await requestYomitanScanTokens(
+    'アクア',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 21699 },
+  );
+
   assert.equal(Array.isArray(result), true);
   assert.equal((result as Array<{ surface?: string }>)[0]?.surface, 'アクア');
   assert.equal((result as Array<{ isNameMatch?: boolean }>)[0]?.isNameMatch, true);
 });
 
 test('requestYomitanScanTokens greedily tokenizes character names before longer generic matches', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-              dictionaries: [
-                { name: 'JMdict', enabled: true },
-                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
-              ],
-            },
-          },
-        ],
-      };
-    }
-    return null;
-  });
-
-  await requestYomitanScanTokens(
-    '美姫とヨータ',
-    deps,
-    { error: () => undefined },
-    { includeNameMatchMetadata: true },
-  );
-
-  assert.match(scannerScript, /const greedyNameScanEnabled = true;/);
-
+  let scanCallScript = '';
   const nameEntry = (term: string, reading: string) => ({
     headwords: [
       {
@@ -1951,42 +1674,79 @@ test('requestYomitanScanTokens greedily tokenizes character names before longer 
     definitions: [{ dictionary: 'JMdict', dictionaryAlias: 'JMdict' }],
   });
 
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
-    if (action !== 'termsFind') {
-      throw new Error(`unexpected action: ${action}`);
-    }
-    const text = (params as { text?: string } | undefined)?.text ?? '';
-    if (text.startsWith('美姫')) {
-      return { originalTextLength: 2, dictionaryEntries: [nameEntry('美姫', 'みき')] };
-    }
-    if (text.startsWith('とヨータ')) {
-      // Greedy generic match: とヨー normalizes to とよう (渡洋). Without the
-      // name pre-pass this consumes the ヨ of ヨータ.
-      return {
-        originalTextLength: 3,
-        dictionaryEntries: [jmdictEntry('渡洋', 'とよう', 'とヨー'), jmdictEntry('と', 'と', 'と')],
-      };
-    }
-    if (text.startsWith('ヨータ')) {
-      return { originalTextLength: 3, dictionaryEntries: [nameEntry('ヨータ', 'よーた')] };
-    }
-    if (text === 'と') {
-      return { originalTextLength: 1, dictionaryEntries: [jmdictEntry('と', 'と', 'と')] };
-    }
-    return { originalTextLength: 0, dictionaryEntries: [] };
-  });
+  const deps = createScanDeps(
+    (action, params) => {
+      if (action === 'optionsGetFull') {
+        return {
+          profileCurrent: 0,
+          profiles: [
+            {
+              options: {
+                scanning: { length: 40 },
+                dictionaries: [
+                  { name: 'JMdict', enabled: true },
+                  { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+                ],
+              },
+            },
+          ],
+        };
+      }
+      if (action === 'getDictionaryInfo') {
+        return [];
+      }
+      if (action !== 'termsFind') {
+        throw new Error(`unexpected action: ${action}`);
+      }
+      const text = (params as { text?: string } | undefined)?.text ?? '';
+      if (text.startsWith('美姫')) {
+        return { originalTextLength: 2, dictionaryEntries: [nameEntry('美姫', 'みき')] };
+      }
+      if (text.startsWith('とヨータ')) {
+        // Greedy generic match: とヨー normalizes to とよう (渡洋). Without the
+        // name pre-pass this consumes the ヨ of ヨータ.
+        return {
+          originalTextLength: 3,
+          dictionaryEntries: [
+            jmdictEntry('渡洋', 'とよう', 'とヨー'),
+            jmdictEntry('と', 'と', 'と'),
+          ],
+        };
+      }
+      if (text.startsWith('ヨータ')) {
+        return { originalTextLength: 3, dictionaryEntries: [nameEntry('ヨータ', 'よーた')] };
+      }
+      if (text === 'と') {
+        return { originalTextLength: 1, dictionaryEntries: [jmdictEntry('と', 'と', 'と')] };
+      }
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    },
+    {
+      onScript: (script) => {
+        if (script.includes('__subminerYomitanScan(')) {
+          scanCallScript = script;
+        }
+      },
+    },
+  );
 
+  const result = await requestYomitanScanTokens(
+    '美姫とヨータ',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.match(scanCallScript, /"greedyNameScanEnabled":true/);
   assert.equal(Array.isArray(result), true);
   assert.deepEqual(
-    (result as Array<Record<string, unknown>>).map(
-      ({ surface, headword, startPos, endPos, isNameMatch }) => ({
-        surface,
-        headword,
-        startPos,
-        endPos,
-        isNameMatch,
-      }),
-    ),
+    result?.map(({ surface, headword, startPos, endPos, isNameMatch }) => ({
+      surface,
+      headword,
+      startPos,
+      endPos,
+      isNameMatch,
+    })),
     [
       { surface: '美姫', headword: '美姫', startPos: 0, endPos: 2, isNameMatch: true },
       { surface: 'と', headword: 'と', startPos: 2, endPos: 3, isNameMatch: false },
@@ -1996,40 +1756,6 @@ test('requestYomitanScanTokens greedily tokenizes character names before longer 
 });
 
 test('requestYomitanScanTokens lets a longer generic word beat a shorter name at the same position', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-              dictionaries: [
-                { name: 'JMdict', enabled: true },
-                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
-              ],
-            },
-          },
-        ],
-      };
-    }
-    return null;
-  });
-
-  await requestYomitanScanTokens(
-    '空気変わって',
-    deps,
-    { error: () => undefined },
-    { includeNameMatchMetadata: true },
-  );
-
-  assert.match(scannerScript, /const greedyNameScanEnabled = true;/);
-
   const nameEntry = (term: string, reading: string) => ({
     headwords: [
       {
@@ -2056,7 +1782,26 @@ test('requestYomitanScanTokens lets a longer generic word beat a shorter name at
     definitions: [{ dictionary: 'JMdict', dictionaryAlias: 'JMdict' }],
   });
 
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true },
+                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -2078,17 +1823,22 @@ test('requestYomitanScanTokens lets a longer generic word beat a shorter name at
     return { originalTextLength: 0, dictionaryEntries: [] };
   });
 
+  const result = await requestYomitanScanTokens(
+    '空気変わって',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
   assert.equal(Array.isArray(result), true);
   assert.deepEqual(
-    (result as Array<Record<string, unknown>>).map(
-      ({ surface, headword, startPos, endPos, isNameMatch }) => ({
-        surface,
-        headword,
-        startPos,
-        endPos,
-        isNameMatch,
-      }),
-    ),
+    result?.map(({ surface, headword, startPos, endPos, isNameMatch }) => ({
+      surface,
+      headword,
+      startPos,
+      endPos,
+      isNameMatch,
+    })),
     [
       { surface: '空気', headword: '空気', startPos: 0, endPos: 2, isNameMatch: false },
       { surface: '変わって', headword: '変わる', startPos: 2, endPos: 6, isNameMatch: false },
@@ -2097,27 +1847,35 @@ test('requestYomitanScanTokens lets a longer generic word beat a shorter name at
 });
 
 test('requestYomitanScanTokens skips greedy name scan without an enabled character dictionary', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-              dictionaries: [{ name: 'JMdict', enabled: true }],
+  let scanCallScript = '';
+  const deps = createScanDeps(
+    (action) => {
+      if (action === 'optionsGetFull') {
+        return {
+          profileCurrent: 0,
+          profiles: [
+            {
+              options: {
+                scanning: { length: 40 },
+                dictionaries: [{ name: 'JMdict', enabled: true }],
+              },
             },
-          },
-        ],
-      };
-    }
-    return null;
-  });
+          ],
+        };
+      }
+      if (action === 'getDictionaryInfo') {
+        return [];
+      }
+      return { originalTextLength: 0, dictionaryEntries: [] };
+    },
+    {
+      onScript: (script) => {
+        if (script.includes('__subminerYomitanScan(')) {
+          scanCallScript = script;
+        }
+      },
+    },
+  );
 
   await requestYomitanScanTokens(
     'アクア',
@@ -2126,136 +1884,12 @@ test('requestYomitanScanTokens skips greedy name scan without an enabled charact
     { includeNameMatchMetadata: true },
   );
 
-  assert.match(scannerScript, /const greedyNameScanEnabled = false;/);
-});
-
-test('requestYomitanScanTokens replaces parseText segmentation where greedy name tokens re-segment', async () => {
-  const deps = createDeps(async (script) => {
-    if (script.includes('optionsGetFull')) {
-      return {
-        profileCurrent: 0,
-        profiles: [
-          {
-            options: {
-              scanning: { length: 40 },
-              dictionaries: [
-                { name: 'JMdict', enabled: true },
-                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
-              ],
-            },
-          },
-        ],
-      };
-    }
-    if (script.includes('parseText')) {
-      // parseText walks greedily too, so it merges と with ヨー into 渡洋 and
-      // strands the タ.
-      return [
-        {
-          source: 'scanning-parser',
-          index: 0,
-          content: [
-            [
-              {
-                text: '美姫',
-                reading: 'みき',
-                headwords: [[{ term: '美姫' }]],
-              },
-            ],
-            [
-              {
-                text: 'とヨー',
-                reading: 'とよう',
-                headwords: [[{ term: '渡洋' }]],
-              },
-            ],
-            [
-              {
-                text: 'タ',
-                reading: '',
-              },
-            ],
-          ],
-        },
-      ];
-    }
-    return [
-      {
-        surface: '美姫',
-        reading: 'みき',
-        headword: '美姫',
-        headwordReading: 'みき',
-        startPos: 0,
-        endPos: 2,
-        isNameMatch: true,
-      },
-      {
-        surface: 'と',
-        reading: 'と',
-        headword: 'と',
-        headwordReading: 'と',
-        startPos: 2,
-        endPos: 3,
-        isNameMatch: false,
-      },
-      {
-        surface: 'ヨータ',
-        reading: 'ヨータ',
-        headword: 'ヨータ',
-        headwordReading: 'よーた',
-        startPos: 3,
-        endPos: 6,
-        isNameMatch: true,
-      },
-    ];
-  });
-
-  const result = await requestYomitanScanTokens(
-    '美姫とヨータ',
-    deps,
-    { error: () => undefined },
-    { includeNameMatchMetadata: true },
-  );
-
-  assert.deepEqual(result, [
-    {
-      surface: '美姫',
-      reading: 'みき',
-      headword: '美姫',
-      headwordReading: 'みき',
-      startPos: 0,
-      endPos: 2,
-      isNameMatch: true,
-    },
-    {
-      surface: 'と',
-      reading: 'と',
-      headword: 'と',
-      headwordReading: 'と',
-      startPos: 2,
-      endPos: 3,
-      isNameMatch: false,
-    },
-    {
-      surface: 'ヨータ',
-      reading: 'ヨータ',
-      headword: 'ヨータ',
-      headwordReading: 'よーた',
-      startPos: 3,
-      endPos: 6,
-      isNameMatch: true,
-    },
-  ]);
+  assert.match(scanCallScript, /"greedyNameScanEnabled":false/);
 });
 
 test('requestYomitanScanTokens preserves matched headword word classes', async () => {
-  let scannerScript = '';
-  const deps = createDeps(async (script) => {
-    if (script.includes('termsFind')) {
-      scannerScript = script;
-      return [];
-    }
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -2267,12 +1901,9 @@ test('requestYomitanScanTokens preserves matched headword word classes', async (
         ],
       };
     }
-    return null;
-  });
-
-  await requestYomitanScanTokens('は', deps, { error: () => undefined });
-
-  const result = await runInjectedYomitanScript(scannerScript, (action, params) => {
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
     if (action !== 'termsFind') {
       throw new Error(`unexpected action: ${action}`);
     }
@@ -2299,12 +1930,14 @@ test('requestYomitanScanTokens preserves matched headword word classes', async (
     };
   });
 
+  const result = await requestYomitanScanTokens('は', deps, { error: () => undefined });
+
   assert.deepEqual((result as Array<{ wordClasses?: string[] }>)[0]?.wordClasses, ['prt']);
 });
 
 test('requestYomitanScanTokens skips fallback fragments without exact primary source matches', async () => {
-  const deps = createDeps(async (script) => {
-    if (script.includes('optionsGetFull')) {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
       return {
         profileCurrent: 0,
         profiles: [
@@ -2316,12 +1949,14 @@ test('requestYomitanScanTokens skips fallback fragments without exact primary so
         ],
       };
     }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
 
-    return await runInjectedYomitanScript(script, (action, params) => {
-      if (action !== 'termsFind') {
-        throw new Error(`unexpected action: ${action}`);
-      }
-
+    {
       const text = (params as { text?: string } | undefined)?.text ?? '';
       if (text.startsWith('だが ')) {
         return {
@@ -2420,7 +2055,7 @@ test('requestYomitanScanTokens skips fallback fragments without exact primary so
         };
       }
       return { originalTextLength: 0, dictionaryEntries: [] };
-    });
+    }
   });
 
   const result = await requestYomitanScanTokens('だが それでも届かぬ高みがあった', deps, {
@@ -2459,6 +2094,14 @@ test('requestYomitanScanTokens skips fallback fragments without exact primary so
         startPos: 10,
         endPos: 12,
       },
+      // が has no exact primary source match, so it survives only as an
+      // unparsed filler run (the parseText segmentation used to supply this).
+      {
+        surface: 'が',
+        headword: 'が',
+        startPos: 12,
+        endPos: 13,
+      },
       {
         surface: 'あった',
         headword: 'ある',
@@ -2467,6 +2110,170 @@ test('requestYomitanScanTokens skips fallback fragments without exact primary so
       },
     ],
   );
+  assert.equal(result?.[4]?.isUnparsedRun, true);
+});
+
+function createSingleTermScanHandler(lookups: string[]) {
+  return (action: string, params: unknown): unknown => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    lookups.push(text);
+    if (text.startsWith('猫')) {
+      return {
+        originalTextLength: 1,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: '猫',
+                reading: 'ねこ',
+                sources: [{ originalText: '猫', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  };
+}
+
+test('requestYomitanScanTokens reuses the cross-line termsFind cache for repeated lookups', async () => {
+  const lookups: string[] = [];
+  const deps = createScanDeps(createSingleTermScanHandler(lookups));
+
+  const first = await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+  const second = await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+
+  assert.equal(first?.length, 1);
+  assert.equal(second?.length, 1);
+  // The second line hits the window-persistent cache: no new backend lookup.
+  assert.equal(countTermsFindLookups(lookups, '猫'), 1);
+});
+
+test('clearYomitanParserCachesForWindow invalidates the cross-line termsFind cache', async () => {
+  const lookups: string[] = [];
+  const deps = createScanDeps(createSingleTermScanHandler(lookups));
+
+  await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+  clearYomitanParserCachesForWindow(deps.getYomitanParserWindow() as never);
+  await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+
+  assert.equal(countTermsFindLookups(lookups, '猫'), 2);
+});
+
+test('requestYomitanScanTokens skips termsFind lookups at punctuation and whitespace positions', async () => {
+  const lookups: string[] = [];
+  const deps = createScanDeps(createSingleTermScanHandler(lookups));
+
+  const result = await requestYomitanScanTokens('「猫」…♪', deps, { error: () => undefined });
+
+  assert.equal(result?.length, 1);
+  assert.equal(result?.[0]?.surface, '猫');
+  assert.equal(countTermsFindLookups(lookups, '猫'), 1);
+  for (const skipped of ['「', '」', '…', '♪']) {
+    assert.equal(countTermsFindLookups(lookups, skipped), 0, `expected no lookup at ${skipped}`);
+  }
+});
+
+test('requestYomitanScanTokens caps the shrinking-window retry ladder per position', async () => {
+  const lookups: string[] = [];
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    lookups.push(text);
+    // Every window "matches" its whole length but never yields an
+    // exact-source headword, the worst case for the retry ladder.
+    return {
+      originalTextLength: text.length,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'ミスマッチ',
+              reading: 'みすまっち',
+              sources: [{ originalText: 'ZZZ', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  const result = await requestYomitanScanTokens('あいうえおかきくけこ', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result, null);
+  // Position 0: one initial window lookup plus at most four shrinking retries.
+  assert.equal(countTermsFindLookups(lookups, 'あいうえお'), 5);
+});
+
+test('requestYomitanScanTokens falls back to parseText when the scanner eval fails', async () => {
+  const deps = createDeps(async (script) => {
+    if (script.includes('optionsGetFull')) {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (script.includes('__subminerYomitanScan(')) {
+      throw new Error('eval failed');
+    }
+    if (script.includes('parseText')) {
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [
+              {
+                text: '取り組んで',
+                reading: 'とりくんで',
+                headwords: [[{ term: '取り組む' }]],
+              },
+            ],
+          ],
+        },
+      ];
+    }
+    return null;
+  });
+
+  const errors: string[] = [];
+  const result = await requestYomitanScanTokens('取り組んで', deps, {
+    error: (message) => errors.push(message),
+  });
+
+  assert.deepEqual(result, [
+    {
+      surface: '取り組んで',
+      reading: 'とりくんで',
+      headword: '取り組む',
+      startPos: 0,
+      endPos: 5,
+    },
+  ]);
+  assert.equal(errors.length, 1);
 });
 
 test('getYomitanDictionaryInfo requests dictionary info via backend action', async () => {
