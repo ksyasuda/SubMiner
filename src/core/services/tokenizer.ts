@@ -920,8 +920,8 @@ export async function tokenizeSubtitle(
   if (yomitanTokens && yomitanTokens.length > 0) {
     const annotateStartedAtMs = Date.now();
     const annotatedTokens = await applyAnnotationStage(yomitanTokens, deps, annotationOptions);
-    const renderedTokens = applyCharacterNameImages(annotatedTokens, deps, annotationOptions);
     stageTimings.annotateMs = Date.now() - annotateStartedAtMs;
+    const renderedTokens = applyCharacterNameImages(annotatedTokens, deps, annotationOptions);
     logStageTimings(renderedTokens.length);
     return {
       text: displayText,

@@ -787,6 +787,52 @@ test('requestYomitanScanTokens warns when active Yomitan profile has no dictiona
   });
 });
 
+test('requestYomitanScanTokens keeps reading aligned when a kana run extends the previous token', async () => {
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    // 待ち合わせ matches, the trailing る does not, so the kana run extends the
+    // previous token instead of becoming its own filler token.
+    if (text.startsWith('待ち合わせ')) {
+      return {
+        originalTextLength: 5,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: '待ち合わせる',
+                reading: 'まちあわせる',
+                sources: [{ originalText: '待ち合わせ', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  const result = await requestYomitanScanTokens('待ち合わせる', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result?.length, 1);
+  assert.equal(result?.[0]?.surface, '待ち合わせる');
+  assert.equal(result?.[0]?.endPos, 6);
+  // The reading must grow with the surface: a short reading fails
+  // isCompleteReadingForSurface and silently disables the known-word reading
+  // fallback downstream.
+  assert.equal(result?.[0]?.reading, 'まちあわせる');
+});
+
 test('requestYomitanScanTokens emits unparsed filler runs for text the scanner skips', async () => {
   const deps = createScanDeps((action, params) => {
     if (action === 'optionsGetFull') {
