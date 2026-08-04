@@ -585,9 +585,11 @@ test('refreshCurrentSubtitle reports the empty-text emit that an in-flight run w
   resolveFirst?.({ text: '字幕', tokens: [] });
   await flushMicrotasks();
   await flushMicrotasks();
+  // '字幕' is the provisional plain emit the in-flight run already made before
+  // the refresh; '' is the emit the refresh promised.
   assert.deepEqual(
     emitted.map((payload) => payload.text),
-    [''],
+    ['字幕', ''],
   );
 });
 

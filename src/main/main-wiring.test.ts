@@ -620,7 +620,7 @@ test('subtitle broadcasts share one frequency options snapshot per emitted paylo
 test('annotation upgrades skip the duplicate basic websocket event', () => {
   const source = readMainSource();
   const emitBlock = source.match(
-    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(emitBlock);
