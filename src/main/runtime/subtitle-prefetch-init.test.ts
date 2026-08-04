@@ -229,3 +229,26 @@ test('subtitle prefetch init clears parsed cues when initialization fails', asyn
 
   assert.deepEqual(cueUpdates, [null]);
 });
+
+test('subtitle prefetch init logs a warning when the source parses to zero cues', async () => {
+  const warnings: string[] = [];
+  const controller = createSubtitlePrefetchInitController({
+    getCurrentService: () => null,
+    setCurrentService: () => {},
+    loadSubtitleSourceText: async () => 'not really subtitles',
+    parseSubtitleCues: (): SubtitleCue[] => [],
+    createSubtitlePrefetchService: () => {
+      throw new Error('should not create a service without cues');
+    },
+    tokenizeSubtitle: async () => null,
+    preCacheTokenization: () => {},
+    isCacheFull: () => false,
+    logInfo: () => {},
+    logWarn: (message) => warnings.push(message),
+  });
+
+  await controller.initSubtitlePrefetch('/tmp/broken.ass', 0);
+
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /\[subtitle-prefetch\].*0 cues.*\/tmp\/broken\.ass/);
+});

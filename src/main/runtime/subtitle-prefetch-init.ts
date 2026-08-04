@@ -58,6 +58,9 @@ export function createSubtitlePrefetchInitController(
       const cues = deps.parseSubtitleCues(content, sourcePath);
       if (revision !== initRevision || cues.length === 0) {
         if (revision === initRevision) {
+          deps.logWarn(
+            `[subtitle-prefetch] parsed 0 cues from ${sourcePath}; prefetch disabled for this source`,
+          );
           deps.onParsedSubtitleCuesChanged?.(null, null);
         }
         return;
