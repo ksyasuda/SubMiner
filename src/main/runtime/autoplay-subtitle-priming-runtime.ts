@@ -17,6 +17,7 @@ type AutoplaySubtitlePrimingMpvClient = {
 
 type AutoplaySubtitlePrimingPrefetchService = {
   pause: () => void;
+  resume: () => void;
 };
 
 export interface AutoplaySubtitlePrimingRuntimeDeps {
@@ -29,8 +30,9 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
   setActiveParsedSubtitleMediaPath: (mediaPath: string | null) => void;
   subtitleProcessingController: {
     consumeCachedSubtitle: (text: string) => SubtitleData | null;
-    onSubtitleChange: (text: string) => void;
-    refreshCurrentSubtitle: (text: string) => void;
+    // Both report whether an emit is expected; see pausePrefetchUntilEmit.
+    onSubtitleChange: (text: string) => boolean;
+    refreshCurrentSubtitle: (text: string) => boolean;
   };
   emitSubtitlePayload: (payload: SubtitleData, options?: { resumePrefetch?: boolean }) => void;
   getSubtitlePrefetchService: () => AutoplaySubtitlePrimingPrefetchService | null;
@@ -62,6 +64,18 @@ export function setMpvCurrentSecondarySubText(
 
 export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimingRuntimeDeps) {
   const { subtitleProcessingController, emitSubtitlePayload } = deps;
+
+  // Prefetching is paused so the on-screen line gets the parser to itself, and
+  // the resume rides on the tokenized emit. When the controller reports that no
+  // emit is coming (repeat text with nothing scheduled), release it here or
+  // prefetching idles until some later line happens to complete.
+  function pausePrefetchUntilEmit(scheduleTokenization: () => boolean): void {
+    const prefetch = deps.getSubtitlePrefetchService();
+    prefetch?.pause();
+    if (!scheduleTokenization()) {
+      prefetch?.resume();
+    }
+  }
 
   let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let autoplaySubtitlePrimedMediaPath: string | null = null;
@@ -103,6 +117,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     const cachedPayload = subtitleProcessingController.consumeCachedSubtitle(text);
     if (cachedPayload) {
       subtitleProcessingController.onSubtitleChange(text);
+      // This emit resumes prefetching, so no pause is left outstanding.
       emitSubtitlePayload(cachedPayload);
       return true;
     }
@@ -110,7 +125,11 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     // Provisional raw emit: keep prefetch paused until the tokenized payload
     // for this line is delivered by the processing controller.
     emitSubtitlePayload({ text, tokens: null }, { resumePrefetch: false });
-    subtitleProcessingController.onSubtitleChange(text);
+    if (!subtitleProcessingController.onSubtitleChange(text)) {
+      // Cache miss on text the controller already holds (it was invalidated
+      // under us): nothing will be tokenized, so no emit is coming.
+      deps.getSubtitlePrefetchService()?.resume();
+    }
     return true;
   }
 
@@ -154,12 +173,10 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       getCurrentSubtitleData: () => deps.getCurrentSubtitleData(),
       consumeCachedSubtitle: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
       onSubtitleChange: (text) => {
-        deps.getSubtitlePrefetchService()?.pause();
-        subtitleProcessingController.onSubtitleChange(text);
+        pausePrefetchUntilEmit(() => subtitleProcessingController.onSubtitleChange(text));
       },
       refreshCurrentSubtitle: (text) => {
-        deps.getSubtitlePrefetchService()?.pause();
-        subtitleProcessingController.refreshCurrentSubtitle(text);
+        pausePrefetchUntilEmit(() => subtitleProcessingController.refreshCurrentSubtitle(text));
       },
       deferUncachedRefresh: true,
       emitSubtitle: (payload) => emitSubtitlePayload(payload),
@@ -203,8 +220,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       if (!text.trim()) {
         return;
       }
-      deps.getSubtitlePrefetchService()?.pause();
-      subtitleProcessingController.refreshCurrentSubtitle(text);
+      pausePrefetchUntilEmit(() => subtitleProcessingController.refreshCurrentSubtitle(text));
     }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
     visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();
   }

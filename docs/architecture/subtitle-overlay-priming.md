@@ -50,10 +50,16 @@ subtitles do not draw.
 7. Cache miss: call `refreshCurrentSubtitle(text)`. Normal processing emits a plain payload
    synchronously, then replaces it with the tokenized payload when ready.
 
-In `src/main.ts`, both `onSubtitleChange` and `refreshCurrentSubtitle` pause
-`subtitlePrefetchService`, notify it with `onSeek(lastObservedTimePos)`, and then call the matching
-`subtitleProcessingController` method. This gives the visible overlay priority over background
-prefetch work and re-centers prefetch around the live playback time.
+Both `onSubtitleChange` and `refreshCurrentSubtitle` pause `subtitlePrefetchService` and then call
+the matching `subtitleProcessingController` method, giving the visible overlay priority over
+background prefetch work. Prefetch is not re-centered here: restarting the run per line
+(`onSeek`) discarded the in-flight tokenization every time the subtitle changed, so only real
+seeks restart it (see `onTimePosUpdate` in `src/main.ts`).
+
+The pause is released by the emit that carries the tokenized payload. Both controller methods
+return whether an emit is expected, and the caller resumes immediately when it is not — otherwise
+a repeated subtitle (which schedules no work) would leave prefetching idle for the rest of the
+cue.
 
 ## Live Cue Delivery
 

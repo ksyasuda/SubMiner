@@ -2538,6 +2538,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       },
       {
         hasParserWindow: () => Boolean(appState.yomitanParserWindow),
+        invalidateCharacterDictionaryLookups: () => {
+          characterDictionaryImageLookup.invalidate();
+          characterNameCandidateLookup.invalidate();
+        },
         clearParserCaches: () => {
           if (appState.yomitanParserWindow) {
             clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
@@ -5692,9 +5696,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           if (result.ok && result.rebuildRequired) {
             try {
               await characterDictionaryAutoSyncRuntime.runSyncNow();
-              characterDictionaryImageLookup.invalidate();
-              characterNameCandidateLookup.invalidate();
-              characterNameCandidateLookup.invalidate();
             } catch (error) {
               logger.warn('Failed to rebuild character dictionary after manager override:', error);
             }
@@ -5725,8 +5726,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (result.ok && result.rebuildRequired) {
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
-            characterDictionaryImageLookup.invalidate();
-            characterNameCandidateLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager removal:', error);
           }
@@ -5743,8 +5742,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (result.ok && result.rebuildRequired) {
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
-            characterDictionaryImageLookup.invalidate();
-            characterNameCandidateLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
           }

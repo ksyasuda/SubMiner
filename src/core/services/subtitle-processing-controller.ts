@@ -23,7 +23,8 @@ export interface SubtitleProcessingController {
    * gate work on the emit (such as pausing subtitle prefetching) need to know.
    */
   onSubtitleChange: (text: string) => boolean;
-  refreshCurrentSubtitle: (textOverride?: string) => void;
+  /** Same contract as onSubtitleChange: whether an emit is expected. */
+  refreshCurrentSubtitle: (textOverride?: string) => boolean;
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
@@ -176,7 +177,8 @@ export function createSubtitleProcessingController(
   return {
     onSubtitleChange: (text: string) => {
       if (text === latestText) {
-        return false;
+        // A run already in flight for this text will still emit for it.
+        return processing;
       }
       latestText = text;
       if (
@@ -195,15 +197,16 @@ export function createSubtitleProcessingController(
         latestText = textOverride;
       }
       if (!latestText.trim()) {
-        return;
+        return false;
       }
-      if (
-        processing ||
-        (latestText === lastEmittedText && cacheGeneration === lastEmittedGeneration)
-      ) {
-        return;
+      if (processing) {
+        return true;
+      }
+      if (latestText === lastEmittedText && cacheGeneration === lastEmittedGeneration) {
+        return false;
       }
       processLatest();
+      return true;
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();

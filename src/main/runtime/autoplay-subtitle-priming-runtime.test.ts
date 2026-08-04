@@ -42,8 +42,8 @@ test('scheduleSubtitlePrefetchRefresh logs refresh failures from timer callback'
     setActiveParsedSubtitleMediaPath: () => {},
     subtitleProcessingController: {
       consumeCachedSubtitle: () => null,
-      onSubtitleChange: () => {},
-      refreshCurrentSubtitle: () => {},
+      onSubtitleChange: () => true,
+      refreshCurrentSubtitle: () => true,
     },
     emitSubtitlePayload: () => {},
     getSubtitlePrefetchService: () => null,
@@ -93,13 +93,24 @@ test('primeCurrentSubtitleForAutoplay refreshes active subtitle cues when mpv su
     setActiveParsedSubtitleMediaPath: () => {},
     subtitleProcessingController: {
       consumeCachedSubtitle: () => null,
-      onSubtitleChange: (text) => calls.push(`change:${text}`),
-      refreshCurrentSubtitle: (text) => calls.push(`refresh:${text ?? ''}`),
+      onSubtitleChange: (text) => {
+        calls.push(`change:${text}`);
+        return true;
+      },
+      refreshCurrentSubtitle: (text) => {
+        calls.push(`refresh:${text ?? ''}`);
+        return true;
+      },
     },
     emitSubtitlePayload: (payload, options) =>
       calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
     getSubtitlePrefetchService: () => ({
-      pause: () => calls.push('prefetch:pause'),
+      pause: () => {
+        calls.push('prefetch:pause');
+      },
+      resume: () => {
+        calls.push('prefetch:resume');
+      },
     }),
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
@@ -151,13 +162,24 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
     setActiveParsedSubtitleMediaPath: () => {},
     subtitleProcessingController: {
       consumeCachedSubtitle: () => null,
-      onSubtitleChange: (text) => calls.push(`change:${text}`),
-      refreshCurrentSubtitle: (text) => calls.push(`refresh:${text ?? ''}`),
+      onSubtitleChange: (text) => {
+        calls.push(`change:${text}`);
+        return true;
+      },
+      refreshCurrentSubtitle: (text) => {
+        calls.push(`refresh:${text ?? ''}`);
+        return true;
+      },
     },
     emitSubtitlePayload: (payload, options) =>
       calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
     getSubtitlePrefetchService: () => ({
-      pause: () => calls.push('prefetch:pause'),
+      pause: () => {
+        calls.push('prefetch:pause');
+      },
+      resume: () => {
+        calls.push('prefetch:resume');
+      },
     }),
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
@@ -177,5 +199,67 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
     'prefetch:pause',
     'emit:起動字幕:resume=false',
     'change:起動字幕',
+  ]);
+});
+
+test('primeCurrentSubtitleForAutoplay releases the prefetch pause when no tokenization is scheduled', async () => {
+  const calls: string[] = [];
+  let currentSubText = '';
+  const mediaPath = '/media/video.mkv';
+
+  const runtime = createAutoplaySubtitlePrimingRuntime({
+    getCurrentMediaPath: () => mediaPath,
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: mediaPath,
+      requestProperty: async (name) => {
+        if (name === 'sub-text') return '起動字幕';
+        return null;
+      },
+    }),
+    setCurrentSubText: (text) => {
+      currentSubText = text;
+    },
+    getCurrentSubText: () => currentSubText,
+    getCurrentSubtitleData: () => null,
+    getActiveParsedSubtitleCues: () => [],
+    setActiveParsedSubtitleMediaPath: () => {},
+    subtitleProcessingController: {
+      // The tokenization cache was invalidated (for example by mining a card),
+      // so the cached payload is gone...
+      consumeCachedSubtitle: () => null,
+      // ...but the controller still holds this text, so it schedules nothing
+      // and no emit will arrive to release the pause.
+      onSubtitleChange: (text) => {
+        calls.push(`change:${text}`);
+        return false;
+      },
+      refreshCurrentSubtitle: () => true,
+    },
+    emitSubtitlePayload: (payload, options) =>
+      calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
+    getSubtitlePrefetchService: () => ({
+      pause: () => {
+        calls.push('prefetch:pause');
+      },
+      resume: () => {
+        calls.push('prefetch:resume');
+      },
+    }),
+    getLastObservedTimePos: () => 12,
+    getVisibleOverlayVisible: () => true,
+    emitSecondarySubtitle: () => {},
+    initSubtitlePrefetch: async () => {},
+    refreshSubtitlePrefetchFromActiveTrack: async () => {},
+    logDebug: () => {},
+  });
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+
+  assert.deepEqual(calls, [
+    'prefetch:pause',
+    'emit:起動字幕:resume=false',
+    'change:起動字幕',
+    'prefetch:resume',
   ]);
 });
