@@ -234,10 +234,16 @@ test('subtitle change pauses prefetch without restarting its run before tokenizi
   // Restarting the run per line (onSeek) discards in-flight prefetch work;
   // only real seeks restart via onTimePosUpdate.
   assert.doesNotMatch(actionBlock, /subtitlePrefetchService\?\.onSeek\(/);
-  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\);/);
+  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\)/);
   assert.ok(
     actionBlock.indexOf('subtitlePrefetchService?.pause();') <
-      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text);'),
+      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text)'),
+  );
+  // A repeated subtitle emits nothing, so the pause has to be released here or
+  // prefetching idles until the next distinct line.
+  assert.match(
+    actionBlock,
+    /if \(!subtitleProcessingController\.onSubtitleChange\(text\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
   );
 });
 

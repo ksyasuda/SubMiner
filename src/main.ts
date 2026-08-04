@@ -4388,7 +4388,12 @@ const {
       // Pause only; restarting the prefetch run here would discard in-flight
       // tokenization work on every line. Real seeks restart via onTimePosUpdate.
       subtitlePrefetchService?.pause();
-      subtitleProcessingController.onSubtitleChange(text);
+      if (!subtitleProcessingController.onSubtitleChange(text)) {
+        // Repeat of the current text: nothing will be tokenized, so no emit is
+        // coming to release the pause. Resume now instead of idling prefetch
+        // for the rest of the cue.
+        subtitlePrefetchService?.resume();
+      }
     },
     refreshDiscordPresence: () => {
       discordPresenceRuntime.publishDiscordPresence();

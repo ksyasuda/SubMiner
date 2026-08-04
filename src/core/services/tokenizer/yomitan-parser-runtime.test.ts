@@ -2788,3 +2788,100 @@ test('addYomitanNoteViaSearch sanitizes invalid payload note ids while keeping v
     duplicateNoteIds: [18, 7],
   });
 });
+
+test('requestYomitanScanTokens still finds an emphatically elongated name a longer generic match would swallow', async () => {
+  // Yomitan collapses emphatic sequences, so ミナァァト resolves to the ミナト
+  // entry. The generic word とミナ starts earlier and would swallow the name
+  // unless the pre-pass reserves it, so this only passes when the candidate
+  // prefilter still treats the elongated spelling as a possible name start.
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true, id: 0 },
+                { name: 'SubMiner Character Dictionary (AniList 1)', enabled: true, id: 1 },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (text.startsWith('とミナ')) {
+      return {
+        originalTextLength: 3,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: 'トミナ',
+                reading: 'とみな',
+                sources: [{ originalText: 'とミナ', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+            definitions: [{ dictionary: 'JMdict' }],
+          },
+        ],
+      };
+    }
+    if (text.startsWith('ミナァァト')) {
+      return {
+        originalTextLength: 5,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: 'ミナト',
+                reading: 'みなと',
+                sources: [{ originalText: 'ミナァァト', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+            definitions: [{ dictionary: 'SubMiner Character Dictionary (AniList 1)' }],
+          },
+        ],
+      };
+    }
+    if (text.startsWith('と')) {
+      return {
+        originalTextLength: 1,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: 'と',
+                reading: 'と',
+                sources: [{ originalText: 'と', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+            definitions: [{ dictionary: 'JMdict' }],
+          },
+        ],
+      };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  const result = await requestYomitanScanTokens(
+    'とミナァァト',
+    deps,
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      nameCandidates: { key: 'media-1', forms: ['ミナト', 'みなと'] },
+    },
+  );
+
+  const nameToken = result?.find((token) => token.isNameMatch === true);
+  assert.ok(nameToken, 'expected the elongated name to be reserved by the pre-pass');
+  assert.equal(nameToken?.headword, 'ミナト');
+  assert.equal(nameToken?.startPos, 1);
+});

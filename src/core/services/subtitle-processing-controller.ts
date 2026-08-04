@@ -17,7 +17,12 @@ export interface SubtitleProcessingControllerDeps {
 export const DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT = 2500;
 
 export interface SubtitleProcessingController {
-  onSubtitleChange: (text: string) => void;
+  /**
+   * Returns whether the text was new and processing was scheduled. A false
+   * return means nothing will be emitted for this event, which callers that
+   * gate work on the emit (such as pausing subtitle prefetching) need to know.
+   */
+  onSubtitleChange: (text: string) => boolean;
   refreshCurrentSubtitle: (textOverride?: string) => void;
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
@@ -171,7 +176,7 @@ export function createSubtitleProcessingController(
   return {
     onSubtitleChange: (text: string) => {
       if (text === latestText) {
-        return;
+        return false;
       }
       latestText = text;
       if (
@@ -183,6 +188,7 @@ export function createSubtitleProcessingController(
         lastPlainEmittedText = text;
       }
       processLatest();
+      return true;
     },
     refreshCurrentSubtitle: (textOverride?: string) => {
       if (typeof textOverride === 'string') {

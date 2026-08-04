@@ -495,7 +495,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
 
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 3;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 4;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -731,13 +731,33 @@ ${YOMITAN_SCANNING_HELPERS}
           ? nameCandidateIndex
           : null;
       const normalizedText = activeNameCandidateIndex ? convertKatakanaToHiragana(text) : "";
+      // Yomitan collapses emphatic sequences before matching (すっっごーーい →
+      // すごい), so a stretched name still resolves to its entry. Skipping these
+      // characters keeps such spellings candidates; the filter only ever grows
+      // the probe set, so a false positive costs one lookup, never a name.
+      const EMPHATIC_SKIP_CHARS = new Set(["ぁ", "ぃ", "ぅ", "ぇ", "ぉ", "っ", "ゃ", "ゅ", "ょ", "ー"]);
+      function matchesCandidateFormAt(form, position) {
+        let textIndex = position;
+        for (let formIndex = 0; formIndex < form.length; formIndex += 1) {
+          while (
+            textIndex < normalizedText.length &&
+            normalizedText[textIndex] !== form[formIndex] &&
+            EMPHATIC_SKIP_CHARS.has(normalizedText[textIndex])
+          ) {
+            textIndex += 1;
+          }
+          if (normalizedText[textIndex] !== form[formIndex]) { return false; }
+          textIndex += 1;
+        }
+        return true;
+      }
       function couldNameStartAt(position, codePoint) {
         if (!activeNameCandidateIndex) { return true; }
         if (isHalfwidthKatakanaCodePoint(codePoint)) { return true; }
         const bucket = activeNameCandidateIndex.byFirstChar.get(normalizedText[position]);
         if (!bucket) { return false; }
         for (const form of bucket) {
-          if (normalizedText.startsWith(form, position)) { return true; }
+          if (matchesCandidateFormAt(form, position)) { return true; }
         }
         return false;
       }

@@ -539,3 +539,22 @@ test('default cache limit covers a full-length title without evicting', () => {
   assert.equal(controller.hasCachedSubtitle('line-0'), true);
   assert.equal(controller.hasCachedSubtitle('line-1999'), true);
 });
+
+test('onSubtitleChange reports whether processing was scheduled', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  // New text schedules work, so an emit (and anything gated on it) will follow.
+  assert.equal(controller.onSubtitleChange('字幕'), true);
+  await flushMicrotasks();
+
+  // A repeat emits nothing, so callers must not wait on an emit that is never
+  // coming (subtitle prefetching would stay paused for the rest of the cue).
+  const emittedCount = emitted.length;
+  assert.equal(controller.onSubtitleChange('字幕'), false);
+  await flushMicrotasks();
+  assert.equal(emitted.length, emittedCount);
+});
