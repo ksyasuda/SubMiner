@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  isSubtitleAnnotationUpgrade,
   serializeInitialSubtitleWebsocketMessage,
   serializeSubtitleMarkup,
   serializeSubtitleWebsocketMessage,
@@ -12,6 +13,40 @@ const frequencyOptions = {
   topX: 1000,
   mode: 'banded' as const,
 };
+
+test('annotation upgrade requires matching text and cue timing', () => {
+  const current: SubtitleData = {
+    text: '字幕',
+    tokens: null,
+    startTime: 10,
+    endTime: 12,
+  };
+
+  assert.equal(
+    isSubtitleAnnotationUpgrade(current, {
+      ...current,
+      tokens: [],
+    }),
+    true,
+  );
+  assert.equal(
+    isSubtitleAnnotationUpgrade(current, {
+      ...current,
+      tokens: [],
+      startTime: 11,
+    }),
+    false,
+  );
+  assert.equal(
+    isSubtitleAnnotationUpgrade(current, {
+      ...current,
+      text: '次の字幕',
+      tokens: [],
+    }),
+    false,
+  );
+  assert.equal(isSubtitleAnnotationUpgrade(current, current), false);
+});
 
 test('serializeSubtitleMarkup escapes plain text and preserves line breaks', () => {
   const payload: SubtitleData = {

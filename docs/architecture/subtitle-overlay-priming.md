@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-06-14
+Last verified: 2026-08-04
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -47,18 +47,31 @@ subtitles do not draw.
    `emitSubtitle(payload)` and `refreshCurrentSubtitle(text)`, then prime secondary subtitles.
 6. Tokenization cache hit: call `consumeCachedSubtitle(text)`, `onSubtitleChange(text)`, and
    `emitSubtitle(cachedPayload)`, then prime secondary subtitles.
-7. Cache miss: call `refreshCurrentSubtitle(text)` and let normal tokenization emit the final
-   payload.
+7. Cache miss: call `refreshCurrentSubtitle(text)`. Normal processing emits a plain payload
+   synchronously, then replaces it with the tokenized payload when ready.
 
 In `src/main.ts`, both `onSubtitleChange` and `refreshCurrentSubtitle` pause
 `subtitlePrefetchService`, notify it with `onSeek(lastObservedTimePos)`, and then call the matching
 `subtitleProcessingController` method. This gives the visible overlay priority over background
 prefetch work and re-centers prefetch around the live playback time.
 
+## Live Cue Delivery
+
+- A tokenization cache miss emits the plain cue synchronously. Tokenization remains serialized so
+  live work does not contend for Yomitan state.
+- If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty
+  clear payload is emitted immediately. The older tokenization result is dropped before it can
+  replace the current cue.
+- The current cue upgrades in place when its tokens and annotations are ready. This can reflow text
+  or character images, but cue visibility does not wait for that work.
+
 ## Emitted State
 
-- `emitSubtitle(payload)` maps to `emitSubtitlePayload(payload)`, which sends the normal
-  annotated subtitle payload to overlay windows and subtitle websocket listeners.
+- `emitSubtitle(payload)` maps to `emitSubtitlePayload(payload)`. Overlay windows and annotation
+  websocket listeners receive both the immediate plain cue and its later annotation upgrade.
+- The basic subtitle websocket receives the immediate plain cue only. Because its serialized
+  payload discards annotations, the later upgrade would be an identical duplicate and is skipped
+  when text and cue timing match.
 - Secondary priming reads mpv `secondary-sub-text`, stores it in
   `mpvClient.currentSecondarySubText`, and broadcasts `secondary-subtitle:set` to overlay windows.
 - If secondary `requestProperty` fails, the primary flow stays complete and only a debug line is

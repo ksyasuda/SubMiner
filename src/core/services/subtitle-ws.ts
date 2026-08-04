@@ -20,6 +20,20 @@ export type SubtitleWebsocketFrequencyOptions = {
 
 export type SubtitleWebsocketPayloadMode = 'plain' | 'annotated';
 
+export function isSubtitleAnnotationUpgrade(
+  current: SubtitleData | null,
+  next: SubtitleData,
+): boolean {
+  return (
+    current !== null &&
+    current.tokens === null &&
+    next.tokens !== null &&
+    current.text === next.text &&
+    current.startTime === next.startTime &&
+    current.endTime === next.endTime
+  );
+}
+
 type SubtitleWebsocketMessageOptions = {
   payloadMode?: SubtitleWebsocketPayloadMode;
 };

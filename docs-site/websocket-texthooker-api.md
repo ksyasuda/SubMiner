@@ -64,7 +64,7 @@ Use the basic subtitle websocket when you only need the current subtitle line as
 - **Client auth:** none
 - **Reconnects:** client-managed
 
-When a client connects, SubMiner immediately sends the latest subtitle payload if one is available. After that, it pushes a new message each time the current subtitle changes.
+When a client connects, SubMiner immediately sends the latest subtitle payload if one is available. After that, it pushes a new message each time the current subtitle changes. Annotation-only upgrades do not repeat the same line on this basic stream.
 
 #### Message shape
 
@@ -95,6 +95,8 @@ Use the annotation websocket for custom clients that want the same structured to
 - **Primary difference:** this stream is intended to stay on even when the basic websocket auto-disables because `mpv_websocket` is installed
 
 In practice, if you are building a new client, prefer `annotationWebsocket` unless you specifically need compatibility with an existing `websocket` consumer.
+
+On a tokenization cache miss, this stream first sends the cue as plain text with an empty `tokens` array, then sends the annotated replacement when tokenization finishes. Treat each message as the complete current state, replacing the previous payload.
 
 #### Message shape
 

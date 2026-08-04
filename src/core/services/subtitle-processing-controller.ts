@@ -38,8 +38,8 @@ export function createSubtitleProcessingController(
       : DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT;
   let latestText = '';
   let lastEmittedText = '';
-  // Tracks a provisional plain emit across loop retries (e.g. cache
-  // invalidation mid-tokenization) so the same line is never shown plain twice.
+  // Tracks the latest provisional plain emit across rapid changes and loop retries
+  // so the same line is never shown plain twice.
   let lastPlainEmittedText: string | null = null;
   let cacheGeneration = 0;
   let lastEmittedGeneration = 0;
@@ -84,7 +84,9 @@ export function createSubtitleProcessingController(
         const startedAtMs = now();
 
         if (!text.trim()) {
-          deps.emitSubtitle({ text, tokens: null });
+          if (lastPlainEmittedText !== text) {
+            deps.emitSubtitle({ text, tokens: null });
+          }
           lastEmittedText = text;
           lastEmittedGeneration = generation;
           lastPlainEmittedText = null;
@@ -169,6 +171,14 @@ export function createSubtitleProcessingController(
         return;
       }
       latestText = text;
+      if (
+        processing &&
+        text !== lastPlainEmittedText &&
+        !tokenizationCache.has(normalizeSubtitleCacheKey(text))
+      ) {
+        deps.emitSubtitle({ text, tokens: null });
+        lastPlainEmittedText = text;
+      }
       processLatest();
     },
     refreshCurrentSubtitle: (textOverride?: string) => {

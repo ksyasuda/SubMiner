@@ -1,5 +1,9 @@
 export { Texthooker } from './texthooker';
-export { hasMpvWebsocketPlugin, SubtitleWebSocket } from './subtitle-ws';
+export {
+  hasMpvWebsocketPlugin,
+  isSubtitleAnnotationUpgrade,
+  SubtitleWebSocket,
+} from './subtitle-ws';
 export { registerGlobalShortcuts } from './shortcut';
 export { createIpcDepsRuntime, registerIpcHandlers } from './ipc';
 export { shortcutMatchesInputForLocalFallback } from './shortcut-fallback';
