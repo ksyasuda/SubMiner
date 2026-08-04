@@ -88,11 +88,19 @@ export function createSubtitleProcessingController(
         }
 
         let output: SubtitleData = { text, tokens: null };
+        let plainEmitted = false;
         try {
           const cachedTokenized = getCachedTokenization(text);
           if (cachedTokenized) {
             output = cachedTokenized;
           } else {
+            // Cache miss: show the plain line on time; the tokenized payload
+            // upgrades it once ready. Skipped on refreshes of an already
+            // emitted line so downstream consumers never see a downgrade.
+            if (text !== lastEmittedText) {
+              deps.emitSubtitle({ text, tokens: null });
+              plainEmitted = true;
+            }
             const tokenized = await deps.tokenizeSubtitle(text);
             if (tokenized) {
               output = tokenized;
@@ -118,7 +126,9 @@ export function createSubtitleProcessingController(
           continue;
         }
 
-        deps.emitSubtitle(output);
+        if (!(plainEmitted && output.tokens === null && output.text === text)) {
+          deps.emitSubtitle(output);
+        }
         lastEmittedText = text;
         lastEmittedGeneration = generation;
         deps.logDebug?.(

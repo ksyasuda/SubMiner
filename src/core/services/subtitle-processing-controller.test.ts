@@ -7,7 +7,7 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test('subtitle processing emits tokenized payload when tokenization succeeds', async () => {
+test('subtitle processing emits plain payload immediately on cache miss, then tokenized payload', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
@@ -15,8 +15,49 @@ test('subtitle processing emits tokenized payload when tokenization succeeds', a
   });
 
   controller.onSubtitleChange('字幕');
+  assert.deepEqual(emitted, [{ text: '字幕', tokens: null }]);
+  await flushMicrotasks();
+  assert.deepEqual(emitted, [
+    { text: '字幕', tokens: null },
+    { text: '字幕', tokens: [] },
+  ]);
+});
+
+test('subtitle processing does not emit plain payload for cached lines', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.preCacheTokenization('字幕', { text: '字幕', tokens: [] });
+  controller.onSubtitleChange('字幕');
   await flushMicrotasks();
   assert.deepEqual(emitted, [{ text: '字幕', tokens: [] }]);
+});
+
+test('subtitle processing shows plain line while tokenization is still pending', async () => {
+  const emitted: SubtitleData[] = [];
+  let resolveTokenization: ((value: SubtitleData | null) => void) | undefined;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) =>
+      await new Promise<SubtitleData | null>((resolve) => {
+        resolveTokenization = () => resolve({ text, tokens: [] });
+      }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('遅い行');
+  await flushMicrotasks();
+  assert.deepEqual(emitted, [{ text: '遅い行', tokens: null }]);
+
+  assert.ok(resolveTokenization);
+  resolveTokenization({ text: '遅い行', tokens: [] });
+  await flushMicrotasks();
+  assert.deepEqual(emitted, [
+    { text: '遅い行', tokens: null },
+    { text: '遅い行', tokens: [] },
+  ]);
 });
 
 test('subtitle processing drops stale tokenization and delivers latest subtitle only once', async () => {
@@ -41,7 +82,11 @@ test('subtitle processing drops stale tokenization and delivers latest subtitle 
   await flushMicrotasks();
   await flushMicrotasks();
 
-  assert.deepEqual(emitted, [{ text: 'second', tokens: [] }]);
+  assert.deepEqual(emitted, [
+    { text: 'first', tokens: null },
+    { text: 'second', tokens: null },
+    { text: 'second', tokens: [] },
+  ]);
 });
 
 test('subtitle processing skips duplicate subtitle emission', async () => {
@@ -60,7 +105,10 @@ test('subtitle processing skips duplicate subtitle emission', async () => {
   controller.onSubtitleChange('same');
   await flushMicrotasks();
 
-  assert.equal(emitted.length, 1);
+  assert.deepEqual(emitted, [
+    { text: 'same', tokens: null },
+    { text: 'same', tokens: [] },
+  ]);
   assert.equal(tokenizeCalls, 1);
 });
 
@@ -84,7 +132,9 @@ test('subtitle processing reuses cached tokenization for repeated subtitle text'
 
   assert.equal(tokenizeCalls, 2);
   assert.deepEqual(emitted, [
+    { text: 'first', tokens: null },
     { text: 'first', tokens: [] },
+    { text: 'second', tokens: null },
     { text: 'second', tokens: [] },
     { text: 'first', tokens: [] },
   ]);
@@ -100,7 +150,11 @@ test('subtitle processing falls back to plain subtitle when tokenization returns
   controller.onSubtitleChange('fallback');
   await flushMicrotasks();
 
-  assert.deepEqual(emitted, [{ text: 'fallback', tokens: null }]);
+  assert.deepEqual(
+    emitted,
+    [{ text: 'fallback', tokens: null }],
+    'plain payload should not be re-emitted when tokenization yields nothing new',
+  );
 });
 
 test('subtitle processing ignores duplicate current subtitle refresh without cache invalidation', async () => {
@@ -120,7 +174,10 @@ test('subtitle processing ignores duplicate current subtitle refresh without cac
   await flushMicrotasks();
 
   assert.equal(tokenizeCalls, 1);
-  assert.deepEqual(emitted, [{ text: 'same', tokens: [] }]);
+  assert.deepEqual(emitted, [
+    { text: 'same', tokens: null },
+    { text: 'same', tokens: [] },
+  ]);
 });
 
 test('subtitle processing coalesces refresh requests while current subtitle is processing', async () => {
@@ -146,7 +203,10 @@ test('subtitle processing coalesces refresh requests while current subtitle is p
   await flushMicrotasks();
 
   assert.equal(tokenizeCalls, 1);
-  assert.deepEqual(emitted, [{ text: 'same', tokens: [] }]);
+  assert.deepEqual(emitted, [
+    { text: 'same', tokens: null },
+    { text: 'same', tokens: [] },
+  ]);
 });
 
 test('subtitle processing refresh re-tokenizes after cache invalidation', async () => {
@@ -168,6 +228,7 @@ test('subtitle processing refresh re-tokenizes after cache invalidation', async 
 
   assert.equal(tokenizeCalls, 2);
   assert.deepEqual(emitted, [
+    { text: 'same', tokens: null },
     { text: 'same', tokens: [{ value: 1 } as never] },
     { text: 'same', tokens: [{ value: 2 } as never] },
   ]);
@@ -183,7 +244,10 @@ test('subtitle processing refresh can use explicit text override', async () => {
   controller.refreshCurrentSubtitle('initial');
   await flushMicrotasks();
 
-  assert.deepEqual(emitted, [{ text: 'initial', tokens: [] }]);
+  assert.deepEqual(emitted, [
+    { text: 'initial', tokens: null },
+    { text: 'initial', tokens: [] },
+  ]);
 });
 
 test('subtitle processing cache invalidation only affects future subtitle events', async () => {
@@ -205,10 +269,10 @@ test('subtitle processing cache invalidation only affects future subtitle events
   await flushMicrotasks();
 
   assert.equal(callsByText.get('same'), 1);
-  assert.equal(emitted.length, 3);
+  assert.equal(emitted.length, 5);
 
   controller.invalidateTokenizationCache();
-  assert.equal(emitted.length, 3);
+  assert.equal(emitted.length, 5);
 
   controller.onSubtitleChange('different');
   await flushMicrotasks();
