@@ -295,6 +295,7 @@ import {
   importYomitanDictionaryFromZip,
   initializeOverlayAnkiIntegration as initializeOverlayAnkiIntegrationCore,
   initializeOverlayRuntime as initializeOverlayRuntimeCore,
+  isSubtitleAnnotationUpgrade,
   isOverlayWindowContentReady,
   jellyfinTicksToSecondsRuntime,
   listJellyfinItemsRuntime,
@@ -1817,6 +1818,8 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
 }
 function emitSubtitlePayload(payload: SubtitleData): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
+  const currentSubtitleData = appState.currentSubtitleData;
+  const isAnnotationUpgrade = isSubtitleAnnotationUpgrade(currentSubtitleData, timedPayload);
   const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
   const frequencyOptions = {
     enabled: frequencyDictionary.enabled,
@@ -1825,7 +1828,9 @@ function emitSubtitlePayload(payload: SubtitleData): void {
   };
   appState.currentSubtitleData = timedPayload;
   overlayManager.broadcastToOverlayWindows('subtitle:set', timedPayload);
-  subtitleWsService.broadcast(timedPayload, frequencyOptions);
+  if (!isAnnotationUpgrade) {
+    subtitleWsService.broadcast(timedPayload, frequencyOptions);
+  }
   annotationSubtitleWsService.broadcast(timedPayload, frequencyOptions);
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
   subtitlePrefetchService?.resume();

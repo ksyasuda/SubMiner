@@ -613,6 +613,35 @@ test('subtitle broadcasts share one frequency options snapshot per emitted paylo
   );
 });
 
+test('annotation upgrades skip the duplicate basic websocket event', () => {
+  const source = readMainSource();
+  const emitBlock = source.match(
+    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+  )?.groups?.body;
+
+  assert.ok(emitBlock);
+  assert.match(
+    emitBlock,
+    /const isAnnotationUpgrade = isSubtitleAnnotationUpgrade\(currentSubtitleData, timedPayload\);/,
+  );
+  assert.match(
+    emitBlock,
+    /if \(!isAnnotationUpgrade\) \{\s+subtitleWsService\.broadcast\(timedPayload, frequencyOptions\);\s+\}/,
+  );
+  assert.equal(
+    (emitBlock.match(/overlayManager\.broadcastToOverlayWindows\('subtitle:set'/g) ?? []).length,
+    1,
+  );
+  assert.equal(
+    (
+      emitBlock.match(
+        /annotationSubtitleWsService\.broadcast\(timedPayload, frequencyOptions\)/g,
+      ) ?? []
+    ).length,
+    1,
+  );
+});
+
 test('websocket frequency options callbacks each read one configuration snapshot', () => {
   const source = readMainSource();
   const subtitleBlock = source.match(
