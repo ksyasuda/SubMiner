@@ -23,6 +23,85 @@ test('subtitle processing emits plain payload immediately on cache miss, then to
   ]);
 });
 
+test('cache invalidation during pending tokenization does not re-emit the plain payload', async () => {
+  const emitted: SubtitleData[] = [];
+  const resolvers: Array<(value: SubtitleData | null) => void> = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) =>
+      await new Promise<SubtitleData | null>((resolve) => {
+        resolvers.push(() => resolve({ text, tokens: [{ value: resolvers.length } as never] }));
+      }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('行');
+  assert.deepEqual(emitted, [{ text: '行', tokens: null }]);
+
+  controller.invalidateTokenizationCache();
+  resolvers[0]?.({ text: '行', tokens: [] });
+  await flushMicrotasks();
+  // Retry for the new generation is now pending; still no duplicate plain emit.
+  assert.deepEqual(emitted, [{ text: '行', tokens: null }]);
+
+  resolvers[1]?.({ text: '行', tokens: [] });
+  await flushMicrotasks();
+  assert.deepEqual(emitted, [
+    { text: '行', tokens: null },
+    { text: '行', tokens: [{ value: 2 } as never] },
+  ]);
+});
+
+test('failed refresh does not downgrade an already emitted tokenized subtitle', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      if (tokenizeCalls > 1) {
+        throw new Error('tokenizer gone');
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('行');
+  await flushMicrotasks();
+  controller.invalidateTokenizationCache();
+  controller.refreshCurrentSubtitle();
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 2);
+  assert.deepEqual(emitted, [
+    { text: '行', tokens: null },
+    { text: '行', tokens: [] },
+  ]);
+});
+
+test('null-tokenization refresh does not downgrade an already emitted tokenized subtitle', async () => {
+  const emitted: SubtitleData[] = [];
+  let tokenizeCalls = 0;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      tokenizeCalls += 1;
+      return tokenizeCalls > 1 ? null : { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('行');
+  await flushMicrotasks();
+  controller.invalidateTokenizationCache();
+  controller.refreshCurrentSubtitle();
+  await flushMicrotasks();
+
+  assert.equal(tokenizeCalls, 2);
+  assert.deepEqual(emitted, [
+    { text: '行', tokens: null },
+    { text: '行', tokens: [] },
+  ]);
+});
+
 test('subtitle processing does not emit plain payload for cached lines', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({

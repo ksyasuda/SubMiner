@@ -38,6 +38,9 @@ export function createSubtitleProcessingController(
       : DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT;
   let latestText = '';
   let lastEmittedText = '';
+  // Tracks a provisional plain emit across loop retries (e.g. cache
+  // invalidation mid-tokenization) so the same line is never shown plain twice.
+  let lastPlainEmittedText: string | null = null;
   let cacheGeneration = 0;
   let lastEmittedGeneration = 0;
   let processing = false;
@@ -84,11 +87,11 @@ export function createSubtitleProcessingController(
           deps.emitSubtitle({ text, tokens: null });
           lastEmittedText = text;
           lastEmittedGeneration = generation;
+          lastPlainEmittedText = null;
           break;
         }
 
         let output: SubtitleData = { text, tokens: null };
-        let plainEmitted = false;
         try {
           const cachedTokenized = getCachedTokenization(text);
           if (cachedTokenized) {
@@ -97,15 +100,19 @@ export function createSubtitleProcessingController(
             // Cache miss: show the plain line on time; the tokenized payload
             // upgrades it once ready. Skipped on refreshes of an already
             // emitted line so downstream consumers never see a downgrade.
-            if (text !== lastEmittedText) {
+            if (text !== lastEmittedText && text !== lastPlainEmittedText) {
               deps.emitSubtitle({ text, tokens: null });
-              plainEmitted = true;
+              lastPlainEmittedText = text;
             }
             const tokenized = await deps.tokenizeSubtitle(text);
             if (tokenized) {
               output = tokenized;
             }
-            setCachedTokenization(text, output);
+            // A result computed before an invalidation must not repopulate the
+            // fresh cache, or the retry below would serve the stale entry.
+            if (generation === cacheGeneration) {
+              setCachedTokenization(text, output);
+            }
           }
         } catch (error) {
           deps.logDebug?.(`Subtitle tokenization failed: ${(error as Error).message}`);
@@ -126,11 +133,16 @@ export function createSubtitleProcessingController(
           continue;
         }
 
-        if (!(plainEmitted && output.tokens === null && output.text === text)) {
+        // An untokenized result adds nothing when this line was already shown,
+        // either provisionally or as an earlier full emit (failed refresh) —
+        // emitting it would duplicate or downgrade what is on screen.
+        const plainAlreadyShown = lastPlainEmittedText === text || lastEmittedText === text;
+        if (!(output.tokens === null && output.text === text && plainAlreadyShown)) {
           deps.emitSubtitle(output);
         }
         lastEmittedText = text;
         lastEmittedGeneration = generation;
+        lastPlainEmittedText = null;
         deps.logDebug?.(
           `Subtitle tokenization delivered; elapsed=${now() - startedAtMs}ms, staleDrops=${staleDropCount}`,
         );
@@ -190,6 +202,7 @@ export function createSubtitleProcessingController(
       latestText = text;
       lastEmittedText = text;
       lastEmittedGeneration = cacheGeneration;
+      lastPlainEmittedText = null;
       return cached;
     },
     hasCachedSubtitle: (text: string) => {
