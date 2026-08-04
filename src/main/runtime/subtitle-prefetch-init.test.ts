@@ -242,7 +242,6 @@ test('subtitle prefetch init logs a warning when the source parses to zero cues'
     },
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: (message) => warnings.push(message),
   });
