@@ -558,3 +558,47 @@ test('onSubtitleChange reports whether processing was scheduled', async () => {
   await flushMicrotasks();
   assert.equal(emitted.length, emittedCount);
 });
+
+test('refreshCurrentSubtitle reports the empty-text emit that an in-flight run will deliver', async () => {
+  const emitted: SubtitleData[] = [];
+  let resolveFirst: ((value: SubtitleData | null) => void) | undefined;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      if (text === '字幕') {
+        return await new Promise<SubtitleData | null>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('字幕');
+  await flushMicrotasks();
+
+  // Clearing the subtitle while tokenization is in flight: the running loop
+  // picks the empty text up and emits it, so callers gated on that emit (the
+  // prefetch pause) must be told one is coming.
+  assert.equal(controller.refreshCurrentSubtitle(''), true);
+
+  resolveFirst?.({ text: '字幕', tokens: [] });
+  await flushMicrotasks();
+  await flushMicrotasks();
+  assert.deepEqual(
+    emitted.map((payload) => payload.text),
+    [''],
+  );
+});
+
+test('refreshCurrentSubtitle reports no emit for empty text when nothing is running', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  assert.equal(controller.refreshCurrentSubtitle(''), false);
+  await flushMicrotasks();
+  assert.deepEqual(emitted, []);
+});

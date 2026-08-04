@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createSubtitleProcessingController } from '../../core/services/subtitle-processing-controller';
+import type { SubtitleData } from '../../types';
 import {
   createAutoplaySubtitlePrimingRuntime,
   setMpvCurrentSecondarySubText,
@@ -132,7 +134,9 @@ test('primeCurrentSubtitleForAutoplay refreshes active subtitle cues when mpv su
     'set:起動字幕',
     'prefetch:pause',
     'emit:起動字幕:resume=false',
-    'change:起動字幕',
+    // Uncached priming refreshes rather than announcing a change, so an
+    // invalidated-but-unchanged line is still re-tokenized.
+    'refresh:起動字幕',
   ]);
 });
 
@@ -198,53 +202,63 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
     'set:起動字幕',
     'prefetch:pause',
     'emit:起動字幕:resume=false',
-    'change:起動字幕',
+    // Uncached priming refreshes rather than announcing a change, so an
+    // invalidated-but-unchanged line is still re-tokenized.
+    'refresh:起動字幕',
   ]);
 });
 
-test('primeCurrentSubtitleForAutoplay releases the prefetch pause when no tokenization is scheduled', async () => {
-  const calls: string[] = [];
+// Driven by the real processing controller rather than a stub: the failure this
+// covers is a disagreement between the priming path and the controller's own
+// staleness rules, which a hand-written stub cannot reproduce.
+function createPrimingRuntimeWithRealController(options: {
+  text: string;
+  calls: string[];
+  onTokenize: () => void;
+  cacheLimit?: number;
+}) {
+  const { text, calls } = options;
   let currentSubText = '';
+  let currentSubtitleData: SubtitleData | null = null;
   const mediaPath = '/media/video.mkv';
+
+  const subtitleProcessingController = createSubtitleProcessingController({
+    tokenizeSubtitle: async (subtitleText) => {
+      options.onTokenize();
+      return { text: subtitleText, tokens: [] };
+    },
+    emitSubtitle: (payload) => {
+      currentSubtitleData = payload;
+      calls.push(`emit:${payload.text}:tokens=${payload.tokens === null ? 'none' : 'yes'}`);
+    },
+    ...(options.cacheLimit === undefined ? {} : { cacheLimit: options.cacheLimit }),
+  });
 
   const runtime = createAutoplaySubtitlePrimingRuntime({
     getCurrentMediaPath: () => mediaPath,
     getMpvClient: () => ({
       connected: true,
       currentVideoPath: mediaPath,
-      requestProperty: async (name) => {
-        if (name === 'sub-text') return '起動字幕';
-        return null;
-      },
+      requestProperty: async (name) => (name === 'sub-text' ? text : null),
     }),
-    setCurrentSubText: (text) => {
-      currentSubText = text;
+    setCurrentSubText: (value) => {
+      currentSubText = value;
     },
     getCurrentSubText: () => currentSubText,
-    getCurrentSubtitleData: () => null,
+    getCurrentSubtitleData: () => currentSubtitleData,
     getActiveParsedSubtitleCues: () => [],
     setActiveParsedSubtitleMediaPath: () => {},
-    subtitleProcessingController: {
-      // The tokenization cache was invalidated (for example by mining a card),
-      // so the cached payload is gone...
-      consumeCachedSubtitle: () => null,
-      // ...but the controller still holds this text, so it schedules nothing
-      // and no emit will arrive to release the pause.
-      onSubtitleChange: (text) => {
-        calls.push(`change:${text}`);
-        return false;
-      },
-      refreshCurrentSubtitle: () => true,
+    subtitleProcessingController,
+    emitSubtitlePayload: (payload, emitOptions) => {
+      if (emitOptions?.resumePrefetch === false) {
+        calls.push(`emit-raw:${payload.text}`);
+        return;
+      }
+      calls.push(`emit-direct:${payload.text}`);
     },
-    emitSubtitlePayload: (payload, options) =>
-      calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
     getSubtitlePrefetchService: () => ({
-      pause: () => {
-        calls.push('prefetch:pause');
-      },
-      resume: () => {
-        calls.push('prefetch:resume');
-      },
+      pause: () => calls.push('prefetch:pause'),
+      resume: () => calls.push('prefetch:resume'),
     }),
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
@@ -254,12 +268,71 @@ test('primeCurrentSubtitleForAutoplay releases the prefetch pause when no tokeni
     logDebug: () => {},
   });
 
-  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+  return { runtime, subtitleProcessingController, mediaPath };
+}
 
-  assert.deepEqual(calls, [
-    'prefetch:pause',
-    'emit:起動字幕:resume=false',
-    'change:起動字幕',
-    'prefetch:resume',
-  ]);
+test('primeCurrentSubtitleForAutoplay re-tokenizes text whose cached annotation was invalidated', async () => {
+  const calls: string[] = [];
+  let tokenizations = 0;
+  const text = '起動字幕';
+  const { runtime, subtitleProcessingController, mediaPath } =
+    createPrimingRuntimeWithRealController({
+      text,
+      calls,
+      onTokenize: () => {
+        tokenizations += 1;
+      },
+    });
+
+  // The line was already tokenized and cached during normal playback.
+  subtitleProcessingController.onSubtitleChange(text);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const tokenizationsBeforeInvalidation = tokenizations;
+
+  // Mining a card drops every cached tokenization.
+  subtitleProcessingController.invalidateTokenizationCache();
+  calls.length = 0;
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // The cache miss must schedule fresh work, or the line stays unannotated for
+  // as long as it is on screen.
+  assert.equal(
+    tokenizations,
+    tokenizationsBeforeInvalidation + 1,
+    'expected the invalidated subtitle to be tokenized again',
+  );
+  assert.ok(
+    calls.includes(`emit:${text}:tokens=yes`),
+    `expected an annotated emit, saw ${JSON.stringify(calls)}`,
+  );
+});
+
+test('primeCurrentSubtitleForAutoplay releases the prefetch pause when nothing is scheduled', async () => {
+  const calls: string[] = [];
+  const text = '起動字幕';
+  const { runtime, subtitleProcessingController, mediaPath } =
+    createPrimingRuntimeWithRealController({
+      text,
+      calls,
+      onTokenize: () => {},
+      cacheLimit: 1,
+    });
+
+  // Emitted at the current cache generation, then evicted from the one-entry
+  // cache: priming misses the cache but the controller has nothing to redo, so
+  // no emit is coming and the pause must be released here.
+  subtitleProcessingController.onSubtitleChange(text);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  subtitleProcessingController.preCacheTokenization('別の字幕', {
+    text: '別の字幕',
+    tokens: [],
+  });
+  calls.length = 0;
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(calls, ['prefetch:pause', `emit-raw:${text}`, 'prefetch:resume']);
 });

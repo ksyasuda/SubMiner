@@ -125,9 +125,13 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     // Provisional raw emit: keep prefetch paused until the tokenized payload
     // for this line is delivered by the processing controller.
     emitSubtitlePayload({ text, tokens: null }, { resumePrefetch: false });
-    if (!subtitleProcessingController.onSubtitleChange(text)) {
-      // Cache miss on text the controller already holds (it was invalidated
-      // under us): nothing will be tokenized, so no emit is coming.
+    // refreshCurrentSubtitle, not onSubtitleChange: the cache miss above can be
+    // an invalidation (mining a card) on text the controller still holds, and
+    // onSubtitleChange treats unchanged text as nothing to do, which would
+    // leave this line permanently unannotated. refreshCurrentSubtitle also
+    // re-tokenizes for a new cache generation.
+    if (!subtitleProcessingController.refreshCurrentSubtitle(text)) {
+      // Nothing scheduled, so no emit is coming to release the pause.
       deps.getSubtitlePrefetchService()?.resume();
     }
     return true;

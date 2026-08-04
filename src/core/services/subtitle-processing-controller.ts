@@ -197,7 +197,9 @@ export function createSubtitleProcessingController(
         latestText = textOverride;
       }
       if (!latestText.trim()) {
-        return false;
+        // A run in flight will pick this up and emit the empty subtitle, so
+        // the caller is still waiting on an emit.
+        return processing;
       }
       if (processing) {
         return true;
