@@ -110,6 +110,175 @@ function countTermsFindLookups(lookups: string[], prefix: string): number {
   return lookups.filter((lookupText) => lookupText.startsWith(prefix)).length;
 }
 
+// Backend stub for the greedy name pre-pass: one character name (ミナト) in a
+// line of ordinary words, with the SubMiner character dictionary enabled.
+const NAME_SCAN_WORDS: Array<[string, string, string, boolean]> = [
+  ['ミナト', 'ミナト', 'みなと', true],
+  ['は', 'は', 'は', false],
+  ['まだ', 'まだ', 'まだ', false],
+  ['学校', '学校', 'がっこう', false],
+  ['に', 'に', 'に', false],
+  ['いない', 'いる', 'いる', false],
+];
+
+function createNameScanDeps(lookups: string[]) {
+  return createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true, id: 0 },
+                {
+                  name: 'SubMiner Character Dictionary (AniList 1)',
+                  enabled: true,
+                  id: 1,
+                },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    lookups.push(text);
+    for (const [surface, term, reading, isName] of NAME_SCAN_WORDS) {
+      if (text.startsWith(surface)) {
+        return {
+          originalTextLength: surface.length,
+          dictionaryEntries: [
+            {
+              headwords: [
+                {
+                  term,
+                  reading,
+                  sources: [{ originalText: surface, isPrimary: true, matchType: 'exact' }],
+                },
+              ],
+              definitions: [
+                { dictionary: isName ? 'SubMiner Character Dictionary (AniList 1)' : 'JMdict' },
+              ],
+            },
+          ],
+        };
+      }
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+}
+
+const NAME_SCAN_LINE = 'ミナトはまだ学校にいない';
+
+test('requestYomitanScanTokens skips name pre-pass lookups where no candidate name can start', async () => {
+  const exhaustiveLookups: string[] = [];
+  const exhaustive = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    createNameScanDeps(exhaustiveLookups),
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  const prefilteredLookups: string[] = [];
+  const prefiltered = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    createNameScanDeps(prefilteredLookups),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      // Terms and readings the generated dictionary exposes for this media.
+      nameCandidates: { key: 'media-1', forms: ['ミナト', 'みなと'] },
+    },
+  );
+
+  // Same tokenization, including the name match, with fewer round trips.
+  assert.deepEqual(prefiltered, exhaustive);
+  assert.equal(prefiltered?.[0]?.surface, 'ミナト');
+  assert.equal(prefiltered?.[0]?.isNameMatch, true);
+  assert.ok(
+    prefilteredLookups.length < exhaustiveLookups.length,
+    `expected fewer lookups with candidates (${prefilteredLookups.length} vs ${exhaustiveLookups.length})`,
+  );
+  // Mid-token positions are exactly what the pre-pass used to probe (a name can
+  // start mid-token); with candidates they cost nothing, while the main walk's
+  // own token-start lookups are unaffected.
+  assert.ok(countTermsFindLookups(exhaustiveLookups, '校に') > 0);
+  assert.equal(countTermsFindLookups(prefilteredLookups, '校に'), 0);
+});
+
+test('requestYomitanScanTokens matches a katakana name from its kana-normalized candidate form', async () => {
+  const lookups: string[] = [];
+  const result = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    createNameScanDeps(lookups),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      // Only the hiragana reading is listed; the katakana surface in the line
+      // must still be found through kana normalization.
+      nameCandidates: { key: 'media-1', forms: ['みなと'] },
+    },
+  );
+
+  assert.equal(result?.[0]?.surface, 'ミナト');
+  assert.equal(result?.[0]?.isNameMatch, true);
+});
+
+test('requestYomitanScanTokens falls back to the exhaustive name scan without candidates', async () => {
+  const withoutLookups: string[] = [];
+  const withoutCandidates = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    createNameScanDeps(withoutLookups),
+    { error: () => undefined },
+    { includeNameMatchMetadata: true, currentCharacterDictionaryMediaId: 1, nameCandidates: null },
+  );
+
+  assert.equal(withoutCandidates?.[0]?.isNameMatch, true);
+  // No candidate list means every Japanese position is probed, as before.
+  assert.ok(countTermsFindLookups(withoutLookups, '校に') > 0);
+});
+
+test('requestYomitanScanTokens reinstalls name candidates when the media changes', async () => {
+  const lookups: string[] = [];
+  const deps = createNameScanDeps(lookups);
+
+  // First media's candidates cannot match this line's name.
+  const otherMedia = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    deps,
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 2,
+      nameCandidates: { key: 'media-2', forms: ['カズマ'] },
+    },
+  );
+  assert.equal(otherMedia?.[0]?.isNameMatch, undefined);
+
+  const correctMedia = await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    deps,
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      nameCandidates: { key: 'media-1', forms: ['ミナト'] },
+    },
+  );
+  assert.equal(correctMedia?.[0]?.surface, 'ミナト');
+  assert.equal(correctMedia?.[0]?.isNameMatch, true);
+});
+
 test('syncYomitanDefaultAnkiServer updates default profile server when script reports update', async () => {
   let scriptValue = '';
   const deps = createDeps(async (script) => {

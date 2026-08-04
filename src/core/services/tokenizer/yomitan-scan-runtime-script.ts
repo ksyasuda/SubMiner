@@ -495,7 +495,7 @@ const YOMITAN_SCANNING_HELPERS = String.raw`
 
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 2;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 3;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -508,6 +508,11 @@ export interface YomitanScanRequestParams {
   dictionaryPriorityByName: Record<string, number>;
   dictionaryFrequencyModeByName: Partial<Record<string, YomitanFrequencyMode>>;
   cacheEpoch: number;
+  /**
+   * Key of the character-name candidate list installed for the current media,
+   * or null to scan every Japanese position (see the pre-pass prefilter).
+   */
+  nameCandidateKey: string | null;
 }
 
 // Installed once per parser window (and re-installed after in-page reloads):
@@ -544,6 +549,22 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
     const TERMS_FIND_CACHE_LIMIT = 2000;
     let termsFindCacheEpoch = -1;
     const MAX_SHRINKING_WINDOW_RETRY_LOOKUPS = 4;
+    // Character-name candidate forms for the current media, installed
+    // separately from the per-line scan call so the per-line script stays tiny.
+    // Stored raw here; the normalized lookup index is built inside the scan,
+    // where the kana-normalization helper is in scope, and reused by key.
+    let rawNameCandidates = null;
+    let nameCandidateIndex = null;
+    globalThis.__subminerYomitanScanSetNameCandidates = (key, forms) => {
+      if (!key || !Array.isArray(forms) || forms.length === 0) {
+        rawNameCandidates = null;
+        nameCandidateIndex = null;
+        return false;
+      }
+      rawNameCandidates = { key, forms };
+      nameCandidateIndex = null;
+      return true;
+    };
     globalThis.__subminerYomitanScanVersion = ${YOMITAN_SCAN_RUNTIME_VERSION};
     globalThis.__subminerYomitanScan = async (scanParams) => {
       const {
@@ -555,7 +576,8 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
         currentCharacterDictionaryMediaId,
         dictionaryPriorityByName,
         dictionaryFrequencyModeByName,
-        cacheEpoch
+        cacheEpoch,
+        nameCandidateKey
       } = scanParams;
       if (cacheEpoch !== termsFindCacheEpoch) {
         termsFindCache.clear();
@@ -681,6 +703,44 @@ ${YOMITAN_SCANNING_HELPERS}
         }
         return { token: buildScanToken(position, source, preferredHeadword), matchedLength: originalTextLength };
       }
+      // Halfwidth katakana survives kana normalization unchanged, so a name
+      // written that way would not prefix-match a candidate form. Those
+      // positions bypass the prefilter rather than risk a missed name.
+      function isHalfwidthKatakanaCodePoint(codePoint) {
+        return codePoint >= 0xff66 && codePoint <= 0xff9f;
+      }
+      // Build (once per candidate list) a first-character bucket index of the
+      // normalized name forms, so the pre-pass can reject a position with a
+      // single map hit instead of a backend round trip.
+      if (rawNameCandidates && nameCandidateIndex?.key !== rawNameCandidates.key) {
+        const byFirstChar = new Map();
+        for (const form of rawNameCandidates.forms) {
+          const normalized = typeof form === "string" ? convertKatakanaToHiragana(form.trim()) : "";
+          if (!normalized) { continue; }
+          const bucket = byFirstChar.get(normalized[0]);
+          if (bucket) { bucket.push(normalized); } else { byFirstChar.set(normalized[0], [normalized]); }
+        }
+        nameCandidateIndex = byFirstChar.size > 0 ? { key: rawNameCandidates.key, byFirstChar } : null;
+      } else if (!rawNameCandidates) {
+        nameCandidateIndex = null;
+      }
+      // Only meaningful when the installed list matches the media this scan is
+      // for; otherwise fall back to scanning every position.
+      const activeNameCandidateIndex =
+        nameCandidateKey !== null && nameCandidateIndex?.key === nameCandidateKey
+          ? nameCandidateIndex
+          : null;
+      const normalizedText = activeNameCandidateIndex ? convertKatakanaToHiragana(text) : "";
+      function couldNameStartAt(position, codePoint) {
+        if (!activeNameCandidateIndex) { return true; }
+        if (isHalfwidthKatakanaCodePoint(codePoint)) { return true; }
+        const bucket = activeNameCandidateIndex.byFirstChar.get(normalizedText[position]);
+        if (!bucket) { return false; }
+        for (const form of bucket) {
+          if (normalizedText.startsWith(form, position)) { return true; }
+        }
+        return false;
+      }
       // Greedy name pre-pass: character-name matches claim their spans before
       // the left-to-right walk, so a longer generic match starting earlier
       // (e.g. とヨー → 渡洋) cannot swallow the start of a name (ヨータ).
@@ -689,7 +749,7 @@ ${YOMITAN_SCANNING_HELPERS}
         let namePos = 0;
         while (namePos < text.length) {
           const codePoint = text.codePointAt(namePos);
-          if (!isCodePointJapanese(codePoint)) {
+          if (!isCodePointJapanese(codePoint) || !couldNameStartAt(namePos, codePoint)) {
             namePos += String.fromCodePoint(codePoint).length;
             continue;
           }
@@ -785,6 +845,36 @@ ${YOMITAN_SCANNING_HELPERS}
     return true;
   })();
 `;
+
+// Installs (or clears) the character-name candidate forms for the current
+// media. Runs only when the list changes, not per line. Passing null restores
+// the exhaustive every-position pre-pass.
+export function buildYomitanScanNameCandidatesScript(
+  nameCandidates: { key: string; forms: string[] } | null,
+): string {
+  if (!nameCandidates) {
+    return `
+    (() => {
+      if (typeof globalThis.__subminerYomitanScanSetNameCandidates !== "function") {
+        return false;
+      }
+      return globalThis.__subminerYomitanScanSetNameCandidates(null, null);
+    })();
+  `;
+  }
+
+  return `
+    (() => {
+      if (typeof globalThis.__subminerYomitanScanSetNameCandidates !== "function") {
+        return false;
+      }
+      return globalThis.__subminerYomitanScanSetNameCandidates(
+        ${JSON.stringify(nameCandidates.key)},
+        ${JSON.stringify(nameCandidates.forms)}
+      );
+    })();
+  `;
+}
 
 export function buildYomitanScanCallScript(params: YomitanScanRequestParams): string {
   return `

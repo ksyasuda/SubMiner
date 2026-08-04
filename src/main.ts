@@ -487,6 +487,7 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
+import { createCharacterNameCandidateLookup } from './main/character-dictionary-runtime/name-candidates';
 import {
   createCharacterDictionaryAutoSyncRuntimeService,
   getCharacterDictionaryManagerSnapshot,
@@ -2562,6 +2563,13 @@ const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
 });
 
+// Lets the Yomitan scan runtime skip name lookups at positions where no
+// character name can start; absent candidates just mean the exhaustive scan.
+const characterNameCandidateLookup = createCharacterNameCandidateLookup({
+  userDataPath: USER_DATA_PATH,
+  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+});
+
 const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
   createBuildOverlayVisibilityRuntimeMainDepsHandler({
     getMainWindow: () => overlayManager.getMainWindow(),
@@ -4624,6 +4632,7 @@ const {
       getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
       getCurrentCharacterDictionaryMediaId: () =>
         characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+      getCharacterNameCandidates: () => characterNameCandidateLookup.get(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -5679,6 +5688,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             try {
               await characterDictionaryAutoSyncRuntime.runSyncNow();
               characterDictionaryImageLookup.invalidate();
+              characterNameCandidateLookup.invalidate();
+              characterNameCandidateLookup.invalidate();
             } catch (error) {
               logger.warn('Failed to rebuild character dictionary after manager override:', error);
             }
@@ -5710,6 +5721,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
             characterDictionaryImageLookup.invalidate();
+            characterNameCandidateLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager removal:', error);
           }
@@ -5727,6 +5739,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
             characterDictionaryImageLookup.invalidate();
+            characterNameCandidateLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
           }

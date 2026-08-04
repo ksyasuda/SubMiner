@@ -5,6 +5,7 @@ import * as path from 'path';
 import { selectYomitanParseTokens } from './parser-selection-stage';
 import {
   buildYomitanScanCallScript,
+  buildYomitanScanNameCandidatesScript,
   CHARACTER_DICTIONARY_TITLE_PREFIX,
   YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT,
   YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL,
@@ -832,6 +833,40 @@ async function serveDictionaryZipOnce<T>(
 
 async function installYomitanScanRuntime(parserWindow: BrowserWindow): Promise<void> {
   await parserWindow.webContents.executeJavaScript(YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT, true);
+  // A fresh runtime has no candidate list; force the next scan to reinstall it.
+  yomitanScanNameCandidateKeyByWindow.delete(parserWindow);
+}
+
+// Key of the character-name candidate list currently installed in each parser
+// window, so an unchanged list costs nothing per line.
+const yomitanScanNameCandidateKeyByWindow = new WeakMap<BrowserWindow, string>();
+
+async function ensureYomitanScanNameCandidates(
+  parserWindow: BrowserWindow,
+  nameCandidates: { key: string; forms: string[] } | null,
+  logger: LoggerLike,
+): Promise<void> {
+  const installedKey = yomitanScanNameCandidateKeyByWindow.get(parserWindow);
+  const nextKey = nameCandidates?.key ?? '';
+  if (installedKey === nextKey) {
+    return;
+  }
+
+  try {
+    await parserWindow.webContents.executeJavaScript(
+      buildYomitanScanNameCandidatesScript(nameCandidates),
+      true,
+    );
+    yomitanScanNameCandidateKeyByWindow.set(parserWindow, nextKey);
+  } catch (err) {
+    // The scan falls back to checking every position when the list is absent,
+    // so a failed install costs speed, never a missed name.
+    logger.warn?.(
+      'Failed to install Yomitan character-name scan candidates:',
+      (err as Error).message,
+    );
+    yomitanScanNameCandidateKeyByWindow.delete(parserWindow);
+  }
 }
 
 export async function requestYomitanParseResults(
@@ -949,6 +984,7 @@ export async function requestYomitanScanTokens(
   options?: {
     includeNameMatchMetadata?: boolean;
     currentCharacterDictionaryMediaId?: number | null;
+    nameCandidates?: { key: string; forms: string[] } | null;
   },
 ): Promise<YomitanScanToken[] | null> {
   const yomitanExt = deps.getYomitanExt();
@@ -972,6 +1008,12 @@ export async function requestYomitanScanTokens(
       name.startsWith(CHARACTER_DICTIONARY_TITLE_PREFIX),
     );
 
+  // Candidate name forms let the in-page pre-pass skip positions where no
+  // character name can start. Installed only when it changes (per media), so
+  // the per-line call stays a single tiny script.
+  const nameCandidates = greedyNameScanEnabled ? (options?.nameCandidates ?? null) : null;
+  await ensureYomitanScanNameCandidates(parserWindow, nameCandidates, logger);
+
   const callScript = buildYomitanScanCallScript({
     text,
     profileIndex,
@@ -987,14 +1029,17 @@ export async function requestYomitanScanTokens(
     dictionaryPriorityByName: metadata?.dictionaryPriorityByName ?? {},
     dictionaryFrequencyModeByName: metadata?.dictionaryFrequencyModeByName ?? {},
     cacheEpoch: getYomitanScanCacheEpoch(parserWindow),
+    nameCandidateKey: nameCandidates?.key ?? null,
   });
 
   try {
     let rawResult = await parserWindow.webContents.executeJavaScript(callScript, true);
     if (rawResult === YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL) {
       // First request for this window, or the page reloaded and dropped the
-      // installed runtime: install and retry once.
+      // installed runtime: install and retry once. The candidate list lives in
+      // the same page state, so it has to be reinstalled alongside it.
       await installYomitanScanRuntime(parserWindow);
+      await ensureYomitanScanNameCandidates(parserWindow, nameCandidates, logger);
       rawResult = await parserWindow.webContents.executeJavaScript(callScript, true);
     }
     if (isScanTokenArray(rawResult)) {

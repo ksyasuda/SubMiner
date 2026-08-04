@@ -70,6 +70,7 @@ export interface TokenizerServiceDeps {
   getNameMatchImagesEnabled?: () => boolean;
   getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getCurrentCharacterDictionaryMediaId?: () => number | null;
+  getCharacterNameCandidates?: () => { key: string; forms: string[] } | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -106,6 +107,7 @@ export interface TokenizerDepsRuntimeOptions {
   getNameMatchImagesEnabled?: () => boolean;
   getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getCurrentCharacterDictionaryMediaId?: () => number | null;
+  getCharacterNameCandidates?: () => { key: string; forms: string[] } | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -266,6 +268,7 @@ export function createTokenizerDepsRuntime(
     getNameMatchImagesEnabled: options.getNameMatchImagesEnabled,
     getCharacterNameImage: options.getCharacterNameImage,
     getCurrentCharacterDictionaryMediaId: options.getCurrentCharacterDictionaryMediaId,
+    getCharacterNameCandidates: options.getCharacterNameCandidates,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
     getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
@@ -735,6 +738,7 @@ async function parseWithYomitanInternalParser(
   const selectedTokens = await requestYomitanScanTokens(text, deps, logger, {
     includeNameMatchMetadata: options.nameMatchEnabled,
     currentCharacterDictionaryMediaId: deps.getCurrentCharacterDictionaryMediaId?.() ?? null,
+    nameCandidates: deps.getCharacterNameCandidates?.() ?? null,
   });
   if (stageTimings) {
     stageTimings.scanMs = Date.now() - scanStartedAtMs;
