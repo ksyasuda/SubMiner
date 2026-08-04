@@ -54,7 +54,6 @@ test('latest subtitle prefetch init wins over stale async loads', async () => {
     }),
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: () => {},
   });
@@ -99,7 +98,6 @@ test('cancelPendingInit prevents an in-flight load from attaching a stale servic
     }),
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: () => {},
   });
@@ -137,7 +135,6 @@ test('subtitle prefetch init publishes parsed cues and clears them on cancel', a
     }),
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: () => {},
     onParsedSubtitleCuesChanged: (cues) => {
@@ -181,7 +178,6 @@ test('subtitle prefetch init publishes the provided stable source key instead of
     }),
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: () => {},
     onParsedSubtitleCuesChanged: (_cues, source) => {
@@ -222,7 +218,6 @@ test('subtitle prefetch init clears parsed cues when initialization fails', asyn
     }),
     tokenizeSubtitle: async () => null,
     preCacheTokenization: () => {},
-    isCacheFull: () => false,
     logInfo: () => {},
     logWarn: () => {},
     onParsedSubtitleCuesChanged: (cues) => {

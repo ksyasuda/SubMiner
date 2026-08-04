@@ -7,7 +7,6 @@ export interface SubtitlePrefetchServiceDeps {
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   hasCachedTokenization?: (text: string) => boolean;
-  isCacheFull: () => boolean;
   priorityWindowSize?: number;
 }
 
@@ -57,11 +56,14 @@ export function createSubtitlePrefetchService(
   let paused = false;
   let currentRunId = 0;
 
+  // A run is a single bounded pass over one file's cues, deduped by `warmedKeys` and by
+  // `hasCachedTokenization`, so the worst case is one tokenization per cue. The cache is
+  // an LRU and bounds its own memory, so a full cache is not a reason to stop warming;
+  // stopping there used to leave the tail of longer media permanently uncached.
   async function tokenizeCueList(
     cuesToProcess: SubtitleCue[],
     runId: number,
     warmedKeys: Set<string>,
-    options: { allowWhenCacheFull?: boolean } = {},
   ): Promise<void> {
     for (const cue of cuesToProcess) {
       if (stopped || runId !== currentRunId) {
@@ -74,10 +76,6 @@ export function createSubtitlePrefetchService(
       }
 
       if (stopped || runId !== currentRunId) {
-        return;
-      }
-
-      if (!options.allowWhenCacheFull && deps.isCacheFull()) {
         return;
       }
 
@@ -110,7 +108,7 @@ export function createSubtitlePrefetchService(
 
     // Phase 1: Priority window
     const priorityCues = computePriorityWindow(cues, currentTimeSeconds, windowSize);
-    await tokenizeCueList(priorityCues, runId, warmedKeys, { allowWhenCacheFull: true });
+    await tokenizeCueList(priorityCues, runId, warmedKeys);
 
     if (stopped || runId !== currentRunId) {
       return;

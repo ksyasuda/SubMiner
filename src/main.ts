@@ -1955,7 +1955,6 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     subtitleProcessingController.preCacheTokenization(text, data);
   },
   hasCachedTokenization: (text) => subtitleProcessingController.hasCachedSubtitle(text),
-  isCacheFull: () => subtitleProcessingController.isCacheFull(),
   logInfo: (message) => logger.info(message),
   logWarn: (message) => logger.warn(message),
   onParsedSubtitleCuesChanged: (cues, sourceKey) => {

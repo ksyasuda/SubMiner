@@ -308,16 +308,7 @@ test('hasCachedSubtitle checks prefetched entries without consuming them', async
   assert.equal(controller.hasCachedSubtitle('猫\nです'), false);
 });
 
-test('isCacheFull returns false when cache is below limit', () => {
-  const controller = createSubtitleProcessingController({
-    tokenizeSubtitle: async (text) => ({ text, tokens: null }),
-    emitSubtitle: () => {},
-  });
-
-  assert.equal(controller.isCacheFull(), false);
-});
-
-test('isCacheFull returns true when cache reaches limit', async () => {
+test('cache keeps every entry while below the limit', () => {
   const controller = createSubtitleProcessingController({
     tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
     emitSubtitle: () => {},
@@ -328,7 +319,10 @@ test('isCacheFull returns true when cache reaches limit', async () => {
     controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
   }
 
-  assert.equal(controller.isCacheFull(), true);
+  assert.deepEqual(
+    Array.from({ length: 8 }, (_, i) => controller.hasCachedSubtitle(`line-${i}`)),
+    Array.from({ length: 8 }, () => true),
+  );
 });
 
 test('cache evicts least recently used entries once the limit is reached', () => {
@@ -362,6 +356,6 @@ test('default cache limit covers a full-length title without evicting', () => {
     controller.preCacheTokenization(`line-${i}`, { text: `line-${i}`, tokens: [] });
   }
 
-  assert.equal(controller.isCacheFull(), false);
   assert.equal(controller.hasCachedSubtitle('line-0'), true);
+  assert.equal(controller.hasCachedSubtitle('line-1999'), true);
 });
