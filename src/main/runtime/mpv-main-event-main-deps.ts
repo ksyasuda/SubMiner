@@ -54,6 +54,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
+  logSubtitleProcessingDebug?: (message: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
   updateCurrentMediaPath: (path: string) => void;
@@ -155,6 +156,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     broadcastSubtitle: (payload: SubtitleData) =>
       deps.broadcastToOverlayWindows('subtitle:set', payload),
     onSubtitleChange: (text: string) => deps.onSubtitleChange(text),
+    logSubtitleProcessingDebug: deps.logSubtitleProcessingDebug
+      ? (message: string) => deps.logSubtitleProcessingDebug!(message)
+      : undefined,
     onSubtitleTrackChange: deps.onSubtitleTrackChange
       ? (sid: number | null) => deps.onSubtitleTrackChange!(sid)
       : undefined,

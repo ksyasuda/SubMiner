@@ -205,7 +205,7 @@ test('runStartupBootstrapRuntime skips lifecycle when generate-config flow handl
   assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland']);
 });
 
-test('runStartupBootstrapRuntime enables quiet background mode by default', () => {
+test('runStartupBootstrapRuntime lets config govern background log level by default', () => {
   const calls: string[] = [];
   const args = makeArgs({ background: true });
 
@@ -222,7 +222,7 @@ test('runStartupBootstrapRuntime enables quiet background mode by default', () =
   });
 
   assert.equal(result.backgroundMode, true);
-  assert.deepEqual(calls, ['setLog:warn:cli', 'forceX11', 'enforceWayland', 'startLifecycle']);
+  assert.deepEqual(calls, ['forceX11', 'enforceWayland', 'startLifecycle']);
 });
 
 test('runStartupBootstrapRuntime enables quiet update mode by default', () => {

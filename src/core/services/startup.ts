@@ -45,7 +45,7 @@ export function runStartupBootstrapRuntime(
 
   if (initialArgs.logLevel) {
     deps.setLogLevel(initialArgs.logLevel, 'cli');
-  } else if (initialArgs.background || initialArgs.update) {
+  } else if (initialArgs.update) {
     deps.setLogLevel('warn', 'cli');
   }
 

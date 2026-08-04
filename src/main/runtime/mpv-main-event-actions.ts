@@ -20,11 +20,15 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   broadcastSubtitle: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   refreshDiscordPresence: () => void;
+  logDebug?: (message: string) => void;
 }) {
   return ({ text }: { text: string }): void => {
     deps.setCurrentSubText(text);
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {
+      deps.logDebug?.(
+        `[subtitle-processing] emitted cached subtitle immediately (${text.length} chars)`,
+      );
       deps.onSubtitleChange(text);
       (deps.emitImmediateSubtitle ?? deps.broadcastSubtitle)(immediatePayload);
     } else {

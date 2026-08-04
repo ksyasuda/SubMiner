@@ -1982,6 +1982,7 @@ const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSid
   getFfmpegPath: () => configService.getConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
     extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
+  logDebug: (message) => logger.debug(message),
 });
 
 const refreshSubtitlePrefetchFromActiveTrackHandler =
@@ -1991,6 +1992,8 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     shouldKeepExistingCuesOnMissingSource: (videoPath) => isYoutubeMediaPath(videoPath),
     subtitlePrefetchInitController,
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
+    logDebug: (message) => logger.debug(message),
+    logWarn: (message) => logger.warn(message),
   });
 
 const subtitlePrefetchRuntime = {
@@ -4366,6 +4369,7 @@ const {
     refreshDiscordPresence: () => {
       discordPresenceRuntime.publishDiscordPresence();
     },
+    logSubtitleProcessingDebug: (message: string) => logger.debug(message),
     ensureImmersionTrackerInitialized: () => {
       ensureImmersionTrackerStarted();
     },

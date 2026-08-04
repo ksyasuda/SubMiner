@@ -130,3 +130,121 @@ test('subtitle prefetch runtime does not extract internal subtitle tracks from r
   assert.equal(resolved, null);
   assert.equal(extracted, false);
 });
+
+test('subtitle prefetch refresh logs a warning when source resolution throws', async () => {
+  const warnings: string[] = [];
+  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => (name === 'path' ? '/media/video.mkv' : null),
+    }),
+    getLastObservedTimePos: () => 0,
+    subtitlePrefetchInitController: {
+      cancelPendingInit: () => {},
+      initSubtitlePrefetch: async () => {},
+    },
+    resolveActiveSubtitleSidebarSource: async () => {
+      throw new Error('ffmpeg ENOENT');
+    },
+    logWarn: (message) => warnings.push(message),
+  });
+
+  await refresh();
+
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0]!, /\[subtitle-prefetch\].*ffmpeg ENOENT/);
+});
+
+test('subtitle prefetch refresh logs debug when mpv client is not connected', async () => {
+  const debugs: string[] = [];
+  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => null,
+    getLastObservedTimePos: () => 0,
+    subtitlePrefetchInitController: {
+      cancelPendingInit: () => {},
+      initSubtitlePrefetch: async () => {},
+    },
+    resolveActiveSubtitleSidebarSource: async () => null,
+    logDebug: (message) => debugs.push(message),
+  });
+
+  await refresh();
+
+  assert.equal(debugs.length, 1);
+  assert.match(debugs[0]!, /\[subtitle-prefetch\].*not connected/);
+});
+
+test('subtitle prefetch refresh logs debug when no subtitle source resolves', async () => {
+  const debugs: string[] = [];
+  const cancels: number[] = [];
+  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => (name === 'path' ? '/media/video.mkv' : null),
+    }),
+    getLastObservedTimePos: () => 0,
+    subtitlePrefetchInitController: {
+      cancelPendingInit: () => {
+        cancels.push(1);
+      },
+      initSubtitlePrefetch: async () => {},
+    },
+    resolveActiveSubtitleSidebarSource: async () => null,
+    logDebug: (message) => debugs.push(message),
+  });
+
+  await refresh();
+
+  assert.deepEqual(cancels, [1]);
+  assert.equal(debugs.length, 1);
+  assert.match(debugs[0]!, /\[subtitle-prefetch\].*no active subtitle source/);
+});
+
+test('subtitle source resolver logs debug when internal track extraction is unavailable', async () => {
+  const debugs: string[] = [];
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg',
+    extractInternalSubtitleTrack: async () => null,
+    logDebug: (message) => debugs.push(message),
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: {
+      type: 'sub',
+      id: 3,
+      'ff-index': 7,
+      codec: 'hdmv_pgs_subtitle',
+    },
+    trackListRaw: [],
+    sidRaw: 3,
+    videoPath: '/media/video.mkv',
+  });
+
+  assert.equal(resolved, null);
+  assert.equal(debugs.length, 1);
+  assert.match(debugs[0]!, /\[subtitle-prefetch\].*extraction.*hdmv_pgs_subtitle/);
+});
+
+test('subtitle source resolver logs debug when no active subtitle track is selected', async () => {
+  const debugs: string[] = [];
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg',
+    extractInternalSubtitleTrack: async () => {
+      throw new Error('should not extract without a track');
+    },
+    logDebug: (message) => debugs.push(message),
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: null,
+    trackListRaw: [],
+    sidRaw: null,
+    videoPath: '/media/video.mkv',
+  });
+
+  assert.equal(resolved, null);
+  assert.equal(debugs.length, 1);
+  assert.match(debugs[0]!, /\[subtitle-prefetch\].*no active subtitle track/);
+});
