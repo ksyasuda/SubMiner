@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.19.2 (2026-08-04)
+
+### Changed
+- Subsync: The sync modal now lets you choose both the reference subtitle (correct timing) and the out-of-sync subtitle to retime, for both alass and ffsubsync. alass can also use the loaded video's audio as a reference for local files. Retiming the secondary track now reloads the result into the secondary slot instead of overwriting the primary subtitle.
+
+### Fixed
+- Streaming Subtitle Tokenization: Jellyfin streams now seed subtitle tokenization directly from the downloaded subtitle file instead of relying on an mpv event that could be missed, and prefetching now runs to the end of the file and clears between episodes. The tokenization cache was raised from 256 to 2500 lines, and parsed cues are no longer lost when the active subtitle track briefly can't be resolved (e.g. switching to an embedded track). Together these prevent episodes from falling back to slow, line-by-line tokenization during playback.
+- Overlay: Subtitle lines now appear immediately at their cue time even on a tokenization cache miss, upgrading in place once tokens and annotations are ready, instead of waiting on a line still being processed. A failed tokenization is no longer cached as plain text, so repeated lines get another chance at annotations.
+- Background Logging: Background startup now respects the configured logging level when no explicit log level is passed.
+
+<details>
+<summary>Internal changes</summary>
+
+### Internal
+- Patched three high-severity dependency advisories (`undici`, `brace-expansion`, `fast-uri`).
+
+</details>
+
 ## v0.19.1 (2026-08-01)
 
 ### Added
