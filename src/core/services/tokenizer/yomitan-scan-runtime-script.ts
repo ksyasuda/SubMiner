@@ -1,501 +1,17 @@
-// In-page Yomitan scan runtime: the helper bundle and scan walk that get
-// installed once per parser window as globalThis.__subminerYomitanScan, plus
-// the tiny per-line call script. Kept separate from the host runtime module so
-// the injected-script text (which is data, not executed here) does not
-// dominate that file.
+// In-page Yomitan scan runtime: the scan walk that gets installed once per
+// parser window as globalThis.__subminerYomitanScan, plus the tiny per-line
+// call script. Kept separate from the host runtime module so the injected
+// script text (which is data, not executed here) does not dominate that file;
+// the helper bundle it embeds lives in yomitan-scanning-helpers-script.ts.
+import { YOMITAN_SCANNING_HELPERS } from './yomitan-scanning-helpers-script';
+
+export { CHARACTER_DICTIONARY_TITLE_PREFIX } from './yomitan-scanning-helpers-script';
 
 export type YomitanFrequencyMode = 'occurrence-based' | 'rank-based';
 
-export const CHARACTER_DICTIONARY_TITLE_PREFIX = 'SubMiner Character Dictionary';
-
-const YOMITAN_SCANNING_HELPERS = String.raw`
-      const HIRAGANA_CONVERSION_RANGE = [0x3041, 0x3096];
-      const KATAKANA_CONVERSION_RANGE = [0x30a1, 0x30f6];
-      const KANA_PROLONGED_SOUND_MARK_CODE_POINT = 0x30fc;
-      const KATAKANA_SMALL_KA_CODE_POINT = 0x30f5;
-      const KATAKANA_SMALL_KE_CODE_POINT = 0x30f6;
-      const KANA_RANGES = [[0x3040, 0x309f], [0x30a0, 0x30ff]];
-      const JAPANESE_RANGES = [[0x3040, 0x30ff], [0x3400, 0x9fff]];
-      function isCodePointInRange(codePoint, range) { return codePoint >= range[0] && codePoint <= range[1]; }
-      function isCodePointInRanges(codePoint, ranges) { return ranges.some((range) => isCodePointInRange(codePoint, range)); }
-      function isCodePointKana(codePoint) { return isCodePointInRanges(codePoint, KANA_RANGES); }
-      function isCodePointJapanese(codePoint) { return isCodePointInRanges(codePoint, JAPANESE_RANGES); }
-      function createFuriganaSegment(text, reading) { return {text, reading}; }
-      function getSegmentReadingContribution(segment) {
-        if (typeof segment.reading === "string" && segment.reading.length > 0) { return segment.reading; }
-        const segmentText = typeof segment.text === "string" ? segment.text : "";
-        const isKanaOnly = segmentText.length > 0 && [...segmentText].every((char) => isCodePointKana(char.codePointAt(0)));
-        return isKanaOnly ? segmentText : "";
-      }
-      function getProlongedHiragana(previousCharacter) {
-        switch (previousCharacter) {
-          case "あ": case "か": case "が": case "さ": case "ざ": case "た": case "だ": case "な": case "は": case "ば": case "ぱ": case "ま": case "や": case "ら": case "わ": case "ぁ": case "ゃ": case "ゎ": return "あ";
-          case "い": case "き": case "ぎ": case "し": case "じ": case "ち": case "ぢ": case "に": case "ひ": case "び": case "ぴ": case "み": case "り": case "ぃ": return "い";
-          case "う": case "く": case "ぐ": case "す": case "ず": case "つ": case "づ": case "ぬ": case "ふ": case "ぶ": case "ぷ": case "む": case "ゆ": case "る": case "ぅ": case "ゅ": return "う";
-          case "え": case "け": case "げ": case "せ": case "ぜ": case "て": case "で": case "ね": case "へ": case "べ": case "ぺ": case "め": case "れ": case "ぇ": return "え";
-          case "お": case "こ": case "ご": case "そ": case "ぞ": case "と": case "ど": case "の": case "ほ": case "ぼ": case "ぽ": case "も": case "よ": case "ろ": case "を": case "ぉ": case "ょ": return "う";
-          default: return null;
-        }
-      }
-      function getFuriganaKanaSegments(text, reading) {
-        const newSegments = [];
-        let start = 0;
-        let state = (reading[0] === text[0]);
-        for (let i = 1; i < text.length; ++i) {
-          const newState = (reading[i] === text[i]);
-          if (state === newState) { continue; }
-          newSegments.push(createFuriganaSegment(text.substring(start, i), state ? '' : reading.substring(start, i)));
-          state = newState;
-          start = i;
-        }
-        newSegments.push(createFuriganaSegment(text.substring(start), state ? '' : reading.substring(start)));
-        return newSegments;
-      }
-      function convertKatakanaToHiragana(text, keepProlongedSoundMarks = false) {
-        let result = '';
-        const offset = (HIRAGANA_CONVERSION_RANGE[0] - KATAKANA_CONVERSION_RANGE[0]);
-        for (let char of text) {
-          const codePoint = char.codePointAt(0);
-          switch (codePoint) {
-            case KATAKANA_SMALL_KA_CODE_POINT:
-            case KATAKANA_SMALL_KE_CODE_POINT:
-              break;
-            case KANA_PROLONGED_SOUND_MARK_CODE_POINT:
-              if (!keepProlongedSoundMarks && result.length > 0) {
-                const char2 = getProlongedHiragana(result[result.length - 1]);
-                if (char2 !== null) { char = char2; }
-              }
-              break;
-            default:
-              if (isCodePointInRange(codePoint, KATAKANA_CONVERSION_RANGE)) {
-                char = String.fromCodePoint(codePoint + offset);
-              }
-              break;
-          }
-          result += char;
-        }
-        return result;
-      }
-      function segmentizeFurigana(reading, readingNormalized, groups, groupsStart) {
-        const groupCount = groups.length - groupsStart;
-        if (groupCount <= 0) { return reading.length === 0 ? [] : null; }
-        const group = groups[groupsStart];
-        const {isKana, text} = group;
-        if (isKana) {
-          if (group.textNormalized !== null && readingNormalized.startsWith(group.textNormalized)) {
-            const segments = segmentizeFurigana(reading.substring(text.length), readingNormalized.substring(text.length), groups, groupsStart + 1);
-            if (segments !== null) {
-              if (reading.startsWith(text)) { segments.unshift(createFuriganaSegment(text, '')); }
-              else { segments.unshift(...getFuriganaKanaSegments(text, reading)); }
-              return segments;
-            }
-          }
-          return null;
-        }
-        let result = null;
-        for (let i = reading.length; i >= text.length; --i) {
-          const segments = segmentizeFurigana(reading.substring(i), readingNormalized.substring(i), groups, groupsStart + 1);
-          if (segments !== null) {
-            if (result !== null) { return null; }
-            segments.unshift(createFuriganaSegment(text, reading.substring(0, i)));
-            result = segments;
-          }
-          if (groupCount === 1) { break; }
-        }
-        return result;
-      }
-      function distributeFurigana(term, reading) {
-        if (reading === term) { return [createFuriganaSegment(term, '')]; }
-        const groups = [];
-        let groupPre = null;
-        let isKanaPre = null;
-        for (const c of term) {
-          const isKana = isCodePointKana(c.codePointAt(0));
-          if (isKana === isKanaPre) { groupPre.text += c; }
-          else {
-            groupPre = {isKana, text: c, textNormalized: null};
-            groups.push(groupPre);
-            isKanaPre = isKana;
-          }
-        }
-        for (const group of groups) {
-          if (group.isKana) { group.textNormalized = convertKatakanaToHiragana(group.text); }
-        }
-        const segments = segmentizeFurigana(reading, convertKatakanaToHiragana(reading), groups, 0);
-        return segments !== null ? segments : [createFuriganaSegment(term, reading)];
-      }
-      function getStemLength(text1, text2) {
-        const minLength = Math.min(text1.length, text2.length);
-        if (minLength === 0) { return 0; }
-        let i = 0;
-        while (true) {
-          const char1 = text1.codePointAt(i);
-          const char2 = text2.codePointAt(i);
-          if (char1 !== char2) { break; }
-          const charLength = String.fromCodePoint(char1).length;
-          i += charLength;
-          if (i >= minLength) {
-            if (i > minLength) { i -= charLength; }
-            break;
-          }
-        }
-        return i;
-      }
-      function distributeFuriganaInflected(term, reading, source) {
-        const termNormalized = convertKatakanaToHiragana(term);
-        const readingNormalized = convertKatakanaToHiragana(reading);
-        const sourceNormalized = convertKatakanaToHiragana(source);
-        let mainText = term;
-        let stemLength = getStemLength(termNormalized, sourceNormalized);
-        const readingStemLength = getStemLength(readingNormalized, sourceNormalized);
-        if (readingStemLength > 0 && readingStemLength >= stemLength) {
-          mainText = reading;
-          stemLength = readingStemLength;
-          reading = source.substring(0, stemLength) + reading.substring(stemLength);
-        }
-        const segments = [];
-        if (stemLength > 0) {
-          mainText = source.substring(0, stemLength) + mainText.substring(stemLength);
-          const segments2 = distributeFurigana(mainText, reading);
-          let consumed = 0;
-          for (const segment of segments2) {
-            const start = consumed;
-            consumed += segment.text.length;
-            if (consumed < stemLength) { segments.push(segment); }
-            else if (consumed === stemLength) { segments.push(segment); break; }
-            else {
-              if (start < stemLength) { segments.push(createFuriganaSegment(mainText.substring(start, stemLength), '')); }
-              break;
-            }
-          }
-        }
-        if (stemLength < source.length) {
-          const remainder = source.substring(stemLength);
-          const last = segments[segments.length - 1];
-          if (last && last.reading.length === 0) { last.text += remainder; }
-          else { segments.push(createFuriganaSegment(remainder, '')); }
-        }
-        return segments;
-      }
-      function parsePositiveFrequencyNumber(value) {
-        if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-          return Math.max(1, Math.floor(value));
-        }
-        if (typeof value === 'string') {
-          const numericMatch = value.trim().match(/[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?/)?.[0];
-          if (!numericMatch) { return null; }
-          const parsed = Number.parseFloat(numericMatch);
-          if (!Number.isFinite(parsed) || parsed <= 0) { return null; }
-          return Math.max(1, Math.floor(parsed));
-        }
-        if (Array.isArray(value)) {
-          for (const item of value) {
-            const parsed = parsePositiveFrequencyNumber(item);
-            if (parsed !== null) { return parsed; }
-          }
-        }
-        return null;
-      }
-      function parseDisplayFrequencyNumber(value) {
-        if (typeof value === 'string') {
-          const leadingDigits = value.trim().match(/^\d+/)?.[0];
-          if (!leadingDigits) { return null; }
-          const parsed = Number.parseInt(leadingDigits, 10);
-          return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-        }
-        return parsePositiveFrequencyNumber(value);
-      }
-      function getFrequencyDictionaryName(frequency) {
-        const candidates = [
-          frequency?.dictionary,
-          frequency?.dictionaryName,
-          frequency?.name,
-          frequency?.title,
-          frequency?.dictionaryTitle,
-          frequency?.dictionaryAlias
-        ];
-        for (const candidate of candidates) {
-          if (typeof candidate === 'string' && candidate.trim().length > 0) {
-            return candidate.trim();
-          }
-        }
-        return null;
-      }
-      function getBestFrequencyRank(dictionaryEntry, headwordIndex, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
-        let best = null;
-        const headwordCount = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords.length : 0;
-        for (const frequency of dictionaryEntry?.frequencies || []) {
-          if (!frequency || typeof frequency !== 'object') { continue; }
-          const frequencyHeadwordIndex = frequency.headwordIndex;
-          if (typeof frequencyHeadwordIndex === 'number') {
-            if (frequencyHeadwordIndex !== headwordIndex) { continue; }
-          } else if (headwordCount > 1) {
-            continue;
-          }
-          const dictionary = getFrequencyDictionaryName(frequency);
-          if (!dictionary) { continue; }
-          if (dictionaryFrequencyModeByName[dictionary] === 'occurrence-based') { continue; }
-          const rank =
-            parseDisplayFrequencyNumber(frequency.displayValue) ??
-            parsePositiveFrequencyNumber(frequency.frequency);
-          if (rank === null) { continue; }
-          const priorityRaw = dictionaryPriorityByName[dictionary];
-          const fallbackPriority =
-            typeof frequency.dictionaryIndex === 'number' && Number.isFinite(frequency.dictionaryIndex)
-              ? Math.max(0, Math.floor(frequency.dictionaryIndex))
-              : Number.MAX_SAFE_INTEGER;
-          const priority =
-            typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)
-              ? Math.max(0, Math.floor(priorityRaw))
-              : fallbackPriority;
-          if (best === null || priority < best.priority || (priority === best.priority && rank < best.rank)) {
-            best = { priority, rank };
-          }
-        }
-        return best?.rank ?? null;
-      }
-      function hasExactSource(headword, token, requirePrimary) {
-        for (const src of headword.sources || []) {
-          if (src.originalText !== token) { continue; }
-          if (requirePrimary && !src.isPrimary) { continue; }
-          if (src.matchType !== 'exact') { continue; }
-          return true;
-        }
-        return false;
-      }
-      function collectExactHeadwordMatches(dictionaryEntries, token, requirePrimary) {
-        const matches = [];
-        for (const dictionaryEntry of dictionaryEntries || []) {
-          const headwords = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords : [];
-          for (let headwordIndex = 0; headwordIndex < headwords.length; headwordIndex += 1) {
-            const headword = headwords[headwordIndex];
-            if (!hasExactSource(headword, token, requirePrimary)) { continue; }
-            matches.push({ dictionaryEntry, headword, headwordIndex });
-          }
-        }
-        return matches;
-      }
-      function sameHeadword(match, preferredMatch) {
-        if (!match || !preferredMatch) {
-          return false;
-        }
-        if (match.headword?.term !== preferredMatch.headword?.term) {
-          return false;
-        }
-        const matchReading = typeof match.headword?.reading === 'string' ? match.headword.reading : '';
-        const preferredReading =
-          typeof preferredMatch.headword?.reading === 'string' ? preferredMatch.headword.reading : '';
-        if (!matchReading || !preferredReading) {
-          return true;
-        }
-        return matchReading === preferredReading;
-      }
-      function getBestFrequencyRankForMatches(matches, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
-        let best = null;
-        for (const match of matches) {
-          const rank = getBestFrequencyRank(
-            match.dictionaryEntry,
-            match.headwordIndex,
-            dictionaryPriorityByName,
-            dictionaryFrequencyModeByName
-          );
-          if (rank === null) { continue; }
-          if (best === null || rank < best) {
-            best = rank;
-          }
-        }
-        return best;
-      }
-      function normalizeWordClasses(headword) {
-          if (!Array.isArray(headword?.wordClasses)) { return undefined; }
-          const classes = headword.wordClasses.filter((wordClass) => typeof wordClass === "string" && wordClass.trim().length > 0);
-          return classes.length > 0 ? classes : undefined;
-        }
-        function appendDictionaryNames(target, value) {
-          if (!value || typeof value !== 'object') {
-            return;
-          }
-          const candidates = [
-            value.dictionary,
-            value.dictionaryName,
-            value.name,
-            value.title,
-            value.dictionaryTitle,
-            value.dictionaryAlias
-          ];
-          for (const candidate of candidates) {
-            if (typeof candidate === 'string' && candidate.trim().length > 0) {
-              target.push(candidate.trim());
-            }
-          }
-        }
-        function getDictionaryEntryNames(entry) {
-          const names = [];
-          appendDictionaryNames(names, entry);
-          for (const definition of entry?.definitions || []) {
-            appendDictionaryNames(names, definition);
-          }
-          for (const frequency of entry?.frequencies || []) {
-            appendDictionaryNames(names, frequency);
-          }
-          for (const pronunciation of entry?.pronunciations || []) {
-            appendDictionaryNames(names, pronunciation);
-          }
-          return names;
-        }
-        function isNameDictionaryEntry(entry) {
-          if (!includeNameMatchMetadata || !entry || typeof entry !== 'object') {
-            return false;
-          }
-          return getDictionaryEntryNames(entry).some((name) => name.startsWith(${JSON.stringify(CHARACTER_DICTIONARY_TITLE_PREFIX)}));
-        }
-        function parseSubMinerMediaIdFromString(value) {
-          const imageMatch = value.match(/\bimg\/m(\d+)-/i);
-          if (imageMatch) {
-            const parsed = Number.parseInt(imageMatch[1], 10);
-            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
-          }
-          const titleMatch = value.match(/${CHARACTER_DICTIONARY_TITLE_PREFIX}[^\d]*(?:AniList\s*)?(\d+)/i);
-          if (titleMatch) {
-            const parsed = Number.parseInt(titleMatch[1], 10);
-            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
-          }
-          return null;
-        }
-        function parseSubMinerMediaIdCandidate(value) {
-          if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) {
-            return value;
-          }
-          if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
-            const parsed = Number.parseInt(value.trim(), 10);
-            if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
-          }
-          return null;
-        }
-        function collectSubMinerMediaIds(value, target) {
-          if (typeof value === 'string') {
-            const parsed = parseSubMinerMediaIdFromString(value);
-            if (parsed !== null) { target.add(parsed); }
-            return;
-          }
-          if (!value || typeof value !== 'object') {
-            return;
-          }
-          if (Array.isArray(value)) {
-            for (const item of value) { collectSubMinerMediaIds(item, target); }
-            return;
-          }
-          const mediaIdCandidates = [
-            value.subminerMediaId,
-            value.subMinerMediaId,
-            value.characterDictionaryMediaId,
-            value.data?.subminerMediaId,
-            value.data?.subMinerMediaId,
-            value.data?.characterDictionaryMediaId
-          ];
-          for (const candidate of mediaIdCandidates) {
-            const parsed = parseSubMinerMediaIdCandidate(candidate);
-            if (parsed !== null) { target.add(parsed); }
-          }
-          for (const child of Object.values(value)) {
-            collectSubMinerMediaIds(child, target);
-          }
-        }
-        function getSubMinerMediaIds(entry) {
-          const mediaIds = new Set();
-          collectSubMinerMediaIds(entry, mediaIds);
-          return mediaIds;
-        }
-        function isCurrentMediaNameDictionaryEntry(entry) {
-          if (!isNameDictionaryEntry(entry)) {
-            return false;
-          }
-          if (currentCharacterDictionaryMediaId === null) {
-            return true;
-          }
-          const mediaIds = getSubMinerMediaIds(entry);
-          return mediaIds.size === 0 || mediaIds.has(currentCharacterDictionaryMediaId);
-      }
-      function findLongestNameMatch(dictionaryEntries, textWindow) {
-        let best = null;
-        for (const dictionaryEntry of dictionaryEntries || []) {
-          if (!isCurrentMediaNameDictionaryEntry(dictionaryEntry)) { continue; }
-          const headwords = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords : [];
-          for (let headwordIndex = 0; headwordIndex < headwords.length; headwordIndex += 1) {
-            const headword = headwords[headwordIndex];
-            for (const src of headword?.sources || []) {
-              if (src.matchType !== 'exact' || src.isPrimary !== true) { continue; }
-              const originalText = typeof src.originalText === 'string' ? src.originalText : '';
-              if (!originalText || !textWindow.startsWith(originalText)) { continue; }
-              if (best === null || originalText.length > best.sourceLength) {
-                best = { dictionaryEntry, headword, headwordIndex, sourceLength: originalText.length };
-              }
-            }
-          }
-        }
-        return best;
-      }
-      function findLongestGenericMatchLength(dictionaryEntries, textWindow) {
-        let best = 0;
-        for (const dictionaryEntry of dictionaryEntries || []) {
-          if (isNameDictionaryEntry(dictionaryEntry)) { continue; }
-          const headwords = Array.isArray(dictionaryEntry?.headwords) ? dictionaryEntry.headwords : [];
-          for (const headword of headwords) {
-            for (const src of headword?.sources || []) {
-              if (src.matchType !== 'exact' || src.isPrimary !== true) { continue; }
-              const originalText = typeof src.originalText === 'string' ? src.originalText : '';
-              if (!originalText || !textWindow.startsWith(originalText)) { continue; }
-              if (originalText.length > best) { best = originalText.length; }
-            }
-          }
-        }
-        return best;
-      }
-      function getPreferredHeadword(dictionaryEntries, token, dictionaryPriorityByName, dictionaryFrequencyModeByName) {
-        const currentMediaDictionaryEntries =
-          currentCharacterDictionaryMediaId === null
-            ? (dictionaryEntries || [])
-            : (dictionaryEntries || []).filter((entry) => {
-                if (!isNameDictionaryEntry(entry)) { return true; }
-                return isCurrentMediaNameDictionaryEntry(entry);
-              });
-        const exactPrimaryMatches = collectExactHeadwordMatches(currentMediaDictionaryEntries, token, true);
-        let matchedNameDictionary = false;
-        if (includeNameMatchMetadata) {
-          for (const dictionaryEntry of currentMediaDictionaryEntries || []) {
-            if (!isCurrentMediaNameDictionaryEntry(dictionaryEntry)) { continue; }
-            for (const match of exactPrimaryMatches) {
-              if (match.dictionaryEntry !== dictionaryEntry) { continue; }
-              matchedNameDictionary = true;
-              break;
-            }
-            if (matchedNameDictionary) { break; }
-          }
-        }
-        const preferredMatch = exactPrimaryMatches[0];
-        if (preferredMatch) {
-          const exactFrequencyMatches = collectExactHeadwordMatches(currentMediaDictionaryEntries, token, false)
-            .filter((match) => sameHeadword(match, preferredMatch));
-          return {
-            term: preferredMatch.headword.term,
-            reading: preferredMatch.headword.reading,
-            wordClasses: normalizeWordClasses(preferredMatch.headword),
-            isNameMatch:
-              matchedNameDictionary || isCurrentMediaNameDictionaryEntry(preferredMatch.dictionaryEntry),
-            frequencyRank: getBestFrequencyRankForMatches(
-              exactFrequencyMatches.length > 0 ? exactFrequencyMatches : exactPrimaryMatches,
-              dictionaryPriorityByName,
-              dictionaryFrequencyModeByName
-            )
-          };
-        }
-        return null;
-      }
-`;
-
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 4;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 6;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -546,9 +62,38 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
     // repeat particles and inflections constantly, so most lookups hit here.
     // Entries hold in-flight promises so concurrent identical lookups dedupe.
     const termsFindCache = new Map();
+    // Two bounds. The key count keeps the map itself small; the accumulated
+    // dictionary-entry count stands in for retained bytes, because a single
+    // lookup over a common prefix can hold hundreds of entries with their full
+    // glossaries and a key-count cap alone would not bound that.
     const TERMS_FIND_CACHE_LIMIT = 2000;
+    const TERMS_FIND_CACHE_DICTIONARY_ENTRY_LIMIT = 20000;
+    let termsFindCacheDictionaryEntries = 0;
     let termsFindCacheEpoch = -1;
-    const MAX_SHRINKING_WINDOW_RETRY_LOOKUPS = 4;
+    function dropCachedTermsFind(cacheKey, entry) {
+      if (termsFindCache.get(cacheKey) !== entry) { return; }
+      termsFindCache.delete(cacheKey);
+      termsFindCacheDictionaryEntries -= entry.dictionaryEntryCount;
+    }
+    // Runs on insert and again once a lookup resolves: an entry is only worth
+    // its estimated weight of 1 until then, so a single oversized response
+    // would otherwise sit in the cache forever, over the limit and reused.
+    function evictOverflowingTermsFindEntries() {
+      while (
+        termsFindCache.size > TERMS_FIND_CACHE_LIMIT ||
+        termsFindCacheDictionaryEntries > TERMS_FIND_CACHE_DICTIONARY_ENTRY_LIMIT
+      ) {
+        const oldest = termsFindCache.entries().next().value;
+        if (oldest === undefined) { break; }
+        dropCachedTermsFind(oldest[0], oldest[1]);
+      }
+    }
+    // Only blind ladder steps are capped (see the retry loop): those are the
+    // ones that would otherwise degrade into O(scanLength) lookups at a single
+    // position. Steps the backend guides by reporting a shorter consumed length
+    // stay uncapped, so a valid prefix term is still found on lines where
+    // normalization eats a long tail.
+    const MAX_BLIND_SHRINKING_WINDOW_RETRIES = 4;
     // Character-name candidate forms for the current media, installed
     // separately from the per-line scan call so the per-line script stays tiny.
     // Stored raw here; the normalized lookup index is built inside the scan,
@@ -581,6 +126,7 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
       } = scanParams;
       if (cacheEpoch !== termsFindCacheEpoch) {
         termsFindCache.clear();
+        termsFindCacheDictionaryEntries = 0;
         termsFindCacheEpoch = cacheEpoch;
       }
 ${YOMITAN_SCANNING_HELPERS}
@@ -602,24 +148,37 @@ ${YOMITAN_SCANNING_HELPERS}
       const tokens = [];
       async function termsFindAt(position, windowLength) {
         const substring = text.substring(position, position + windowLength);
-        const cacheKey = profileIndex + " " + substring;
+        const cacheKey = profileIndex + "\u0000" + substring;
         const cached = termsFindCache.get(cacheKey);
         if (cached !== undefined) {
           termsFindCache.delete(cacheKey);
           termsFindCache.set(cacheKey, cached);
-          return await cached;
+          return await cached.promise;
         }
-        const pending = invoke("termsFind", { text: substring, details, optionsContext: { index: profileIndex } });
-        termsFindCache.set(cacheKey, pending);
-        while (termsFindCache.size > TERMS_FIND_CACHE_LIMIT) {
-          const oldestKey = termsFindCache.keys().next().value;
-          if (oldestKey === undefined) { break; }
-          termsFindCache.delete(oldestKey);
-        }
+        // An in-flight lookup counts as one entry until it resolves; the real
+        // weight replaces that estimate once the result is known.
+        const entry = { promise: null, dictionaryEntryCount: 1 };
+        entry.promise = invoke("termsFind", { text: substring, details, optionsContext: { index: profileIndex } })
+          .then((result) => {
+            const resolvedCount =
+              1 + (Array.isArray(result?.dictionaryEntries) ? result.dictionaryEntries.length : 0);
+            const isCached = termsFindCache.get(cacheKey) === entry;
+            if (isCached) {
+              termsFindCacheDictionaryEntries += resolvedCount - entry.dictionaryEntryCount;
+            }
+            entry.dictionaryEntryCount = resolvedCount;
+            // The real weight can push the cache over its budget, and a single
+            // response can exceed it on its own, so re-check here.
+            if (isCached) { evictOverflowingTermsFindEntries(); }
+            return result;
+          });
+        termsFindCache.set(cacheKey, entry);
+        termsFindCacheDictionaryEntries += entry.dictionaryEntryCount;
+        evictOverflowingTermsFindEntries();
         try {
-          return await pending;
+          return await entry.promise;
         } catch (error) {
-          termsFindCache.delete(cacheKey);
+          dropCachedTermsFind(cacheKey, entry);
           throw error;
         }
       }
@@ -681,6 +240,43 @@ ${YOMITAN_SCANNING_HELPERS}
           tokenPayload.wordClasses = preferredHeadword.wordClasses;
         }
         return tokenPayload;
+      }
+      // findTokenAt plus the shrinking-window ladder below it: Yomitan text
+      // normalization can consume characters (whitespace, punctuation) beyond
+      // the matched term, leaving no headword whose source equals the consumed
+      // text. Retry with shorter windows so a valid prefix term (e.g. a
+      // character name before a paren) still tokenizes instead of the position
+      // being skipped.
+      // Every window at or above the consumed length repeats the same result,
+      // so the next informative window sits just below it. A lookup that
+      // consumed its whole window reports nothing to aim at, and the step down
+      // from it is a blind guess: only those are budgeted.
+      // The window can run past the end of the line, so blindness is judged
+      // against the text the lookup actually saw.
+      // Set when a position stopped short of windows an uncapped ladder would
+      // still have tried; the line then escalates to parseText at the end.
+      let blindRetryBudgetExhausted = false;
+      async function resolveTokenAt(position, windowLength) {
+        let attempt = await findTokenAt(position, windowLength);
+        const scannedLength = Math.min(windowLength, text.length - position);
+        let retryLength = Math.min(attempt.matchedLength, scannedLength) - 1;
+        let stepIsBlind = attempt.matchedLength >= scannedLength;
+        let blindRetriesRemaining = MAX_BLIND_SHRINKING_WINDOW_RETRIES;
+        while (!attempt.token && retryLength >= 1) {
+          if (stepIsBlind) {
+            if (blindRetriesRemaining <= 0) {
+              blindRetryBudgetExhausted = true;
+              break;
+            }
+            blindRetriesRemaining -= 1;
+          }
+          const retry = await findTokenAt(position, retryLength);
+          if (retry.token) { return retry; }
+          const guidedLength = retry.matchedLength - 1;
+          stepIsBlind = guidedLength >= retryLength - 1;
+          retryLength = Math.min(retryLength - 1, guidedLength);
+        }
+        return attempt;
       }
       async function findTokenAt(position, windowLength) {
         const codePoint = text.codePointAt(position);
@@ -804,6 +400,17 @@ ${YOMITAN_SCANNING_HELPERS}
           namePos += nameMatch.sourceLength;
         }
       }
+      // First reserved name span that a match ending at endPos would leave
+      // half-consumed. Spans the match covers entirely are not returned: those
+      // lose to the longer word instead of splitting it.
+      function findSplitNameToken(startIndex, endPos) {
+        for (let index = startIndex; index < nameTokens.length; index += 1) {
+          const nameToken = nameTokens[index];
+          if (nameToken.startPos >= endPos) { return null; }
+          if (nameToken.endPos > endPos) { return nameToken; }
+        }
+        return null;
+      }
       let i = 0;
       let nameIndex = 0;
       let unparsedRunStart = null;
@@ -827,27 +434,18 @@ ${YOMITAN_SCANNING_HELPERS}
           i += String.fromCodePoint(codePoint).length;
           continue;
         }
-        // Cap the window at the next reserved name span so a generic match
-        // cannot consume into it.
-        const windowLength = nextNameToken ? Math.min(scanLength, nextNameToken.startPos - i) : scanLength;
-        let attempt = await findTokenAt(i, windowLength);
-        // Yomitan text normalization can consume characters (whitespace,
-        // punctuation) beyond the matched term, leaving no headword whose
-        // source equals the consumed text. Retry with shorter windows so a
-        // valid prefix term (e.g. a character name before a paren) still
-        // tokenizes instead of the position being skipped. The ladder is
-        // capped: without a cap it degrades to O(scanLength) lookups at a
-        // single position.
-        let retryLength = Math.min(attempt.matchedLength, windowLength) - 1;
-        let retryLookupsRemaining = MAX_SHRINKING_WINDOW_RETRY_LOOKUPS;
-        while (!attempt.token && retryLength >= 1 && retryLookupsRemaining > 0) {
-          retryLookupsRemaining -= 1;
-          const retry = await findTokenAt(i, retryLength);
-          if (retry.token) {
-            attempt = retry;
-            break;
+        // A reservation only outranks generic matches that would cut into it.
+        // Look the position up unrestricted first: a generic word that starts
+        // earlier and covers the whole name span (写真 over a character named
+        // 真) is the better reading, so the reservation yields rather than
+        // splitting the word. Only a match that ends inside a name span gets
+        // re-run against a window capped at that span.
+        let attempt = await resolveTokenAt(i, scanLength);
+        if (attempt.token) {
+          const splitNameToken = findSplitNameToken(nameIndex, attempt.token.endPos);
+          if (splitNameToken) {
+            attempt = await resolveTokenAt(i, splitNameToken.startPos - i);
           }
-          retryLength = Math.min(retryLength - 1, retry.matchedLength - 1);
         }
         if (attempt.token) {
           flushUnparsedRun(unparsedRunStart, i);
@@ -860,6 +458,13 @@ ${YOMITAN_SCANNING_HELPERS}
         i += String.fromCodePoint(text.codePointAt(i)).length;
       }
       flushUnparsedRun(unparsedRunStart, text.length);
+      if (blindRetryBudgetExhausted) {
+        // A position gave up with shorter windows still worth trying. The walk
+        // is the only tokenizer now, so stopping there would leave a real term
+        // as an unparsed run; report it so the host can spend one parseText on
+        // the line instead of letting the ladder run to O(scanLength) lookups.
+        return { tokens, retryBudgetExhausted: true };
+      }
       return tokens;
     };
     return true;

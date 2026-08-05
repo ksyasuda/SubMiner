@@ -593,6 +593,48 @@ test('refreshCurrentSubtitle reports the empty-text emit that an in-flight run w
   );
 });
 
+test('onProcessingSettled fires once after the queue drains, including runs that emit nothing', async () => {
+  const events: string[] = [];
+  let resolveFirst: ((value: SubtitleData | null) => void) | undefined;
+  let tokenizationFails = false;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      if (tokenizationFails) {
+        return null;
+      }
+      if (text === '一行目') {
+        return await new Promise<SubtitleData | null>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => events.push(`emit:${payload.text}`),
+    onProcessingSettled: () => events.push('settled'),
+  });
+
+  controller.onSubtitleChange('一行目');
+  await flushMicrotasks();
+  // A second line arrives before the first finishes: the controller still has
+  // work, so it must not report itself settled between the two.
+  controller.onSubtitleChange('二行目');
+  resolveFirst?.({ text: '一行目', tokens: [] });
+  await flushMicrotasks();
+  await flushMicrotasks();
+
+  assert.deepEqual(events, ['emit:一行目', 'emit:二行目', 'emit:二行目', 'settled']);
+
+  // Tokenization failure on a line already shown plain: nothing is emitted, and
+  // the settle signal is the only way a caller learns the work is over.
+  events.length = 0;
+  tokenizationFails = true;
+  controller.invalidateTokenizationCache();
+  assert.equal(controller.refreshCurrentSubtitle('二行目'), true);
+  await flushMicrotasks();
+  await flushMicrotasks();
+  assert.deepEqual(events, ['settled']);
+});
+
 test('refreshCurrentSubtitle reports no emit for empty text when nothing is running', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({

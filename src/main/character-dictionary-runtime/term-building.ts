@@ -1,3 +1,4 @@
+import { HAN_REGEXP_CLASS_BODY } from '../../core/text/han-code-points';
 import { HONORIFIC_SUFFIXES } from './constants';
 import {
   addRomanizedKanaAliases,
@@ -42,20 +43,34 @@ export function expandRawNameVariants(rawName: string): string[] {
   return [...variants];
 }
 
+// Kana, halfwidth included: one of these can stand alone as a name, where a
+// latin letter or a digit cannot.
+const SINGLE_KANA_CHARACTER = /^[\u3040-\u30ff\u31f0-\u31ff\uff66-\uff9f]$/u;
+
 // AniList disambiguates unnamed mob characters with a trailing letter (女子A /
-// "Joshi A"), and a single letter romanizes into a single-kana alias (A → ア)
-// that collides with interjections (あ〜 matching ア). A one-character form is
-// only a real lookup target when it is kanji, so every other single-character
-// form is dropped before it can become a term.
-function isUsableNameTerm(name: string): boolean {
-  return [...name].length > 1 || containsKanji(name);
+// "Joshi A"), and a lone letter romanizes into a single-kana alias (A → ア)
+// that collides with interjections (あ〜 matching ア). That letter is a label,
+// not a name, so it is dropped where a name splits into it and before it can
+// become a kana alias. A name that is genuinely one character, a character
+// actually called あ or a single kanji, is a real lookup target and is kept.
+function isNameDisambiguatorLetter(name: string): boolean {
+  return [...name].length === 1 && !containsKanji(name) && !SINGLE_KANA_CHARACTER.test(name);
 }
+
+function isUsableNameTerm(name: string): boolean {
+  return !isNameDisambiguatorLetter(name);
+}
+
+// Kana, Han (shared ranges), and the marks that only ever appear inside a
+// Japanese name: iteration marks and the small ka/ke used in place names.
+const JAPANESE_NAME_CHARACTERS = new RegExp(
+  `^[\\u3040-\\u30ff${HAN_REGEXP_CLASS_BODY}\u3005\u3006\u30f5\u30f6\u30fc]+$`,
+  'u',
+);
 
 export function isJapaneseNameSplitCandidate(name: string): boolean {
   const compact = name.replace(/[\s\u3000・･·•]/g, '');
-  return (
-    containsKanji(compact) && /^[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]+$/.test(compact)
-  );
+  return containsKanji(compact) && JAPANESE_NAME_CHARACTERS.test(compact);
 }
 
 function addJapaneseNameParts(
@@ -131,7 +146,10 @@ export function buildNameTerms(
     }
   }
 
-  for (const alias of addRomanizedKanaAliases(romanizedBase)) {
+  // Romanized forms that are a bare letter would become a single-kana alias.
+  for (const alias of addRomanizedKanaAliases(
+    [...romanizedBase].filter((entry) => !isNameDisambiguatorLetter(entry)),
+  )) {
     base.add(alias);
   }
 
@@ -150,7 +168,9 @@ export function buildNameTerms(
 
   const withHonorifics = new Set<string>();
   for (const entry of base) {
-    if (!isUsableNameTerm(entry)) continue;
+    // Only labels split off a longer name are filtered (see above); an explicit
+    // one-character name reaches this point intact.
+    if (isNameDisambiguatorLetter(entry)) continue;
     withHonorifics.add(entry);
     for (const suffix of HONORIFIC_SUFFIXES) {
       withHonorifics.add(`${entry}${suffix.term}`);

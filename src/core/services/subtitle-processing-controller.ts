@@ -3,6 +3,14 @@ import type { SubtitleData } from '../../types';
 export interface SubtitleProcessingControllerDeps {
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   emitSubtitle: (payload: SubtitleData) => void;
+  /**
+   * Fires when the controller runs out of work: every scheduled line has been
+   * processed, whether it ended in an emit, a suppressed duplicate, or a
+   * tokenizer failure. Callers that hold a resource for the duration of
+   * processing (prefetch pausing) release it here rather than on an emit,
+   * which is not guaranteed to happen.
+   */
+  onProcessingSettled?: () => void;
   logDebug?: (message: string) => void;
   now?: () => number;
   cacheLimit?: number;
@@ -18,12 +26,13 @@ export const DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT = 2500;
 
 export interface SubtitleProcessingController {
   /**
-   * Returns whether the text was new and processing was scheduled. A false
-   * return means nothing will be emitted for this event, which callers that
-   * gate work on the emit (such as pausing subtitle prefetching) need to know.
+   * Returns whether processing is now scheduled or already in flight for this
+   * event. A false return means the controller is idle and will do nothing, so
+   * onProcessingSettled will not fire; callers that pause work for the duration
+   * of processing (such as subtitle prefetching) must release it themselves.
    */
   onSubtitleChange: (text: string) => boolean;
-  /** Same contract as onSubtitleChange: whether an emit is expected. */
+  /** Same contract as onSubtitleChange: whether processing is pending. */
   refreshCurrentSubtitle: (textOverride?: string) => boolean;
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
@@ -170,7 +179,12 @@ export function createSubtitleProcessingController(
           (latestText.trim() && cacheGeneration !== lastEmittedGeneration)
         ) {
           processLatest();
+          return;
         }
+        // Nothing left to do: signal completion even when this run emitted
+        // nothing (suppressed duplicate, tokenizer failure), or callers waiting
+        // on the controller would wait forever.
+        deps.onProcessingSettled?.();
       });
   };
 

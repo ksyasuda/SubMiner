@@ -1,3 +1,4 @@
+import { isHanCodePoint } from '../../core/text/han-code-points';
 import { HONORIFIC_SUFFIXES } from './constants';
 import type { JapaneseNameParts, NameReadings, ResolvedNameSplits } from './types';
 
@@ -26,10 +27,12 @@ export function buildReading(term: string): string {
   return katakanaToHiragana(compact);
 }
 
+// Code points, not code units: a supplementary-plane kanji (𠮷, U+20BB7) is a
+// surrogate pair, and reading only the high surrogate would classify a real
+// single-character name as non-kanji and drop it.
 export function containsKanji(value: string): boolean {
   for (const char of value) {
-    const code = char.charCodeAt(0);
-    if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf)) {
+    if (isHanCodePoint(char.codePointAt(0) ?? 0)) {
       return true;
     }
   }

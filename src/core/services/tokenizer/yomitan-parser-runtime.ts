@@ -1042,6 +1042,19 @@ export async function requestYomitanScanTokens(
       await ensureYomitanScanNameCandidates(parserWindow, nameCandidates, logger);
       rawResult = await parserWindow.webContents.executeJavaScript(callScript, true);
     }
+    // The scanner reports a line where a position ran out of shrinking-window
+    // retries: it stopped short of windows an uncapped ladder would have tried,
+    // so a real term may be sitting in an unparsed run. One parseText for the
+    // line is the bounded way to get the exhaustive answer back (this is the
+    // parse the scanner replaced, and it only runs for these rare lines).
+    if (isObject(rawResult) && rawResult.retryBudgetExhausted === true) {
+      logger.info?.('Yomitan scanner exhausted its retry budget; parsing the line as a fallback.');
+      const fallbackTokens = await requestYomitanParseFallbackTokens(text, deps, logger);
+      if (fallbackTokens) {
+        return fallbackTokens;
+      }
+      rawResult = rawResult.tokens;
+    }
     if (isScanTokenArray(rawResult)) {
       // Filler-only results carry no dictionary match; keep the historical
       // contract of returning null so callers fall back to raw text.

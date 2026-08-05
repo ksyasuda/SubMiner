@@ -33,6 +33,20 @@ function collectSnapshotNameForms(snapshot: CharacterDictionarySnapshot): string
   return [...forms];
 }
 
+// The signature grows with the size of the dictionary library, and it rides
+// along in every per-line scan call, so it is folded into a fixed-width digest
+// first. Collisions only matter against the immediately previous signature (the
+// runtime compares keys for equality), and FNV-1a over the file list is far
+// beyond what that needs.
+function digestSnapshotDirectorySignature(signature: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < signature.length; index += 1) {
+    hash ^= signature.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function getSnapshotDirectorySignature(outputDir: string): string {
   let entries: fs.Dirent[] = [];
   try {
@@ -132,7 +146,10 @@ export function createCharacterNameCandidateLookup(deps: {
       if (!forms || forms.length === 0) {
         return null;
       }
-      return { key: `${signature ?? ''}:${normalizedMediaId}`, forms };
+      return {
+        key: `${digestSnapshotDirectorySignature(signature ?? '')}:${normalizedMediaId}`,
+        forms,
+      };
     },
     invalidate(): void {
       signature = null;

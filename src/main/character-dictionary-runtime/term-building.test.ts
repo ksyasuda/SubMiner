@@ -55,6 +55,26 @@ test('buildNameTerms drops the disambiguator letter of a mob character name', ()
   assert.ok(terms.includes('ジョシア'));
 });
 
+test('buildNameTerms keeps a character whose whole name is one kana', () => {
+  const terms = buildNameTerms(
+    characterRecord({
+      firstNameHint: '',
+      lastNameHint: '',
+      fullName: 'A',
+      nativeName: 'あ',
+    }),
+  );
+
+  // The mob-disambiguator filter targets letters split off a longer name; an
+  // explicit one-character name is the character's actual name.
+  assert.ok(terms.includes('あ'));
+  assert.ok(terms.includes('あさん'));
+  // The romanized "A" is still a label, so it contributes neither itself nor
+  // its single-kana alias.
+  assert.ok(!terms.includes('A'));
+  assert.ok(!terms.includes('ア'));
+});
+
 test('buildNameTerms keeps a single-kanji name part', () => {
   // The name is an alias, not the native name, so the parts come from the
   // space split rather than from the native-name split.
@@ -70,4 +90,21 @@ test('buildNameTerms keeps a single-kanji name part', () => {
 
   assert.ok(terms.includes('山田'));
   assert.ok(terms.includes('空'));
+});
+
+test('buildNameTerms keeps a single supplementary-plane kanji name part', () => {
+  // 𠮷 (U+20BB7) is a surrogate pair: a code-unit kanji check reads only the
+  // high surrogate and drops the part as if it were a mob disambiguator.
+  const terms = buildNameTerms(
+    characterRecord({
+      firstNameHint: 'Tsukasa',
+      lastNameHint: 'Yoshi',
+      fullName: 'Tsukasa Yoshi',
+      nativeName: '',
+      alternativeNames: ['𠮷 司'],
+    }),
+  );
+
+  assert.ok(terms.includes('𠮷'));
+  assert.ok(terms.includes('司'));
 });

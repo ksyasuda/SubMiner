@@ -56,10 +56,12 @@ background prefetch work. Prefetch is not re-centered here: restarting the run p
 (`onSeek`) discarded the in-flight tokenization every time the subtitle changed, so only real
 seeks restart it (see `onTimePosUpdate` in `src/main.ts`).
 
-The pause is released by the emit that carries the tokenized payload. Both controller methods
-return whether an emit is expected, and the caller resumes immediately when it is not — otherwise
-a repeated subtitle (which schedules no work) would leave prefetching idle for the rest of the
-cue.
+The pause is released by the controller's `onProcessingSettled` callback, which fires once it has
+no work left. Emits do not release it: the first emit for an uncached line is the plain payload
+that precedes tokenization, and a run can finish without emitting at all (a suppressed duplicate,
+a failed tokenization). Both controller methods return whether processing is now pending, and the
+caller resumes immediately when it is not — a repeated subtitle schedules no work, so no settle is
+coming and prefetching would otherwise idle for the rest of the cue.
 
 ## Live Cue Delivery
 

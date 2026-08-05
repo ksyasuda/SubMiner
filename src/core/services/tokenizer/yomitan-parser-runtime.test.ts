@@ -121,7 +121,10 @@ const NAME_SCAN_WORDS: Array<[string, string, string, boolean]> = [
   ['いない', 'いる', 'いる', false],
 ];
 
-function createNameScanDeps(lookups: string[]) {
+function createNameScanDeps(
+  lookups: string[],
+  words: Array<[string, string, string, boolean]> = NAME_SCAN_WORDS,
+) {
   return createScanDeps((action, params) => {
     if (action === 'optionsGetFull') {
       return {
@@ -151,7 +154,7 @@ function createNameScanDeps(lookups: string[]) {
     }
     const text = (params as { text?: string } | undefined)?.text ?? '';
     lookups.push(text);
-    for (const [surface, term, reading, isName] of NAME_SCAN_WORDS) {
+    for (const [surface, term, reading, isName] of words) {
       if (text.startsWith(surface)) {
         return {
           originalTextLength: surface.length,
@@ -232,6 +235,39 @@ test('requestYomitanScanTokens matches a katakana name from its kana-normalized 
 
   assert.equal(result?.[0]?.surface, 'ミナト');
   assert.equal(result?.[0]?.isNameMatch, true);
+});
+
+// Kana normalization does not fold halfwidth katakana, so a name written that
+// way can never prefix-match a candidate form; the pre-pass has a bypass for
+// those positions, which only runs if they count as Japanese in the first place.
+// The generic word here reaches into the name, so only a pre-pass reservation
+// can keep the name whole.
+const HALFWIDTH_NAME_SCAN_WORDS: Array<[string, string, string, boolean]> = [
+  ['まだﾐ', 'まだミ', 'まだみ', false],
+  ['まだ', 'まだ', 'まだ', false],
+  ['ﾐﾅﾄ', 'ミナト', 'みなと', true],
+];
+
+test('requestYomitanScanTokens probes halfwidth katakana positions during the name pre-pass', async () => {
+  const lookups: string[] = [];
+  const result = await requestYomitanScanTokens(
+    'まだﾐﾅﾄ',
+    createNameScanDeps(lookups, HALFWIDTH_NAME_SCAN_WORDS),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      // Fullwidth forms only, as the generated dictionary stores them.
+      nameCandidates: { key: 'media-1', forms: ['ミナト', 'みなと'] },
+    },
+  );
+
+  assert.equal(countTermsFindLookups(lookups, 'ﾐﾅﾄ'), 1);
+  assert.deepEqual(
+    result?.map((token) => token.surface),
+    ['まだ', 'ﾐﾅﾄ'],
+  );
+  assert.equal(result?.[1]?.isNameMatch, true);
 });
 
 test('requestYomitanScanTokens falls back to the exhaustive name scan without candidates', async () => {
@@ -2061,6 +2097,102 @@ test('requestYomitanScanTokens lets a longer generic word beat a shorter name at
   );
 });
 
+test('requestYomitanScanTokens lets a generic word beat a name it fully contains', async () => {
+  const nameEntry = (term: string, reading: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText: term, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [
+      {
+        dictionary: 'SubMiner Character Dictionary (AniList 130298)',
+        dictionaryAlias: 'SubMiner Character Dictionary (AniList 130298)',
+      },
+    ],
+  });
+  const jmdictEntry = (term: string, reading: string, originalText: string) => ({
+    headwords: [
+      {
+        term,
+        reading,
+        sources: [{ originalText, isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+    definitions: [{ dictionary: 'JMdict', dictionaryAlias: 'JMdict' }],
+  });
+
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [
+          {
+            options: {
+              scanning: { length: 40 },
+              dictionaries: [
+                { name: 'JMdict', enabled: true },
+                { name: 'SubMiner Character Dictionary (AniList 130298)', enabled: true },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    if (action !== 'termsFind') {
+      throw new Error(`unexpected action: ${action}`);
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (text.startsWith('写真')) {
+      return {
+        originalTextLength: 2,
+        dictionaryEntries: [jmdictEntry('写真', 'しゃしん', '写真')],
+      };
+    }
+    if (text.startsWith('写')) {
+      return { originalTextLength: 1, dictionaryEntries: [jmdictEntry('写', 'しゃ', '写')] };
+    }
+    if (text.startsWith('真')) {
+      // The given name of 安田真 also matches the second half of 写真.
+      return {
+        originalTextLength: 1,
+        dictionaryEntries: [nameEntry('真', 'しん'), jmdictEntry('真', 'しん', '真')],
+      };
+    }
+    if (text.startsWith('は')) {
+      return { originalTextLength: 1, dictionaryEntries: [jmdictEntry('は', 'は', 'は')] };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  const result = await requestYomitanScanTokens(
+    '写真は',
+    deps,
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  assert.equal(Array.isArray(result), true);
+  assert.deepEqual(
+    result?.map(({ surface, headword, startPos, endPos, isNameMatch }) => ({
+      surface,
+      headword,
+      startPos,
+      endPos,
+      isNameMatch,
+    })),
+    [
+      { surface: '写真', headword: '写真', startPos: 0, endPos: 2, isNameMatch: false },
+      { surface: 'は', headword: 'は', startPos: 2, endPos: 3, isNameMatch: false },
+    ],
+  );
+});
+
 test('requestYomitanScanTokens skips greedy name scan without an enabled character dictionary', async () => {
   let scanCallScript = '';
   const deps = createScanDeps(
@@ -2388,6 +2520,103 @@ test('clearYomitanParserCachesForWindow invalidates the cross-line termsFind cac
   assert.equal(countTermsFindLookups(lookups, '猫'), 2);
 });
 
+test('an oversized termsFind result is dropped from the cache instead of being reused', async () => {
+  const lookups: string[] = [];
+  // One entry over the runtime's 20,000 retained-entry budget: the weight is
+  // only known once the lookup resolves, so the cache has to re-check then.
+  const oversizedEntries = Array.from({ length: 20_001 }, () => ({
+    headwords: [
+      {
+        term: '猫',
+        reading: 'ねこ',
+        sources: [{ originalText: '猫', isPrimary: true, matchType: 'exact' }],
+      },
+    ],
+  }));
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    lookups.push(text);
+    if (text.startsWith('猫')) {
+      return { originalTextLength: 1, dictionaryEntries: oversizedEntries };
+    }
+    return { originalTextLength: 0, dictionaryEntries: [] };
+  });
+
+  await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+  await requestYomitanScanTokens('猫', deps, { error: () => undefined });
+
+  assert.equal(countTermsFindLookups(lookups, '猫'), 2);
+});
+
+test('scanner tokens survive a retry-budget escalation whose parseText finds nothing', async () => {
+  const parsedTexts: string[] = [];
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (action === 'parseText') {
+      parsedTexts.push(text);
+      return [];
+    }
+    if (text.startsWith('猫')) {
+      return {
+        originalTextLength: 1,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: '猫',
+                reading: 'ねこ',
+                sources: [{ originalText: '猫', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    // The rest of the line burns the blind-retry budget at every position.
+    return {
+      originalTextLength: text.length,
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'ミスマッチ',
+              reading: 'みすまっち',
+              sources: [{ originalText: 'ZZZ', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  const result = await requestYomitanScanTokens('猫あいうえおかきくけこ', deps, {
+    error: () => undefined,
+  });
+
+  // The escalation ran exactly once and found nothing, so the tokens the
+  // scanner did resolve are kept instead of dropping the line to raw text.
+  assert.deepEqual(parsedTexts, ['猫あいうえおかきくけこ']);
+  assert.equal(result?.[0]?.surface, '猫');
+});
+
 test('requestYomitanScanTokens skips termsFind lookups at punctuation and whitespace positions', async () => {
   const lookups: string[] = [];
   const deps = createScanDeps(createSingleTermScanHandler(lookups));
@@ -2402,8 +2631,9 @@ test('requestYomitanScanTokens skips termsFind lookups at punctuation and whites
   }
 });
 
-test('requestYomitanScanTokens caps the shrinking-window retry ladder per position', async () => {
+test('requestYomitanScanTokens caps blind retries and escalates the line to parseText', async () => {
   const lookups: string[] = [];
+  const parsedTexts: string[] = [];
   const deps = createScanDeps((action, params) => {
     if (action === 'optionsGetFull') {
       return {
@@ -2415,9 +2645,22 @@ test('requestYomitanScanTokens caps the shrinking-window retry ladder per positi
       return [];
     }
     const text = (params as { text?: string } | undefined)?.text ?? '';
+    if (action === 'parseText') {
+      parsedTexts.push(text);
+      return [
+        {
+          source: 'scanning-parser',
+          index: 0,
+          content: [
+            [{ text: 'あいうえお', reading: 'あいうえお', headwords: [[{ term: 'あい' }]] }],
+          ],
+        },
+      ];
+    }
     lookups.push(text);
     // Every window "matches" its whole length but never yields an
-    // exact-source headword, the worst case for the retry ladder.
+    // exact-source headword, the worst case for the retry ladder: each step
+    // down is a blind guess with nothing shorter reported to aim at.
     return {
       originalTextLength: text.length,
       dictionaryEntries: [
@@ -2438,9 +2681,73 @@ test('requestYomitanScanTokens caps the shrinking-window retry ladder per positi
     error: () => undefined,
   });
 
-  assert.equal(result, null);
-  // Position 0: one initial window lookup plus at most four shrinking retries.
+  // Position 0: one initial window lookup plus at most four blind retries, so
+  // the ladder cannot degrade into a lookup per window length.
   assert.equal(countTermsFindLookups(lookups, 'あいうえお'), 5);
+  // Giving up there would leave the line unparsed, so it escalates to the one
+  // full parse the scanner normally replaces.
+  assert.deepEqual(parsedTexts, ['あいうえおかきくけこ']);
+  assert.equal(result?.[0]?.headword, 'あい');
+});
+
+test('requestYomitanScanTokens keeps shrinking while the backend guides the retry ladder', async () => {
+  const lookups: string[] = [];
+  const deps = createScanDeps((action, params) => {
+    if (action === 'optionsGetFull') {
+      return {
+        profileCurrent: 0,
+        profiles: [{ options: { scanning: { length: 40 } } }],
+      };
+    }
+    if (action === 'getDictionaryInfo') {
+      return [];
+    }
+    const text = (params as { text?: string } | undefined)?.text ?? '';
+    lookups.push(text);
+    // Normalization keeps eating one character past the term, so every window
+    // reports a shorter consumed length: informative steps that must not be
+    // spent from the blind-retry budget. The term only surfaces at length 2,
+    // six lookups down the ladder.
+    if (text.length === 2) {
+      return {
+        originalTextLength: 2,
+        dictionaryEntries: [
+          {
+            headwords: [
+              {
+                term: 'あい',
+                reading: 'あい',
+                sources: [{ originalText: 'あい', isPrimary: true, matchType: 'exact' }],
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return {
+      originalTextLength: Math.max(text.length - 1, 0),
+      dictionaryEntries: [
+        {
+          headwords: [
+            {
+              term: 'ミスマッチ',
+              reading: 'みすまっち',
+              sources: [{ originalText: 'ZZZ', isPrimary: true, matchType: 'exact' }],
+            },
+          ],
+        },
+      ],
+    };
+  });
+
+  const result = await requestYomitanScanTokens('あいうえおかきくけこさしすせ', deps, {
+    error: () => undefined,
+  });
+
+  assert.equal(result?.[0]?.surface, 'あい');
+  // Windows of 14, 12, 10, 8, 6, 4 characters, then the match at 2: a ladder
+  // capped at four lookups would stop at 6 and leave the line unparsed.
+  assert.equal(countTermsFindLookups(lookups, 'あい'), 7);
 });
 
 test('requestYomitanScanTokens falls back to parseText when the scanner eval fails', async () => {

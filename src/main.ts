@@ -1834,9 +1834,10 @@ function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?:
   }
   annotationSubtitleWsService.broadcast(timedPayload, frequencyOptions);
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
-  // resumePrefetch: false marks a provisional pre-tokenization emit; prefetch
-  // stays paused until the tokenized payload for the line lands so it does not
-  // compete with the on-screen line for the single Yomitan parser window.
+  // resumePrefetch: false marks an emit that is not the end of the work for
+  // this line; prefetch stays paused until the subtitle processing controller
+  // settles so it does not compete with the on-screen line for the single
+  // Yomitan parser window.
   if (options?.resumePrefetch !== false) {
     subtitlePrefetchService?.resume();
   }
@@ -1895,7 +1896,17 @@ const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
     tokenizeSubtitle: async (text: string) =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
-    emitSubtitle: (payload) => emitSubtitlePayload(payload),
+    // Controller emits never release the prefetch pause: the first emit for an
+    // uncached line is the provisional plain payload, sent before tokenization
+    // starts, so resuming on it would put prefetch back in contention with the
+    // on-screen line for the single parser window.
+    emitSubtitle: (payload) => emitSubtitlePayload(payload, { resumePrefetch: false }),
+    // The pause is released once the controller has no work left, which covers
+    // the runs that end without an emit (suppressed duplicate, failed
+    // tokenization) as well as the ones that deliver a payload.
+    onProcessingSettled: () => {
+      subtitlePrefetchService?.resume();
+    },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
     },
@@ -3988,7 +3999,10 @@ const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
   }
   subtitleProcessingController.invalidateTokenizationCache();
   subtitlePrefetchService?.onSeek(lastObservedTimePos);
-  subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+  if (!subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)) {
+    // Idle controller: no settle is coming to release the pause above.
+    subtitlePrefetchService?.resume();
+  }
 };
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
@@ -4393,7 +4407,7 @@ const {
       // tokenization work on every line. Real seeks restart via onTimePosUpdate.
       subtitlePrefetchService?.pause();
       if (!subtitleProcessingController.onSubtitleChange(text)) {
-        // Repeat of the current text: nothing will be tokenized, so no emit is
+        // Repeat of the current text: the controller is idle, so no settle is
         // coming to release the pause. Resume now instead of idling prefetch
         // for the rest of the cue.
         subtitlePrefetchService?.resume();

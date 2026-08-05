@@ -493,13 +493,32 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
   assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
   assert.match(
     actionBlock,
-    /subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\);/,
+    /if \(!subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
   );
   assert.ok(
     actionBlock.indexOf('subtitleProcessingController.invalidateTokenizationCache();') <
       actionBlock.indexOf(
-        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);',
+        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
       ),
+  );
+});
+
+test('subtitle processing controller resumes prefetch on settle, not on its emits', () => {
+  const source = readMainSource();
+  const depsBlock = source.match(
+    /createBuildSubtitleProcessingControllerMainDepsHandler\(\{(?<body>[\s\S]*?)\n  \}\);/,
+  )?.groups?.body;
+
+  assert.ok(depsBlock);
+  // A controller emit can be the provisional plain payload sent before the
+  // scan runs, so it must not release the prefetch pause.
+  assert.match(
+    depsBlock,
+    /emitSubtitle: \(payload\) => emitSubtitlePayload\(payload, \{ resumePrefetch: false \}\),/,
+  );
+  assert.match(
+    depsBlock,
+    /onProcessingSettled: \(\) => \{\s+subtitlePrefetchService\?\.resume\(\);/,
   );
 });
 

@@ -215,6 +215,7 @@ function createPrimingRuntimeWithRealController(options: {
   text: string;
   calls: string[];
   onTokenize: () => void;
+  tokenize?: (text: string) => SubtitleData | null | Promise<SubtitleData | null>;
   cacheLimit?: number;
 }) {
   const { text, calls } = options;
@@ -222,14 +223,41 @@ function createPrimingRuntimeWithRealController(options: {
   let currentSubtitleData: SubtitleData | null = null;
   const mediaPath = '/media/video.mkv';
 
+  const prefetchService = {
+    pause: () => calls.push('prefetch:pause'),
+    resume: () => calls.push('prefetch:resume'),
+  };
+  // Mirrors main.ts emitSubtitlePayload: an emit resumes prefetching unless it
+  // is explicitly marked as not the end of the work for the line, and every
+  // controller emit is so marked.
+  const emitSubtitlePayload = (
+    payload: SubtitleData,
+    emitOptions?: { resumePrefetch?: boolean },
+  ): void => {
+    currentSubtitleData = payload;
+    calls.push(
+      emitOptions?.resumePrefetch === false
+        ? `emit-raw:${payload.text}`
+        : `emit-direct:${payload.text}`,
+    );
+    if (emitOptions?.resumePrefetch !== false) {
+      prefetchService.resume();
+    }
+  };
+
   const subtitleProcessingController = createSubtitleProcessingController({
     tokenizeSubtitle: async (subtitleText) => {
       options.onTokenize();
-      return { text: subtitleText, tokens: [] };
+      return options.tokenize ? options.tokenize(subtitleText) : { text: subtitleText, tokens: [] };
     },
+    // main.ts routes controller emits through emitSubtitlePayload with
+    // resumePrefetch: false, so they never release the pause on their own.
     emitSubtitle: (payload) => {
       currentSubtitleData = payload;
       calls.push(`emit:${payload.text}:tokens=${payload.tokens === null ? 'none' : 'yes'}`);
+    },
+    onProcessingSettled: () => {
+      prefetchService.resume();
     },
     ...(options.cacheLimit === undefined ? {} : { cacheLimit: options.cacheLimit }),
   });
@@ -249,17 +277,8 @@ function createPrimingRuntimeWithRealController(options: {
     getActiveParsedSubtitleCues: () => [],
     setActiveParsedSubtitleMediaPath: () => {},
     subtitleProcessingController,
-    emitSubtitlePayload: (payload, emitOptions) => {
-      if (emitOptions?.resumePrefetch === false) {
-        calls.push(`emit-raw:${payload.text}`);
-        return;
-      }
-      calls.push(`emit-direct:${payload.text}`);
-    },
-    getSubtitlePrefetchService: () => ({
-      pause: () => calls.push('prefetch:pause'),
-      resume: () => calls.push('prefetch:resume'),
-    }),
+    emitSubtitlePayload,
+    getSubtitlePrefetchService: () => prefetchService,
     getLastObservedTimePos: () => 12,
     getVisibleOverlayVisible: () => true,
     emitSecondarySubtitle: () => {},
@@ -335,4 +354,69 @@ test('primeCurrentSubtitleForAutoplay releases the prefetch pause when nothing i
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(calls, ['prefetch:pause', `emit-raw:${text}`, 'prefetch:resume']);
+});
+
+test('primeCurrentSubtitleForAutoplay releases the prefetch pause when tokenization emits nothing', async () => {
+  const calls: string[] = [];
+  const text = '起動字幕';
+  const { runtime, subtitleProcessingController, mediaPath } =
+    createPrimingRuntimeWithRealController({
+      text,
+      calls,
+      onTokenize: () => {},
+      // Transient tokenizer failure: the controller falls back to plain text it
+      // has already shown, so it suppresses the emit entirely.
+      tokenize: () => null,
+    });
+
+  subtitleProcessingController.onSubtitleChange(text);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  subtitleProcessingController.invalidateTokenizationCache();
+  calls.length = 0;
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.ok(
+    !calls.some((call) => call.startsWith('emit:')),
+    `expected no controller emit, saw ${JSON.stringify(calls)}`,
+  );
+  assert.equal(
+    calls.filter((call) => call === 'prefetch:resume').length,
+    1,
+    `expected the prefetch pause to be released, saw ${JSON.stringify(calls)}`,
+  );
+});
+
+test('prefetch stays paused until tokenization of an uncached line completes', async () => {
+  const calls: string[] = [];
+  const text = '起動字幕';
+  let finishTokenization = (): void => {};
+  const tokenizationGate = new Promise<void>((resolve) => {
+    finishTokenization = resolve;
+  });
+  const { subtitleProcessingController } = createPrimingRuntimeWithRealController({
+    text,
+    calls,
+    onTokenize: () => {},
+    tokenize: async (subtitleText) => {
+      await tokenizationGate;
+      return { text: subtitleText, tokens: [] };
+    },
+  });
+
+  subtitleProcessingController.onSubtitleChange(text);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // The provisional plain emit must not release the pause: the expensive scan
+  // is still ahead of it and would compete with prefetching for the parser.
+  assert.deepEqual(calls, [`emit:${text}:tokens=none`]);
+
+  finishTokenization();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls, [
+    `emit:${text}:tokens=none`,
+    `emit:${text}:tokens=yes`,
+    'prefetch:resume',
+  ]);
 });
