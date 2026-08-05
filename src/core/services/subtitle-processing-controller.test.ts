@@ -115,6 +115,21 @@ test('subtitle processing does not emit plain payload for cached lines', async (
   assert.deepEqual(emitted, [{ text: '字幕', tokens: [] }]);
 });
 
+test('text that normalizes to nothing is never cached', () => {
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: () => {},
+  });
+
+  // Two different inputs both reduce to an empty key; sharing one entry would serve the
+  // first one's tokens for the second.
+  controller.preCacheTokenization('  ', { text: '  ', tokens: [] });
+
+  assert.equal(controller.hasCachedSubtitle('  '), false);
+  assert.equal(controller.hasCachedSubtitle('\\n'), false);
+  assert.equal(controller.consumeCachedSubtitle('\\n'), null);
+});
+
 test('subtitle processing shows plain line while tokenization is still pending', async () => {
   const emitted: SubtitleData[] = [];
   let resolveTokenization: ((value: SubtitleData | null) => void) | undefined;

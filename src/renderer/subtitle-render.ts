@@ -5,6 +5,7 @@ import type {
   SubtitleData,
   SubtitleRendererStyleConfig,
 } from '../types';
+import { assToPlainText, normalizePlainSubtitleText } from '../core/services/ass-text.js';
 import type { RendererContext } from './context';
 import { PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS } from './yomitan-popup.js';
 
@@ -42,17 +43,10 @@ function isWhitespaceOnly(value: string): boolean {
   return value.trim().length === 0;
 }
 
+// Text reaching the overlay has already been decoded from ASS -- by mpv for live lines,
+// by the cue parser for prefetched ones -- so this only settles line breaks.
 export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks = false): string {
-  if (!text) return '';
-
-  let normalized = text.replace(/\\N/g, '\n').replace(/\\n/g, '\n');
-  normalized = normalized.replace(/\{[^}]*\}/g, '');
-  if (collapseLineBreaks) {
-    normalized = normalized.replace(/\n/g, ' ');
-    normalized = normalized.replace(/\s+/g, ' ');
-  }
-
-  return trim ? normalized.trim() : normalized;
+  return normalizePlainSubtitleText(text, { trim, collapseLineBreaks });
 }
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -672,7 +666,10 @@ function isKaraokeLikeLineSet(lines: string[]): boolean {
 }
 
 export function prepareSecondarySubtitleLines(text: string): string[] {
-  const normalized = normalizeSubtitle(text, true, false);
+  // The one display-side ASS decode: secondary text also reaches the overlay from
+  // websocket clients that forward their source line untouched, so unlike the primary
+  // path it cannot assume mpv already decoded it.
+  const normalized = assToPlainText(text).trim();
 
   if (!normalized) return [];
 

@@ -64,18 +64,23 @@ External subtitle files only (SRT, VTT, ASS). Embedded subtitle tracks are out o
 A cue parser extracts both timing and text content from subtitle files for prefetching.
 
 **Parsed cue structure:**
+
 ```typescript
 interface SubtitleCue {
-  startTime: number;  // seconds
-  endTime: number;    // seconds
-  text: string;       // raw subtitle text
+  startTime: number; // seconds
+  endTime: number; // seconds
+  text: string; // plain text, decoded from the source format
 }
 ```
 
 **Supported formats:**
+
 - SRT/VTT: Regex-based parsing of timing lines + text content between timing blocks.
-- ASS: Parse `[Events]` section, extract `Dialogue:` lines, split on the first 9 commas only (ASS v4+ has 10 fields; the last field is Text which can itself contain commas). Strip ASS override tags (`{\...}`) from the text before storing.
-  ASS text fields contain inline override tags like `{\b1}`, `{\an8}`, `{\fad(200,300)}`. The cue parser strips these during extraction so the tokenizer receives clean text.
+- ASS: Parse `[Events]` section, extract `Dialogue:` lines, read the field order from the `Format:` row, and take everything after the Text field index as the text (Text can itself contain commas).
+
+**ASS decoding.** The parser is where ASS text is decoded, once, via `assToPlainText()` in `src/core/services/ass-text.ts`. That decoder mirrors mpv's `ass_to_plaintext` so a cue read from a file reads identically to the same line arriving live on `sub-text`: `{...}` override blocks are markup, `\pN … \p0` vector drawing runs are dropped rather than shown as text, `\N`/`\n`/`\h` are the only escapes (`\{`, `\}` and `\\` are not), and an unclosed `{` is rendered verbatim. Every layer downstream — renderer, timing tracker, tokenizer, tokenization cache keys — receives plain text and uses `normalizePlainSubtitleText()` for whitespace only, so nothing decodes the same string twice and one authored line always maps to one cache key.
+
+**Duplicate collapsing.** Typeset scripts emit one `Dialogue:` event per animation frame, plus layered copies of the same line. The parser collapses identical text over an identical span unconditionally, and collapses contiguous same-text runs of at least three events when the run looks like an animation. For ASS that means shared style and actor plus authoring evidence: a temporal tag (`\t`, `\move`, `\k`/`\kf`/`\ko`/`\K`, or anything wrapped in `\t(...)`), an animated `Effect` column (`Karaoke`, `Banner`, `Scroll`), or override values that change across the run. Static tags shared by every event (`\pos`, an identical `\clip`) are not evidence. SRT/VTT carry no such metadata, so there collapsing needs at least five contiguous events all under 0.1s — the frame timing left behind by ASS-to-SRT conversion. The parser keeps this authoring metadata (style, actor, layer, `Effect`, parsed override commands, source order) private; `parseSubtitleCues()` returns only `SubtitleCue`.
 
 #### Prefetch Service Lifecycle
 
@@ -153,6 +158,7 @@ tokens (already have frequencyRank values from parser-level applyFrequencyRanks)
 ### Dependency Analysis
 
 All annotations either depend on MeCab POS data or benefit from running after it:
+
 - **Known word marking:** Needs base tokens (surface/headword). No POS dependency, but no reason to run separately.
 - **Frequency filtering:** Uses `pos1Exclusions` and `pos2Exclusions` to clear frequency ranks on excluded tokens (particles, noise). Depends on MeCab POS data.
 - **JLPT marking:** Uses `shouldIgnoreJlptForMecabPos1` to filter. Depends on MeCab POS data.
@@ -169,18 +175,14 @@ function annotateTokens(tokens, deps, options): MergedToken[] {
 
   // Single pass: known word + frequency filtering + JLPT computed together
   const annotated = tokens.map((token) => {
-    const isKnown = nPlusOneEnabled
-      ? token.isKnown || computeIsKnown(token, deps)
-      : false;
+    const isKnown = nPlusOneEnabled ? token.isKnown || computeIsKnown(token, deps) : false;
 
     // Filter frequency rank using POS exclusions (rank values already set at parser level)
     const frequencyRank = frequencyEnabled
       ? filterFrequencyRank(token, pos1Exclusions, pos2Exclusions)
       : undefined;
 
-    const jlptLevel = jlptEnabled
-      ? computeJlptLevel(token, deps.getJlptLevel)
-      : undefined;
+    const jlptLevel = jlptEnabled ? computeJlptLevel(token, deps.getJlptLevel) : undefined;
 
     return { ...token, isKnown, frequencyRank, jlptLevel };
   });
@@ -221,6 +223,7 @@ Replace `document.createElement('span')` calls in the renderer with `templateSpa
 ### Current Behavior
 
 In `renderWithTokens` (`subtitle-render.ts`), each render cycle:
+
 1. Clears DOM with `innerHTML = ''`
 2. Creates a `DocumentFragment`
 3. Calls `document.createElement('span')` for each token (~10-15 per subtitle)
@@ -256,27 +259,30 @@ Full recycling (collecting old nodes, clearing attributes, reusing them) require
 
 ## Combined Impact Summary
 
-| Scenario | Before | After | Improvement |
-|----------|--------|-------|-------------|
-| Normal playback (prefetch-warmed) | ~200-320ms | ~30-50ms | ~80-85% |
-| Cache hit (repeated subtitle) | ~72ms | ~55-65ms | ~10-20% |
-| Cache miss (immediate seek) | ~200-320ms | ~150-260ms | ~20-25% |
+| Scenario                          | Before     | After      | Improvement |
+| --------------------------------- | ---------- | ---------- | ----------- |
+| Normal playback (prefetch-warmed) | ~200-320ms | ~30-50ms   | ~80-85%     |
+| Cache hit (repeated subtitle)     | ~72ms      | ~55-65ms   | ~10-20%     |
+| Cache miss (immediate seek)       | ~200-320ms | ~150-260ms | ~20-25%     |
 
 ---
 
 ## Files Summary
 
 ### New Files
+
 - `src/core/services/subtitle-prefetch.ts`
 - `src/core/services/subtitle-cue-parser.ts`
 
 ### Modified Files
+
 - `src/core/services/subtitle-processing-controller.ts` (expose `preCacheTokenization`)
 - `src/core/services/tokenizer/annotation-stage.ts` (batched single-pass)
 - `src/renderer/subtitle-render.ts` (template cloneNode)
 - `src/main.ts` (wire up prefetch service)
 
 ### Test Files
+
 - New tests for subtitle cue parser (SRT, VTT, ASS formats)
 - New tests for subtitle prefetch service (priority window, seek, pause/resume)
 - Updated tests for annotation stage (same behavior, new implementation)

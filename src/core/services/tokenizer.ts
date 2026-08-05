@@ -27,6 +27,7 @@ import {
 } from './tokenizer/yomitan-parser-runtime';
 import type { YomitanTermFrequency } from './tokenizer/yomitan-parser-runtime';
 import { isKanaChar } from './tokenizer/token-classification';
+import { normalizePlainSubtitleText } from './ass-text';
 
 const logger = createLogger('main:tokenizer');
 
@@ -858,14 +859,13 @@ export async function tokenizeSubtitle(
   text: string,
   deps: TokenizerServiceDeps,
 ): Promise<SubtitleData> {
-  const displayText = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\\N/g, '\n')
-    .replace(/\\n/g, '\n')
-    .trim();
+  const displayText = normalizePlainSubtitleText(text);
 
+  // Return the normalized form even when it is empty: handing back the original would put
+  // whatever normalization dropped -- a drawing payload, a stray override block -- into
+  // application state as if it were subtitle text.
   if (!displayText) {
-    return { text, tokens: null };
+    return { text: displayText, tokens: null };
   }
 
   const tokenizeText = displayText

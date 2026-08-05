@@ -137,7 +137,9 @@ test('parseAssCues handles text containing commas', () => {
   assert.equal(cues[0]!.text, 'はい、そうです、ね');
 });
 
-test('parseAssCues handles \\N line breaks', () => {
+test('parseAssCues decodes \\N line breaks into real newlines', () => {
+  // ASS is decoded once, here at ingestion, so cue text matches what mpv hands over for
+  // the same line played live.
   const content = [
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -146,7 +148,7 @@ test('parseAssCues handles \\N line breaks', () => {
 
   const cues = parseAssCues(content);
 
-  assert.equal(cues[0]!.text, '一行目\\N二行目');
+  assert.equal(cues[0]!.text, '一行目\n二行目');
 });
 
 test('parseAssCues strips HTML-like markup while preserving ASS line breaks', () => {
@@ -158,7 +160,46 @@ test('parseAssCues strips HTML-like markup while preserving ASS line breaks', ()
 
   const cues = parseAssCues(content);
 
-  assert.equal(cues[0]!.text, '一行目\\N二行目');
+  assert.equal(cues[0]!.text, '一行目\n二行目');
+});
+
+test('parseAssCues drops vector drawing runs enabled by \\p', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\an5\\pos(730,1042)\\p1\\blur1}m 20 0 b 10 0 0 10 0 20 b 0 31 10 40 20 40 {\\p0}',
+    'Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,これは字幕',
+  ].join('\n');
+
+  const cues = parseAssCues(content);
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.text, 'これは字幕');
+});
+
+test('parseAssCues keeps text that follows a \\p0 reset on the same line', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\p1}m 0 0 l 10 10{\\p0}本文{\\p1}m 5 5 l 6 6{\\p0}続き',
+  ].join('\n');
+
+  const cues = parseAssCues(content);
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.text, '本文続き');
+});
+
+test('parseAssCues leaves \\pos untouched when no drawing mode is active', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(960,1068)\\bord3}位置指定',
+  ].join('\n');
+
+  const cues = parseAssCues(content);
+
+  assert.equal(cues[0]!.text, '位置指定');
 });
 
 test('parseAssCues returns empty for content without Events section', () => {
@@ -256,6 +297,324 @@ test('parseSubtitleCues returns cues sorted by start time', () => {
   const cues = parseSubtitleCues(content, 'test.srt');
   assert.equal(cues[0]!.text, '一番目');
   assert.equal(cues[1]!.text, '二番目');
+});
+
+test('parseSubtitleCues collapses per-frame karaoke duplicates into one cue', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.05,OP_JP,,0,0,0,,{\\clip(m 1 1)}過ぎ去ってしまう瞬間を',
+    'Dialogue: 0,0:00:01.05,0:00:01.09,OP_JP,,0,0,0,,{\\clip(m 2 2)}過ぎ去ってしまう瞬間を',
+    'Dialogue: 0,0:00:01.09,0:00:03.55,OP_JP,,0,0,0,,{\\clip(m 3 3)}過ぎ去ってしまう瞬間を',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.startTime, 1.0);
+  assert.equal(cues[0]!.endTime, 3.55);
+  assert.equal(cues[0]!.text, '過ぎ去ってしまう瞬間を');
+});
+
+test('parseSubtitleCues keeps back-to-back plain dialogue repeats separate', () => {
+  // Several characters greeting in turn: distinct utterances that happen to abut.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:04:05.67,0:04:06.82,Dial_JP,,0,0,0,,おはよう',
+    'Dialogue: 0,0:04:06.82,0:04:07.56,Dial_JP,,0,0,0,,おはよう',
+    'Dialogue: 0,0:04:07.56,0:04:08.78,Dial_JP,,0,0,0,,おはよう',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+  assert.equal(cues[0]!.endTime, 246.82);
+  assert.equal(cues[2]!.startTime, 247.56);
+});
+
+test('parseSubtitleCues collapses exact duplicate cues even without effect tags', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,重なった行',
+    'Dialogue: 1,0:00:01.00,0:00:04.00,Default,,0,0,0,,重なった行',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 1);
+});
+
+test('parseSubtitleCues collapses tag-less animation frames in converted SRT', () => {
+  // ASS -> SRT conversion drops override tags, so only the ~0.04s frame timing remains.
+  const lines = ['1', '00:00:07,870 --> 00:00:07,910', 'Kaguya Wants to be Confessed to', ''];
+  for (let i = 1; i < 8; i++) {
+    const start = 7910 + (i - 1) * 40;
+    const end = start + 40;
+    const at = (ms: number) =>
+      `00:00:0${Math.floor(ms / 1000)},${String(ms % 1000).padStart(3, '0')}`;
+    lines.push(String(i + 1), `${at(start)} --> ${at(end)}`, 'Kaguya Wants to be Confessed to', '');
+  }
+
+  const cues = parseSubtitleCues(lines.join('\n'), 'test.srt');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.startTime, 7.87);
+});
+
+test('parseSubtitleCues keeps identical lines that recur far apart', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,なんで',
+    'Dialogue: 0,0:05:00.00,0:05:01.00,Default,,0,0,0,,なんで',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0]!.startTime, 1.0);
+  assert.equal(cues[1]!.startTime, 300.0);
+});
+
+test('parseSubtitleCues keeps two positioned signs that repeat the same text', () => {
+  // Both carry override tags, but `\pos` and `\fad` are static placement, not animation.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:01:00.00,0:01:03.00,Sign,,0,0,0,,{\\pos(960,120)\\fad(200,200)}第一話',
+    'Dialogue: 0,0:01:03.00,0:01:06.00,Sign,,0,0,0,,{\\pos(960,900)\\fad(200,200)}第一話',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 2);
+  assert.equal(cues[1]!.startTime, 63.0);
+});
+
+test('parseSubtitleCues keeps a run of ordinary positioned lines separate', () => {
+  // Three events is a sequence, but none of them runs at animation-frame speed.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:01:00.00,0:01:02.00,Sign,,0,0,0,,{\\pos(960,120)\\fad(100,100)}止まれ',
+    'Dialogue: 0,0:01:02.00,0:01:04.00,Sign,,0,0,0,,{\\pos(960,120)\\fad(100,100)}止まれ',
+    'Dialogue: 0,0:01:04.00,0:01:06.00,Sign,,0,0,0,,{\\pos(960,120)\\fad(100,100)}止まれ',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues keeps a short repeated SRT pair without burst evidence', () => {
+  const content = [
+    '1',
+    '00:00:01,000 --> 00:00:01,200',
+    'えっ',
+    '',
+    '2',
+    '00:00:01,200 --> 00:00:01,400',
+    'えっ',
+    '',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.srt');
+
+  assert.equal(cues.length, 2);
+});
+
+test('parseSubtitleCues collapses a burst marked only by the Effect column', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.05,OP_JP,,0,0,0,Karaoke,歌詞',
+    'Dialogue: 0,0:00:01.05,0:00:01.09,OP_JP,,0,0,0,Karaoke,歌詞',
+    'Dialogue: 0,0:00:01.09,0:00:03.55,OP_JP,,0,0,0,Karaoke,歌詞',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.endTime, 3.55);
+});
+
+test('parseSubtitleCues keeps a second karaoke burst that starts after a gap', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.05,OP_JP,,0,0,0,,{\\clip(m 1 1)}リフレイン',
+    'Dialogue: 0,0:00:01.05,0:00:01.09,OP_JP,,0,0,0,,{\\clip(m 2 2)}リフレイン',
+    'Dialogue: 0,0:00:01.09,0:00:03.00,OP_JP,,0,0,0,,{\\clip(m 3 3)}リフレイン',
+    'Dialogue: 0,0:00:20.00,0:00:20.05,OP_JP,,0,0,0,,{\\clip(m 1 1)}リフレイン',
+    'Dialogue: 0,0:00:20.05,0:00:20.09,OP_JP,,0,0,0,,{\\clip(m 2 2)}リフレイン',
+    'Dialogue: 0,0:00:20.09,0:00:22.00,OP_JP,,0,0,0,,{\\clip(m 3 3)}リフレイン',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0]!.endTime, 3.0);
+  assert.equal(cues[1]!.startTime, 20.0);
+  assert.equal(cues[1]!.endTime, 22.0);
+});
+
+test('parseSubtitleCues does not merge a burst into unrelated dialogue between frames', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.05,OP_JP,,0,0,0,,{\\clip(m 1 1)}歌詞',
+    'Dialogue: 0,0:00:01.02,0:00:03.00,Dial_JP,,0,0,0,,別のセリフ',
+    'Dialogue: 0,0:00:01.05,0:00:01.09,OP_JP,,0,0,0,,{\\clip(m 2 2)}歌詞',
+    'Dialogue: 0,0:00:01.09,0:00:03.55,OP_JP,,0,0,0,,{\\clip(m 3 3)}歌詞',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 2);
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['歌詞', '別のセリフ'],
+  );
+  assert.equal(cues[0]!.endTime, 3.55);
+});
+
+test('parseSubtitleCues keeps rapid ASS lines from different actors separate', () => {
+  // Three 200ms `えっ` reactions traded between characters. Fast, adjacent and identical,
+  // but authored as three lines: different styles and different actors.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Dial_A,アリス,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Dial_B,ボブ,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.40,0:00:01.60,Dial_C,キャロル,0,0,0,,えっ',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues reads the speaker column when it is spelled Actor', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Actor, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Dial_JP,アリス,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Dial_JP,ボブ,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.40,0:00:01.60,Dial_JP,キャロル,0,0,0,,えっ',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues does not treat a custom Effect name as animation', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Sign,,0,0,0,scrolling-credit,制作',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Sign,,0,0,0,scrolling-credit,制作',
+    'Dialogue: 0,0:00:01.40,0:00:01.60,Sign,,0,0,0,scrolling-credit,制作',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues keeps rapid ASS lines that share a style but not an actor', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Dial_JP,アリス,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Dial_JP,ボブ,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.40,0:00:01.60,Dial_JP,キャロル,0,0,0,,えっ',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues keeps untagged rapid ASS repeats separate', () => {
+  // No overrides at all: timing-only evidence is an SRT/VTT fallback and must not apply
+  // to ASS, where the absence of typesetting is itself evidence of plain dialogue.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.05,Dial_JP,,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.05,0:00:01.10,Dial_JP,,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.10,0:00:01.15,Dial_JP,,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.15,0:00:01.20,Dial_JP,,0,0,0,,えっ',
+    'Dialogue: 0,0:00:01.20,0:00:01.25,Dial_JP,,0,0,0,,えっ',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 5);
+});
+
+test('parseSubtitleCues keeps repeated signs sharing one static clip', () => {
+  // `\clip` is a static shape for the event. Three events with the identical clip were
+  // typeset the same way, so none of them is a frame of the others.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Sign,,0,0,0,,{\\clip(0,0,100,100)}注意',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Sign,,0,0,0,,{\\clip(0,0,100,100)}注意',
+    'Dialogue: 0,0:00:01.40,0:00:01.60,Sign,,0,0,0,,{\\clip(0,0,100,100)}注意',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 3);
+});
+
+test('parseSubtitleCues collapses a sign animated through \\t', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Sign,,0,0,0,,{\\pos(10,10)\\t(0,200,\\frz30)}回る',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Sign,,0,0,0,,{\\pos(10,10)\\t(0,200,\\frz30)}回る',
+    'Dialogue: 0,0:00:01.40,0:00:03.00,Sign,,0,0,0,,{\\pos(10,10)\\t(0,200,\\frz30)}回る',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.endTime, 3.0);
+});
+
+test('parseSubtitleCues keeps a short repeated SRT run above the frame threshold', () => {
+  // Five contiguous 200ms cues: a sequence, but nowhere near animation-frame speed.
+  const lines: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = 1000 + i * 200;
+    const at = (ms: number) =>
+      `00:00:0${Math.floor(ms / 1000)},${String(ms % 1000).padStart(3, '0')}`;
+    lines.push(String(i + 1), `${at(start)} --> ${at(start + 200)}`, 'えっ', '');
+  }
+
+  const cues = parseSubtitleCues(lines.join('\n'), 'test.srt');
+
+  assert.equal(cues.length, 5);
+});
+
+test('parseSubtitleCues keeps a short SRT frame run below the minimum length', () => {
+  // Four 40ms frames: frame-speed, but too few to tell an animation from an artefact.
+  const lines: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    const start = 7870 + i * 40;
+    const at = (ms: number) =>
+      `00:00:0${Math.floor(ms / 1000)},${String(ms % 1000).padStart(3, '0')}`;
+    lines.push(String(i + 1), `${at(start)} --> ${at(start + 40)}`, 'タイトル', '');
+  }
+
+  const cues = parseSubtitleCues(lines.join('\n'), 'test.srt');
+
+  assert.equal(cues.length, 4);
 });
 
 test('parseSubtitleCues detects subtitle formats from remote URLs', () => {

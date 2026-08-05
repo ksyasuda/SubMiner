@@ -1,4 +1,5 @@
 import type { SubtitleData } from '../../types';
+import { normalizePlainSubtitleText } from './ass-text';
 
 export interface SubtitleProcessingControllerDeps {
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
@@ -25,8 +26,15 @@ export interface SubtitleProcessingController {
   hasCachedSubtitle: (text: string) => boolean;
 }
 
+/**
+ * Prefetched cues and live mpv text are both already decoded from ASS, so the key only
+ * has to settle whitespace for one authored line to resolve to one entry.
+ *
+ * An empty key is not a line: it is whatever normalization reduced to nothing. Callers
+ * must skip the cache for it rather than let every such input share one entry.
+ */
 export function normalizeSubtitleCacheKey(text: string): string {
-  return text.replace(/\r\n/g, '\n').replace(/\\N/g, '\n').replace(/\\n/g, '\n').trim();
+  return normalizePlainSubtitleText(text);
 }
 
 export function createSubtitleProcessingController(
@@ -50,6 +58,9 @@ export function createSubtitleProcessingController(
 
   const getCachedTokenization = (text: string): SubtitleData | null => {
     const cacheKey = normalizeSubtitleCacheKey(text);
+    if (!cacheKey) {
+      return null;
+    }
     const cached = tokenizationCache.get(cacheKey);
     if (!cached) {
       return null;
@@ -61,7 +72,11 @@ export function createSubtitleProcessingController(
   };
 
   const setCachedTokenization = (text: string, payload: SubtitleData): void => {
-    tokenizationCache.set(normalizeSubtitleCacheKey(text), payload);
+    const cacheKey = normalizeSubtitleCacheKey(text);
+    if (!cacheKey) {
+      return;
+    }
+    tokenizationCache.set(cacheKey, payload);
     while (tokenizationCache.size > SUBTITLE_TOKENIZATION_CACHE_LIMIT) {
       const firstKey = tokenizationCache.keys().next().value;
       if (firstKey !== undefined) {
@@ -219,7 +234,8 @@ export function createSubtitleProcessingController(
       return cached;
     },
     hasCachedSubtitle: (text: string) => {
-      return tokenizationCache.has(normalizeSubtitleCacheKey(text));
+      const cacheKey = normalizeSubtitleCacheKey(text);
+      return cacheKey.length > 0 && tokenizationCache.has(cacheKey);
     },
   };
 }

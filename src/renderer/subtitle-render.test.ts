@@ -1004,6 +1004,24 @@ test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks i
   );
 });
 
+test('normalizeSubtitle leaves already-decoded text alone', () => {
+  // Primary subtitle text is decoded from ASS once, upstream: by mpv for live lines and
+  // by the cue parser for prefetched ones. A brace that survives that is literal text.
+  assert.equal(normalizeSubtitle('本文{\\pos(1,2)'), '本文{\\pos(1,2)');
+  assert.equal(normalizeSubtitle('  余白  ', false), '  余白  ');
+});
+
+test('prepareSecondarySubtitleLines drops ASS vector drawing runs', () => {
+  assert.deepEqual(
+    prepareSecondarySubtitleLines(
+      '{\\an5\\pos(730,1042)\\p1\\blur1}m 20 0 b 10 0 0 10 0 20 b 0 31 10 40 20 40 {\\p0}',
+    ),
+    [],
+  );
+  assert.deepEqual(prepareSecondarySubtitleLines('{\\p1}m 0 0 l 10 10{\\p0}本文'), ['本文']);
+  assert.deepEqual(prepareSecondarySubtitleLines('{\\pos(960,1068)\\bord3}位置指定'), ['位置指定']);
+});
+
 test('shouldRenderTokenizedSubtitle enables token rendering when tokens exist', () => {
   assert.equal(shouldRenderTokenizedSubtitle(5), true);
   assert.equal(shouldRenderTokenizedSubtitle(0), false);

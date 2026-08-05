@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { normalizePlainSubtitleText } from './core/services/ass-text';
+
 interface TimingEntry {
   startTime: number;
   endTime: number;
@@ -191,23 +193,14 @@ export class SubtitleTimingTracker {
     return costs[shorter.length] || 0;
   }
 
+  // Both sides take text mpv has already decoded from ASS; only whitespace differs
+  // between the lookup key (single line) and the display form (line breaks kept).
   private normalizeText(text: string): string {
-    return text
-      .replace(/\\N/g, ' ')
-      .replace(/\\n/g, ' ')
-      .replace(/\n/g, ' ')
-      .replace(/{[^}]*}/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return normalizePlainSubtitleText(text, { collapseLineBreaks: true });
   }
 
   private prepareDisplayText(text: string): string {
-    // Convert ASS/SSA newlines to real newlines, strip tags
-    return text
-      .replace(/\\N/g, '\n')
-      .replace(/\\n/g, '\n')
-      .replace(/{[^}]*}/g, '')
-      .trim();
+    return normalizePlainSubtitleText(text);
   }
 
   private startCleanup(): void {
