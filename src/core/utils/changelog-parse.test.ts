@@ -141,6 +141,33 @@ test('changelog parser nests three bullet levels and rejoins wrapped lines', () 
   ]);
 });
 
+test('changelog parser reads prerelease and build metadata version headings', () => {
+  const entries = parseChangelog(
+    [
+      '## v0.16.0 (2026-06-01)',
+      '',
+      '### Added',
+      '- New in 0.16.',
+      '',
+      '## v0.15.0-rc.1+build.2 (2026-05-29)',
+      '',
+      '### Added',
+      '- Release candidate note.',
+      '',
+    ].join('\n'),
+  );
+
+  // An unrecognized heading does not just vanish: its notes fold into the
+  // previous release, so the version list has to stay exact.
+  assert.deepEqual(
+    entries.map((entry) => entry.version),
+    ['0.16.0', '0.15.0-rc.1+build.2'],
+  );
+  assert.equal(entries[1]?.date, '2026-05-29');
+  assert.equal(entries[1]?.groupKey, '0.15');
+  assert.equal(entries[0]?.sections.length, 1);
+});
+
 test('changelog parser handles the repo CHANGELOG.md', () => {
   const markdown = fs.readFileSync(path.join(process.cwd(), 'CHANGELOG.md'), 'utf8');
   const entries = parseChangelog(markdown);

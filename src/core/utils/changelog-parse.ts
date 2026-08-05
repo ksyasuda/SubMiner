@@ -1,6 +1,10 @@
 import type { ChangelogEntry, ChangelogItem, ChangelogSection } from '../../types/changelog';
 
-const VERSION_HEADING = /^##\s+v(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)\s*(?:\(([^)]*)\))?\s*$/;
+// Prerelease and build metadata are matched separately: a single `[-+]`-led
+// group cannot span `-rc.1+build.2`, and an unmatched heading silently folds
+// that release's notes into the previous entry.
+const VERSION_HEADING =
+  /^##\s+v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\s*(?:\(([^)]*)\))?\s*$/;
 const SECTION_HEADING = /^###\s+(.+?)\s*$/;
 const BULLET = /^(\s*)[-*]\s+(.*)$/;
 
@@ -106,8 +110,9 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
       continue;
     }
 
-    // A blank line ends the current bullet run; an indented non-bullet line is a
-    // wrapped continuation of the bullet above it.
+    // An indented non-bullet line continues the bullet above it, including
+    // across a blank line: that is CommonMark's continuation paragraph, and
+    // dropping the open bullets here would silently discard the text.
     if (!trimmed) {
       continue;
     }

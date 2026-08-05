@@ -7,6 +7,7 @@ import {
 } from './session-help-sections';
 import { createSessionHelpSectionNode } from './session-help-render';
 import { buildVisibleSessionHelpSections, createSessionHelpTabBar } from './session-help-tabs';
+import { createModalFocusGuard } from './modal-focus-guard';
 
 export {
   buildSessionHelpSections,
@@ -69,11 +70,6 @@ export function createSessionHelpModal(
   let helpFilterValue = '';
   let helpSections: SessionHelpSection[] = [];
   let activeTabId: SessionHelpTabId = 'essentials';
-  let focusGuard: ((event: FocusEvent) => void) | null = null;
-  let windowFocusGuard: (() => void) | null = null;
-  let modalPointerFocusGuard: ((event: Event) => void) | null = null;
-  let isRecoveringModalFocus = false;
-  let lastFocusRecoveryAt = 0;
 
   function getItems(): HTMLButtonElement[] {
     return Array.from(
@@ -102,47 +98,13 @@ export function createSessionHelpModal(
     });
   }
 
-  function isSessionHelpModalFocusTarget(target: EventTarget | null): boolean {
-    return target instanceof Element && ctx.dom.sessionHelpModal.contains(target);
-  }
-
-  function focusFallbackTarget(): boolean {
-    if (!ctx.platform.isModalLayer) {
-      void window.electronAPI.focusMainWindow();
-    }
-    const items = getItems();
-    const firstItem = items.find((item) => item.offsetParent !== null);
-    if (firstItem) {
-      firstItem.focus({ preventScroll: true });
-      return document.activeElement === firstItem;
-    }
-
-    if (ctx.dom.sessionHelpClose instanceof HTMLElement) {
-      ctx.dom.sessionHelpClose.focus({ preventScroll: true });
-      return document.activeElement === ctx.dom.sessionHelpClose;
-    }
-
-    window.focus();
-    return false;
-  }
-
-  function enforceModalFocus(): void {
-    if (!ctx.state.sessionHelpModalOpen) return;
-    if (!isSessionHelpModalFocusTarget(document.activeElement)) {
-      if (isRecoveringModalFocus) return;
-
-      const now = Date.now();
-      if (now - lastFocusRecoveryAt < 120) return;
-
-      isRecoveringModalFocus = true;
-      lastFocusRecoveryAt = now;
-      focusFallbackTarget();
-
-      window.setTimeout(() => {
-        isRecoveringModalFocus = false;
-      }, 120);
-    }
-  }
+  const focus = createModalFocusGuard({
+    isOpen: () => ctx.state.sessionHelpModalOpen,
+    getModalRoot: () => ctx.dom.sessionHelpModal,
+    getPreferredFocusTargets: () => getItems(),
+    getFallbackFocusTarget: () => ctx.dom.sessionHelpClose,
+    isModalLayer: ctx.platform.isModalLayer,
+  });
 
   function isFilterInputFocused(): boolean {
     return document.activeElement === ctx.dom.sessionHelpFilter;
@@ -190,48 +152,6 @@ export function createSessionHelpModal(
     if (isFilterInputFocused()) return;
 
     setSelected(0);
-  }
-
-  function requestOverlayFocus(): void {
-    if (!ctx.platform.isModalLayer) {
-      void window.electronAPI.focusMainWindow();
-    }
-  }
-
-  function addPointerFocusListener(): void {
-    if (modalPointerFocusGuard) return;
-
-    modalPointerFocusGuard = () => {
-      requestOverlayFocus();
-      enforceModalFocus();
-    };
-    ctx.dom.sessionHelpModal.addEventListener('pointerdown', modalPointerFocusGuard);
-    ctx.dom.sessionHelpModal.addEventListener('click', modalPointerFocusGuard);
-  }
-
-  function removePointerFocusListener(): void {
-    if (!modalPointerFocusGuard) return;
-    ctx.dom.sessionHelpModal.removeEventListener('pointerdown', modalPointerFocusGuard);
-    ctx.dom.sessionHelpModal.removeEventListener('click', modalPointerFocusGuard);
-    modalPointerFocusGuard = null;
-  }
-
-  function startFocusRecoveryGuards(): void {
-    if (windowFocusGuard) return;
-
-    windowFocusGuard = () => {
-      requestOverlayFocus();
-      enforceModalFocus();
-    };
-    window.addEventListener('blur', windowFocusGuard);
-    window.addEventListener('focus', windowFocusGuard);
-  }
-
-  function stopFocusRecoveryGuards(): void {
-    if (!windowFocusGuard) return;
-    window.removeEventListener('blur', windowFocusGuard);
-    window.removeEventListener('focus', windowFocusGuard);
-    windowFocusGuard = null;
   }
 
   function showRenderError(message: string): void {
@@ -310,22 +230,10 @@ export function createSessionHelpModal(
     }
     ctx.dom.sessionHelpStatus.textContent = 'Loading session help data...';
 
-    if (focusGuard === null) {
-      focusGuard = (event: FocusEvent) => {
-        if (!ctx.state.sessionHelpModalOpen) return;
-        if (!isSessionHelpModalFocusTarget(event.target)) {
-          event.preventDefault();
-          enforceModalFocus();
-        }
-      };
-      document.addEventListener('focusin', focusGuard);
-    }
-
-    addPointerFocusListener();
-    startFocusRecoveryGuards();
-    requestOverlayFocus();
+    focus.attach();
+    focus.requestOverlayFocus();
     window.focus();
-    enforceModalFocus();
+    focus.enforceModalFocus();
 
     void render().then((dataLoaded) => {
       if (!ctx.state.sessionHelpModalOpen) return;
@@ -353,12 +261,7 @@ export function createSessionHelpModal(
       ctx.dom.overlay.classList.remove('interactive');
     }
 
-    if (focusGuard) {
-      document.removeEventListener('focusin', focusGuard);
-      focusGuard = null;
-    }
-    removePointerFocusListener();
-    stopFocusRecoveryGuards();
+    focus.detach();
 
     if (priorFocus instanceof HTMLElement && priorFocus.isConnected) {
       priorFocus.focus({ preventScroll: true });
@@ -395,7 +298,7 @@ export function createSessionHelpModal(
         helpFilterValue = '';
         ctx.dom.sessionHelpFilter.value = '';
         applyFilterAndRender();
-        focusFallbackTarget();
+        focus.focusFallbackTarget();
         return true;
       }
       return false;
@@ -442,7 +345,7 @@ export function createSessionHelpModal(
     ctx.dom.sessionHelpFilter.addEventListener('keydown', (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        focusFallbackTarget();
+        focus.focusFallbackTarget();
       }
     });
 

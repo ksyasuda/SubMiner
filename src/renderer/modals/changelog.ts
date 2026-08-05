@@ -6,6 +6,7 @@ import {
   resolveEntryBadge,
   shouldEntryStartExpanded,
 } from './changelog-render';
+import { createModalFocusGuard } from './modal-focus-guard';
 
 export function createChangelogModal(
   ctx: RendererContext,
@@ -15,11 +16,6 @@ export function createChangelogModal(
   },
 ) {
   let priorFocus: Element | null = null;
-  let focusGuard: ((event: FocusEvent) => void) | null = null;
-  let windowFocusGuard: (() => void) | null = null;
-  let modalPointerFocusGuard: ((event: Event) => void) | null = null;
-  let isRecoveringModalFocus = false;
-  let lastFocusRecoveryAt = 0;
   let loadToken = 0;
 
   function getSummaries(): HTMLElement[] {
@@ -28,19 +24,25 @@ export function createChangelogModal(
     ) as HTMLElement[];
   }
 
-  function setSelected(index: number): void {
+  function applySelectionStyles(index: number): HTMLElement[] {
     const summaries = getSummaries();
-    if (summaries.length === 0) return;
-
-    const wrapped = index % summaries.length;
-    const next = wrapped < 0 ? wrapped + summaries.length : wrapped;
-    ctx.state.changelogSelectedIndex = next;
-
+    ctx.state.changelogSelectedIndex = index;
     summaries.forEach((summary, idx) => {
-      summary.classList.toggle('active', idx === next);
-      summary.tabIndex = idx === next ? 0 : -1;
+      summary.classList.toggle('active', idx === index);
+      summary.tabIndex = idx === index ? 0 : -1;
     });
-    const active = summaries[next];
+    return summaries;
+  }
+
+  function setSelected(index: number): void {
+    const count = getSummaries().length;
+    if (count === 0) return;
+
+    const wrapped = index % count;
+    const next = wrapped < 0 ? wrapped + count : wrapped;
+
+    // Only the keyboard path moves focus; clicking already focused the summary.
+    const active = applySelectionStyles(next)[next];
     if (!active) return;
     active.focus({ preventScroll: true });
     active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -52,82 +54,13 @@ export function createChangelogModal(
     return entry instanceof HTMLDetailsElement ? entry : null;
   }
 
-  function isChangelogModalFocusTarget(target: EventTarget | null): boolean {
-    return target instanceof Element && ctx.dom.changelogModal.contains(target);
-  }
-
-  function focusFallbackTarget(): boolean {
-    if (!ctx.platform.isModalLayer) {
-      void window.electronAPI.focusMainWindow();
-    }
-    const firstSummary = getSummaries().find((summary) => summary.offsetParent !== null);
-    if (firstSummary) {
-      firstSummary.focus({ preventScroll: true });
-      return document.activeElement === firstSummary;
-    }
-    if (ctx.dom.changelogClose instanceof HTMLElement) {
-      ctx.dom.changelogClose.focus({ preventScroll: true });
-      return document.activeElement === ctx.dom.changelogClose;
-    }
-    window.focus();
-    return false;
-  }
-
-  function enforceModalFocus(): void {
-    if (!ctx.state.changelogModalOpen) return;
-    if (isChangelogModalFocusTarget(document.activeElement)) return;
-    if (isRecoveringModalFocus) return;
-
-    const now = Date.now();
-    if (now - lastFocusRecoveryAt < 120) return;
-
-    isRecoveringModalFocus = true;
-    lastFocusRecoveryAt = now;
-    focusFallbackTarget();
-    window.setTimeout(() => {
-      isRecoveringModalFocus = false;
-    }, 120);
-  }
-
-  function requestOverlayFocus(): void {
-    if (!ctx.platform.isModalLayer) {
-      void window.electronAPI.focusMainWindow();
-    }
-  }
-
-  function addPointerFocusListener(): void {
-    if (modalPointerFocusGuard) return;
-    modalPointerFocusGuard = () => {
-      requestOverlayFocus();
-      enforceModalFocus();
-    };
-    ctx.dom.changelogModal.addEventListener('pointerdown', modalPointerFocusGuard);
-    ctx.dom.changelogModal.addEventListener('click', modalPointerFocusGuard);
-  }
-
-  function removePointerFocusListener(): void {
-    if (!modalPointerFocusGuard) return;
-    ctx.dom.changelogModal.removeEventListener('pointerdown', modalPointerFocusGuard);
-    ctx.dom.changelogModal.removeEventListener('click', modalPointerFocusGuard);
-    modalPointerFocusGuard = null;
-  }
-
-  function startFocusRecoveryGuards(): void {
-    if (windowFocusGuard) return;
-    windowFocusGuard = () => {
-      requestOverlayFocus();
-      enforceModalFocus();
-    };
-    window.addEventListener('blur', windowFocusGuard);
-    window.addEventListener('focus', windowFocusGuard);
-  }
-
-  function stopFocusRecoveryGuards(): void {
-    if (!windowFocusGuard) return;
-    window.removeEventListener('blur', windowFocusGuard);
-    window.removeEventListener('focus', windowFocusGuard);
-    windowFocusGuard = null;
-  }
+  const focus = createModalFocusGuard({
+    isOpen: () => ctx.state.changelogModalOpen,
+    getModalRoot: () => ctx.dom.changelogModal,
+    getPreferredFocusTargets: () => getSummaries(),
+    getFallbackFocusTarget: () => ctx.dom.changelogClose,
+    isModalLayer: ctx.platform.isModalLayer,
+  });
 
   function renderSnapshot(snapshot: ChangelogSnapshot): void {
     ctx.dom.changelogList.innerHTML = '';
@@ -206,22 +139,10 @@ export function createChangelogModal(
       window.electronAPI.setIgnoreMouseEvents(false);
     }
 
-    if (focusGuard === null) {
-      focusGuard = (event: FocusEvent) => {
-        if (!ctx.state.changelogModalOpen) return;
-        if (!isChangelogModalFocusTarget(event.target)) {
-          event.preventDefault();
-          enforceModalFocus();
-        }
-      };
-      document.addEventListener('focusin', focusGuard);
-    }
-
-    addPointerFocusListener();
-    startFocusRecoveryGuards();
-    requestOverlayFocus();
+    focus.attach();
+    focus.requestOverlayFocus();
     window.focus();
-    enforceModalFocus();
+    focus.enforceModalFocus();
 
     void load();
   }
@@ -239,12 +160,7 @@ export function createChangelogModal(
       ctx.dom.overlay.classList.remove('interactive');
     }
 
-    if (focusGuard) {
-      document.removeEventListener('focusin', focusGuard);
-      focusGuard = null;
-    }
-    removePointerFocusListener();
-    stopFocusRecoveryGuards();
+    focus.detach();
 
     if (priorFocus instanceof HTMLElement && priorFocus.isConnected) {
       priorFocus.focus({ preventScroll: true });
@@ -295,6 +211,12 @@ export function createChangelogModal(
     }
 
     if (key === 'enter' || key === ' ') {
+      // Only the selected release summary folds from here. The Close/Refresh
+      // buttons and the nested "Internal changes" fold activate themselves, and
+      // swallowing Enter/Space would make them unreachable by keyboard.
+      if (e.target !== summaries[ctx.state.changelogSelectedIndex]) {
+        return true;
+      }
       e.preventDefault();
       const entry = getSelectedEntry();
       if (entry) entry.open = !entry.open;
@@ -334,11 +256,7 @@ export function createChangelogModal(
       if (!summary) return;
       const index = Number.parseInt(summary.dataset.changelogIndex ?? '', 10);
       if (!Number.isFinite(index)) return;
-      ctx.state.changelogSelectedIndex = index;
-      getSummaries().forEach((item, idx) => {
-        item.classList.toggle('active', idx === index);
-        item.tabIndex = idx === index ? 0 : -1;
-      });
+      applySelectionStyles(index);
     });
   }
 
