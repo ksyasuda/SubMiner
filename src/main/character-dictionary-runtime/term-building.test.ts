@@ -36,3 +36,35 @@ test('buildNameTerms adds surname honorifics from Japanese localized aliases', (
   assert.ok(terms.includes('馬渕さん'));
   assert.ok(!terms.includes('송치'));
 });
+
+test('buildNameTerms drops the disambiguator letter of a mob character name', () => {
+  const terms = buildNameTerms(
+    characterRecord({
+      firstNameHint: '',
+      lastNameHint: '',
+      fullName: 'Joshi A',
+      nativeName: '女子A',
+    }),
+  );
+
+  // ア would match every あ〜 in the subtitles; the letter is a disambiguator
+  // (Girl A / Girl B), not a name.
+  assert.ok(!terms.includes('ア'));
+  assert.ok(!terms.includes('アさん'));
+  assert.ok(terms.includes('女子A'));
+  assert.ok(terms.includes('ジョシア'));
+});
+
+test('buildNameTerms keeps a single-kanji name part', () => {
+  const terms = buildNameTerms(
+    characterRecord({
+      firstNameHint: 'Sora',
+      lastNameHint: 'Yamada',
+      fullName: 'Sora Yamada',
+      nativeName: '山田 空',
+    }),
+  );
+
+  assert.ok(terms.includes('山田'));
+  assert.ok(terms.includes('空'));
+});

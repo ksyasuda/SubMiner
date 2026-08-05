@@ -42,6 +42,15 @@ export function expandRawNameVariants(rawName: string): string[] {
   return [...variants];
 }
 
+// AniList disambiguates unnamed mob characters with a trailing letter (女子A /
+// "Joshi A"), and a single letter romanizes into a single-kana alias (A → ア)
+// that collides with interjections (あ〜 matching ア). A one-character form is
+// only a real lookup target when it is kanji, so every other single-character
+// form is dropped before it can become a term.
+function isUsableNameTerm(name: string): boolean {
+  return [...name].length > 1 || containsKanji(name);
+}
+
 export function isJapaneseNameSplitCandidate(name: string): boolean {
   const compact = name.replace(/[\s\u3000・･·•]/g, '');
   return (
@@ -97,8 +106,11 @@ export function buildNameTerms(
 
       const split = name.split(/[\s\u3000]+/).filter((part) => part.trim().length > 0);
       if (split.length === 2) {
-        target.add(split[0]!);
-        target.add(split[1]!);
+        for (const part of split) {
+          if (isUsableNameTerm(part)) {
+            target.add(part);
+          }
+        }
       }
 
       const splitByMiddleDot = name
@@ -107,7 +119,9 @@ export function buildNameTerms(
         .filter((part) => part.length > 0);
       if (splitByMiddleDot.length >= 2) {
         for (const part of splitByMiddleDot) {
-          target.add(part);
+          if (isUsableNameTerm(part)) {
+            target.add(part);
+          }
         }
       }
 
@@ -136,6 +150,7 @@ export function buildNameTerms(
 
   const withHonorifics = new Set<string>();
   for (const entry of base) {
+    if (!isUsableNameTerm(entry)) continue;
     withHonorifics.add(entry);
     for (const suffix of HONORIFIC_SUFFIXES) {
       withHonorifics.add(`${entry}${suffix.term}`);
