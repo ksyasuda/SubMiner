@@ -32,6 +32,7 @@ export function resolveTrayIconPathRuntime(deps: {
 export type TrayMenuActionHandlers = {
   platform?: string;
   openSessionHelp: () => void;
+  openChangelog: () => void;
   openTexthookerInBrowser: () => void;
   showTexthookerPage: boolean;
   openFirstRunSetup: () => void;
@@ -71,6 +72,10 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     {
       label: 'Open Help',
       click: handlers.openSessionHelp,
+    },
+    {
+      label: 'View Changelog',
+      click: handlers.openChangelog,
     },
     ...(handlers.showTexthookerPage
       ? [

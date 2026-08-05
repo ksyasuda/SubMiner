@@ -25,6 +25,7 @@ test('tray runtime handlers compose resolve/menu/ensure/destroy handlers', () =>
       },
       isOverlayRuntimeInitialized: () => overlayInitialized,
       openSessionHelpModal: () => {},
+      openChangelogModal: () => {},
       openTexthookerInBrowser: () => {},
       showTexthookerPage: () => true,
       showFirstRunSetup: () => true,

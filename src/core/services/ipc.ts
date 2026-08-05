@@ -1,6 +1,7 @@
 import electron from 'electron';
 import type { BrowserWindow as ElectronBrowserWindow, IpcMainEvent } from 'electron';
 import type {
+  ChangelogSnapshot,
   CompiledSessionBinding,
   ControllerConfigUpdate,
   PlaylistBrowserMutationResult,
@@ -122,6 +123,7 @@ export interface IpcServiceDeps {
   removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
   moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  getChangelogSnapshot?: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
   playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
@@ -297,6 +299,7 @@ export interface IpcDepsRuntimeOptions {
   removeCharacterDictionaryManagedEntry?: (mediaId: number) => Promise<unknown>;
   moveCharacterDictionaryManagedEntry?: (mediaId: number, direction: 1 | -1) => Promise<unknown>;
   appendClipboardVideoToQueue: () => { ok: boolean; message: string };
+  getChangelogSnapshot?: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   getPlaylistBrowserSnapshot: () => Promise<PlaylistBrowserSnapshot>;
   appendPlaylistBrowserFile: (filePath: string) => Promise<PlaylistBrowserMutationResult>;
   playPlaylistBrowserIndex: (index: number) => Promise<PlaylistBrowserMutationResult>;
@@ -418,6 +421,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
         entries: [],
       })),
     appendClipboardVideoToQueue: options.appendClipboardVideoToQueue,
+    getChangelogSnapshot: options.getChangelogSnapshot,
     getPlaylistBrowserSnapshot: options.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: options.appendPlaylistBrowserFile,
     playPlaylistBrowserIndex: options.playPlaylistBrowserIndex,
@@ -818,6 +822,17 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.appendClipboardVideoToQueue, () => {
     return deps.appendClipboardVideoToQueue();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getChangelogSnapshot, async (_event, payload: unknown) => {
+    const refresh =
+      typeof payload === 'object' && payload !== null && 'refresh' in payload
+        ? (payload as { refresh?: unknown }).refresh === true
+        : false;
+    if (!deps.getChangelogSnapshot) {
+      throw new Error('Changelog service is unavailable.');
+    }
+    return await deps.getChangelogSnapshot({ refresh });
   });
 
   ipc.handle(IPC_CHANNELS.request.getPlaylistBrowserSnapshot, async () => {

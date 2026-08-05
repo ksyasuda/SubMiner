@@ -14,6 +14,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'subtitle-sidebar',
   'session-help',
   'character-dictionary',
+  'changelog',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -123,6 +124,7 @@ export const IPC_CHANNELS = {
     syncUiDeleteSnapshot: 'sync-ui:delete-snapshot',
     syncUiRevealSnapshot: 'sync-ui:reveal-snapshot',
     syncUiPickSnapshotFile: 'sync-ui:pick-snapshot-file',
+    getChangelogSnapshot: 'changelog:get-snapshot',
   },
   event: {
     subtitleSet: 'subtitle:set',
@@ -146,6 +148,7 @@ export const IPC_CHANNELS = {
     keyboardModeToggleRequested: 'keyboard-mode-toggle:requested',
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
+    changelogOpen: 'changelog:open',
     characterDictionaryManagerOpen: 'character-dictionary:manager-open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',

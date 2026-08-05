@@ -36,7 +36,7 @@ test('notifyUpdateAvailable routes notification surfaces from config', async () 
   ]);
 });
 
-test('notifyUpdateAvailable adds an install action to overlay update notifications', async () => {
+test('notifyUpdateAvailable adds install and changelog actions to overlay update notifications', async () => {
   const payloads: OverlayNotificationPayload[] = [];
 
   await notifyUpdateAvailable(
@@ -53,7 +53,10 @@ test('notifyUpdateAvailable adds an install action to overlay update notificatio
 
   const payload = payloads[0];
   assert.ok(payload);
-  assert.deepEqual(payload.actions, [{ id: 'install-update', label: 'Update' }]);
+  assert.deepEqual(payload.actions, [
+    { id: 'install-update', label: 'Update' },
+    { id: 'view-changelog', label: "What's New", keepOpen: true },
+  ]);
   assert.equal(payload.id, 'subminer-update-available');
   assert.equal(payload.persistent, true);
 });

@@ -4,6 +4,7 @@ import type {
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
 } from './anki';
+import type { ChangelogSnapshot } from './changelog';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
 import type {
   CompiledSessionBinding,
@@ -507,6 +508,8 @@ export interface ElectronAPI {
   onRuntimeOptionsChanged: (callback: (options: RuntimeOptionState[]) => void) => void;
   onOpenRuntimeOptions: (callback: () => void) => void;
   onOpenSessionHelp: (callback: () => void) => void;
+  onOpenChangelog: (callback: () => void) => void;
+  getChangelogSnapshot: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   onOpenControllerSelect: (callback: () => void) => void;
   onOpenControllerDebug: (callback: () => void) => void;
   onOpenJimaku: (callback: () => void) => void;
@@ -563,7 +566,8 @@ export interface ElectronAPI {
       | 'controller-debug'
       | 'subtitle-sidebar'
       | 'session-help'
-      | 'character-dictionary',
+      | 'character-dictionary'
+      | 'changelog',
   ) => void;
   notifyOverlayModalOpened: (
     modal:
@@ -578,7 +582,8 @@ export interface ElectronAPI {
       | 'controller-debug'
       | 'subtitle-sidebar'
       | 'session-help'
-      | 'character-dictionary',
+      | 'character-dictionary'
+      | 'changelog',
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;

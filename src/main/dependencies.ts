@@ -109,6 +109,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   removeCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['removeCharacterDictionaryManagedEntry'];
   moveCharacterDictionaryManagedEntry?: IpcDepsRuntimeOptions['moveCharacterDictionaryManagedEntry'];
   appendClipboardVideoToQueue: IpcDepsRuntimeOptions['appendClipboardVideoToQueue'];
+  getChangelogSnapshot?: IpcDepsRuntimeOptions['getChangelogSnapshot'];
   getPlaylistBrowserSnapshot: IpcDepsRuntimeOptions['getPlaylistBrowserSnapshot'];
   appendPlaylistBrowserFile: IpcDepsRuntimeOptions['appendPlaylistBrowserFile'];
   playPlaylistBrowserIndex: IpcDepsRuntimeOptions['playPlaylistBrowserIndex'];
@@ -302,6 +303,7 @@ export function createMainIpcRuntimeServiceDeps(
     removeCharacterDictionaryManagedEntry: params.removeCharacterDictionaryManagedEntry,
     moveCharacterDictionaryManagedEntry: params.moveCharacterDictionaryManagedEntry,
     appendClipboardVideoToQueue: params.appendClipboardVideoToQueue,
+    getChangelogSnapshot: params.getChangelogSnapshot,
     getPlaylistBrowserSnapshot: params.getPlaylistBrowserSnapshot,
     appendPlaylistBrowserFile: params.appendPlaylistBrowserFile,
     playPlaylistBrowserIndex: params.playPlaylistBrowserIndex,

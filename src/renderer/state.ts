@@ -100,6 +100,8 @@ export type RendererState = {
 
   sessionHelpModalOpen: boolean;
   sessionHelpSelectedIndex: number;
+  changelogModalOpen: boolean;
+  changelogSelectedIndex: number;
   playlistBrowserModalOpen: boolean;
   playlistBrowserSnapshot: PlaylistBrowserSnapshot | null;
   playlistBrowserStatus: string;
@@ -228,6 +230,8 @@ export function createRendererState(): RendererState {
 
     sessionHelpModalOpen: false,
     sessionHelpSelectedIndex: 0,
+    changelogModalOpen: false,
+    changelogSelectedIndex: 0,
     playlistBrowserModalOpen: false,
     playlistBrowserSnapshot: null,
     playlistBrowserStatus: '',

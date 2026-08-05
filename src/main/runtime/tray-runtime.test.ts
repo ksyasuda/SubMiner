@@ -30,6 +30,7 @@ test('tray menu template contains expected entries and handlers', () => {
   const calls: string[] = [];
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('help'),
+    openChangelog: () => calls.push('changelog'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: true,
     openFirstRunSetup: () => calls.push('setup'),
@@ -49,7 +50,7 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 14);
+  assert.equal(template.length, 15);
   assert.equal(
     template.some((entry) => entry.label === 'Open Runtime Options'),
     false,
@@ -59,26 +60,29 @@ test('tray menu template contains expected entries and handlers', () => {
     false,
   );
   assert.equal(template[0]!.label, 'Open Help');
-  assert.equal(template[3]!.label, 'Open SubMiner Setup');
+  assert.equal(template[4]!.label, 'Open SubMiner Setup');
   const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
   assert.equal(discovery?.type, 'checkbox');
   assert.equal(discovery?.checked, false);
   discovery?.click?.({ checked: true });
   template[0]!.click?.();
-  assert.equal(template[1]!.label, 'Open Texthooker');
+  assert.equal(template[1]!.label, 'View Changelog');
   template[1]!.click?.();
-  assert.equal(template[5]!.label, 'Open SubMiner Settings');
-  assert.equal(template[6]!.label, 'Sync Stats && History');
-  template[6]!.click?.();
-  assert.equal(template[7]!.label, 'Export Logs');
+  assert.equal(template[2]!.label, 'Open Texthooker');
+  template[2]!.click?.();
+  assert.equal(template[6]!.label, 'Open SubMiner Settings');
+  assert.equal(template[7]!.label, 'Sync Stats && History');
   template[7]!.click?.();
-  assert.equal(template[11]!.label, 'Check for Updates');
-  template[11]!.click?.();
-  template[12]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[13]!.click?.();
+  assert.equal(template[8]!.label, 'Export Logs');
+  template[8]!.click?.();
+  assert.equal(template[12]!.label, 'Check for Updates');
+  template[12]!.click?.();
+  template[13]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
+  template[14]!.click?.();
   assert.deepEqual(calls, [
     'jellyfin-discovery:true',
     'help',
+    'changelog',
     'texthooker',
     'sync-ui',
     'export-logs',
@@ -91,6 +95,7 @@ test('tray menu template contains expected entries and handlers', () => {
 test('tray menu template omits first-run setup entry when setup is complete', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
@@ -120,6 +125,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
 test('tray menu template omits texthooker entry when texthooker page is disabled', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: false,
     openFirstRunSetup: () => undefined,
@@ -147,6 +153,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
 test('tray menu template renders active jellyfin discovery checkbox', () => {
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
@@ -175,6 +182,7 @@ test('tray menu template renders a visible linux discovery check mark when activ
   const template = buildTrayMenuTemplateRuntime({
     platform: 'linux',
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,

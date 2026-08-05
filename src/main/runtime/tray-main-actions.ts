@@ -39,6 +39,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   buildTrayMenuTemplateRuntime: (handlers: {
     platform?: string;
     openSessionHelp: () => void;
+    openChangelog: () => void;
     openTexthookerInBrowser: () => void;
     showTexthookerPage: boolean;
     openFirstRunSetup: () => void;
@@ -60,6 +61,7 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
   initializeOverlayRuntime: () => void;
   isOverlayRuntimeInitialized: () => boolean;
   openSessionHelpModal: () => void;
+  openChangelogModal: () => void;
   openTexthookerInBrowser: () => void;
   showTexthookerPage: () => boolean;
   showFirstRunSetup: () => boolean;
@@ -86,6 +88,12 @@ export function createBuildTrayMenuTemplateHandler<TMenuItem>(deps: {
           deps.initializeOverlayRuntime();
         }
         deps.openSessionHelpModal();
+      },
+      openChangelog: () => {
+        if (!deps.isOverlayRuntimeInitialized()) {
+          deps.initializeOverlayRuntime();
+        }
+        deps.openChangelogModal();
       },
       openTexthookerInBrowser: () => {
         deps.openTexthookerInBrowser();

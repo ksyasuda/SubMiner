@@ -68,6 +68,7 @@ import type {
   YoutubePickerResolveResult,
   OverlayNotificationEventPayload,
   OverlayNotificationPosition,
+  ChangelogSnapshot,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -166,6 +167,7 @@ function createLatestValueIpcListenerWithPayload<T>(
 
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
+const onOpenChangelogEvent = createQueuedIpcListener(IPC_CHANNELS.event.changelogOpen);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
 );
@@ -447,6 +449,9 @@ const electronAPI: ElectronAPI = {
   },
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
   onOpenSessionHelp: onOpenSessionHelpEvent,
+  onOpenChangelog: onOpenChangelogEvent,
+  getChangelogSnapshot: (options?: { refresh?: boolean }): Promise<ChangelogSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getChangelogSnapshot, options),
   onOpenControllerSelect: onOpenControllerSelectEvent,
   onOpenControllerDebug: onOpenControllerDebugEvent,
   onOpenJimaku: onOpenJimakuEvent,

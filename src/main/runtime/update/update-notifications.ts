@@ -3,6 +3,7 @@ import type { OverlayNotificationPayload } from '../../../types/notification';
 
 export const UPDATE_AVAILABLE_NOTIFICATION_ID = 'subminer-update-available';
 export const INSTALL_UPDATE_ACTION_ID = 'install-update';
+export const VIEW_CHANGELOG_ACTION_ID = 'view-changelog';
 
 export interface UpdateNotificationDeps {
   showSystemNotification: (title: string, body: string) => void;
@@ -25,7 +26,10 @@ export async function notifyUpdateAvailable(
       body: message,
       variant: 'info',
       persistent: true,
-      actions: [{ id: INSTALL_UPDATE_ACTION_ID, label: 'Update' }],
+      actions: [
+        { id: INSTALL_UPDATE_ACTION_ID, label: 'Update' },
+        { id: VIEW_CHANGELOG_ACTION_ID, label: "What's New", keepOpen: true },
+      ],
     });
   }
   if (options.notificationType === 'osd' || options.notificationType === 'osd-system') {
