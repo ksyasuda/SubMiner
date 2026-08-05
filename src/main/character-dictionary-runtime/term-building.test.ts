@@ -56,12 +56,15 @@ test('buildNameTerms drops the disambiguator letter of a mob character name', ()
 });
 
 test('buildNameTerms keeps a single-kanji name part', () => {
+  // The name is an alias, not the native name, so the parts come from the
+  // space split rather than from the native-name split.
   const terms = buildNameTerms(
     characterRecord({
       firstNameHint: 'Sora',
       lastNameHint: 'Yamada',
       fullName: 'Sora Yamada',
-      nativeName: '山田 空',
+      nativeName: '',
+      alternativeNames: ['山田 空'],
     }),
   );
 
