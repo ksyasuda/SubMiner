@@ -175,7 +175,17 @@ function readCommandArgs(block: string, start: number): { args: string; next: nu
   return { args: block.slice(start, end), next: end };
 }
 
-function parseOverrideBlock(block: string, animated: boolean, into: AssOverrideCommand[]): void {
+// `\t(...)` can wrap another `\t(...)`, and nothing in the format stops an author (or a
+// malformed file) from nesting them thousands deep. Real typesetting never goes past one
+// or two levels, so stop recursing well before the call stack is at risk.
+const MAX_ANIMATION_NESTING_DEPTH = 8;
+
+function parseOverrideBlock(
+  block: string,
+  animated: boolean,
+  into: AssOverrideCommand[],
+  depth = 0,
+): void {
   let cursor = 0;
 
   while (cursor < block.length) {
@@ -195,8 +205,8 @@ function parseOverrideBlock(block: string, animated: boolean, into: AssOverrideC
     const { args, next } = readCommandArgs(block, cursor + 1 + name.length);
     into.push({ name, args: args.trim(), animated });
     // `\t(0,500,\frz30)` animates whatever it wraps, so record the inner tags too.
-    if (name === 't' && args.includes('\\')) {
-      parseOverrideBlock(args, true, into);
+    if (name === 't' && args.includes('\\') && depth < MAX_ANIMATION_NESTING_DEPTH) {
+      parseOverrideBlock(args, true, into, depth + 1);
     }
     cursor = next;
   }

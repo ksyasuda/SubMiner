@@ -91,6 +91,17 @@ test('parseSrtCues skips malformed timing lines gracefully', () => {
   assert.equal(cues[0]!.text, '有効');
 });
 
+test('parseSubtitleCues strips complete brace blocks from SRT and VTT text', () => {
+  const content = ['1', '00:00:01,000 --> 00:00:02,000', '彼は{謎}と言った', ''].join('\n');
+
+  for (const filename of ['test.srt', 'test.vtt']) {
+    const cues = parseSubtitleCues(content, filename);
+
+    assert.equal(cues.length, 1, filename);
+    assert.equal(cues[0]!.text, '彼はと言った', filename);
+  }
+});
+
 test('parseAssCues parses basic ASS dialogue lines', () => {
   const content = [
     '[Script Info]',
@@ -615,6 +626,26 @@ test('parseSubtitleCues keeps a short SRT frame run below the minimum length', (
   const cues = parseSubtitleCues(lines.join('\n'), 'test.srt');
 
   assert.equal(cues.length, 4);
+});
+
+test('parseSubtitleCues applies ASS burst rules to ASS content behind an .srt filename', () => {
+  // The extension lies, so the SRT parser finds nothing and the content-sniffing fallback
+  // takes over -- which has to carry the `ass` source format with it, or the far stricter
+  // timing-only thresholds would let this karaoke burst through as three cues.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:01.20,Karaoke,,0,0,0,,{\\k20}歌詞',
+    'Dialogue: 0,0:00:01.20,0:00:01.40,Karaoke,,0,0,0,,{\\k20}歌詞',
+    'Dialogue: 0,0:00:01.40,0:00:03.00,Karaoke,,0,0,0,,{\\k20}歌詞',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.srt');
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]!.startTime, 1.0);
+  assert.equal(cues[0]!.endTime, 3.0);
+  assert.equal(cues[0]!.text, '歌詞');
 });
 
 test('parseSubtitleCues detects subtitle formats from remote URLs', () => {

@@ -127,6 +127,18 @@ test('collectAssOverrideCommands marks tags animated by a wrapping \\t', () => {
   assert.equal(hasAssTemporalOverride(commands), true);
 });
 
+test('collectAssOverrideCommands survives pathologically nested \\t tags', () => {
+  const depth = 200000;
+  const block = `{${'\\t(0,500,'.repeat(depth)}\\frz30${')'.repeat(depth)}}文字`;
+
+  const commands = collectAssOverrideCommands(block);
+
+  // Recursion stops at the nesting cap; the outer tags are still reported, and nothing
+  // blows the call stack.
+  assert.equal(commands[0]!.name, 't');
+  assert.equal(hasAssTemporalOverride(commands), true);
+});
+
 test('hasAssTemporalOverride ignores static placement and shape tags', () => {
   assert.equal(
     hasAssTemporalOverride(collectAssOverrideCommands('{\\pos(1,2)\\clip(m 1 1)\\blur2}文字')),

@@ -861,9 +861,10 @@ export async function tokenizeSubtitle(
 ): Promise<SubtitleData> {
   const displayText = normalizePlainSubtitleText(text);
 
-  // Return the normalized form even when it is empty: handing back the original would put
-  // whatever normalization dropped -- a drawing payload, a stray override block -- into
-  // application state as if it were subtitle text.
+  // ASS decoding already happened upstream (cue parser for files, mpv for live text), so
+  // all this drops is whitespace -- but a whitespace-only line still normalizes to empty.
+  // Return the normalized form anyway: handing back the original would put a blank line
+  // into application state as if it were subtitle text.
   if (!displayText) {
     return { text: displayText, tokens: null };
   }
