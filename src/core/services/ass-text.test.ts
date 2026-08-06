@@ -127,15 +127,17 @@ test('collectAssOverrideCommands marks tags animated by a wrapping \\t', () => {
   assert.equal(hasAssTemporalOverride(commands), true);
 });
 
-test('collectAssOverrideCommands survives pathologically nested \\t tags', () => {
-  const depth = 200000;
-  const block = `{${'\\t(0,500,'.repeat(depth)}\\frz30${')'.repeat(depth)}}文字`;
+test('collectAssOverrideCommands stops descending into deeply nested \\t tags', () => {
+  // Nested far past the recursion cap. Uncapped, this recurses once per level, and a
+  // pathological line (real files reach one or two levels) overflows the stack.
+  const nesting = 32;
+  const block = `{${'\\t(0,500,'.repeat(nesting)}\\frz30${')'.repeat(nesting)}}文字`;
 
   const commands = collectAssOverrideCommands(block);
 
-  // Recursion stops at the nesting cap; the outer tags are still reported, and nothing
-  // blows the call stack.
-  assert.equal(commands[0]!.name, 't');
+  // The outer `\t` plus one per allowed recursion level, and nothing from below the cap.
+  assert.equal(commands.length, 9);
+  assert.deepEqual(new Set(commands.map((command) => command.name)), new Set(['t']));
   assert.equal(hasAssTemporalOverride(commands), true);
 });
 

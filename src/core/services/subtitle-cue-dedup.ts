@@ -177,6 +177,12 @@ function collapseAnimationBursts(
   return merged;
 }
 
+/**
+ * Collapse redundant cues. Input must already be sorted by non-decreasing `startTime`,
+ * ties broken by `endTime` then source `order` -- burst detection chains events by
+ * comparing each one against the running end of the events before it, so an unsorted
+ * list breaks runs apart and leaves the frames behind.
+ */
 export function mergeDuplicateCues(
   cues: AnnotatedSubtitleCue[],
   format: SubtitleSourceFormat,
