@@ -268,6 +268,33 @@ test('requestYomitanScanTokens probes halfwidth katakana positions during the na
     ['まだ', 'ﾐﾅﾄ'],
   );
   assert.equal(result?.[1]?.isNameMatch, true);
+  // The reading is written the way the fullwidth katakana path writes it
+  // (surface spelling, fullwidth): halfwidth kana is not kana to the known-word
+  // and frequency code downstream, and an empty reading there disables the
+  // reading fallback entirely.
+  assert.equal(result?.[1]?.reading, 'ミナト');
+  assert.equal(result?.[1]?.headwordReading, 'みなと');
+});
+
+test('halfwidth voiced kana compose into the reading instead of leaving a stray mark', async () => {
+  const lookups: string[] = [];
+  const result = await requestYomitanScanTokens(
+    'ｶﾞｸ ﾊﾟﾝ',
+    createNameScanDeps(lookups, [
+      ['ｶﾞｸ', 'ガク', 'がく', false],
+      ['ﾊﾟﾝ', 'パン', 'ぱん', false],
+    ]),
+    { error: () => undefined },
+    { includeNameMatchMetadata: true },
+  );
+
+  const readings = (result ?? [])
+    .filter((token) => token.isUnparsedRun !== true)
+    .map((token) => [token.surface, token.reading]);
+  assert.deepEqual(readings, [
+    ['ｶﾞｸ', 'ガク'],
+    ['ﾊﾟﾝ', 'パン'],
+  ]);
 });
 
 test('requestYomitanScanTokens falls back to the exhaustive name scan without candidates', async () => {

@@ -4,8 +4,20 @@ const KATAKANA_TO_HIRAGANA_OFFSET = 0x60;
 const KATAKANA_CODEPOINT_START = 0x30a1;
 const KATAKANA_CODEPOINT_END = 0x30f6;
 
+// No `u` flag: the range is entirely BMP so it changes nothing here, and
+// Bun's unicode-mode matcher mis-handles this class next to certain ligatures.
+const HALFWIDTH_KANA_RUN = /[\uff66-\uff9f]+/g;
+
+// NFKC over the halfwidth kana only, never the whole string: it composes the
+// voiced pairs (ｶ + ﾞ) into single characters so ｶﾞｸ compares equal to ガク
+// instead of counting one character longer than the word it spells, but run
+// over everything it would also rewrite unrelated text (① → 1, ㍑ → リットル).
+function composeHalfwidthKana(text: string): string {
+  return text.replace(HALFWIDTH_KANA_RUN, (run) => run.normalize('NFKC'));
+}
+
 export function normalizeKana(text: string): string {
-  const raw = text.trim();
+  const raw = composeHalfwidthKana(text).trim();
   if (!raw) {
     return '';
   }

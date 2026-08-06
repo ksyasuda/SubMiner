@@ -34,6 +34,13 @@ export interface SubtitleProcessingController {
   onSubtitleChange: (text: string) => boolean;
   /** Same contract as onSubtitleChange: whether processing is pending. */
   refreshCurrentSubtitle: (textOverride?: string) => boolean;
+  /**
+   * Records that this exact text has already been shown plain by someone else
+   * (autoplay priming paints its first frame before scheduling tokenization),
+   * so the controller does not repeat that payload on its way to the tokenized
+   * one.
+   */
+  notePlainSubtitleEmitted: (text: string) => void;
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
@@ -223,6 +230,9 @@ export function createSubtitleProcessingController(
       }
       processLatest();
       return true;
+    },
+    notePlainSubtitleEmitted: (text: string) => {
+      lastPlainEmittedText = text;
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();

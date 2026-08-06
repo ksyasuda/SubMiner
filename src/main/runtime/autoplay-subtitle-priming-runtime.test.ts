@@ -46,6 +46,7 @@ test('scheduleSubtitlePrefetchRefresh logs refresh failures from timer callback'
       consumeCachedSubtitle: () => null,
       onSubtitleChange: () => true,
       refreshCurrentSubtitle: () => true,
+      notePlainSubtitleEmitted: () => {},
     },
     emitSubtitlePayload: () => {},
     getSubtitlePrefetchService: () => null,
@@ -103,6 +104,7 @@ test('primeCurrentSubtitleForAutoplay refreshes active subtitle cues when mpv su
         calls.push(`refresh:${text ?? ''}`);
         return true;
       },
+      notePlainSubtitleEmitted: () => {},
     },
     emitSubtitlePayload: (payload, options) =>
       calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
@@ -174,6 +176,7 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
         calls.push(`refresh:${text ?? ''}`);
         return true;
       },
+      notePlainSubtitleEmitted: () => {},
     },
     emitSubtitlePayload: (payload, options) =>
       calls.push(`emit:${payload.text}:resume=${options?.resumePrefetch !== false}`),
@@ -395,7 +398,7 @@ test('prefetch stays paused until tokenization of an uncached line completes', a
   const tokenizationGate = new Promise<void>((resolve) => {
     finishTokenization = resolve;
   });
-  const { subtitleProcessingController } = createPrimingRuntimeWithRealController({
+  const { runtime, mediaPath } = createPrimingRuntimeWithRealController({
     text,
     calls,
     onTokenize: () => {},
@@ -405,17 +408,23 @@ test('prefetch stays paused until tokenization of an uncached line completes', a
     },
   });
 
-  subtitleProcessingController.onSubtitleChange(text);
+  // Driven through the priming path, which is what takes the pause out.
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  // The provisional plain emit must not release the pause: the expensive scan
-  // is still ahead of it and would compete with prefetching for the parser.
-  assert.deepEqual(calls, [`emit:${text}:tokens=none`]);
+  // Neither the priming emit nor the controller's provisional plain emit may
+  // release the pause: the expensive scan is still ahead of them and would
+  // compete with prefetching for the parser.
+  // One plain payload, not two: priming paints it and tells the controller, so
+  // the controller goes straight for the tokenized one. And it does not resume
+  // prefetch, because the expensive scan is still ahead of it.
+  assert.deepEqual(calls, ['prefetch:pause', `emit-raw:${text}`]);
 
   finishTokenization();
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, [
-    `emit:${text}:tokens=none`,
+    'prefetch:pause',
+    `emit-raw:${text}`,
     `emit:${text}:tokens=yes`,
     'prefetch:resume',
   ]);

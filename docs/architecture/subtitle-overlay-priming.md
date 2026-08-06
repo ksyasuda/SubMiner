@@ -56,6 +56,10 @@ background prefetch work. Prefetch is not re-centered here: restarting the run p
 (`onSeek`) discarded the in-flight tokenization every time the subtitle changed, so only real
 seeks restart it (see `onTimePosUpdate` in `src/main.ts`).
 
+On an uncached autoplay prime the raw payload is emitted here and reported to the controller with
+`notePlainSubtitleEmitted`, so the controller skips its own plain emit for that line and the
+overlay receives one plain payload followed by the annotated one.
+
 The pause is released by the controller's `onProcessingSettled` callback, which fires once it has
 no work left. Emits do not release it: the first emit for an uncached line is the plain payload
 that precedes tokenization, and a run can finish without emitting at all (a suppressed duplicate,

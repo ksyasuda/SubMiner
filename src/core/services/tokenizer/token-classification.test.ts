@@ -8,6 +8,7 @@ import {
   isKanaChar,
   isKanaOnlyText,
   isTokenPos2Excluded,
+  normalizeKana,
 } from './token-classification';
 
 const POS1_EXCLUSIONS = new Set(['助詞']);
@@ -28,6 +29,26 @@ function makeNoun(surface: string): MergedToken {
     isNPlusOneTarget: false,
   };
 }
+
+test('kana normalization folds halfwidth kana, composing the voiced pairs', () => {
+  // ｶ + ﾞ is two code points for one character: without composing them, a
+  // halfwidth word counts as longer than the reading that spells it, which
+  // disqualifies the reading from known-word matching.
+  assert.equal(normalizeKana('ｶﾞｸ'), normalizeKana('ガク'));
+  assert.equal(normalizeKana('ﾊﾟﾝ'), normalizeKana('パン'));
+  assert.equal(normalizeKana('ﾐﾅﾄ'), 'みなと');
+  assert.ok(isKanaOnlyText('ｶﾞｸ'));
+});
+
+test('kana normalization leaves characters other than halfwidth kana alone', () => {
+  // The composition is scoped to the halfwidth runs: applied to the whole
+  // string, NFKC would also rewrite these into something the dictionary, the
+  // known-word list, and the frequency data were never keyed on.
+  assert.equal(normalizeKana('①ｶﾞ'), '①が');
+  assert.equal(normalizeKana('Ａｶﾞ'), 'Ａが');
+  assert.equal(normalizeKana('㍑ｶﾞ'), '㍑が');
+  assert.equal(normalizeKana('ﬁｶﾞ'), 'ﬁが');
+});
 
 test('kana classification excludes the katakana-hiragana double hyphen', () => {
   assert.equal(isKanaChar('゠'), false);

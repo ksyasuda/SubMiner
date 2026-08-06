@@ -11,7 +11,7 @@ export type YomitanFrequencyMode = 'occurrence-based' | 'rank-based';
 
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 6;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 7;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -88,6 +88,14 @@ export const YOMITAN_SCAN_RUNTIME_INSTALL_SCRIPT = String.raw`
         dropCachedTermsFind(oldest[0], oldest[1]);
       }
     }
+    // Classification of a dictionary entry (which dictionaries it came from,
+    // which media ids it mentions) depends only on the entry object, so it is
+    // memoized for as long as that object lives. Entries are shared with the
+    // termsFind cache above, which is what makes this worth keeping: the same
+    // objects come back for every repeated lookup, on every line.
+    const dictionaryEntryNamesCache = new WeakMap();
+    const subMinerMediaIdsCache = new WeakMap();
+    const EMPTY_MEDIA_ID_SET = new Set();
     // Only blind ladder steps are capped (see the retry loop): those are the
     // ones that would otherwise degrade into O(scanLength) lookups at a single
     // position. Steps the backend guides by reporting a shorter consumed length

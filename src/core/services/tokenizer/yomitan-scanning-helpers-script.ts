@@ -12,7 +12,30 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
       const KANA_PROLONGED_SOUND_MARK_CODE_POINT = 0x30fc;
       const KATAKANA_SMALL_KA_CODE_POINT = 0x30f5;
       const KATAKANA_SMALL_KE_CODE_POINT = 0x30f6;
-      const KANA_RANGES = [[0x3040, 0x309f], [0x30a0, 0x30ff]];
+      const KANA_RANGES = [[0x3040, 0x309f], [0x30a0, 0x30ff], [0xff66, 0xff9f]];
+      const HALFWIDTH_KATAKANA_RANGE = [0xff66, 0xff9d];
+      const HALFWIDTH_KANA_PROLONGED_SOUND_MARK_CODE_POINT = 0xff70;
+      // Folded one code point to one, so every index into a normalized string
+      // still lines up with the original text — the name-candidate prefilter
+      // and the furigana stem matching both index back into it. The standalone
+      // voiced marks (ﾞ ﾟ) have no one-character equivalent and stay as they are.
+      const HALFWIDTH_KATAKANA_TO_HIRAGANA = "をぁぃぅぇぉゃゅょっーあいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわん";
+      function convertHalfwidthKanaCodePointToHiragana(codePoint) {
+        if (codePoint < HALFWIDTH_KATAKANA_RANGE[0] || codePoint > HALFWIDTH_KATAKANA_RANGE[1]) { return null; }
+        return HALFWIDTH_KATAKANA_TO_HIRAGANA[codePoint - HALFWIDTH_KATAKANA_RANGE[0]] || null;
+      }
+      // Halfwidth katakana is kana here but not to the rest of the pipeline
+      // (known-word matching and frequency lookups only fold fullwidth), so a
+      // reading taken from halfwidth text is written the way the fullwidth
+      // katakana path already writes it. NFKC rather than the per-code-point
+      // table: this is the one place where nothing indexes back into the
+      // result, so a voiced pair (ｶ + ﾞ) can compose into the single ガ it
+      // means instead of leaving a stray combining mark in the reading. Scoped
+      // to the halfwidth runs, because NFKC over everything else rewrites
+      // characters that have nothing to do with kana (① → 1, ㍑ → リットル).
+      function convertHalfwidthKanaToKatakana(text) {
+        return text.replace(/[ｦ-ﾟ]+/g, (run) => run.normalize("NFKC"));
+      }
       // Han ranges come from the shared table so the scan walk and the character
       // dictionary agree on what a kanji is (supplementary planes included).
       // Halfwidth katakana counts as Japanese text: a name written that way has
@@ -27,7 +50,7 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
         if (typeof segment.reading === "string" && segment.reading.length > 0) { return segment.reading; }
         const segmentText = typeof segment.text === "string" ? segment.text : "";
         const isKanaOnly = segmentText.length > 0 && [...segmentText].every((char) => isCodePointKana(char.codePointAt(0)));
-        return isKanaOnly ? segmentText : "";
+        return isKanaOnly ? convertHalfwidthKanaToKatakana(segmentText) : "";
       }
       function getProlongedHiragana(previousCharacter) {
         switch (previousCharacter) {
@@ -63,6 +86,8 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
             case KATAKANA_SMALL_KE_CODE_POINT:
               break;
             case KANA_PROLONGED_SOUND_MARK_CODE_POINT:
+            case HALFWIDTH_KANA_PROLONGED_SOUND_MARK_CODE_POINT:
+              char = "ー";
               if (!keepProlongedSoundMarks && result.length > 0) {
                 const char2 = getProlongedHiragana(result[result.length - 1]);
                 if (char2 !== null) { char = char2; }
@@ -71,7 +96,12 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
             default:
               if (isCodePointInRange(codePoint, KATAKANA_CONVERSION_RANGE)) {
                 char = String.fromCodePoint(codePoint + offset);
+                break;
               }
+              // Halfwidth katakana folds too, or a name written that way would
+              // match neither a candidate form nor its own reading.
+              const halfwidthHiragana = convertHalfwidthKanaCodePointToHiragana(codePoint);
+              if (halfwidthHiragana !== null) { char = halfwidthHiragana; }
               break;
           }
           result += char;
@@ -331,7 +361,14 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
             }
           }
         }
+        // Memoized on the entry object: termsFind results are cached across
+        // lines, so the same entries come back for every repeated lookup, and
+        // each one is classified several times per scan (name pre-pass,
+        // headword preference, every retry window).
         function getDictionaryEntryNames(entry) {
+          if (!entry || typeof entry !== 'object') { return []; }
+          const cached = dictionaryEntryNamesCache.get(entry);
+          if (cached !== undefined) { return cached; }
           const names = [];
           appendDictionaryNames(names, entry);
           for (const definition of entry?.definitions || []) {
@@ -343,13 +380,21 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
           for (const pronunciation of entry?.pronunciations || []) {
             appendDictionaryNames(names, pronunciation);
           }
+          dictionaryEntryNamesCache.set(entry, names);
           return names;
         }
+        // Cached per scan rather than per runtime: the answer depends on
+        // includeNameMatchMetadata, which is a per-call parameter.
+        const nameDictionaryEntryCache = new WeakMap();
         function isNameDictionaryEntry(entry) {
           if (!includeNameMatchMetadata || !entry || typeof entry !== 'object') {
             return false;
           }
-          return getDictionaryEntryNames(entry).some((name) => name.startsWith(${JSON.stringify(CHARACTER_DICTIONARY_TITLE_PREFIX)}));
+          const cached = nameDictionaryEntryCache.get(entry);
+          if (cached !== undefined) { return cached; }
+          const isName = getDictionaryEntryNames(entry).some((name) => name.startsWith(${JSON.stringify(CHARACTER_DICTIONARY_TITLE_PREFIX)}));
+          nameDictionaryEntryCache.set(entry, isName);
+          return isName;
         }
         function parseSubMinerMediaIdFromString(value) {
           const imageMatch = value.match(/\bimg\/m(\d+)-/i);
@@ -403,9 +448,16 @@ export const YOMITAN_SCANNING_HELPERS = String.raw`
             collectSubMinerMediaIds(child, target);
           }
         }
+        // Walking an entry collects media ids from every nested value, so this
+        // is the most expensive classification step; memoized on the entry for
+        // the same reason as the dictionary names above.
         function getSubMinerMediaIds(entry) {
+          if (!entry || typeof entry !== 'object') { return EMPTY_MEDIA_ID_SET; }
+          const cached = subMinerMediaIdsCache.get(entry);
+          if (cached !== undefined) { return cached; }
           const mediaIds = new Set();
           collectSubMinerMediaIds(entry, mediaIds);
+          subMinerMediaIdsCache.set(entry, mediaIds);
           return mediaIds;
         }
         function isCurrentMediaNameDictionaryEntry(entry) {

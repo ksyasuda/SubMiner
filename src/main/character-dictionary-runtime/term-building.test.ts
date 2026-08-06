@@ -65,14 +65,73 @@ test('buildNameTerms keeps a character whose whole name is one kana', () => {
     }),
   );
 
-  // The mob-disambiguator filter targets letters split off a longer name; an
-  // explicit one-character name is the character's actual name.
+  // The mob-label rule only judges parts a name was split into; a name the
+  // source gives us whole is the character's actual name.
   assert.ok(terms.includes('あ'));
   assert.ok(terms.includes('あさん'));
-  // The romanized "A" is still a label, so it contributes neither itself nor
-  // its single-kana alias.
+  // Romanized forms are never lookup targets (the subtitles are Japanese), and
+  // the single-kana alias "A" transliterates to is dropped as a collision.
   assert.ok(!terms.includes('A'));
   assert.ok(!terms.includes('ア'));
+});
+
+test('buildNameTerms keeps a one-character name written in another script', () => {
+  const terms = buildNameTerms(
+    characterRecord({
+      firstNameHint: '',
+      lastNameHint: '',
+      fullName: 'Byeol',
+      nativeName: '별',
+      alternativeNames: ['Я'],
+    }),
+  );
+
+  assert.ok(terms.includes('별'));
+  assert.ok(terms.includes('별さん'));
+  assert.ok(terms.includes('Я'));
+});
+
+test('buildNameTerms yields nothing for a character whose only name is a bare letter', () => {
+  // Documented policy rather than an oversight: a romanized name is never a
+  // term on its own (the subtitles are Japanese), and the single kana a bare
+  // letter transliterates to would match every あ〜 in the line.
+  assert.deepEqual(
+    buildNameTerms(
+      characterRecord({
+        firstNameHint: '',
+        lastNameHint: '',
+        fullName: 'A',
+        nativeName: '',
+      }),
+    ),
+    [],
+  );
+});
+
+test('buildNameTerms keeps one-character split parts that are not mob labels', () => {
+  const hangul = buildNameTerms(
+    characterRecord({
+      firstNameHint: '',
+      lastNameHint: '',
+      fullName: 'Byeol Kim',
+      nativeName: '별 김',
+    }),
+  );
+
+  assert.ok(hangul.includes('별'));
+  assert.ok(hangul.includes('김'));
+
+  const middleDot = buildNameTerms(
+    characterRecord({
+      firstNameHint: '',
+      lastNameHint: '',
+      fullName: 'A Be',
+      nativeName: 'ア・ベ',
+    }),
+  );
+
+  assert.ok(middleDot.includes('ア'));
+  assert.ok(middleDot.includes('ベ'));
 });
 
 test('buildNameTerms keeps a single-kanji name part', () => {

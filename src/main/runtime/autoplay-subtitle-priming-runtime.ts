@@ -33,6 +33,7 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
     // Both report whether processing is pending; see pausePrefetchUntilProcessed.
     onSubtitleChange: (text: string) => boolean;
     refreshCurrentSubtitle: (text: string) => boolean;
+    notePlainSubtitleEmitted: (text: string) => void;
   };
   emitSubtitlePayload: (payload: SubtitleData, options?: { resumePrefetch?: boolean }) => void;
   getSubtitlePrefetchService: () => AutoplaySubtitlePrimingPrefetchService | null;
@@ -124,8 +125,10 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     }
 
     // Provisional raw emit: keep prefetch paused until the processing
-    // controller is done with this line.
+    // controller is done with this line, and tell it this line has already been
+    // painted plain so it does not broadcast the same payload again.
     emitSubtitlePayload({ text, tokens: null }, { resumePrefetch: false });
+    subtitleProcessingController.notePlainSubtitleEmitted(text);
     // refreshCurrentSubtitle, not onSubtitleChange: the cache miss above can be
     // an invalidation (mining a card) on text the controller still holds, and
     // onSubtitleChange treats unchanged text as nothing to do, which would

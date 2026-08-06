@@ -635,6 +635,21 @@ test('onProcessingSettled fires once after the queue drains, including runs that
   assert.deepEqual(events, ['settled']);
 });
 
+test('notePlainSubtitleEmitted suppresses the controller repeat of a payload already shown', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  // Autoplay priming paints the plain line itself, then asks for tokenization.
+  controller.notePlainSubtitleEmitted('字幕');
+  controller.refreshCurrentSubtitle('字幕');
+  await flushMicrotasks();
+
+  assert.deepEqual(emitted, [{ text: '字幕', tokens: [] }]);
+});
+
 test('refreshCurrentSubtitle reports no emit for empty text when nothing is running', async () => {
   const emitted: SubtitleData[] = [];
   const controller = createSubtitleProcessingController({
