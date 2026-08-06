@@ -166,6 +166,14 @@ test('changelog parser reads prerelease and build metadata version headings', ()
   assert.equal(entries[1]?.date, '2026-05-29');
   assert.equal(entries[1]?.groupKey, '0.15');
   assert.equal(entries[0]?.sections.length, 1);
+  // The prerelease body has to land on its own entry, not fold into 0.16.0.
+  assert.deepEqual(entries[1]?.sections, [
+    {
+      heading: 'Added',
+      items: [{ text: 'Release candidate note.', children: [] }],
+      internal: false,
+    },
+  ]);
 });
 
 test('changelog parser handles the repo CHANGELOG.md', () => {

@@ -29,6 +29,7 @@ type Harness = {
   focused: () => string[];
   documentListeners: () => string[];
   windowListeners: () => string[];
+  handlerFor: (scope: 'document' | 'window', type: string) => Listener | undefined;
   setActiveElement: (value: unknown) => void;
   advanceClock: (ms: number) => void;
   runTimers: () => void;
@@ -41,6 +42,8 @@ function createHarness(
     isModalLayer?: boolean;
     contains?: boolean;
     preferredVisible?: boolean;
+    preferredAcceptsFocus?: boolean;
+    extraPreferred?: boolean;
     fallback?: 'element' | null;
   } = {},
 ): Harness {
@@ -62,8 +65,22 @@ function createHarness(
   const realDateNow = Date.now;
   Date.now = () => now;
   const focused: string[] = [];
-  const documentListeners: string[] = [];
-  const windowListeners: string[] = [];
+  const documentListeners: Array<{ type: string; listener: Listener }> = [];
+  const windowListeners: Array<{ type: string; listener: Listener }> = [];
+
+  const register = (registry: Array<{ type: string; listener: Listener }>) => ({
+    add: (type: string, listener: Listener) => {
+      registry.push({ type, listener });
+    },
+    remove: (type: string, listener: Listener) => {
+      const index = registry.findIndex(
+        (entry) => entry.type === type && entry.listener === listener,
+      );
+      if (index >= 0) registry.splice(index, 1);
+    },
+  });
+  const windowRegistry = register(windowListeners);
+  const documentRegistry = register(documentListeners);
   const timers: Array<() => void> = [];
   let activeElement: unknown = null;
 
@@ -75,7 +92,15 @@ function createHarness(
     getClientRects: () => (options.preferredVisible === false ? [] : [{ width: 10, height: 10 }]),
     focus: () => {
       focused.push('preferred');
-      activeElement = preferred;
+      // A rendered-but-unfocusable target (e.g. disabled) never becomes active.
+      if (options.preferredAcceptsFocus !== false) activeElement = preferred;
+    },
+  });
+  const secondPreferred = Object.assign(new TestElement(), {
+    getClientRects: () => [{ width: 10, height: 10 }],
+    focus: () => {
+      focused.push('second');
+      activeElement = secondPreferred;
     },
   });
   const fallback =
@@ -100,13 +125,8 @@ function createHarness(
       focus: () => {
         focused.push('window');
       },
-      addEventListener: (type: string) => {
-        windowListeners.push(type);
-      },
-      removeEventListener: (type: string) => {
-        const index = windowListeners.indexOf(type);
-        if (index >= 0) windowListeners.splice(index, 1);
-      },
+      addEventListener: windowRegistry.add,
+      removeEventListener: windowRegistry.remove,
       setTimeout: (callback: () => void) => {
         timers.push(callback);
         return timers.length;
@@ -120,20 +140,18 @@ function createHarness(
       get activeElement() {
         return activeElement;
       },
-      addEventListener: (type: string) => {
-        documentListeners.push(type);
-      },
-      removeEventListener: (type: string) => {
-        const index = documentListeners.indexOf(type);
-        if (index >= 0) documentListeners.splice(index, 1);
-      },
+      addEventListener: documentRegistry.add,
+      removeEventListener: documentRegistry.remove,
     },
   });
 
   const guard = createModalFocusGuard({
     isOpen: options.isOpen ?? (() => true),
     getModalRoot: () => root as unknown as Element,
-    getPreferredFocusTargets: () => [preferred as unknown as HTMLElement],
+    getPreferredFocusTargets: () =>
+      (options.extraPreferred
+        ? [preferred, secondPreferred]
+        : [preferred]) as unknown as HTMLElement[],
     getFallbackFocusTarget: () => fallback as unknown as Element | null,
     isModalLayer: options.isModalLayer ?? true,
   });
@@ -143,8 +161,12 @@ function createHarness(
     root,
     focusMainWindowCalls: () => focusMainWindowCalls,
     focused: () => focused,
-    documentListeners: () => documentListeners,
-    windowListeners: () => windowListeners,
+    documentListeners: () => documentListeners.map((entry) => entry.type),
+    windowListeners: () => windowListeners.map((entry) => entry.type),
+    handlerFor: (scope: 'document' | 'window', type: string) =>
+      (scope === 'document' ? documentListeners : windowListeners).find(
+        (entry) => entry.type === type,
+      )?.listener,
     setActiveElement: (value: unknown) => {
       activeElement = value;
     },
@@ -190,6 +212,34 @@ test('modal focus guard attaches once and detaches every listener', () => {
   }
 });
 
+test('modal focus guard pulls focus back when focusin lands outside the modal', () => {
+  const harness = createHarness();
+  try {
+    harness.guard.attach();
+
+    const focusin = harness.handlerFor('document', 'focusin');
+    assert.ok(focusin, 'attach registers a focusin handler');
+
+    // focusin is not cancelable, so recovery is the only observable effect.
+    focusin?.({ target: {} });
+    assert.deepEqual(harness.focused(), ['preferred']);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('modal focus guard ignores focusin while the modal is closed', () => {
+  const harness = createHarness({ isOpen: () => false });
+  try {
+    harness.guard.attach();
+    harness.handlerFor('document', 'focusin')?.({ target: {} });
+
+    assert.deepEqual(harness.focused(), []);
+  } finally {
+    harness.restore();
+  }
+});
+
 test('modal focus guard restores focus to the first rendered target', () => {
   // The target is position:fixed (null offsetParent) yet visible, so it must
   // still win over the fallback.
@@ -197,6 +247,26 @@ test('modal focus guard restores focus to the first rendered target', () => {
   try {
     harness.guard.enforceModalFocus();
     assert.deepEqual(harness.focused(), ['preferred']);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('modal focus guard tries the next target when one refuses focus', () => {
+  const harness = createHarness({ preferredAcceptsFocus: false, extraPreferred: true });
+  try {
+    assert.equal(harness.guard.focusFallbackTarget(), true);
+    assert.deepEqual(harness.focused(), ['preferred', 'second']);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('modal focus guard reaches the fallback when no preferred target takes focus', () => {
+  const harness = createHarness({ preferredAcceptsFocus: false });
+  try {
+    assert.equal(harness.guard.focusFallbackTarget(), true);
+    assert.deepEqual(harness.focused(), ['preferred', 'fallback']);
   } finally {
     harness.restore();
   }

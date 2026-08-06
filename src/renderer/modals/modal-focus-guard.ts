@@ -23,6 +23,7 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
   let focusinGuard: ((event: FocusEvent) => void) | null = null;
   let windowFocusGuard: (() => void) | null = null;
   let pointerFocusGuard: ((event: Event) => void) | null = null;
+  let pointerFocusRoot: Element | null = null;
   let isRecovering = false;
   let lastRecoveryAt = 0;
 
@@ -43,12 +44,12 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
 
     // getClientRects() rather than offsetParent: the latter is null for
     // position:fixed elements, which would skip a perfectly visible target.
-    const preferred = deps
-      .getPreferredFocusTargets()
-      .find((target) => target.getClientRects().length > 0);
-    if (preferred) {
-      preferred.focus({ preventScroll: true });
-      return document.activeElement === preferred;
+    // Rendered is not the same as focusable, so keep trying until one sticks
+    // instead of giving up on the first candidate that refuses focus.
+    for (const target of deps.getPreferredFocusTargets()) {
+      if (target.getClientRects().length === 0) continue;
+      target.focus({ preventScroll: true });
+      if (document.activeElement === target) return true;
     }
 
     const fallback = deps.getFallbackFocusTarget();
@@ -80,10 +81,11 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
   /** Idempotent; safe to call on every open. */
   function attach(): void {
     if (focusinGuard === null) {
+      // focusin is not cancelable, so there is nothing to preventDefault here;
+      // focus is taken back afterwards instead.
       focusinGuard = (event: FocusEvent) => {
         if (!deps.isOpen()) return;
         if (!isModalFocusTarget(event.target)) {
-          event.preventDefault();
           enforceModalFocus();
         }
       };
@@ -95,9 +97,11 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
         requestOverlayFocus();
         enforceModalFocus();
       };
-      const root = deps.getModalRoot();
-      root.addEventListener('pointerdown', pointerFocusGuard);
-      root.addEventListener('click', pointerFocusGuard);
+      // Remember the root we bound to: resolving it again on detach could
+      // return a different element and leak the listeners on the old one.
+      pointerFocusRoot = deps.getModalRoot();
+      pointerFocusRoot.addEventListener('pointerdown', pointerFocusGuard);
+      pointerFocusRoot.addEventListener('click', pointerFocusGuard);
     }
 
     if (windowFocusGuard === null) {
@@ -117,10 +121,10 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
     }
 
     if (pointerFocusGuard) {
-      const root = deps.getModalRoot();
-      root.removeEventListener('pointerdown', pointerFocusGuard);
-      root.removeEventListener('click', pointerFocusGuard);
+      pointerFocusRoot?.removeEventListener('pointerdown', pointerFocusGuard);
+      pointerFocusRoot?.removeEventListener('click', pointerFocusGuard);
       pointerFocusGuard = null;
+      pointerFocusRoot = null;
     }
 
     if (windowFocusGuard) {

@@ -19,14 +19,30 @@ export interface ChangelogRuntimeDeps {
   createFetch?: () => FetchLike;
 }
 
+/**
+ * curl enforces its own `--max-time`, but the global-fetch transport has no
+ * deadline: without this a stalled connection leaves the modal on "Loading
+ * changelog..." with no way back except closing it.
+ */
+export const CHANGELOG_REQUEST_TIMEOUT_MS = 30_000;
+
+export function withRequestTimeout(fetchImpl: FetchLike, timeoutMs: number): FetchLike {
+  return (url, init) => {
+    if (typeof AbortSignal?.timeout !== 'function') return fetchImpl(url, init);
+    return fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  };
+}
+
 export function createChangelogRuntime(deps: ChangelogRuntimeDeps): {
   getChangelogSnapshot: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
 } {
   // curl matches the updater's transport choice: Electron's global fetch is
   // unreliable for GitHub on some Linux builds.
-  const fetchImpl =
+  const fetchImpl = withRequestTimeout(
     deps.createFetch?.() ??
-    (process.platform === 'win32' ? createGlobalFetch() : createCurlFetch());
+      (process.platform === 'win32' ? createGlobalFetch() : createCurlFetch()),
+    CHANGELOG_REQUEST_TIMEOUT_MS,
+  );
 
   const source = createChangelogSource({
     fetchLatestReleaseTag: async () => {
