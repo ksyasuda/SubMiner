@@ -139,6 +139,45 @@ test('a voiced halfwidth name still bypasses the candidate prefilter', async () 
   assert.equal(result?.[1]?.isNameMatch, true);
 });
 
+test('an unrelated halfwidth voiced word does not restore the exhaustive pre-pass', async () => {
+  const baseline: string[] = [];
+  await requestYomitanScanTokens(
+    NAME_SCAN_LINE,
+    createNameScanDeps(baseline),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      nameCandidates: { key: 'media-1', forms: ['ミナト', 'みなと'] },
+    },
+  );
+
+  const withVoicedTail: string[] = [];
+  await requestYomitanScanTokens(
+    `${NAME_SCAN_LINE}ｶﾞ`,
+    createNameScanDeps(withVoicedTail),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      nameCandidates: { key: 'media-1', forms: ['ミナト', 'みなと'] },
+    },
+  );
+
+  // Mid-token positions are the ones only the pre-pass would ever probe. A ｶﾞ
+  // anywhere in the line used to drag every position within scanLength of it
+  // back in; now only the voiced pair itself, which the fold cannot index, is
+  // added to what the line already looked up.
+  for (const midTokenPrefix of ['ナト', 'だ学', '校に', 'ない']) {
+    assert.equal(countTermsFindLookups(baseline, midTokenPrefix), 0, midTokenPrefix);
+    assert.equal(countTermsFindLookups(withVoicedTail, midTokenPrefix), 0, midTokenPrefix);
+  }
+  assert.ok(
+    withVoicedTail.length - baseline.length <= 3,
+    `expected the ｶﾞ tail to add only its own lookups, saw ${JSON.stringify(withVoicedTail)}`,
+  );
+});
+
 test('a mixed-width voiced name survives the candidate prefilter', async () => {
   const lookups: string[] = [];
   const result = await requestYomitanScanTokens(
@@ -156,12 +195,40 @@ test('a mixed-width voiced name survives the candidate prefilter', async () => {
     },
   );
 
-  // The name starts on a kanji, so a bypass keyed on the first character misses
-  // it: 山ｶﾞｸ normalizes to 山かﾞく, which cannot match the candidate 山がく, and
-  // the generic word starting earlier then swallows the 山.
+  // The name starts on a kanji, so the fold only breaks mid-name: 山ｶﾞｸ
+  // normalizes to 山かﾞく, which still cannot match the candidate 山がく. The
+  // bypass is keyed on the scan window rather than the first character, so the
+  // position is still probed and the generic まだ山 cannot swallow the 山.
   assert.deepEqual(
     result?.map((token) => token.surface),
     ['まだ', '山ｶﾞｸ'],
+  );
+  assert.equal(result?.[1]?.isNameMatch, true);
+});
+
+test('a stretched mixed-width voiced name survives the candidate prefilter', async () => {
+  const lookups: string[] = [];
+  const result = await requestYomitanScanTokens(
+    'まだ山ーーーーーーｶﾞｸ',
+    createNameScanDeps(lookups, [
+      ['まだ山', 'まだ山', 'まだやま', false],
+      ['まだ', 'まだ', 'まだ', false],
+      ['山ーーーーーーｶﾞｸ', '山ガク', 'やまがく', true],
+    ]),
+    { error: () => undefined },
+    {
+      includeNameMatchMetadata: true,
+      currentCharacterDictionaryMediaId: 1,
+      nameCandidates: { key: 'media-1', forms: ['山ガク', 'やまがく'] },
+    },
+  );
+
+  // Matching skips any number of emphatic characters, so the voiced mark that
+  // defeats the fold can sit arbitrarily far into the name: the search for it
+  // has to cover the whole lookup window, not a multiple of the form length.
+  assert.deepEqual(
+    result?.map((token) => token.surface),
+    ['まだ', '山ーーーーーーｶﾞｸ'],
   );
   assert.equal(result?.[1]?.isNameMatch, true);
 });

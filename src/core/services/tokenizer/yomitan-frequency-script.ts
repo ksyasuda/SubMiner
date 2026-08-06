@@ -81,7 +81,7 @@ export const YOMITAN_FREQUENCY_HELPERS = String.raw`
         return best?.rank ?? null;
       }
       function hasExactSource(headword, token, requirePrimary) {
-        for (const src of headword.sources || []) {
+        for (const src of headword?.sources || []) {
           if (src.originalText !== token) { continue; }
           if (requirePrimary && !src.isPrimary) { continue; }
           if (src.matchType !== 'exact') { continue; }

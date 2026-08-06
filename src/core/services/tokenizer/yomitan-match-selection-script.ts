@@ -49,14 +49,12 @@ export const YOMITAN_MATCH_SELECTION_HELPERS = String.raw`
         const exactPrimaryMatches = collectExactHeadwordMatches(currentMediaDictionaryEntries, token, true);
         let matchedNameDictionary = false;
         if (includeNameMatchMetadata) {
-          for (const dictionaryEntry of currentMediaDictionaryEntries || []) {
-            if (!isCurrentMediaNameDictionaryEntry(dictionaryEntry)) { continue; }
-            for (const match of exactPrimaryMatches) {
-              if (match.dictionaryEntry !== dictionaryEntry) { continue; }
-              matchedNameDictionary = true;
-              break;
-            }
-            if (matchedNameDictionary) { break; }
+          // Every match already comes from currentMediaDictionaryEntries, so
+          // classifying its own entry is enough.
+          for (const match of exactPrimaryMatches) {
+            if (!isCurrentMediaNameDictionaryEntry(match.dictionaryEntry)) { continue; }
+            matchedNameDictionary = true;
+            break;
           }
         }
         const preferredMatch = exactPrimaryMatches[0];

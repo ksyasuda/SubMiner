@@ -12,7 +12,7 @@ export type YomitanFrequencyMode = 'occurrence-based' | 'rank-based';
 
 // Bump whenever the install script below changes so already-loaded parser
 // windows re-install the new scan runtime instead of running the stale one.
-export const YOMITAN_SCAN_RUNTIME_VERSION = 10;
+export const YOMITAN_SCAN_RUNTIME_VERSION = 12;
 export const YOMITAN_SCAN_RUNTIME_MISSING_SENTINEL = '__subminer-yomitan-scan-runtime-missing__';
 
 export interface YomitanScanRequestParams {
@@ -318,29 +318,18 @@ ${YOMITAN_SCANNING_HELPERS}
       function isHalfwidthKanaVoicedMarkCodePoint(codePoint) {
         return codePoint === 0xff9e || codePoint === 0xff9f;
       }
-      function hasHalfwidthVoicedMarkInCandidateRegion(position, regionLength) {
-        const end = Math.min(text.length, position + regionLength);
-        for (let index = position; index < end; index += 1) {
-          if (isHalfwidthKanaVoicedMarkCodePoint(text.charCodeAt(index))) { return true; }
-        }
-        return false;
-      }
       // Build (once per candidate list) a first-character bucket index of the
       // normalized name forms, so the pre-pass can reject a position with a
       // single map hit instead of a backend round trip.
       if (rawNameCandidates && nameCandidateIndex?.key !== rawNameCandidates.key) {
         const byFirstChar = new Map();
-        let longestFormLength = 0;
         for (const form of rawNameCandidates.forms) {
           const normalized = typeof form === "string" ? convertKatakanaToHiragana(form.trim()) : "";
           if (!normalized) { continue; }
-          if (normalized.length > longestFormLength) { longestFormLength = normalized.length; }
           const bucket = byFirstChar.get(normalized[0]);
           if (bucket) { bucket.push(normalized); } else { byFirstChar.set(normalized[0], [normalized]); }
         }
-        nameCandidateIndex = byFirstChar.size > 0
-          ? { key: rawNameCandidates.key, byFirstChar, longestFormLength }
-          : null;
+        nameCandidateIndex = byFirstChar.size > 0 ? { key: rawNameCandidates.key, byFirstChar } : null;
       } else if (!rawNameCandidates) {
         nameCandidateIndex = null;
       }
@@ -371,26 +360,52 @@ ${YOMITAN_SCANNING_HELPERS}
         }
         return true;
       }
-      // Doubled because matching may skip emphatic characters as it goes, so a
-      // form can span more text than it has characters; capped at the window a
-      // name lookup covers anyway.
-      const candidateRegionLength = activeNameCandidateIndex
-        ? Math.min(scanLength, activeNameCandidateIndex.longestFormLength * 2)
-        : 0;
+      // Where the folding gives up, listed once per line. Matching may skip any
+      // number of emphatic characters on its way through a form (山ーーーーーーｶﾞｸ),
+      // so there is no shorter honest bound than the window a name lookup
+      // covers: scanLength. The list is almost always empty, which is what
+      // keeps the check below free on ordinary lines.
+      const halfwidthVoicedMarkPositions = [];
+      if (activeNameCandidateIndex) {
+        for (let index = 0; index < text.length; index += 1) {
+          if (isHalfwidthKanaVoicedMarkCodePoint(text.charCodeAt(index))) {
+            halfwidthVoicedMarkPositions.push(index);
+          }
+        }
+      }
+      function hasHalfwidthVoicedMarkInScanWindow(position) {
+        const end = position + scanLength;
+        for (const markPosition of halfwidthVoicedMarkPositions) {
+          if (markPosition >= position && markPosition < end) { return true; }
+        }
+        return false;
+      }
+      // A name written ｶﾞ... folds to か + ﾞ, so its first character never leads
+      // to the が bucket the candidate form is filed under. Nothing else can
+      // find it, so such a position is always worth a probe.
+      function startsHalfwidthVoicedPair(position, codePoint) {
+        if (codePoint < 0xff66 || codePoint > 0xff9d) { return false; }
+        return isHalfwidthKanaVoicedMarkCodePoint(text.charCodeAt(position + 1));
+      }
       function couldNameStartAt(position, codePoint) {
         // Nothing starts with a combining voiced mark, whether or not the
         // prefilter is active.
         if (isHalfwidthKanaVoicedMarkCodePoint(codePoint)) { return false; }
         if (!activeNameCandidateIndex) { return true; }
         const bucket = activeNameCandidateIndex.byFirstChar.get(normalizedText[position]);
-        if (bucket) {
-          for (const form of bucket) {
-            if (matchesCandidateFormAt(form, position)) { return true; }
-          }
+        if (!bucket) {
+          // No candidate begins with this character, and the window search
+          // below would only ever say yes to positions like this one, so an
+          // unrelated ｶﾞ elsewhere in the line must not drag them in.
+          return startsHalfwidthVoicedPair(position, codePoint);
         }
-        // No match, but an unfoldable voiced pair in reach means the comparison
-        // above could not have seen one: probe rather than drop the name.
-        return hasHalfwidthVoicedMarkInCandidateRegion(position, candidateRegionLength);
+        for (const form of bucket) {
+          if (matchesCandidateFormAt(form, position)) { return true; }
+        }
+        // A candidate does start here but did not match: an unfoldable voiced
+        // pair anywhere in the window is a reason the comparison could not see
+        // it (山ｶﾞｸ, 山ーーーーーーｶﾞｸ), so probe rather than drop the name.
+        return hasHalfwidthVoicedMarkInScanWindow(position);
       }
       // Greedy name pre-pass: character-name matches claim their spans before
       // the left-to-right walk, so a longer generic match starting earlier

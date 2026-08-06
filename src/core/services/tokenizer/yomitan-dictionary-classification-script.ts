@@ -5,6 +5,14 @@
 
 import { CHARACTER_DICTIONARY_TITLE_PREFIX } from './character-dictionary-title';
 
+// The prefix is interpolated into generated regex source, so metacharacters in
+// it would change what the pattern matches (or fail to compile).
+const ESCAPED_TITLE_PREFIX = CHARACTER_DICTIONARY_TITLE_PREFIX.replace(
+  /[.*+?^${}()|[\]\\]/g,
+  '\\$&',
+);
+const TITLE_MEDIA_ID_PATTERN = ESCAPED_TITLE_PREFIX + String.raw`[^\d]*(?:AniList\s*)?(\d+)`;
+
 export const YOMITAN_DICTIONARY_CLASSIFICATION_HELPERS = String.raw`
       function normalizeWordClasses(headword) {
           if (!Array.isArray(headword?.wordClasses)) { return undefined; }
@@ -64,13 +72,14 @@ export const YOMITAN_DICTIONARY_CLASSIFICATION_HELPERS = String.raw`
           nameDictionaryEntryCache.set(entry, isName);
           return isName;
         }
+        const TITLE_MEDIA_ID_REGEX = new RegExp(${JSON.stringify(TITLE_MEDIA_ID_PATTERN)}, 'i');
         function parseSubMinerMediaIdFromString(value) {
           const imageMatch = value.match(/\bimg\/m(\d+)-/i);
           if (imageMatch) {
             const parsed = Number.parseInt(imageMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
           }
-          const titleMatch = value.match(/${CHARACTER_DICTIONARY_TITLE_PREFIX}[^\d]*(?:AniList\s*)?(\d+)/i);
+          const titleMatch = value.match(TITLE_MEDIA_ID_REGEX);
           if (titleMatch) {
             const parsed = Number.parseInt(titleMatch[1], 10);
             if (Number.isSafeInteger(parsed) && parsed > 0) { return parsed; }
