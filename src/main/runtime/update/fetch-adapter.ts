@@ -79,8 +79,24 @@ export function createCurlFetch(options: CurlFetchOptions = {}): FetchLike {
     ];
     addHeaderArgs(args, init.headers);
     args.push(url);
+    // curl has its own --max-time, but a caller-supplied signal must be able to
+    // cut the request short of it; otherwise a shorter caller deadline is a lie.
+    const signal = init.signal instanceof AbortSignal ? init.signal : undefined;
+    // Mirror fetch: reject with the caller's reason whatever its type, and only
+    // synthesise an error when the signal carries none.
+    const abortReason = (): unknown =>
+      signal?.reason !== undefined ? signal.reason : new Error('curl request aborted');
+    if (signal?.aborted) throw abortReason();
+
     const body = await new Promise<Buffer>((resolve, reject) => {
-      execFile(
+      let onAbort: (() => void) | null = null;
+      const settle = (run: () => void) => {
+        if (onAbort) signal?.removeEventListener('abort', onAbort);
+        onAbort = null;
+        run();
+      };
+
+      const child = execFile(
         curlPath,
         args,
         {
@@ -93,12 +109,21 @@ export function createCurlFetch(options: CurlFetchOptions = {}): FetchLike {
             const stderrMessage = Buffer.isBuffer(stderr) ? stderr.toString('utf8') : stderr;
             const errno = (error as NodeJS.ErrnoException).code;
             const fallback = errno ? `curl failed (${errno})` : 'curl failed';
-            reject(new Error(stderrMessage.trim() || fallback));
+            settle(() => reject(new Error(stderrMessage.trim() || fallback)));
             return;
           }
-          resolve(Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout));
+          settle(() => resolve(Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout)));
         },
       );
+
+      if (signal) {
+        onAbort = () => {
+          onAbort = null;
+          child.kill('SIGKILL');
+          reject(abortReason());
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
     });
     return {
       ok: true,

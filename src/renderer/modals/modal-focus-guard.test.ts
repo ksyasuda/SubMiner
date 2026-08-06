@@ -33,6 +33,8 @@ type Harness = {
   setActiveElement: (value: unknown) => void;
   advanceClock: (ms: number) => void;
   runTimers: () => void;
+  clearedTimers: () => number[];
+  pendingTimerCount: () => number;
   restore: () => void;
 };
 
@@ -81,7 +83,9 @@ function createHarness(
   });
   const windowRegistry = register(windowListeners);
   const documentRegistry = register(documentListeners);
-  const timers: Array<() => void> = [];
+  const timers = new Map<number, () => void>();
+  let nextTimerId = 0;
+  const clearedTimers: number[] = [];
   let activeElement: unknown = null;
 
   const root = createRoot(options.contains ?? false);
@@ -128,8 +132,13 @@ function createHarness(
       addEventListener: windowRegistry.add,
       removeEventListener: windowRegistry.remove,
       setTimeout: (callback: () => void) => {
-        timers.push(callback);
-        return timers.length;
+        nextTimerId += 1;
+        timers.set(nextTimerId, callback);
+        return nextTimerId;
+      },
+      clearTimeout: (id: number) => {
+        clearedTimers.push(id);
+        timers.delete(id);
       },
     },
   });
@@ -174,8 +183,12 @@ function createHarness(
       now += ms;
     },
     runTimers: () => {
-      while (timers.length > 0) timers.shift()?.();
+      const pending = [...timers.values()];
+      timers.clear();
+      for (const callback of pending) callback();
     },
+    clearedTimers: () => clearedTimers,
+    pendingTimerCount: () => timers.size,
     restore: () => {
       Date.now = realDateNow;
       for (const [name, descriptor] of previous) {
@@ -311,6 +324,30 @@ test('modal focus guard does nothing while the modal is closed', () => {
   try {
     harness.guard.enforceModalFocus();
     assert.deepEqual(harness.focused(), []);
+  } finally {
+    harness.restore();
+  }
+});
+
+test('modal focus guard clears recovery state on detach so a reopen is not blocked', () => {
+  const harness = createHarness();
+  try {
+    harness.guard.attach();
+    harness.guard.enforceModalFocus();
+    assert.deepEqual(harness.focused(), ['preferred']);
+    assert.equal(harness.pendingTimerCount(), 1, 'recovery armed the debounce timer');
+
+    // Close while recovery is still in flight.
+    harness.guard.detach();
+    assert.equal(harness.clearedTimers().length, 1, 'the pending debounce timer is cancelled');
+    assert.equal(harness.pendingTimerCount(), 0);
+
+    // Immediate reopen: recovery must work straight away, not 120 ms later.
+    harness.guard.attach();
+    harness.setActiveElement(null);
+    harness.guard.enforceModalFocus();
+
+    assert.deepEqual(harness.focused(), ['preferred', 'preferred']);
   } finally {
     harness.restore();
   }

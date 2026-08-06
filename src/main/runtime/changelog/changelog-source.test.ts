@@ -112,6 +112,9 @@ test('changelog source reports an error when no changelog can be loaded', async 
 
   assert.deepEqual(snapshot.entries, []);
   assert.match(snapshot.error ?? '', /offline/);
+  // Nothing is rendered, so the message must not promise a bundled changelog.
+  assert.match(snapshot.error ?? '', /^Changelog unavailable: /);
+  assert.doesNotMatch(snapshot.error ?? '', /Showing the bundled changelog/);
   assert.equal(snapshot.installedVersion, '0.19.2');
 });
 

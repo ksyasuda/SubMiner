@@ -37,18 +37,20 @@ export function createChangelogSource(deps: ChangelogSourceDeps): {
   let cached: { snapshot: ChangelogSnapshot; fetchedAt: number } | null = null;
   let inFlight: Promise<ChangelogSnapshot> | null = null;
 
-  function fallbackToBundled(warning: string): ChangelogSnapshot {
+  /** `reason` is the raw failure; each branch phrases it for what it can show. */
+  function fallbackToBundled(reason: string): ChangelogSnapshot {
     const bundled = deps.readBundledChangelog();
     if (bundled === null) {
+      // Nothing is on screen, so promising a bundled changelog would be a lie.
       return buildEmptyChangelogSnapshot({
         installedVersion: deps.getInstalledVersion(),
-        error: warning,
+        error: `Changelog unavailable: ${reason}`,
       });
     }
     return buildChangelogSnapshot(bundled, {
       installedVersion: deps.getInstalledVersion(),
       source: 'bundled',
-      warning,
+      warning: `Showing the bundled changelog: ${reason}`,
     });
   }
 
@@ -82,7 +84,7 @@ export function createChangelogSource(deps: ChangelogSourceDeps): {
     } catch (error) {
       const message = summarize(error);
       deps.logWarn(`Changelog download failed (${ref}): ${message}`);
-      return fallbackToBundled(`Showing the bundled changelog: ${message}`);
+      return fallbackToBundled(message);
     }
   }
 

@@ -26,6 +26,8 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
   let pointerFocusRoot: Element | null = null;
   let isRecovering = false;
   let lastRecoveryAt = 0;
+  // Browser setTimeout id; typed loosely because @types/node widens the global.
+  let recoveryTimer: number | null = null;
 
   function isModalFocusTarget(target: EventTarget | null): boolean {
     return target instanceof Element && deps.getModalRoot().contains(target);
@@ -73,7 +75,8 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
     isRecovering = true;
     lastRecoveryAt = now;
     focusFallbackTarget();
-    window.setTimeout(() => {
+    recoveryTimer = window.setTimeout(() => {
+      recoveryTimer = null;
       isRecovering = false;
     }, FOCUS_RECOVERY_DEBOUNCE_MS);
   }
@@ -132,6 +135,15 @@ export function createModalFocusGuard(deps: ModalFocusGuardDeps) {
       window.removeEventListener('focus', windowFocusGuard);
       windowFocusGuard = null;
     }
+
+    // Closing mid-recovery must not leave the debounce armed: a modal reopened
+    // straight away would otherwise get no focus recovery for the next 120 ms.
+    if (recoveryTimer !== null) {
+      window.clearTimeout(recoveryTimer);
+      recoveryTimer = null;
+    }
+    isRecovering = false;
+    lastRecoveryAt = 0;
   }
 
   return {

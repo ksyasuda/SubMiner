@@ -147,6 +147,7 @@ function createHarness(
       addEventListener: () => {},
       removeEventListener: () => {},
       setTimeout: (callback: () => void) => setTimeout(callback, 0),
+      clearTimeout: (id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>),
     },
   });
   Object.defineProperty(globalThis, 'document', {

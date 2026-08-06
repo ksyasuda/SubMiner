@@ -7,6 +7,7 @@ import {
   withRequestTimeout,
 } from './changelog-runtime';
 import type { FetchLike, FetchResponseLike } from '../update/release-assets';
+import { createCurlFetch } from '../update/fetch-adapter';
 
 function okResponse(body: string): FetchResponseLike {
   return {
@@ -53,10 +54,14 @@ test('request timeout wrapper aborts a request that never settles', async () => 
 });
 
 test('changelog runtime times out both requests instead of hanging the modal', async () => {
-  const signals: Array<AbortSignal | undefined> = [];
-  const failing: FetchLike = (_url, init) => {
-    signals.push(init?.signal as AbortSignal | undefined);
-    return Promise.reject(new Error('stalled'));
+  const signals: AbortSignal[] = [];
+  // Stays pending until the deadline fires, standing in for a stalled server.
+  const stalling: FetchLike = (_url, init) => {
+    const signal = init?.signal as AbortSignal;
+    signals.push(signal);
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
   };
 
   const runtime = createChangelogRuntime({
@@ -69,16 +74,46 @@ test('changelog runtime times out both requests instead of hanging the modal', a
     fileExists: () => false,
     readFile: () => '',
     logWarn: () => {},
-    createFetch: () => failing,
+    createFetch: () => withRequestTimeout(stalling, 10),
   });
 
   const snapshot = await runtime.getChangelogSnapshot();
 
-  // Release lookup and changelog download both go through the timeout wrapper.
+  // Release lookup and changelog download both hit the deadline rather than hang.
   assert.equal(signals.length, 2);
-  assert.ok(signals.every((signal) => signal instanceof AbortSignal));
-  // No bundled copy is readable here, so the failure surfaces rather than hangs.
-  assert.match(snapshot.error ?? '', /stalled/);
+  assert.ok(
+    signals.every((signal) => signal.aborted),
+    'every stalled request was aborted',
+  );
+  // No bundled copy is readable here, so the timeout surfaces as an error state
+  // that does not claim a bundled changelog is on screen.
+  assert.match(snapshot.error ?? '', /^Changelog unavailable: /);
+  assert.match(snapshot.error ?? '', /timed out|timeout|abort/i);
+  assert.deepEqual(snapshot.entries, []);
+});
+
+test('changelog timeout reaches the curl transport, not just global fetch', async () => {
+  // The POSIX transport is curl, whose own --max-time is 60s; the changelog
+  // deadline is shorter, so the signal has to actually terminate the process.
+  let killed: string | undefined;
+  const curlFetch = createCurlFetch({
+    execFile: ((
+      _file: string,
+      _args: readonly string[],
+      _options: unknown,
+      _callback: unknown,
+    ) => ({
+      kill: (signal?: string) => {
+        killed = signal;
+        return true;
+      },
+    })) as never,
+  });
+
+  const wrapped = withRequestTimeout(curlFetch, 10);
+  await assert.rejects(wrapped('https://example.test/stalled'));
+
+  assert.equal(killed, 'SIGKILL', 'the stalled curl process is killed at the changelog deadline');
 });
 
 test('changelog request timeout is finite', () => {

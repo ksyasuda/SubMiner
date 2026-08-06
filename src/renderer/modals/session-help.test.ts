@@ -279,6 +279,7 @@ test('modal-layer session help does not focus hidden main overlay and still clos
         addEventListener: () => {},
         removeEventListener: () => {},
         setTimeout: (callback: () => void) => setTimeout(callback, 0),
+        clearTimeout: (id: unknown) => clearTimeout(id as ReturnType<typeof setTimeout>),
       },
     });
     Object.defineProperty(globalThis, 'document', {

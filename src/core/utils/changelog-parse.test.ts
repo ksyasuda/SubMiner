@@ -157,8 +157,9 @@ test('changelog parser reads prerelease and build metadata version headings', ()
     ].join('\n'),
   );
 
-  // An unrecognized heading does not just vanish: its notes fold into the
-  // previous release, so the version list has to stay exact.
+  // The prerelease heading has to become its own entry. Asserting the exact
+  // version list is what catches the failure mode: a heading the regex misses
+  // is not skipped, its notes silently fold into the release above it.
   assert.deepEqual(
     entries.map((entry) => entry.version),
     ['0.16.0', '0.15.0-rc.1+build.2'],
