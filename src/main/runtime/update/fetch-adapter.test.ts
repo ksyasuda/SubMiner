@@ -112,3 +112,101 @@ test('createCurlFetch requests updater metadata without Electron networking', as
   assert.equal(calls[0]?.options.encoding, 'buffer');
   assert.equal(calls[0]?.options.timeout, 65_000);
 });
+
+test('curl fetch kills the child process when the caller aborts', async () => {
+  let killed: string | undefined;
+  let settle: ((error: Error | null, stdout: Buffer, stderr: Buffer) => void) | null = null;
+  const controller = new AbortController();
+
+  const curlFetch = createCurlFetch({
+    execFile: ((
+      _file: string,
+      _args: readonly string[],
+      _options: unknown,
+      callback: (error: Error | null, stdout: Buffer, stderr: Buffer) => void,
+    ) => {
+      settle = callback;
+      return {
+        kill: (signal?: string) => {
+          killed = signal;
+          return true;
+        },
+      };
+    }) as never,
+  });
+
+  const pending = curlFetch('https://example.test/slow', { signal: controller.signal });
+  controller.abort(new Error('deadline reached'));
+
+  await assert.rejects(pending, /deadline reached/);
+  assert.equal(killed, 'SIGKILL', 'the stalled curl process is terminated');
+  assert.ok(settle, 'the callback is still held by the stub');
+});
+
+test('curl fetch preserves a non-Error abort reason', async () => {
+  const controller = new AbortController();
+  const curlFetch = createCurlFetch({
+    execFile: (() => ({ kill: () => true })) as never,
+  });
+
+  const pending = curlFetch('https://example.test/slow', { signal: controller.signal });
+  controller.abort('plain string reason');
+
+  await pending.then(
+    () => assert.fail('expected the aborted request to reject'),
+    (error) => assert.equal(error, 'plain string reason'),
+  );
+});
+
+test('curl fetch synthesises an error when the signal carries no reason', async () => {
+  const controller = new AbortController();
+  const curlFetch = createCurlFetch({
+    execFile: (() => ({ kill: () => true })) as never,
+  });
+
+  const pending = curlFetch('https://example.test/slow', { signal: controller.signal });
+  controller.abort();
+
+  // A bare abort() still supplies a DOMException reason, so that is what surfaces.
+  await pending.then(
+    () => assert.fail('expected the aborted request to reject'),
+    (error) => assert.ok(error instanceof Error),
+  );
+});
+
+test('curl fetch rejects immediately when the signal is already aborted', async () => {
+  let spawned = 0;
+  const controller = new AbortController();
+  controller.abort(new Error('already gone'));
+
+  const curlFetch = createCurlFetch({
+    execFile: (() => {
+      spawned += 1;
+      return { kill: () => true };
+    }) as never,
+  });
+
+  await assert.rejects(
+    curlFetch('https://example.test/x', { signal: controller.signal }),
+    /already gone/,
+  );
+  assert.equal(spawned, 0, 'no curl process is started for an aborted request');
+});
+
+test('curl fetch still resolves normally when no signal is supplied', async () => {
+  const curlFetch = createCurlFetch({
+    execFile: ((
+      _file: string,
+      _args: readonly string[],
+      _options: unknown,
+      callback: (error: Error | null, stdout: Buffer, stderr: Buffer) => void,
+    ) => {
+      callback(null, Buffer.from('{"ok":true}'), Buffer.alloc(0));
+      return { kill: () => true };
+    }) as never,
+  });
+
+  const response = await curlFetch('https://example.test/x');
+  assert.equal(response.ok, true);
+  assert.deepEqual(await response.json(), { ok: true });
+});

@@ -51,6 +51,13 @@ test('compareSemverLike orders prerelease identifiers within the same base versi
   assert.equal(compareSemverLike('0.15.0', '0.15.0-rc.1') > 0, true);
 });
 
+test('compareSemverLike ignores build metadata, which carries no precedence', () => {
+  assert.equal(compareSemverLike('0.15.0+build.2', '0.15.0+build.1'), 0);
+  assert.equal(compareSemverLike('0.15.0-rc.1+build.2', '0.15.0-rc.1+build.1'), 0);
+  assert.equal(compareSemverLike('0.15.1+build.1', '0.15.0+build.9') > 0, true);
+  assert.equal(compareSemverLike('0.15.0+build.1', '0.15.0-rc.1') > 0, true);
+});
+
 test('findReleaseAsset finds exact asset names only', () => {
   const release = {
     tag_name: 'v0.14.1',

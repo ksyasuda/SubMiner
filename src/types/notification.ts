@@ -20,6 +20,8 @@ export interface OverlayNotificationAction {
   id: string;
   label: string;
   noteId?: number;
+  /** Leaves the notification on screen after the action fires (default: dismiss). */
+  keepOpen?: boolean;
 }
 
 export interface OverlayNotificationPayload {

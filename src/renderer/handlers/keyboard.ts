@@ -22,6 +22,7 @@ export function createKeyboardHandlers(
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
+    handleChangelogKeydown: (e: KeyboardEvent) => boolean;
     openSessionHelpModal: (opening: {
       bindingKey: 'KeyH' | 'KeyK';
       fallbackUsed: boolean;
@@ -1093,6 +1094,14 @@ export function createKeyboardHandlers(
         if (options.handlePlaylistBrowserKeydown(e)) {
           return;
         }
+      }
+
+      // Ahead of the keyboard-driven lookup controls: the changelog modal binds
+      // arrows/H/L for folding, and those would otherwise move the subtitle word
+      // selection (and seek mpv) behind the open modal.
+      if (ctx.state.changelogModalOpen) {
+        options.handleChangelogKeydown(e);
+        return;
       }
 
       if (handleKeyboardDrivenModeLookupControls(e)) {

@@ -297,6 +297,88 @@ test('overlay notification action buttons send action ids', () => {
   }
 });
 
+test('overlay notification keepOpen actions leave the card on screen', () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const stack = createFakeElement();
+  const sentActions: string[] = [];
+
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    writable: true,
+    value: {
+      createElement: (tagName: string) => createFakeElement(tagName),
+    },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    writable: true,
+    value: {
+      clearTimeout: () => undefined,
+      setTimeout: () => 1,
+      electronAPI: {
+        sendOverlayNotificationAction: (_notificationId: string, actionId: string) => {
+          sentActions.push(actionId);
+        },
+      },
+    },
+  });
+
+  try {
+    const renderer = createOverlayNotificationRenderer({
+      dom: {
+        overlayNotificationStack: stack,
+      },
+      state: {
+        isOverOverlayNotification: false,
+      },
+    } as never);
+
+    renderer.show({
+      id: 'subminer-update-available',
+      title: 'SubMiner update available',
+      body: 'SubMiner v0.15.0 is available',
+      persistent: true,
+      actions: [
+        { id: 'install-update', label: 'Update' },
+        { id: 'view-changelog', label: "What's New", keepOpen: true },
+      ],
+    });
+
+    const card = stack.children[0];
+    if (!card) {
+      assert.fail('Expected overlay notification card.');
+    }
+    const buttons: typeof card.children = [];
+    const collect = (node: typeof card): void => {
+      if (node.className === 'overlay-notification-action') buttons.push(node);
+      for (const child of node.children) collect(child);
+    };
+    collect(card);
+    assert.equal(buttons.length, 2);
+
+    // "What's New" opens the changelog but must not drop the Update affordance.
+    buttons[1]?.dispatchEventType('click');
+    assert.deepEqual(sentActions, ['view-changelog']);
+    assert.equal(card.classList.contains('leaving'), false);
+
+    buttons[0]?.dispatchEventType('click');
+    assert.deepEqual(sentActions, ['view-changelog', 'install-update']);
+    assert.equal(card.classList.contains('leaving'), true);
+  } finally {
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete (globalThis as { document?: unknown }).document;
+    }
+    if (originalWindow) {
+      Object.defineProperty(globalThis, 'window', originalWindow);
+    } else {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  }
+});
+
 test('overlay notification renderer updates same-id progress without replacing the spinner', () => {
   const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');

@@ -75,8 +75,8 @@ src/
   renderer/                # Overlay renderer (modularized UI/runtime)
     handlers/              # Keyboard/mouse/gamepad interaction modules
     modals/                # Modal flows (Jimaku, Kiku, subsync, runtime options, session help,
-                           #   character dictionary, playlist browser, subtitle sidebar,
-                           #   YouTube track picker, controller config/debug/select)
+                           #   changelog, character dictionary, playlist browser, subtitle
+                           #   sidebar, YouTube track picker, controller config/debug/select)
     positioning/           # Subtitle position controller (drag-to-reposition)
   settings/                # Settings window UI (model, controls, markup)
   types/                   # Domain type modules (anki, config, integrations, ...)

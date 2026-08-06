@@ -293,7 +293,9 @@ export function createOverlayNotificationRenderer(
           window.electronAPI.sendOverlayNotificationAction?.(entry.id, action.id, {
             noteId: action.noteId,
           });
-          remove(entry.id);
+          if (action.keepOpen !== true) {
+            remove(entry.id);
+          }
         });
         actions.append(button);
       }

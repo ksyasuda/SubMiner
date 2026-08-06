@@ -120,6 +120,15 @@ export type RendererDom = {
   subtitleSidebarStatus: HTMLDivElement;
   subtitleSidebarList: HTMLUListElement;
 
+  changelogModal: HTMLDivElement;
+  changelogClose: HTMLButtonElement;
+  changelogRefresh: HTMLButtonElement;
+  changelogInstalled: HTMLSpanElement;
+  changelogSource: HTMLSpanElement;
+  changelogWarning: HTMLDivElement;
+  changelogStatus: HTMLDivElement;
+  changelogList: HTMLDivElement;
+
   sessionHelpModal: HTMLDivElement;
   sessionHelpClose: HTMLButtonElement;
   sessionHelpShortcut: HTMLDivElement;
@@ -289,6 +298,14 @@ export function resolveRendererDom(): RendererDom {
     subtitleSidebarStatus: getRequiredElement<HTMLDivElement>('subtitleSidebarStatus'),
     subtitleSidebarList: getRequiredElement<HTMLUListElement>('subtitleSidebarList'),
 
+    changelogModal: getRequiredElement<HTMLDivElement>('changelogModal'),
+    changelogClose: getRequiredElement<HTMLButtonElement>('changelogClose'),
+    changelogRefresh: getRequiredElement<HTMLButtonElement>('changelogRefresh'),
+    changelogInstalled: getRequiredElement<HTMLSpanElement>('changelogInstalled'),
+    changelogSource: getRequiredElement<HTMLSpanElement>('changelogSource'),
+    changelogWarning: getRequiredElement<HTMLDivElement>('changelogWarning'),
+    changelogStatus: getRequiredElement<HTMLDivElement>('changelogStatus'),
+    changelogList: getRequiredElement<HTMLDivElement>('changelogList'),
     sessionHelpModal: getRequiredElement<HTMLDivElement>('sessionHelpModal'),
     sessionHelpClose: getRequiredElement<HTMLButtonElement>('sessionHelpClose'),
     sessionHelpShortcut: getRequiredElement<HTMLDivElement>('sessionHelpShortcut'),

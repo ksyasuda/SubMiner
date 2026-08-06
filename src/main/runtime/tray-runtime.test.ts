@@ -30,6 +30,7 @@ test('tray menu template contains expected entries and handlers', () => {
   const calls: string[] = [];
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => calls.push('help'),
+    openChangelog: () => calls.push('changelog'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: true,
     openFirstRunSetup: () => calls.push('setup'),
@@ -49,36 +50,53 @@ test('tray menu template contains expected entries and handlers', () => {
     quitApp: () => calls.push('quit'),
   });
 
-  assert.equal(template.length, 14);
-  assert.equal(
-    template.some((entry) => entry.label === 'Open Runtime Options'),
-    false,
+  // Resolve by label, not index: adding a menu entry should not force every
+  // later assertion in this test to be renumbered.
+  const entryFor = (label: string) => {
+    const entry = template.find((candidate) => candidate.label === label);
+    assert.ok(entry, `expected a "${label}" tray entry`);
+    return entry;
+  };
+
+  assert.deepEqual(
+    template.map((entry) => entry.label ?? `<${entry.type}>`),
+    [
+      'Open Help',
+      'View Changelog',
+      'Open Texthooker',
+      'Complete Setup',
+      'Open SubMiner Setup',
+      'Open Yomitan Settings',
+      'Open SubMiner Settings',
+      'Sync Stats && History',
+      'Export Logs',
+      'Configure Jellyfin',
+      'Jellyfin Discovery',
+      'Configure AniList',
+      'Check for Updates',
+      '<separator>',
+      'Quit',
+    ],
   );
-  assert.equal(
-    template.some((entry) => entry.label === 'Open Overlay'),
-    false,
-  );
-  assert.equal(template[0]!.label, 'Open Help');
-  assert.equal(template[3]!.label, 'Open SubMiner Setup');
-  const discovery = template.find((entry) => entry.label === 'Jellyfin Discovery');
-  assert.equal(discovery?.type, 'checkbox');
-  assert.equal(discovery?.checked, false);
-  discovery?.click?.({ checked: true });
-  template[0]!.click?.();
-  assert.equal(template[1]!.label, 'Open Texthooker');
-  template[1]!.click?.();
-  assert.equal(template[5]!.label, 'Open SubMiner Settings');
-  assert.equal(template[6]!.label, 'Sync Stats && History');
-  template[6]!.click?.();
-  assert.equal(template[7]!.label, 'Export Logs');
-  template[7]!.click?.();
-  assert.equal(template[11]!.label, 'Check for Updates');
-  template[11]!.click?.();
-  template[12]!.type === 'separator' ? calls.push('separator') : calls.push('bad');
-  template[13]!.click?.();
+
+  const discovery = entryFor('Jellyfin Discovery');
+  assert.equal(discovery.type, 'checkbox');
+  assert.equal(discovery.checked, false);
+  discovery.click?.({ checked: true });
+
+  entryFor('Open Help').click?.();
+  entryFor('View Changelog').click?.();
+  entryFor('Open Texthooker').click?.();
+  entryFor('Sync Stats && History').click?.();
+  entryFor('Export Logs').click?.();
+  entryFor('Check for Updates').click?.();
+  calls.push(template.some((entry) => entry.type === 'separator') ? 'separator' : 'bad');
+  entryFor('Quit').click?.();
+
   assert.deepEqual(calls, [
     'jellyfin-discovery:true',
     'help',
+    'changelog',
     'texthooker',
     'sync-ui',
     'export-logs',
@@ -91,6 +109,7 @@ test('tray menu template contains expected entries and handlers', () => {
 test('tray menu template omits first-run setup entry when setup is complete', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
@@ -120,6 +139,7 @@ test('tray menu template omits first-run setup entry when setup is complete', ()
 test('tray menu template omits texthooker entry when texthooker page is disabled', () => {
   const labels = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: false,
     openFirstRunSetup: () => undefined,
@@ -147,6 +167,7 @@ test('tray menu template omits texthooker entry when texthooker page is disabled
 test('tray menu template renders active jellyfin discovery checkbox', () => {
   const template = buildTrayMenuTemplateRuntime({
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,
@@ -175,6 +196,7 @@ test('tray menu template renders a visible linux discovery check mark when activ
   const template = buildTrayMenuTemplateRuntime({
     platform: 'linux',
     openSessionHelp: () => undefined,
+    openChangelog: () => undefined,
     openTexthookerInBrowser: () => undefined,
     showTexthookerPage: true,
     openFirstRunSetup: () => undefined,

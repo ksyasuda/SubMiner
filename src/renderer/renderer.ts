@@ -38,6 +38,7 @@ import { createKikuModal } from './modals/kiku.js';
 import { prepareForKikuFieldGroupingOpen } from './kiku-open.js';
 import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
+import { createChangelogModal } from './modals/changelog.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
 import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
@@ -149,6 +150,12 @@ const modalDescriptors = [
     close: () => sessionHelpModal.closeSessionHelpModal(),
     suppressesSubtitles: true,
   },
+  {
+    id: 'changelog',
+    isOpen: () => ctx.state.changelogModalOpen,
+    close: () => changelogModal.closeChangelogModal(),
+    suppressesSubtitles: true,
+  },
 ] satisfies readonly ModalDescriptor<OverlayHostedModal>[];
 
 const modalRegistry = createModalRegistry(modalDescriptors);
@@ -213,6 +220,10 @@ const sessionHelpModal = createSessionHelpModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const changelogModal = createChangelogModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   shouldRestoreOpenOnStartup: async () =>
@@ -266,6 +277,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
   handleSessionHelpKeydown: sessionHelpModal.handleSessionHelpKeydown,
+  handleChangelogKeydown: changelogModal.handleChangelogKeydown,
   openSessionHelpModal: sessionHelpModal.openSessionHelpModal,
   openControllerSelectModal: () => {
     if (controllerSelectModal.openControllerSelectModal()) {
@@ -523,6 +535,12 @@ function registerModalOpenHandlers(): void {
     runGuarded('session-help:open', () => {
       sessionHelpModal.openSessionHelpModal(keyboardHandlers.getSessionHelpOpeningInfo());
       window.electronAPI.notifyOverlayModalOpened('session-help');
+    });
+  });
+  window.electronAPI.onOpenChangelog(() => {
+    runGuarded('changelog:open', () => {
+      changelogModal.openChangelogModal();
+      window.electronAPI.notifyOverlayModalOpened('changelog');
     });
   });
   window.electronAPI.onOpenControllerSelect(() => {
@@ -794,6 +812,7 @@ async function init(): Promise<void> {
   controllerSelectModal.wireDomEvents();
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
+  changelogModal.wireDomEvents();
   subtitleSidebarModal.wireDomEvents();
   characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {

@@ -468,6 +468,8 @@ import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku
 import { openTsukihimeModal as openTsukihimeModalRuntime } from './main/runtime/tsukihime-open';
 import { openSubsyncManualModal as openSubsyncManualModalRuntime } from './main/runtime/subsync-open';
 import { openSessionHelpModal as openSessionHelpModalRuntime } from './main/runtime/session-help-open';
+import { openChangelogModal as openChangelogModalRuntime } from './main/runtime/changelog-open';
+import { createChangelogRuntime } from './main/runtime/changelog/changelog-runtime';
 import { openCharacterDictionaryManagerModal as openCharacterDictionaryManagerModalRuntime } from './main/runtime/character-dictionary-open';
 import { openControllerSelectModal as openControllerSelectModalRuntime } from './main/runtime/controller-select-open';
 import { openControllerDebugModal as openControllerDebugModalRuntime } from './main/runtime/controller-debug-open';
@@ -506,6 +508,7 @@ import { createStartupOsdSequencer } from './main/runtime/startup-osd-sequencer'
 import {
   INSTALL_UPDATE_ACTION_ID,
   UPDATE_AVAILABLE_NOTIFICATION_ID,
+  VIEW_CHANGELOG_ACTION_ID,
 } from './main/runtime/update/update-notifications';
 import { createOverlayNotificationsRuntime } from './main/runtime/overlay-notifications-runtime';
 import {
@@ -2828,6 +2831,14 @@ function openSessionHelpOverlay(): void {
   );
 }
 
+function openChangelogOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openChangelogModalRuntime,
+    'Changelog overlay unavailable.',
+    'Failed to open changelog overlay.',
+  );
+}
+
 function openCharacterDictionaryManagerOverlay(): void {
   openCharacterDictionaryManagerWithConfigGate({
     isCharacterDictionaryEnabled: () => configService.getConfig().subtitleStyle.nameMatchEnabled,
@@ -5095,6 +5106,18 @@ flushPendingMpvLogWrites = () => {
   void flushMpvLog();
 };
 
+const { getChangelogSnapshot } = createChangelogRuntime({
+  getInstalledVersion: () => app.getVersion(),
+  getUpdateChannel: () => configService.getConfig().updates.channel,
+  resourcesPath: process.resourcesPath,
+  appPath: app.getAppPath(),
+  dirname: __dirname,
+  joinPath: (...parts) => path.join(...parts),
+  fileExists: (candidate) => fs.existsSync(candidate),
+  readFile: (candidate) => fs.readFileSync(candidate, 'utf8'),
+  logWarn: (message) => logger.warn(message),
+});
+
 const { getUpdateService } = createUpdateServiceRuntime({
   userDataPath: USER_DATA_PATH,
   getUpdatesConfig: () => configService.getConfig().updates,
@@ -5463,6 +5486,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
               logger.warn('Failed to install update from overlay notification action:', error);
             });
         }
+        if (
+          notificationId === UPDATE_AVAILABLE_NOTIFICATION_ID &&
+          actionId === VIEW_CHANGELOG_ACTION_ID
+        ) {
+          openChangelogOverlay();
+        }
         if (actionId === OPEN_ANKI_CARD_ACTION_ID && noteId !== undefined) {
           void openAnkiCardFromNotification(noteId).catch((error) => {
             logger.warn('Failed to open Anki card from overlay notification action:', error);
@@ -5728,6 +5757,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         return result;
       },
       appendClipboardVideoToQueue: () => appendClipboardVideoToQueueHandler(),
+      getChangelogSnapshot: (options) => getChangelogSnapshot(options),
       ...playlistBrowserMainDeps,
       getImmersionTracker: () => appState.immersionTracker,
     },
@@ -6118,6 +6148,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       initializeOverlayRuntime: () => initializeOverlayRuntime(),
       isOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
       openSessionHelpModal: () => openSessionHelpOverlay(),
+      openChangelogModal: () => openChangelogOverlay(),
       openTexthookerInBrowser: () =>
         handleCliCommand(parseArgs(['--texthooker', '--open-browser'])),
       showTexthookerPage: () => shouldShowTexthookerTrayEntry(configService.getConfig()),

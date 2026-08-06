@@ -145,6 +145,8 @@ The tray menu includes `Export Logs`, which creates the same sanitized local-dat
 
 Once Jellyfin is configured, the tray menu includes `Jellyfin Discovery` for starting or stopping cast discovery in the current app session without changing config.
 
+The tray menu also includes `View Changelog`, which opens the in-app changelog modal. It fetches the changelog from the newest published release, so you see release notes for versions newer than the one you run; if the download fails it falls back to the changelog bundled with your install and says so. Versions in the current `0.x` line are expanded by default and older lines are folded, matching this site's [Changelog](/changelog). A badge marks the version you have installed, and newer versions are tagged `New`. The same modal opens from the `What's New` button on the update-available overlay notification.
+
 ### Logging and App Mode
 
 - `--log-level` controls logger verbosity.
@@ -367,6 +369,8 @@ Useful overlay-local default keybinding: `Ctrl+Alt+P` opens the playlist browser
 Press `V` to cycle the primary SubMiner subtitle bar through hidden → visible → hover modes. The bundled mpv plugin also binds bare `v` to the same action (injected at runtime).
 
 `Ctrl/Cmd+/` opens the session help modal with the current overlay and mpv keybindings. The same help view is also available through the `y-h` chord in mpv.
+
+The changelog modal (tray > `View Changelog`) works the same way: it renders over mpv when a video is playing and in its own window otherwise. Use `J`/`K` or the arrow keys to move between versions, `Enter` to fold or unfold one, `R` to refetch, and `Esc` to close.
 
 Hovering over subtitle text pauses mpv by default; leaving resumes it. Yomitan popups also pause playback by default. Set `subtitleStyle.autoPauseVideoOnHover: false` or `subtitleStyle.autoPauseVideoOnYomitanPopup: false` to disable either behavior.
 

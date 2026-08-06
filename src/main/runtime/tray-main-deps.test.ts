@@ -25,6 +25,7 @@ test('tray main deps builders return mapped handlers', () => {
     initializeOverlayRuntime: () => calls.push('init'),
     isOverlayRuntimeInitialized: () => false,
     openSessionHelpModal: () => calls.push('help'),
+    openChangelogModal: () => calls.push('changelog'),
     openTexthookerInBrowser: () => calls.push('texthooker'),
     showTexthookerPage: () => true,
     showFirstRunSetup: () => true,
@@ -50,6 +51,7 @@ test('tray main deps builders return mapped handlers', () => {
   const template = menuDeps.buildTrayMenuTemplateRuntime({
     platform: menuDeps.platform,
     openSessionHelp: () => calls.push('open-help'),
+    openChangelog: () => calls.push('open-changelog'),
     openTexthookerInBrowser: () => calls.push('open-texthooker'),
     showTexthookerPage: true,
     openFirstRunSetup: () => calls.push('open-setup'),

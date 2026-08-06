@@ -1,4 +1,5 @@
 export * from './types/anki';
+export * from './types/changelog';
 export * from './types/config';
 export * from './types/integrations';
 export * from './types/notification';

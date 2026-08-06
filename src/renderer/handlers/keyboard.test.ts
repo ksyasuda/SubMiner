@@ -456,6 +456,7 @@ function createKeyboardHandlerHarness() {
   let openControllerSelectCount = 0;
   let openControllerDebugCount = 0;
   let playlistBrowserKeydownCount = 0;
+  let changelogKeydownCount = 0;
 
   const createWordNode = (left: number) => ({
     classList: createClassList(),
@@ -504,6 +505,10 @@ function createKeyboardHandlerHarness() {
       return true;
     },
     handleSessionHelpKeydown: () => false,
+    handleChangelogKeydown: () => {
+      changelogKeydownCount += 1;
+      return true;
+    },
     openSessionHelpModal: () => {},
     openControllerSelectModal: () => {
       openControllerSelectCount += 1;
@@ -522,6 +527,7 @@ function createKeyboardHandlerHarness() {
     openControllerSelectCount: () => openControllerSelectCount,
     openControllerDebugCount: () => openControllerDebugCount,
     playlistBrowserKeydownCount: () => playlistBrowserKeydownCount,
+    changelogKeydownCount: () => changelogKeydownCount,
     setWordCount: (count: number) => {
       wordNodes = Array.from({ length: count }, (_, index) => createWordNode(10 + index * 70));
     },
@@ -1399,6 +1405,50 @@ test('keyboard mode: playlist browser modal handles h before lookup controls', a
 
     assert.equal(playlistBrowserKeydownCount(), 1);
     assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: changelog modal handles h/l fold keys before lookup controls', async () => {
+  const { ctx, testGlobals, handlers, changelogKeydownCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.handleKeyboardModeToggleRequested();
+    ctx.state.changelogModalOpen = true;
+    ctx.state.keyboardSelectedWordIndex = 2;
+
+    // H and L fold/unfold changelog entries; they must not move the subtitle
+    // word selection or seek mpv behind the open modal.
+    testGlobals.dispatchKeydown({ key: 'h', code: 'KeyH' });
+    testGlobals.dispatchKeydown({ key: 'l', code: 'KeyL' });
+
+    assert.equal(changelogKeydownCount(), 2);
+    assert.equal(ctx.state.keyboardSelectedWordIndex, 2);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('keyboard mode: changelog modal handles arrow keys before yomitan popup', async () => {
+  const { ctx, testGlobals, handlers, changelogKeydownCount } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.changelogModalOpen = true;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
+
+    assert.equal(changelogKeydownCount(), 1);
+    assert.equal(
+      testGlobals.commandEvents.some(
+        (event) => event.type === 'forwardKeyDown' && event.code === 'ArrowDown',
+      ),
+      false,
+    );
   } finally {
     testGlobals.restore();
   }

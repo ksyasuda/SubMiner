@@ -260,6 +260,10 @@
       {
         "from": "dist/launcher/subminer",
         "to": "launcher/subminer"
+      },
+      {
+        "from": "CHANGELOG.md",
+        "to": "CHANGELOG.md"
       }
     ]
   },
