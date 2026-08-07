@@ -222,7 +222,7 @@ test('buildMpvEnv preserves native Wayland env for supported Hyprland and Sway a
   });
 });
 
-test('buildMpvBackendArgs forces an explicit X11 renderer stack when backend resolves to x11', () => {
+test('buildMpvBackendArgs pins the X11 window context when backend resolves to x11', () => {
   withPlatform('linux', () => {
     assert.deepEqual(
       buildMpvBackendArgs(makeArgs({ backend: 'x11' }), {
@@ -230,12 +230,12 @@ test('buildMpvBackendArgs forces an explicit X11 renderer stack when backend res
         WAYLAND_DISPLAY: 'wayland-0',
         XDG_SESSION_TYPE: 'wayland',
       }),
-      ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
+      ['--gpu-context=x11vk,x11egl,x11'],
     );
   });
 });
 
-test('buildMpvBackendArgs forces the same X11 renderer stack for unsupported Wayland auto fallback', () => {
+test('buildMpvBackendArgs pins the same X11 window context for unsupported Wayland auto fallback', () => {
   withPlatform('linux', () => {
     assert.deepEqual(
       buildMpvBackendArgs(makeArgs({ backend: 'auto' }), {
@@ -245,7 +245,7 @@ test('buildMpvBackendArgs forces the same X11 renderer stack for unsupported Way
         XDG_CURRENT_DESKTOP: 'KDE',
         XDG_SESSION_DESKTOP: 'plasma',
       }),
-      ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
+      ['--gpu-context=x11vk,x11egl,x11'],
     );
   });
 });
@@ -292,9 +292,7 @@ test('buildConfiguredMpvDefaultArgs appends maximized launch mode to configured 
         '--secondary-sub-visibility=no',
         '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
         '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
-        '--vo=gpu',
-        '--gpu-api=opengl',
-        '--gpu-context=x11egl,x11',
+        '--gpu-context=x11vk,x11egl,x11',
         '--window-maximized=yes',
       ],
     );

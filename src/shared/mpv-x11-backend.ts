@@ -12,12 +12,18 @@
   so the gate and the mpv backend args stay in one place.
 */
 
-/** mpv args that pin the GPU/windowing stack to X11/XWayland (libGL via EGL on X11). */
-export const MPV_X11_BACKEND_ARGS = [
-  '--vo=gpu',
-  '--gpu-api=opengl',
-  '--gpu-context=x11egl,x11',
-] as const;
+/**
+ * mpv args that pin the *windowing* stack to X11/XWayland, in Vulkan-then-OpenGL order.
+ * mpv walks the list and skips contexts that do not match the configured `--gpu-api`,
+ * so this works for both a Vulkan and an OpenGL config.
+ *
+ * Deliberately does NOT set `--vo`/`--gpu-api`: forcing `--vo=gpu --gpu-api=opengl` here
+ * used to drop configs off `vo=gpu-next` onto the legacy renderer, where user shaders
+ * written for gpu-next (e.g. ArtCNN, `//!COMPONENTS 4` LUMA hooks) abort mpv with
+ * `copy_image: Assertion '*offset + count < sizeof(dst)' failed` as soon as their
+ * upscale-only `//!WHEN` condition turns on, i.e. on the first fullscreen toggle.
+ */
+export const MPV_X11_BACKEND_ARGS = ['--gpu-context=x11vk,x11egl,x11'] as const;
 
 export type LinuxDesktopEnv = {
   xdgCurrentDesktop: string;

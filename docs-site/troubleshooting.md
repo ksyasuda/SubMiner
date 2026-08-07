@@ -406,7 +406,7 @@ On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and othe
 SubMiner handles this automatically:
 
 - It launches its own window under XWayland (it sets `--ozone-platform-hint=x11`).
-- Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too - Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11egl,x11`) is applied.
+- Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too - Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11vk,x11egl,x11`) is applied. Only the window context is overridden; your `vo`/`gpu-api` and user shaders are left alone.
 - While mpv is windowed, the overlay is a managed X11 window owned by the tracked mpv window (`WM_TRANSIENT_FOR`), so it stays above mpv while other foreground X11/Xwayland apps can still cover both windows.
 - While tracked mpv is fullscreen, SubMiner swaps the visible overlay to a focusable-false X11 override-redirect window. That path can stay above the active fullscreen mpv window without requiring a KDE/KWin-specific rule, and SubMiner hides/releases it when mpv is no longer the active X11/Xwayland window.
 - The visible overlay is shown inactive on Linux, so normal hover should not steal keyboard focus from mpv.
@@ -420,7 +420,7 @@ Requirements: `xdotool`, `xprop`, and `xwininfo` must be installed. SubMiner use
 This almost always means mpv came up as a **native Wayland** window that the XWayland overlay cannot cover. It happens when mpv is launched **manually** (your own command), because SubMiner can only force XWayland on the mpv processes it launches itself. Fix it one of these ways:
 
 - Launch playback through SubMiner (the `subminer` launcher or the tray), which forces XWayland for you, or
-- Force XWayland in your own mpv invocation, e.g. `mpv --gpu-context=x11egl …`, or launch with `WAYLAND_DISPLAY= mpv …`, or set `gpu-context=x11egl` in your `mpv.conf`.
+- Force XWayland in your own mpv invocation, e.g. `mpv --gpu-context=x11vk,x11egl,x11 …`, or launch with `WAYLAND_DISPLAY= mpv …`, or set `gpu-context=x11vk` (Vulkan) / `gpu-context=x11egl` (OpenGL) in your `mpv.conf`.
 
 To confirm mpv is on XWayland, `xdotool search --class mpv` should return a window id (a native Wayland mpv returns nothing).
 

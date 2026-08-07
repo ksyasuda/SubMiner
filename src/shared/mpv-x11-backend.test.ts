@@ -99,9 +99,10 @@ test('applyX11EnvOverrides strips Wayland hints and pins session type to x11', (
   assert.equal(result.XDG_SESSION_TYPE, 'x11');
 });
 
-test('MPV_X11_BACKEND_ARGS pins the GPU stack to X11', () => {
-  assert.deepEqual(
-    [...MPV_X11_BACKEND_ARGS],
-    ['--vo=gpu', '--gpu-api=opengl', '--gpu-context=x11egl,x11'],
+test('MPV_X11_BACKEND_ARGS pins the window context to X11 without overriding the renderer', () => {
+  assert.deepEqual([...MPV_X11_BACKEND_ARGS], ['--gpu-context=x11vk,x11egl,x11']);
+  assert.equal(
+    MPV_X11_BACKEND_ARGS.some((arg) => arg.startsWith('--vo=') || arg.startsWith('--gpu-api=')),
+    false,
   );
 });
