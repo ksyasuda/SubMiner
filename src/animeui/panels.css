@@ -211,6 +211,47 @@
   border-color: rgba(237, 135, 150, 0.45);
 }
 
+/*
+ * Avatar for an extension row. The monogram is the box's own text, so it shows
+ * while the icon loads and stays put when a repository publishes none; a loaded
+ * icon covers it.
+ */
+.ext-icon {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--ctp-surface0);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--faint);
+  overflow: hidden;
+}
+
+/* A loaded icon replaces the monogram; transparent PNGs must not show it. */
+.ext-icon.has-icon {
+  border-color: transparent;
+  background: transparent;
+  color: transparent;
+}
+
+.ext-icon-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+}
+
+.ext-icon.has-icon .ext-icon-img {
+  opacity: 1;
+}
+
 .ext-main {
   flex: 1 1 auto;
   min-width: 0;

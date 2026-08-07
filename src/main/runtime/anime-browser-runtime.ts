@@ -389,6 +389,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           version: extension.version,
           nsfw: extension.nsfw,
           repoUrl: extension.repoUrl,
+          iconUrl: extension.iconUrl,
           sourceNames: extension.sourceNames,
           installed: installedPkgs.has(extension.pkg),
         })),

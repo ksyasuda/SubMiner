@@ -1,4 +1,5 @@
 import { describe, el } from './dom';
+import { buildIconIndex, iconMonogram, isSafeIconUrl, repoFaviconUrl } from './extension-icons';
 import { describeInstalled } from './format';
 import {
   collectLanguages,
@@ -39,14 +40,40 @@ interface RowAction {
 interface RowOptions {
   name: string;
   sub: string;
+  /** Repository-published icon for the row, when there is one. */
+  iconUrl?: string | null;
   tags?: Array<{ text: string; className: string }>;
   actions?: RowAction[];
   isError?: boolean;
 }
 
+/**
+ * The row's avatar: the extension's icon, with the name's first letter behind
+ * it. Repositories do not always publish an icon for every package, so the
+ * monogram shows until the image loads and stays put if it never does.
+ */
+function extensionIcon(name: string, iconUrl: string | null | undefined): HTMLSpanElement {
+  const badge = document.createElement('span');
+  badge.className = 'ext-icon';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.textContent = iconMonogram(name);
+  if (!isSafeIconUrl(iconUrl)) return badge;
+
+  const image = document.createElement('img');
+  image.className = 'ext-icon-img';
+  image.loading = 'lazy';
+  image.alt = '';
+  image.addEventListener('load', () => badge.classList.add('has-icon'));
+  image.addEventListener('error', () => image.remove());
+  image.src = iconUrl;
+  badge.append(image);
+  return badge;
+}
+
 function extensionRow(options: RowOptions): HTMLDivElement {
   const row = document.createElement('div');
   row.className = options.isError ? 'ext-row is-error' : 'ext-row';
+  row.append(extensionIcon(options.name, options.iconUrl));
 
   const main = document.createElement('div');
   main.className = 'ext-main';
@@ -106,6 +133,8 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   // What the last refresh found, kept so toggling a language chip re-renders
   // the list without re-fetching every repository index.
   let installable: AvailableExtension[] = [];
+  /** Package to icon URL, so installed rows can borrow the catalogue's icon. */
+  let iconsByPkg = new Map<string, string>();
   let repoFailures: Array<{ name: string; error: string }> = [];
   let hasRepos = false;
   /** Selected language codes; empty means "All". */
@@ -168,6 +197,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
         return extensionRow({
           name: view.name,
           sub: view.error ?? describeInstalled(view),
+          iconUrl: iconsByPkg.get(view.pkg) ?? null,
           isError: view.error !== null,
           tags: view.error === null ? [] : [{ text: 'failed', className: 'nsfw' }],
           actions,
@@ -182,6 +212,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
         extensionRow({
           name: repoUrl.replace(/^https:\/\//, '').replace(/\/[^/]*\.json$/, ''),
           sub: repoUrl,
+          iconUrl: repoFaviconUrl(repoUrl),
           actions: [
             {
               label: 'Remove',
@@ -258,6 +289,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
         extensionRow({
           name: extension.name,
           sub: `${languageLabel(extension.lang)} · v${extension.version}`,
+          iconUrl: extension.iconUrl,
           tags: extension.nsfw ? [{ text: '18+', className: 'nsfw' }] : [],
           actions: [
             {
@@ -311,6 +343,9 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     }
 
     const offeredPkgs = new Set(available.extensions.map((extension) => extension.pkg));
+    // The catalogue is the only source of icons, so an installed extension can
+    // only show one while a repository still carries its package.
+    iconsByPkg = buildIconIndex(available.extensions);
     renderInstalled(snapshot.installed, offeredPkgs, snapshot.extensionsDir);
     // Installed extensions have their own section; leaving them here too would
     // list every one of them twice.

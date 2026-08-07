@@ -58,6 +58,12 @@ Extensions your repositories offer but you do not have appear under
 **Available**, each with **Install**. Repositories are stored in config under
 `anime.repos`, so you can also manage them there and keep them in a dotfile.
 
+Every row carries the extension's icon, as the repository publishes it, so a
+site is recognisable before you read the name. A repository row shows its host's
+favicon instead. Icons are the only part of a row that is fetched from the
+network, and a row whose icon is missing falls back to the first letter of its
+name rather than an empty box.
+
 A repository index lists every language it knows about, which is far more than
 any one person reads, so the **Available** list has a language chip row above
 it. Pick one or more languages to narrow it, or **All** to clear the filter;
@@ -72,7 +78,8 @@ The Extensions tab opens with an **Installed** section listing everything in the
 extensions directory, with the sources each one provides and a **Remove**
 button. It is built from the directory rather than from a repository, so an
 extension you dropped in by hand — or one whose repository you have since
-removed — is still listed and still removable.
+removed — is still listed and still removable. An installed extension borrows
+its icon from the catalogue, so one no repository carries shows its monogram.
 
 **Update** appears next to an extension a configured repository still carries;
 it downloads the current version over the existing APK.

@@ -156,6 +156,8 @@ export interface AvailableExtension {
   version: string;
   nsfw: boolean;
   repoUrl: string;
+  /** Where the repository publishes the extension's icon; may 404. */
+  iconUrl: string;
   sourceNames: string[];
   installed: boolean;
 }
