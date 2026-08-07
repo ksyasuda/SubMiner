@@ -3370,6 +3370,12 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
       window.webContents.send(IPC_CHANNELS.event.animeBrowserSearchUpdate, update);
     }
   },
+  onQueueState: (state) => {
+    const window = appState.animeBrowserWindow;
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.event.animeBrowserQueueState, state);
+    }
+  },
   log: (message) => logger.info(message),
 });
 

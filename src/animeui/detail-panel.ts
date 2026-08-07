@@ -96,5 +96,7 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
     open,
     close,
     isOpen: (): boolean => !detail.classList.contains('hidden'),
+    /** The queue outlives the open anime, so it is pushed in from outside. */
+    setQueue: episodeList.setQueue,
   };
 }

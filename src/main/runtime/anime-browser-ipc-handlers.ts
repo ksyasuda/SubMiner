@@ -60,14 +60,41 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserAddRepo, (_event, url) => runtime.addRepo(String(url)));
   handle(channels.animeBrowserRemoveRepo, (_event, url) => runtime.removeRepo(String(url)));
   handle(channels.animeBrowserPlayEpisode, (_event, request) =>
-    runtime.playEpisode(request as AnimeBrowserPlayRequest),
+    runtime.playEpisode(toPlayRequest(request)),
   );
+  handle(channels.animeBrowserQueueEpisode, (_event, request) =>
+    runtime.queueEpisode(toPlayRequest(request)),
+  );
+  handle(channels.animeBrowserDequeueEpisode, (_event, sourceId, episodeUrl) =>
+    runtime.dequeueEpisode(String(sourceId ?? ''), String(episodeUrl ?? '')),
+  );
+  handle(channels.animeBrowserClearQueue, () => runtime.clearQueue());
+  handle(channels.animeBrowserGetQueue, () => runtime.getQueue());
+  handle(channels.animeBrowserIsPlaying, () => runtime.isPlaying());
   handle(channels.animeBrowserGetPreferences, (_event, sourceId) =>
     runtime.getPreferences(String(sourceId)),
   );
   handle(channels.animeBrowserSetPreference, (_event, sourceId, key, value) =>
     runtime.setPreference(String(sourceId), String(key), value as string | string[] | boolean),
   );
+}
+
+/**
+ * Coerce a play (or queue) request. A queued request is held until its turn
+ * comes, so a bad field would surface long after the click that sent it.
+ */
+function toPlayRequest(value: unknown): AnimeBrowserPlayRequest {
+  const request = (value ?? {}) as Partial<AnimeBrowserPlayRequest>;
+  return {
+    sourceId: String(request.sourceId ?? ''),
+    animeUrl: String(request.animeUrl ?? ''),
+    animeTitle: String(request.animeTitle ?? ''),
+    episodeUrl: String(request.episodeUrl ?? ''),
+    episodeName: String(request.episodeName ?? ''),
+    // NaN and Infinity are numbers as far as typeof is concerned, and either
+    // one would reach the stats row as a nonsense episode number.
+    episodeNumber: Number.isFinite(request.episodeNumber) ? request.episodeNumber! : null,
+  };
 }
 
 /** Coerce a watch-state request; the renderer's arrays arrive untyped. */

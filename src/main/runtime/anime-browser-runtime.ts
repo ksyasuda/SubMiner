@@ -37,6 +37,9 @@ import type {
   AnimeBrowserEntry,
   AnimeBrowserEpisode,
   AnimeBrowserEpisodeWatchState,
+  AnimeBrowserPlayRequest,
+  AnimeBrowserPlayResult,
+  AnimeBrowserQueueState,
   AnimeBrowserSetWatchedRequest,
   AnimeBrowserWatchStateRequest,
   AnimeBrowserSearchResult,
@@ -47,6 +50,7 @@ import type {
 } from '../../types/anime-browser';
 import type { BridgeAnimePage, BridgePreference } from '../../anime-bridge/types';
 import { createAnimeBrowserPlayback } from './anime-browser-playback';
+import { createAnimeBrowserQueue } from './anime-browser-queue';
 import type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
 export type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
 
@@ -350,6 +354,16 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     stripProxy: () => stripProxy,
   });
 
+  const queue = createAnimeBrowserQueue({
+    play: (request) => playback.playEpisode(request),
+    onPlaybackEndFile: deps.onPlaybackEndFile,
+    readMpvProperty: deps.readMpvProperty,
+    sendMpvCommand: deps.sendMpvCommand,
+    onQueueState: deps.onQueueState,
+    showMpvOsd: deps.showMpvOsd,
+    log: deps.log,
+  });
+
   return {
     getSnapshot(): AnimeBrowserSnapshot {
       return {
@@ -573,7 +587,45 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       });
     },
 
-    playEpisode: playback.playEpisode,
+    /**
+     * Play now, replacing whatever mpv has. The queue is left standing and
+     * re-armed behind this file, so an episode played by hand mid-queue is a
+     * detour rather than a reset.
+     */
+    async playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
+      const result = await playback.playEpisode(request);
+      if (result.ok) queue.handlePlaybackStarted();
+      return result;
+    },
+
+    queueEpisode(request: AnimeBrowserPlayRequest): AnimeBrowserQueueState {
+      return queue.enqueue(request);
+    },
+
+    dequeueEpisode(sourceId: string, episodeUrl: string): AnimeBrowserQueueState {
+      return queue.dequeue(sourceId, episodeUrl);
+    },
+
+    clearQueue(): AnimeBrowserQueueState {
+      return queue.clear();
+    },
+
+    getQueue(): AnimeBrowserQueueState {
+      return queue.getState();
+    },
+
+    /**
+     * Whether mpv has a file open. An mpv that is not running cannot answer,
+     * and there is nothing playing in it either, so both read as false.
+     */
+    async isPlaying(): Promise<boolean> {
+      if (!deps.readMpvProperty) return false;
+      try {
+        return (await deps.readMpvProperty('idle-active')) !== true;
+      } catch {
+        return false;
+      }
+    },
 
     async dispose(): Promise<void> {
       const handle = sidecar;
@@ -582,6 +634,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       stripProxy = null;
       starting = null;
       setState(IDLE_STATE);
+      queue.dispose();
       await playback.dispose();
       await proxy?.close();
       await handle?.stop();

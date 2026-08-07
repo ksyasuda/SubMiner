@@ -405,8 +405,15 @@ loadMoreButton.addEventListener('click', () => void loadNextPage());
 
 api.onBridgeState(renderBridgeState);
 
+// The queue changes without this window asking: it advances by itself when an
+// episode ends, whether or not anyone is looking at the browser.
+api.onQueueState((state) => detailPanel.setQueue(state));
+
 void (async () => {
   renderBridgeState({ stage: 'idle', progress: null, message: null });
+  // A queue survives the window being closed and reopened, so start from what
+  // the main process already holds rather than from empty.
+  void api.getQueue().then((state) => detailPanel.setQueue(state));
   try {
     const state = await api.ensureBridge();
     renderBridgeState(state);

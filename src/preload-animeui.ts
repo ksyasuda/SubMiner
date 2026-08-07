@@ -10,6 +10,7 @@ import type {
   AnimeBrowserSetWatchedRequest,
   AnimeBrowserPlayRequest,
   AnimeBrowserPlayResult,
+  AnimeBrowserQueueState,
   AnimeBrowserSearchResult,
   AnimeBrowserSearchUpdate,
   AnimeBrowserSnapshot,
@@ -44,6 +45,14 @@ const animeBrowserAPI: AnimeBrowserAPI = {
     ipcRenderer.invoke(request.animeBrowserSetWatched, watchedRequest),
   playEpisode: (playRequest: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> =>
     ipcRenderer.invoke(request.animeBrowserPlayEpisode, playRequest),
+  queueEpisode: (playRequest: AnimeBrowserPlayRequest): Promise<AnimeBrowserQueueState> =>
+    ipcRenderer.invoke(request.animeBrowserQueueEpisode, playRequest),
+  dequeueEpisode: (sourceId: string, episodeUrl: string): Promise<AnimeBrowserQueueState> =>
+    ipcRenderer.invoke(request.animeBrowserDequeueEpisode, sourceId, episodeUrl),
+  clearQueue: (): Promise<AnimeBrowserQueueState> =>
+    ipcRenderer.invoke(request.animeBrowserClearQueue),
+  getQueue: (): Promise<AnimeBrowserQueueState> => ipcRenderer.invoke(request.animeBrowserGetQueue),
+  isPlaying: (): Promise<boolean> => ipcRenderer.invoke(request.animeBrowserIsPlaying),
   getPreferences: (sourceId: string): Promise<SourcePreferenceView[]> =>
     ipcRenderer.invoke(request.animeBrowserGetPreferences, sourceId),
   setPreference: (
@@ -71,6 +80,11 @@ const animeBrowserAPI: AnimeBrowserAPI = {
     const handler = (_event: unknown, update: AnimeBrowserSearchUpdate): void => listener(update);
     ipcRenderer.on(IPC_CHANNELS.event.animeBrowserSearchUpdate, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserSearchUpdate, handler);
+  },
+  onQueueState: (listener: (state: AnimeBrowserQueueState) => void): (() => void) => {
+    const handler = (_event: unknown, state: AnimeBrowserQueueState): void => listener(state);
+    ipcRenderer.on(IPC_CHANNELS.event.animeBrowserQueueState, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserQueueState, handler);
   },
 };
 

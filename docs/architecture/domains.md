@@ -32,7 +32,9 @@ Read when: you need to find the owner module for a behavior or test surface
 - Anime browser: extension bridge client, sidecar, and stream handling in `src/anime-bridge/`;
   browser window UI in `src/animeui/` (preload `src/preload-animeui.ts`); runtime wiring in
   `src/main/runtime/anime-browser-runtime.ts`, `src/main/runtime/anime-browser-ipc-handlers.ts`,
-  `src/main/runtime/anime-bridge-installer.ts`, `src/main/runtime/stream-playback-metadata.ts`
+  `src/main/runtime/anime-bridge-installer.ts`, `src/main/runtime/stream-playback-metadata.ts`.
+  The play queue is app-level rather than an mpv playlist (`src/main/runtime/anime-browser-queue.ts`):
+  a queued episode is resolved when its turn comes, driven off mpv's `end-file`
 - Window trackers: `src/window-trackers/`
 - Stats HTTP app: `src/core/services/stats-server.ts`, with route groups and shared route support
   in `src/core/services/stats-server/`

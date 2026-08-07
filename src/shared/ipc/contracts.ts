@@ -135,6 +135,11 @@ export const IPC_CHANNELS = {
     animeBrowserGetWatchState: 'anime-browser:get-watch-state',
     animeBrowserSetWatched: 'anime-browser:set-watched',
     animeBrowserPlayEpisode: 'anime-browser:play-episode',
+    animeBrowserQueueEpisode: 'anime-browser:queue-episode',
+    animeBrowserDequeueEpisode: 'anime-browser:dequeue-episode',
+    animeBrowserClearQueue: 'anime-browser:clear-queue',
+    animeBrowserGetQueue: 'anime-browser:get-queue',
+    animeBrowserIsPlaying: 'anime-browser:is-playing',
     animeBrowserGetPreferences: 'anime-browser:get-preferences',
     animeBrowserSetPreference: 'anime-browser:set-preference',
     animeBrowserListAvailableExtensions: 'anime-browser:list-available-extensions',
@@ -179,6 +184,7 @@ export const IPC_CHANNELS = {
     syncUiStateChanged: 'sync-ui:state-changed',
     animeBrowserBridgeState: 'anime-browser:bridge-state',
     animeBrowserSearchUpdate: 'anime-browser:search-update',
+    animeBrowserQueueState: 'anime-browser:queue-state',
   },
 } as const;
 

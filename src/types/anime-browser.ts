@@ -222,6 +222,35 @@ export interface AnimeBrowserPlayResult {
   quality: string | null;
 }
 
+/**
+ * One episode waiting for its turn.
+ *
+ * It is the play request itself rather than a resolved stream: extension stream
+ * URLs are signed and short-lived, so a queued episode is resolved when it
+ * reaches the front, not when it was queued half an hour earlier.
+ */
+export type AnimeBrowserQueueEntry = AnimeBrowserPlayRequest;
+
+export interface AnimeBrowserQueueState {
+  /** In play order; the first entry starts when the current episode ends. */
+  entries: AnimeBrowserQueueEntry[];
+  /**
+   * Why the last automatic advance failed, or null. Cleared by the next queue
+   * change, so it reports the failure the user has not seen yet rather than
+   * accumulating a history.
+   */
+  lastError: string | null;
+  /**
+   * How many times the queue has started an episode by itself. A counter
+   * rather than a flag: it tells a browser window that just repainted whether
+   * an advance happened since the state it last saw, including one that
+   * started the same episode twice.
+   */
+  advances: number;
+  /** The episode the last advance started, or null before the first one. */
+  lastStarted: AnimeBrowserQueueEntry | null;
+}
+
 export interface AnimeBrowserAPI {
   getSnapshot: () => Promise<AnimeBrowserSnapshot>;
   ensureBridge: () => Promise<AnimeBrowserBridgeState>;
@@ -237,7 +266,18 @@ export interface AnimeBrowserAPI {
   ) => Promise<AnimeBrowserEpisodeWatchState[]>;
   /** Set or clear the mark by hand; resolves to the state after the write. */
   setWatched: (request: AnimeBrowserSetWatchedRequest) => Promise<AnimeBrowserEpisodeWatchState[]>;
+  /** Plays now, replacing whatever mpv is playing. */
   playEpisode: (request: AnimeBrowserPlayRequest) => Promise<AnimeBrowserPlayResult>;
+  /** Adds to the end of the queue; queueing an episode twice is a no-op. */
+  queueEpisode: (request: AnimeBrowserPlayRequest) => Promise<AnimeBrowserQueueState>;
+  dequeueEpisode: (sourceId: string, episodeUrl: string) => Promise<AnimeBrowserQueueState>;
+  clearQueue: () => Promise<AnimeBrowserQueueState>;
+  getQueue: () => Promise<AnimeBrowserQueueState>;
+  /**
+   * Whether mpv has a file open. False when it is idle or not running at all,
+   * which is when queueing has no end to wait for.
+   */
+  isPlaying: () => Promise<boolean>;
   getPreferences: (sourceId: string) => Promise<SourcePreferenceView[]>;
   setPreference: (
     sourceId: string,
@@ -252,6 +292,8 @@ export interface AnimeBrowserAPI {
   removeRepo: (url: string) => Promise<void>;
   onBridgeState: (listener: (state: AnimeBrowserBridgeState) => void) => () => void;
   onSearchUpdate: (listener: (update: AnimeBrowserSearchUpdate) => void) => () => void;
+  /** Pushed whenever the queue changes, including when it advances by itself. */
+  onQueueState: (listener: (state: AnimeBrowserQueueState) => void) => () => void;
 }
 
 export type { SourcePreferenceView } from '../anime-bridge/preferences';

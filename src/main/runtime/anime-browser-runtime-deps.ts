@@ -11,7 +11,11 @@ import type { SubtitleCacheIo } from '../../anime-bridge/subtitle-cache';
 import type { BundleBinaries } from '../../anime-bridge/sidecar-bundle';
 import { startSidecar } from '../../anime-bridge/sidecar-process';
 import { startStreamStripProxy } from '../../anime-bridge/stream-strip-proxy';
-import type { AnimeBrowserBridgeState, AnimeBrowserSearchUpdate } from '../../types/anime-browser';
+import type {
+  AnimeBrowserBridgeState,
+  AnimeBrowserQueueState,
+  AnimeBrowserSearchUpdate,
+} from '../../types/anime-browser';
 import type { InstallProgress } from './anime-bridge-installer';
 
 export interface AnimeBrowserRuntimeDeps {
@@ -53,6 +57,8 @@ export interface AnimeBrowserRuntimeDeps {
   /** Overrides the filesystem/network the subtitle cache uses. Tests only. */
   subtitleCacheIo?: SubtitleCacheIo;
   onBridgeState: (state: AnimeBrowserBridgeState) => void;
+  /** Pushes the play queue to the browser window, advances included. */
+  onQueueState?: (state: AnimeBrowserQueueState) => void;
   /** Streams per-source progress while a search invoke is pending. */
   onSearchUpdate?: (update: AnimeBrowserSearchUpdate) => void;
   preferredQuality?: () => string | undefined;

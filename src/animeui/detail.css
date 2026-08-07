@@ -124,6 +124,19 @@
   color: var(--ok);
 }
 
+/* Everything lined up behind the episode playing now, across every anime. */
+.episodes-queued {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.episodes-queue-clear {
+  padding: 3px 9px;
+  font-size: 11px;
+  border-radius: 7px;
+}
+
 /* Pushed to the far end so the counters stay next to the heading. */
 .episodes-filter {
   margin-left: auto;
@@ -155,6 +168,17 @@
   background: var(--line);
 }
 
+/*
+ * The row is the cue plus the two things you can do with it. The cue still
+ * fills the row and still plays on click; the actions sit over its trailing
+ * edge, so a row with nothing hovered looks exactly as it did before them.
+ */
+.cue-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
 .cue {
   position: relative;
   display: grid;
@@ -162,7 +186,9 @@
   gap: 26px;
   align-items: baseline;
   width: 100%;
-  padding: 9px 10px 9px 0;
+  /* Room at the trailing edge for the actions that sit over it, kept whether or
+   * not they are showing, so a hover never slides them across the title. */
+  padding: 9px 132px 9px 0;
   border: none;
   border-radius: 8px;
   background: none;
@@ -241,6 +267,72 @@
   letter-spacing: 0.06em;
   color: var(--ok);
   white-space: nowrap;
+}
+
+/*
+ * Hidden until the row is hovered or something inside it has focus, so the
+ * rail stays a list of episodes rather than a grid of buttons. Queued rows keep
+ * theirs on: that button is the only way back out of the queue.
+ */
+.cue-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+
+.cue-row:hover .cue-actions,
+.cue-row:focus-within .cue-actions,
+.cue-row[data-queued='true'] .cue-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cue-action {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-elevated);
+  color: var(--faint);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.cue-action:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.cue-action[data-active='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The badge says where in line it is; the button beside it says it can leave. */
+.cue-queued {
+  margin-left: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.cue[data-queued='true']::after {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .cue[data-state='loading'] {

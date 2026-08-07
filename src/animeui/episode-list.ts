@@ -3,6 +3,8 @@ import { describe, el } from './dom';
 import { closeContextMenu, showContextMenu, type ContextMenuItem } from './context-menu';
 import { filterEpisodes } from './episode-filter';
 import { describeMarkCount, episodesInScope } from './episode-marks';
+import { describeQueuePosition } from './episode-queue';
+import { createEpisodeQueueControls } from './episode-queue-controls';
 import type { AnimeBrowserAPI, AnimeBrowserEpisode } from '../types/anime-browser';
 
 export interface SelectedAnime {
@@ -67,6 +69,25 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
     }
   }
 
+  const queue = createEpisodeQueueControls({
+    api,
+    setStatus,
+    selectedAnime,
+    playEpisode: (episode) => playEpisode(episode),
+    onChange: () => paint(),
+    onAdvance: (entry) => {
+      // The queue started this one, so the cue this window was holding belongs
+      // to an episode that has finished. The new one only earns the cue when it
+      // is an episode of the anime on screen.
+      const anime = selectedAnime();
+      const mine =
+        anime !== null && anime.sourceId === entry.sourceId && anime.url === entry.animeUrl;
+      cueState = mine ? { url: entry.episodeUrl, state: 'playing' } : null;
+      applyCueState();
+      setStatus(`Queue started ${entry.episodeName}.`, 'ok');
+    },
+  });
+
   async function playEpisode(episode: AnimeBrowserEpisode) {
     const anime = selectedAnime();
     if (!anime) return;
@@ -116,6 +137,7 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
   function createRow(item: ListedEpisode): HTMLLIElement {
     const { episode } = item;
     const row = document.createElement('li');
+    row.className = 'cue-row';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'cue';
@@ -138,6 +160,17 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
       mark.textContent = '✓ watched';
       name.append(mark);
     }
+    const position = queue.positionOf(episode);
+    if (position !== undefined) {
+      button.dataset.queued = 'true';
+      // On the row too, so the actions can stay visible without asking the CSS
+      // to look inside for a queued cue.
+      row.dataset.queued = 'true';
+      const mark = document.createElement('span');
+      mark.className = 'cue-queued';
+      mark.textContent = describeQueuePosition(position);
+      name.append(mark);
+    }
     if (episode.uploadedAt !== null) {
       const uploaded = safeUploadDate(episode.uploadedAt);
       if (uploaded) {
@@ -154,8 +187,43 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
       event.preventDefault();
       openRowMenu(event, item);
     });
-    row.append(button);
+
+    // The row itself plays, which leaves the other choice — after this one, not
+    // instead of it — with nothing to click. These two spell both out, and a
+    // right-click on the row says the same thing in words.
+    const actions = document.createElement('div');
+    actions.className = 'cue-actions';
+    actions.append(
+      createRowAction('Play', `Play ${episode.name} now`, () => void playEpisode(episode)),
+      createRowAction(
+        position === undefined ? 'Queue' : 'Queued',
+        position === undefined
+          ? `Play ${episode.name} after the current episode`
+          : `Take ${episode.name} out of the queue`,
+        () => void queue.toggle(episode),
+        position !== undefined,
+      ),
+    );
+
+    row.append(button, actions);
     return row;
+  }
+
+  function createRowAction(
+    label: string,
+    title: string,
+    onClick: () => void,
+    active = false,
+  ): HTMLButtonElement {
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'cue-action';
+    action.textContent = label;
+    action.title = title;
+    action.setAttribute('aria-label', title);
+    if (active) action.dataset.active = 'true';
+    action.addEventListener('click', onClick);
+    return action;
   }
 
   /**
@@ -170,7 +238,16 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
     const below = episodesInScope(listed, index, 'below');
     const items: ContextMenuItem[] = [
       {
+        label: 'Play now',
+        onSelect: () => void playEpisode(item.episode),
+      },
+      {
+        label: queue.isQueued(item.episode) ? 'Remove from queue' : 'Play after current',
+        onSelect: () => void queue.toggle(item.episode),
+      },
+      {
         label: isWatched ? 'Mark unwatched' : 'Mark watched',
+        separated: true,
         onSelect: () => void applyMark([item], !isWatched),
       },
     ];
@@ -335,5 +412,5 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
   });
   window.addEventListener('focus', () => void refreshWatchState());
 
-  return { render, clear, refreshWatchState };
+  return { render, clear, refreshWatchState, setQueue: queue.setState };
 }
