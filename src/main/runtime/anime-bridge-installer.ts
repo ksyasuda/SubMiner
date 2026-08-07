@@ -21,6 +21,18 @@ export type InstallStage = 'locating' | 'downloading' | 'verifying' | 'extractin
 /** Neither call has a default deadline, so a hung network would stall install. */
 const RELEASES_TIMEOUT_MS = 30_000;
 const DOWNLOAD_TIMEOUT_MS = 300_000;
+/**
+ * Hard ceiling on the buffered bundle. The real asset is a JRE plus a jar, well
+ * under this; the cap only stops a wrong or hostile URL from filling memory.
+ */
+const MAX_BUNDLE_BYTES = 512 * 1024 * 1024;
+
+function oversizedBundle(): Error {
+  return new Error(
+    `The anime bridge bundle exceeded ${Math.round(MAX_BUNDLE_BYTES / (1024 * 1024))} MB; ` +
+      'the download was stopped.',
+  );
+}
 
 export interface InstallProgress {
   stage: InstallStage;
@@ -78,7 +90,11 @@ async function downloadWithProgress(
 ): Promise<Uint8Array> {
   const declared = Number(response.headers.get('content-length') ?? '0');
   const reader = response.body?.getReader();
-  if (!reader) return new Uint8Array(await response.arrayBuffer());
+  if (!reader) {
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > MAX_BUNDLE_BYTES) throw oversizedBundle();
+    return new Uint8Array(buffer);
+  }
 
   const chunks: Uint8Array[] = [];
   let received = 0;
@@ -86,6 +102,12 @@ async function downloadWithProgress(
     const { done, value } = await reader.read();
     if (done) break;
     if (value) {
+      // Checked against the bytes actually read, not content-length: a lying
+      // (or absent) header must not let the bundle allocate without bound.
+      if (received + value.length > MAX_BUNDLE_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw oversizedBundle();
+      }
       chunks.push(value);
       received += value.length;
       if (declared > 0) onProgress?.(Math.min(1, received / declared));

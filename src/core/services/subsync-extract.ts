@@ -5,6 +5,7 @@ import {
   codecToExtension,
   fileExists,
   MpvTrack,
+  resolveLocalMediaPath,
   runCommand,
   summarizeCommandFailure,
 } from '../../subsync/utils';
@@ -148,10 +149,12 @@ export async function extractSubtitleTrackToFile(
   input: SubtitleExtractionInput,
 ): Promise<FileExtractionResult> {
   if (input.track.external) {
-    const externalPath = input.track['external-filename'];
-    if (typeof externalPath !== 'string' || externalPath.length === 0) {
+    const externalFilename = input.track['external-filename'];
+    if (typeof externalFilename !== 'string' || externalFilename.length === 0) {
       throw new Error('External subtitle track has no file path');
     }
+    // A dropped subtitle arrives as a `file://` URL, which is local, not remote.
+    const externalPath = resolveLocalMediaPath(externalFilename);
     if (isRemoteMediaPath(externalPath)) {
       return downloadRemoteSubtitleTrack(externalPath, input.httpHeaders);
     }

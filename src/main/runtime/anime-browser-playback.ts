@@ -183,6 +183,9 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
   }
 
   async function dispose(): Promise<void> {
+    // Bumping the generation makes any in-flight playEpisode stale, so a cache
+    // it is still writing gets removed by that call instead of outliving us.
+    playbackGeneration += 1;
     const cacheDir = subtitleCacheDir;
     subtitleCacheDir = null;
     await removeSubtitleCache(cacheDir, deps.subtitleCacheIo);

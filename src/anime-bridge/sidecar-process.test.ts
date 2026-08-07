@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { EventEmitter } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import type { spawn as spawnType, ChildProcess } from 'node:child_process';
 import { allocatePort, startSidecar } from './sidecar-process';
 import type { BundleBinaries } from './sidecar-bundle';
@@ -92,7 +93,6 @@ test('an early exit is reported with its code rather than waiting out the deadli
 });
 
 test('onExit reports a death after readiness, including to late subscribers', async () => {
-  const port = await allocatePort();
   // Fake the bridge's capabilities endpoint so startSidecar reports ready.
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
@@ -100,7 +100,10 @@ test('onExit reports a death after readiness, including to late subscribers', as
       JSON.stringify({ mangatanMihonBridge: 1, sourceFactory: true, preferenceCallbacks: true }),
     );
   });
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  // Bind first and take the port the OS assigned: allocating one up front and
+  // binding it after leaves a window for another listener to claim it.
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
   const child = fakeChild();
   const spawnImpl = (() => child) as unknown as typeof spawnType;
 

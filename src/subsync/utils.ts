@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { DEFAULT_CONFIG } from '../config';
 import { SubsyncConfig } from '../types';
 
@@ -117,6 +118,24 @@ export function summarizeCommandFailure(command: string, result: CommandResult):
 
   if (parts.length === 0) return `command failed (${command})`;
   return `command failed (${command}) ${parts.join(' | ')}`;
+}
+
+/**
+ * Turn a `file://` URL back into a plain path.
+ *
+ * mpv echoes back whatever it was given, and a drag-and-drop (or a `file://`
+ * argument) hands it a percent-encoded URL. Everything downstream wants a real
+ * path: `fs` cannot stat the URL, alass and ffmpeg cannot open it, and the
+ * remote-track check reads it as a stream and tries to fetch a local file over
+ * HTTP — which fails with `Protocol "file:" not supported`.
+ */
+export function resolveLocalMediaPath(value: string): string {
+  if (!/^file:\/\//i.test(value)) return value;
+  try {
+    return fileURLToPath(new URL(value));
+  } catch {
+    return value;
+  }
 }
 
 export function fileExists(pathOrEmpty: string): boolean {

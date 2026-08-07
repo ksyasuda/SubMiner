@@ -6,6 +6,7 @@ import {
   formatTrackLabel,
   getTrackById,
   MpvTrack,
+  resolveLocalMediaPath,
   runCommand,
   summarizeCommandFailure,
   SubsyncContext,
@@ -136,7 +137,9 @@ async function gatherSubsyncContext(client: MpvClientLike): Promise<SubsyncConte
     client.requestProperty('track-list'),
   ]);
 
-  const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
+  // A dropped file is reported as a `file://` URL; alass, ffsubsync and ffmpeg
+  // all need the plain path, and the stream checks must not read it as remote.
+  const videoPath = typeof videoPathRaw === 'string' ? resolveLocalMediaPath(videoPathRaw) : '';
   if (!videoPath) {
     throw new Error('No video is currently loaded');
   }

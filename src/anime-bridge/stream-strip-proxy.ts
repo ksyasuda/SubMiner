@@ -149,6 +149,10 @@ export function startStreamStripProxy(
     attempt: number,
   ): void {
     const mayRetry = req.method === 'GET' && attempt === 0;
+    // Once the response is handed off, its headers (and often part of its body)
+    // are already on the wire: a later upstream error can only be reported by
+    // killing the connection, never by retrying or writing a 502.
+    let handedOff = false;
     const retry = (): void => {
       setTimeout(
         () => requestUpstream(req, res, upstreamUrl, requestHeaders, attempt + 1),
@@ -172,6 +176,7 @@ export function startStreamStripProxy(
           }
           log(`[stream-proxy] upstream ${status} for ${upstreamUrl.pathname}`);
         }
+        handedOff = true;
         handleUpstreamResponse(req, res, upstream);
       },
     );
@@ -180,6 +185,11 @@ export function startStreamStripProxy(
       upstreamRequest.destroy(new Error(`upstream silent for ${UPSTREAM_TIMEOUT_MS}ms`));
     });
     upstreamRequest.on('error', (error) => {
+      if (handedOff) {
+        log(`[stream-proxy] upstream failed mid-response: ${String(error)}`);
+        res.destroy();
+        return;
+      }
       if (mayRetry) {
         log(`[stream-proxy] upstream request failed: ${String(error)}; retrying once`);
         retry();
@@ -214,7 +224,19 @@ export function startStreamStripProxy(
 
     if (isPlaylist) {
       const chunks: Buffer[] = [];
-      upstream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      let buffered = 0;
+      upstream.on('data', (chunk: Buffer) => {
+        buffered += chunk.length;
+        // A playlist is text and small; anything this large is not one, and it
+        // has to be held whole in memory to be rewritten.
+        if (buffered > DECISION_BYTES) {
+          log(`[stream-proxy] playlist body over ${DECISION_BYTES} bytes; dropping`);
+          upstream.destroy();
+          res.destroy();
+          return;
+        }
+        chunks.push(chunk);
+      });
       upstream.on('end', () => {
         const body = rewritePlaylistOrigins(
           Buffer.concat(chunks).toString('utf8'),
