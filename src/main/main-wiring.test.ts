@@ -223,7 +223,7 @@ test('update overlay notification action triggers install flow', () => {
   assert.match(runtimeSource, /fallbackClient\.openNoteInBrowser\(noteId\)/);
 });
 
-test('subtitle change re-prioritizes prefetch around live playback before tokenizing current line', () => {
+test('subtitle change pauses prefetch without restarting its run before tokenizing current line', () => {
   const source = readMainSource();
   const actionBlock = source.match(
     /onSubtitleChange:\s*\(text\)\s*=>\s*\{(?<body>[\s\S]*?)\n    \},\n    refreshDiscordPresence:/,
@@ -231,15 +231,19 @@ test('subtitle change re-prioritizes prefetch around live playback before tokeni
 
   assert.ok(actionBlock);
   assert.match(actionBlock, /subtitlePrefetchService\?\.pause\(\);/);
-  assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
-  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\);/);
+  // Restarting the run per line (onSeek) discards in-flight prefetch work;
+  // only real seeks restart via onTimePosUpdate.
+  assert.doesNotMatch(actionBlock, /subtitlePrefetchService\?\.onSeek\(/);
+  assert.match(actionBlock, /subtitleProcessingController\.onSubtitleChange\(text\)/);
   assert.ok(
     actionBlock.indexOf('subtitlePrefetchService?.pause();') <
-      actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);'),
+      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text)'),
   );
-  assert.ok(
-    actionBlock.indexOf('subtitlePrefetchService?.onSeek(lastObservedTimePos);') <
-      actionBlock.indexOf('subtitleProcessingController.onSubtitleChange(text);'),
+  // A repeated subtitle emits nothing, so the pause has to be released here or
+  // prefetching idles until the next distinct line.
+  assert.match(
+    actionBlock,
+    /if \(!subtitleProcessingController\.onSubtitleChange\(text\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
   );
 });
 
@@ -489,13 +493,32 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
   assert.match(actionBlock, /subtitlePrefetchService\?\.onSeek\(lastObservedTimePos\);/);
   assert.match(
     actionBlock,
-    /subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\);/,
+    /if \(!subtitleProcessingController\.refreshCurrentSubtitle\(appState\.currentSubText\)\) \{[\s\S]*?subtitlePrefetchService\?\.resume\(\);/,
   );
   assert.ok(
     actionBlock.indexOf('subtitleProcessingController.invalidateTokenizationCache();') <
       actionBlock.indexOf(
-        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);',
+        'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
       ),
+  );
+});
+
+test('subtitle processing controller resumes prefetch on settle, not on its emits', () => {
+  const source = readMainSource();
+  const depsBlock = source.match(
+    /createBuildSubtitleProcessingControllerMainDepsHandler\(\{(?<body>[\s\S]*?)\n  \}\);/,
+  )?.groups?.body;
+
+  assert.ok(depsBlock);
+  // A controller emit can be the provisional plain payload sent before the
+  // scan runs, so it must not release the prefetch pause.
+  assert.match(
+    depsBlock,
+    /emitSubtitle: \(payload\) => emitSubtitlePayload\(payload, \{ resumePrefetch: false \}\),/,
+  );
+  assert.match(
+    depsBlock,
+    /onProcessingSettled: \(\) => \{\s+subtitlePrefetchService\?\.resume\(\);/,
   );
 });
 
@@ -593,7 +616,7 @@ test('YouTube media cache lifecycle routes through configured status notificatio
 test('subtitle broadcasts share one frequency options snapshot per emitted payload', () => {
   const source = readMainSource();
   const emitBlock = source.match(
-    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
   const frequencyOptionsSnapshot = emitBlock?.match(
     /const frequencyDictionary = configService\.getConfig\(\)\.subtitleStyle\.frequencyDictionary;(?<body>[\s\S]*?)\n  \};/,
@@ -616,7 +639,7 @@ test('subtitle broadcasts share one frequency options snapshot per emitted paylo
 test('annotation upgrades skip the duplicate basic websocket event', () => {
   const source = readMainSource();
   const emitBlock = source.match(
-    /function emitSubtitlePayload\(payload: SubtitleData\): void \{(?<body>[\s\S]*?)\n\}/,
+    /function emitSubtitlePayload\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(emitBlock);

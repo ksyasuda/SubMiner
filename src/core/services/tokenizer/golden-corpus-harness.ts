@@ -366,8 +366,11 @@ export function createReplayMessageStore(messages: GoldenRecordedMessage[]): Rep
   };
 }
 
-async function runInjectedScriptInVm(script: string, store: ReplayMessageStore): Promise<unknown> {
-  return await vm.runInNewContext(script, {
+// One persistent context per fixture, matching the real parser window: the
+// scan runtime installs itself once into globalThis and later per-line call
+// scripts reuse it.
+function createInjectedScriptVm(store: ReplayMessageStore): (script: string) => Promise<unknown> {
+  const context = vm.createContext({
     chrome: {
       runtime: {
         lastError: null,
@@ -393,6 +396,7 @@ async function runInjectedScriptInVm(script: string, store: ReplayMessageStore):
     Set,
     String,
   });
+  return async (script: string) => await vm.runInContext(script, context);
 }
 
 export function createReplayTokenizerDeps(fixture: GoldenFixture): TokenizerServiceDeps {
@@ -400,13 +404,14 @@ export function createReplayTokenizerDeps(fixture: GoldenFixture): TokenizerServ
   const scriptResults = new Map(
     fixture.recording.scripts.map((entry) => [entry.sha256, entry] as const),
   );
+  const runInjectedScriptInVm = createInjectedScriptVm(store);
 
   const parserWindow = {
     isDestroyed: () => false,
     webContents: {
       executeJavaScript: async (script: string) => {
         try {
-          return await runInjectedScriptInVm(script, store);
+          return await runInjectedScriptInVm(script);
         } catch (vmError) {
           const recorded = scriptResults.get(hashInjectedScript(script));
           if (recorded) {

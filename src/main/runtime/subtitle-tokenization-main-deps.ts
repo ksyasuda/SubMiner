@@ -9,6 +9,9 @@ type TokenizerMainDeps = TokenizerDepsRuntimeOptions & {
   getCurrentCharacterDictionaryMediaId?: NonNullable<
     TokenizerDepsRuntimeOptions['getCurrentCharacterDictionaryMediaId']
   >;
+  getCharacterNameCandidates?: NonNullable<
+    TokenizerDepsRuntimeOptions['getCharacterNameCandidates']
+  >;
   getFrequencyDictionaryEnabled: NonNullable<
     TokenizerDepsRuntimeOptions['getFrequencyDictionaryEnabled']
   >;
@@ -82,6 +85,11 @@ export function createBuildTokenizerDepsMainHandler(deps: TokenizerMainDeps) {
     ...(deps.getCurrentCharacterDictionaryMediaId
       ? {
           getCurrentCharacterDictionaryMediaId: () => deps.getCurrentCharacterDictionaryMediaId!(),
+        }
+      : {}),
+    ...(deps.getCharacterNameCandidates
+      ? {
+          getCharacterNameCandidates: () => deps.getCharacterNameCandidates!(),
         }
       : {}),
     getFrequencyDictionaryEnabled: () => deps.getFrequencyDictionaryEnabled(),

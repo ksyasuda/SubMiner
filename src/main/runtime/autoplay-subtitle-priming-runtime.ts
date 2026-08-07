@@ -17,7 +17,7 @@ type AutoplaySubtitlePrimingMpvClient = {
 
 type AutoplaySubtitlePrimingPrefetchService = {
   pause: () => void;
-  onSeek: (timePos: number) => void;
+  resume: () => void;
 };
 
 export interface AutoplaySubtitlePrimingRuntimeDeps {
@@ -30,10 +30,12 @@ export interface AutoplaySubtitlePrimingRuntimeDeps {
   setActiveParsedSubtitleMediaPath: (mediaPath: string | null) => void;
   subtitleProcessingController: {
     consumeCachedSubtitle: (text: string) => SubtitleData | null;
-    onSubtitleChange: (text: string) => void;
-    refreshCurrentSubtitle: (text: string) => void;
+    // Both report whether processing is pending; see pausePrefetchUntilProcessed.
+    onSubtitleChange: (text: string) => boolean;
+    refreshCurrentSubtitle: (text: string) => boolean;
+    notePlainSubtitleEmitted: (text: string) => void;
   };
-  emitSubtitlePayload: (payload: SubtitleData) => void;
+  emitSubtitlePayload: (payload: SubtitleData, options?: { resumePrefetch?: boolean }) => void;
   getSubtitlePrefetchService: () => AutoplaySubtitlePrimingPrefetchService | null;
   getLastObservedTimePos: () => number;
   getVisibleOverlayVisible: () => boolean;
@@ -63,6 +65,19 @@ export function setMpvCurrentSecondarySubText(
 
 export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimingRuntimeDeps) {
   const { subtitleProcessingController, emitSubtitlePayload } = deps;
+
+  // Prefetching is paused so the on-screen line gets the parser to itself; the
+  // resume rides on the controller settling (see onProcessingSettled), not on
+  // an emit, which a suppressed duplicate or a failed tokenization never sends.
+  // When the controller reports it has nothing scheduled, no settle is coming
+  // either, so release the pause here or prefetching idles indefinitely.
+  function pausePrefetchUntilProcessed(scheduleTokenization: () => boolean): void {
+    const prefetch = deps.getSubtitlePrefetchService();
+    prefetch?.pause();
+    if (!scheduleTokenization()) {
+      prefetch?.resume();
+    }
+  }
 
   let subtitlePrefetchRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let autoplaySubtitlePrimedMediaPath: string | null = null;
@@ -104,12 +119,25 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
     const cachedPayload = subtitleProcessingController.consumeCachedSubtitle(text);
     if (cachedPayload) {
       subtitleProcessingController.onSubtitleChange(text);
+      // This emit resumes prefetching, so no pause is left outstanding.
       emitSubtitlePayload(cachedPayload);
       return true;
     }
 
-    emitSubtitlePayload({ text, tokens: null });
-    subtitleProcessingController.onSubtitleChange(text);
+    // Provisional raw emit: keep prefetch paused until the processing
+    // controller is done with this line, and tell it this line has already been
+    // painted plain so it does not broadcast the same payload again.
+    emitSubtitlePayload({ text, tokens: null }, { resumePrefetch: false });
+    subtitleProcessingController.notePlainSubtitleEmitted(text);
+    // refreshCurrentSubtitle, not onSubtitleChange: the cache miss above can be
+    // an invalidation (mining a card) on text the controller still holds, and
+    // onSubtitleChange treats unchanged text as nothing to do, which would
+    // leave this line permanently unannotated. refreshCurrentSubtitle also
+    // re-tokenizes for a new cache generation.
+    if (!subtitleProcessingController.refreshCurrentSubtitle(text)) {
+      // Nothing scheduled, so no settle is coming to release the pause.
+      deps.getSubtitlePrefetchService()?.resume();
+    }
     return true;
   }
 
@@ -153,14 +181,12 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       getCurrentSubtitleData: () => deps.getCurrentSubtitleData(),
       consumeCachedSubtitle: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
       onSubtitleChange: (text) => {
-        deps.getSubtitlePrefetchService()?.pause();
-        deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
-        subtitleProcessingController.onSubtitleChange(text);
+        pausePrefetchUntilProcessed(() => subtitleProcessingController.onSubtitleChange(text));
       },
       refreshCurrentSubtitle: (text) => {
-        deps.getSubtitlePrefetchService()?.pause();
-        deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
-        subtitleProcessingController.refreshCurrentSubtitle(text);
+        pausePrefetchUntilProcessed(() =>
+          subtitleProcessingController.refreshCurrentSubtitle(text),
+        );
       },
       deferUncachedRefresh: true,
       emitSubtitle: (payload) => emitSubtitlePayload(payload),
@@ -204,9 +230,7 @@ export function createAutoplaySubtitlePrimingRuntime(deps: AutoplaySubtitlePrimi
       if (!text.trim()) {
         return;
       }
-      deps.getSubtitlePrefetchService()?.pause();
-      deps.getSubtitlePrefetchService()?.onSeek(deps.getLastObservedTimePos());
-      subtitleProcessingController.refreshCurrentSubtitle(text);
+      pausePrefetchUntilProcessed(() => subtitleProcessingController.refreshCurrentSubtitle(text));
     }, VISIBLE_OVERLAY_SUBTITLE_REFRESH_AFTER_FIRST_PAINT_DELAY_MS);
     visibleOverlaySubtitleRefreshAfterFirstPaintTimer.unref?.();
   }

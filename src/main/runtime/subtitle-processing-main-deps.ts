@@ -6,6 +6,7 @@ export function createBuildSubtitleProcessingControllerMainDepsHandler(
   return (): SubtitleProcessingControllerDeps => ({
     tokenizeSubtitle: (text: string) => deps.tokenizeSubtitle(text),
     emitSubtitle: (payload) => deps.emitSubtitle(payload),
+    onProcessingSettled: () => deps.onProcessingSettled?.(),
     logDebug: deps.logDebug,
     now: deps.now,
   });

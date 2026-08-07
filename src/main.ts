@@ -489,6 +489,7 @@ import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
 import { createCharacterDictionaryImageLookup } from './main/character-dictionary-runtime/image-lookup';
+import { createCharacterNameCandidateLookup } from './main/character-dictionary-runtime/name-candidates';
 import {
   createCharacterDictionaryAutoSyncRuntimeService,
   getCharacterDictionaryManagerSnapshot,
@@ -1819,7 +1820,7 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
     endTime: appState.mpvClient?.currentSubEnd ?? null,
   };
 }
-function emitSubtitlePayload(payload: SubtitleData): void {
+function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?: boolean }): void {
   const timedPayload = withCurrentSubtitleTiming(payload);
   const currentSubtitleData = appState.currentSubtitleData;
   const isAnnotationUpgrade = isSubtitleAnnotationUpgrade(currentSubtitleData, timedPayload);
@@ -1836,7 +1837,13 @@ function emitSubtitlePayload(payload: SubtitleData): void {
   }
   annotationSubtitleWsService.broadcast(timedPayload, frequencyOptions);
   autoplayReadyGate.maybeSignalPluginAutoplayReady(timedPayload, { forceWhilePaused: true });
-  subtitlePrefetchService?.resume();
+  // resumePrefetch: false marks an emit that is not the end of the work for
+  // this line; prefetch stays paused until the subtitle processing controller
+  // settles so it does not compete with the on-screen line for the single
+  // Yomitan parser window.
+  if (options?.resumePrefetch !== false) {
+    subtitlePrefetchService?.resume();
+  }
 }
 function getCurrentAutoplaySubtitlePayload(): SubtitleData | null {
   const payload = appState.currentSubtitleData;
@@ -1892,7 +1899,17 @@ const buildSubtitleProcessingControllerMainDepsHandler =
   createBuildSubtitleProcessingControllerMainDepsHandler({
     tokenizeSubtitle: async (text: string) =>
       tokenizeSubtitleDeferred ? await tokenizeSubtitleDeferred(text) : { text, tokens: null },
-    emitSubtitle: (payload) => emitSubtitlePayload(payload),
+    // Controller emits never release the prefetch pause: the first emit for an
+    // uncached line is the provisional plain payload, sent before tokenization
+    // starts, so resuming on it would put prefetch back in contention with the
+    // on-screen line for the single parser window.
+    emitSubtitle: (payload) => emitSubtitlePayload(payload, { resumePrefetch: false }),
+    // The pause is released once the controller has no work left, which covers
+    // the runs that end without an emit (suppressed duplicate, failed
+    // tokenization) as well as the ones that deliver a payload.
+    onProcessingSettled: () => {
+      subtitlePrefetchService?.resume();
+    },
     logDebug: (message) => {
       logger.debug(`[subtitle-processing] ${message}`);
     },
@@ -1929,7 +1946,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
     appState.activeParsedSubtitleMediaPath = mediaPath;
   },
   subtitleProcessingController,
-  emitSubtitlePayload: (payload) => emitSubtitlePayload(payload),
+  emitSubtitlePayload: (payload, options) => emitSubtitlePayload(payload, options),
   getSubtitlePrefetchService: () => subtitlePrefetchService,
   getLastObservedTimePos: () => lastObservedTimePos,
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
@@ -2535,6 +2552,10 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
       },
       {
         hasParserWindow: () => Boolean(appState.yomitanParserWindow),
+        invalidateCharacterDictionaryLookups: () => {
+          characterDictionaryImageLookup.invalidate();
+          characterNameCandidateLookup.invalidate();
+        },
         clearParserCaches: () => {
           if (appState.yomitanParserWindow) {
             clearYomitanParserCachesForWindow(appState.yomitanParserWindow);
@@ -2556,6 +2577,13 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 });
 
 const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
+  userDataPath: USER_DATA_PATH,
+  getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+});
+
+// Lets the Yomitan scan runtime skip name lookups at positions where no
+// character name can start; absent candidates just mean the exhaustive scan.
+const characterNameCandidateLookup = createCharacterNameCandidateLookup({
   userDataPath: USER_DATA_PATH,
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
 });
@@ -3982,7 +4010,10 @@ const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
   }
   subtitleProcessingController.invalidateTokenizationCache();
   subtitlePrefetchService?.onSeek(lastObservedTimePos);
-  subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+  if (!subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)) {
+    // Idle controller: no settle is coming to release the pause above.
+    subtitlePrefetchService?.resume();
+  }
 };
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
@@ -4383,9 +4414,15 @@ const {
       emitSubtitlePayload(payload);
     },
     onSubtitleChange: (text) => {
+      // Pause only; restarting the prefetch run here would discard in-flight
+      // tokenization work on every line. Real seeks restart via onTimePosUpdate.
       subtitlePrefetchService?.pause();
-      subtitlePrefetchService?.onSeek(lastObservedTimePos);
-      subtitleProcessingController.onSubtitleChange(text);
+      if (!subtitleProcessingController.onSubtitleChange(text)) {
+        // Repeat of the current text: the controller is idle, so no settle is
+        // coming to release the pause. Resume now instead of idling prefetch
+        // for the rest of the cue.
+        subtitlePrefetchService?.resume();
+      }
     },
     refreshDiscordPresence: () => {
       discordPresenceRuntime.publishDiscordPresence();
@@ -4629,6 +4666,7 @@ const {
       getCharacterNameImage: (term) => characterDictionaryImageLookup.get(term),
       getCurrentCharacterDictionaryMediaId: () =>
         characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+      getCharacterNameCandidates: () => characterNameCandidateLookup.get(),
       getFrequencyDictionaryEnabled: () =>
         getRuntimeBooleanOption(
           'subtitle.annotation.frequency',
@@ -5701,7 +5739,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           if (result.ok && result.rebuildRequired) {
             try {
               await characterDictionaryAutoSyncRuntime.runSyncNow();
-              characterDictionaryImageLookup.invalidate();
             } catch (error) {
               logger.warn('Failed to rebuild character dictionary after manager override:', error);
             }
@@ -5732,7 +5769,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (result.ok && result.rebuildRequired) {
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
-            characterDictionaryImageLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager removal:', error);
           }
@@ -5749,7 +5785,6 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         if (result.ok && result.rebuildRequired) {
           try {
             await characterDictionaryAutoSyncRuntime.runSyncNow();
-            characterDictionaryImageLookup.invalidate();
           } catch (error) {
             logger.warn('Failed to rebuild character dictionary after manager reorder:', error);
           }

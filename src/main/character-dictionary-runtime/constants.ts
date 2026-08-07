@@ -1,7 +1,7 @@
 export const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 export const ANILIST_REQUEST_DELAY_MS = 2000;
 export const CHARACTER_IMAGE_DOWNLOAD_DELAY_MS = 250;
-export const CHARACTER_DICTIONARY_FORMAT_VERSION = 19;
+export const CHARACTER_DICTIONARY_FORMAT_VERSION = 20;
 export const CHARACTER_DICTIONARY_MERGED_TITLE = 'SubMiner Character Dictionary';
 
 export const HONORIFIC_SUFFIXES = [

@@ -7,6 +7,12 @@ export function handleCharacterDictionaryAutoSyncComplete(
   deps: {
     hasParserWindow: () => boolean;
     clearParserCaches: () => void;
+    /**
+     * Drops cached reads of the generated dictionary (character images, and the
+     * name candidates the scanner uses to skip lookups). Runs before the
+     * refreshes below so they re-tokenize against the new dictionary content.
+     */
+    invalidateCharacterDictionaryLookups?: () => void;
     invalidateTokenizationCache: () => void;
     refreshSubtitlePrefetch: () => void;
     refreshCurrentSubtitle: () => void;
@@ -14,6 +20,7 @@ export function handleCharacterDictionaryAutoSyncComplete(
   },
 ): void {
   if (completion.changed) {
+    deps.invalidateCharacterDictionaryLookups?.();
     if (deps.hasParserWindow()) {
       deps.clearParserCaches();
     }

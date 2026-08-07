@@ -1,3 +1,4 @@
+import { HAN_REGEXP_CLASS_BODY } from '../../core/text/han-code-points';
 import { HONORIFIC_SUFFIXES } from './constants';
 import {
   addRomanizedKanaAliases,
@@ -42,11 +43,29 @@ export function expandRawNameVariants(rawName: string): string[] {
   return [...variants];
 }
 
+// The label AniList appends to unnamed mob characters: one letter or digit,
+// halfwidth or fullwidth (女子A / "Joshi A" / 女子１). Nothing else qualifies —
+// a one-character part in any script is a real name part (별 김, ア・ベ, 山田 空).
+const SINGLE_LABEL_CHARACTER = /^[0-9A-Za-z\uff10-\uff19\uff21-\uff3a\uff41-\uff5a]$/u;
+
+// Judged on split parts only: a name the source gives us whole in a script the
+// subtitles can contain is kept whatever it looks like, because a character
+// really can be called あ or 별. (A romanized name is a separate matter: it is
+// never a term on its own, only a source of kana aliases. See below.)
+function isUsableNameSplitPart(part: string): boolean {
+  return !SINGLE_LABEL_CHARACTER.test(part);
+}
+
+// Kana, Han (shared ranges), and the marks that only ever appear inside a
+// Japanese name: iteration marks and the small ka/ke used in place names.
+const JAPANESE_NAME_CHARACTERS = new RegExp(
+  `^[\\u3040-\\u30ff${HAN_REGEXP_CLASS_BODY}\u3005\u3006\u30f5\u30f6\u30fc]+$`,
+  'u',
+);
+
 export function isJapaneseNameSplitCandidate(name: string): boolean {
   const compact = name.replace(/[\s\u3000・･·•]/g, '');
-  return (
-    containsKanji(compact) && /^[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]+$/.test(compact)
-  );
+  return containsKanji(compact) && JAPANESE_NAME_CHARACTERS.test(compact);
 }
 
 function addJapaneseNameParts(
@@ -97,8 +116,11 @@ export function buildNameTerms(
 
       const split = name.split(/[\s\u3000]+/).filter((part) => part.trim().length > 0);
       if (split.length === 2) {
-        target.add(split[0]!);
-        target.add(split[1]!);
+        for (const part of split) {
+          if (isUsableNameSplitPart(part)) {
+            target.add(part);
+          }
+        }
       }
 
       const splitByMiddleDot = name
@@ -107,7 +129,9 @@ export function buildNameTerms(
         .filter((part) => part.length > 0);
       if (splitByMiddleDot.length >= 2) {
         for (const part of splitByMiddleDot) {
-          target.add(part);
+          if (isUsableNameSplitPart(part)) {
+            target.add(part);
+          }
         }
       }
 
@@ -117,7 +141,15 @@ export function buildNameTerms(
     }
   }
 
+  // Romanized names never become terms themselves — the subtitles are Japanese,
+  // so "Joshi A" would never appear in one — they only contribute the kana a
+  // Japanese writer would spell them with.
   for (const alias of addRomanizedKanaAliases(romanizedBase)) {
+    // Except when the whole name is one letter: it transliterates to a single
+    // kana (A → ア) that matches every あ〜 in the subtitles. A character whose
+    // only recorded name is a bare letter therefore yields no terms at all,
+    // which is the intended outcome: those are unnamed mob characters.
+    if ([...alias].length === 1) continue;
     base.add(alias);
   }
 

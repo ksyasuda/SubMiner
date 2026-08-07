@@ -50,10 +50,22 @@ subtitles do not draw.
 7. Cache miss: call `refreshCurrentSubtitle(text)`. Normal processing emits a plain payload
    synchronously, then replaces it with the tokenized payload when ready.
 
-In `src/main.ts`, both `onSubtitleChange` and `refreshCurrentSubtitle` pause
-`subtitlePrefetchService`, notify it with `onSeek(lastObservedTimePos)`, and then call the matching
-`subtitleProcessingController` method. This gives the visible overlay priority over background
-prefetch work and re-centers prefetch around the live playback time.
+Both `onSubtitleChange` and `refreshCurrentSubtitle` pause `subtitlePrefetchService` and then call
+the matching `subtitleProcessingController` method, giving the visible overlay priority over
+background prefetch work. Prefetch is not re-centered here: restarting the run per line
+(`onSeek`) discarded the in-flight tokenization every time the subtitle changed, so only real
+seeks restart it (see `onTimePosUpdate` in `src/main.ts`).
+
+On an uncached autoplay prime the raw payload is emitted here and reported to the controller with
+`notePlainSubtitleEmitted`, so the controller skips its own plain emit for that line and the
+overlay receives one plain payload followed by the annotated one.
+
+The pause is released by the controller's `onProcessingSettled` callback, which fires once it has
+no work left. Emits do not release it: the first emit for an uncached line is the plain payload
+that precedes tokenization, and a run can finish without emitting at all (a suppressed duplicate,
+a failed tokenization). Both controller methods return whether processing is now pending, and the
+caller resumes immediately when it is not — a repeated subtitle schedules no work, so no settle is
+coming and prefetching would otherwise idle for the rest of the cue.
 
 ## Live Cue Delivery
 

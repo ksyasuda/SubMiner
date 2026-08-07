@@ -3,6 +3,14 @@ import type { SubtitleData } from '../../types';
 export interface SubtitleProcessingControllerDeps {
   tokenizeSubtitle: (text: string) => Promise<SubtitleData | null>;
   emitSubtitle: (payload: SubtitleData) => void;
+  /**
+   * Fires when the controller runs out of work: every scheduled line has been
+   * processed, whether it ended in an emit, a suppressed duplicate, or a
+   * tokenizer failure. Callers that hold a resource for the duration of
+   * processing (prefetch pausing) release it here rather than on an emit,
+   * which is not guaranteed to happen.
+   */
+  onProcessingSettled?: () => void;
   logDebug?: (message: string) => void;
   now?: () => number;
   cacheLimit?: number;
@@ -17,8 +25,22 @@ export interface SubtitleProcessingControllerDeps {
 export const DEFAULT_SUBTITLE_TOKENIZATION_CACHE_LIMIT = 2500;
 
 export interface SubtitleProcessingController {
-  onSubtitleChange: (text: string) => void;
-  refreshCurrentSubtitle: (textOverride?: string) => void;
+  /**
+   * Returns whether processing is now scheduled or already in flight for this
+   * event. A false return means the controller is idle and will do nothing, so
+   * onProcessingSettled will not fire; callers that pause work for the duration
+   * of processing (such as subtitle prefetching) must release it themselves.
+   */
+  onSubtitleChange: (text: string) => boolean;
+  /** Same contract as onSubtitleChange: whether processing is pending. */
+  refreshCurrentSubtitle: (textOverride?: string) => boolean;
+  /**
+   * Records that this exact text has already been shown plain by someone else
+   * (autoplay priming paints its first frame before scheduling tokenization),
+   * so the controller does not repeat that payload on its way to the tokenized
+   * one.
+   */
+  notePlainSubtitleEmitted: (text: string) => void;
   invalidateTokenizationCache: () => void;
   preCacheTokenization: (text: string, data: SubtitleData) => void;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
@@ -164,14 +186,20 @@ export function createSubtitleProcessingController(
           (latestText.trim() && cacheGeneration !== lastEmittedGeneration)
         ) {
           processLatest();
+          return;
         }
+        // Nothing left to do: signal completion even when this run emitted
+        // nothing (suppressed duplicate, tokenizer failure), or callers waiting
+        // on the controller would wait forever.
+        deps.onProcessingSettled?.();
       });
   };
 
   return {
     onSubtitleChange: (text: string) => {
       if (text === latestText) {
-        return;
+        // A run already in flight for this text will still emit for it.
+        return processing;
       }
       latestText = text;
       if (
@@ -183,21 +211,28 @@ export function createSubtitleProcessingController(
         lastPlainEmittedText = text;
       }
       processLatest();
+      return true;
     },
     refreshCurrentSubtitle: (textOverride?: string) => {
       if (typeof textOverride === 'string') {
         latestText = textOverride;
       }
       if (!latestText.trim()) {
-        return;
+        // A run in flight will pick this up and emit the empty subtitle, so
+        // the caller is still waiting on an emit.
+        return processing;
       }
-      if (
-        processing ||
-        (latestText === lastEmittedText && cacheGeneration === lastEmittedGeneration)
-      ) {
-        return;
+      if (processing) {
+        return true;
+      }
+      if (latestText === lastEmittedText && cacheGeneration === lastEmittedGeneration) {
+        return false;
       }
       processLatest();
+      return true;
+    },
+    notePlainSubtitleEmitted: (text: string) => {
+      lastPlainEmittedText = text;
     },
     invalidateTokenizationCache: () => {
       tokenizationCache.clear();

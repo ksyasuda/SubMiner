@@ -70,6 +70,7 @@ export interface TokenizerServiceDeps {
   getNameMatchImagesEnabled?: () => boolean;
   getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getCurrentCharacterDictionaryMediaId?: () => number | null;
+  getCharacterNameCandidates?: () => { key: string; forms: string[] } | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -106,6 +107,7 @@ export interface TokenizerDepsRuntimeOptions {
   getNameMatchImagesEnabled?: () => boolean;
   getCharacterNameImage?: (term: string) => CharacterNameImage | null;
   getCurrentCharacterDictionaryMediaId?: () => number | null;
+  getCharacterNameCandidates?: () => { key: string; forms: string[] } | null;
   getFrequencyDictionaryEnabled?: () => boolean;
   getFrequencyDictionaryMatchMode?: () => FrequencyDictionaryMatchMode;
   getFrequencyRank?: FrequencyDictionaryLookup;
@@ -266,6 +268,7 @@ export function createTokenizerDepsRuntime(
     getNameMatchImagesEnabled: options.getNameMatchImagesEnabled,
     getCharacterNameImage: options.getCharacterNameImage,
     getCurrentCharacterDictionaryMediaId: options.getCurrentCharacterDictionaryMediaId,
+    getCharacterNameCandidates: options.getCharacterNameCandidates,
     getFrequencyDictionaryEnabled: options.getFrequencyDictionaryEnabled,
     getFrequencyDictionaryMatchMode: options.getFrequencyDictionaryMatchMode ?? (() => 'headword'),
     getFrequencyRank: options.getFrequencyRank,
@@ -716,15 +719,30 @@ function getAnnotationOptions(deps: TokenizerServiceDeps): TokenizerAnnotationOp
   };
 }
 
+// Per-line stage durations for the pipeline debug log; every field is filled in
+// by the stage that awaits the corresponding work.
+interface TokenizationStageTimings {
+  scanMs?: number;
+  mecabMs?: number;
+  frequencyMs?: number;
+  annotateMs?: number;
+}
+
 async function parseWithYomitanInternalParser(
   text: string,
   deps: TokenizerServiceDeps,
   options: TokenizerAnnotationOptions,
+  stageTimings?: TokenizationStageTimings,
 ): Promise<MergedToken[] | null> {
+  const scanStartedAtMs = Date.now();
   const selectedTokens = await requestYomitanScanTokens(text, deps, logger, {
     includeNameMatchMetadata: options.nameMatchEnabled,
     currentCharacterDictionaryMediaId: deps.getCurrentCharacterDictionaryMediaId?.() ?? null,
+    nameCandidates: deps.getCharacterNameCandidates?.() ?? null,
   });
+  if (stageTimings) {
+    stageTimings.scanMs = Date.now() - scanStartedAtMs;
+  }
   if (!selectedTokens || selectedTokens.length === 0) {
     return null;
   }
@@ -757,6 +775,7 @@ async function parseWithYomitanInternalParser(
 
   const frequencyRankPromise: Promise<YomitanFrequencyIndex> = options.frequencyEnabled
     ? (async () => {
+        const frequencyStartedAtMs = Date.now();
         const frequencyMatchMode = options.frequencyMatchMode;
         const termReadingList = buildYomitanFrequencyTermReadingList(
           normalizedSelectedTokens,
@@ -767,12 +786,17 @@ async function parseWithYomitanInternalParser(
           deps,
           logger,
         );
-        return buildYomitanFrequencyIndex(yomitanFrequencies);
+        const frequencyIndex = buildYomitanFrequencyIndex(yomitanFrequencies);
+        if (stageTimings) {
+          stageTimings.frequencyMs = Date.now() - frequencyStartedAtMs;
+        }
+        return frequencyIndex;
       })()
     : Promise.resolve({ byPair: new Map(), byTerm: new Map() });
 
   const mecabEnrichmentPromise: Promise<MergedToken[]> = needsMecabPosEnrichment(options)
     ? (async () => {
+        const mecabStartedAtMs = Date.now();
         try {
           const mecabTokens = await deps.tokenizeWithMecab(text);
           const enrichTokensWithMecab = deps.enrichTokensWithMecab ?? enrichTokensWithMecabAsync;
@@ -786,6 +810,10 @@ async function parseWithYomitanInternalParser(
             `textLength=${text.length}`,
           );
           return normalizedSelectedTokens;
+        } finally {
+          if (stageTimings) {
+            stageTimings.mecabMs = Date.now() - mecabStartedAtMs;
+          }
         }
       })()
     : Promise.resolve(normalizedSelectedTokens);
@@ -876,15 +904,35 @@ export async function tokenizeSubtitle(
   const annotationOptions = getAnnotationOptions(deps);
   annotationOptions.sourceText = tokenizeText;
 
-  const yomitanTokens = await parseWithYomitanInternalParser(tokenizeText, deps, annotationOptions);
+  const stageTimings: TokenizationStageTimings = {};
+  const startedAtMs = Date.now();
+  const logStageTimings = (tokenCount: number): void => {
+    logger.debug(
+      `Subtitle tokenization stages; textLength=${tokenizeText.length}, tokenCount=${tokenCount}, ` +
+        `scanMs=${stageTimings.scanMs ?? '-'}, mecabMs=${stageTimings.mecabMs ?? '-'}, ` +
+        `frequencyMs=${stageTimings.frequencyMs ?? '-'}, annotateMs=${stageTimings.annotateMs ?? '-'}, ` +
+        `totalMs=${Date.now() - startedAtMs}`,
+    );
+  };
+
+  const yomitanTokens = await parseWithYomitanInternalParser(
+    tokenizeText,
+    deps,
+    annotationOptions,
+    stageTimings,
+  );
   if (yomitanTokens && yomitanTokens.length > 0) {
+    const annotateStartedAtMs = Date.now();
     const annotatedTokens = await applyAnnotationStage(yomitanTokens, deps, annotationOptions);
+    stageTimings.annotateMs = Date.now() - annotateStartedAtMs;
     const renderedTokens = applyCharacterNameImages(annotatedTokens, deps, annotationOptions);
+    logStageTimings(renderedTokens.length);
     return {
       text: displayText,
       tokens: renderedTokens.length > 0 ? renderedTokens : null,
     };
   }
 
+  logStageTimings(0);
   return { text: displayText, tokens: null };
 }

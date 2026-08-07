@@ -539,3 +539,125 @@ test('default cache limit covers a full-length title without evicting', () => {
   assert.equal(controller.hasCachedSubtitle('line-0'), true);
   assert.equal(controller.hasCachedSubtitle('line-1999'), true);
 });
+
+test('onSubtitleChange reports whether processing was scheduled', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  // New text schedules work, so an emit (and anything gated on it) will follow.
+  assert.equal(controller.onSubtitleChange('字幕'), true);
+  await flushMicrotasks();
+
+  // A repeat emits nothing, so callers must not wait on an emit that is never
+  // coming (subtitle prefetching would stay paused for the rest of the cue).
+  const emittedCount = emitted.length;
+  assert.equal(controller.onSubtitleChange('字幕'), false);
+  await flushMicrotasks();
+  assert.equal(emitted.length, emittedCount);
+});
+
+test('refreshCurrentSubtitle reports the empty-text emit that an in-flight run will deliver', async () => {
+  const emitted: SubtitleData[] = [];
+  let resolveFirst: ((value: SubtitleData | null) => void) | undefined;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      if (text === '字幕') {
+        return await new Promise<SubtitleData | null>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  controller.onSubtitleChange('字幕');
+  await flushMicrotasks();
+
+  // Clearing the subtitle while tokenization is in flight: the running loop
+  // picks the empty text up and emits it, so callers gated on that emit (the
+  // prefetch pause) must be told one is coming.
+  assert.equal(controller.refreshCurrentSubtitle(''), true);
+
+  resolveFirst?.({ text: '字幕', tokens: [] });
+  await flushMicrotasks();
+  await flushMicrotasks();
+  // '字幕' is the provisional plain emit the in-flight run already made before
+  // the refresh; '' is the emit the refresh promised.
+  assert.deepEqual(
+    emitted.map((payload) => payload.text),
+    ['字幕', ''],
+  );
+});
+
+test('onProcessingSettled fires once after the queue drains, including runs that emit nothing', async () => {
+  const events: string[] = [];
+  let resolveFirst: ((value: SubtitleData | null) => void) | undefined;
+  let tokenizationFails = false;
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => {
+      if (tokenizationFails) {
+        return null;
+      }
+      if (text === '一行目') {
+        return await new Promise<SubtitleData | null>((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return { text, tokens: [] };
+    },
+    emitSubtitle: (payload) => events.push(`emit:${payload.text}`),
+    onProcessingSettled: () => events.push('settled'),
+  });
+
+  controller.onSubtitleChange('一行目');
+  await flushMicrotasks();
+  // A second line arrives before the first finishes: the controller still has
+  // work, so it must not report itself settled between the two.
+  controller.onSubtitleChange('二行目');
+  resolveFirst?.({ text: '一行目', tokens: [] });
+  await flushMicrotasks();
+  await flushMicrotasks();
+
+  assert.deepEqual(events, ['emit:一行目', 'emit:二行目', 'emit:二行目', 'settled']);
+
+  // Tokenization failure on a line already shown plain: nothing is emitted, and
+  // the settle signal is the only way a caller learns the work is over.
+  events.length = 0;
+  tokenizationFails = true;
+  controller.invalidateTokenizationCache();
+  assert.equal(controller.refreshCurrentSubtitle('二行目'), true);
+  await flushMicrotasks();
+  await flushMicrotasks();
+  assert.deepEqual(events, ['settled']);
+});
+
+test('notePlainSubtitleEmitted suppresses the controller repeat of a payload already shown', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  // Autoplay priming paints the plain line itself, then asks for tokenization.
+  controller.notePlainSubtitleEmitted('字幕');
+  controller.refreshCurrentSubtitle('字幕');
+  await flushMicrotasks();
+
+  assert.deepEqual(emitted, [{ text: '字幕', tokens: [] }]);
+});
+
+test('refreshCurrentSubtitle reports no emit for empty text when nothing is running', async () => {
+  const emitted: SubtitleData[] = [];
+  const controller = createSubtitleProcessingController({
+    tokenizeSubtitle: async (text) => ({ text, tokens: [] }),
+    emitSubtitle: (payload) => emitted.push(payload),
+  });
+
+  assert.equal(controller.refreshCurrentSubtitle(''), false);
+  await flushMicrotasks();
+  assert.deepEqual(emitted, []);
+});
