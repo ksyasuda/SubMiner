@@ -14,6 +14,14 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-char-dict-auto-sync-'));
 }
 
+async function waitUntil(predicate: () => boolean, label: string): Promise<void> {
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error(`Timed out waiting for ${label}`);
+}
+
 function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((nextResolve) => {
@@ -187,7 +195,7 @@ test('auto sync imports merged dictionary and persists MRU state', async () => {
     '[dictionary:auto-sync] syncing current anime snapshot',
     '[dictionary:auto-sync] active AniList media set: 130298 - The Eminence in Shadow',
     '[dictionary:auto-sync] rebuilding merged dictionary for active anime set',
-    '[dictionary:auto-sync] importing merged dictionary: /tmp/subminer-character-dictionary.zip',
+    '[dictionary:auto-sync] importing merged dictionary: /tmp/subminer-character-dictionary.zip (timeout 120000ms)',
     '[dictionary:auto-sync] applying Yomitan settings for SubMiner Character Dictionary',
     '[dictionary:auto-sync] synced AniList 130298: SubMiner Character Dictionary (2544 entries)',
   ]);
@@ -958,11 +966,9 @@ test('auto sync emits building while merged dictionary generation is in flight',
   });
 
   const syncPromise = runtime.runSyncNow();
-  await Promise.resolve();
-
-  assert.equal(
-    events.some((event) => event.phase === 'building'),
-    true,
+  await waitUntil(
+    () => events.some((event) => event.phase === 'building'),
+    'the building status event',
   );
 
   buildDeferred.resolve({
@@ -1029,8 +1035,7 @@ test('auto sync waits for tokenization-ready gate before Yomitan mutations', asy
   });
 
   const syncPromise = runtime.runSyncNow();
-  await Promise.resolve();
-  await Promise.resolve();
+  await waitUntil(() => calls.includes('wait'), 'the tokenization-ready gate');
 
   assert.deepEqual(calls, ['build', 'wait']);
 
@@ -1038,4 +1043,333 @@ test('auto sync waits for tokenization-ready gate before Yomitan mutations', asy
   await syncPromise;
 
   assert.deepEqual(calls, ['build', 'wait', 'info', 'import', 'settings']);
+});
+
+test('auto sync scales the import timeout with the merged dictionary size', async () => {
+  const userDataPath = makeTempDir();
+  const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(dictionariesDir, { recursive: true });
+  const zipPath = path.join(dictionariesDir, 'merged.zip');
+  // 2 MB of merged dictionary buys ~12s of import budget on top of the base.
+  fs.writeFileSync(zipPath, Buffer.alloc(2 * 1024 * 1024));
+  const events: Array<{ phase: string; message: string }> = [];
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 21,
+      mediaTitle: 'ONE PIECE',
+      entryCount: 4000,
+      fromCache: false,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async () => ({
+      zipPath,
+      revision: 'rev-21',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 4000,
+    }),
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      // Far longer than the quick-operation budget, well inside the size-scaled one.
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      importedRevision = 'rev-21';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    operationTimeoutMs: 5,
+    dictionaryImportTimeoutBaseMs: 20,
+    onSyncStatus: (event) => {
+      events.push({ phase: event.phase, message: event.message });
+    },
+  });
+
+  await runtime.runSyncNow();
+
+  assert.equal(
+    events.some((event) => event.phase === 'failed'),
+    false,
+  );
+  assert.deepEqual(events.at(-1), {
+    phase: 'ready',
+    message: 'Character dictionary ready for ONE PIECE',
+  });
+});
+
+test('auto sync reports the scaled budget when an import really does hang', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{ phase: string; message: string }> = [];
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 21,
+      mediaTitle: 'ONE PIECE',
+      entryCount: 4000,
+      fromCache: false,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async () => ({
+      zipPath: path.join(userDataPath, 'character-dictionaries', 'missing.zip'),
+      revision: 'rev-21',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 4000,
+    }),
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: () => new Promise<boolean>(() => {}),
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+    dictionaryImportTimeoutBaseMs: 20,
+    onSyncStatus: (event) => {
+      events.push({ phase: event.phase, message: event.message });
+    },
+  });
+
+  await assert.rejects(
+    runtime.runSyncNow(),
+    /importYomitanDictionary\(missing\.zip\) timed out after 20ms/,
+  );
+  assert.equal(events.at(-1)?.phase, 'failed');
+});
+
+test('auto sync ticks the importing notification while the import runs', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{ phase: string; message: string }> = [];
+  const scheduled: Array<() => void> = [];
+  const importDeferred = createDeferred<boolean>();
+  let clock = 1000;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 21,
+      mediaTitle: 'ONE PIECE',
+      entryCount: 4000,
+      fromCache: false,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-21',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 4000,
+    }),
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: () => importDeferred.promise,
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => clock,
+    schedule: (fn) => {
+      scheduled.push(fn);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    },
+    clearSchedule: () => undefined,
+    onSyncStatus: (event) => {
+      events.push({ phase: event.phase, message: event.message });
+    },
+  });
+
+  const syncPromise = runtime.runSyncNow();
+  await waitUntil(
+    () => events.some((event) => event.phase === 'importing'),
+    'the importing status event',
+  );
+
+  clock = 1000 + 65_000;
+  // The importing heartbeat is the most recently scheduled tick.
+  scheduled.at(-1)!();
+
+  assert.deepEqual(events.at(-1), {
+    phase: 'importing',
+    message: 'Importing character dictionary for ONE PIECE (1m 05s)...',
+  });
+
+  importDeferred.resolve(true);
+  await syncPromise;
+  assert.equal(events.at(-1)?.phase, 'ready');
+});
+
+test('auto sync reports character and image counts while generating a snapshot', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{ phase: string; message: string }> = [];
+  let clock = 1000;
+  let importedRevision: string | null = null;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async (_targetPath, progress) => {
+      progress?.onGenerating?.({ mediaId: 21, mediaTitle: 'ONE PIECE' });
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'characters',
+        completed: 50,
+        total: null,
+        page: 12,
+      });
+      // Same stage, same clock tick: throttled away so a 33-page fetch cannot spam the overlay.
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'characters',
+        completed: 100,
+        total: null,
+        page: 13,
+      });
+      // A stage change always reports, throttle window or not.
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'images',
+        completed: 1,
+        total: 1220,
+      });
+      clock += 2000;
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'images',
+        completed: 240,
+        total: 1220,
+      });
+      clock += 6000;
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'names',
+        completed: 800,
+        total: 1220,
+      });
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'saving',
+        completed: 0,
+        total: null,
+      });
+      return {
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        entryCount: 4000,
+        fromCache: false,
+        updatedAt: 1000,
+      };
+    },
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-21',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 4000,
+    }),
+    getYomitanDictionaryInfo: async () =>
+      importedRevision
+        ? [{ title: 'SubMiner Character Dictionary', revision: importedRevision }]
+        : [],
+    importYomitanDictionary: async () => {
+      importedRevision = 'rev-21';
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => clock,
+    onSyncStatus: (event) => {
+      events.push({ phase: event.phase, message: event.message });
+    },
+  });
+
+  await runtime.runSyncNow();
+
+  assert.deepEqual(
+    events.filter((event) => event.phase === 'generating').map((event) => event.message),
+    [
+      'Generating character dictionary for ONE PIECE...',
+      'Generating character dictionary for ONE PIECE (page 12, 50 characters)...',
+      'Generating character dictionary for ONE PIECE (image 1/1220)...',
+      'Generating character dictionary for ONE PIECE (image 240/1220, ~10s left)...',
+      'Generating character dictionary for ONE PIECE (name 800/1220 · 8s)...',
+      'Generating character dictionary for ONE PIECE (saving snapshot · 8s)...',
+    ],
+  );
+});
+
+test('auto sync keeps the generating clock ticking when a stage stalls', async () => {
+  const userDataPath = makeTempDir();
+  const events: Array<{ phase: string; message: string }> = [];
+  const scheduled: Array<() => void> = [];
+  const snapshotDeferred = createDeferred<{
+    mediaId: number;
+    mediaTitle: string;
+    entryCount: number;
+    fromCache: boolean;
+    updatedAt: number;
+  }>();
+  let clock = 1000;
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async (_targetPath, progress) => {
+      progress?.onGenerating?.({ mediaId: 21, mediaTitle: 'ONE PIECE' });
+      progress?.onGenerateProgress?.({
+        mediaId: 21,
+        mediaTitle: 'ONE PIECE',
+        stage: 'images',
+        completed: 240,
+        total: 1220,
+      });
+      return await snapshotDeferred.promise;
+    },
+    buildMergedDictionary: async () => ({
+      zipPath: '/tmp/merged.zip',
+      revision: 'rev-21',
+      dictionaryTitle: 'SubMiner Character Dictionary',
+      entryCount: 4000,
+    }),
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: async () => true,
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => clock,
+    schedule: (fn) => {
+      scheduled.push(fn);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    },
+    clearSchedule: () => undefined,
+    onSyncStatus: (event) => {
+      events.push({ phase: event.phase, message: event.message });
+    },
+  });
+
+  const syncPromise = runtime.runSyncNow();
+  await waitUntil(() => scheduled.length > 0, 'the generating heartbeat');
+
+  // No further progress arrives: only the clock moves.
+  clock += 95_000;
+  scheduled.at(-1)!();
+
+  assert.deepEqual(events.at(-1), {
+    phase: 'generating',
+    message: 'Generating character dictionary for ONE PIECE (image 240/1220 · 1m 35s)...',
+  });
+
+  snapshotDeferred.resolve({
+    mediaId: 21,
+    mediaTitle: 'ONE PIECE',
+    entryCount: 4000,
+    fromCache: false,
+    updatedAt: 1000,
+  });
+  await syncPromise;
+  assert.equal(events.at(-1)?.phase, 'ready');
 });

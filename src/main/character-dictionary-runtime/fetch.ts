@@ -278,7 +278,7 @@ export async function fetchAniListMediaCandidateById(
 export async function fetchCharactersForMedia(
   mediaId: number,
   beforeRequest?: () => Promise<void>,
-  onPageFetched?: (page: number) => void,
+  onPageFetched?: (page: number, charactersSoFar: number) => void,
 ): Promise<{
   mediaTitle: string;
   characters: CharacterRecord[];
@@ -345,7 +345,6 @@ export async function fetchCharactersForMedia(
       },
       beforeRequest,
     );
-    onPageFetched?.(page);
 
     const media = data.Media;
     if (!media) {
@@ -414,6 +413,8 @@ export async function fetchCharactersForMedia(
         voiceActors,
       });
     }
+
+    onPageFetched?.(page, characters.length);
 
     const hasNextPage = Boolean(media.characters?.pageInfo?.hasNextPage);
     if (!hasNextPage) {

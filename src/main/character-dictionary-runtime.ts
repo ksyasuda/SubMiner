@@ -64,6 +64,7 @@ export type {
   CharacterDictionarySnapshotProgress,
   CharacterDictionarySnapshotProgressCallbacks,
   CharacterDictionarySnapshotResult,
+  CharacterDictionarySnapshotStageProgress,
   MergedCharacterDictionaryBuildResult,
 } from './character-dictionary-runtime/types';
 
@@ -363,19 +364,28 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       deps.logInfo?.(`[dictionary] snapshot stale for AniList ${mediaId}: ${refreshReason}`);
     }
 
+    const progressMediaTitle = mediaTitleHint || `AniList ${mediaId}`;
     progress?.onGenerating?.({
       mediaId,
-      mediaTitle: mediaTitleHint || `AniList ${mediaId}`,
+      mediaTitle: progressMediaTitle,
     });
     deps.logInfo?.(`[dictionary] snapshot miss for AniList ${mediaId}, fetching characters`);
 
     const { mediaTitle: fetchedMediaTitle, characters } = await fetchCharactersForMedia(
       mediaId,
       beforeRequest,
-      (page) => {
+      (page, charactersSoFar) => {
         deps.logInfo?.(
-          `[dictionary] downloaded AniList character page ${page} for AniList ${mediaId}`,
+          `[dictionary] downloaded AniList character page ${page} for AniList ${mediaId} (${charactersSoFar} characters)`,
         );
+        progress?.onGenerateProgress?.({
+          mediaId,
+          mediaTitle: progressMediaTitle,
+          stage: 'characters',
+          completed: charactersSoFar,
+          total: null,
+          page,
+        });
       },
     );
     if (characters.length === 0) {
@@ -403,12 +413,26 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       );
     }
     let hasAttemptedImageDownload = false;
+    let attemptedImageCount = 0;
     for (const entry of allImageUrls) {
       if (hasAttemptedImageDownload) {
         await sleepMs(CHARACTER_IMAGE_DOWNLOAD_DELAY_MS);
       }
       hasAttemptedImageDownload = true;
       const image = await downloadCharacterImage(entry.url, entry.id);
+      attemptedImageCount += 1;
+      progress?.onGenerateProgress?.({
+        mediaId,
+        mediaTitle: progressMediaTitle,
+        stage: 'images',
+        completed: attemptedImageCount,
+        total: allImageUrls.length,
+      });
+      if (attemptedImageCount % 100 === 0) {
+        deps.logInfo?.(
+          `[dictionary] downloaded ${attemptedImageCount}/${allImageUrls.length} images for AniList ${mediaId}`,
+        );
+      }
       if (!image) continue;
       if (entry.kind === 'character') {
         imagesByCharacterId.set(entry.id, {
@@ -425,11 +449,31 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
 
     const nameSplitTokenizerAvailable = isNameSplitTokenizerAvailable();
     const resolvedNameSplits = nameSplitTokenizerAvailable
-      ? await resolveJapaneseNameSplits(characters, deps.tokenizeJapaneseName!, deps.logWarn)
+      ? await resolveJapaneseNameSplits(
+          characters,
+          deps.tokenizeJapaneseName!,
+          deps.logWarn,
+          (completed, total) => {
+            progress?.onGenerateProgress?.({
+              mediaId,
+              mediaTitle: progressMediaTitle,
+              stage: 'names',
+              completed,
+              total,
+            });
+          },
+        )
       : undefined;
     const nameSplitSource =
       resolvedNameSplits && resolvedNameSplits.size > 0 ? 'mecab' : 'heuristic';
 
+    progress?.onGenerateProgress?.({
+      mediaId,
+      mediaTitle: progressMediaTitle,
+      stage: 'saving',
+      completed: 0,
+      total: null,
+    });
     const snapshot = buildSnapshotFromCharacters(
       mediaId,
       fetchedMediaTitle || mediaTitleHint || `AniList ${mediaId}`,

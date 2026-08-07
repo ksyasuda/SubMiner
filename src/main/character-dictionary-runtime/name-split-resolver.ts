@@ -86,8 +86,10 @@ export async function resolveJapaneseNameSplits(
   characters: CharacterRecord[],
   tokenize: NameSplitTokenizer,
   logWarn?: (message: string) => void,
+  onCharacterResolved?: (completed: number, total: number) => void,
 ): Promise<Map<string, ResolvedNameSplit>> {
   const splits = new Map<string, ResolvedNameSplit>();
+  let resolvedCharacters = 0;
   for (const character of characters) {
     const familyHintReading = buildReadingFromHint(character.lastNameHint?.trim() || '');
     const givenHintReading = buildReadingFromHint(character.firstNameHint?.trim() || '');
@@ -113,6 +115,8 @@ export async function resolveJapaneseNameSplits(
         splits.set(name, { family, given });
       }
     }
+    resolvedCharacters += 1;
+    onCharacterResolved?.(resolvedCharacters, characters.length);
   }
   return splits;
 }
