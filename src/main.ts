@@ -54,6 +54,7 @@ import {
 } from './main/runtime/linux-visible-overlay-window-mode';
 import { shouldRunLinuxOverlayZOrderKeepAlive } from './main/runtime/linux-overlay-zorder-keepalive';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
+import { activateMacOSApp } from './main/runtime/macos-app-activation';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
@@ -2216,6 +2217,15 @@ async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   });
 }
 
+// Pulls the whole app forward on macOS so a freshly opened window lands in front of the
+// terminal (or mpv) that triggered it instead of behind it.
+const activateAppForForegroundWindow = (): void => {
+  activateMacOSApp({
+    stealAppFocus: () => app.focus({ steal: true }),
+    warn: (message, details) => logger.warn(message, details),
+  });
+};
+
 const configSettingsRuntime = createConfigSettingsRuntime({
   fields: configSettingsFields,
   getConfigPath: () => configService.getConfigPath(),
@@ -2238,6 +2248,7 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
   openPath: (targetPath) => shell.openPath(targetPath),
   ipcMain,
   ipcChannels: IPC_CHANNELS.request,
@@ -2258,6 +2269,7 @@ const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
   onClosed: () => {
     // requestAppQuit (not app.quit) so the forced-exit fallback covers a
     // stalled quit; a standalone sync window is the app's only reason to live.
@@ -3382,6 +3394,17 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
 registerAnimeBrowserIpcHandlers({ ipcMain, runtime: animeBrowserRuntime });
 
 let animeBrowserDockIconRetained = false;
+const releaseAnimeBrowserDockIcon = (): void => {
+  if (!animeBrowserDockIconRetained) return;
+  animeBrowserDockIconRetained = false;
+  releaseDockIcon({
+    dock: app.dock,
+    shouldRehide: () => {
+      const mainWindow = overlayManager.getMainWindow();
+      return Boolean(mainWindow && !mainWindow.isDestroyed());
+    },
+  });
+};
 const openAnimeBrowserWindowBase = createOpenConfigSettingsWindowHandler({
   getSettingsWindow: () => appState.animeBrowserWindow,
   setSettingsWindow: (window) => {
@@ -3394,15 +3417,9 @@ const openAnimeBrowserWindowBase = createOpenConfigSettingsWindowHandler({
   settingsHtmlPath: path.join(__dirname, 'animeui', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
   onClosed: () => {
-    animeBrowserDockIconRetained = false;
-    releaseDockIcon({
-      dock: app.dock,
-      shouldRehide: () => {
-        const mainWindow = overlayManager.getMainWindow();
-        return Boolean(mainWindow && !mainWindow.isDestroyed());
-      },
-    });
+    releaseAnimeBrowserDockIcon();
     // The bridge holds the stream-proxy tokens mpv is playing through, so it
     // must outlive the window. Only tear it down when the window was the
     // app's whole reason to be running — and once a video has launched, the
@@ -3415,15 +3432,20 @@ const openAnimeBrowserWindowBase = createOpenConfigSettingsWindowHandler({
   log: (message) => logger.error(message),
 });
 const openAnimeBrowserWindowHandler = (): boolean => {
-  const opened = openAnimeBrowserWindowBase();
-  if (opened) {
-    if (!animeBrowserDockIconRetained) {
-      animeBrowserDockIconRetained = true;
-      retainDockIcon({ dock: app.dock });
-    }
-    ensureTrayHandler();
+  // Restore the Dock icon *before* showing the window: while the overlay's fullscreen
+  // transform has left the app as a macOS accessory process it cannot become frontmost at
+  // all, so activating first and un-hiding after would leave the window buried.
+  if (!animeBrowserDockIconRetained) {
+    animeBrowserDockIconRetained = true;
+    retainDockIcon({ dock: app.dock });
   }
-  return opened;
+  const opened = openAnimeBrowserWindowBase();
+  if (!opened) {
+    releaseAnimeBrowserDockIcon();
+    return false;
+  }
+  ensureTrayHandler();
+  return true;
 };
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
