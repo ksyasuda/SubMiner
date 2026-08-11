@@ -637,8 +637,7 @@ export class ImmersionTrackerService {
   }
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
-    this.flushTelemetry(true);
-    this.flushNow();
+    this.drainWriteQueue('rebuilding lifetime summaries');
     return rebuildLifetimeSummaryTables(this.db);
   }
 
@@ -822,19 +821,45 @@ export class ImmersionTrackerService {
     if (pendingVideoId !== undefined) {
       await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
     }
-    // Both of these rebuild the lifetime summaries, which recompute from the
-    // database: queued telemetry has to land first or the active session's
-    // watch time is dropped from the merged totals.
-    this.flushTelemetry(true);
-    this.flushNow();
+    // This rebuilds the lifetime summaries, which recompute from the database:
+    // queued writes have to land first or the active session is dropped from
+    // the merged totals.
+    this.drainWriteQueue('merging library entries');
     return mergeAnimeRecords(this.db, targetAnimeId, sourceAnimeIds);
   }
 
   async moveVideoToAnime(videoId: number, targetAnimeId: number): Promise<VideoMoveSummary> {
     await this.pendingAnimeMetadataUpdates.get(videoId);
-    this.flushTelemetry(true);
-    this.flushNow();
+    this.drainWriteQueue('moving an episode');
     return moveVideoToAnimeQuery(this.db, videoId, targetAnimeId);
+  }
+
+  /**
+   * Persist every queued write before a caller recomputes summaries from the
+   * database.
+   *
+   * A single `flushNow()` is not enough: forced telemetry is appended to the
+   * back of the queue while `flushNow()` writes at most `batchSize` entries off
+   * the front, so a busy session leaves the newest sample unwritten. Stops as
+   * soon as a pass makes no progress — a rolled-back batch is pushed back onto
+   * the queue, and looping on that would spin forever.
+   *
+   * Returns false when the queue could not be emptied, in which case the
+   * rebuild runs against a database still missing those writes.
+   */
+  private drainWriteQueue(context: string): boolean {
+    this.flushTelemetry(true);
+    while (this.queue.length > 0) {
+      const pending = this.queue.length;
+      this.flushNow();
+      if (this.queue.length >= pending) {
+        this.logger.warn(
+          `Immersion tracker queue did not drain before ${context}; summaries may lag by ${this.queue.length} writes`,
+        );
+        return false;
+      }
+    }
+    return true;
   }
 
   async reassignAnimeAnilist(

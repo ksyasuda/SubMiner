@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { apiClient } from '../../lib/api-client';
 import { formatDuration, formatNumber } from '../../lib/formatters';
 import { AnimeCoverImage } from './AnimeCoverImage';
@@ -19,6 +19,7 @@ function pickDefaultKeeper(entries: AnimeLibraryItem[]): number {
 }
 
 export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialogProps) {
+  const headingId = useId();
   const [keeperId, setKeeperId] = useState(() => pickDefaultKeeper(entries));
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,18 +58,22 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
     >
       <div className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]" />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
         className="relative bg-ctp-base border border-ctp-surface1 rounded-xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-ctp-surface1">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ctp-text">
+            <h3 id={headingId} className="text-sm font-semibold text-ctp-text">
               Merge {entries.length} Library Entries
             </h3>
             <button
               type="button"
               onClick={handleDismiss}
               disabled={merging}
+              aria-label="Close"
               className="text-ctp-overlay2 hover:text-ctp-text text-lg leading-none disabled:opacity-50"
             >
               {'✕'}
@@ -86,6 +91,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
               key={entry.animeId}
               type="button"
               disabled={merging}
+              aria-pressed={keeperId === entry.animeId}
               onClick={() => setKeeperId(entry.animeId)}
               className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-colors text-left disabled:opacity-50 ${
                 keeperId === entry.animeId ? 'bg-ctp-surface1' : 'hover:bg-ctp-surface0'
@@ -120,7 +126,11 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
         </div>
 
         <div className="p-4 border-t border-ctp-surface1 space-y-2">
-          {error ? <div className="text-xs text-ctp-red">{error}</div> : null}
+          {error ? (
+            <div role="alert" className="text-xs text-ctp-red">
+              {error}
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-ctp-overlay2">
               Result: {totalEpisodes} episode{totalEpisodes !== 1 ? 's' : ''} ·{' '}

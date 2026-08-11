@@ -2845,6 +2845,63 @@ test('Jellyfin link repair removes merged leaked anime rows and sanitizes orphan
   }
 });
 
+test('mergeAnime drains a queue larger than one batch before rebuilding summaries', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    // A batch size well below the queued write count: one flushNow() pass would
+    // leave the forced telemetry sample, appended last, unwritten.
+    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      queue: unknown[];
+      mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<unknown>;
+    };
+
+    privateApi.db.exec(`
+      INSERT INTO imm_anime (anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (1, 'show', 'Show', 1000, 1000), (2, 'show season 1', 'Show Season 1', 1000, 1000);
+      INSERT INTO imm_videos (video_id, video_key, canonical_title, anime_id, source_type, watched, duration_ms, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (1, 'local:/tmp/a.mkv', 'A', 1, 1, 0, 1440000, 1000, 1000),
+               (2, 'local:/tmp/b.mkv', 'B', 2, 1, 0, 1440000, 1000, 1000);
+      INSERT INTO imm_sessions (session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE)
+        VALUES (1, 'drain-session', 2, '1000', '2000', 2, 1000, 1000, 2000);
+    `);
+
+    for (let index = 0; index < 8; index += 1) {
+      (tracker as unknown as { recordWrite: (write: Record<string, unknown>) => void }).recordWrite(
+        {
+          kind: 'subtitleLine',
+          sessionId: 1,
+          videoId: 2,
+          lineIndex: index,
+          segmentStartMs: index * 1000,
+          segmentEndMs: index * 1000 + 900,
+          text: `line ${index}`,
+          wordOccurrences: [],
+          kanjiOccurrences: [],
+          firstSeen: 1000,
+          lastSeen: 2000,
+        },
+      );
+    }
+    assert.ok(privateApi.queue.length > 2, 'expected more queued writes than one batch');
+
+    await privateApi.mergeAnime(1, [2]);
+
+    assert.equal(privateApi.queue.length, 0);
+    const lines = privateApi.db
+      .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE anime_id = 1')
+      .get() as { total: number };
+    assert.equal(Number(lines.total), 8);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('applies configurable queue, flush, and retention policy', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
