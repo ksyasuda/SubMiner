@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
+import { buildDictionaryZip } from '../character-dictionary-runtime/zip';
 import {
   createCharacterDictionaryAutoSyncRuntimeService,
   getCharacterDictionaryManagerSnapshot,
@@ -375,7 +376,14 @@ test('auto sync reimports existing merged zip without rebuilding on unchanged re
   const userDataPath = makeTempDir();
   const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
   fs.mkdirSync(dictionariesDir, { recursive: true });
-  fs.writeFileSync(path.join(dictionariesDir, 'merged.zip'), 'cached-zip', 'utf8');
+  buildDictionaryZip(
+    path.join(dictionariesDir, 'merged.zip'),
+    'SubMiner Character Dictionary',
+    'Character names',
+    'rev-7',
+    [{ term: 'フリーレン', reading: 'フリーレン', role: 'main', glossary: [] } as never],
+    [],
+  );
   const mergedBuilds: number[][] = [];
   const imports: string[] = [];
   let importedRevision: string | null = null;
@@ -1077,14 +1085,15 @@ test('auto sync scales the import timeout with the merged dictionary size', asyn
         : [],
     importYomitanDictionary: async () => {
       // Far longer than the quick-operation budget, well inside the size-scaled one.
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       importedRevision = 'rev-21';
       return true;
     },
     deleteYomitanDictionary: async () => true,
     upsertYomitanDictionarySettings: async () => true,
     now: () => 1000,
-    operationTimeoutMs: 5,
+    // Comfortable for the stubs that resolve immediately, still far under the import's 400ms.
+    operationTimeoutMs: 100,
     dictionaryImportTimeoutBaseMs: 20,
     onSyncStatus: (event) => {
       events.push({ phase: event.phase, message: event.message });
@@ -1372,4 +1381,66 @@ test('auto sync keeps the generating clock ticking when a stage stalls', async (
   });
   await syncPromise;
   assert.equal(events.at(-1)?.phase, 'ready');
+});
+
+test('auto sync rebuilds instead of importing a cached merged ZIP with a mismatched revision', async () => {
+  const userDataPath = makeTempDir();
+  const dictionariesDir = path.join(userDataPath, 'character-dictionaries');
+  fs.mkdirSync(dictionariesDir, { recursive: true });
+  const statePath = path.join(dictionariesDir, 'auto-sync-state.json');
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify({
+      activeMediaIds: ['7 - Frieren'],
+      mergedRevision: 'rev-7',
+      mergedDictionaryTitle: 'SubMiner Character Dictionary',
+    }),
+    'utf8',
+  );
+  // Left over from an interrupted run: the archive on disk is not the revision state recorded.
+  buildDictionaryZip(
+    path.join(dictionariesDir, 'merged.zip'),
+    'SubMiner Character Dictionary',
+    'Character names',
+    'rev-stale',
+    [{ term: 'フリーレン', reading: 'フリーレン', role: 'main', glossary: [] } as never],
+    [],
+  );
+  const mergedBuilds: number[][] = [];
+  const imports: string[] = [];
+
+  const runtime = createCharacterDictionaryAutoSyncRuntimeService({
+    userDataPath,
+    getConfig: () => ({ enabled: true, maxLoaded: 3, profileScope: 'all' }),
+    getOrCreateCurrentSnapshot: async () => ({
+      mediaId: 7,
+      mediaTitle: 'Frieren',
+      entryCount: 100,
+      fromCache: true,
+      updatedAt: 1000,
+    }),
+    buildMergedDictionary: async (mediaIds) => {
+      mergedBuilds.push([...mediaIds]);
+      return {
+        zipPath: '/tmp/rebuilt-merged.zip',
+        revision: 'rev-7',
+        dictionaryTitle: 'SubMiner Character Dictionary',
+        entryCount: 100,
+      };
+    },
+    // Yomitan does not have the dictionary, so the sync has to import despite the cached state.
+    getYomitanDictionaryInfo: async () => [],
+    importYomitanDictionary: async (zipPath) => {
+      imports.push(zipPath);
+      return true;
+    },
+    deleteYomitanDictionary: async () => true,
+    upsertYomitanDictionarySettings: async () => true,
+    now: () => 1000,
+  });
+
+  await runtime.runSyncNow();
+
+  assert.deepEqual(mergedBuilds, [[7]]);
+  assert.deepEqual(imports, ['/tmp/rebuilt-merged.zip']);
 });

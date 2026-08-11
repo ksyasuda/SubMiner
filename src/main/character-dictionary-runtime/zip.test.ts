@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildDictionaryZip } from './zip';
+import { buildDictionaryZip, readDictionaryZipRevision } from './zip';
 import type { CharacterDictionaryTermEntry } from './types';
 
 function makeTempDir(): string {
@@ -103,5 +103,40 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
     fs.writeFileSync = originalWriteFileSync;
     Buffer.concat = originalBufferConcat;
     cleanupDir(tempDir);
+  }
+});
+
+test('readDictionaryZipRevision reads the built revision and rejects foreign archives', () => {
+  const dir = makeTempDir();
+  try {
+    const zipPath = path.join(dir, 'merged.zip');
+    buildDictionaryZip(
+      zipPath,
+      'SubMiner Character Dictionary',
+      'Character names',
+      'rev-42',
+      [
+        {
+          term: 'ルフィ',
+          reading: 'ルフィ',
+          role: 'main',
+          glossary: [],
+        } as unknown as CharacterDictionaryTermEntry,
+      ],
+      [],
+    );
+
+    assert.equal(readDictionaryZipRevision(zipPath), 'rev-42');
+    assert.equal(readDictionaryZipRevision(path.join(dir, 'missing.zip')), null);
+
+    const truncatedPath = path.join(dir, 'truncated.zip');
+    fs.writeFileSync(truncatedPath, fs.readFileSync(zipPath).subarray(0, 40));
+    assert.equal(readDictionaryZipRevision(truncatedPath), null);
+
+    const foreignPath = path.join(dir, 'foreign.zip');
+    fs.writeFileSync(foreignPath, Buffer.from('not a zip at all', 'utf8'));
+    assert.equal(readDictionaryZipRevision(foreignPath), null);
+  } finally {
+    cleanupDir(dir);
   }
 });

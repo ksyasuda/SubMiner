@@ -148,6 +148,62 @@ function createEndOfCentralDirectory(
   return end;
 }
 
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
+const LOCAL_FILE_HEADER_SIZE = 30;
+
+/**
+ * Reads the first entry of an archive written by {@link writeStoredZip}: every entry is stored
+ * uncompressed with no extra field and no data descriptor, so the leading local header is enough.
+ * Returns null for anything it does not recognize, so callers treat a corrupt or foreign archive
+ * the same as a missing one.
+ */
+export function readStoredZipFirstFile(zipPath: string): StoredZipFile | null {
+  let fd: number;
+  try {
+    fd = fs.openSync(zipPath, 'r');
+  } catch {
+    return null;
+  }
+
+  try {
+    const fileSize = fs.fstatSync(fd).size;
+    const header = Buffer.alloc(LOCAL_FILE_HEADER_SIZE);
+    if (fs.readSync(fd, header, 0, header.length, 0) !== header.length) {
+      return null;
+    }
+    if (header.readUInt32LE(0) !== LOCAL_FILE_HEADER_SIGNATURE) {
+      return null;
+    }
+    // Compression method 0 (stored) is the only thing writeStoredZip emits.
+    if (header.readUInt16LE(8) !== 0) {
+      return null;
+    }
+    const entrySize = header.readUInt32LE(18);
+    const nameLength = header.readUInt16LE(26);
+    const extraLength = header.readUInt16LE(28);
+    const dataOffset = LOCAL_FILE_HEADER_SIZE + nameLength + extraLength;
+    if (dataOffset + entrySize > fileSize) {
+      return null;
+    }
+    const name = Buffer.alloc(nameLength);
+    if (
+      nameLength > 0 &&
+      fs.readSync(fd, name, 0, nameLength, LOCAL_FILE_HEADER_SIZE) !== nameLength
+    ) {
+      return null;
+    }
+    const data = Buffer.alloc(entrySize);
+    if (entrySize > 0 && fs.readSync(fd, data, 0, entrySize, dataOffset) !== entrySize) {
+      return null;
+    }
+    return { name: name.toString('utf8'), data };
+  } catch {
+    return null;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function writeBuffer(fd: number, buffer: Buffer): void {
   let written = 0;
   while (written < buffer.length) {

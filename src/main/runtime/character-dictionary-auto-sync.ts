@@ -1,6 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ensureDir } from '../../shared/fs-utils';
+import {
+  buildBuildingMessage,
+  buildCheckingMessage,
+  buildFailedMessage,
+  buildGeneratingMessage,
+  buildImportingMessage,
+  buildReadyMessage,
+  formatCharacterDictionaryProgressDetail,
+  joinGeneratingDetail,
+} from './character-dictionary-auto-sync-messages';
+import { readDictionaryZipRevision } from '../character-dictionary-runtime/zip';
 import type { AnilistCharacterDictionaryProfileScope } from '../../types';
 import type {
   CharacterDictionarySnapshotProgressCallbacks,
@@ -358,95 +369,6 @@ function sameMembership(left: number[], right: number[]): boolean {
   return arraysEqual(leftSorted, rightSorted);
 }
 
-function buildSyncingMessage(mediaTitle: string): string {
-  return `Updating character dictionary for ${mediaTitle}...`;
-}
-
-function buildCheckingMessage(mediaTitle: string): string {
-  return `Checking character dictionary for ${mediaTitle}...`;
-}
-
-function buildGeneratingMessage(mediaTitle: string, detail?: string): string {
-  return detail
-    ? `Generating character dictionary for ${mediaTitle} (${detail})...`
-    : `Generating character dictionary for ${mediaTitle}...`;
-}
-
-function formatCharacterDictionaryProgressDetail(
-  progress: CharacterDictionarySnapshotStageProgress,
-  remainingMs: number | null,
-): string {
-  if (progress.stage === 'saving') {
-    return 'saving snapshot';
-  }
-  if (progress.stage === 'names') {
-    return progress.total !== null && progress.total > 0
-      ? `name ${progress.completed}/${progress.total}`
-      : `${progress.completed} names`;
-  }
-  if (progress.stage === 'images') {
-    const counted =
-      progress.total !== null && progress.total > 0
-        ? `image ${progress.completed}/${progress.total}`
-        : `${progress.completed} images`;
-    return remainingMs !== null
-      ? `${counted}, ~${formatRemainingDuration(remainingMs)} left`
-      : counted;
-  }
-  const page = typeof progress.page === 'number' ? `page ${progress.page}, ` : '';
-  return `${page}${progress.completed} characters`;
-}
-
-function formatElapsedDuration(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`;
-}
-
-/** Coarser than the elapsed clock: an estimate that ticks every second reads as precision it lacks. */
-function formatRemainingDuration(remainingMs: number): string {
-  const totalSeconds = Math.max(1, Math.round(remainingMs / 1000));
-  if (totalSeconds >= 60) {
-    return `${Math.max(1, Math.round(totalSeconds / 60))}m`;
-  }
-  return `${Math.max(5, Math.ceil(totalSeconds / 5) * 5)}s`;
-}
-
-/**
- * The elapsed clock is the part that proves the app is alive: a stalled network fetch freezes the
- * counts, but the clock keeps moving.
- */
-function joinGeneratingDetail(detail: string | null, elapsedMs: number): string | undefined {
-  const parts = [detail, elapsedMs >= 5_000 ? formatElapsedDuration(elapsedMs) : null].filter(
-    (part): part is string => typeof part === 'string' && part.length > 0,
-  );
-  return parts.length > 0 ? parts.join(' · ') : undefined;
-}
-
-function buildImportingMessage(mediaTitle: string, elapsedMs?: number): string {
-  const elapsed =
-    typeof elapsedMs === 'number' && elapsedMs >= 1000
-      ? ` (${formatElapsedDuration(elapsedMs)})`
-      : '';
-  return `Importing character dictionary for ${mediaTitle}${elapsed}...`;
-}
-
-function buildBuildingMessage(mediaTitle: string): string {
-  return `Building character dictionary for ${mediaTitle}...`;
-}
-
-function buildReadyMessage(mediaTitle: string): string {
-  return `Character dictionary ready for ${mediaTitle}`;
-}
-
-function buildFailedMessage(mediaTitle: string | null, errorMessage: string): string {
-  if (mediaTitle) {
-    return `Character dictionary sync failed for ${mediaTitle}: ${errorMessage}`;
-  }
-  return `Character dictionary sync failed: ${errorMessage}`;
-}
-
 export function createCharacterDictionaryAutoSyncRuntimeService(
   deps: CharacterDictionaryAutoSyncRuntimeDeps,
 ): {
@@ -755,8 +677,12 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
               );
             }
             if (merged === null) {
+              // The cached archive only stands in for the recorded state when its own index.json
+              // agrees. A stale or half-written ZIP would be imported under the wrong revision,
+              // and every later sync would then see a revision mismatch and re-import it.
               const existingMergedZipPath = path.join(dictionariesDir, 'merged.zip');
-              if (fs.existsSync(existingMergedZipPath)) {
+              const existingMergedRevision = readDictionaryZipRevision(existingMergedZipPath);
+              if (existingMergedRevision === revision) {
                 merged = {
                   zipPath: existingMergedZipPath,
                   revision,
@@ -764,6 +690,9 @@ export function createCharacterDictionaryAutoSyncRuntimeService(
                   entryCount: snapshot.entryCount,
                 };
               } else {
+                deps.logInfo?.(
+                  `[dictionary:auto-sync] cached merged ZIP unusable (revision ${existingMergedRevision ?? 'unreadable'}, expected ${revision}); rebuilding`,
+                );
                 merged = await deps.buildMergedDictionary(nextActiveMediaIdValues);
               }
             }
