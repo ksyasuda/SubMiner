@@ -25,6 +25,7 @@ export function LibraryEntryPicker({
   onClose,
 }: LibraryEntryPickerProps) {
   const [entries, setEntries] = useState<AnimeLibraryItem[] | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,7 +38,11 @@ export function LibraryEntryPicker({
         if (!cancelled) setEntries(data);
       })
       .catch(() => {
-        if (!cancelled) setEntries([]);
+        // Distinct from an empty library: telling the user "no other titles"
+        // when the request failed hides a retryable error.
+        if (cancelled) return;
+        setEntries([]);
+        setLoadFailed(true);
       });
     return () => {
       cancelled = true;
@@ -84,7 +89,12 @@ export function LibraryEntryPicker({
 
         <div className="flex-1 overflow-y-auto p-2">
           {entries === null && <div className="text-xs text-ctp-overlay2 p-3">Loading...</div>}
-          {entries !== null && visible.length === 0 && (
+          {loadFailed && (
+            <div className="text-xs text-ctp-red p-3">
+              Could not load the library. Close this dialog and try again.
+            </div>
+          )}
+          {!loadFailed && entries !== null && visible.length === 0 && (
             <div className="text-xs text-ctp-overlay2 p-3">No other titles</div>
           )}
           {visible.map((entry) => (

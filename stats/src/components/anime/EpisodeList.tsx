@@ -205,7 +205,7 @@ export function EpisodeList({
                             setMoveError(null);
                             setMovingEpisode(ep);
                           }}
-                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-blue/50 hover:text-ctp-blue hover:bg-ctp-blue/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
+                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-blue/50 hover:text-ctp-blue focus-visible:text-ctp-blue hover:bg-ctp-blue/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
                           title="Move to another library entry"
                           aria-label="Move to another library entry"
                         >
@@ -217,7 +217,7 @@ export function EpisodeList({
                             e.stopPropagation();
                             void handleDeleteEpisode(ep.videoId, ep.canonicalTitle);
                           }}
-                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
+                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red focus-visible:text-ctp-red hover:bg-ctp-red/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
                           title="Delete episode"
                           aria-label="Delete episode"
                         >

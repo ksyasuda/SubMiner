@@ -822,11 +822,18 @@ export class ImmersionTrackerService {
     if (pendingVideoId !== undefined) {
       await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
     }
+    // Both of these rebuild the lifetime summaries, which recompute from the
+    // database: queued telemetry has to land first or the active session's
+    // watch time is dropped from the merged totals.
+    this.flushTelemetry(true);
+    this.flushNow();
     return mergeAnimeRecords(this.db, targetAnimeId, sourceAnimeIds);
   }
 
   async moveVideoToAnime(videoId: number, targetAnimeId: number): Promise<VideoMoveSummary> {
     await this.pendingAnimeMetadataUpdates.get(videoId);
+    this.flushTelemetry(true);
+    this.flushNow();
     return moveVideoToAnimeQuery(this.db, videoId, targetAnimeId);
   }
 

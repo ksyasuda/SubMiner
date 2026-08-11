@@ -157,6 +157,33 @@ test('mergeAnimeRecords folds episodes, lines and lifetime totals into the targe
   });
 });
 
+test('mergeAnimeRecords repoints subtitle lines recorded before the anime link landed', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertAnime(db, { animeId: 2, key: 'show season 1', title: 'Show Season 1' });
+    insertEpisode(db, { videoId: 1, animeId: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+    // Lines are written with the video's anime_id at the time, which is NULL
+    // until the async title parse assigns one.
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines(session_id, video_id, anime_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE)
+       VALUES (2, 2, NULL, 2, 'unlinked line', ?, ?)`,
+    ).run(BASE_MS, BASE_MS);
+
+    mergeAnimeRecords(db, 1, [2]);
+
+    assert.equal(lineAnimeIds(db, 1), 3);
+    const orphaned = Number(
+      (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE anime_id IS NULL')
+          .get() as { total: number }
+      ).total,
+    );
+    assert.equal(orphaned, 0);
+  });
+});
+
 test('mergeAnimeRecords inherits metadata the target is missing without clobbering its own', () => {
   withDb((db) => {
     insertAnime(db, { animeId: 1, key: 'show', title: 'Show', titleRomaji: 'Shou' });
@@ -215,6 +242,27 @@ test('moveVideoToAnime moves one episode and prunes the emptied entry', () => {
       .prepare('SELECT total_active_ms AS activeMs FROM imm_lifetime_anime WHERE anime_id = 1')
       .get() as { activeMs: number };
     assert.equal(lifetime.activeMs, 6000);
+    // The stray entry's AniList link is dropped, not inherited: a move makes no
+    // claim that the two entries are the same show.
+    const target = db
+      .prepare('SELECT anilist_id AS anilistId FROM imm_anime WHERE anime_id = 1')
+      .get() as { anilistId: number | null };
+    assert.equal(target.anilistId, null);
+  });
+});
+
+test('moveVideoToAnime is a no-op when the episode is already in the target entry', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertEpisode(db, { videoId: 1, animeId: 1 });
+
+    const summary = moveVideoToAnime(db, 1, 1);
+
+    assert.equal(summary.targetAnimeId, 1);
+    assert.equal(summary.previousAnimeId, 1);
+    assert.equal(summary.removedPreviousAnime, false);
+    assert.deepEqual(animeIds(db), [1]);
+    assert.equal(videoAnimeId(db, 1), 1);
   });
 });
 

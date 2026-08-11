@@ -3109,6 +3109,26 @@ Aligned English subtitle
     });
   });
 
+  it('POST /api/stats/anime/:animeId/merge reports a merge that folded nothing as 404', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async (targetAnimeId: number) => ({
+          survivingAnimeId: targetAnimeId,
+          mergedAnimeIds: [],
+          movedVideos: 0,
+        }),
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sourceAnimeIds":[8]}',
+    });
+
+    assert.equal(res.status, 404);
+  });
+
   it('PATCH /api/stats/media/:videoId/anime reports an unknown target as 404', async () => {
     const app = createStatsApp(
       createMockTracker({
@@ -3125,6 +3145,25 @@ Aligned English subtitle
     });
 
     assert.equal(res.status, 404);
+  });
+
+  it('PATCH /api/stats/media/:videoId/anime does not disguise storage failures as 404', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        moveVideoToAnime: async () => {
+          throw new Error('database is locked');
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/media/12/anime', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"animeId":7}',
+    });
+
+    assert.notEqual(res.status, 404);
+    assert.equal(res.status >= 500, true);
   });
 
   it('POST /api/stats/anki/browse returns 400 for missing noteId', async () => {

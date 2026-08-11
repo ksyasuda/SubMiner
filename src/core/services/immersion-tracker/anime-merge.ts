@@ -3,6 +3,9 @@ import { rebuildLifetimeSummariesInTransaction } from './lifetime';
 import { toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
 
+/** Thrown when a move names an episode or destination entry that is not there. */
+export const UNKNOWN_MOVE_TARGET_MESSAGE = 'Unknown episode or target library entry';
+
 export interface AnimeMergeSummary {
   /** Library entry that owns every moved episode once the merge finishes. */
   survivingAnimeId: number;
@@ -161,11 +164,17 @@ export function mergeAnimeRecordsInTransaction(
   }
 
   const updatedAt = toDbTimestamp(nowMs());
+  const sourceVideosStmt = db.prepare(
+    'SELECT video_id AS videoId FROM imm_videos WHERE anime_id = ?',
+  );
   const moveVideosStmt = db.prepare(
     'UPDATE imm_videos SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE anime_id = ?',
   );
+  // Repointed per video rather than by anime_id: lines recorded before the
+  // async title parse assigns the link are stored with a NULL anime_id, and
+  // matching on the source id would strand them unattributed.
   const moveLinesStmt = db.prepare(
-    'UPDATE imm_subtitle_lines SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE anime_id = ?',
+    'UPDATE imm_subtitle_lines SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?',
   );
   const dropLifetimeStmt = db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?');
   const dropAnimeStmt = db.prepare('DELETE FROM imm_anime WHERE anime_id = ?');
@@ -176,10 +185,15 @@ export function mergeAnimeRecordsInTransaction(
     }
 
     const sourceMetadata = readAnimeMetadata(db, sourceAnimeId);
+    const sourceVideoIds = (sourceVideosStmt.all(sourceAnimeId) as Array<{ videoId: number }>).map(
+      (row) => row.videoId,
+    );
     const moved = moveVideosStmt.run(targetAnimeId, updatedAt, sourceAnimeId) as {
       changes: number;
     };
-    moveLinesStmt.run(targetAnimeId, updatedAt, sourceAnimeId);
+    for (const videoId of sourceVideoIds) {
+      moveLinesStmt.run(targetAnimeId, updatedAt, videoId);
+    }
     dropLifetimeStmt.run(sourceAnimeId);
     dropAnimeStmt.run(sourceAnimeId);
     absorbAnimeMetadata(db, targetAnimeId, sourceMetadata, updatedAt);
@@ -219,7 +233,7 @@ export function moveVideoToAnime(
       .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { animeId: number | null } | null;
     if (!videoRow || !animeExists(db, targetAnimeId)) {
-      throw new Error('Unknown episode or target library entry');
+      throw new Error(UNKNOWN_MOVE_TARGET_MESSAGE);
     }
 
     const previousAnimeId = videoRow.animeId;
@@ -239,10 +253,12 @@ export function moveVideoToAnime(
 
     let removedPreviousAnime = false;
     if (previousAnimeId !== null && !hasAnimeReferences(db, previousAnimeId)) {
-      const sourceMetadata = readAnimeMetadata(db, previousAnimeId);
+      // The emptied entry's metadata is deliberately dropped rather than
+      // absorbed. A move says "this episode belongs elsewhere", not "these are
+      // the same show", and the entry being emptied is usually a mis-parse
+      // whose AniList link would be wrong for the target.
       db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?').run(previousAnimeId);
       db.prepare('DELETE FROM imm_anime WHERE anime_id = ?').run(previousAnimeId);
-      absorbAnimeMetadata(db, targetAnimeId, sourceMetadata, updatedAt);
       removedPreviousAnime = true;
     }
 

@@ -360,9 +360,11 @@ export function resolveAnimeAnilistConflict(
       const summary = emptySummary(1);
       summary.movedVideos = merge.movedVideos;
       summary.deletedAnimeRows = merge.mergedAnimeIds.length;
-      summary.survivingAnimeId = survivingAnimeId;
       if (merge.mergedAnimeIds.length > 0) {
         summary.repaired = 1;
+        // Only reported once a row really absorbed the other, so callers never
+        // follow this to an anime id that was never written.
+        summary.survivingAnimeId = survivingAnimeId;
       }
       // Lifetime summaries are rebuilt by the caller off this summary, the same
       // as the redistribution path below.
@@ -383,11 +385,16 @@ function canMergeAnilistConflict(
   anilistId: number,
   options: AnimeAnilistConflictOptions,
 ): boolean {
+  const targetRow = getAnimeRow(db, targetAnimeId);
+  if (!targetRow) {
+    // Nothing to merge with a row that no longer exists (a stale id from the
+    // caller); fall through to the redistribution path.
+    return false;
+  }
   if (options.survivor !== 'target') {
     // The target is the row about to disappear here, so an existing link of its
     // own means this is a mis-resolution rather than a duplicate: leave it be.
-    const targetRow = getAnimeRow(db, targetAnimeId);
-    if (targetRow?.anilist_id != null && targetRow.anilist_id !== anilistId) {
+    if (targetRow.anilist_id != null && targetRow.anilist_id !== anilistId) {
       return false;
     }
   }

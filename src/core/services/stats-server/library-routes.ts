@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
+import { UNKNOWN_MOVE_TARGET_MESSAGE } from '../immersion-tracker/anime-merge.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildSentenceSearchOptions,
@@ -206,6 +207,9 @@ export function registerStatsLibraryRoutes(
     const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
     if (sourceAnimeIds.length === 0) return c.body(null, 400);
     const summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    // Nothing folded means the target or every source was already gone, so the
+    // caller should not be told the merge succeeded.
+    if (summary.mergedAnimeIds.length === 0) return c.body(null, 404);
     return c.json(
       statsJson('mergeAnime', {
         ok: true,
@@ -232,8 +236,13 @@ export function registerStatsLibraryRoutes(
           removedPreviousAnime: summary.removedPreviousAnime,
         }),
       );
-    } catch {
-      return c.body(null, 404);
+    } catch (error) {
+      // Only a missing episode or entry is a 404; storage failures must not be
+      // reported to the caller as "not found".
+      if (error instanceof Error && error.message === UNKNOWN_MOVE_TARGET_MESSAGE) {
+        return c.body(null, 404);
+      }
+      throw error;
     }
   });
 }
