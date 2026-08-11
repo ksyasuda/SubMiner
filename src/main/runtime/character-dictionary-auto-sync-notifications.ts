@@ -9,13 +9,17 @@ export interface CharacterDictionaryAutoSyncNotificationDeps {
   getNotificationType: () => NotificationType | undefined;
   showOsd: (message: string) => boolean | void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
-  showDesktopNotification: (title: string, options: { body?: string }) => void;
+  showDesktopNotification: (title: string, options: { body?: string; replaceId?: string }) => void;
   startupOsdSequencer?: {
     notifyCharacterDictionaryStatus: (
       event: StartupOsdSequencerCharacterDictionaryEvent,
     ) => boolean;
   };
 }
+
+// One live desktop notification for the whole sync: progress updates replace each other and the
+// terminal ready/failed message replaces the last progress one, matching the overlay toast.
+const CHARACTER_DICTIONARY_DESKTOP_NOTIFICATION_ID = 'character-dictionary-auto-sync';
 
 function isTerminalPhase(phase: CharacterDictionaryAutoSyncNotificationEvent['phase']): boolean {
   return phase === 'ready' || phase === 'failed';
@@ -53,7 +57,10 @@ export function notifyCharacterDictionaryAutoSyncStatus(
         persistent: !isTerminalPhase(event.phase),
       });
     } else if (!shouldShowDesktop(type)) {
-      deps.showDesktopNotification('SubMiner', { body: event.message });
+      deps.showDesktopNotification('SubMiner', {
+        body: event.message,
+        replaceId: CHARACTER_DICTIONARY_DESKTOP_NOTIFICATION_ID,
+      });
     }
   }
 
@@ -69,6 +76,9 @@ export function notifyCharacterDictionaryAutoSyncStatus(
   }
 
   if (shouldShowDesktop(type) && !startupSequencerShown) {
-    deps.showDesktopNotification('SubMiner', { body: event.message });
+    deps.showDesktopNotification('SubMiner', {
+      body: event.message,
+      replaceId: CHARACTER_DICTIONARY_DESKTOP_NOTIFICATION_ID,
+    });
   }
 }

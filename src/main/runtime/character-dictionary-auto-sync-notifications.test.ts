@@ -214,3 +214,69 @@ test('auto sync notifications let startup sequencer own osd-system desktop deliv
 
   assert.deepEqual(calls, ['osd:importing', 'desktop:SubMiner:importing']);
 });
+
+test('auto sync desktop notifications reuse one replace id across every phase', () => {
+  const replaceIds: Array<string | undefined> = [];
+  const deps = {
+    getNotificationType: () => 'system' as const,
+    showOsd: () => undefined,
+    showDesktopNotification: (_title: string, options: { body?: string; replaceId?: string }) => {
+      replaceIds.push(options.replaceId);
+    },
+  };
+
+  for (const phase of ['checking', 'generating', 'importing', 'ready'] as const) {
+    notifyCharacterDictionaryAutoSyncStatus(makeEvent(phase, phase), deps);
+  }
+
+  assert.deepEqual(replaceIds, [
+    'character-dictionary-auto-sync',
+    'character-dictionary-auto-sync',
+    'character-dictionary-auto-sync',
+    'character-dictionary-auto-sync',
+  ]);
+});
+
+test('overlay-unavailable desktop fallback shares the same replace id', () => {
+  const replaceIds: Array<string | undefined> = [];
+
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('generating', 'generating'), {
+    getNotificationType: () => 'overlay',
+    showOsd: () => undefined,
+    showDesktopNotification: (_title, options) => {
+      replaceIds.push(options.replaceId);
+    },
+  });
+
+  assert.deepEqual(replaceIds, ['character-dictionary-auto-sync']);
+});
+
+test('startup lanes keep one desktop notification per lane', () => {
+  const calls: Array<{ body?: string; replaceId?: string }> = [];
+  const sequencer = createStartupOsdSequencer({
+    getNotificationType: () => 'system',
+    showOsd: () => undefined,
+    showDesktopNotification: (_title, options) => {
+      calls.push(options);
+    },
+  });
+
+  sequencer.markTokenizationReady();
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('generating', 'generating one'), {
+    getNotificationType: () => 'osd',
+    showOsd: () => undefined,
+    showDesktopNotification: () => undefined,
+    startupOsdSequencer: sequencer,
+  });
+  notifyCharacterDictionaryAutoSyncStatus(makeEvent('generating', 'generating two'), {
+    getNotificationType: () => 'osd',
+    showOsd: () => undefined,
+    showDesktopNotification: () => undefined,
+    startupOsdSequencer: sequencer,
+  });
+
+  assert.deepEqual(
+    calls.map((call) => call.replaceId),
+    ['startup-status', 'startup-status'],
+  );
+});
