@@ -67,6 +67,48 @@ function queueSubtitleLines(tracker: TrackerInternals, count: number): void {
   }
 }
 
+/**
+ * Queued last so it sits past the first batch. Lifetime `total_lines_seen`
+ * reads this counter, not a COUNT over imm_subtitle_lines, so the rebuilt
+ * summary only reflects the session once the queue is drained all the way.
+ */
+function queueTelemetry(tracker: TrackerInternals, linesSeen: number): void {
+  tracker.recordWrite({
+    kind: 'telemetry',
+    sessionId: 1,
+    sampleMs: 3000,
+    lastMediaMs: 3000,
+    totalWatchedMs: 4000,
+    activeWatchedMs: 3500,
+    linesSeen,
+    tokensSeen: linesSeen * 5,
+    cardsMined: 2,
+    lookupCount: 0,
+    lookupHits: 0,
+    yomitanLookupCount: 0,
+    pauseCount: 0,
+    pauseMs: 0,
+    seekForwardCount: 0,
+    seekBackwardCount: 0,
+    mediaBufferEvents: 0,
+  });
+}
+
+function lifetimeForAnime(
+  db: DatabaseSync,
+  animeId: number,
+): { linesSeen: number; activeMs: number; cards: number } | null {
+  const row = db
+    .prepare(
+      `SELECT total_lines_seen AS linesSeen, total_active_ms AS activeMs, total_cards AS cards
+       FROM imm_lifetime_anime WHERE anime_id = ?`,
+    )
+    .get(animeId) as { linesSeen: number; activeMs: number; cards: number } | undefined;
+  return row
+    ? { linesSeen: Number(row.linesSeen), activeMs: Number(row.activeMs), cards: Number(row.cards) }
+    : null;
+}
+
 function countLinesForAnime(db: DatabaseSync, animeId: number): number {
   const row = db
     .prepare('SELECT COUNT(*) AS total FROM imm_subtitle_lines WHERE anime_id = ?')
@@ -91,12 +133,18 @@ test('mergeAnime drains a queue larger than one batch before rebuilding summarie
 
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 8);
+    queueTelemetry(internals, 8);
     assert.ok(internals.queue.length > 2, 'expected more queued writes than one batch');
 
     await internals.mergeAnime(1, [2]);
 
     assert.equal(internals.queue.length, 0);
     assert.equal(countLinesForAnime(internals.db, 1), 8);
+    // The surviving entry's summary was rebuilt from the fully drained queue.
+    const lifetime = lifetimeForAnime(internals.db, 1);
+    assert.equal(lifetime?.linesSeen, 8);
+    assert.equal(lifetime?.activeMs, 3500);
+    assert.equal(lifetime?.cards, 2);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -114,11 +162,16 @@ test('moveVideoToAnime drains a queue larger than one batch before rebuilding su
 
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 8);
+    queueTelemetry(internals, 8);
 
     await internals.moveVideoToAnime(2, 1);
 
     assert.equal(internals.queue.length, 0);
     assert.equal(countLinesForAnime(internals.db, 1), 8);
+    const lifetime = lifetimeForAnime(internals.db, 1);
+    assert.equal(lifetime?.linesSeen, 8);
+    assert.equal(lifetime?.activeMs, 3500);
+    assert.equal(lifetime?.cards, 2);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
