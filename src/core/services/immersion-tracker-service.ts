@@ -98,6 +98,12 @@ import {
   resolveAnimeAnilistConflict,
 } from './immersion-tracker/anime-season-repair';
 import {
+  mergeAnimeRecords,
+  moveVideoToAnime as moveVideoToAnimeQuery,
+  type AnimeMergeSummary,
+  type VideoMoveSummary,
+} from './immersion-tracker/anime-merge';
+import {
   buildVideoKey,
   deriveCanonicalTitle,
   isKanji,
@@ -806,6 +812,24 @@ export class ImmersionTrackerService {
     return this.deleteMaintenanceScheduler.enqueue(resolveTask);
   }
 
+  /**
+   * Fold duplicate library entries into one. Sources that hold the currently
+   * playing episode are fine: the videos move, nothing is deleted out from
+   * under the active session.
+   */
+  async mergeAnime(targetAnimeId: number, sourceAnimeIds: number[]): Promise<AnimeMergeSummary> {
+    const pendingVideoId = this.sessionState?.videoId;
+    if (pendingVideoId !== undefined) {
+      await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
+    }
+    return mergeAnimeRecords(this.db, targetAnimeId, sourceAnimeIds);
+  }
+
+  async moveVideoToAnime(videoId: number, targetAnimeId: number): Promise<VideoMoveSummary> {
+    await this.pendingAnimeMetadataUpdates.get(videoId);
+    return moveVideoToAnimeQuery(this.db, videoId, targetAnimeId);
+  }
+
   async reassignAnimeAnilist(
     animeId: number,
     info: {
@@ -818,7 +842,11 @@ export class ImmersionTrackerService {
       coverUrl?: string | null;
     },
   ): Promise<void> {
-    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId);
+    // The user is acting on this entry, so it is the one that survives when
+    // another row already claims the same AniList id.
+    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId, {
+      survivor: 'target',
+    });
     this.db
       .prepare(
         `

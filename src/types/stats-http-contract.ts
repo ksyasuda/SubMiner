@@ -100,6 +100,30 @@ export interface StatsAnkiNotesInfoRequest {
   noteIds: number[];
 }
 
+export interface StatsMergeAnimeRequest {
+  sourceAnimeIds: number[];
+}
+
+export interface StatsMoveVideoRequest {
+  animeId: number;
+}
+
+export interface StatsMergeAnimeResponse {
+  ok: true;
+  /** Library entry that owns every merged episode afterwards. */
+  animeId: number;
+  mergedAnimeIds: number[];
+  movedVideos: number;
+}
+
+export interface StatsMoveVideoResponse {
+  ok: true;
+  animeId: number;
+  previousAnimeId: number | null;
+  /** True when the previous entry was emptied by the move and removed. */
+  removedPreviousAnime: boolean;
+}
+
 export interface StatsOkResponse {
   ok: true;
 }
@@ -142,6 +166,8 @@ export interface StatsJsonResponseMap {
   deleteSession: StatsOkResponse;
   deleteVideo: StatsOkResponse;
   deleteAnime: StatsOkResponse;
+  mergeAnime: StatsMergeAnimeResponse;
+  moveVideoToAnime: StatsMoveVideoResponse;
   anilistSearch: StatsAnilistSearchResult[];
   knownWords: string[];
   knownWordsSummary: StatsKnownWordsSummary;
@@ -221,6 +247,8 @@ export interface StatsHttpClient {
   deleteSessions: (sessionIds: number[]) => Promise<void>;
   deleteVideo: (videoId: number) => Promise<void>;
   deleteAnime: (animeId: number) => Promise<void>;
+  mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<StatsMergeAnimeResponse>;
+  moveVideoToAnime: (videoId: number, animeId: number) => Promise<StatsMoveVideoResponse>;
   getKnownWords: () => Promise<string[]>;
   getKnownWordsSummary: () => Promise<StatsKnownWordsSummary>;
   getAnimeKnownWordsSummary: (animeId: number) => Promise<StatsKnownWordsSummary>;

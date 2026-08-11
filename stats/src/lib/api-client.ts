@@ -9,6 +9,10 @@ import type {
   StatsExcludedWordsRequest,
   StatsHttpClient,
   StatsJsonResponseMap,
+  StatsMergeAnimeRequest,
+  StatsMergeAnimeResponse,
+  StatsMoveVideoRequest,
+  StatsMoveVideoResponse,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -193,6 +197,25 @@ export const apiClient = {
     await trackDelete('Deleting library entry', () =>
       fetchResponse(`/api/stats/anime/${animeId}`, { method: 'DELETE' }),
     );
+  },
+  mergeAnime: async (
+    targetAnimeId: number,
+    sourceAnimeIds: number[],
+  ): Promise<StatsMergeAnimeResponse> => {
+    const res = await fetchResponse(`/api/stats/anime/${targetAnimeId}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceAnimeIds } satisfies StatsMergeAnimeRequest),
+    });
+    return res.json() as Promise<StatsMergeAnimeResponse>;
+  },
+  moveVideoToAnime: async (videoId: number, animeId: number): Promise<StatsMoveVideoResponse> => {
+    const res = await fetchResponse(`/api/stats/media/${videoId}/anime`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeId } satisfies StatsMoveVideoRequest),
+    });
+    return res.json() as Promise<StatsMoveVideoResponse>;
   },
   getKnownWords: () => fetchJson('knownWords', '/api/stats/known-words'),
   getKnownWordsSummary: () => fetchJson('knownWordsSummary', '/api/stats/known-words-summary'),

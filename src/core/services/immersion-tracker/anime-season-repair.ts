@@ -1,4 +1,9 @@
 import type { DatabaseSync } from './sqlite';
+import {
+  animeSeasonsAreMergeCompatible,
+  getParsedSeasonsForAnime,
+  mergeAnimeRecordsInTransaction,
+} from './anime-merge';
 import { getOrCreateAnimeRecord } from './storage';
 import { toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
@@ -8,6 +13,21 @@ export interface AnimeSeasonRepairSummary {
   repaired: number;
   movedVideos: number;
   deletedAnimeRows: number;
+  /**
+   * Entry that owns the videos afterwards when two rows were folded together,
+   * so callers can keep pointing at a row that still exists.
+   */
+  survivingAnimeId: number | null;
+}
+
+export interface AnimeAnilistConflictOptions {
+  /**
+   * Which row keeps its identity when two entries claim the same AniList id.
+   * `existing` (the default) keeps the row that already held the id, so
+   * automatic cover-art resolution does not rename a card under the user;
+   * `target` keeps the row the user is acting on.
+   */
+  survivor?: 'target' | 'existing';
 }
 
 interface AnimeRow {
@@ -38,6 +58,7 @@ function emptySummary(scanned = 0): AnimeSeasonRepairSummary {
     repaired: 0,
     movedVideos: 0,
     deletedAnimeRows: 0,
+    survivingAnimeId: null,
   };
 }
 
@@ -49,6 +70,7 @@ function mergeSummary(
   target.repaired += source.repaired;
   target.movedVideos += source.movedVideos;
   target.deletedAnimeRows += source.deletedAnimeRows;
+  target.survivingAnimeId = source.survivingAnimeId ?? target.survivingAnimeId;
   return target;
 }
 
@@ -301,10 +323,19 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
   });
 }
 
+/**
+ * Two library entries cannot both hold the same AniList id (imm_anime.anilist_id
+ * is UNIQUE), and two entries resolving to the same id are the same show split
+ * by a title or season-suffix mismatch. Fold them together when their parsed
+ * seasons agree; fall back to the legacy season redistribution when the
+ * conflicting row actually spans several seasons, since merging there would
+ * pile unrelated seasons onto one card.
+ */
 export function resolveAnimeAnilistConflict(
   db: DatabaseSync,
   targetAnimeId: number,
   anilistId: number,
+  options: AnimeAnilistConflictOptions = {},
 ): AnimeSeasonRepairSummary {
   const conflict = db
     .prepare(
@@ -321,10 +352,47 @@ export function resolveAnimeAnilistConflict(
     return emptySummary();
   }
 
-  return runInTransaction(db, () =>
-    redistributeAnimeRowByParsedSeasonsInTransaction(db, conflict.animeId, {
+  return runInTransaction(db, () => {
+    if (canMergeAnilistConflict(db, targetAnimeId, conflict.animeId, anilistId, options)) {
+      const survivingAnimeId = options.survivor === 'target' ? targetAnimeId : conflict.animeId;
+      const absorbedAnimeId = survivingAnimeId === targetAnimeId ? conflict.animeId : targetAnimeId;
+      const merge = mergeAnimeRecordsInTransaction(db, survivingAnimeId, [absorbedAnimeId]);
+      const summary = emptySummary(1);
+      summary.movedVideos = merge.movedVideos;
+      summary.deletedAnimeRows = merge.mergedAnimeIds.length;
+      summary.survivingAnimeId = survivingAnimeId;
+      if (merge.mergedAnimeIds.length > 0) {
+        summary.repaired = 1;
+      }
+      // Lifetime summaries are rebuilt by the caller off this summary, the same
+      // as the redistribution path below.
+      return summary;
+    }
+
+    return redistributeAnimeRowByParsedSeasonsInTransaction(db, conflict.animeId, {
       transferAnilistToAnimeId: targetAnimeId,
       overwriteTargetAnilist: true,
-    }),
+    });
+  });
+}
+
+function canMergeAnilistConflict(
+  db: DatabaseSync,
+  targetAnimeId: number,
+  conflictAnimeId: number,
+  anilistId: number,
+  options: AnimeAnilistConflictOptions,
+): boolean {
+  if (options.survivor !== 'target') {
+    // The target is the row about to disappear here, so an existing link of its
+    // own means this is a mis-resolution rather than a duplicate: leave it be.
+    const targetRow = getAnimeRow(db, targetAnimeId);
+    if (targetRow?.anilist_id != null && targetRow.anilist_id !== anilistId) {
+      return false;
+    }
+  }
+  return animeSeasonsAreMergeCompatible(
+    getParsedSeasonsForAnime(db, targetAnimeId),
+    getParsedSeasonsForAnime(db, conflictAnimeId),
   );
 }

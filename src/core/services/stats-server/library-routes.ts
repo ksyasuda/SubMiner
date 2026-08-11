@@ -7,6 +7,7 @@ import {
   parseBooleanQuery,
   parseExcludedWordsBody,
   parseIntQuery,
+  parsePositiveIdList,
 } from './route-support.js';
 
 export function registerStatsLibraryRoutes(
@@ -196,5 +197,43 @@ export function registerStatsLibraryRoutes(
     if (animeId <= 0) return c.body(null, 400);
     await tracker.deleteAnime(animeId);
     return c.json(statsJson('deleteAnime', { ok: true }));
+  });
+
+  app.post('/api/stats/anime/:animeId/merge', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
+    if (sourceAnimeIds.length === 0) return c.body(null, 400);
+    const summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    return c.json(
+      statsJson('mergeAnime', {
+        ok: true,
+        animeId: summary.survivingAnimeId,
+        mergedAnimeIds: summary.mergedAnimeIds,
+        movedVideos: summary.movedVideos,
+      }),
+    );
+  });
+
+  app.patch('/api/stats/media/:videoId/anime', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const animeId = Number.isSafeInteger(body?.animeId) ? (body.animeId as number) : 0;
+    if (animeId <= 0) return c.body(null, 400);
+    try {
+      const summary = await tracker.moveVideoToAnime(videoId, animeId);
+      return c.json(
+        statsJson('moveVideoToAnime', {
+          ok: true,
+          animeId: summary.targetAnimeId,
+          previousAnimeId: summary.previousAnimeId,
+          removedPreviousAnime: summary.removedPreviousAnime,
+        }),
+      );
+    } catch {
+      return c.body(null, 404);
+    }
   });
 }
