@@ -30,6 +30,9 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
   const [applied, setApplied] = useState<StatsDuplicateLineCleanupResult | null>(null);
   const [busy, setBusy] = useState<'scan' | 'apply' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Survives everything the displayed result does not: another scan, a different window.
+  // Rows are gone from the moment an apply succeeds, so the reload is owed until it runs.
+  const [needsReload, setNeedsReload] = useState(false);
 
   const run = useCallback(
     async (dryRun: boolean) => {
@@ -43,6 +46,9 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
         } else {
           setApplied(result);
           setPreview(null);
+          if (result.removedLines > 0) {
+            setNeedsReload(true);
+          }
         }
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -54,13 +60,17 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
   );
 
   // Reloading the vocabulary tables unmounts this modal along with the rest of the tab,
-  // so it waits for the user to close: they get to read what was removed first.
+  // so it waits for the user to close: they get to read what was removed first. Closing
+  // is refused mid-apply, which would drop the reload on the floor along with the report.
   const close = useCallback(() => {
-    if (applied && applied.removedLines > 0) {
+    if (busy === 'apply') {
+      return;
+    }
+    if (needsReload) {
       onCleaned();
     }
     onClose();
-  }, [applied, onCleaned, onClose]);
+  }, [busy, needsReload, onCleaned, onClose]);
 
   const result = applied ?? preview;
   const nothingToDo = preview !== null && preview.removedLines === 0;
@@ -78,7 +88,8 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
           <h2 className="text-sm font-semibold text-ctp-text">Duplicate Lines</h2>
           <button
             type="button"
-            className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
+            disabled={busy === 'apply'}
+            className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue disabled:opacity-50"
             onClick={close}
           >
             Close
