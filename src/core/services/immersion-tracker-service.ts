@@ -636,14 +636,14 @@ export class ImmersionTrackerService {
   }
 
   /**
-   * Collapse animation bursts that earlier versions recorded frame by frame. Pending
-   * writes are flushed first so a burst that is still queued is scanned as stored rows
-   * rather than surviving the cleanup and reappearing seconds later.
+   * Collapse animation bursts that earlier versions recorded frame by frame. The whole
+   * queue is drained first so a burst still waiting to be written is scanned as stored
+   * rows rather than surviving the cleanup and landing a moment after it.
    */
   async cleanupDuplicateSubtitleLines(
     options: DuplicateSubtitleLineCleanupOptions = {},
   ): Promise<DuplicateSubtitleLineCleanupSummary> {
-    this.flushNow();
+    this.drainQueue();
     return cleanupDuplicateSubtitleLines(this.db, options);
   }
 
@@ -1862,6 +1862,24 @@ export class ImmersionTrackerService {
       this.flushScheduled = false;
       if (this.queue.length > 0) {
         this.scheduleFlush(this.flushIntervalMs);
+      }
+    }
+  }
+
+  /**
+   * Write out everything queued, not just the next batch.
+   *
+   * `flushNow` writes at most `batchSize` entries and does nothing at all while the write
+   * lock is held, so a maintenance pass that runs straight after it can still be reading
+   * a database that is missing rows. Each pass has to shrink the queue to continue: a
+   * failed flush puts its batch back, and looping on that would never finish.
+   */
+  private drainQueue(): void {
+    while (this.queue.length > 0) {
+      const pendingBefore = this.queue.length;
+      this.flushNow();
+      if (this.queue.length >= pendingBefore) {
+        return;
       }
     }
   }

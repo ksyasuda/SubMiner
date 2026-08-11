@@ -8,9 +8,16 @@
  *
  * Only timing is available here: the stored text has been stripped of ASS markup, so the
  * authoring evidence the file-level parser uses (`\t`, `\move`, karaoke timing, a
- * changing override signature) is long gone. The rule is therefore the strict,
- * metadata-free one -- a long run of identical, contiguous, short-lived lines inside a
- * single session -- and every bound is configurable so a cautious run can ask for more.
+ * changing override signature) is long gone. What is left is a run of identical,
+ * contiguous, short-lived lines inside a single session.
+ *
+ * The run has to be as long as the timing-only rule in `subtitle-cue-dedup` demands, but
+ * each line may be as long as the animation-frame bound rather than the much tighter
+ * timing-only one. Five or more repeats of the same text, each ending where the next
+ * begins, is already conclusive on its own -- no dialogue does that -- and the tighter
+ * bound would walk straight past the heavier typesetting that motivated this, where
+ * frames sit nearer a quarter of a second. Both bounds are options, so a cautious run can
+ * ask for more, and a dry run always reports before anything is removed.
  *
  * Scope: subtitle lines, their word/kanji occurrences, and the `imm_words`/`imm_kanji`
  * aggregates those occurrences feed. Session telemetry (`lines_seen`, `tokens_seen`) and

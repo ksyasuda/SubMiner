@@ -169,10 +169,14 @@ export function createSubtitleLineDedupGate(
         return true;
       }
 
+      // The parsed cue list has the final say wherever it covers this line. Falling
+      // through to the streaming heuristic would let it drop cues the parser looked at
+      // with full lookahead and deliberately kept apart, which is the disagreement
+      // between sidebar and stats this gate exists to prevent.
       const spans = lookupSpans(text);
-      if (spans && isMergedAwayFrame(spans, sample.startSec)) {
+      if (spans) {
         run = null;
-        return false;
+        return !isMergedAwayFrame(spans, sample.startSec);
       }
 
       return advanceStreamingRun(text, sample);

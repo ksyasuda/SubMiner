@@ -1064,6 +1064,37 @@ describe('stats server API routes', () => {
     assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 30 });
   });
 
+  it('POST /api/stats/maintenance/duplicate-lines ignores a window shorter than a day', async () => {
+    let seenOptions: unknown = null;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return {
+            dryRun: true,
+            lookbackDays: null,
+            scannedLines: 0,
+            burstGroups: 0,
+            removedLines: 0,
+            removedWordOccurrences: 0,
+            removedKanjiOccurrences: 0,
+            samples: [],
+          };
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, lookbackDays: 0.5 }),
+    });
+
+    assert.equal(res.status, 200);
+    // Half a day must not floor to a zero-day window; it means no limit.
+    assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: null });
+  });
+
   it('POST /api/stats/maintenance/duplicate-lines treats a missing body as an apply over all history', async () => {
     let seenOptions: unknown = null;
     const app = createStatsApp(

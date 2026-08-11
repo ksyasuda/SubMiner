@@ -59,11 +59,12 @@ function seed(db: DatabaseSync, lines: SeedLine[]): void {
 
   lines.forEach((line, index) => {
     const lineId = index + 1;
+    const lineIndex = index + 1;
     const createdMs = line.createdMs ?? BASE_MS;
     insertLine.run(
       lineId,
       line.session,
-      lineId,
+      lineIndex,
       line.startMs,
       line.endMs,
       line.text,
@@ -168,6 +169,38 @@ test('ordinary repeated dialogue survives', () => {
     assert.equal(summary.removedLines, 0);
     assert.equal(countLines(db), 6);
     assert.equal(wordFrequency(db), 6);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a long run of quarter-second frames is still a burst', () => {
+  // Between the timing-only bound (0.1s) and the animation-frame bound (0.3s): heavier
+  // typesetting lands here, and the run length is what makes it conclusive.
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 1);
+    assert.equal(summary.removedLines, 5);
+    assert.equal(countLines(db), 1);
+    assert.equal(wordFrequency(db), 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a run of frames longer than the animation bound survives', () => {
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 400));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 6);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

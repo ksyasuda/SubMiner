@@ -98,10 +98,12 @@ export function parseDuplicateLineCleanupBody(body: unknown): {
 } {
   const source = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const rawLookback = source.lookbackDays;
-  const lookbackDays =
-    typeof rawLookback === 'number' && Number.isFinite(rawLookback) && rawLookback > 0
+  // Floor before the bounds check, or a fraction of a day arrives as a zero-day window.
+  const wholeDays =
+    typeof rawLookback === 'number' && Number.isFinite(rawLookback)
       ? Math.floor(rawLookback)
       : null;
+  const lookbackDays = wholeDays !== null && wholeDays >= 1 ? wholeDays : null;
   return { dryRun: source.dryRun === true, lookbackDays };
 }
 

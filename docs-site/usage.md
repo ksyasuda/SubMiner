@@ -96,6 +96,7 @@ subminer stats -b                 # Start/reuse the background stats daemon
 subminer stats -s                 # Stop the background stats daemon
 subminer stats cleanup            # Backfill vocabulary metadata, prune stale rows
 subminer stats cleanup -d --dry-run  # Preview cleanup of repeated typeset subtitle lines
+subminer stats cleanup -d --lookback-days 30  # Clean only lines recorded in the last 30 days
 subminer stats rebuild            # Rebuild rollup data
 subminer doctor --refresh-known-words  # Refresh the known-word cache
 subminer logs -e                  # Export a sanitized log ZIP and print its path

@@ -147,6 +147,8 @@ subminer stats cleanup --duplicate-lines --dry-run --lookback-days 30
 subminer stats cleanup --duplicate-lines --lookback-days 30
 ```
 
+`--duplicate-lines` (short: `-d`) picks the cleanup mode, so it cannot be combined with `--lifetime`, and `--dry-run` and `--lookback-days <days>` only apply to it. Omitting `--lookback-days` scans all history; the value must be at least one day.
+
 Runs never cross a session boundary, so rewatching an episode keeps both watches. Session telemetry (watch time, lines seen, tokens seen) and the rollups derived from it are left as recorded: they are cumulative samples taken during playback, and cannot be recomputed for sessions whose raw rows have since been pruned.
 
 ## Retention Defaults

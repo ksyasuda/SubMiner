@@ -43,7 +43,6 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
         } else {
           setApplied(result);
           setPreview(null);
-          onCleaned();
         }
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -51,8 +50,17 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
         setBusy(null);
       }
     },
-    [lookbackDays, onCleaned],
+    [lookbackDays],
   );
+
+  // Reloading the vocabulary tables unmounts this modal along with the rest of the tab,
+  // so it waits for the user to close: they get to read what was removed first.
+  const close = useCallback(() => {
+    if (applied && applied.removedLines > 0) {
+      onCleaned();
+    }
+    onClose();
+  }, [applied, onCleaned, onClose]);
 
   const result = applied ?? preview;
   const nothingToDo = preview !== null && preview.removedLines === 0;
@@ -63,7 +71,7 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
         type="button"
         aria-label="Close duplicate line cleanup"
         className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={close}
       />
       <div className="absolute inset-x-0 top-1/2 mx-auto max-w-xl -translate-y-1/2 rounded-xl border border-ctp-surface1 bg-ctp-mantle shadow-2xl">
         <div className="flex items-center justify-between border-b border-ctp-surface1 px-5 py-4">
@@ -71,7 +79,7 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
           <button
             type="button"
             className="rounded-md border border-ctp-surface2 px-3 py-1.5 text-xs font-medium text-ctp-subtext0 transition hover:border-ctp-blue hover:text-ctp-blue"
-            onClick={onClose}
+            onClick={close}
           >
             Close
           </button>

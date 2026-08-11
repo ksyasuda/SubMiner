@@ -255,6 +255,30 @@ test('parseArgs rejects duplicate-line flags without the duplicate-lines mode', 
   assert.match(error.stderr, /--dry-run and --lookback-days require --duplicate-lines/);
 });
 
+test('parseArgs rejects combining lifetime and duplicate-line cleanup modes', () => {
+  const error = withProcessExitIntercept(() => {
+    parseArgs(['stats', 'cleanup', '--lifetime', '--duplicate-lines'], 'subminer', {});
+  });
+
+  assert.equal(error.code, 1);
+  assert.match(error.stderr, /Stats cleanup runs one mode at a time/);
+});
+
+test('parseArgs rejects unusable lookback windows', () => {
+  for (const value of ['0', '-5', 'soon']) {
+    const error = withProcessExitIntercept(() => {
+      parseArgs(
+        ['stats', 'cleanup', '--duplicate-lines', '--lookback-days', value],
+        'subminer',
+        {},
+      );
+    });
+
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /--lookback-days must be a positive number of days/);
+  }
+});
+
 test('parseArgs rejects cleanup-only stats flags without cleanup action', () => {
   const error = withProcessExitIntercept(() => {
     parseArgs(['stats', '--vocab'], 'subminer', {});

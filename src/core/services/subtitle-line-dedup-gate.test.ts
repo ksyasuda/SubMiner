@@ -43,6 +43,23 @@ test('parsed cues keep separate lines that merely repeat', () => {
   assert.equal(recorded.length, 3);
 });
 
+test('parsed cues outrank the streaming heuristic for short repeated cues', () => {
+  // Long enough to trip the timing-only rule, but the parser saw these with full
+  // lookahead and kept them, so every one of them is a line the sidebar shows.
+  const cues: SubtitleCue[] = Array.from({ length: 8 }, (_, index) => ({
+    startTime: 3 + index * 0.08,
+    endTime: 3 + (index + 1) * 0.08,
+    text: 'えっ',
+  }));
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
+
+  const recorded = cues.filter((cue) =>
+    gate.shouldRecord({ text: cue.text, startSec: cue.startTime, endSec: cue.endTime }),
+  );
+
+  assert.equal(recorded.length, 8);
+});
+
 test('a line whose timing does not match any cue still records', () => {
   // A shifted track, an embedded sub nobody parsed: no match, no drop.
   const cues: SubtitleCue[] = [{ startTime: 10, endTime: 14, text: '飛び上がる' }];
