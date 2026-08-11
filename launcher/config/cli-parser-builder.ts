@@ -37,6 +37,9 @@ export interface CliInvocations {
   statsCleanup: boolean;
   statsCleanupVocab: boolean;
   statsCleanupLifetime: boolean;
+  statsCleanupDuplicateLines: boolean;
+  statsCleanupDryRun: boolean;
+  statsCleanupLookbackDays: number | null;
   statsLogLevel: string | null;
   syncTriggered: boolean;
   syncCliTokens: string[];
@@ -51,6 +54,16 @@ export interface CliInvocations {
   texthookerTriggered: boolean;
   texthookerLogLevel: string | null;
   texthookerOpenBrowser: boolean;
+}
+
+/** `--lookback-days` narrows the duplicate-line cleanup; anything unusable means no limit. */
+function parseStatsLookbackDays(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const days = Number(value);
+  if (!Number.isFinite(days) || days <= 0) {
+    throw new Error('Stats --lookback-days must be a positive number of days.');
+  }
+  return Math.floor(days);
 }
 
 function applyRootOptions(program: Command): void {
@@ -169,6 +182,9 @@ export function parseCliPrograms(
   let statsCleanup = false;
   let statsCleanupVocab = false;
   let statsCleanupLifetime = false;
+  let statsCleanupDuplicateLines = false;
+  let statsCleanupDryRun = false;
+  let statsCleanupLookbackDays: number | null = null;
   let statsLogLevel: string | null = null;
   let syncTriggered = false;
   let syncCliTokens: string[] = [];
@@ -269,6 +285,9 @@ export function parseCliPrograms(
     .option('-s, --stop', 'Stop the background stats server')
     .option('-v, --vocab', 'Clean vocabulary rows in the stats database')
     .option('-l, --lifetime', 'Rebuild lifetime summary rows from retained data')
+    .option('-d, --duplicate-lines', 'Collapse repeated subtitle lines from typeset animations')
+    .option('--dry-run', 'Report what a cleanup would remove without changing anything')
+    .option('--lookback-days <days>', 'Only clean lines recorded in the last N days')
     .option('--log-level <level>', 'Log level')
     .action((action: string | undefined, options: Record<string, unknown>) => {
       statsTriggered = true;
@@ -289,13 +308,29 @@ export function parseCliPrograms(
       if (normalizedAction && (statsBackground || statsStop)) {
         throw new Error('Stats background and stop flags cannot be combined with stats actions.');
       }
-      if (normalizedAction !== 'cleanup' && (options.vocab === true || options.lifetime === true)) {
-        throw new Error('Stats --vocab and --lifetime flags require the cleanup action.');
+      if (
+        normalizedAction !== 'cleanup' &&
+        (options.vocab === true || options.lifetime === true || options.duplicateLines === true)
+      ) {
+        throw new Error(
+          'Stats --vocab, --lifetime and --duplicate-lines flags require the cleanup action.',
+        );
+      }
+      if (options.duplicateLines !== true && (options.dryRun === true || options.lookbackDays)) {
+        throw new Error('Stats --dry-run and --lookback-days require --duplicate-lines.');
       }
       if (normalizedAction === 'cleanup') {
         statsCleanup = true;
         statsCleanupLifetime = options.lifetime === true;
-        statsCleanupVocab = statsCleanupLifetime ? false : options.vocab !== false;
+        statsCleanupDuplicateLines = options.duplicateLines === true;
+        if (statsCleanupLifetime && statsCleanupDuplicateLines) {
+          throw new Error('Stats cleanup runs one mode at a time.');
+        }
+        // Vocabulary cleanup stays the default so `stats cleanup` keeps its old meaning.
+        statsCleanupVocab =
+          statsCleanupLifetime || statsCleanupDuplicateLines ? false : options.vocab !== false;
+        statsCleanupDryRun = options.dryRun === true;
+        statsCleanupLookbackDays = parseStatsLookbackDays(options.lookbackDays);
       } else if (normalizedAction === 'rebuild' || normalizedAction === 'backfill') {
         statsCleanup = true;
         statsCleanupLifetime = true;
@@ -483,6 +518,9 @@ export function parseCliPrograms(
       statsCleanup,
       statsCleanupVocab,
       statsCleanupLifetime,
+      statsCleanupDuplicateLines,
+      statsCleanupDryRun,
+      statsCleanupLookbackDays,
       statsLogLevel,
       syncTriggered,
       syncCliTokens,

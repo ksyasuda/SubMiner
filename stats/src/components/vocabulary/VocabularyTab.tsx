@@ -5,6 +5,7 @@ import { WordList } from './WordList';
 import { KanjiBreakdown } from './KanjiBreakdown';
 import { KanjiDetailPanel } from './KanjiDetailPanel';
 import { ExclusionManager } from './ExclusionManager';
+import { DuplicateLineCleanup } from './DuplicateLineCleanup';
 import { formatNumber } from '../../lib/formatters';
 import { TrendChart } from '../trends/TrendChart';
 import { FrequencyRankTable } from './FrequencyRankTable';
@@ -34,10 +35,11 @@ export function VocabularyTab({
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
-  const { words, kanji, knownWords, loading, error } = useVocabulary();
+  const { words, kanji, knownWords, loading, error, reload } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
+  const [showDuplicateLineCleanup, setShowDuplicateLineCleanup] = useState(false);
 
   const hasNames = useMemo(() => words.some(isProperNoun), [words]);
   const filteredWords = useMemo(() => {
@@ -131,6 +133,13 @@ export function VocabularyTab({
         )}
         <button
           type="button"
+          onClick={() => setShowDuplicateLineCleanup(true)}
+          className="shrink-0 rounded-lg border border-ctp-surface1 bg-ctp-surface0 px-3 py-2 text-xs text-ctp-overlay2 transition-colors hover:text-ctp-subtext0"
+        >
+          Duplicates
+        </button>
+        <button
+          type="button"
           onClick={() => setShowExclusionManager(true)}
           className={`shrink-0 px-3 py-2 rounded-lg text-xs transition-colors border ${
             excluded.length > 0
@@ -191,6 +200,13 @@ export function VocabularyTab({
           onRemove={onRemoveExclusion}
           onClearAll={onClearExclusions}
           onClose={() => setShowExclusionManager(false)}
+        />
+      )}
+
+      {showDuplicateLineCleanup && (
+        <DuplicateLineCleanup
+          onClose={() => setShowDuplicateLineCleanup(false)}
+          onCleaned={reload}
         />
       )}
     </div>

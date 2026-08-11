@@ -1032,6 +1032,64 @@ describe('stats server API routes', () => {
     ]);
   });
 
+  it('POST /api/stats/maintenance/duplicate-lines forwards the window and dry-run flag', async () => {
+    let seenOptions: unknown = null;
+    const summary = {
+      dryRun: true,
+      lookbackDays: 30,
+      scannedLines: 900,
+      burstGroups: 2,
+      removedLines: 180,
+      removedWordOccurrences: 540,
+      removedKanjiOccurrences: 120,
+      samples: [],
+    };
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return summary;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, lookbackDays: 30 }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), summary);
+    assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 30 });
+  });
+
+  it('POST /api/stats/maintenance/duplicate-lines treats a missing body as an apply over all history', async () => {
+    let seenOptions: unknown = null;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return {
+            dryRun: false,
+            lookbackDays: null,
+            scannedLines: 0,
+            burstGroups: 0,
+            removedLines: 0,
+            removedWordOccurrences: 0,
+            removedKanjiOccurrences: 0,
+            samples: [],
+          };
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', { method: 'POST' });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenOptions, { dryRun: false, lookbackDays: null });
+  });
+
   it('PUT /api/stats/excluded-words rejects malformed rows', async () => {
     const app = createStatsApp(createMockTracker());
 

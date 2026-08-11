@@ -64,6 +64,9 @@ export interface CliArgs {
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
   statsCleanupLifetime?: boolean;
+  statsCleanupDuplicateLines?: boolean;
+  statsCleanupDryRun?: boolean;
+  statsCleanupLookbackDays?: number;
   statsResponsePath?: string;
   jellyfin: boolean;
   jellyfinLogin: boolean;
@@ -167,6 +170,8 @@ export function parseArgs(argv: string[]): CliArgs {
     statsCleanup: false,
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
+    statsCleanupDuplicateLines: false,
+    statsCleanupDryRun: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -368,7 +373,15 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--stats-cleanup') args.statsCleanup = true;
     else if (arg === '--stats-cleanup-vocab') args.statsCleanupVocab = true;
     else if (arg === '--stats-cleanup-lifetime') args.statsCleanupLifetime = true;
-    else if (arg.startsWith('--stats-response-path=')) {
+    else if (arg === '--stats-cleanup-duplicate-lines') args.statsCleanupDuplicateLines = true;
+    else if (arg === '--stats-cleanup-dry-run') args.statsCleanupDryRun = true;
+    else if (arg.startsWith('--stats-cleanup-lookback-days=')) {
+      const value = Number(arg.split('=', 2)[1]);
+      if (Number.isFinite(value) && value > 0) args.statsCleanupLookbackDays = Math.floor(value);
+    } else if (arg === '--stats-cleanup-lookback-days') {
+      const value = Number(readValue(argv[i + 1]));
+      if (Number.isFinite(value) && value > 0) args.statsCleanupLookbackDays = Math.floor(value);
+    } else if (arg.startsWith('--stats-response-path=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.statsResponsePath = value;
     } else if (arg === '--stats-response-path') {

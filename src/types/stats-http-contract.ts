@@ -18,6 +18,7 @@ import type {
   SessionTimelinePoint,
   StatsAnkiNoteInfo,
   StatsCoverImagesData,
+  StatsDuplicateLineCleanupResult,
   StatsExcludedWord,
   StreakCalendarDay,
   TrendsDashboardData,
@@ -30,6 +31,13 @@ import type {
 export type StatsTrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
 export type StatsTrendGroupBy = 'day' | 'month';
 export type StatsMineMode = 'word' | 'sentence' | 'audio';
+
+/** Body of `POST /api/stats/maintenance/duplicate-lines`. */
+export interface StatsDuplicateLineCleanupRequest {
+  dryRun?: boolean;
+  /** Null means every recorded line, whatever its age. */
+  lookbackDays?: number | null;
+}
 
 export interface StatsSessionKnownWordsTimelinePoint {
   linesSeen: number;
@@ -125,6 +133,7 @@ export interface StatsJsonResponseMap {
   vocabulary: VocabularyEntry[];
   excludedWords: StatsExcludedWord[];
   setExcludedWords: StatsOkResponse;
+  duplicateLineCleanup: StatsDuplicateLineCleanupResult;
   wordOccurrences: VocabularyOccurrenceEntry[];
   sentenceSearch: SentenceSearchResult[];
   kanji: KanjiEntry[];
@@ -178,6 +187,9 @@ export interface StatsHttpClient {
   getVocabulary: (limit?: number) => Promise<VocabularyEntry[]>;
   getExcludedWords: () => Promise<StatsExcludedWord[]>;
   setExcludedWords: (words: StatsExcludedWord[]) => Promise<void>;
+  cleanupDuplicateLines: (
+    options?: StatsDuplicateLineCleanupRequest,
+  ) => Promise<StatsDuplicateLineCleanupResult>;
   getWordOccurrences: (
     headword: string,
     word: string,

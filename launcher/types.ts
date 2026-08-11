@@ -142,6 +142,9 @@ export interface Args {
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
   statsCleanupLifetime?: boolean;
+  statsCleanupDuplicateLines?: boolean;
+  statsCleanupDryRun?: boolean;
+  statsCleanupLookbackDays?: number;
   dictionaryTarget?: string;
   doctor: boolean;
   doctorRefreshKnownWords: boolean;

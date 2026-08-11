@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CliArgs, CliCommandSource } from '../../cli/args';
+import type { DuplicateSubtitleLineCleanupSummary } from '../../core/services/immersion-tracker/duplicate-line-cleanup';
 import type {
   LifetimeRebuildSummary,
   VocabularyCleanupSummary,
@@ -50,6 +51,10 @@ export function createRunStatsCliCommandHandler(deps: {
   ensureVocabularyCleanupTokenizerReady?: () => Promise<void> | void;
   getImmersionTracker: () => {
     cleanupVocabularyStats?: () => Promise<VocabularyCleanupSummary>;
+    cleanupDuplicateSubtitleLines?: (options: {
+      dryRun?: boolean;
+      lookbackDays?: number | null;
+    }) => Promise<DuplicateSubtitleLineCleanupSummary>;
     rebuildLifetimeSummaries?: () => Promise<LifetimeRebuildSummary>;
   } | null;
   ensureStatsServerStarted: () => string;
@@ -83,6 +88,9 @@ export function createRunStatsCliCommandHandler(deps: {
       | 'statsCleanup'
       | 'statsCleanupVocab'
       | 'statsCleanupLifetime'
+      | 'statsCleanupDuplicateLines'
+      | 'statsCleanupDryRun'
+      | 'statsCleanupLookbackDays'
     >,
     source: CliCommandSource,
   ): Promise<void> => {
@@ -126,6 +134,7 @@ export function createRunStatsCliCommandHandler(deps: {
         const cleanupModes = [
           args.statsCleanupVocab ? 'vocab' : null,
           args.statsCleanupLifetime ? 'lifetime' : null,
+          args.statsCleanupDuplicateLines ? 'duplicate-lines' : null,
         ].filter(Boolean);
         if (cleanupModes.length !== 1) {
           throw new Error('Choose exactly one stats cleanup mode.');
@@ -139,6 +148,27 @@ export function createRunStatsCliCommandHandler(deps: {
           deps.logInfo(
             `Stats vocabulary cleanup complete: scanned=${result.scanned} kept=${result.kept} deleted=${result.deleted} repaired=${result.repaired}`,
           );
+          writeResponseSafe(args.statsResponsePath, { ok: true });
+          return;
+        }
+        if (args.statsCleanupDuplicateLines && tracker.cleanupDuplicateSubtitleLines) {
+          const result = await tracker.cleanupDuplicateSubtitleLines({
+            dryRun: args.statsCleanupDryRun === true,
+            lookbackDays: args.statsCleanupLookbackDays ?? null,
+          });
+          const window =
+            result.lookbackDays === null ? 'all history' : `last ${result.lookbackDays}d`;
+          deps.logInfo(
+            `Stats duplicate-line cleanup ${result.dryRun ? 'preview' : 'complete'} (${window}): ` +
+              `scanned=${result.scannedLines} bursts=${result.burstGroups} ` +
+              `removedLines=${result.removedLines} removedWordCounts=${result.removedWordOccurrences} ` +
+              `removedKanjiCounts=${result.removedKanjiOccurrences}`,
+          );
+          for (const sample of result.samples.slice(0, 5)) {
+            deps.logInfo(
+              `  ${sample.videoTitle ?? `video ${sample.videoId}`}: "${sample.text}" x${sample.frames}`,
+            );
+          }
           writeResponseSafe(args.statsResponsePath, { ok: true });
           return;
         }

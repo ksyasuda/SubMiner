@@ -95,6 +95,7 @@ subminer texthooker               # Texthooker-only mode (-o also opens the brow
 subminer stats -b                 # Start/reuse the background stats daemon
 subminer stats -s                 # Stop the background stats daemon
 subminer stats cleanup            # Backfill vocabulary metadata, prune stale rows
+subminer stats cleanup -d --dry-run  # Preview cleanup of repeated typeset subtitle lines
 subminer stats rebuild            # Rebuild rollup data
 subminer doctor --refresh-known-words  # Refresh the known-word cache
 subminer logs -e                  # Export a sanitized log ZIP and print its path

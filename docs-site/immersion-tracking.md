@@ -34,7 +34,7 @@ The same immersion data powers the stats dashboard.
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand (it also opens the dashboard in your browser when `stats.autoOpenBrowser` is enabled; the default is `false`).
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.
-- Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables. `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
+- Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables; `subminer stats cleanup --duplicate-lines` collapses repeated lines left behind by typeset subtitles (see [Repeated Line Cleanup](#repeated-line-cleanup)). `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
 - Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
 
 ### Dashboard Tabs
@@ -124,6 +124,30 @@ Secondary subtitle text (typically English translations) is stored alongside pri
 ### Word Exclusion List
 
 The Vocabulary tab toolbar includes an **Exclusions** button for hiding words from all vocabulary views. Excluded words are stored in the immersion database, with older browser localStorage exclusions imported on first load after upgrade. They can be managed (restored or cleared) from the exclusion modal. Exclusions affect stat cards, charts, the frequency rank table, and the word list.
+
+### Repeated Line Cleanup
+
+Karaoke openings and animated signs are authored as one subtitle event per animation frame, all carrying the same text. Playback reports every one of those frames, so a single OP lyric could be recorded hundreds of times and dominate "Top Repeated Words".
+
+Recording now collapses those runs as they happen, matching what the subtitle sidebar shows:
+
+- When the active subtitle source has been parsed, its cue list has already had duplicate events and animation bursts merged. A line landing inside a surviving cue but after that cue's start is a frame the sidebar merged away, and is not recorded.
+- Otherwise only timing is available, so the strict metadata-free rule applies: a run of identical, contiguous lines each shorter than 0.1s stops being recorded after a few frames. Ordinary repeated dialogue, and lines held for a normal beat, always record.
+
+For stats recorded before this, the Vocabulary tab toolbar has a **Duplicates** button:
+
+- Pick how far back to look (7 days, 30 days, 90 days, 1 year, or all time). A narrower window does less work and keeps older history untouched.
+- **Scan** reports the bursts found, the lines they added, and the word and kanji counts they inflated, without writing anything.
+- **Clean Up** applies exactly what the scan reported: each run collapses to its first line (extended to cover the run), and the removed lines' word and kanji occurrences are subtracted from the vocabulary aggregates.
+
+The same thing runs from the terminal:
+
+```bash
+subminer stats cleanup --duplicate-lines --dry-run --lookback-days 30
+subminer stats cleanup --duplicate-lines --lookback-days 30
+```
+
+Runs never cross a session boundary, so rewatching an episode keeps both watches. Session telemetry (watch time, lines seen, tokens seen) and the rollups derived from it are left as recorded: they are cumulative samples taken during playback, and cannot be recomputed for sessions whose raw rows have since been pruned.
 
 ## Retention Defaults
 

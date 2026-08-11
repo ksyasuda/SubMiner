@@ -92,6 +92,11 @@ import {
   type RunDeleteMaintenanceTask,
 } from './immersion-tracker/delete-maintenance-worker-runtime';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
+import {
+  cleanupDuplicateSubtitleLines,
+  type DuplicateSubtitleLineCleanupOptions,
+  type DuplicateSubtitleLineCleanupSummary,
+} from './immersion-tracker/duplicate-line-cleanup';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   repairLegacySeasonlessAnimeRows,
@@ -628,6 +633,18 @@ export class ImmersionTrackerService {
     return cleanupVocabularyStats(this.db, {
       resolveLegacyPos: this.resolveLegacyVocabularyPos,
     });
+  }
+
+  /**
+   * Collapse animation bursts that earlier versions recorded frame by frame. Pending
+   * writes are flushed first so a burst that is still queued is scanned as stored rows
+   * rather than surviving the cleanup and reappearing seconds later.
+   */
+  async cleanupDuplicateSubtitleLines(
+    options: DuplicateSubtitleLineCleanupOptions = {},
+  ): Promise<DuplicateSubtitleLineCleanupSummary> {
+    this.flushNow();
+    return cleanupDuplicateSubtitleLines(this.db, options);
   }
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {

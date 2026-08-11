@@ -88,6 +88,23 @@ export function parseExcludedWordsBody(body: unknown): StatsExcludedWord[] | nul
   return words;
 }
 
+/**
+ * Read a duplicate-line cleanup request. An absent or unusable `lookbackDays` scans all
+ * history, which is what the CLI does; only a positive number narrows the window.
+ */
+export function parseDuplicateLineCleanupBody(body: unknown): {
+  dryRun: boolean;
+  lookbackDays: number | null;
+} {
+  const source = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const rawLookback = source.lookbackDays;
+  const lookbackDays =
+    typeof rawLookback === 'number' && Number.isFinite(rawLookback) && rawLookback > 0
+      ? Math.floor(rawLookback)
+      : null;
+  return { dryRun: source.dryRun === true, lookbackDays };
+}
+
 export function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
   if (!cachePath || !existsSync(cachePath)) return null;
   try {

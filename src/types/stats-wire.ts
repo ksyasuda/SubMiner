@@ -82,6 +82,29 @@ export interface StatsExcludedWord {
   reading: string;
 }
 
+/** One animation burst the duplicate-line cleanup found in the stats database. */
+export interface StatsDuplicateLineSample {
+  videoId: number;
+  videoTitle: string | null;
+  text: string;
+  /** Events recorded for this run, including the one that is kept. */
+  frames: number;
+  removedLines: number;
+  startMs: number;
+  endMs: number;
+}
+
+export interface StatsDuplicateLineCleanupResult {
+  dryRun: boolean;
+  lookbackDays: number | null;
+  scannedLines: number;
+  burstGroups: number;
+  removedLines: number;
+  removedWordOccurrences: number;
+  removedKanjiOccurrences: number;
+  samples: StatsDuplicateLineSample[];
+}
+
 export interface StatsCoverImage {
   contentType: string;
   dataUrl: string;
