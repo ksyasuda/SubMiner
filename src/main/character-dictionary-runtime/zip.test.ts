@@ -129,9 +129,19 @@ test('readDictionaryZipRevision reads the built revision and rejects foreign arc
     assert.equal(readDictionaryZipRevision(zipPath), 'rev-42');
     assert.equal(readDictionaryZipRevision(path.join(dir, 'missing.zip')), null);
 
+    const archive = fs.readFileSync(zipPath);
     const truncatedPath = path.join(dir, 'truncated.zip');
-    fs.writeFileSync(truncatedPath, fs.readFileSync(zipPath).subarray(0, 40));
+    fs.writeFileSync(truncatedPath, archive.subarray(0, 40));
     assert.equal(readDictionaryZipRevision(truncatedPath), null);
+
+    // An archive cut short after index.json still holds a readable revision, but importing it
+    // would hand Yomitan a half-written file: the missing end-of-central-directory record has to
+    // reject it. One byte off the end is enough to make the record incomplete.
+    for (const missingBytes of [1, 22, archive.length - 200]) {
+      const cutPath = path.join(dir, `cut-${missingBytes}.zip`);
+      fs.writeFileSync(cutPath, archive.subarray(0, archive.length - missingBytes));
+      assert.equal(readDictionaryZipRevision(cutPath), null, `cut of ${missingBytes} bytes`);
+    }
 
     const foreignPath = path.join(dir, 'foreign.zip');
     fs.writeFileSync(foreignPath, Buffer.from('not a zip at all', 'utf8'));

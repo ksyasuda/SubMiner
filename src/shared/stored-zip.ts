@@ -150,12 +150,43 @@ function createEndOfCentralDirectory(
 
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const LOCAL_FILE_HEADER_SIZE = 30;
+const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
+const END_OF_CENTRAL_DIRECTORY_SIZE = 22;
+
+/**
+ * Start of the central directory, or null when the archive is not a complete one of ours. The
+ * end-of-central-directory record is written last, so finding an intact one is what separates a
+ * finished archive from a half-written one.
+ */
+function readCentralDirectoryStart(fd: number, fileSize: number): number | null {
+  if (fileSize < END_OF_CENTRAL_DIRECTORY_SIZE) {
+    return null;
+  }
+  const end = Buffer.alloc(END_OF_CENTRAL_DIRECTORY_SIZE);
+  const endOffset = fileSize - END_OF_CENTRAL_DIRECTORY_SIZE;
+  if (fs.readSync(fd, end, 0, end.length, endOffset) !== end.length) {
+    return null;
+  }
+  // writeStoredZip never writes an archive comment, so the record is exactly the last 22 bytes.
+  if (end.readUInt32LE(0) !== END_OF_CENTRAL_DIRECTORY_SIGNATURE || end.readUInt16LE(20) !== 0) {
+    return null;
+  }
+  if (end.readUInt16LE(10) === 0) {
+    return null;
+  }
+  const centralSize = end.readUInt32LE(12);
+  const centralStart = end.readUInt32LE(16);
+  if (centralStart + centralSize !== endOffset) {
+    return null;
+  }
+  return centralStart;
+}
 
 /**
  * Reads the first entry of an archive written by {@link writeStoredZip}: every entry is stored
  * uncompressed with no extra field and no data descriptor, so the leading local header is enough.
- * Returns null for anything it does not recognize, so callers treat a corrupt or foreign archive
- * the same as a missing one.
+ * Returns null for anything it does not recognize, so callers treat a corrupt, truncated, or
+ * foreign archive the same as a missing one.
  */
 export function readStoredZipFirstFile(zipPath: string): StoredZipFile | null {
   let fd: number;
@@ -167,6 +198,10 @@ export function readStoredZipFirstFile(zipPath: string): StoredZipFile | null {
 
   try {
     const fileSize = fs.fstatSync(fd).size;
+    const centralStart = readCentralDirectoryStart(fd, fileSize);
+    if (centralStart === null) {
+      return null;
+    }
     const header = Buffer.alloc(LOCAL_FILE_HEADER_SIZE);
     if (fs.readSync(fd, header, 0, header.length, 0) !== header.length) {
       return null;
@@ -182,7 +217,7 @@ export function readStoredZipFirstFile(zipPath: string): StoredZipFile | null {
     const nameLength = header.readUInt16LE(26);
     const extraLength = header.readUInt16LE(28);
     const dataOffset = LOCAL_FILE_HEADER_SIZE + nameLength + extraLength;
-    if (dataOffset + entrySize > fileSize) {
+    if (dataOffset + entrySize > centralStart) {
       return null;
     }
     const name = Buffer.alloc(nameLength);
