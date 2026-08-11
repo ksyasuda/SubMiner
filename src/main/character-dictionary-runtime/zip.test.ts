@@ -143,6 +143,21 @@ test('readDictionaryZipRevision reads the built revision and rejects foreign arc
       assert.equal(readDictionaryZipRevision(cutPath), null, `cut of ${missingBytes} bytes`);
     }
 
+    // Same size, corrupt directory: a record overwritten in place has to be rejected too.
+    const centralStart = archive.readUInt32LE(archive.length - 22 + 16);
+    const brokenSignaturePath = path.join(dir, 'broken-signature.zip');
+    const brokenSignature = Buffer.from(archive);
+    brokenSignature.writeUInt32LE(0xdeadbeef, centralStart);
+    fs.writeFileSync(brokenSignaturePath, brokenSignature);
+    assert.equal(readDictionaryZipRevision(brokenSignaturePath), null);
+
+    const brokenLengthPath = path.join(dir, 'broken-length.zip');
+    const brokenLength = Buffer.from(archive);
+    // Name length that runs the walk past the end of the directory.
+    brokenLength.writeUInt16LE(0xffff, centralStart + 28);
+    fs.writeFileSync(brokenLengthPath, brokenLength);
+    assert.equal(readDictionaryZipRevision(brokenLengthPath), null);
+
     const foreignPath = path.join(dir, 'foreign.zip');
     fs.writeFileSync(foreignPath, Buffer.from('not a zip at all', 'utf8'));
     assert.equal(readDictionaryZipRevision(foreignPath), null);
