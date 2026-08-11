@@ -51,6 +51,13 @@ function findButton(container: Element, label: string): HTMLButtonElement {
   return match as unknown as HTMLButtonElement;
 }
 
+/** The backdrop stays clickable during an apply, so it reaches the guard in `close`. */
+function findBackdrop(container: Element): HTMLButtonElement {
+  const match = container.querySelector('button[aria-label="Close duplicate line cleanup"]');
+  assert.ok(match, 'expected the backdrop close button');
+  return match as unknown as HTMLButtonElement;
+}
+
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {
@@ -181,8 +188,10 @@ test('closing is refused while an apply is in flight', async () => {
       findButton(harness.container, 'Clean Up').click();
     });
 
+    assert.equal(findButton(harness.container, 'Close').disabled, true);
+    // The backdrop is never disabled, so this is the path that has to be refused.
     await act(async () => {
-      findButton(harness.container, 'Close').click();
+      findBackdrop(harness.container).click();
     });
     assert.equal(harness.closedCalls(), 0, 'the modal must stay open mid-apply');
     assert.equal(harness.cleanedCalls(), 0);
