@@ -1651,9 +1651,11 @@ test('tokenizeSubtitle clears JLPT level from standalone Yomitan particle token'
   assert.equal(result.tokens?.[0]?.jlptLevel, undefined);
 });
 
-test('tokenizeSubtitle returns null tokens for empty normalized text', async () => {
+test('tokenizeSubtitle returns the normalized text when it comes out empty', async () => {
+  // Handing back the original would push whatever normalization dropped into app state
+  // as if it were subtitle text.
   const result = await tokenizeSubtitle(' \\n  ', makeDeps());
-  assert.deepEqual(result, { text: ' \\n  ', tokens: null });
+  assert.deepEqual(result, { text: '', tokens: null });
 });
 
 test('tokenizeSubtitle normalizes newlines before Yomitan parse request', async () => {
