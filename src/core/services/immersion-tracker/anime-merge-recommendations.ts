@@ -66,7 +66,7 @@ export function hasExactStoredTitleMatch(
     conflict.canonical_title,
   ]
     .filter((title): title is string => Boolean(title?.trim()))
-    .map(normalizeAnimeIdentityKey)
+    .map((title) => normalizeAnimeIdentityKey(stripSeasonIdentitySuffix(title)))
     .filter(Boolean);
   return targetKeys.some((key) => anilistTitleKeys.includes(key));
 }

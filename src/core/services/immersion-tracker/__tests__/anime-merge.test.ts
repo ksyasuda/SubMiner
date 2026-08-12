@@ -560,6 +560,35 @@ test('resolveAnimeAnilistConflict leaves explicit incompatible seasons and assig
   });
 });
 
+test('manual AniList resolution reassigns across explicit seasons without merging them', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'show season 1',
+      title: 'Show Season 1',
+      anilistId: 163132,
+      titleRomaji: 'Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'show season 2', title: 'Show Season 2' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 2 });
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132, { survivor: 'target' });
+
+    assert.equal(summary.anilistAssignmentBlocked, false);
+    assert.deepEqual(animeIds(db), [1, 2]);
+    const assignments = db
+      .prepare(
+        'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
+      )
+      .all() as Array<{ animeId: number; anilistId: number | null }>;
+    assert.deepEqual(assignments, [
+      { animeId: 1, anilistId: null },
+      { animeId: 2, anilistId: 163132 },
+    ]);
+  });
+});
+
 test('automatic AniList update does not transfer an assignment across explicit seasons', () => {
   withDb((db) => {
     insertAnime(db, {
@@ -593,6 +622,55 @@ test('automatic AniList update does not transfer an assignment across explicit s
     ]);
     assert.equal(videoAnimeId(db, 1), 1);
     assert.equal(videoAnimeId(db, 2), 2);
+  });
+});
+
+test('automatic AniList update with unknown match confidence validates stored titles', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    updateAnimeAnilistInfo(db, 2, {
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+      titleEnglish: null,
+      titleNative: null,
+      episodesTotal: 12,
+    });
+
+    assert.deepEqual(animeIds(db), [1, 2]);
+    assert.equal(videoAnimeId(db, 2), 2);
+    assert.deepEqual(getAnimeMergeRecommendations(db), [{ recommendationId: 1, animeIds: [1, 2] }]);
+  });
+});
+
+test('stored AniList titles ignore season suffixes when validating an automatic merge', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'legacy show',
+      title: 'Show Season 1',
+      anilistId: 163132,
+      titleRomaji: 'Show Season 1',
+    });
+    insertAnime(db, { animeId: 2, key: 'show season 1', title: 'Show Season 1' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132);
+
+    assert.equal(summary.deletedAnimeRows, 1);
+    assert.deepEqual(animeIds(db), [1]);
+    assert.equal(videoAnimeId(db, 2), 1);
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
   });
 });
 

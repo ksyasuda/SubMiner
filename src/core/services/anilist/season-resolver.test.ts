@@ -156,6 +156,18 @@ test('season 1 resolves to the anchor without relation lookups', async () => {
   assert.deepEqual(relationLookups, []);
 });
 
+test('season 2 preserves the anchor exact-title evidence through a sequel resolution', async () => {
+  const { execute } = createExecutor(OREGAIRU_SEARCH, OREGAIRU_RELATIONS);
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'My Teen Romantic Comedy SNAFU', season: 2, episode: 1 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 20698);
+  assert.equal(result?.via, 'sequel-chain');
+  assert.equal(result?.exactTitleMatch, true);
+});
+
 test('reports an exact normalized synonym match as strong evidence', async () => {
   const { execute } = createExecutor([
     {

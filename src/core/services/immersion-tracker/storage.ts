@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseMediaInfo } from '../../../jimaku/utils';
+import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
 import { SCHEMA_VERSION } from './types';
@@ -319,14 +320,7 @@ export function applyPragmas(db: DatabaseSync): void {
   db.exec(`PRAGMA journal_size_limit = ${WAL_JOURNAL_SIZE_LIMIT_BYTES}`);
 }
 
-export function normalizeAnimeIdentityKey(title: string): string {
-  return title
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
+export const normalizeAnimeIdentityKey = normalizeTitleIdentity;
 
 function normalizeSeasonScope(value: number | null | undefined): number | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {

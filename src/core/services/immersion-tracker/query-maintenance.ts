@@ -427,7 +427,8 @@ export function updateAnimeAnilistInfo(
   if (!row?.anime_id) return;
 
   const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId, {
-    matchConfidence: info.exactTitleMatch === false ? 'weak' : 'exact',
+    matchConfidence:
+      info.exactTitleMatch === true ? 'exact' : info.exactTitleMatch === false ? 'weak' : undefined,
   });
   if (repair.mergeRecommended || repair.anilistAssignmentBlocked) return;
   const targetRow = db

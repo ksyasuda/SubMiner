@@ -9,6 +9,8 @@
  * reports `seasonResolved: false` so callers can refuse to act instead of guessing.
  */
 
+import { normalizeTitleIdentity } from '../../utils/title-normalization';
+
 export interface AnilistSeasonMediaTitle {
   romaji?: string | null;
   english?: string | null;
@@ -117,15 +119,6 @@ const SEASONAL_FORMAT_PRIORITY = ['TV', 'TV_SHORT', 'ONA'];
 
 const MAX_SEQUEL_HOPS = 12;
 
-function normalizeTitle(value: string): string {
-  return value
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
-
 /**
  * Drops season markers a release name carries but AniList titles never do,
  * so "Some Show Season 3" and "Some Show S3" both search as "Some Show".
@@ -143,7 +136,7 @@ function mediaTitles(media: AnilistSeasonMedia): string[] {
   const synonyms = Array.isArray(media.synonyms) ? media.synonyms : [];
   return [media.title?.english, media.title?.romaji, media.title?.native, ...synonyms]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .map((value) => normalizeTitle(value));
+    .map((value) => normalizeTitleIdentity(value));
 }
 
 function displayTitle(media: AnilistSeasonMedia, fallback: string): string {
@@ -218,9 +211,10 @@ export function pickAnchorMedia(
       : media;
   const pool = episodeFiltered.length > 0 ? episodeFiltered : media;
 
-  const targets = [normalizeTitle(title), normalizeTitle(stripSeasonSuffix(title))].filter(
-    (value, index, all) => value.length > 0 && all.indexOf(value) === index,
-  );
+  const targets = [
+    normalizeTitleIdentity(title),
+    normalizeTitleIdentity(stripSeasonSuffix(title)),
+  ].filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
 
   const scored = pool.map((entry, index) => {
     const candidateTitles = mediaTitles(entry);
@@ -376,7 +370,7 @@ export async function resolveAnilistSeasonMedia(
     episode: season === null || season <= 1 ? input.episode : null,
   });
   if (!anchor) return null;
-  const exactTitleMatch = mediaTitles(anchor).includes(normalizeTitle(searchTitle));
+  const exactTitleMatch = mediaTitles(anchor).includes(normalizeTitleIdentity(searchTitle));
 
   if (season === null || season <= 1) {
     return toResolution(anchor, searchTitle, season, 'anchor', true, exactTitleMatch);

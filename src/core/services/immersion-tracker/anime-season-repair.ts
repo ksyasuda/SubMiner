@@ -392,6 +392,7 @@ export function resolveAnimeAnilistConflict(
     const targetSeasons = getParsedSeasonsForAnime(db, targetAnimeId);
     const conflictSeasons = getParsedSeasonsForAnime(db, conflict.animeId);
     if (
+      !isManual &&
       targetSeasons.size === 1 &&
       conflictSeasons.size === 1 &&
       [...targetSeasons][0] !== [...conflictSeasons][0]
