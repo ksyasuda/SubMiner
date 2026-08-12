@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { writeStoredZip } from '../../shared/stored-zip';
+import { readStoredZipFirstFile, writeStoredZip } from '../../shared/stored-zip';
 import { ensureDir } from './fs-utils';
 import type { CharacterDictionarySnapshotImage, CharacterDictionaryTermEntry } from './types';
 
@@ -29,6 +29,23 @@ function createTagBank(): Array<[string, string, number, string, number]> {
     ['side', 'name', 0, 'Side character', 0],
     ['appears', 'name', 0, 'Minor appearance', 0],
   ];
+}
+
+/**
+ * Revision recorded inside a built dictionary ZIP, or null when the archive is missing, truncated,
+ * or not one of ours. `index.json` is always the first entry written by {@link buildDictionaryZip}.
+ */
+export function readDictionaryZipRevision(zipPath: string): string | null {
+  const firstFile = readStoredZipFirstFile(zipPath);
+  if (!firstFile || firstFile.name !== 'index.json') {
+    return null;
+  }
+  try {
+    const index = JSON.parse(firstFile.data.toString('utf8')) as { revision?: unknown };
+    return typeof index.revision === 'string' && index.revision.length > 0 ? index.revision : null;
+  } catch {
+    return null;
+  }
 }
 
 export function buildDictionaryZip(

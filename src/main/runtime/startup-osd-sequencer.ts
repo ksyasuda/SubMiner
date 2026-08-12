@@ -10,7 +10,7 @@ export interface StartupOsdSequencerDeps {
   getNotificationType?: () => NotificationType | undefined;
   showOsd: (message: string) => boolean | void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
-  showDesktopNotification?: (title: string, options: { body?: string }) => void;
+  showDesktopNotification?: (title: string, options: { body?: string; replaceId?: string }) => void;
 }
 
 interface StartupStatusNotificationOptions {
@@ -62,7 +62,11 @@ export function createStartupOsdSequencer(deps: StartupOsdSequencerDeps): {
       shown = deps.showOsd(options.message) !== false || shown;
     }
     if (options.desktop !== false && shouldShowDesktop(type)) {
-      deps.showDesktopNotification?.('SubMiner', { body: options.message });
+      // Each startup lane keeps one live desktop notification instead of one per update.
+      deps.showDesktopNotification?.('SubMiner', {
+        body: options.message,
+        replaceId: options.id,
+      });
       shown = true;
     }
     return shown;

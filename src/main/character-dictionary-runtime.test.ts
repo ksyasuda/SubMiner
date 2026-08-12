@@ -1903,7 +1903,7 @@ test('generateForCurrentMedia logs progress while resolving and rebuilding snaps
       '[dictionary] current anime guess: The Eminence in Shadow (episode 5)',
       '[dictionary] AniList match: The Eminence in Shadow -> AniList 130298',
       '[dictionary] snapshot miss for AniList 130298, fetching characters',
-      '[dictionary] downloaded AniList character page 1 for AniList 130298',
+      '[dictionary] downloaded AniList character page 1 for AniList 130298 (1 characters)',
       '[dictionary] downloading 1 images for AniList 130298',
       '[dictionary] stored snapshot for AniList 130298: 16 terms',
       '[dictionary] building ZIP for AniList 130298',

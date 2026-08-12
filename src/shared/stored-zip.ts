@@ -148,6 +148,145 @@ function createEndOfCentralDirectory(
   return end;
 }
 
+const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
+const LOCAL_FILE_HEADER_SIZE = 30;
+const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
+const END_OF_CENTRAL_DIRECTORY_SIZE = 22;
+const CENTRAL_FILE_HEADER_SIGNATURE = 0x02014b50;
+const CENTRAL_FILE_HEADER_SIZE = 46;
+// 65535 entries with names of a few dozen bytes stay far under this; the cap only stops a corrupt
+// record length from asking for an allocation the size of the archive.
+const MAX_CENTRAL_DIRECTORY_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Walks every declared central-directory record, checking each signature and keeping the
+ * variable-length name/extra/comment fields inside the directory. The walk has to land exactly on
+ * the end of the directory, so a record that was overwritten in place fails even though the file
+ * kept its size.
+ */
+function isCentralDirectoryIntact(
+  fd: number,
+  centralStart: number,
+  centralSize: number,
+  entryCount: number,
+): boolean {
+  if (centralSize === 0 || centralSize > MAX_CENTRAL_DIRECTORY_BYTES) {
+    return false;
+  }
+  const central = Buffer.alloc(centralSize);
+  if (fs.readSync(fd, central, 0, centralSize, centralStart) !== centralSize) {
+    return false;
+  }
+
+  let cursor = 0;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (cursor + CENTRAL_FILE_HEADER_SIZE > centralSize) {
+      return false;
+    }
+    if (central.readUInt32LE(cursor) !== CENTRAL_FILE_HEADER_SIGNATURE) {
+      return false;
+    }
+    const nameLength = central.readUInt16LE(cursor + 28);
+    const extraLength = central.readUInt16LE(cursor + 30);
+    const commentLength = central.readUInt16LE(cursor + 32);
+    cursor += CENTRAL_FILE_HEADER_SIZE + nameLength + extraLength + commentLength;
+    if (cursor > centralSize) {
+      return false;
+    }
+  }
+  return cursor === centralSize;
+}
+
+/**
+ * Start of the central directory, or null when the archive is not a complete one of ours. The
+ * end-of-central-directory record is written last, so finding an intact one is what separates a
+ * finished archive from a half-written one.
+ */
+function readCentralDirectoryStart(fd: number, fileSize: number): number | null {
+  if (fileSize < END_OF_CENTRAL_DIRECTORY_SIZE) {
+    return null;
+  }
+  const end = Buffer.alloc(END_OF_CENTRAL_DIRECTORY_SIZE);
+  const endOffset = fileSize - END_OF_CENTRAL_DIRECTORY_SIZE;
+  if (fs.readSync(fd, end, 0, end.length, endOffset) !== end.length) {
+    return null;
+  }
+  // writeStoredZip never writes an archive comment, so the record is exactly the last 22 bytes.
+  if (end.readUInt32LE(0) !== END_OF_CENTRAL_DIRECTORY_SIGNATURE || end.readUInt16LE(20) !== 0) {
+    return null;
+  }
+  const entryCount = end.readUInt16LE(10);
+  if (entryCount === 0) {
+    return null;
+  }
+  const centralSize = end.readUInt32LE(12);
+  const centralStart = end.readUInt32LE(16);
+  if (centralStart + centralSize !== endOffset) {
+    return null;
+  }
+  if (!isCentralDirectoryIntact(fd, centralStart, centralSize, entryCount)) {
+    return null;
+  }
+  return centralStart;
+}
+
+/**
+ * Reads the first entry of an archive written by {@link writeStoredZip}: every entry is stored
+ * uncompressed with no extra field and no data descriptor, so the leading local header is enough.
+ * Returns null for anything it does not recognize, so callers treat a corrupt, truncated, or
+ * foreign archive the same as a missing one.
+ */
+export function readStoredZipFirstFile(zipPath: string): StoredZipFile | null {
+  let fd: number;
+  try {
+    fd = fs.openSync(zipPath, 'r');
+  } catch {
+    return null;
+  }
+
+  try {
+    const fileSize = fs.fstatSync(fd).size;
+    const centralStart = readCentralDirectoryStart(fd, fileSize);
+    if (centralStart === null) {
+      return null;
+    }
+    const header = Buffer.alloc(LOCAL_FILE_HEADER_SIZE);
+    if (fs.readSync(fd, header, 0, header.length, 0) !== header.length) {
+      return null;
+    }
+    if (header.readUInt32LE(0) !== LOCAL_FILE_HEADER_SIGNATURE) {
+      return null;
+    }
+    // Compression method 0 (stored) is the only thing writeStoredZip emits.
+    if (header.readUInt16LE(8) !== 0) {
+      return null;
+    }
+    const entrySize = header.readUInt32LE(18);
+    const nameLength = header.readUInt16LE(26);
+    const extraLength = header.readUInt16LE(28);
+    const dataOffset = LOCAL_FILE_HEADER_SIZE + nameLength + extraLength;
+    if (dataOffset + entrySize > centralStart) {
+      return null;
+    }
+    const name = Buffer.alloc(nameLength);
+    if (
+      nameLength > 0 &&
+      fs.readSync(fd, name, 0, nameLength, LOCAL_FILE_HEADER_SIZE) !== nameLength
+    ) {
+      return null;
+    }
+    const data = Buffer.alloc(entrySize);
+    if (entrySize > 0 && fs.readSync(fd, data, 0, entrySize, dataOffset) !== entrySize) {
+      return null;
+    }
+    return { name: name.toString('utf8'), data };
+  } catch {
+    return null;
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 function writeBuffer(fd: number, buffer: Buffer): void {
   let written = 0;
   while (written < buffer.length) {

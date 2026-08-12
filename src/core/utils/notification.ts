@@ -52,9 +52,15 @@ function resolveRuntimeDefaultNotificationIconPath(): string | null {
   });
 }
 
+/**
+ * Live notifications keyed by `replaceId`. Electron exposes no native "replace this notification"
+ * flag, so a repeated status closes its predecessor instead of stacking a fresh toast per update.
+ */
+const notificationsByReplaceId = new Map<string, Electron.Notification>();
+
 export function showDesktopNotification(
   title: string,
-  options: { body?: string; icon?: string },
+  options: { body?: string; icon?: string; replaceId?: string },
 ): void {
   const notificationOptions: {
     title: string;
@@ -98,5 +104,15 @@ export function showDesktopNotification(
   }
 
   const notification = new Notification(notificationOptions);
+  const replaceId = options.replaceId?.trim();
+  if (replaceId) {
+    notificationsByReplaceId.get(replaceId)?.close();
+    notificationsByReplaceId.set(replaceId, notification);
+    notification.once('close', () => {
+      if (notificationsByReplaceId.get(replaceId) === notification) {
+        notificationsByReplaceId.delete(replaceId);
+      }
+    });
+  }
   notification.show();
 }

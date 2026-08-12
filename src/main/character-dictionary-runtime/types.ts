@@ -122,9 +122,24 @@ export type CharacterDictionarySnapshotProgress = {
   mediaTitle: string;
 };
 
+export type CharacterDictionarySnapshotStage = 'characters' | 'images' | 'names' | 'saving';
+
+/**
+ * Fine-grained generation progress. `total` is null while the work size is still unknown (AniList
+ * paginates characters, so the character count only settles on the last page).
+ */
+export type CharacterDictionarySnapshotStageProgress = CharacterDictionarySnapshotProgress & {
+  stage: CharacterDictionarySnapshotStage;
+  completed: number;
+  total: number | null;
+  /** AniList page currently being downloaded; only set during the `characters` stage. */
+  page?: number;
+};
+
 export type CharacterDictionarySnapshotProgressCallbacks = {
   onChecking?: (progress: CharacterDictionarySnapshotProgress) => void;
   onGenerating?: (progress: CharacterDictionarySnapshotProgress) => void;
+  onGenerateProgress?: (progress: CharacterDictionarySnapshotStageProgress) => void;
 };
 
 export type MergedCharacterDictionaryBuildResult = {
