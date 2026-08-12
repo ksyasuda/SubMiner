@@ -44,6 +44,10 @@ import {
   resolveDefaultLogFilePath,
   type LogRotation,
 } from './shared/log-files';
+import {
+  resolveX11ElectronRelaunchArgs,
+  X11_ELECTRON_BOOTSTRAP_ENV,
+} from './core/utils/electron-backend';
 
 const DEFAULT_TEXTHOOKER_PORT = 5174;
 
@@ -69,6 +73,22 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   } else {
     delete process.env.VK_INSTANCE_LAYERS;
   }
+}
+
+function spawnDetachedApp(childArgs: string[], env: NodeJS.ProcessEnv): void {
+  const keepalive = resolveAppImageMountKeepaliveInvocation(env);
+  const child = keepalive
+    ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
+        detached: true,
+        stdio: 'ignore',
+        env,
+      })
+    : spawn(process.execPath, childArgs, {
+        detached: true,
+        stdio: 'ignore',
+        env,
+      });
+  child.unref();
 }
 
 function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
@@ -296,22 +316,22 @@ async function runEntryProcess(): Promise<void> {
     return;
   }
 
+  const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
+  const x11ChildArgs = resolveX11ElectronRelaunchArgs(childArgs, process.env);
+
   if (shouldDetachBackgroundLaunch(process.argv, process.env)) {
-    const childArgs = hasTransportedStartupArgs(process.env) ? [] : process.argv.slice(1);
-    const keepalive = resolveAppImageMountKeepaliveInvocation(process.env);
-    const child = keepalive
-      ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
-          detached: true,
-          stdio: 'ignore',
-          env: sanitizeBackgroundEnv(process.env),
-        })
-      : spawn(process.execPath, childArgs, {
-          detached: true,
-          stdio: 'ignore',
-          env: sanitizeBackgroundEnv(process.env),
-        });
-    child.unref();
+    const childEnv = sanitizeBackgroundEnv(process.env);
+    if (x11ChildArgs) childEnv[X11_ELECTRON_BOOTSTRAP_ENV] = '1';
+    spawnDetachedApp(x11ChildArgs ?? childArgs, childEnv);
     // Let Electron stop bootstrap Chromium children before its AppImage mount is released.
+    exitBackgroundBootstrap(app);
+    return;
+  }
+
+  if (x11ChildArgs) {
+    const childEnv = sanitizeStartupEnv(process.env);
+    childEnv[X11_ELECTRON_BOOTSTRAP_ENV] = '1';
+    spawnDetachedApp(x11ChildArgs, childEnv);
     exitBackgroundBootstrap(app);
     return;
   }

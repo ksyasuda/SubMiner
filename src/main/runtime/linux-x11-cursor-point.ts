@@ -36,11 +36,13 @@ export function createLinuxX11CursorPointReader(options?: {
   now?: () => number;
   platform?: NodeJS.Platform;
   runCommand?: CommandRunner;
+  screenToDipPoint?: (point: PointerPoint) => PointerPoint;
 }) {
   const env = options?.env ?? process.env;
   const now = options?.now ?? (() => Date.now());
   const platform = options?.platform ?? process.platform;
   const runCommand = options?.runCommand ?? execFileUtf8;
+  const screenToDipPoint = options?.screenToDipPoint ?? ((point: PointerPoint) => point);
   let latest: { point: PointerPoint; updatedAtMs: number } | null = null;
   let inFlight = false;
   let retryAfterMs = 0;
@@ -63,7 +65,7 @@ export function createLinuxX11CursorPointReader(options?: {
           retryAfterMs = now() + COMMAND_FAILURE_RETRY_DELAY_MS;
           return;
         }
-        latest = { point, updatedAtMs: now() };
+        latest = { point: screenToDipPoint(point), updatedAtMs: now() };
         retryAfterMs = 0;
       })
       .catch(() => {

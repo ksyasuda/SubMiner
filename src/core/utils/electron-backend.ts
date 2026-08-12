@@ -4,6 +4,9 @@ import { isSupportedWaylandCompositor } from '../../shared/mpv-x11-backend';
 
 const logger = createLogger('core:electron-backend');
 
+export const X11_ELECTRON_BOOTSTRAP_ENV = 'SUBMINER_X11_BOOTSTRAPPED';
+const X11_ELECTRON_OZONE_ARG = '--ozone-platform=x11';
+
 function getElectronOzonePlatformHint(env: NodeJS.ProcessEnv = process.env): string | null {
   const hint = env.ELECTRON_OZONE_PLATFORM_HINT?.trim().toLowerCase();
   if (hint) return hint;
@@ -24,9 +27,40 @@ function getElectronOzonePlatformHint(env: NodeJS.ProcessEnv = process.env): str
  * Electron Wayland backend is unsupported); the Hyprland/Sway case is left untouched so
  * {@link enforceUnsupportedWaylandMode} can report it.
  */
-export function shouldForceX11ElectronBackend(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (process.platform !== 'linux') return false;
+export function shouldForceX11ElectronBackend(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform !== 'linux') return false;
   return !isSupportedWaylandCompositor(env);
+}
+
+export function resolveX11ElectronRelaunchArgs(
+  args: string[],
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string[] | null {
+  if (!shouldForceX11ElectronBackend(env, platform)) return null;
+  if (env[X11_ELECTRON_BOOTSTRAP_ENV] === '1') return null;
+
+  const retainedArgs: string[] = [];
+  let alreadyForced = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--ozone-platform') {
+      const value = args[index + 1];
+      alreadyForced = value?.trim().toLowerCase() === 'x11';
+      if (value && !value.startsWith('--')) index += 1;
+      continue;
+    }
+    if (arg?.startsWith('--ozone-platform=')) {
+      alreadyForced = arg.slice('--ozone-platform='.length).trim().toLowerCase() === 'x11';
+      continue;
+    }
+    if (arg) retainedArgs.push(arg);
+  }
+
+  return alreadyForced ? null : [...retainedArgs, X11_ELECTRON_OZONE_ARG];
 }
 
 export function forceX11Backend(args: CliArgs): void {

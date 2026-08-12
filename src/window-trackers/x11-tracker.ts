@@ -20,6 +20,9 @@ import { execFile } from 'child_process';
 import { BaseWindowTracker } from './base-tracker';
 
 type CommandRunner = (command: string, args: string[]) => Promise<string>;
+export type ScreenToDipPoint = (point: { x: number; y: number }) => { x: number; y: number };
+
+const preservePoint: ScreenToDipPoint = (point) => point;
 
 function execFileUtf8(command: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -87,16 +90,22 @@ export class X11WindowTracker extends BaseWindowTracker {
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private readonly targetMpvSocketPath: string | null;
   private readonly runCommand: CommandRunner;
+  private readonly screenToDipPoint: ScreenToDipPoint;
   private targetWindowId: string | null = null;
   private targetWindowPid: number | null = null;
   private pollInFlight = false;
   private currentPollIntervalMs = 750;
   private readonly stablePollIntervalMs = 250;
 
-  constructor(targetMpvSocketPath?: string, runCommand: CommandRunner = execFileUtf8) {
+  constructor(
+    targetMpvSocketPath?: string,
+    runCommand: CommandRunner = execFileUtf8,
+    screenToDipPoint: ScreenToDipPoint = preservePoint,
+  ) {
     super();
     this.targetMpvSocketPath = targetMpvSocketPath?.trim() || null;
     this.runCommand = runCommand;
+    this.screenToDipPoint = screenToDipPoint;
   }
 
   start(): void {
@@ -196,11 +205,25 @@ export class X11WindowTracker extends BaseWindowTracker {
     this.targetWindowPid = targetPid;
 
     const winInfo = await this.runCommand('xwininfo', ['-id', windowId]);
-    const geometry = parseX11WindowGeometry(winInfo);
-    if (!geometry) {
+    const physicalGeometry = parseX11WindowGeometry(winInfo);
+    if (!physicalGeometry) {
       this.updateGeometry(null);
       return;
     }
+    const topLeft = this.screenToDipPoint({
+      x: physicalGeometry.x,
+      y: physicalGeometry.y,
+    });
+    const bottomRight = this.screenToDipPoint({
+      x: physicalGeometry.x + physicalGeometry.width,
+      y: physicalGeometry.y + physicalGeometry.height,
+    });
+    const geometry = {
+      x: topLeft.x,
+      y: topLeft.y,
+      width: bottomRight.x - topLeft.x,
+      height: bottomRight.y - topLeft.y,
+    };
 
     const focused = await this.isWindowActive(windowId, targetPid);
     this.updateGeometry(geometry, focused);

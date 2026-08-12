@@ -20,6 +20,7 @@ import { BaseWindowTracker } from './base-tracker';
 import { HyprlandWindowTracker } from './hyprland-tracker';
 import { SwayWindowTracker } from './sway-tracker';
 import { X11WindowTracker } from './x11-tracker';
+import type { ScreenToDipPoint } from './x11-tracker';
 import { MacOSWindowTracker } from './macos-tracker';
 import { WindowsWindowTracker } from './windows-tracker';
 import { createLogger } from '../logger';
@@ -51,6 +52,7 @@ function normalizeCompositor(value: string): Compositor | null {
 export function createWindowTracker(
   override?: string | null,
   targetMpvSocketPath?: string | null,
+  screenToDipPoint?: ScreenToDipPoint,
 ): BaseWindowTracker | null {
   let compositor = detectCompositor();
 
@@ -70,7 +72,11 @@ export function createWindowTracker(
     case 'sway':
       return new SwayWindowTracker(targetMpvSocketPath?.trim() || undefined);
     case 'x11':
-      return new X11WindowTracker(targetMpvSocketPath?.trim() || undefined);
+      return new X11WindowTracker(
+        targetMpvSocketPath?.trim() || undefined,
+        undefined,
+        screenToDipPoint,
+      );
     case 'macos':
       return new MacOSWindowTracker(targetMpvSocketPath?.trim() || undefined);
     case 'windows':
