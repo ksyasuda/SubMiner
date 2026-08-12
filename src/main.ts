@@ -256,7 +256,6 @@ import {
 import {
   enforceUnsupportedWaylandMode,
   forceX11Backend,
-  shouldForceX11ElectronBackend,
   generateDefaultConfigFile,
   resolveConfiguredShortcuts,
   resolveKeybindings,
@@ -597,15 +596,6 @@ if (process.platform === 'linux') {
   );
   app.commandLine.appendSwitch('password-store', passwordStore);
   createLogger('main').debug(`Applied --password-store ${passwordStore}`);
-  // Pin the overlay to XWayland on unsupported Wayland sessions (everything except
-  // Hyprland/Sway). `setAlwaysOnTop`/`moveTop` are no-ops under a native Wayland surface,
-  // so the overlay can only stay above mpv under X11/XWayland. The command-line switch is
-  // applied at module load (before app init) so it reliably wins over the late env-var
-  // fallback in forceX11Backend().
-  if (shouldForceX11ElectronBackend(process.env)) {
-    app.commandLine.appendSwitch('ozone-platform-hint', 'x11');
-    createLogger('main').debug('Forced ozone-platform-hint=x11 for XWayland overlay stacking');
-  }
 }
 
 app.setName('SubMiner');

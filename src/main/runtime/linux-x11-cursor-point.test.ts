@@ -47,6 +47,29 @@ WINDOW=44040194
   assert.deepEqual(reader.getCursorScreenPoint({ x: 877, y: 718 }), { x: 1700, y: 1050 });
 });
 
+test('createLinuxX11CursorPointReader converts physical X11 coordinates to Electron DIP', async () => {
+  const convertedPoints: Array<{ x: number; y: number }> = [];
+  const reader = createLinuxX11CursorPointReader({
+    env: { DISPLAY: ':1' },
+    platform: 'linux',
+    runCommand: async () => `X=1424
+Y=697
+SCREEN=0
+WINDOW=44040194
+`,
+    screenToDipPoint: (point) => {
+      convertedPoints.push(point);
+      return { x: 1139, y: 557 };
+    },
+  });
+
+  reader.refresh();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(reader.getCursorScreenPoint({ x: 0, y: 0 }), { x: 1139, y: 557 });
+  assert.deepEqual(convertedPoints, [{ x: 1424, y: 697 }]);
+});
+
 test('createLinuxX11CursorPointReader does not spawn off X11 Linux', () => {
   const calls: string[] = [];
   const reader = createLinuxX11CursorPointReader({

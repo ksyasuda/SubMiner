@@ -405,8 +405,9 @@ On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and othe
 
 SubMiner handles this automatically:
 
-- It launches its own window under XWayland (it sets `--ozone-platform-hint=x11`).
+- It launches its own window under XWayland (it sets `--ozone-platform=x11`).
 - Every mpv it launches (via the `subminer` launcher, Jellyfin, or YouTube) is pinned to XWayland too - Wayland environment hints are stripped and an X11 GPU context (`--gpu-context=x11vk,x11egl,x11`) is applied. Only the window context is overridden; your `vo`/`gpu-api` and user shaders are left alone.
+- Fractional and mixed-monitor display scaling is handled per screen when SubMiner maps XWayland mpv coordinates to the overlay.
 - While mpv is windowed, the overlay is a managed X11 window owned by the tracked mpv window (`WM_TRANSIENT_FOR`), so it stays above mpv while other foreground X11/Xwayland apps can still cover both windows.
 - While tracked mpv is fullscreen, SubMiner swaps the visible overlay to a focusable-false X11 override-redirect window. That path can stay above the active fullscreen mpv window without requiring a KDE/KWin-specific rule, and SubMiner hides/releases it when mpv is no longer the active X11/Xwayland window.
 - The visible overlay is shown inactive on Linux, so normal hover should not steal keyboard focus from mpv.

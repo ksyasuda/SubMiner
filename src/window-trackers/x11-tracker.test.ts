@@ -82,6 +82,47 @@ Height: 360`;
   });
 });
 
+test('X11WindowTracker converts both physical rectangle corners to Electron DIP', async () => {
+  const convertedPoints: Array<{ x: number; y: number }> = [];
+  const tracker = new X11WindowTracker(
+    undefined,
+    async (command, args) => {
+      if (command === 'xdotool' && args[0] === 'search') {
+        return '123';
+      }
+      if (command === 'xdotool' && args[0] === 'getactivewindow') {
+        return '123';
+      }
+      if (command === 'xwininfo') {
+        return `Absolute upper-left X:  2000
+Absolute upper-left Y:  125
+Width: 1000
+Height: 750`;
+      }
+      return '';
+    },
+    (point) => {
+      convertedPoints.push(point);
+      if (point.x === 2000) return { x: 1600, y: 100 };
+      return { x: 2400, y: 700 };
+    },
+  );
+
+  (tracker as unknown as { pollGeometry: () => void }).pollGeometry();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(convertedPoints, [
+    { x: 2000, y: 125 },
+    { x: 3000, y: 875 },
+  ]);
+  assert.deepEqual(tracker.getGeometry(), {
+    x: 1600,
+    y: 100,
+    width: 800,
+    height: 600,
+  });
+});
+
 test('X11WindowTracker updates target focus from active X11 window', async () => {
   let activeWindowId = '999';
   const tracker = new X11WindowTracker(undefined, async (command, args) => {

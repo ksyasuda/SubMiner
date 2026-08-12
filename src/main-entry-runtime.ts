@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
+import { spawn } from 'node:child_process';
 import { CliArgs, hasExplicitCommand, parseArgs, shouldStartApp } from './cli/args';
 import { resolveConfigDir } from './config/path-resolution';
+import { resolveAppImageMountKeepaliveInvocation } from './main/appimage-mount-keepalive';
 
 const BACKGROUND_ARG = '--background';
 const START_ARG = '--start';
@@ -263,6 +265,25 @@ export function shouldDetachBackgroundLaunch(argv: string[], env: NodeJS.Process
 
 export function exitBackgroundBootstrap(app: BackgroundBootstrapAppLike): void {
   app.exit(0);
+}
+
+export function spawnDetachedApp(childArgs: string[], env: NodeJS.ProcessEnv): void {
+  const keepalive = resolveAppImageMountKeepaliveInvocation(env);
+  const child = keepalive
+    ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
+        detached: true,
+        stdio: 'ignore',
+        env,
+      })
+    : spawn(process.execPath, childArgs, {
+        detached: true,
+        stdio: 'ignore',
+        env,
+      });
+  child.once('error', (error) => {
+    console.error('Failed to spawn detached SubMiner app:', error);
+  });
+  child.unref();
 }
 
 export function shouldHandleHelpOnlyAtEntry(argv: string[], env: NodeJS.ProcessEnv): boolean {

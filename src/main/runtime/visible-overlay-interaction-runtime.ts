@@ -289,7 +289,9 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     if (initialArgs && isHeadlessInitialCommand(initialArgs)) {
       return null;
     }
-    return createWindowTrackerCore(override, targetMpvSocketPath);
+    return createWindowTrackerCore(override, targetMpvSocketPath, (point) =>
+      screen.screenToDipPoint(point),
+    );
   }
 
   function bindVisibleOverlayOwner(): void {
@@ -627,7 +629,9 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
 
   ensureWindowsVisibleOverlayForegroundPollLoop();
 
-  const linuxX11CursorPointReader = createLinuxX11CursorPointReader();
+  const linuxX11CursorPointReader = createLinuxX11CursorPointReader({
+    screenToDipPoint: (point) => screen.screenToDipPoint(point),
+  });
 
   function getLinuxOverlayPointerMeasurement() {
     const measurement = overlayContentMeasurementStore.getLatestByLayer('visible');
