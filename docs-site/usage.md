@@ -109,7 +109,7 @@ subminer app --stop               # Stop the background app
 subminer --version                # Print the launcher's version
 ```
 
-`stats cleanup` runs one mode per invocation: `-v`/`--vocab` (the default), `-l`/`--lifetime`, or `-d`/`--duplicate-lines`, and `--lifetime` cannot be combined with `--duplicate-lines`. `--dry-run` and `--lookback-days <days>` apply to `--duplicate-lines` only and are rejected without it; `--lookback-days` must be at least one day, and leaving it off scans all history.
+`stats cleanup` runs one mode per invocation: `-v`/`--vocab` (the default), `-l`/`--lifetime`, or `-d`/`--duplicate-lines`; explicitly selected modes cannot be combined. `--dry-run` and `--lookback-days <days>` apply to `--duplicate-lines` only and are rejected without it; `--lookback-days` must be at least one day, and leaving it off scans all history.
 
 Jellyfin, cross-machine sync, and character-dictionary commands have their own sections: [Jellyfin](/jellyfin-integration), [Sync Between Machines](/launcher-script#sync-between-machines), and [Character Dictionary](/character-dictionary).
 

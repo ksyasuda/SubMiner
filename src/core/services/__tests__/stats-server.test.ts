@@ -1064,6 +1064,30 @@ describe('stats server API routes', () => {
     assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 30 });
   });
 
+  it('POST /api/stats/maintenance/duplicate-lines rejects cross-origin simple requests', async () => {
+    let cleanupCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async () => {
+          cleanupCalls += 1;
+          throw new Error('cleanup must not run');
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        Origin: 'https://attacker.example',
+      },
+      body: JSON.stringify({ dryRun: false, lookbackDays: null }),
+    });
+
+    assert.equal(res.status, 415);
+    assert.equal(cleanupCalls, 0);
+  });
+
   it('POST /api/stats/maintenance/duplicate-lines rejects a window shorter than a day', async () => {
     let cleanupCalls = 0;
     const app = createStatsApp(

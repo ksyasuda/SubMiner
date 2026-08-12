@@ -316,14 +316,20 @@ export function parseCliPrograms(
           'Stats --vocab, --lifetime and --duplicate-lines flags require the cleanup action.',
         );
       }
-      if (options.duplicateLines !== true && (options.dryRun === true || options.lookbackDays)) {
+      if (
+        options.duplicateLines !== true &&
+        (options.dryRun === true || options.lookbackDays !== undefined)
+      ) {
         throw new Error('Stats --dry-run and --lookback-days require --duplicate-lines.');
       }
       if (normalizedAction === 'cleanup') {
         statsCleanup = true;
         statsCleanupLifetime = options.lifetime === true;
         statsCleanupDuplicateLines = options.duplicateLines === true;
-        if (statsCleanupLifetime && statsCleanupDuplicateLines) {
+        const explicitModeCount = [options.vocab, options.lifetime, options.duplicateLines].filter(
+          (value) => value === true,
+        ).length;
+        if (explicitModeCount > 1) {
           throw new Error('Stats cleanup runs one mode at a time.');
         }
         // Vocabulary cleanup stays the default so `stats cleanup` keeps its old meaning.
