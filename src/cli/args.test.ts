@@ -399,6 +399,28 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
   assert.equal(statsLifetimeRebuild.statsCleanupLifetime, true);
   assert.equal(statsLifetimeRebuild.statsCleanupVocab, false);
 
+  assert.throws(
+    () =>
+      parseArgs([
+        '--stats',
+        '--stats-cleanup',
+        '--stats-cleanup-duplicate-lines',
+        '--stats-cleanup-lookback-days',
+        '0.5',
+      ]),
+    /at least one day/,
+  );
+  assert.equal(
+    parseArgs([
+      '--stats',
+      '--stats-cleanup',
+      '--stats-cleanup-duplicate-lines',
+      '--stats-cleanup-lookback-days',
+      '1.5',
+    ]).statsCleanupLookbackDays,
+    1,
+  );
+
   const jellyfinLibraries = parseArgs(['--jellyfin-libraries']);
   assert.equal(jellyfinLibraries.jellyfinLibraries, true);
   assert.equal(hasExplicitCommand(jellyfinLibraries), true);

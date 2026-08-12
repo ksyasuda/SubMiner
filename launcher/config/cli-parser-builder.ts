@@ -56,12 +56,12 @@ export interface CliInvocations {
   texthookerOpenBrowser: boolean;
 }
 
-/** `--lookback-days` narrows the duplicate-line cleanup; anything unusable means no limit. */
+/** `--lookback-days` narrows the duplicate-line cleanup; fractions are floored. */
 function parseStatsLookbackDays(value: unknown): number | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null;
   const days = Number(value);
-  if (!Number.isFinite(days) || days <= 0) {
-    throw new Error('Stats --lookback-days must be a positive number of days.');
+  if (!Number.isFinite(days) || days < 1) {
+    throw new Error('Stats --lookback-days must be at least one day.');
   }
   return Math.floor(days);
 }

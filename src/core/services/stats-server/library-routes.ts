@@ -45,7 +45,9 @@ export function registerStatsLibraryRoutes(
   // the same scan without writing, so the confirmation the user sees is the real cost.
   app.post('/api/stats/maintenance/duplicate-lines', async (c) => {
     const body = await c.req.json().catch(() => null);
-    const { dryRun, lookbackDays } = parseDuplicateLineCleanupBody(body);
+    const options = parseDuplicateLineCleanupBody(body);
+    if (!options) return c.body(null, 400);
+    const { dryRun, lookbackDays } = options;
     const result = await tracker.cleanupDuplicateSubtitleLines({ dryRun, lookbackDays });
     return c.json(statsJson('duplicateLineCleanup', result));
   });

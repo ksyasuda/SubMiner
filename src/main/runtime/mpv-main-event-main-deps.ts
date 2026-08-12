@@ -169,9 +169,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     logSubtitleProcessingDebug: deps.logSubtitleProcessingDebug
       ? (message: string) => deps.logSubtitleProcessingDebug!(message)
       : undefined,
-    onSubtitleTrackChange: deps.onSubtitleTrackChange
-      ? (sid: number | null) => deps.onSubtitleTrackChange!(sid)
-      : undefined,
+    onSubtitleTrackChange: (sid: number | null) => {
+      immersionLineDedupGate.reset();
+      deps.onSubtitleTrackChange?.(sid);
+    },
     onSubtitleTrackListChange: deps.onSubtitleTrackListChange
       ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
       : undefined,
@@ -183,7 +184,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.broadcastToOverlayWindows('subtitle-ass:set', text),
     broadcastSecondarySubtitle: (text: string) =>
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
-    updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
+    updateCurrentMediaPath: (path: string) => {
+      immersionLineDedupGate.reset();
+      deps.updateCurrentMediaPath(path);
+    },
     restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
     resetSubtitleSidebarEmbeddedLayout: () => deps.resetSubtitleSidebarEmbeddedLayout?.(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),

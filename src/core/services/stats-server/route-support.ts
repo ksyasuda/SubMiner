@@ -89,22 +89,32 @@ export function parseExcludedWordsBody(body: unknown): StatsExcludedWord[] | nul
 }
 
 /**
- * Read a duplicate-line cleanup request. An absent or unusable `lookbackDays` scans all
- * history, which is what the CLI does; only a positive number narrows the window.
+ * Read a duplicate-line cleanup request. An explicit object with no lookback scans all
+ * history. Invalid bodies and invalid windows are rejected instead of broadening scope.
  */
 export function parseDuplicateLineCleanupBody(body: unknown): {
   dryRun: boolean;
   lookbackDays: number | null;
-} {
-  const source = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+} | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const source = body as Record<string, unknown>;
+  if (source.dryRun !== undefined && typeof source.dryRun !== 'boolean') {
+    return null;
+  }
   const rawLookback = source.lookbackDays;
-  // Floor before the bounds check, or a fraction of a day arrives as a zero-day window.
-  const wholeDays =
-    typeof rawLookback === 'number' && Number.isFinite(rawLookback)
-      ? Math.floor(rawLookback)
-      : null;
-  const lookbackDays = wholeDays !== null && wholeDays >= 1 ? wholeDays : null;
-  return { dryRun: source.dryRun === true, lookbackDays };
+  if (
+    rawLookback !== undefined &&
+    rawLookback !== null &&
+    (typeof rawLookback !== 'number' || !Number.isFinite(rawLookback) || rawLookback < 1)
+  ) {
+    return null;
+  }
+  return {
+    dryRun: source.dryRun === true,
+    lookbackDays: typeof rawLookback === 'number' ? Math.floor(rawLookback) : null,
+  };
 }
 
 export function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {

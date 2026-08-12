@@ -132,7 +132,7 @@ Karaoke openings and animated signs are authored as one subtitle event per anima
 Recording now collapses those runs as they happen, matching what the subtitle sidebar shows:
 
 - When the active subtitle source has been parsed, its cue list has already had duplicate events and animation bursts merged. A line landing inside a surviving cue but after that cue's start is a frame the sidebar merged away, and is not recorded.
-- Otherwise only timing is available, so the strict metadata-free rule applies: a run of identical, contiguous lines each shorter than 0.1s stops being recorded after a few frames. Ordinary repeated dialogue, and lines held for a normal beat, always record.
+- When no parsed cue covers the live timing, including while a subtitle source is changing or shifted, the strict metadata-free rule applies: a run of identical, contiguous lines each shorter than 0.1s stops being recorded after a few frames. Ordinary repeated dialogue, and lines held for a normal beat, always record.
 
 For stats recorded before this, the Vocabulary tab toolbar has a **Duplicates** button:
 

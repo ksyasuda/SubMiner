@@ -19,7 +19,7 @@ test('parsed cues drop the frames the sidebar already collapsed', () => {
   ];
   const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
 
-  const recorded = karaokeFrames('飛び上がる', 10, 40, 0.1).filter((sample) =>
+  const recorded = karaokeFrames('飛び上がる', 10, 40, 0.04).filter((sample) =>
     gate.shouldRecord(sample),
   );
 
@@ -60,12 +60,48 @@ test('parsed cues outrank the streaming heuristic for short repeated cues', () =
   assert.equal(recorded.length, 8);
 });
 
+test('parsed cues preserve legitimately separate cues only 40ms apart', () => {
+  const cues: SubtitleCue[] = Array.from({ length: 8 }, (_, index) => ({
+    startTime: 3 + index * 0.04,
+    endTime: 3 + (index + 1) * 0.04,
+    text: 'えっ',
+  }));
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
+
+  const recorded = cues.filter((cue) =>
+    gate.shouldRecord({ text: cue.text, startSec: cue.startTime, endSec: cue.endTime }),
+  );
+
+  assert.equal(recorded.length, 8);
+});
+
 test('a line whose timing does not match any cue still records', () => {
   // A shifted track, an embedded sub nobody parsed: no match, no drop.
   const cues: SubtitleCue[] = [{ startTime: 10, endTime: 14, text: '飛び上がる' }];
   const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
 
   assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 42, endSec: 44 }), true);
+});
+
+test('shifted parsed text falls back to streaming burst detection', () => {
+  const cues: SubtitleCue[] = [{ startTime: 10, endTime: 14, text: '飛び上がる' }];
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
+
+  const recorded = karaokeFrames('飛び上がる', 42, 40, 0.04).filter((sample) =>
+    gate.shouldRecord(sample),
+  );
+
+  assert.equal(recorded.length, 4);
+});
+
+test('replacing the parsed cue source forgets a streaming run', () => {
+  let cues: SubtitleCue[] = [];
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
+
+  karaokeFrames('飛び上がる', 42, 20, 0.04).forEach((sample) => gate.shouldRecord(sample));
+  cues = [];
+
+  assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 42.8, endSec: 42.84 }), true);
 });
 
 test('without parsed cues a long run of identical short frames stops recording', () => {
@@ -113,4 +149,21 @@ test('reset forgets the streaming run', () => {
   gate.reset();
 
   assert.equal(gate.shouldRecord({ text: 'もし', startSec: 0.8, endSec: 0.84 }), true);
+});
+
+test('reset ignores stale parsed cues until the source publishes a new cue list', () => {
+  let cues: SubtitleCue[] = [{ startTime: 10, endTime: 14, text: '飛び上がる' }];
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
+
+  assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 10, endSec: 10.04 }), true);
+  gate.reset();
+
+  const recordedWithStaleCues = karaokeFrames('飛び上がる', 10.04, 8, 0.04).filter((sample) =>
+    gate.shouldRecord(sample),
+  );
+  assert.equal(recordedWithStaleCues.length, 4);
+
+  cues = [{ startTime: 20, endTime: 24, text: '飛び上がる' }];
+  assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 20, endSec: 20.04 }), true);
+  assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 20.04, endSec: 20.08 }), false);
 });

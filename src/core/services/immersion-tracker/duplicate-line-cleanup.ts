@@ -12,8 +12,9 @@
  * contiguous, short-lived lines inside a single session.
  *
  * The run has to be as long as the timing-only rule in `subtitle-cue-dedup` demands, but
- * each line may be as long as the animation-frame bound rather than the much tighter
- * timing-only one. Five or more repeats of the same text, each ending where the next
+ * its short frames may be as long as the animation-frame bound rather than the much
+ * tighter timing-only one. A qualifying run may end with one longer hold, which is a
+ * common karaoke shape. Five or more repeats of the same text, each ending where the next
  * begins, is already conclusive on its own -- no dialogue does that -- and the tighter
  * bound would walk straight past the heavier typesetting that motivated this, where
  * frames sit nearer a quarter of a second. Both bounds are options, so a cautious run can
@@ -170,7 +171,19 @@ function isBurst(run: StoredSubtitleLineRow[], bounds: ResolvedBounds): boolean 
   if (run.length < bounds.minRunLength) {
     return false;
   }
-  return run.every((row) => row.endMs - row.startMs <= bounds.maxFrameMs);
+  const isShortFrame = (row: StoredSubtitleLineRow): boolean =>
+    row.endMs - row.startMs <= bounds.maxFrameMs;
+  if (run.every(isShortFrame)) {
+    return true;
+  }
+  // Karaoke commonly finishes its short animation frames with one long hold. Only the
+  // final event may exceed the frame bound, and the strict short-frame threshold must
+  // already have been met before it.
+  return (
+    run.length - 1 >= bounds.minRunLength &&
+    run.slice(0, -1).every(isShortFrame) &&
+    !isShortFrame(run[run.length - 1]!)
+  );
 }
 
 function toBurst(run: StoredSubtitleLineRow[]): DuplicateSubtitleLineBurst {

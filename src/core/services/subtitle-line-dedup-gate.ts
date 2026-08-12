@@ -42,7 +42,7 @@ export interface SubtitleLineDedupGateDeps {
 export interface SubtitleLineDedupGate {
   /** False when this line is an animation frame of a line already recorded. */
   shouldRecord: (sample: SubtitleLineSample) => boolean;
-  /** Forget the streaming run state, e.g. when playback moves to another file. */
+  /** Forget run state and ignore the current cue list until its source is replaced. */
   reset: () => void;
 }
 
@@ -58,6 +58,9 @@ interface StreamingRunState {
   /** Contiguous identical short frames seen so far, including the recorded first one. */
   frames: number;
 }
+
+/** Exact cue identity, separate from the looser tolerance used to chain adjacent frames. */
+const CUE_START_IDENTITY_TOLERANCE_SECONDS = 0.005;
 
 function normalizeLineText(text: string): string {
   return normalizePlainSubtitleText(text, { collapseLineBreaks: true });
@@ -87,37 +90,48 @@ function buildSpansByText(cues: readonly SubtitleCue[]): Map<string, CueSpan[]> 
  * starts *at* the merged cue, and a line the parser deliberately kept separate -- three
  * characters trading `えっ` back to back -- begins exactly where the one before it ends.
  */
-function isMergedAwayFrame(spans: readonly CueSpan[], startSec: number): boolean {
+function isMergedAwayFrame(spans: readonly CueSpan[], startSec: number): boolean | null {
+  const coveringSpans = spans.filter(
+    (span) =>
+      startSec >= span.startTime - CUE_START_IDENTITY_TOLERANCE_SECONDS &&
+      startSec <= span.endTime + CUE_START_IDENTITY_TOLERANCE_SECONDS,
+  );
+  if (coveringSpans.length === 0) {
+    return null;
+  }
   const startsOwnCue = spans.some(
-    (span) => Math.abs(startSec - span.startTime) <= DUPLICATE_CUE_GAP_TOLERANCE_SECONDS,
+    (span) => Math.abs(startSec - span.startTime) <= CUE_START_IDENTITY_TOLERANCE_SECONDS,
   );
   if (startsOwnCue) {
     return false;
   }
-  return spans.some(
+  return coveringSpans.some(
     (span) =>
-      startSec > span.startTime + DUPLICATE_CUE_GAP_TOLERANCE_SECONDS &&
-      startSec <= span.endTime + DUPLICATE_CUE_GAP_TOLERANCE_SECONDS,
+      startSec > span.startTime + CUE_START_IDENTITY_TOLERANCE_SECONDS &&
+      startSec <= span.endTime + CUE_START_IDENTITY_TOLERANCE_SECONDS,
   );
 }
 
 export function createSubtitleLineDedupGate(
   deps: SubtitleLineDedupGateDeps,
 ): SubtitleLineDedupGate {
-  let indexedCues: readonly SubtitleCue[] | null = null;
+  let indexedCues: readonly SubtitleCue[] | null | undefined;
+  let ignoredCuesAfterReset: readonly SubtitleCue[] | null | undefined;
   let spansByText: Map<string, CueSpan[]> = new Map();
   let run: StreamingRunState | null = null;
 
   const lookupSpans = (text: string): CueSpan[] | null => {
-    const cues = deps.getParsedCues();
-    if (!cues?.length) {
-      indexedCues = null;
-      spansByText = new Map();
-      return null;
+    const cues = deps.getParsedCues() ?? null;
+    if (ignoredCuesAfterReset !== undefined) {
+      if (cues === ignoredCuesAfterReset) {
+        return null;
+      }
+      ignoredCuesAfterReset = undefined;
     }
     if (cues !== indexedCues) {
       indexedCues = cues;
-      spansByText = buildSpansByText(cues);
+      spansByText = cues?.length ? buildSpansByText(cues) : new Map();
+      run = null;
     }
     return spansByText.get(text) ?? null;
   };
@@ -175,14 +189,20 @@ export function createSubtitleLineDedupGate(
       // between sidebar and stats this gate exists to prevent.
       const spans = lookupSpans(text);
       if (spans) {
-        run = null;
-        return !isMergedAwayFrame(spans, sample.startSec);
+        const mergedAway = isMergedAwayFrame(spans, sample.startSec);
+        if (mergedAway !== null) {
+          run = null;
+          return !mergedAway;
+        }
       }
 
       return advanceStreamingRun(text, sample);
     },
     reset: () => {
       run = null;
+      ignoredCuesAfterReset = deps.getParsedCues() ?? null;
+      indexedCues = undefined;
+      spansByText = new Map();
     },
   };
 }

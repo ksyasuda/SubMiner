@@ -244,6 +244,13 @@ test('parseArgs maps duplicate-line stats cleanup flags', () => {
   assert.equal(parsed.statsCleanupDuplicateLines, true);
   assert.equal(parsed.statsCleanupDryRun, true);
   assert.equal(parsed.statsCleanupLookbackDays, 30);
+
+  const fractional = parseArgs(
+    ['stats', 'cleanup', '--duplicate-lines', '--lookback-days', '1.5'],
+    'subminer',
+    {},
+  );
+  assert.equal(fractional.statsCleanupLookbackDays, 1);
 });
 
 test('parseArgs rejects duplicate-line flags without the duplicate-lines mode', () => {
@@ -265,7 +272,7 @@ test('parseArgs rejects combining lifetime and duplicate-line cleanup modes', ()
 });
 
 test('parseArgs rejects unusable lookback windows', () => {
-  for (const value of ['0', '-5', 'soon']) {
+  for (const value of ['0', '0.5', '-5', 'soon']) {
     const error = withProcessExitIntercept(() => {
       parseArgs(
         ['stats', 'cleanup', '--duplicate-lines', '--lookback-days', value],
@@ -275,7 +282,7 @@ test('parseArgs rejects unusable lookback windows', () => {
     });
 
     assert.equal(error.code, 1);
-    assert.match(error.stderr, /--lookback-days must be a positive number of days/);
+    assert.match(error.stderr, /--lookback-days must be at least one day/);
   }
 });
 

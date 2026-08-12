@@ -193,6 +193,43 @@ test('a long run of quarter-second frames is still a burst', () => {
   }
 });
 
+test('a qualifying short-frame burst may end with one long hold frame', () => {
+  const { db, dbPath } = createDb([
+    ...karaokeFrames(1, '飛び上がる', 10_000, 8, 40),
+    { session: 1, text: '飛び上がる', startMs: 10_320, endMs: 12_320 },
+  ]);
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 1);
+    assert.equal(summary.removedLines, 8);
+    assert.equal(countLines(db), 1);
+    assert.equal(wordFrequency(db), 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a long event before the final frame prevents burst cleanup', () => {
+  const { db, dbPath } = createDb([
+    ...karaokeFrames(1, '飛び上がる', 10_000, 5, 40),
+    { session: 1, text: '飛び上がる', startMs: 10_200, endMs: 12_200 },
+    { session: 1, text: '飛び上がる', startMs: 12_200, endMs: 12_240 },
+  ]);
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 7);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('a run of frames longer than the animation bound survives', () => {
   const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 400));
 

@@ -112,6 +112,14 @@ export interface CliArgs {
 
 export type CliCommandSource = 'initial' | 'second-instance';
 
+function parseStatsCleanupLookbackDays(value: string | undefined): number {
+  const days = Number(value);
+  if (!Number.isFinite(days) || days < 1) {
+    throw new Error('Stats --lookback-days must be at least one day.');
+  }
+  return Math.floor(days);
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     background: false,
@@ -376,11 +384,9 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--stats-cleanup-duplicate-lines') args.statsCleanupDuplicateLines = true;
     else if (arg === '--stats-cleanup-dry-run') args.statsCleanupDryRun = true;
     else if (arg.startsWith('--stats-cleanup-lookback-days=')) {
-      const value = Number(arg.split('=', 2)[1]);
-      if (Number.isFinite(value) && value > 0) args.statsCleanupLookbackDays = Math.floor(value);
+      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(arg.split('=', 2)[1]);
     } else if (arg === '--stats-cleanup-lookback-days') {
-      const value = Number(readValue(argv[i + 1]));
-      if (Number.isFinite(value) && value > 0) args.statsCleanupLookbackDays = Math.floor(value);
+      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(readValue(argv[i + 1]));
     } else if (arg.startsWith('--stats-response-path=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.statsResponsePath = value;

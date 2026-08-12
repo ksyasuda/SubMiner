@@ -267,3 +267,123 @@ test('flushPlaybackPositionOnMediaPathClear ignores disconnected mpv time-pos re
 
   assert.deepEqual(recorded, [42]);
 });
+
+test('media and subtitle-track transitions reset live subtitle-line deduplication', () => {
+  const recordedStarts: number[] = [];
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: null,
+      immersionTracker: {
+        recordSubtitleLine: (_text: string, start: number) => recordedStarts.push(start),
+      },
+      subtitleTimingTracker: null,
+      activeParsedSubtitleCues: null,
+      currentMediaPath: '/video-a.mkv',
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  for (let index = 0; index < 8; index += 1) {
+    handlers.recordImmersionSubtitleLine('待って', index * 0.04, (index + 1) * 0.04);
+  }
+  assert.equal(recordedStarts.length, 4);
+
+  handlers.updateCurrentMediaPath('/video-b.mkv');
+  handlers.recordImmersionSubtitleLine('待って', 0.32, 0.36);
+  assert.equal(recordedStarts.length, 5);
+
+  for (let index = 9; index < 16; index += 1) {
+    handlers.recordImmersionSubtitleLine('待って', index * 0.04, (index + 1) * 0.04);
+  }
+  assert.equal(recordedStarts.length, 8);
+
+  assert.equal(typeof handlers.onSubtitleTrackChange, 'function');
+  handlers.onSubtitleTrackChange?.(2);
+  handlers.recordImmersionSubtitleLine('待って', 0.64, 0.68);
+  assert.equal(recordedStarts.length, 9);
+});
+
+test('subtitle-track transitions ignore stale parsed cues until replacement cues arrive', () => {
+  const recordedStarts: number[] = [];
+  const appState = {
+    initialArgs: null,
+    overlayRuntimeInitialized: true,
+    mpvClient: null,
+    immersionTracker: {
+      recordSubtitleLine: (_text: string, start: number) => recordedStarts.push(start),
+    },
+    subtitleTimingTracker: null,
+    activeParsedSubtitleCues: [{ startTime: 10, endTime: 14, text: '飛び上がる' }],
+    currentMediaPath: '/video-a.mkv',
+    currentSubText: '',
+    currentSubAssText: '',
+    playbackPaused: null,
+    previousSecondarySubVisibility: false,
+  };
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState,
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    resetSubtitleSidebarEmbeddedLayout: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  handlers.recordImmersionSubtitleLine('飛び上がる', 10, 10.04);
+  handlers.onSubtitleTrackChange?.(2);
+  for (let index = 1; index <= 8; index += 1) {
+    handlers.recordImmersionSubtitleLine('飛び上がる', 10 + index * 0.04, 10 + (index + 1) * 0.04);
+  }
+  assert.equal(recordedStarts.length, 5);
+
+  appState.activeParsedSubtitleCues = [{ startTime: 20, endTime: 24, text: '飛び上がる' }];
+  handlers.recordImmersionSubtitleLine('飛び上がる', 20, 20.04);
+  handlers.recordImmersionSubtitleLine('飛び上がる', 20.04, 20.08);
+  assert.deepEqual(recordedStarts.slice(-1), [20]);
+});
