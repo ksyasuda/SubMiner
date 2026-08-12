@@ -25,7 +25,20 @@ import {
   applyBackgroundBootstrapCommandLineSwitches,
   applyEarlyLinuxCommandLineSwitches,
   resolveLinuxPasswordStoreValue,
+  spawnDetachedApp,
 } from './main-entry-runtime';
+
+test('detached app launch policy stays in the startup runtime utilities', () => {
+  const entrySource = fs.readFileSync(path.join(process.cwd(), 'src/main-entry.ts'), 'utf8');
+  const runtimeSource = fs.readFileSync(
+    path.join(process.cwd(), 'src/main-entry-runtime.ts'),
+    'utf8',
+  );
+
+  assert.equal(typeof spawnDetachedApp, 'function');
+  assert.doesNotMatch(entrySource, /function spawnDetachedApp/);
+  assert.match(runtimeSource, /child\.unref\(\)/);
+});
 
 test('background bootstrap exits through Electron so Chromium children shut down', () => {
   const exitCodes: number[] = [];

@@ -1,5 +1,4 @@
 import os from 'node:os';
-import { spawn } from 'node:child_process';
 import { app, dialog, shell } from 'electron';
 import { printHelp } from './cli/help';
 import {
@@ -20,9 +19,9 @@ import {
   shouldHandleHelpOnlyAtEntry,
   shouldHandleLaunchMpvAtEntry,
   shouldHandleStatsDaemonCommandAtEntry,
+  spawnDetachedApp,
 } from './main-entry-runtime';
 import { requestSingleInstanceLockEarly } from './main/early-single-instance';
-import { resolveAppImageMountKeepaliveInvocation } from './main/appimage-mount-keepalive';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import { isAppControlServerAvailable, sendAppControlCommand } from './shared/app-control-client';
 import {
@@ -73,22 +72,6 @@ function applySanitizedEnv(sanitizedEnv: NodeJS.ProcessEnv): void {
   } else {
     delete process.env.VK_INSTANCE_LAYERS;
   }
-}
-
-function spawnDetachedApp(childArgs: string[], env: NodeJS.ProcessEnv): void {
-  const keepalive = resolveAppImageMountKeepaliveInvocation(env);
-  const child = keepalive
-    ? spawn(keepalive.command, [...keepalive.args, ...childArgs], {
-        detached: true,
-        stdio: 'ignore',
-        env,
-      })
-    : spawn(process.execPath, childArgs, {
-        detached: true,
-        stdio: 'ignore',
-        env,
-      });
-  child.unref();
 }
 
 function resolveBundledWindowsMpvPluginEntrypoint(): string | undefined {
