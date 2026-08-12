@@ -50,6 +50,7 @@ import {
   updateAnimeAnilistInfo,
   upsertCoverArt,
 } from '../query-maintenance.js';
+import { deleteMaintenanceBatch } from '../query-delete-maintenance.js';
 import { getLocalEpochDay } from '../query-shared.js';
 import { EVENT_CARD_MINED, EVENT_SUBTITLE_LINE, SOURCE_TYPE_LOCAL } from '../types.js';
 
@@ -979,6 +980,175 @@ test('split maintenance helpers delete multiple sessions and whole videos with d
         }
       ).total,
       0,
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('delete maintenance batch preserves retained data across overlapping session, video, and anime targets', () => {
+  const { db, dbPath, stmts } = createDb();
+
+  try {
+    const retainedAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Retained Anime',
+      canonicalTitle: 'Retained Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const deletedAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Deleted Anime',
+      canonicalTitle: 'Deleted Anime',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const retainedVideoId = getOrCreateVideoRecord(db, 'local:/tmp/batch-retain.mkv', {
+      canonicalTitle: 'Batch Retain',
+      sourcePath: '/tmp/batch-retain.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const deletedVideoId = getOrCreateVideoRecord(db, 'local:/tmp/batch-video.mkv', {
+      canonicalTitle: 'Batch Video',
+      sourcePath: '/tmp/batch-video.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeVideoId = getOrCreateVideoRecord(db, 'local:/tmp/batch-anime.mkv', {
+      canonicalTitle: 'Batch Anime',
+      sourcePath: '/tmp/batch-anime.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    for (const [videoId, animeId, episode] of [
+      [retainedVideoId, retainedAnimeId, 1],
+      [deletedVideoId, retainedAnimeId, 2],
+      [animeVideoId, deletedAnimeId, 1],
+    ] as const) {
+      linkVideoToAnimeRecord(db, videoId, {
+        animeId,
+        parsedBasename: `batch-${episode}.mkv`,
+        parsedTitle: animeId === retainedAnimeId ? 'Retained Anime' : 'Deleted Anime',
+        parsedSeason: 1,
+        parsedEpisode: episode,
+        parserSource: 'test',
+        parserConfidence: 1,
+        parseMetadataJson: null,
+      });
+    }
+
+    const startedAtMs = 1_700_000_000_000;
+    const deletedSessionId = startSessionRecord(db, retainedVideoId, startedAtMs).sessionId;
+    const retainedSessionId = startSessionRecord(
+      db,
+      retainedVideoId,
+      startedAtMs + 1_000,
+    ).sessionId;
+    const videoSessionId = startSessionRecord(db, deletedVideoId, startedAtMs + 2_000).sessionId;
+    const animeSessionId = startSessionRecord(db, animeVideoId, startedAtMs + 3_000).sessionId;
+    for (const [sessionId, sessionStartedAtMs] of [
+      [deletedSessionId, startedAtMs],
+      [retainedSessionId, startedAtMs + 1_000],
+      [videoSessionId, startedAtMs + 2_000],
+      [animeSessionId, startedAtMs + 3_000],
+    ] as const) {
+      finalizeSessionMetrics(db, sessionId, sessionStartedAtMs);
+    }
+
+    for (const [index, sessionId, videoId, animeId] of [
+      [1, deletedSessionId, retainedVideoId, retainedAnimeId],
+      [2, retainedSessionId, retainedVideoId, retainedAnimeId],
+      [3, videoSessionId, deletedVideoId, retainedAnimeId],
+      [4, animeSessionId, animeVideoId, deletedAnimeId],
+    ] as const) {
+      insertWordOccurrence(db, stmts, {
+        sessionId,
+        videoId,
+        animeId,
+        lineIndex: index,
+        text: '猫日',
+        word: { headword: '猫', word: '猫', reading: 'ねこ' },
+      });
+      insertKanjiOccurrence(db, stmts, {
+        sessionId,
+        videoId,
+        animeId,
+        lineIndex: index + 10,
+        text: '猫日',
+        kanji: '日',
+      });
+    }
+
+    const rollupDay = getLocalEpochDay(db, startedAtMs);
+    const rollupMonth = 202311;
+    for (const videoId of [retainedVideoId, deletedVideoId, animeVideoId]) {
+      db.prepare(
+        `INSERT INTO imm_daily_rollups (
+          rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, 99, 99, 99, 99, 99, ?, ?)`,
+      ).run(rollupDay, videoId, startedAtMs, startedAtMs);
+      db.prepare(
+        `INSERT INTO imm_monthly_rollups (
+          rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+          total_tokens_seen, total_cards, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, 99, 99, 99, 99, 99, ?, ?)`,
+      ).run(rollupMonth, videoId, startedAtMs, startedAtMs);
+    }
+
+    deleteMaintenanceBatch(db, [
+      { kind: 'session', sessionId: deletedSessionId },
+      { kind: 'session', sessionId: videoSessionId },
+      { kind: 'video', videoId: deletedVideoId },
+      { kind: 'video', videoId: animeVideoId },
+      { kind: 'anime', animeId: deletedAnimeId },
+    ]);
+
+    assert.deepEqual(db.prepare('SELECT session_id FROM imm_sessions').all(), [
+      { session_id: retainedSessionId },
+    ]);
+    assert.deepEqual(db.prepare('SELECT video_id FROM imm_videos').all(), [
+      { video_id: retainedVideoId },
+    ]);
+    assert.deepEqual(db.prepare('SELECT anime_id FROM imm_anime').all(), [
+      { anime_id: retainedAnimeId },
+    ]);
+    assert.equal(
+      (
+        db.prepare(`SELECT frequency FROM imm_words WHERE headword = '猫'`).get() as {
+          frequency: number;
+        }
+      ).frequency,
+      1,
+    );
+    assert.equal(
+      (
+        db.prepare(`SELECT frequency FROM imm_kanji WHERE kanji = '日'`).get() as {
+          frequency: number;
+        }
+      ).frequency,
+      1,
+    );
+    assert.deepEqual(
+      db.prepare('SELECT video_id, total_sessions FROM imm_daily_rollups').all() as Array<{
+        video_id: number;
+        total_sessions: number;
+      }>,
+      [{ video_id: retainedVideoId, total_sessions: 1 }],
+    );
+    assert.deepEqual(
+      db.prepare('SELECT video_id, total_sessions FROM imm_monthly_rollups').all() as Array<{
+        video_id: number;
+        total_sessions: number;
+      }>,
+      [{ video_id: retainedVideoId, total_sessions: 1 }],
     );
   } finally {
     db.close();

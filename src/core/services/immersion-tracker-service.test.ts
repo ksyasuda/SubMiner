@@ -1414,6 +1414,255 @@ test('deleteSession ignores the currently active session and keeps new writes fl
   }
 });
 
+test('deleteSession yields the main event loop while delete maintenance is pending', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const deleteGate: { release?: () => void } = {};
+  let deleteRunnerCalled = false;
+  let bufferedWritesAtDeleteStart = -1;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    const createdTracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async () => {
+          deleteRunnerCalled = true;
+          bufferedWritesAtDeleteStart = (tracker as unknown as { queue: unknown[] }).queue.length;
+          await new Promise<void>((resolve) => {
+            deleteGate.release = resolve;
+          });
+        },
+      },
+    );
+    tracker = createdTracker;
+    createdTracker.handleMediaChange('/tmp/delete-yield-first.mkv', 'Delete Yield First');
+    createdTracker.handleMediaChange('/tmp/delete-yield-active.mkv', 'Delete Yield Active');
+
+    const privateApi = createdTracker as unknown as {
+      db: DatabaseSync;
+      queue: unknown[];
+      flushNow: () => void;
+    };
+    const sessionId = (
+      privateApi.db
+        .prepare(
+          `SELECT session_id AS sessionId
+           FROM imm_sessions
+           WHERE ended_at_ms IS NOT NULL
+           ORDER BY session_id
+           LIMIT 1`,
+        )
+        .get() as { sessionId: number } | null
+    )?.sessionId;
+    assert.ok(sessionId);
+
+    const deletePromise = createdTracker.deleteSession(sessionId);
+    let timerAdvanced = false;
+    setTimeout(() => {
+      timerAdvanced = true;
+    }, 0);
+
+    await waitForCondition(() => deleteRunnerCalled);
+    assert.equal(deleteRunnerCalled, true, 'delete should be dispatched to the maintenance runner');
+    assert.equal(
+      bufferedWritesAtDeleteStart,
+      0,
+      'writes buffered before delete should flush first',
+    );
+    await waitForCondition(() => timerAdvanced);
+
+    createdTracker.recordSubtitleLine('queued during delete', 0, 1);
+    privateApi.flushNow();
+    assert.ok(privateApi.queue.length > 0, 'tracking writes should wait for delete maintenance');
+
+    assert.ok(deleteGate.release);
+    deleteGate.release();
+    await deletePromise;
+  } finally {
+    deleteGate.release?.();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('delete maintenance tasks stay serialized under concurrent requests', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const releases: Array<() => void> = [];
+  let activeTasks = 0;
+  let maxActiveTasks = 0;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async () => {
+          activeTasks += 1;
+          maxActiveTasks = Math.max(maxActiveTasks, activeTasks);
+          await new Promise<void>((resolve) => {
+            releases.push(resolve);
+          });
+          activeTasks -= 1;
+        },
+      },
+    );
+
+    const firstDelete = tracker.deleteSession(101);
+    await waitForCondition(() => releases.length === 1);
+    assert.equal(maxActiveTasks, 1);
+
+    const secondDelete = tracker.deleteSession(102);
+
+    releases[0]?.();
+    await waitForCondition(() => releases.length === 2);
+    assert.equal(maxActiveTasks, 1);
+
+    releases[1]?.();
+    await Promise.all([firstDelete, secondDelete]);
+  } finally {
+    for (const release of releases) release();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('concurrent delete requests share one maintenance worker batch', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const tasks: unknown[] = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async (_path, task) => {
+          tasks.push(task);
+        },
+      },
+    );
+
+    const firstDelete = tracker.deleteSession(201);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await Promise.all([firstDelete, tracker.deleteSessions([202, 203]), tracker.deleteVideo(204)]);
+
+    assert.equal(tasks.length, 1, 'concurrent deletes should use one maintenance pass');
+    assert.deepEqual(tasks[0], {
+      kind: 'batch',
+      tasks: [
+        { kind: 'session', sessionId: 201 },
+        { kind: 'sessions', sessionIds: [202, 203] },
+        { kind: 'video', videoId: 204 },
+      ],
+    });
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('destroy rejects delete requests waiting behind active maintenance', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let releaseFirstTask: () => void = () => {};
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    let markFirstTaskStarted: () => void = () => {};
+    const firstTaskStarted = new Promise<void>((resolve) => {
+      markFirstTaskStarted = resolve;
+    });
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async () => {
+          markFirstTaskStarted();
+          await new Promise<void>((resolve) => {
+            releaseFirstTask = resolve;
+          });
+        },
+      },
+    );
+
+    const firstDelete = tracker.deleteSession(301);
+    await firstTaskStarted;
+    const queuedDelete = tracker.deleteSession(302);
+    tracker.destroy();
+
+    const queuedOutcome = await Promise.race([
+      queuedDelete.then(
+        () => 'resolved',
+        (error: unknown) =>
+          error instanceof Error && /shutting down/.test(error.message)
+            ? 'rejected'
+            : 'wrong-error',
+      ),
+      new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 25)),
+    ]);
+    assert.equal(queuedOutcome, 'rejected');
+    releaseFirstTask();
+    await firstDelete;
+  } finally {
+    releaseFirstTask();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('queued video delete is skipped when that video becomes active before dispatch', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const tasks: Array<{ kind: string }> = [];
+  let releaseFirstTask: () => void = () => {};
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    const createdTracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async (_path, task) => {
+          tasks.push(task);
+          if (tasks.length === 1) {
+            await new Promise<void>((resolve) => {
+              releaseFirstTask = resolve;
+            });
+          }
+        },
+      },
+    );
+    tracker = createdTracker;
+    createdTracker.handleMediaChange('/tmp/delete-race-target.mkv', 'Delete Race Target');
+    createdTracker.handleMediaChange('/tmp/delete-race-other.mkv', 'Delete Race Other');
+
+    const privateApi = createdTracker as unknown as { db: DatabaseSync };
+    const targetVideoId = (
+      privateApi.db
+        .prepare(`SELECT video_id AS videoId FROM imm_videos WHERE video_key LIKE '%target.mkv'`)
+        .get() as { videoId: number } | null
+    )?.videoId;
+    assert.ok(targetVideoId);
+
+    const firstDelete = createdTracker.deleteSession(999_001);
+    await waitForCondition(() => tasks.length === 1);
+
+    const queuedVideoDelete = createdTracker.deleteVideo(targetVideoId);
+    createdTracker.handleMediaChange('/tmp/delete-race-target.mkv', 'Delete Race Target');
+    releaseFirstTask();
+    await Promise.all([firstDelete, queuedVideoDelete]);
+
+    assert.deepEqual(
+      tasks.map((task) => task.kind),
+      ['session'],
+    );
+  } finally {
+    releaseFirstTask();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('deleteVideo ignores the currently active video and keeps new writes flushable', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

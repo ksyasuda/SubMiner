@@ -83,14 +83,18 @@ import {
 } from './immersion-tracker/query-library';
 import {
   cleanupVocabularyStats,
-  deleteAnime as deleteAnimeQuery,
-  deleteSession as deleteSessionQuery,
-  deleteSessions as deleteSessionsQuery,
-  deleteVideo as deleteVideoQuery,
   getVideoDurationMs,
   markVideoWatched,
   upsertCoverArt,
 } from './immersion-tracker/query-maintenance';
+import type {
+  DeleteMaintenanceOperation,
+  DeleteMaintenanceTask,
+} from './immersion-tracker/delete-maintenance';
+import {
+  DeleteMaintenanceWorkerRuntime,
+  type RunDeleteMaintenanceTask,
+} from './immersion-tracker/delete-maintenance-worker-runtime';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   repairLegacySeasonlessAnimeRows,
@@ -182,6 +186,7 @@ const YOUTUBE_SCREENSHOT_MAX_SECONDS = 120;
 const YOUTUBE_OEMBED_ENDPOINT = 'https://www.youtube.com/oembed';
 const YOUTUBE_ID_PATTERN = /^[A-Za-z0-9_-]{6,}$/;
 const YOUTUBE_METADATA_REFRESH_MS = 24 * 60 * 60 * 1000;
+const DELETE_MAINTENANCE_BATCH_WINDOW_MS = 10;
 
 function isValidYouTubeVideoId(value: string | null): boolean {
   return Boolean(value && YOUTUBE_ID_PATTERN.test(value));
@@ -385,6 +390,19 @@ export class ImmersionTrackerService {
   private readonly vacuumIntervalMs: number;
   private readonly dbPath: string;
   private readonly writeLock = { locked: false };
+  private readonly runDeleteMaintenanceTask: RunDeleteMaintenanceTask;
+  private readonly destroyDeleteMaintenanceRunner: () => void;
+  private readonly pendingDeleteRequests: Array<{
+    resolveTask: () =>
+      | DeleteMaintenanceOperation
+      | null
+      | Promise<DeleteMaintenanceOperation | null>;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }> = [];
+  private deleteTaskRunning = false;
+  private deleteDrainTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingDeleteTaskCount = 0;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private flushScheduled = false;
@@ -406,9 +424,24 @@ export class ImmersionTrackerService {
     | ((row: LegacyVocabularyPosRow) => Promise<LegacyVocabularyPosResolution | null>)
     | undefined;
 
-  constructor(options: ImmersionTrackerOptions) {
+  constructor(
+    options: ImmersionTrackerOptions,
+    dependencies: {
+      runDeleteMaintenanceTask?: RunDeleteMaintenanceTask;
+      destroyDeleteMaintenanceRunner?: () => void;
+    } = {},
+  ) {
     this.dbPath = options.dbPath;
     this.resolveLegacyVocabularyPos = options.resolveLegacyVocabularyPos;
+    if (dependencies.runDeleteMaintenanceTask) {
+      this.runDeleteMaintenanceTask = dependencies.runDeleteMaintenanceTask;
+      this.destroyDeleteMaintenanceRunner =
+        dependencies.destroyDeleteMaintenanceRunner ?? (() => {});
+    } else {
+      const deleteMaintenanceRuntime = new DeleteMaintenanceWorkerRuntime();
+      this.runDeleteMaintenanceTask = (dbPath, task) => deleteMaintenanceRuntime.run(dbPath, task);
+      this.destroyDeleteMaintenanceRunner = () => deleteMaintenanceRuntime.destroy();
+    }
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -510,8 +543,17 @@ export class ImmersionTrackerService {
       clearInterval(this.maintenanceTimer);
       this.maintenanceTimer = null;
     }
+    if (this.deleteDrainTimer) {
+      clearTimeout(this.deleteDrainTimer);
+      this.deleteDrainTimer = null;
+    }
+    if (this.pendingDeleteRequests.length > 0) {
+      const error = new Error('Immersion tracker is shutting down');
+      for (const request of this.pendingDeleteRequests.splice(0)) request.reject(error);
+    }
     this.finalizeActiveSession();
     this.isDestroyed = true;
+    this.destroyDeleteMaintenanceRunner();
     this.db.close();
   }
 
@@ -709,51 +751,128 @@ export class ImmersionTrackerService {
       this.logger.warn(`Ignoring delete request for active immersion session ${sessionId}`);
       return;
     }
-    deleteSessionQuery(this.db, sessionId);
+    await this.enqueueDeleteMaintenanceTask(() => ({ kind: 'session', sessionId }));
   }
 
   async deleteSessions(sessionIds: number[]): Promise<void> {
-    const activeSessionId = this.sessionState?.sessionId;
-    const deletableSessionIds =
-      activeSessionId === undefined
-        ? sessionIds
-        : sessionIds.filter((sessionId) => sessionId !== activeSessionId);
-    if (deletableSessionIds.length !== sessionIds.length) {
-      this.logger.warn(
-        `Ignoring bulk delete request for active immersion session ${activeSessionId}`,
-      );
-    }
-    deleteSessionsQuery(this.db, deletableSessionIds);
+    await this.enqueueDeleteMaintenanceTask(() => {
+      const activeSessionId = this.sessionState?.sessionId;
+      const deletableSessionIds =
+        activeSessionId === undefined
+          ? sessionIds
+          : sessionIds.filter((sessionId) => sessionId !== activeSessionId);
+      if (deletableSessionIds.length !== sessionIds.length) {
+        this.logger.warn(
+          `Ignoring bulk delete request for active immersion session ${activeSessionId}`,
+        );
+      }
+      return { kind: 'sessions', sessionIds: deletableSessionIds };
+    });
   }
 
   async deleteVideo(videoId: number): Promise<void> {
-    if (this.sessionState?.videoId === videoId) {
-      this.logger.warn(`Ignoring delete request for active immersion video ${videoId}`);
-      return;
-    }
-    deleteVideoQuery(this.db, videoId);
+    await this.enqueueDeleteMaintenanceTask(() => {
+      if (this.sessionState?.videoId === videoId) {
+        this.logger.warn(`Ignoring delete request for active immersion video ${videoId}`);
+        return null;
+      }
+      return { kind: 'video', videoId };
+    });
   }
 
   async deleteAnime(animeId: number): Promise<void> {
-    // The active video's anime link is assigned asynchronously after the title
-    // is parsed, so a guard reading imm_videos too early sees a null and lets
-    // the delete through — then the late update recreates the anime row.
-    const pendingVideoId = this.sessionState?.videoId;
-    if (pendingVideoId !== undefined) {
-      await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
-    }
+    await this.enqueueDeleteMaintenanceTask(async () => {
+      // Resolve this at dispatch time because another queued delete can leave
+      // enough time for playback to switch to an episode of this anime.
+      const pendingVideoId = this.sessionState?.videoId;
+      if (pendingVideoId !== undefined) {
+        await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
+      }
 
-    const activeVideoId = this.sessionState?.videoId;
-    if (activeVideoId !== undefined) {
-      const activeAnime = this.db
-        .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
-        .get(activeVideoId) as { anime_id: number | null } | null;
-      if (activeAnime?.anime_id === animeId) {
-        this.logger.warn(`Ignoring delete request for active immersion anime ${animeId}`);
-        return;
+      const activeVideoId = this.sessionState?.videoId;
+      if (activeVideoId !== undefined) {
+        const activeAnime = this.db
+          .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
+          .get(activeVideoId) as { anime_id: number | null } | null;
+        if (activeAnime?.anime_id === animeId) {
+          this.logger.warn(`Ignoring delete request for active immersion anime ${animeId}`);
+          return null;
+        }
+      }
+      return { kind: 'anime', animeId };
+    });
+  }
+
+  private enqueueDeleteMaintenanceTask(
+    resolveTask: () =>
+      | DeleteMaintenanceOperation
+      | null
+      | Promise<DeleteMaintenanceOperation | null>,
+  ): Promise<void> {
+    if (!this.writeLock.locked) {
+      this.flushTelemetry(true);
+      this.flushNow();
+    }
+    this.pendingDeleteTaskCount += 1;
+    this.writeLock.locked = true;
+
+    const result = new Promise<void>((resolve, reject) => {
+      this.pendingDeleteRequests.push({ resolveTask, resolve, reject });
+      this.scheduleDeleteMaintenanceDrain();
+    });
+
+    return result.finally(() => {
+      this.pendingDeleteTaskCount -= 1;
+      if (this.pendingDeleteTaskCount > 0) return;
+      this.writeLock.locked = false;
+      if (!this.isDestroyed && this.queue.length > 0) {
+        this.scheduleFlush(0);
+      }
+    });
+  }
+
+  private scheduleDeleteMaintenanceDrain(): void {
+    if (this.isDestroyed || this.deleteTaskRunning || this.deleteDrainTimer) return;
+    this.deleteDrainTimer = setTimeout(() => {
+      this.deleteDrainTimer = null;
+      void this.drainDeleteMaintenanceRequests();
+    }, DELETE_MAINTENANCE_BATCH_WINDOW_MS);
+  }
+
+  private async drainDeleteMaintenanceRequests(): Promise<void> {
+    if (this.deleteTaskRunning || this.pendingDeleteRequests.length === 0) return;
+    this.deleteTaskRunning = true;
+    const requests = this.pendingDeleteRequests.splice(0);
+    const runnable: Array<{
+      request: (typeof requests)[number];
+      task: DeleteMaintenanceOperation;
+    }> = [];
+
+    for (const request of requests) {
+      try {
+        const task = await request.resolveTask();
+        if (task) runnable.push({ request, task });
+        else request.resolve();
+      } catch (error) {
+        request.reject(error);
       }
     }
-    deleteAnimeQuery(this.db, animeId);
+
+    if (runnable.length > 0) {
+      const task: DeleteMaintenanceTask =
+        runnable.length === 1
+          ? runnable[0]!.task
+          : { kind: 'batch', tasks: runnable.map((entry) => entry.task) };
+      try {
+        await this.runDeleteMaintenanceTask(this.dbPath, task);
+        for (const { request } of runnable) request.resolve();
+      } catch (error) {
+        for (const { request } of runnable) request.reject(error);
+      }
+    }
+
+    this.deleteTaskRunning = false;
+    this.scheduleDeleteMaintenanceDrain();
   }
 
   async reassignAnimeAnilist(
@@ -1811,7 +1930,7 @@ export class ImmersionTrackerService {
   }
 
   private runMaintenance(): void {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || this.writeLock.locked) return;
     try {
       this.flushTelemetry(true);
       this.flushNow();
