@@ -7,7 +7,10 @@ import {
   deleteSessionsByIds,
   makePlaceholders,
   planLexicalRemovalsForSessions,
+  type LexicalRemovalPlan,
 } from './query-shared';
+
+const SQLITE_ID_CHUNK_SIZE = 1_000;
 
 export type DeleteMaintenanceOperation =
   | { kind: 'session'; sessionId: number }
@@ -39,11 +42,65 @@ function addOperationTargets(
   }
 }
 
-function selectIds(db: DatabaseSync, sql: string, params: number[], column: string): number[] {
+function forEachIdChunk(ids: number[], callback: (chunk: number[]) => void): void {
+  for (let start = 0; start < ids.length; start += SQLITE_ID_CHUNK_SIZE) {
+    callback(ids.slice(start, start + SQLITE_ID_CHUNK_SIZE));
+  }
+}
+
+function selectIds(
+  db: DatabaseSync,
+  buildSql: (placeholders: string) => string,
+  params: number[],
+  column: string,
+): number[] {
   if (params.length === 0) return [];
-  return (db.prepare(sql).all(...params) as Array<Record<string, number>>).map(
-    (row) => row[column]!,
-  );
+  const ids: number[] = [];
+  forEachIdChunk(params, (chunk) => {
+    const rows = db.prepare(buildSql(makePlaceholders(chunk))).all(...chunk) as Array<
+      Record<string, number>
+    >;
+    for (const row of rows) ids.push(row[column]!);
+  });
+  return ids;
+}
+
+function planLexicalRemovalsInChunks(db: DatabaseSync, sessionIds: number[]): LexicalRemovalPlan {
+  const combined: LexicalRemovalPlan = { words: [], kanji: [] };
+  const merge = (target: LexicalRemovalPlan['words'], source: LexicalRemovalPlan['words']) => {
+    const byId = new Map(target.map((entry) => [entry.id, entry]));
+    for (const entry of source) {
+      const existing = byId.get(entry.id);
+      if (!existing) {
+        const added = { ...entry };
+        target.push(added);
+        byId.set(entry.id, added);
+        continue;
+      }
+      existing.removedFrequency += entry.removedFrequency;
+      if (
+        entry.removedFirstSeenMs !== null &&
+        (existing.removedFirstSeenMs === null ||
+          entry.removedFirstSeenMs < existing.removedFirstSeenMs)
+      ) {
+        existing.removedFirstSeenMs = entry.removedFirstSeenMs;
+      }
+      if (
+        entry.removedLastSeenMs !== null &&
+        (existing.removedLastSeenMs === null ||
+          entry.removedLastSeenMs > existing.removedLastSeenMs)
+      ) {
+        existing.removedLastSeenMs = entry.removedLastSeenMs;
+      }
+    }
+  };
+
+  forEachIdChunk(sessionIds, (chunk) => {
+    const plan = planLexicalRemovalsForSessions(db, chunk);
+    merge(combined.words, plan.words);
+    merge(combined.kanji, plan.kanji);
+  });
+  return combined;
 }
 
 export function deleteMaintenanceBatch(
@@ -62,7 +119,7 @@ export function deleteMaintenanceBatch(
     const animeIdList = [...animeIds];
     for (const videoId of selectIds(
       db,
-      `SELECT video_id FROM imm_videos WHERE anime_id IN (${makePlaceholders(animeIdList)})`,
+      (placeholders) => `SELECT video_id FROM imm_videos WHERE anime_id IN (${placeholders})`,
       animeIdList,
       'video_id',
     )) {
@@ -72,7 +129,7 @@ export function deleteMaintenanceBatch(
     const videoIdList = [...videoIds];
     for (const sessionId of selectIds(
       db,
-      `SELECT session_id FROM imm_sessions WHERE video_id IN (${makePlaceholders(videoIdList)})`,
+      (placeholders) => `SELECT session_id FROM imm_sessions WHERE video_id IN (${placeholders})`,
       videoIdList,
       'session_id',
     )) {
@@ -80,36 +137,43 @@ export function deleteMaintenanceBatch(
     }
 
     const sessionIdList = [...sessionIds];
-    const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIdList);
-    const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIdList).filter(
-      (group) => !videoIds.has(group.videoId),
-    );
+    const lexicalRemovals = planLexicalRemovalsInChunks(db, sessionIdList);
+    const affectedRollupGroups = sessionIdList
+      .flatMap((_, index) =>
+        index % SQLITE_ID_CHUNK_SIZE === 0
+          ? getRollupGroupsForSessions(db, sessionIdList.slice(index, index + SQLITE_ID_CHUNK_SIZE))
+          : [],
+      )
+      .filter((group) => !videoIds.has(group.videoId));
     const coverBlobHashes = new Set<string>();
     if (videoIdList.length > 0) {
-      const placeholders = makePlaceholders(videoIdList);
-      const artRows = db
-        .prepare(
-          `SELECT cover_blob_hash AS coverBlobHash
-           FROM imm_media_art
-           WHERE video_id IN (${placeholders}) AND cover_blob_hash IS NOT NULL`,
-        )
-        .all(...videoIdList) as Array<{ coverBlobHash: string }>;
-      for (const row of artRows) coverBlobHashes.add(row.coverBlobHash);
+      forEachIdChunk(videoIdList, (chunk) => {
+        const placeholders = makePlaceholders(chunk);
+        const artRows = db
+          .prepare(
+            `SELECT cover_blob_hash AS coverBlobHash
+             FROM imm_media_art
+             WHERE video_id IN (${placeholders}) AND cover_blob_hash IS NOT NULL`,
+          )
+          .all(...chunk) as Array<{ coverBlobHash: string }>;
+        for (const row of artRows) coverBlobHashes.add(row.coverBlobHash);
+      });
 
       deleteSessionsByIds(db, sessionIdList);
-      db.prepare(`DELETE FROM imm_subtitle_lines WHERE video_id IN (${placeholders})`).run(
-        ...videoIdList,
-      );
-      db.prepare(`DELETE FROM imm_daily_rollups WHERE video_id IN (${placeholders})`).run(
-        ...videoIdList,
-      );
-      db.prepare(`DELETE FROM imm_monthly_rollups WHERE video_id IN (${placeholders})`).run(
-        ...videoIdList,
-      );
-      db.prepare(`DELETE FROM imm_media_art WHERE video_id IN (${placeholders})`).run(
-        ...videoIdList,
-      );
-      db.prepare(`DELETE FROM imm_videos WHERE video_id IN (${placeholders})`).run(...videoIdList);
+      forEachIdChunk(videoIdList, (chunk) => {
+        const placeholders = makePlaceholders(chunk);
+        db.prepare(`DELETE FROM imm_subtitle_lines WHERE video_id IN (${placeholders})`).run(
+          ...chunk,
+        );
+        db.prepare(`DELETE FROM imm_daily_rollups WHERE video_id IN (${placeholders})`).run(
+          ...chunk,
+        );
+        db.prepare(`DELETE FROM imm_monthly_rollups WHERE video_id IN (${placeholders})`).run(
+          ...chunk,
+        );
+        db.prepare(`DELETE FROM imm_media_art WHERE video_id IN (${placeholders})`).run(...chunk);
+        db.prepare(`DELETE FROM imm_videos WHERE video_id IN (${placeholders})`).run(...chunk);
+      });
     } else {
       deleteSessionsByIds(db, sessionIdList);
     }
@@ -118,11 +182,13 @@ export function deleteMaintenanceBatch(
       cleanupUnusedCoverArtBlobHash(db, coverBlobHash);
     }
     if (animeIdList.length > 0) {
-      const placeholders = makePlaceholders(animeIdList);
-      db.prepare(`DELETE FROM imm_lifetime_anime WHERE anime_id IN (${placeholders})`).run(
-        ...animeIdList,
-      );
-      db.prepare(`DELETE FROM imm_anime WHERE anime_id IN (${placeholders})`).run(...animeIdList);
+      forEachIdChunk(animeIdList, (chunk) => {
+        const placeholders = makePlaceholders(chunk);
+        db.prepare(`DELETE FROM imm_lifetime_anime WHERE anime_id IN (${placeholders})`).run(
+          ...chunk,
+        );
+        db.prepare(`DELETE FROM imm_anime WHERE anime_id IN (${placeholders})`).run(...chunk);
+      });
     }
 
     applyLexicalRemovals(db, lexicalRemovals);

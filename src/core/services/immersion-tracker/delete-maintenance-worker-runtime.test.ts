@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { DeleteMaintenanceWorkerRuntime } from './delete-maintenance-worker-runtime';
+import {
+  DeleteMaintenanceWorkerRuntime,
+  resolveDeleteMaintenanceWorkerPath,
+} from './delete-maintenance-worker-runtime';
 import { executeDeleteMaintenanceTask } from './delete-maintenance';
 import { startSessionRecord } from './session';
 import { Database } from './sqlite';
@@ -79,7 +82,7 @@ test('a delete batch rebuilds lifetime summaries once', () => {
 
 test(
   'compiled delete worker removes data through its separate database connection',
-  { skip: path.extname(__filename) !== '.js' },
+  { skip: resolveDeleteMaintenanceWorkerPath() === null },
   async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-delete-worker-test-'));
     const dbPath = path.join(tempDir, 'immersion.sqlite');
@@ -123,3 +126,73 @@ test(
     }
   },
 );
+
+test('worker runtime warns before falling back when no emitted worker is available', async () => {
+  const warnings: unknown[][] = [];
+  const fallbackTasks: unknown[] = [];
+  const runtime = new DeleteMaintenanceWorkerRuntime({
+    resolveWorkerPath: () => null,
+    warn: (...args) => warnings.push(args),
+    executeFallback: (_dbPath, task) => fallbackTasks.push(task),
+  });
+
+  await runtime.run('/tmp/fallback.sqlite', { kind: 'session', sessionId: 1 });
+
+  assert.equal(warnings.length, 1);
+  assert.match(String(warnings[0]?.[0]), /worker unavailable/i);
+  assert.deepEqual(fallbackTasks, [{ kind: 'session', sessionId: 1 }]);
+});
+
+test('worker runtime terminates a worker after successful settlement', async () => {
+  type Listener = (value: never) => void;
+  const listeners = new Map<string, Listener>();
+  let terminateCalls = 0;
+  const worker = {
+    once(event: string, listener: Listener) {
+      listeners.set(event, listener);
+      return this;
+    },
+    terminate: async () => {
+      terminateCalls += 1;
+      return 0;
+    },
+  };
+  const runtime = new DeleteMaintenanceWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/delete-worker.js',
+    createWorker: async () => worker,
+  });
+
+  const result = runtime.run('/tmp/test.sqlite', { kind: 'session', sessionId: 1 });
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  listeners.get('message')?.({ ok: true } as never);
+  await result;
+
+  assert.equal(terminateCalls, 1);
+});
+
+test('worker runtime terminates a worker after failed settlement', async () => {
+  type Listener = (value: never) => void;
+  const listeners = new Map<string, Listener>();
+  let terminateCalls = 0;
+  const worker = {
+    once(event: string, listener: Listener) {
+      listeners.set(event, listener);
+      return this;
+    },
+    terminate: async () => {
+      terminateCalls += 1;
+      return 0;
+    },
+  };
+  const runtime = new DeleteMaintenanceWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/delete-worker.js',
+    createWorker: async () => worker,
+  });
+
+  const result = runtime.run('/tmp/test.sqlite', { kind: 'session', sessionId: 1 });
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  listeners.get('error')?.(new Error('worker failed') as never);
+
+  await assert.rejects(result, /worker failed/);
+  assert.equal(terminateCalls, 1);
+});

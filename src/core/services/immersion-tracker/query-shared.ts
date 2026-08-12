@@ -490,17 +490,21 @@ export function deleteSessionsByIds(db: DatabaseSync, sessionIds: number[]): voi
     return;
   }
 
-  const placeholders = makePlaceholders(sessionIds);
-  db.prepare(`DELETE FROM imm_subtitle_lines WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_session_telemetry WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_session_events WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...sessionIds);
+  const chunkSize = 1_000;
+  for (let start = 0; start < sessionIds.length; start += chunkSize) {
+    const chunk = sessionIds.slice(start, start + chunkSize);
+    const placeholders = makePlaceholders(chunk);
+    db.prepare(`DELETE FROM imm_subtitle_lines WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_session_telemetry WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_session_events WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...chunk);
+  }
 }
 
 export function toDbMs(ms: number | bigint): bigint {

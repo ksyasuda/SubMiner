@@ -87,14 +87,11 @@ import {
   markVideoWatched,
   upsertCoverArt,
 } from './immersion-tracker/query-maintenance';
-import type {
-  DeleteMaintenanceOperation,
-  DeleteMaintenanceTask,
-} from './immersion-tracker/delete-maintenance';
 import {
   DeleteMaintenanceWorkerRuntime,
   type RunDeleteMaintenanceTask,
 } from './immersion-tracker/delete-maintenance-worker-runtime';
+import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   repairLegacySeasonlessAnimeRows,
@@ -390,19 +387,8 @@ export class ImmersionTrackerService {
   private readonly vacuumIntervalMs: number;
   private readonly dbPath: string;
   private readonly writeLock = { locked: false };
-  private readonly runDeleteMaintenanceTask: RunDeleteMaintenanceTask;
   private readonly destroyDeleteMaintenanceRunner: () => void;
-  private readonly pendingDeleteRequests: Array<{
-    resolveTask: () =>
-      | DeleteMaintenanceOperation
-      | null
-      | Promise<DeleteMaintenanceOperation | null>;
-    resolve: () => void;
-    reject: (error: unknown) => void;
-  }> = [];
-  private deleteTaskRunning = false;
-  private deleteDrainTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingDeleteTaskCount = 0;
+  private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private flushScheduled = false;
@@ -433,15 +419,29 @@ export class ImmersionTrackerService {
   ) {
     this.dbPath = options.dbPath;
     this.resolveLegacyVocabularyPos = options.resolveLegacyVocabularyPos;
+    let runDeleteMaintenanceTask: RunDeleteMaintenanceTask;
     if (dependencies.runDeleteMaintenanceTask) {
-      this.runDeleteMaintenanceTask = dependencies.runDeleteMaintenanceTask;
+      runDeleteMaintenanceTask = dependencies.runDeleteMaintenanceTask;
       this.destroyDeleteMaintenanceRunner =
         dependencies.destroyDeleteMaintenanceRunner ?? (() => {});
     } else {
       const deleteMaintenanceRuntime = new DeleteMaintenanceWorkerRuntime();
-      this.runDeleteMaintenanceTask = (dbPath, task) => deleteMaintenanceRuntime.run(dbPath, task);
+      runDeleteMaintenanceTask = (dbPath, task) => deleteMaintenanceRuntime.run(dbPath, task);
       this.destroyDeleteMaintenanceRunner = () => deleteMaintenanceRuntime.destroy();
     }
+    this.deleteMaintenanceScheduler = new DeleteMaintenanceScheduler({
+      batchWindowMs: DELETE_MAINTENANCE_BATCH_WINDOW_MS,
+      runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
+      onBusy: () => {
+        this.flushTelemetry(true);
+        this.flushNow();
+        this.writeLock.locked = true;
+      },
+      onIdle: () => {
+        this.writeLock.locked = false;
+        if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
+      },
+    });
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -543,16 +543,9 @@ export class ImmersionTrackerService {
       clearInterval(this.maintenanceTimer);
       this.maintenanceTimer = null;
     }
-    if (this.deleteDrainTimer) {
-      clearTimeout(this.deleteDrainTimer);
-      this.deleteDrainTimer = null;
-    }
-    if (this.pendingDeleteRequests.length > 0) {
-      const error = new Error('Immersion tracker is shutting down');
-      for (const request of this.pendingDeleteRequests.splice(0)) request.reject(error);
-    }
     this.finalizeActiveSession();
     this.isDestroyed = true;
+    this.deleteMaintenanceScheduler.destroy();
     this.destroyDeleteMaintenanceRunner();
     this.db.close();
   }
@@ -766,6 +759,7 @@ export class ImmersionTrackerService {
           `Ignoring bulk delete request for active immersion session ${activeSessionId}`,
         );
       }
+      if (deletableSessionIds.length === 0) return null;
       return { kind: 'sessions', sessionIds: deletableSessionIds };
     });
   }
@@ -804,75 +798,12 @@ export class ImmersionTrackerService {
   }
 
   private enqueueDeleteMaintenanceTask(
-    resolveTask: () =>
-      | DeleteMaintenanceOperation
-      | null
-      | Promise<DeleteMaintenanceOperation | null>,
+    resolveTask: Parameters<DeleteMaintenanceScheduler['enqueue']>[0],
   ): Promise<void> {
-    if (!this.writeLock.locked) {
-      this.flushTelemetry(true);
-      this.flushNow();
+    if (this.isDestroyed) {
+      return Promise.reject(new Error('Immersion tracker is shutting down'));
     }
-    this.pendingDeleteTaskCount += 1;
-    this.writeLock.locked = true;
-
-    const result = new Promise<void>((resolve, reject) => {
-      this.pendingDeleteRequests.push({ resolveTask, resolve, reject });
-      this.scheduleDeleteMaintenanceDrain();
-    });
-
-    return result.finally(() => {
-      this.pendingDeleteTaskCount -= 1;
-      if (this.pendingDeleteTaskCount > 0) return;
-      this.writeLock.locked = false;
-      if (!this.isDestroyed && this.queue.length > 0) {
-        this.scheduleFlush(0);
-      }
-    });
-  }
-
-  private scheduleDeleteMaintenanceDrain(): void {
-    if (this.isDestroyed || this.deleteTaskRunning || this.deleteDrainTimer) return;
-    this.deleteDrainTimer = setTimeout(() => {
-      this.deleteDrainTimer = null;
-      void this.drainDeleteMaintenanceRequests();
-    }, DELETE_MAINTENANCE_BATCH_WINDOW_MS);
-  }
-
-  private async drainDeleteMaintenanceRequests(): Promise<void> {
-    if (this.deleteTaskRunning || this.pendingDeleteRequests.length === 0) return;
-    this.deleteTaskRunning = true;
-    const requests = this.pendingDeleteRequests.splice(0);
-    const runnable: Array<{
-      request: (typeof requests)[number];
-      task: DeleteMaintenanceOperation;
-    }> = [];
-
-    for (const request of requests) {
-      try {
-        const task = await request.resolveTask();
-        if (task) runnable.push({ request, task });
-        else request.resolve();
-      } catch (error) {
-        request.reject(error);
-      }
-    }
-
-    if (runnable.length > 0) {
-      const task: DeleteMaintenanceTask =
-        runnable.length === 1
-          ? runnable[0]!.task
-          : { kind: 'batch', tasks: runnable.map((entry) => entry.task) };
-      try {
-        await this.runDeleteMaintenanceTask(this.dbPath, task);
-        for (const { request } of runnable) request.resolve();
-      } catch (error) {
-        for (const { request } of runnable) request.reject(error);
-      }
-    }
-
-    this.deleteTaskRunning = false;
-    this.scheduleDeleteMaintenanceDrain();
+    return this.deleteMaintenanceScheduler.enqueue(resolveTask);
   }
 
   async reassignAnimeAnilist(

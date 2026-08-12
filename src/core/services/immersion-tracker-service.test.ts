@@ -1545,8 +1545,9 @@ test('concurrent delete requests share one maintenance worker batch', async () =
     );
 
     const firstDelete = tracker.deleteSession(201);
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    await Promise.all([firstDelete, tracker.deleteSessions([202, 203]), tracker.deleteVideo(204)]);
+    const secondDelete = tracker.deleteSessions([202, 203]);
+    const thirdDelete = tracker.deleteVideo(204);
+    await Promise.all([firstDelete, secondDelete, thirdDelete]);
 
     assert.equal(tasks.length, 1, 'concurrent deletes should use one maintenance pass');
     assert.deepEqual(tasks[0], {
@@ -1606,6 +1607,51 @@ test('destroy rejects delete requests waiting behind active maintenance', async 
     await firstDelete;
   } finally {
     releaseFirstTask();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('delete requested after destroy rejects without running maintenance', async () => {
+  const dbPath = makeDbPath();
+  let maintenanceCalls = 0;
+  const Ctor = await loadTrackerCtor();
+  const tracker = new Ctor(
+    { dbPath },
+    {
+      runDeleteMaintenanceTask: async () => {
+        maintenanceCalls += 1;
+      },
+    },
+  );
+
+  tracker.destroy();
+
+  await assert.rejects(tracker.deleteSession(303), /shutting down/);
+  assert.equal(maintenanceCalls, 0);
+  cleanupDbPath(dbPath);
+});
+
+test('deleteSessions skips maintenance when no sessions are deletable', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const tasks: unknown[] = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async (_path, task) => {
+          tasks.push(task);
+        },
+      },
+    );
+
+    await tracker.deleteSessions([]);
+
+    assert.deepEqual(tasks, []);
+  } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }

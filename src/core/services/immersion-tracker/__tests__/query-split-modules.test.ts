@@ -1087,7 +1087,13 @@ test('delete maintenance batch preserves retained data across overlapping sessio
     }
 
     const rollupDay = getLocalEpochDay(db, startedAtMs);
-    const rollupMonth = 202311;
+    const rollupMonth = (
+      db
+        .prepare(
+          `SELECT CAST(strftime('%Y%m', CAST(? AS REAL) / 1000, 'unixepoch', 'localtime') AS INTEGER) AS rollupMonth`,
+        )
+        .get(startedAtMs) as { rollupMonth: number }
+    ).rollupMonth;
     for (const videoId of [retainedVideoId, deletedVideoId, animeVideoId]) {
       db.prepare(
         `INSERT INTO imm_daily_rollups (
@@ -1150,6 +1156,25 @@ test('delete maintenance batch preserves retained data across overlapping sessio
       }>,
       [{ video_id: retainedVideoId, total_sessions: 1 }],
     );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('delete maintenance batch chunks id lists below the SQLite variable limit', () => {
+  const { db, dbPath } = createDb();
+
+  try {
+    const ids = Array.from({ length: 32_767 }, (_, index) => index + 1);
+
+    assert.doesNotThrow(() => {
+      deleteMaintenanceBatch(db, [
+        { kind: 'sessions', sessionIds: ids },
+        ...ids.map((videoId) => ({ kind: 'video' as const, videoId })),
+        ...ids.map((animeId) => ({ kind: 'anime' as const, animeId })),
+      ]);
+    });
   } finally {
     db.close();
     cleanupDbPath(dbPath);
