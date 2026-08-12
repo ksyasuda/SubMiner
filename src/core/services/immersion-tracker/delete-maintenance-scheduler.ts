@@ -58,7 +58,9 @@ export class DeleteMaintenanceScheduler {
   }
 
   private scheduleDrain(): void {
-    if (this.destroyed || this.running || this.drainTimer) return;
+    if (this.destroyed || this.running || this.drainTimer || this.pendingRequests.length === 0) {
+      return;
+    }
     this.drainTimer = setTimeout(() => {
       this.drainTimer = null;
       void this.drain();

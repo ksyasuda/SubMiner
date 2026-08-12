@@ -60,12 +60,20 @@ export class DeleteMaintenanceWorkerRuntime {
         });
       worker = await createWorker(workerPath, { dbPath, task });
     } catch (error) {
+      if (this.destroyed) {
+        throw new Error('Delete maintenance worker is shut down');
+      }
       (this.options.warn ?? logger.warn)(
         'Delete maintenance worker unavailable; running maintenance on the current thread',
         error,
       );
       (this.options.executeFallback ?? executeDeleteMaintenanceTask)(dbPath, task);
       return;
+    }
+
+    if (this.destroyed) {
+      await worker.terminate().catch(() => undefined);
+      throw new Error('Delete maintenance worker is shut down');
     }
 
     await new Promise<void>((resolve, reject) => {

@@ -55,6 +55,74 @@ test('scheduler rejects enqueue after destruction without entering busy state', 
   assert.equal(runCalls, 0);
 });
 
+test('scheduler rejects every request in a batch when the maintenance task fails', async () => {
+  const failure = new Error('maintenance failed');
+  const scheduler = new DeleteMaintenanceScheduler({
+    batchWindowMs: 0,
+    runTask: async () => {
+      throw failure;
+    },
+    onBusy: () => {},
+    onIdle: () => {},
+  });
+
+  const first = scheduler.enqueue(() => ({ kind: 'session', sessionId: 1 }));
+  const second = scheduler.enqueue(() => ({ kind: 'session', sessionId: 2 }));
+
+  const results = await Promise.allSettled([first, second]);
+  assert.deepEqual(
+    results.map((result) => (result.status === 'rejected' ? result.reason : null)),
+    [failure, failure],
+  );
+});
+
+test('scheduler rejects only the request whose task resolution fails', async () => {
+  const failure = new Error('resolution failed');
+  const tasks: DeleteMaintenanceTask[] = [];
+  const scheduler = new DeleteMaintenanceScheduler({
+    batchWindowMs: 0,
+    runTask: async (task) => {
+      tasks.push(task);
+    },
+    onBusy: () => {},
+    onIdle: () => {},
+  });
+
+  const failed = scheduler.enqueue(() => {
+    throw failure;
+  });
+  const succeeded = scheduler.enqueue(() => ({ kind: 'session', sessionId: 2 }));
+
+  const results = await Promise.allSettled([failed, succeeded]);
+  assert.equal(results[0]?.status, 'rejected');
+  assert.equal(results[0]?.status === 'rejected' ? results[0].reason : null, failure);
+  assert.equal(results[1]?.status, 'fulfilled');
+  assert.deepEqual(tasks, [{ kind: 'session', sessionId: 2 }]);
+});
+
+test('scheduler does not schedule another drain when the queue is empty', async () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  let timerCalls = 0;
+  globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+    timerCalls += 1;
+    return originalSetTimeout(handler, timeout, ...args);
+  }) as typeof setTimeout;
+
+  try {
+    const scheduler = new DeleteMaintenanceScheduler({
+      batchWindowMs: 0,
+      runTask: async () => {},
+      onBusy: () => {},
+      onIdle: () => {},
+    });
+
+    await scheduler.enqueue(() => ({ kind: 'session', sessionId: 1 }));
+    assert.equal(timerCalls, 1);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
 test('scheduler serializes batches and rejects requests queued at destruction', async () => {
   const releases: Array<() => void> = [];
   let activeTasks = 0;
@@ -72,7 +140,16 @@ test('scheduler serializes batches and rejects requests queued at destruction', 
   });
 
   const first = scheduler.enqueue(() => ({ kind: 'session', sessionId: 1 }));
-  while (releases.length === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const maxPollAttempts = 100;
+  let pollAttempts = 0;
+  while (releases.length === 0 && pollAttempts < maxPollAttempts) {
+    pollAttempts += 1;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  assert.ok(
+    releases.length > 0,
+    `runTask did not produce a release after ${maxPollAttempts} polling attempts`,
+  );
   const queued = scheduler.enqueue(() => ({ kind: 'session', sessionId: 2 }));
   scheduler.destroy();
 

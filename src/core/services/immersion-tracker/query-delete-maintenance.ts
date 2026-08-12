@@ -5,12 +5,12 @@ import {
   applyLexicalRemovals,
   cleanupUnusedCoverArtBlobHash,
   deleteSessionsByIds,
+  forEachIdChunk,
   makePlaceholders,
   planLexicalRemovalsForSessions,
+  SQLITE_ID_CHUNK_SIZE,
   type LexicalRemovalPlan,
 } from './query-shared';
-
-const SQLITE_ID_CHUNK_SIZE = 1_000;
 
 export type DeleteMaintenanceOperation =
   | { kind: 'session'; sessionId: number }
@@ -39,12 +39,6 @@ function addOperationTargets(
         animeIds.add(operation.animeId);
         break;
     }
-  }
-}
-
-function forEachIdChunk(ids: number[], callback: (chunk: number[]) => void): void {
-  for (let start = 0; start < ids.length; start += SQLITE_ID_CHUNK_SIZE) {
-    callback(ids.slice(start, start + SQLITE_ID_CHUNK_SIZE));
   }
 }
 

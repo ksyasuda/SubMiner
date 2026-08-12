@@ -434,7 +434,7 @@ export class ImmersionTrackerService {
       runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
       onBusy: () => {
         this.flushTelemetry(true);
-        this.flushNow();
+        while (this.queue.length > 0) this.flushNow();
         this.writeLock.locked = true;
       },
       onIdle: () => {

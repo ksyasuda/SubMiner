@@ -1486,6 +1486,58 @@ test('deleteSession yields the main event loop while delete maintenance is pendi
   }
 });
 
+test('delete maintenance flushes the entire write queue before locking writes', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const deleteGate: { release?: () => void } = {};
+  let queuedWritesAtDeleteStart = -1;
+  let writeLockedAtDeleteStart = false;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runDeleteMaintenanceTask: async () => {
+          const privateApi = tracker as unknown as {
+            queue: unknown[];
+            writeLock: { locked: boolean };
+          };
+          queuedWritesAtDeleteStart = privateApi.queue.length;
+          writeLockedAtDeleteStart = privateApi.writeLock.locked;
+          await new Promise<void>((resolve) => {
+            deleteGate.release = resolve;
+          });
+        },
+      },
+    );
+
+    const privateApi = tracker as unknown as {
+      batchSize: number;
+      flushNow: () => void;
+      queue: unknown[];
+    };
+    privateApi.batchSize = 1;
+    privateApi.queue.push({}, {}, {});
+    privateApi.flushNow = () => {
+      privateApi.queue.shift();
+    };
+
+    const deletePromise = tracker.deleteSession(101);
+    await waitForCondition(() => deleteGate.release !== undefined);
+
+    assert.equal(queuedWritesAtDeleteStart, 0);
+    assert.equal(writeLockedAtDeleteStart, true);
+
+    deleteGate.release?.();
+    await deletePromise;
+  } finally {
+    deleteGate.release?.();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('delete maintenance tasks stay serialized under concurrent requests', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
