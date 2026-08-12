@@ -280,6 +280,9 @@ export function spawnDetachedApp(childArgs: string[], env: NodeJS.ProcessEnv): v
         stdio: 'ignore',
         env,
       });
+  child.once('error', (error) => {
+    console.error('Failed to spawn detached SubMiner app:', error);
+  });
   child.unref();
 }
 

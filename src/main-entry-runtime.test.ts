@@ -37,7 +37,10 @@ test('detached app launch policy stays in the startup runtime utilities', () => 
 
   assert.equal(typeof spawnDetachedApp, 'function');
   assert.doesNotMatch(entrySource, /function spawnDetachedApp/);
-  assert.match(runtimeSource, /child\.unref\(\)/);
+  assert.match(
+    runtimeSource,
+    /child\.once\('error', \(error\) => \{\s*console\.error\([^;]*error\);\s*\}\);\s*child\.unref\(\)/,
+  );
 });
 
 test('background bootstrap exits through Electron so Chromium children shut down', () => {
