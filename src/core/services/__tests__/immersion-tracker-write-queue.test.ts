@@ -35,7 +35,84 @@ interface TrackerInternals {
   recordWrite: (write: Record<string, unknown>) => void;
   mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<unknown>;
   moveVideoToAnime: (videoId: number, targetAnimeId: number) => Promise<unknown>;
+  rebuildLifetimeSummaries: () => Promise<unknown>;
+  flushNow: () => void;
 }
+
+test('mergeAnime fails closed when queued writes cannot drain', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
+    const internals = tracker as unknown as TrackerInternals;
+    seedTwoEntries(internals.db);
+    queueSubtitleLines(internals, 1);
+    internals.flushNow = () => {};
+
+    await assert.rejects(internals.mergeAnime(1, [2]), /queue did not drain/i);
+
+    assert.deepEqual(
+      internals.db
+        .prepare('SELECT anime_id AS animeId FROM imm_anime ORDER BY anime_id')
+        .all()
+        .map((row) => (row as { animeId: number }).animeId),
+      [1, 2],
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('moveVideoToAnime fails closed when queued writes cannot drain', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
+    const internals = tracker as unknown as TrackerInternals;
+    seedTwoEntries(internals.db);
+    queueSubtitleLines(internals, 1);
+    internals.flushNow = () => {};
+
+    await assert.rejects(internals.moveVideoToAnime(2, 1), /queue did not drain/i);
+    assert.equal(
+      (
+        internals.db
+          .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = 2')
+          .get() as {
+          animeId: number;
+        }
+      ).animeId,
+      2,
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('rebuildLifetimeSummaries fails closed when queued writes cannot drain', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
+    const internals = tracker as unknown as TrackerInternals;
+    seedTwoEntries(internals.db);
+    queueSubtitleLines(internals, 1);
+    internals.flushNow = () => {};
+
+    await assert.rejects(internals.rebuildLifetimeSummaries(), /queue did not drain/i);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
 
 function seedTwoEntries(db: DatabaseSync): void {
   db.exec(`

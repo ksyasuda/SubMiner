@@ -156,6 +156,37 @@ test('season 1 resolves to the anchor without relation lookups', async () => {
   assert.deepEqual(relationLookups, []);
 });
 
+test('reports an exact normalized synonym match as strong evidence', async () => {
+  const { execute } = createExecutor([
+    {
+      id: 1,
+      episodes: 12,
+      format: 'TV',
+      title: { english: 'Hitori Gotoh Story' },
+      synonyms: ['BOCCHI THE ROCK'],
+    },
+  ]);
+
+  const result = await resolveAnilistSeasonMedia({ title: 'Bocchi the Rock!' }, { execute });
+
+  assert.equal(result?.exactTitleMatch, true);
+});
+
+test('reports a fuzzy-only search result as weak evidence', async () => {
+  const { execute } = createExecutor([
+    {
+      id: 1,
+      episodes: 12,
+      format: 'TV',
+      title: { english: 'Actual Show' },
+    },
+  ]);
+
+  const result = await resolveAnilistSeasonMedia({ title: 'Unrelated Release' }, { execute });
+
+  assert.equal(result?.exactTitleMatch, false);
+});
+
 test('strips a season marker already present in the parsed title', async () => {
   const { execute, searches } = createExecutor(OREGAIRU_SEARCH, OREGAIRU_RELATIONS);
   const result = await resolveAnilistSeasonMedia(

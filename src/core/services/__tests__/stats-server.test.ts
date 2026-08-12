@@ -1053,6 +1053,55 @@ describe('stats server API routes', () => {
     assert.equal(body[0].canonicalTitle, 'Little Witch Academia');
   });
 
+  it('GET /api/stats/anime/merge-recommendations returns pending duplicate pairs', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeMergeRecommendations: async () => [{ recommendationId: 4, animeIds: [1, 2] }],
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations');
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      recommendations: [{ recommendationId: 4, animeIds: [1, 2] }],
+    });
+  });
+
+  it('DELETE /api/stats/anime/merge-recommendations/:id dismisses a pending pair', async () => {
+    let dismissedId: number | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        dismissAnimeMergeRecommendation: async (recommendationId: number) => {
+          dismissedId = recommendationId;
+          return true;
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations/4', {
+      method: 'DELETE',
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(dismissedId, 4);
+    assert.deepEqual(await res.json(), { ok: true });
+  });
+
+  it('DELETE /api/stats/anime/merge-recommendations/:id reports missing recommendations', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        dismissAnimeMergeRecommendation: async () => false,
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations/99', {
+      method: 'DELETE',
+    });
+
+    assert.equal(res.status, 404);
+  });
+
   it('GET /api/stats/anime/:animeId returns anime detail with episodes', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anime/1');

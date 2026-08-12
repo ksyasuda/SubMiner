@@ -10,6 +10,7 @@ import {
 import { AnimeCard } from './AnimeCard';
 import { AnimeDetailView } from './AnimeDetailView';
 import { AnimeMergeDialog } from './AnimeMergeDialog';
+import { DuplicateReviewStrip } from './DuplicateReviewStrip';
 
 type SortKey = 'lastWatched' | 'watchTime' | 'cards' | 'episodes';
 
@@ -54,7 +55,17 @@ export function AnimeTab({
   onNavigateToWord,
   onOpenEpisodeDetail,
 }: AnimeTabProps) {
-  const { anime, loading, error, reload } = useAnimeLibrary();
+  const {
+    anime,
+    loading,
+    error,
+    reload,
+    recommendations,
+    dismissRecommendation,
+    dismissingRecommendationId,
+    recommendationActionError,
+    clearRecommendation,
+  } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
   const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
@@ -66,6 +77,8 @@ export function AnimeTab({
   const [selectionMode, setSelectionMode] = useState(false);
   const [checkedAnimeIds, setCheckedAnimeIds] = useState<number[]>([]);
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [reviewRecommendationId, setReviewRecommendationId] = useState<number | null>(null);
+  const [reviewAnimeIds, setReviewAnimeIds] = useState<[number, number] | null>(null);
 
   function toggleChecked(animeId: number): void {
     setCheckedAnimeIds((ids) =>
@@ -105,6 +118,19 @@ export function AnimeTab({
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  const hydratedRecommendations = recommendations
+    .map((recommendation) => ({
+      ...recommendation,
+      entries: recommendation.animeIds
+        .map((animeId) => anime.find((entry) => entry.animeId === animeId))
+        .filter((entry): entry is (typeof anime)[number] => entry !== undefined),
+    }))
+    .filter((recommendation) => recommendation.entries.length >= 2);
+  const activeRecommendation = hydratedRecommendations[0] ?? null;
+  const reviewEntries = (reviewAnimeIds ?? [])
+    .map((animeId) => anime.find((entry) => entry.animeId === animeId))
+    .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  const mergeEntries = reviewRecommendationId !== null ? reviewEntries : checkedEntries;
 
   if (selectedAnimeId !== null) {
     return (
@@ -180,6 +206,22 @@ export function AnimeTab({
         </div>
       </div>
 
+      {activeRecommendation ? (
+        <DuplicateReviewStrip
+          entries={activeRecommendation.entries}
+          current={1}
+          total={hydratedRecommendations.length}
+          dismissing={dismissingRecommendationId === activeRecommendation.recommendationId}
+          error={recommendationActionError}
+          onReview={() => {
+            setReviewRecommendationId(activeRecommendation.recommendationId);
+            setReviewAnimeIds(activeRecommendation.animeIds);
+            setShowMergeDialog(true);
+          }}
+          onDismiss={() => void dismissRecommendation(activeRecommendation.recommendationId)}
+        />
+      ) : null}
+
       {selectionMode && (
         <div className="flex items-center justify-between gap-3 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2">
           <div className="text-xs text-ctp-overlay2">
@@ -216,12 +258,21 @@ export function AnimeTab({
         </div>
       )}
 
-      {showMergeDialog && checkedEntries.length >= 2 && (
+      {showMergeDialog && mergeEntries.length >= 2 && (
         <AnimeMergeDialog
-          entries={checkedEntries}
-          onClose={() => setShowMergeDialog(false)}
+          entries={mergeEntries}
+          onClose={() => {
+            setShowMergeDialog(false);
+            setReviewRecommendationId(null);
+            setReviewAnimeIds(null);
+          }}
           onMerged={() => {
+            if (reviewRecommendationId !== null) {
+              clearRecommendation(reviewRecommendationId);
+            }
             exitSelectionMode();
+            setReviewRecommendationId(null);
+            setReviewAnimeIds(null);
             reload();
           }}
         />

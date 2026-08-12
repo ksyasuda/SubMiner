@@ -1,6 +1,7 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { apiClient } from '../../lib/api-client';
 import { formatDuration, formatNumber } from '../../lib/formatters';
+import { useModalFocus } from '../../hooks/useModalFocus';
 import { AnimeCoverImage } from './AnimeCoverImage';
 import type { AnimeLibraryItem } from '../../types/stats';
 
@@ -20,6 +21,8 @@ function pickDefaultKeeper(entries: AnimeLibraryItem[]): number {
 
 export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialogProps) {
   const headingId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [keeperId, setKeeperId] = useState(() => pickDefaultKeeper(entries));
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +30,13 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
   const totalEpisodes = entries.reduce((sum, entry) => sum + entry.episodeCount, 0);
   const totalCards = entries.reduce((sum, entry) => sum + entry.totalCards, 0);
   const totalActiveMs = entries.reduce((sum, entry) => sum + entry.totalActiveMs, 0);
+
+  useModalFocus({
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    dismissDisabled: merging,
+    onDismiss: onClose,
+  });
 
   const handleMerge = async () => {
     const sourceAnimeIds = entries
@@ -58,6 +68,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
     >
       <div className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -70,6 +81,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
               Merge {entries.length} Library Entries
             </h3>
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={handleDismiss}
               disabled={merging}

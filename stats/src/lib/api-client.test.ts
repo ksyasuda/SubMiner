@@ -44,6 +44,45 @@ test('getAnimeCoverUrl appends retry tokens for late cover refreshes', () => {
   );
 });
 
+test('getAnimeMergeRecommendations loads pending duplicate pairs', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    seenUrl = String(input);
+    return new Response(
+      JSON.stringify({ recommendations: [{ recommendationId: 4, animeIds: [7, 8] }] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }) as typeof globalThis.fetch;
+
+  try {
+    const result = await apiClient.getAnimeMergeRecommendations();
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/anime/merge-recommendations`);
+    assert.deepEqual(result.recommendations, [{ recommendationId: 4, animeIds: [7, 8] }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('dismissAnimeMergeRecommendation sends DELETE for the selected suggestion', async () => {
+  const originalFetch = globalThis.fetch;
+  let seenUrl = '';
+  let seenMethod = '';
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    seenUrl = String(input);
+    seenMethod = init?.method ?? 'GET';
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof globalThis.fetch;
+
+  try {
+    await apiClient.dismissAnimeMergeRecommendation(4);
+    assert.equal(seenUrl, `${BASE_URL}/api/stats/anime/merge-recommendations/4`);
+    assert.equal(seenMethod, 'DELETE');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('getCoverImages batches anime and media cover requests', async () => {
   const originalFetch = globalThis.fetch;
   let seenUrl = '';

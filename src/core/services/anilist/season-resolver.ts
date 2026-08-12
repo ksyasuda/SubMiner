@@ -42,6 +42,8 @@ export interface AnilistSeasonResolution {
   seasonResolved: boolean;
   requestedSeason: number | null;
   via: AnilistSeasonResolutionVia;
+  /** Exact normalized match against an AniList title or synonym. */
+  exactTitleMatch: boolean;
 }
 
 export interface ResolveAnilistSeasonMediaInput {
@@ -116,7 +118,12 @@ const SEASONAL_FORMAT_PRIORITY = ['TV', 'TV_SHORT', 'ONA'];
 const MAX_SEQUEL_HOPS = 12;
 
 function normalizeTitle(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 /**
@@ -176,6 +183,7 @@ function toResolution(
   season: number | null,
   via: AnilistSeasonResolutionVia,
   seasonResolved: boolean,
+  exactTitleMatch: boolean,
 ): AnilistSeasonResolution {
   return {
     id: media.id,
@@ -185,6 +193,7 @@ function toResolution(
     seasonResolved,
     requestedSeason: season,
     via,
+    exactTitleMatch,
   };
 }
 
@@ -367,9 +376,10 @@ export async function resolveAnilistSeasonMedia(
     episode: season === null || season <= 1 ? input.episode : null,
   });
   if (!anchor) return null;
+  const exactTitleMatch = mediaTitles(anchor).includes(normalizeTitle(searchTitle));
 
   if (season === null || season <= 1) {
-    return toResolution(anchor, searchTitle, season, 'anchor', true);
+    return toResolution(anchor, searchTitle, season, 'anchor', true, exactTitleMatch);
   }
 
   let chainError: unknown = null;
@@ -383,7 +393,7 @@ export async function resolveAnilistSeasonMedia(
     deps.logInfo?.(
       `[anilist] season ${season} of "${searchTitle}" resolved via sequel chain: ${displayTitle(viaChain, searchTitle)} (${viaChain.id})`,
     );
-    return toResolution(viaChain, searchTitle, season, 'sequel-chain', true);
+    return toResolution(viaChain, searchTitle, season, 'sequel-chain', true, exactTitleMatch);
   }
 
   const viaAirOrder = pickByAirOrder(anchor, season, media);
@@ -391,7 +401,7 @@ export async function resolveAnilistSeasonMedia(
     deps.logInfo?.(
       `[anilist] season ${season} of "${searchTitle}" resolved via air order: ${displayTitle(viaAirOrder, searchTitle)} (${viaAirOrder.id})`,
     );
-    return toResolution(viaAirOrder, searchTitle, season, 'air-order', true);
+    return toResolution(viaAirOrder, searchTitle, season, 'air-order', true, exactTitleMatch);
   }
 
   // The chain failed for transport reasons rather than because the season is absent;
@@ -403,5 +413,5 @@ export async function resolveAnilistSeasonMedia(
   deps.logInfo?.(
     `[anilist] could not resolve season ${season} of "${searchTitle}"; falling back to ${displayTitle(anchor, searchTitle)} (${anchor.id})`,
   );
-  return toResolution(anchor, searchTitle, season, 'anchor', false);
+  return toResolution(anchor, searchTitle, season, 'anchor', false, exactTitleMatch);
 }

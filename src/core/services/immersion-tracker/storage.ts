@@ -530,6 +530,36 @@ function ensureStatsExcludedWordsTable(db: DatabaseSync): void {
   `);
 }
 
+function ensureAnimeMergeTables(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_anime_title_aliases(
+      normalized_title_key TEXT PRIMARY KEY,
+      anime_id INTEGER NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_anime_title_aliases_anime_id
+    ON imm_anime_title_aliases(anime_id);
+
+    CREATE TABLE IF NOT EXISTS imm_anime_merge_recommendations(
+      recommendation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      first_anime_id INTEGER NOT NULL,
+      second_anime_id INTEGER NOT NULL,
+      anilist_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'dismissed')),
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      CHECK(first_anime_id < second_anime_id),
+      UNIQUE(first_anime_id, second_anime_id, anilist_id),
+      FOREIGN KEY(first_anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE,
+      FOREIGN KEY(second_anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_anime_merge_recommendations_status
+    ON imm_anime_merge_recommendations(status, recommendation_id);
+  `);
+}
+
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
   const seasonScope = normalizeSeasonScope(input.seasonScope);
   const identityTitle = buildSeasonScopedAnimeTitle(input.parsedTitle, seasonScope);
@@ -550,8 +580,14 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
   const byNormalizedTitle = db
     .prepare('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?')
     .get(normalizedTitleKey) as { anime_id: number } | null;
-  const existing = byAnilistId ?? byNormalizedTitle;
+  const byTitleAlias = db
+    .prepare('SELECT anime_id FROM imm_anime_title_aliases WHERE normalized_title_key = ?')
+    .get(normalizedTitleKey) as { anime_id: number } | null;
+  const existing = byAnilistId ?? byNormalizedTitle ?? byTitleAlias;
   if (existing?.anime_id) {
+    // An alias remembers an intentionally merged-away spelling. Reusing it
+    // must not rename the survivor back to that discarded display title.
+    const canonicalTitleUpdate = byAnilistId || byNormalizedTitle ? canonicalTitle : null;
     db.prepare(
       `
         UPDATE imm_anime
@@ -566,7 +602,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
-      canonicalTitle,
+      canonicalTitleUpdate,
       input.anilistId,
       input.titleRomaji,
       input.titleEnglish,
@@ -751,6 +787,7 @@ export function ensureSchema(db: DatabaseSync): void {
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
+    ensureAnimeMergeTables(db);
     return;
   }
 
@@ -799,6 +836,7 @@ export function ensureSchema(db: DatabaseSync): void {
       FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
     );
   `);
+  ensureAnimeMergeTables(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_sessions(
       session_id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -418,6 +418,7 @@ export function updateAnimeAnilistInfo(
     titleEnglish: string | null;
     titleNative: string | null;
     episodesTotal: number | null;
+    exactTitleMatch?: boolean;
   },
 ): void {
   const row = db.prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?').get(videoId) as {
@@ -425,7 +426,10 @@ export function updateAnimeAnilistInfo(
   } | null;
   if (!row?.anime_id) return;
 
-  const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId);
+  const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId, {
+    matchConfidence: info.exactTitleMatch === false ? 'weak' : 'exact',
+  });
+  if (repair.mergeRecommended || repair.anilistAssignmentBlocked) return;
   const targetRow = db
     .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
     .get(videoId) as {

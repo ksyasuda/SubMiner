@@ -108,6 +108,15 @@ export interface StatsMoveVideoRequest {
   animeId: number;
 }
 
+export interface StatsAnimeMergeRecommendation {
+  recommendationId: number;
+  animeIds: [number, number];
+}
+
+export interface StatsAnimeMergeRecommendationsResponse {
+  recommendations: StatsAnimeMergeRecommendation[];
+}
+
 export interface StatsMergeAnimeResponse {
   ok: true;
   /** Library entry that owns every merged episode afterwards. */
@@ -158,6 +167,7 @@ export interface StatsJsonResponseMap {
   mediaLibrary: MediaLibraryItem[];
   mediaDetail: MediaDetailData;
   animeLibrary: AnimeLibraryItem[];
+  animeMergeRecommendations: StatsAnimeMergeRecommendationsResponse;
   animeDetail: AnimeDetailData;
   animeWords: AnimeWord[];
   animeRollups: DailyRollup[];
@@ -168,6 +178,7 @@ export interface StatsJsonResponseMap {
   deleteAnime: StatsOkResponse;
   mergeAnime: StatsMergeAnimeResponse;
   moveVideoToAnime: StatsMoveVideoResponse;
+  dismissAnimeMergeRecommendation: StatsOkResponse;
   anilistSearch: StatsAnilistSearchResult[];
   knownWords: string[];
   knownWordsSummary: StatsKnownWordsSummary;
@@ -225,6 +236,7 @@ export interface StatsHttpClient {
   getMediaLibrary: () => Promise<MediaLibraryItem[]>;
   getMediaDetail: (videoId: number) => Promise<MediaDetailData>;
   getAnimeLibrary: () => Promise<AnimeLibraryItem[]>;
+  getAnimeMergeRecommendations: () => Promise<StatsAnimeMergeRecommendationsResponse>;
   getAnimeDetail: (animeId: number) => Promise<AnimeDetailData>;
   getAnimeWords: (animeId: number, limit?: number) => Promise<AnimeWord[]>;
   getAnimeRollups: (animeId: number, limit?: number) => Promise<DailyRollup[]>;
@@ -249,6 +261,7 @@ export interface StatsHttpClient {
   deleteAnime: (animeId: number) => Promise<void>;
   mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<StatsMergeAnimeResponse>;
   moveVideoToAnime: (videoId: number, animeId: number) => Promise<StatsMoveVideoResponse>;
+  dismissAnimeMergeRecommendation: (recommendationId: number) => Promise<void>;
   getKnownWords: () => Promise<string[]>;
   getKnownWordsSummary: () => Promise<StatsKnownWordsSummary>;
   getAnimeKnownWordsSummary: (animeId: number) => Promise<StatsKnownWordsSummary>;

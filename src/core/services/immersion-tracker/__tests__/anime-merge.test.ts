@@ -5,9 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 import { Database } from '../sqlite.js';
 import type { DatabaseSync } from '../sqlite.js';
-import { applyPragmas, ensureSchema } from '../storage.js';
+import { applyPragmas, ensureSchema, getOrCreateAnimeRecord } from '../storage.js';
 import { mergeAnimeRecords, moveVideoToAnime } from '../anime-merge.js';
-import { resolveAnimeAnilistConflict } from '../anime-season-repair.js';
+import {
+  dismissAnimeMergeRecommendation,
+  getAnimeMergeRecommendations,
+  resolveAnimeAnilistConflict,
+} from '../anime-season-repair.js';
+import { updateAnimeAnilistInfo } from '../query-maintenance.js';
 
 const BASE_MS = 1_700_000_000_000;
 
@@ -211,6 +216,54 @@ test('mergeAnimeRecords inherits metadata the target is missing without clobberi
   });
 });
 
+test('mergeAnimeRecords preserves source title identities as aliases of the survivor', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertAnime(db, { animeId: 2, key: 'show season 1', title: 'Show Season 1' });
+    insertEpisode(db, { videoId: 1, animeId: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    db.prepare(
+      `INSERT INTO imm_anime_title_aliases(normalized_title_key, anime_id, CREATED_DATE, LAST_UPDATE_DATE)
+       VALUES ('show s01', 2, ?, ?)`,
+    ).run(BASE_MS, BASE_MS);
+
+    mergeAnimeRecords(db, 1, [2]);
+
+    const fromSourceTitle = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Show Season 1',
+      canonicalTitle: 'Show Season 1',
+      seasonScope: 1,
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    const fromTransferredAlias = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Show S01',
+      canonicalTitle: 'Show S01',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+
+    assert.equal(fromSourceTitle, 1);
+    assert.equal(fromTransferredAlias, 1);
+    assert.deepEqual(animeIds(db), [1]);
+    assert.equal(
+      (
+        db.prepare('SELECT canonical_title AS title FROM imm_anime WHERE anime_id = 1').get() as {
+          title: string;
+        }
+      ).title,
+      'Show',
+    );
+  });
+});
+
 test('mergeAnimeRecords ignores unknown targets and self-merges', () => {
   withDb((db) => {
     insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
@@ -311,6 +364,126 @@ test('resolveAnimeAnilistConflict folds a seasonless duplicate into the entry th
   });
 });
 
+test('resolveAnimeAnilistConflict recommends a weak title collision instead of merging it', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132);
+
+    assert.equal(summary.repaired, 0);
+    assert.deepEqual(animeIds(db), [1, 2]);
+    assert.equal(videoAnimeId(db, 2), 2);
+    assert.deepEqual(getAnimeMergeRecommendations(db), [{ recommendationId: 1, animeIds: [1, 2] }]);
+  });
+});
+
+test('automatic AniList update leaves a weak collision unassigned for user review', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    updateAnimeAnilistInfo(db, 2, {
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+      titleEnglish: null,
+      titleNative: null,
+      episodesTotal: 12,
+      exactTitleMatch: false,
+    });
+
+    const target = db
+      .prepare('SELECT anilist_id AS anilistId FROM imm_anime WHERE anime_id = 2')
+      .get() as {
+      anilistId: number | null;
+    };
+    assert.equal(target.anilistId, null);
+    assert.deepEqual(getAnimeMergeRecommendations(db), [{ recommendationId: 1, animeIds: [1, 2] }]);
+  });
+});
+
+test('dismissed weak collision stays dismissed when automatic resolution repeats', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    resolveAnimeAnilistConflict(db, 2, 163132);
+    assert.equal(dismissAnimeMergeRecommendation(db, 1), true);
+    resolveAnimeAnilistConflict(db, 2, 163132);
+
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
+  });
+});
+
+test('dismissed recommendation prevents a later exact automatic merge of the pair', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    resolveAnimeAnilistConflict(db, 2, 163132, { matchConfidence: 'weak' });
+    assert.equal(dismissAnimeMergeRecommendation(db, 1), true);
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132, { matchConfidence: 'exact' });
+
+    assert.equal(summary.repaired, 0);
+    assert.deepEqual(animeIds(db), [1, 2]);
+    assert.equal(videoAnimeId(db, 2), 2);
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
+  });
+});
+
+test('manual merge clears recommendations involving the absorbed entry', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'actual show',
+      title: 'Actual Show',
+      anilistId: 163132,
+      titleRomaji: 'Actual Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1 });
+
+    resolveAnimeAnilistConflict(db, 2, 163132);
+    mergeAnimeRecords(db, 1, [2]);
+
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
+  });
+});
+
 test('resolveAnimeAnilistConflict keeps the target entry when the user drove the change', () => {
   withDb((db) => {
     insertAnime(db, { animeId: 1, key: 'show', title: 'Show', anilistId: 163132 });
@@ -353,6 +526,76 @@ test('resolveAnimeAnilistConflict falls back to season redistribution for multi-
   });
 });
 
+test('resolveAnimeAnilistConflict leaves explicit incompatible seasons and assignments unchanged', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'show season 1',
+      title: 'Show Season 1',
+      anilistId: 163132,
+      titleRomaji: 'Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'show season 2', title: 'Show Season 2' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 2 });
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132, { matchConfidence: 'exact' });
+
+    assert.equal(summary.repaired, 0);
+    assert.equal(summary.movedVideos, 0);
+    assert.equal(summary.deletedAnimeRows, 0);
+    assert.deepEqual(animeIds(db), [1, 2]);
+    assert.equal(videoAnimeId(db, 1), 1);
+    assert.equal(videoAnimeId(db, 2), 2);
+    const assignments = db
+      .prepare(
+        'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
+      )
+      .all() as Array<{ animeId: number; anilistId: number | null }>;
+    assert.deepEqual(assignments, [
+      { animeId: 1, anilistId: 163132 },
+      { animeId: 2, anilistId: null },
+    ]);
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
+  });
+});
+
+test('automatic AniList update does not transfer an assignment across explicit seasons', () => {
+  withDb((db) => {
+    insertAnime(db, {
+      animeId: 1,
+      key: 'show season 1',
+      title: 'Show Season 1',
+      anilistId: 163132,
+      titleRomaji: 'Show',
+    });
+    insertAnime(db, { animeId: 2, key: 'show season 2', title: 'Show Season 2' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 2 });
+
+    updateAnimeAnilistInfo(db, 2, {
+      anilistId: 163132,
+      titleRomaji: 'Show',
+      titleEnglish: null,
+      titleNative: null,
+      episodesTotal: 12,
+      exactTitleMatch: true,
+    });
+
+    const assignments = db
+      .prepare(
+        'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
+      )
+      .all() as Array<{ animeId: number; anilistId: number | null }>;
+    assert.deepEqual(assignments, [
+      { animeId: 1, anilistId: 163132 },
+      { animeId: 2, anilistId: null },
+    ]);
+    assert.equal(videoAnimeId(db, 1), 1);
+    assert.equal(videoAnimeId(db, 2), 2);
+  });
+});
+
 test('resolveAnimeAnilistConflict leaves an entry that already links elsewhere alone', () => {
   withDb((db) => {
     insertAnime(db, { animeId: 1, key: 'show', title: 'Show', anilistId: 163132 });
@@ -360,9 +603,20 @@ test('resolveAnimeAnilistConflict leaves an entry that already links elsewhere a
     insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
     insertEpisode(db, { videoId: 2, animeId: 2, season: 2 });
 
-    resolveAnimeAnilistConflict(db, 2, 163132);
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132);
 
     assert.equal(videoAnimeId(db, 2), 2);
     assert.ok(animeIds(db).includes(2));
+    assert.equal(
+      (
+        db.prepare('SELECT anilist_id AS anilistId FROM imm_anime WHERE anime_id = 2').get() as {
+          anilistId: number;
+        }
+      ).anilistId,
+      999,
+    );
+    assert.equal(summary.repaired, 0);
+    assert.equal(summary.movedVideos, 0);
+    assert.deepEqual(getAnimeMergeRecommendations(db), []);
   });
 });

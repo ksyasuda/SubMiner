@@ -132,6 +132,19 @@ export function registerStatsLibraryRoutes(
     return c.json(statsJson('animeLibrary', rows));
   });
 
+  app.get('/api/stats/anime/merge-recommendations', async (c) => {
+    const recommendations = await tracker.getAnimeMergeRecommendations();
+    return c.json(statsJson('animeMergeRecommendations', { recommendations }));
+  });
+
+  app.delete('/api/stats/anime/merge-recommendations/:recommendationId', async (c) => {
+    const recommendationId = parseIntQuery(c.req.param('recommendationId'), 0);
+    if (recommendationId <= 0) return c.body(null, 400);
+    const dismissed = await tracker.dismissAnimeMergeRecommendation(recommendationId);
+    if (!dismissed) return c.body(null, 404);
+    return c.json(statsJson('dismissAnimeMergeRecommendation', { ok: true }));
+  });
+
   app.get('/api/stats/anime/:animeId', async (c) => {
     const animeId = parseIntQuery(c.req.param('animeId'), 0);
     if (animeId <= 0) return c.body(null, 400);

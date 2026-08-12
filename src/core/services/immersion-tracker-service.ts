@@ -94,8 +94,11 @@ import {
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
+  dismissAnimeMergeRecommendation,
+  getAnimeMergeRecommendations,
   repairLegacySeasonlessAnimeRows,
   resolveAnimeAnilistConflict,
+  type AnimeMergeRecommendation,
 } from './immersion-tracker/anime-season-repair';
 import {
   mergeAnimeRecords,
@@ -637,7 +640,7 @@ export class ImmersionTrackerService {
   }
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
-    this.drainWriteQueue('rebuilding lifetime summaries');
+    this.requireWriteQueueDrained('rebuilding lifetime summaries');
     return rebuildLifetimeSummaryTables(this.db);
   }
 
@@ -702,6 +705,14 @@ export class ImmersionTrackerService {
   async getAnimeLibrary(): Promise<AnimeLibraryRow[]> {
     this.relinkYoutubeAnimeLibrary();
     return getAnimeLibrary(this.db);
+  }
+
+  async getAnimeMergeRecommendations(): Promise<AnimeMergeRecommendation[]> {
+    return getAnimeMergeRecommendations(this.db);
+  }
+
+  async dismissAnimeMergeRecommendation(recommendationId: number): Promise<boolean> {
+    return dismissAnimeMergeRecommendation(this.db, recommendationId);
   }
 
   async getAnimeDetail(animeId: number): Promise<AnimeDetailRow | null> {
@@ -824,13 +835,13 @@ export class ImmersionTrackerService {
     // This rebuilds the lifetime summaries, which recompute from the database:
     // queued writes have to land first or the active session is dropped from
     // the merged totals.
-    this.drainWriteQueue('merging library entries');
+    this.requireWriteQueueDrained('merging library entries');
     return mergeAnimeRecords(this.db, targetAnimeId, sourceAnimeIds);
   }
 
   async moveVideoToAnime(videoId: number, targetAnimeId: number): Promise<VideoMoveSummary> {
     await this.pendingAnimeMetadataUpdates.get(videoId);
-    this.drainWriteQueue('moving an episode');
+    this.requireWriteQueueDrained('moving an episode');
     return moveVideoToAnimeQuery(this.db, videoId, targetAnimeId);
   }
 
@@ -844,8 +855,8 @@ export class ImmersionTrackerService {
    * soon as a pass makes no progress — a rolled-back batch is pushed back onto
    * the queue, and looping on that would spin forever.
    *
-   * Returns false when the queue could not be emptied, in which case the
-   * rebuild runs against a database still missing those writes.
+   * Returns false when the queue could not be emptied. Summary-rebuilding
+   * callers fail closed in that case.
    */
   private drainWriteQueue(context: string): boolean {
     this.flushTelemetry(true);
@@ -860,6 +871,12 @@ export class ImmersionTrackerService {
       }
     }
     return true;
+  }
+
+  private requireWriteQueueDrained(context: string): void {
+    if (!this.drainWriteQueue(context)) {
+      throw new Error(`Immersion tracker queue did not drain before ${context}`);
+    }
   }
 
   async reassignAnimeAnilist(
@@ -878,7 +895,9 @@ export class ImmersionTrackerService {
     // another row already claims the same AniList id.
     const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId, {
       survivor: 'target',
+      matchConfidence: 'manual',
     });
+    if (repair.anilistAssignmentBlocked) return;
     this.db
       .prepare(
         `

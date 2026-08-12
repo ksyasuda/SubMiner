@@ -129,6 +129,8 @@ export const apiClient = {
   getMediaLibrary: () => fetchJson('mediaLibrary', '/api/stats/media'),
   getMediaDetail: (videoId: number) => fetchJson('mediaDetail', `/api/stats/media/${videoId}`),
   getAnimeLibrary: () => fetchJson('animeLibrary', '/api/stats/anime'),
+  getAnimeMergeRecommendations: () =>
+    fetchJson('animeMergeRecommendations', '/api/stats/anime/merge-recommendations'),
   getAnimeDetail: (animeId: number) => fetchJson('animeDetail', `/api/stats/anime/${animeId}`),
   getAnimeWords: (animeId: number, limit = 50) =>
     fetchJson('animeWords', `/api/stats/anime/${animeId}/words?limit=${limit}`),
@@ -216,6 +218,11 @@ export const apiClient = {
       body: JSON.stringify({ animeId } satisfies StatsMoveVideoRequest),
     });
     return res.json() as Promise<StatsMoveVideoResponse>;
+  },
+  dismissAnimeMergeRecommendation: async (recommendationId: number): Promise<void> => {
+    await fetchResponse(`/api/stats/anime/merge-recommendations/${recommendationId}`, {
+      method: 'DELETE',
+    });
   },
   getKnownWords: () => fetchJson('knownWords', '/api/stats/known-words'),
   getKnownWordsSummary: () => fetchJson('knownWordsSummary', '/api/stats/known-words-summary'),

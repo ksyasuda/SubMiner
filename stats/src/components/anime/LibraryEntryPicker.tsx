@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { apiClient } from '../../lib/api-client';
 import { formatDuration } from '../../lib/formatters';
+import { useModalFocus } from '../../hooks/useModalFocus';
 import { AnimeCoverImage } from './AnimeCoverImage';
 import type { AnimeLibraryItem } from '../../types/stats';
 
@@ -28,11 +29,12 @@ export function LibraryEntryPicker({
   const [loadFailed, setLoadFailed] = useState(false);
   const [query, setQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
   const searchId = useId();
+  const busy = busyAnimeId !== null;
 
   useEffect(() => {
-    inputRef.current?.focus();
     let cancelled = false;
     apiClient
       .getAnimeLibrary()
@@ -51,6 +53,17 @@ export function LibraryEntryPicker({
     };
   }, []);
 
+  useModalFocus({
+    dialogRef,
+    initialFocusRef: inputRef,
+    dismissDisabled: busy,
+    onDismiss: onClose,
+  });
+
+  const handleDismiss = () => {
+    if (!busy) onClose();
+  };
+
   const excluded = useMemo(() => new Set(excludeAnimeIds), [excludeAnimeIds]);
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -61,9 +74,13 @@ export function LibraryEntryPicker({
   }, [entries, excluded, query]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+      onClick={handleDismiss}
+    >
       <div className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
@@ -77,9 +94,10 @@ export function LibraryEntryPicker({
             </h3>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleDismiss}
+              disabled={busy}
               aria-label="Close"
-              className="text-ctp-overlay2 hover:text-ctp-text text-lg leading-none"
+              className="text-ctp-overlay2 hover:text-ctp-text text-lg leading-none disabled:opacity-50"
             >
               {'✕'}
             </button>
@@ -119,7 +137,7 @@ export function LibraryEntryPicker({
             <button
               key={entry.animeId}
               type="button"
-              disabled={busyAnimeId !== null}
+              disabled={busy}
               onClick={() => onSelect(entry)}
               className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-ctp-surface0 transition-colors text-left disabled:opacity-50"
             >

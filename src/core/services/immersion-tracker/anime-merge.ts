@@ -23,6 +23,7 @@ export interface VideoMoveSummary {
 }
 
 interface AnimeMetadataRow {
+  normalized_title_key: string;
   anilist_id: number | null;
   title_romaji: string | null;
   title_english: string | null;
@@ -51,7 +52,7 @@ function readAnimeMetadata(db: DatabaseSync, animeId: number): AnimeMetadataRow 
   return (db
     .prepare(
       `
-        SELECT anilist_id, title_romaji, title_english, title_native, episodes_total, description
+        SELECT normalized_title_key, anilist_id, title_romaji, title_english, title_native, episodes_total, description
         FROM imm_anime
         WHERE anime_id = ?
       `,
@@ -177,6 +178,19 @@ export function mergeAnimeRecordsInTransaction(
     'UPDATE imm_subtitle_lines SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?',
   );
   const dropLifetimeStmt = db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?');
+  const sourceAliasesStmt = db.prepare(
+    'SELECT normalized_title_key AS normalizedTitleKey FROM imm_anime_title_aliases WHERE anime_id = ?',
+  );
+  const upsertAliasStmt = db.prepare(
+    `INSERT INTO imm_anime_title_aliases(normalized_title_key, anime_id, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(normalized_title_key) DO UPDATE SET
+       anime_id = excluded.anime_id,
+       LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE`,
+  );
+  const dropSourceAliasesStmt = db.prepare(
+    'DELETE FROM imm_anime_title_aliases WHERE anime_id = ?',
+  );
   const dropAnimeStmt = db.prepare('DELETE FROM imm_anime WHERE anime_id = ?');
 
   for (const sourceAnimeId of new Set(sourceAnimeIds)) {
@@ -185,6 +199,9 @@ export function mergeAnimeRecordsInTransaction(
     }
 
     const sourceMetadata = readAnimeMetadata(db, sourceAnimeId);
+    const sourceAliases = sourceAliasesStmt.all(sourceAnimeId) as Array<{
+      normalizedTitleKey: string;
+    }>;
     const sourceVideoIds = (sourceVideosStmt.all(sourceAnimeId) as Array<{ videoId: number }>).map(
       (row) => row.videoId,
     );
@@ -193,6 +210,13 @@ export function mergeAnimeRecordsInTransaction(
     };
     for (const videoId of sourceVideoIds) {
       moveLinesStmt.run(targetAnimeId, updatedAt, videoId);
+    }
+    dropSourceAliasesStmt.run(sourceAnimeId);
+    for (const alias of [
+      ...(sourceMetadata ? [sourceMetadata.normalized_title_key] : []),
+      ...sourceAliases.map((row) => row.normalizedTitleKey),
+    ]) {
+      upsertAliasStmt.run(alias, targetAnimeId, updatedAt, updatedAt);
     }
     dropLifetimeStmt.run(sourceAnimeId);
     dropAnimeStmt.run(sourceAnimeId);
