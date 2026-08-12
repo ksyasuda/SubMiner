@@ -384,7 +384,9 @@ export function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--stats-cleanup-duplicate-lines') args.statsCleanupDuplicateLines = true;
     else if (arg === '--stats-cleanup-dry-run') args.statsCleanupDryRun = true;
     else if (arg.startsWith('--stats-cleanup-lookback-days=')) {
-      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(arg.split('=', 2)[1]);
+      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(
+        arg.slice('--stats-cleanup-lookback-days='.length),
+      );
     } else if (arg === '--stats-cleanup-lookback-days') {
       args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(readValue(argv[i + 1]));
     } else if (arg.startsWith('--stats-response-path=')) {

@@ -420,6 +420,8 @@ test('hasExplicitCommand and shouldStartApp preserve command intent', () => {
     ]).statsCleanupLookbackDays,
     1,
   );
+  assert.equal(parseArgs(['--stats-cleanup-lookback-days=30']).statsCleanupLookbackDays, 30);
+  assert.throws(() => parseArgs(['--stats-cleanup-lookback-days=30=oops']), /at least one day/);
 
   const jellyfinLibraries = parseArgs(['--jellyfin-libraries']);
   assert.equal(jellyfinLibraries.jellyfinLibraries, true);
