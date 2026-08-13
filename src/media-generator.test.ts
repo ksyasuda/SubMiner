@@ -4,13 +4,20 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import test from 'node:test';
 
-import { buildAnimatedImageVideoFilter, MediaGenerator } from './media-generator';
+import {
+  AUDIO_GENERATION_TIMEOUT_MS,
+  buildAnimatedImageVideoFilter,
+  MediaGenerator,
+} from './media-generator';
 
 async function withStubbedFfmpeg(
   run: (generator: MediaGenerator, argsPath: string) => Promise<void>,
   options: {
     logDebug?: (message: string) => void;
     now?: () => number;
+  } = {},
+  stubOptions: {
+    skipOutput?: boolean;
   } = {},
 ): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-media-generator-test-'));
@@ -31,7 +38,9 @@ async function withStubbedFfmpeg(
       '}',
       "fs.writeFileSync(process.env.SUBMINER_TEST_FFMPEG_ARGS, JSON.stringify(args), 'utf8');",
       'const outputPath = args.at(-1);',
-      "fs.writeFileSync(outputPath, 'avif', 'utf8');",
+      "if (process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT !== '1') {",
+      "  fs.writeFileSync(outputPath, 'avif', 'utf8');",
+      '}',
     ].join('\n'),
     'utf8',
   );
@@ -46,8 +55,14 @@ async function withStubbedFfmpeg(
 
   const originalPath = process.env.PATH;
   const originalArgsPath = process.env.SUBMINER_TEST_FFMPEG_ARGS;
+  const originalSkipOutput = process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT;
   process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ''}`;
   process.env.SUBMINER_TEST_FFMPEG_ARGS = argsPath;
+  if (stubOptions.skipOutput) {
+    process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT = '1';
+  } else {
+    delete process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT;
+  }
   const generator = new MediaGenerator(tempDir, options);
 
   try {
@@ -59,6 +74,11 @@ async function withStubbedFfmpeg(
       delete process.env.SUBMINER_TEST_FFMPEG_ARGS;
     } else {
       process.env.SUBMINER_TEST_FFMPEG_ARGS = originalArgsPath;
+    }
+    if (originalSkipOutput === undefined) {
+      delete process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT;
+    } else {
+      process.env.SUBMINER_TEST_FFMPEG_SKIP_OUTPUT = originalSkipOutput;
     }
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -314,6 +334,47 @@ test('generateAudio keeps explicit audio stream maps for normal media paths', as
     const args = readFfmpegArgs(argsPath);
     assert.equal(args[args.indexOf('-map') + 1], '0:2');
   });
+});
+
+test('generateAudio bounds probing when the selected local audio stream is known', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mkv', 10, 12, 0, 2);
+
+    const args = readFfmpegArgs(argsPath);
+    const inputIndex = args.indexOf('-i');
+    assert.ok(args.indexOf('-probesize') > -1);
+    assert.ok(args.indexOf('-probesize') < inputIndex);
+    assert.equal(args[args.indexOf('-probesize') + 1], '32768');
+    assert.ok(args.indexOf('-analyzeduration') < inputIndex);
+    assert.equal(args[args.indexOf('-analyzeduration') + 1], '0');
+  });
+});
+
+test('generateAudio retains normal probing for non-Matroska local media', async () => {
+  await withStubbedFfmpeg(async (generator, argsPath) => {
+    await generator.generateAudio('/video.mp4', 10, 12, 0, 2);
+
+    const args = readFfmpegArgs(argsPath);
+    assert.equal(args.includes('-probesize'), false);
+    assert.equal(args.includes('-analyzeduration'), false);
+  });
+});
+
+test('generateAudio retains a two-minute extraction timeout', () => {
+  assert.equal(AUDIO_GENERATION_TIMEOUT_MS, 120_000);
+});
+
+test('generateAudio reports when ffmpeg exits without creating output', async () => {
+  await withStubbedFfmpeg(
+    async (generator) => {
+      await assert.rejects(
+        generator.generateAudio('/video.mp4', 10, 12),
+        /FFmpeg audio generation failed: FFmpeg exited without creating an output file/,
+      );
+    },
+    {},
+    { skipOutput: true },
+  );
 });
 
 test('generateAudio debug-logs cached input and completion timing', async () => {
