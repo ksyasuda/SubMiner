@@ -44,7 +44,7 @@ import { nowMs } from './time';
 
 const MS_PER_DAY = 86_400_000;
 /** SQLite caps bound parameters per statement; stay well under it. */
-const LINE_ID_BATCH_SIZE = 400;
+const ID_BATCH_SIZE = 400;
 const DEFAULT_SAMPLE_LIMIT = 20;
 
 export interface DuplicateSubtitleLineCleanupOptions {
@@ -122,7 +122,9 @@ function resolveBounds(options: DuplicateSubtitleLineCleanupOptions): ResolvedBo
       ? Math.max(2, Math.floor(options.minRunLength))
       : MIN_TIMING_ONLY_FRAMES;
   const maxFrameSeconds =
-    typeof options.maxFrameSeconds === 'number' && options.maxFrameSeconds > 0
+    typeof options.maxFrameSeconds === 'number' &&
+    Number.isFinite(options.maxFrameSeconds) &&
+    options.maxFrameSeconds > 0
       ? options.maxFrameSeconds
       : ANIMATION_FRAME_MAX_SECONDS;
   const sampleLimit =
@@ -194,8 +196,8 @@ function isBurst(run: StoredSubtitleLineRow[], bounds: ResolvedBounds): boolean 
     return true;
   }
   // Karaoke commonly finishes its short animation frames with one long hold. Only the
-  // final event may exceed the frame bound, and the strict short-frame threshold must
-  // already have been met before it.
+  // final event may exceed the frame bound, and the short frames before it must already
+  // meet the minimum run length on their own.
   return (
     run.length - 1 >= bounds.minRunLength &&
     run.slice(0, -1).every(isShortFrame) &&
@@ -297,7 +299,7 @@ function buildSamples(
     .slice(0, sampleLimit);
   const videoIds = [...new Set(largest.map((burst) => burst.videoId))];
   const titles = new Map<number, string>();
-  for (const batch of chunk(videoIds, LINE_ID_BATCH_SIZE)) {
+  for (const batch of chunk(videoIds, ID_BATCH_SIZE)) {
     const rows = db
       .prepare(
         `SELECT video_id AS videoId, canonical_title AS title
@@ -327,7 +329,7 @@ function sumRemovedOccurrences(
   lineIds: number[],
 ): number {
   let total = 0;
-  for (const batch of chunk(lineIds, LINE_ID_BATCH_SIZE)) {
+  for (const batch of chunk(lineIds, ID_BATCH_SIZE)) {
     const row = db
       .prepare(
         `SELECT COALESCE(SUM(occurrence_count), 0) AS total
@@ -346,7 +348,7 @@ function applyBursts(db: DatabaseSync, bursts: DuplicateSubtitleLineBurst[]): vo
 
   db.exec('BEGIN IMMEDIATE');
   try {
-    for (const batch of chunk(removedLineIds, LINE_ID_BATCH_SIZE)) {
+    for (const batch of chunk(removedLineIds, ID_BATCH_SIZE)) {
       const placeholders = makePlaceholders(batch);
       // Measured before the delete, applied after it: `applyLexicalRemovals` checks the
       // surviving occurrences to decide whether a zeroed count really means the word is
@@ -372,7 +374,11 @@ function applyBursts(db: DatabaseSync, bursts: DuplicateSubtitleLineBurst[]): vo
     }
     db.exec('COMMIT');
   } catch (error) {
-    db.exec('ROLLBACK');
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Surface the transaction failure, not the rollback's.
+    }
     throw error;
   }
 }

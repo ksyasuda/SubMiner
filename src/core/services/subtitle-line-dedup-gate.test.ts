@@ -99,7 +99,8 @@ test('replacing the parsed cue source forgets a streaming run', () => {
   const gate = createSubtitleLineDedupGate({ getParsedCues: () => cues });
 
   karaokeFrames('飛び上がる', 42, 20, 0.04).forEach((sample) => gate.shouldRecord(sample));
-  cues = [];
+  // A new source publishes its own cue list; the old run must not carry over.
+  cues = [{ startTime: 100, endTime: 104, text: 'もしも' }];
 
   assert.equal(gate.shouldRecord({ text: '飛び上がる', startSec: 42.8, endSec: 42.84 }), true);
 });

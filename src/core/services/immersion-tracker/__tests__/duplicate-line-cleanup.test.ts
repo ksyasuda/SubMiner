@@ -279,6 +279,68 @@ test('a four-frame run above the strict frame bound survives', () => {
   }
 });
 
+test('an explicit minRunLength raises the bar', () => {
+  // Five quarter-second frames qualify under the defaults; a cautious run asking for six
+  // leaves them alone. Above the strict bound, so the residue rule stays out of it.
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 5, 250));
+
+  try {
+    const preview = cleanupDuplicateSubtitleLines(db, { dryRun: true });
+    assert.equal(preview.burstGroups, 1);
+
+    const summary = cleanupDuplicateSubtitleLines(db, { minRunLength: 6 });
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 5);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('an explicit maxFrameSeconds tightens the frame bound', () => {
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db, { maxFrameSeconds: 0.2 });
+
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 6);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a non-finite maxFrameSeconds falls back to the default bound', () => {
+  // Six normal-beat lines: Infinity must not turn every event into a "short frame".
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 800));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db, { maxFrameSeconds: Infinity });
+
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 6);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('sampleLimit zero removes bursts but reports no samples', () => {
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 40, 40));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db, { sampleLimit: 0 });
+
+    assert.equal(summary.removedLines, 39);
+    assert.deepEqual(summary.samples, []);
+    assert.equal(countLines(db), 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('a short run below every threshold survives', () => {
   const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 3, 40));
 
