@@ -244,19 +244,18 @@ function queueTelemetry(tracker: TrackerInternals, linesSeen: number): void {
   });
 }
 
-function lifetimeForAnime(
-  db: DatabaseSync,
-  animeId: number,
-): { linesSeen: number; activeMs: number; cards: number } | null {
+/** The queued telemetry sample only exists in the database once the queue drained fully. */
+function latestTelemetryLinesSeen(db: DatabaseSync, sessionId: number): number | null {
   const row = db
     .prepare(
-      `SELECT total_lines_seen AS linesSeen, total_active_ms AS activeMs, total_cards AS cards
-       FROM imm_lifetime_anime WHERE anime_id = ?`,
+      `SELECT lines_seen AS linesSeen
+       FROM imm_session_telemetry
+       WHERE session_id = ?
+       ORDER BY sample_ms DESC, telemetry_id DESC
+       LIMIT 1`,
     )
-    .get(animeId) as { linesSeen: number; activeMs: number; cards: number } | undefined;
-  return row
-    ? { linesSeen: Number(row.linesSeen), activeMs: Number(row.activeMs), cards: Number(row.cards) }
-    : null;
+    .get(sessionId) as { linesSeen: number } | undefined;
+  return row ? Number(row.linesSeen) : null;
 }
 
 function countLinesForAnime(db: DatabaseSync, animeId: number): number {
@@ -267,12 +266,12 @@ function countLinesForAnime(db: DatabaseSync, animeId: number): number {
 }
 
 /**
- * Both entry points rebuild the lifetime summaries, which recompute from the
- * database. A single flushNow() only writes one batch off the front of the
- * queue, so anything past `batchSize` would still be unwritten when the rebuild
- * reads.
+ * Both entry points must see a settled database before changing episode
+ * ownership. A single flushNow() only writes one batch off the front of the
+ * queue, so anything past `batchSize` would still be unwritten when the merge
+ * repoints rows.
  */
-test('mergeAnime drains a queue larger than one batch before rebuilding summaries', async () => {
+test('mergeAnime drains a queue larger than one batch before repointing rows', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -289,19 +288,16 @@ test('mergeAnime drains a queue larger than one batch before rebuilding summarie
     await internals.mergeAnime(1, [2]);
 
     assert.equal(internals.queue.length, 0);
+    // Every queued line landed, attributed to the surviving entry.
     assert.equal(countLinesForAnime(internals.db, 1), 8);
-    // The surviving entry's summary was rebuilt from the fully drained queue.
-    const lifetime = lifetimeForAnime(internals.db, 1);
-    assert.equal(lifetime?.linesSeen, 8);
-    assert.equal(lifetime?.activeMs, 3500);
-    assert.equal(lifetime?.cards, 2);
+    assert.equal(latestTelemetryLinesSeen(internals.db, 1), 8);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
 });
 
-test('moveVideoToAnime drains a queue larger than one batch before rebuilding summaries', async () => {
+test('moveVideoToAnime drains a queue larger than one batch before repointing rows', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -318,10 +314,7 @@ test('moveVideoToAnime drains a queue larger than one batch before rebuilding su
 
     assert.equal(internals.queue.length, 0);
     assert.equal(countLinesForAnime(internals.db, 1), 8);
-    const lifetime = lifetimeForAnime(internals.db, 1);
-    assert.equal(lifetime?.linesSeen, 8);
-    assert.equal(lifetime?.activeMs, 3500);
-    assert.equal(lifetime?.cards, 2);
+    assert.equal(latestTelemetryLinesSeen(internals.db, 1), 8);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

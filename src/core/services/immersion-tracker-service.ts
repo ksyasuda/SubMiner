@@ -28,6 +28,7 @@ import {
 } from './immersion-tracker/storage';
 import {
   applySessionLifetimeSummary,
+  recomputeLifetimeAnimeAggregates,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
   shouldBackfillLifetimeSummaries,
@@ -526,7 +527,7 @@ export class ImmersionTrackerService {
       this.logger.info(
         `Repaired season-scoped stats links on startup: scanned=${seasonRepair.scanned} movedVideos=${seasonRepair.movedVideos} deletedAnimeRows=${seasonRepair.deletedAnimeRows}`,
       );
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
     if (shouldBackfillLifetimeSummaries(this.db)) {
       const result = rebuildLifetimeSummaryTables(this.db);
@@ -924,7 +925,7 @@ export class ImmersionTrackerService {
         animeId,
       );
     if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
 
     // Update cover art for all videos in this anime
@@ -1372,7 +1373,7 @@ export class ImmersionTrackerService {
         metadataJson: candidate.metadataJson,
       });
     }
-    rebuildLifetimeSummaryTables(this.db);
+    recomputeLifetimeAnimeAggregates(this.db);
   }
 
   recordJellyfinPlaybackMetadata(metadata: JellyfinPlaybackMetadataInput): void {
@@ -1445,7 +1446,7 @@ export class ImmersionTrackerService {
       this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
     );
     if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
   }
 

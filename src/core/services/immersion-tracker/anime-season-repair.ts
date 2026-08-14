@@ -380,8 +380,12 @@ export function resolveAnimeAnilistConflict(
       targetRow.anilist_id !== anilistId
     ) {
       // An automatic lookup disagreeing with an existing explicit link is a
-      // mis-resolution, not evidence that either row should move or merge.
-      return emptySummary(1);
+      // mis-resolution, not evidence that either row should move or merge. The
+      // colliding id must not be assigned either: another row owns it and
+      // imm_anime.anilist_id is UNIQUE.
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
+      return summary;
     }
     const isManual = options.survivor === 'target' || options.matchConfidence === 'manual';
     if (!isManual && hasDismissedAnimeMergeRecommendation(db, targetAnimeId, conflict.animeId)) {

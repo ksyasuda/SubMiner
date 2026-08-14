@@ -156,7 +156,10 @@ test('season 1 resolves to the anchor without relation lookups', async () => {
   assert.deepEqual(relationLookups, []);
 });
 
-test('season 2 preserves the anchor exact-title evidence through a sequel resolution', async () => {
+test('a sequel resolution is not certified by the anchor exact-title evidence', async () => {
+  // The anchor matched the search title exactly, but the hopped-to entry is a
+  // different inference (a split-cour chain can land one season short), so the
+  // sequel result must report its own title evidence, not the anchor's.
   const { execute } = createExecutor(OREGAIRU_SEARCH, OREGAIRU_RELATIONS);
   const result = await resolveAnilistSeasonMedia(
     { title: 'My Teen Romantic Comedy SNAFU', season: 2, episode: 1 },
@@ -164,6 +167,33 @@ test('season 2 preserves the anchor exact-title evidence through a sequel resolu
   );
 
   assert.equal(result?.id, 20698);
+  assert.equal(result?.via, 'sequel-chain');
+  assert.equal(result?.exactTitleMatch, false);
+});
+
+test('a sequel resolution whose own title matches the parsed title stays exact', async () => {
+  const anchor: AnilistSeasonMedia = {
+    id: 1,
+    episodes: 12,
+    format: 'TV',
+    title: { english: 'Show' },
+  };
+  const sequel: AnilistSeasonMedia = {
+    id: 2,
+    episodes: 12,
+    format: 'TV',
+    title: { english: 'Show 2nd Season' },
+  };
+  const { execute } = createExecutor([anchor], {
+    1: [{ relationType: 'SEQUEL', node: sequel }],
+  });
+
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'Show 2nd Season', season: 2, episode: 1 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 2);
   assert.equal(result?.via, 'sequel-chain');
   assert.equal(result?.exactTitleMatch, true);
 });

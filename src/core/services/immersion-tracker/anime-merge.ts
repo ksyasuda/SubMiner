@@ -1,5 +1,5 @@
 import type { DatabaseSync } from './sqlite';
-import { rebuildLifetimeSummariesInTransaction } from './lifetime';
+import { recomputeLifetimeAnimeAggregatesInTransaction } from './lifetime';
 import { toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
 
@@ -151,8 +151,9 @@ function absorbAnimeMetadata(
  * is repointed, metadata the target is missing is inherited from the sources,
  * and the emptied source rows are deleted.
  *
- * Assumes the caller already holds a write transaction and rebuilds the
- * lifetime summaries afterwards; use {@link mergeAnimeRecords} otherwise.
+ * Assumes the caller already holds a write transaction and refreshes the
+ * per-anime lifetime aggregates afterwards; use {@link mergeAnimeRecords}
+ * otherwise.
  */
 export function mergeAnimeRecordsInTransaction(
   db: DatabaseSync,
@@ -237,7 +238,7 @@ export function mergeAnimeRecords(
   return runInTransaction(db, () => {
     const summary = mergeAnimeRecordsInTransaction(db, targetAnimeId, sourceAnimeIds);
     if (summary.mergedAnimeIds.length > 0) {
-      rebuildLifetimeSummariesInTransaction(db);
+      recomputeLifetimeAnimeAggregatesInTransaction(db);
     }
     return summary;
   });
@@ -286,7 +287,7 @@ export function moveVideoToAnime(
       removedPreviousAnime = true;
     }
 
-    rebuildLifetimeSummariesInTransaction(db);
+    recomputeLifetimeAnimeAggregatesInTransaction(db);
     return { targetAnimeId, previousAnimeId, removedPreviousAnime };
   });
 }

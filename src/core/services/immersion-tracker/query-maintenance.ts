@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
-import { rebuildLifetimeSummaries, rebuildLifetimeSummariesInTransaction } from './lifetime';
+import {
+  recomputeLifetimeAnimeAggregates,
+  rebuildLifetimeSummariesInTransaction,
+} from './lifetime';
 import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import { nowMs } from './time';
 import { resolveAnimeAnilistConflict } from './anime-season-repair';
@@ -460,7 +463,7 @@ export function updateAnimeAnilistInfo(
     targetRow.anime_id,
   );
   if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-    rebuildLifetimeSummaries(db);
+    recomputeLifetimeAnimeAggregates(db);
   }
 }
 

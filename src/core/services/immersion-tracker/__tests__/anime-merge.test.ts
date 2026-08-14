@@ -72,7 +72,10 @@ interface EpisodeSeed {
   cards?: number;
 }
 
-/** One episode with one ended session, so lifetime rebuilds have something to sum. */
+/**
+ * One episode with one ended session, plus the imm_lifetime_media row the
+ * session would have left behind, so lifetime aggregates have something to sum.
+ */
 function insertEpisode(db: DatabaseSync, seed: EpisodeSeed): void {
   const activeMs = seed.activeMs ?? 1000;
   const cards = seed.cards ?? 1;
@@ -107,6 +110,18 @@ function insertEpisode(db: DatabaseSync, seed: EpisodeSeed): void {
     `INSERT INTO imm_subtitle_lines(session_id, video_id, anime_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE)
      VALUES (?, ?, ?, 1, ?, ?, ?)`,
   ).run(seed.videoId, seed.videoId, seed.animeId, `line ${seed.videoId}`, BASE_MS, BASE_MS);
+  db.prepare(
+    `INSERT INTO imm_lifetime_media(video_id, total_sessions, total_active_ms, total_cards, completed, first_watched_ms, last_watched_ms, CREATED_DATE, LAST_UPDATE_DATE)
+     VALUES (?, 1, ?, ?, 1, ?, ?, ?, ?)`,
+  ).run(
+    seed.videoId,
+    activeMs,
+    cards,
+    String(BASE_MS),
+    String(BASE_MS + activeMs),
+    BASE_MS,
+    BASE_MS,
+  );
 }
 
 function animeIds(db: DatabaseSync): number[] {
@@ -159,6 +174,49 @@ test('mergeAnimeRecords folds episodes, lines and lifetime totals into the targe
     assert.equal(lifetime.activeMs, 3000);
     assert.equal(lifetime.cards, 4);
     assert.equal(lifetime.episodes, 2);
+  });
+});
+
+test('merge and move preserve lifetime history whose raw sessions were pruned', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertAnime(db, { animeId: 2, key: 'show season 1', title: 'Show Season 1' });
+    insertAnime(db, { animeId: 3, key: 'other show', title: 'Other Show' });
+    insertEpisode(db, { videoId: 1, animeId: 1, activeMs: 1000, cards: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 1, activeMs: 2000, cards: 3 });
+    insertEpisode(db, { videoId: 3, animeId: 3, activeMs: 4000, cards: 5 });
+    // Retention pruned every raw session; only the lifetime summaries remain.
+    db.exec('DELETE FROM imm_sessions');
+    db.prepare(
+      `UPDATE imm_lifetime_global
+       SET total_sessions = 200, total_active_ms = 360000000, total_cards = 500, active_days = 90
+       WHERE global_id = 1`,
+    ).run();
+
+    mergeAnimeRecords(db, 1, [2]);
+    moveVideoToAnime(db, 3, 1);
+
+    const globalRow = db
+      .prepare(
+        `SELECT total_sessions AS sessions, total_active_ms AS activeMs, total_cards AS cards, active_days AS days
+         FROM imm_lifetime_global WHERE global_id = 1`,
+      )
+      .get() as { sessions: number; activeMs: number; cards: number; days: number };
+    assert.equal(globalRow.sessions, 200);
+    assert.equal(globalRow.activeMs, 360000000);
+    assert.equal(globalRow.cards, 500);
+    assert.equal(globalRow.days, 90);
+
+    const survivor = db
+      .prepare(
+        `SELECT total_active_ms AS activeMs, total_cards AS cards, episodes_started AS episodes
+         FROM imm_lifetime_anime WHERE anime_id = 1`,
+      )
+      .get() as { activeMs: number; cards: number; episodes: number };
+    assert.equal(survivor.activeMs, 7000);
+    assert.equal(survivor.cards, 9);
+    assert.equal(survivor.episodes, 3);
+    assert.equal(db.prepare('SELECT 1 FROM imm_lifetime_anime WHERE anime_id = 3').get(), undefined);
   });
 });
 
@@ -696,5 +754,35 @@ test('resolveAnimeAnilistConflict leaves an entry that already links elsewhere a
     assert.equal(summary.repaired, 0);
     assert.equal(summary.movedVideos, 0);
     assert.deepEqual(getAnimeMergeRecommendations(db), []);
+  });
+});
+
+test('automatic AniList update onto an entry that already links elsewhere does not throw', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show', anilistId: 163132 });
+    insertAnime(db, { animeId: 2, key: 'show s2', title: 'Show Season 2', anilistId: 999 });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 2, season: 2 });
+
+    // Entry 2 explicitly links to 999; a later video re-resolving to entry 1's
+    // id must be refused, not written over the UNIQUE anilist_id column.
+    updateAnimeAnilistInfo(db, 2, {
+      anilistId: 163132,
+      titleRomaji: 'Show',
+      titleEnglish: null,
+      titleNative: null,
+      episodesTotal: 12,
+      exactTitleMatch: true,
+    });
+
+    assert.deepEqual(animeIds(db), [1, 2]);
+    assert.equal(
+      (
+        db.prepare('SELECT anilist_id AS anilistId FROM imm_anime WHERE anime_id = 2').get() as {
+          anilistId: number;
+        }
+      ).anilistId,
+      999,
+    );
   });
 });
