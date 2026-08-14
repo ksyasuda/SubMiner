@@ -3804,6 +3804,22 @@ test('reassignAnimeAnilist redistributes conflicting legacy combined row before 
         (1, 2000, 1000, 1000, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0),
         (2, 4000, 2000, 2000, 2, 20, 0, 0, 0, 0, 0, 0, 0, 0),
         (3, 6000, 3000, 3000, 3, 30, 0, 0, 0, 0, 0, 0, 0, 0);
+
+      -- The per-video lifetime rows those finalized sessions would have left
+      -- behind; redistributing videos re-derives imm_lifetime_anime from these.
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 1, 1000, 0, '1000', '2000', 1000, 2000),
+        (2, 1, 2000, 0, '3000', '4000', 3000, 4000),
+        (3, 1, 3000, 0, '5000', '6000', 5000, 6000);
     `);
 
     await tracker.reassignAnimeAnilist(2, {
