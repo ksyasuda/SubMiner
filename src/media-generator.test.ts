@@ -8,14 +8,12 @@ import {
   AUDIO_GENERATION_TIMEOUT_MS,
   buildAnimatedImageVideoFilter,
   MediaGenerator,
+  type MediaGeneratorOptions,
 } from './media-generator';
 
 async function withStubbedFfmpeg(
   run: (generator: MediaGenerator, argsPath: string) => Promise<void>,
-  options: {
-    logDebug?: (message: string) => void;
-    now?: () => number;
-  } = {},
+  options: MediaGeneratorOptions = {},
   stubOptions: {
     skipOutput?: boolean;
   } = {},
@@ -360,8 +358,26 @@ test('generateAudio retains normal probing for non-Matroska local media', async 
   });
 });
 
-test('generateAudio retains a two-minute extraction timeout', () => {
+test('generateAudio retains a two-minute extraction timeout', async () => {
+  let observedTimeout: number | undefined;
+
+  await withStubbedFfmpeg(
+    async (generator) => {
+      await generator.generateAudio('/video.mp4', 10, 12);
+    },
+    {
+      execFile: (_file, args, options, callback) => {
+        observedTimeout = options.timeout;
+        const outputPath = args.at(-1);
+        assert.ok(outputPath);
+        fs.writeFileSync(outputPath, 'mp3', 'utf8');
+        queueMicrotask(() => callback(null));
+      },
+    },
+  );
+
   assert.equal(AUDIO_GENERATION_TIMEOUT_MS, 120_000);
+  assert.equal(observedTimeout, AUDIO_GENERATION_TIMEOUT_MS);
 });
 
 test('generateAudio reports when ffmpeg exits without creating output', async () => {

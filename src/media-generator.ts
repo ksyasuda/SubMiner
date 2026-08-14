@@ -30,6 +30,13 @@ export const AUDIO_GENERATION_TIMEOUT_MS = 120_000;
 
 export type { MediaInput, MediaInputOptions } from './media-input';
 
+type MediaGeneratorExecFile = (
+  file: string,
+  args: readonly string[],
+  options: { timeout: number },
+  callback: (error: ExecFileException | null) => void,
+) => void;
+
 function normalizeAnimatedImageFps(fps: number | undefined): number {
   const fallbackFps = 10;
   const safeFps = typeof fps === 'number' && Number.isFinite(fps) ? fps : fallbackFps;
@@ -78,6 +85,7 @@ export function buildAnimatedImageVideoFilter(options: {
 export interface MediaGeneratorOptions {
   logDebug?: (message: string) => void;
   now?: () => number;
+  execFile?: MediaGeneratorExecFile;
 }
 
 function sanitizeDebugToken(value: string, fallback: string): string {
@@ -328,7 +336,8 @@ export class MediaGenerator {
       this.logMediaDebug(
         `audio start ${inputDescription} start=${start} duration=${duration} padding=${safePadding}`,
       );
-      execFile('ffmpeg', args, { timeout: AUDIO_GENERATION_TIMEOUT_MS }, (error) => {
+      const runExecFile: MediaGeneratorExecFile = this.options.execFile ?? execFile;
+      runExecFile('ffmpeg', args, { timeout: AUDIO_GENERATION_TIMEOUT_MS }, (error) => {
         if (error) {
           this.logMediaDebug(
             `audio failed ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} ${describeFfmpegFailureForDebugLog(error)}`,
