@@ -80,6 +80,14 @@ export function makePlaceholders(values: number[]): string {
   return values.map(() => '?').join(',');
 }
 
+export const SQLITE_ID_CHUNK_SIZE = 1_000;
+
+export function forEachIdChunk(ids: number[], callback: (chunk: number[]) => void): void {
+  for (let start = 0; start < ids.length; start += SQLITE_ID_CHUNK_SIZE) {
+    callback(ids.slice(start, start + SQLITE_ID_CHUNK_SIZE));
+  }
+}
+
 export function resolvedCoverBlobExpr(mediaAlias: string, blobStoreAlias: string): string {
   return `COALESCE(${blobStoreAlias}.cover_blob, CASE WHEN ${mediaAlias}.cover_blob_hash IS NULL THEN ${mediaAlias}.cover_blob ELSE NULL END)`;
 }
@@ -490,17 +498,19 @@ export function deleteSessionsByIds(db: DatabaseSync, sessionIds: number[]): voi
     return;
   }
 
-  const placeholders = makePlaceholders(sessionIds);
-  db.prepare(`DELETE FROM imm_subtitle_lines WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_session_telemetry WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_session_events WHERE session_id IN (${placeholders})`).run(
-    ...sessionIds,
-  );
-  db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...sessionIds);
+  forEachIdChunk(sessionIds, (chunk) => {
+    const placeholders = makePlaceholders(chunk);
+    db.prepare(`DELETE FROM imm_subtitle_lines WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_session_telemetry WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_session_events WHERE session_id IN (${placeholders})`).run(
+      ...chunk,
+    );
+    db.prepare(`DELETE FROM imm_sessions WHERE session_id IN (${placeholders})`).run(...chunk);
+  });
 }
 
 export function toDbMs(ms: number | bigint): bigint {

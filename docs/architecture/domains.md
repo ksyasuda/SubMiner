@@ -25,6 +25,7 @@ Read when: you need to find the owner module for a behavior or test surface
 - Anki workflow: `src/anki-integration/`, `src/core/services/anki-jimaku*.ts`
 - Immersion tracking: `src/core/services/immersion-tracker/`
   Includes stats storage/query schema such as `imm_videos`, `imm_media_art`, and `imm_youtube_videos` for per-video and YouTube-specific library metadata.
+  `delete-maintenance-scheduler.ts` coalesces and serializes stats deletes; expensive deletion and summary rebuilds run in `delete-maintenance-worker-thread.ts` while the tracker queues playback writes. Each batch uses one transaction, lexical update, rollup refresh, and lifetime rebuild.
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
 - Window trackers: `src/window-trackers/`
