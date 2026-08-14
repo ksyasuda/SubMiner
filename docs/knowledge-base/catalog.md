@@ -3,7 +3,7 @@
 # Documentation Catalog
 
 Status: active  
-Last verified: 2026-05-23  
+Last verified: 2026-08-13
 Owner: Kyle Yasuda  
 Read when: finding internal docs or checking verification status
 
@@ -17,10 +17,10 @@ Read when: finding internal docs or checking verification status
 | KB rules | `docs/knowledge-base/README.md` | active | 2026-05-23 | maintenance policy |
 | Core beliefs | `docs/knowledge-base/core-beliefs.md` | active | 2026-03-13 | agent-first principles |
 | Quality scorecard | `docs/knowledge-base/quality.md` | active | 2026-03-13 | quality grades and gaps |
-| Workflow index | `docs/workflow/README.md` | active | 2026-05-23 | execution map |
+| Workflow index | `docs/workflow/README.md` | active | 2026-08-13 | execution map |
 | Planning guide | `docs/workflow/planning.md` | active | 2026-05-23 | lightweight vs execution plans |
-| Agent plugins | `docs/workflow/agent-plugins.md` | active | 2026-05-23 | repo-local agent workflow plugin ownership |
-| Verification guide | `docs/workflow/verification.md` | active | 2026-05-23 | maintained verification lanes |
+| Agent skills | `docs/workflow/agent-skills.md` | active | 2026-08-13 | repo-local workflow skill ownership |
+| Verification guide | `docs/workflow/verification.md` | active | 2026-08-13 | maintained verification lanes |
 | Release guide | `docs/RELEASING.md` | active | 2026-05-23 | release checklist |
 
 ## Update Rules

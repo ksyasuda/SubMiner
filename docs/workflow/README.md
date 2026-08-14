@@ -3,7 +3,7 @@
 # Workflow
 
 Status: active  
-Last verified: 2026-05-23  
+Last verified: 2026-08-13
 Owner: Kyle Yasuda  
 Read when: planning or executing nontrivial work in this repo
 
@@ -13,7 +13,7 @@ This section is the internal workflow map for contributors and agents.
 
 - [Planning](./planning.md) - when to write a lightweight plan vs a full execution plan
 - [Verification](./verification.md) - maintained test/build lanes and handoff gate
-- [Agent Plugins](./agent-plugins.md) - repo-local plugin ownership for agent workflow skills
+- [Agent Skills](./agent-skills.md) - repo-local workflow skill ownership
 - [Release Guide](../RELEASING.md) - tagged release workflow
 
 ## Default Flow

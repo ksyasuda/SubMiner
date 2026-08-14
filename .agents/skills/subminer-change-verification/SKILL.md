@@ -1,22 +1,45 @@
 ---
-name: 'subminer-change-verification'
-description: 'Compatibility shim. Canonical SubMiner change verification workflow now lives in the repo-local subminer-workflow plugin.'
+name: subminer-change-verification
+description: Verify SubMiner changes with repo-native cheap-first test lanes. Use after code, config, launcher, plugin, runtime, stats, documentation, or workflow changes; do not use for read-only questions.
 ---
 
-# Compatibility Shim
+# SubMiner Change Verification
 
-Canonical source:
+Verify the behavior claimed by a change without running unrelated expensive checks by default.
 
-- `plugins/subminer-workflow/skills/subminer-change-verification/SKILL.md`
+## Workflow
 
-Canonical helper scripts:
+1. Inspect the requested scope and changed paths with `git status --short` and `git diff`.
+2. Read `docs/workflow/verification.md` as the source of truth for maintained lanes.
+3. Run the cheapest lane or lanes that cover the changed behavior.
+4. Escalate to the full handoff gate only for substantial or cross-boundary changes.
+5. Report exact commands, results, skipped checks, blockers, and remaining risk.
 
-- `plugins/subminer-workflow/skills/subminer-change-verification/scripts/classify_subminer_diff.sh`
-- `plugins/subminer-workflow/skills/subminer-change-verification/scripts/verify_subminer_change.sh`
+Do not use hidden wrapper commands. Verification commands are owned by `package.json` and the workflow documentation.
 
-When this shim is invoked:
+## Lane Selection
 
-1. Read the canonical plugin-owned skill.
-2. Follow the plugin-owned skill as the source of truth.
-3. Use the wrapper scripts in this shim directory only for compatibility with existing commands and docs.
-4. Do not duplicate workflow changes here; update the plugin-owned skill and scripts instead.
+- Internal docs, `AGENTS.md`, or `.agents/skills/**`: `bun run test:docs:kb`
+- User-facing `docs-site/**`: `bun run docs:test`, then `bun run docs:build`
+- Config/schema/defaults: `bun run test:config`
+  - If defaults or templates changed, also run `bun run generate:config-example` and `bun run verify:config-example`.
+- General TypeScript source: `bun run typecheck`, then `bun run test:fast`
+- Launcher or mpv plugin: `bun run test:launcher` or `bun run test:env`, based on the behavior changed
+- Runtime compatibility or dist-sensitive wiring: `bun run test:runtime:compat`
+- Stats dashboard: `bun run test:stats`
+- Build/release scripts: `bun run test:scripts`
+
+For substantial changes, use the full gate documented in `AGENTS.md` and `docs/workflow/verification.md`.
+
+## Runtime Escalation
+
+Real runtime checks are required when the claim depends on actual Electron, mpv, overlay, focus, window tracking, launch, or socket behavior. Run the relevant application flow when the environment supports it. Otherwise, report the missing runtime dependency and do not present cheaper checks as authoritative runtime validation.
+
+## Pre-Handoff Checks
+
+Before handoff, reconcile both questions:
+
+1. Do behavior, defaults, flags, shortcuts, ports, APIs, architecture, or workflow changes require documentation updates?
+2. Does the change require a current-outcome fragment under `changes/` according to `changes/README.md`?
+
+Complete required updates before handoff or report the blocker.

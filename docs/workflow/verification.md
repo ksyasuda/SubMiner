@@ -3,14 +3,14 @@
 # Verification
 
 Status: active  
-Last verified: 2026-07-06  
+Last verified: 2026-08-13
 Owner: Kyle Yasuda  
 Read when: selecting the right verification lane for a change
 
 ## Lane Infrastructure
 
 - Lane membership is defined once in `scripts/test-lanes.ts` and discovered by
-  directory — new test files join their lane automatically; never hand-list test
+  directory, so new test files join their lane automatically; never hand-list test
   files in `package.json`.
 - `scripts/run-test-lane.mjs` runs each test file in its own `bun test` process
   (per-file isolation with a wall timeout) so a hanging test or leaked global in
@@ -43,8 +43,8 @@ bun run docs:build
 
 ## Cheap-First Lane Selection
 
-- Docs-only boundary/content changes: `bun run docs:test`, `bun run docs:build`
-- Internal KB / `AGENTS.md` changes: `bun run test:docs:kb`
+- User-facing `docs-site/` changes: `bun run docs:test`, `bun run docs:build`
+- Internal KB, `AGENTS.md`, or `.agents/skills/**` changes: `bun run test:docs:kb`
 - Config/schema/defaults: `bun run test:config`, then `bun run generate:config-example` if template/defaults changed
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
 - Runtime-compat / compiled behavior: `bun run test:runtime:compat`

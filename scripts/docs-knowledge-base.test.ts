@@ -19,6 +19,7 @@ const requiredDocs = [
   'docs/knowledge-base/catalog.md',
   'docs/knowledge-base/quality.md',
   'docs/workflow/README.md',
+  'docs/workflow/agent-skills.md',
   'docs/workflow/planning.md',
   'docs/workflow/verification.md',
 ] as const;

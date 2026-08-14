@@ -1,4 +1,4 @@
-# AGENTS.MD
+# AGENTS.md
 
 ## Internal Docs
 
@@ -13,7 +13,7 @@ Start here, then leave this file.
 
 `docs-site/` is user-facing. Do not treat it as the canonical internal source of truth.
 
-`CLAUDE.md` is a symlink to this file — there is one project instruction file, not two.
+`CLAUDE.md` is a symlink to this file; there is one project instruction file, not two.
 
 ## Quick Start
 
@@ -25,8 +25,9 @@ Start here, then leave this file.
 
 ## Build / Test
 
-- Runtime/package manager: Bun (`packageManager: bun@1.3.5`)
-- Default handoff gate:
+- Runtime/package manager: Bun; use the version pinned by `package.json`.
+- Follow [`docs/workflow/verification.md`](./docs/workflow/verification.md) and start with the cheapest sufficient lane.
+- Full handoff gate for substantial changes:
   `bun run typecheck`
   `bun run test:fast`
   `bun run test:env`
@@ -44,13 +45,15 @@ Start here, then leave this file.
 - Runtime-compat / dist-sensitive: `bun run test:runtime:compat`
 - Stats dashboard UI (`stats/`): `bun run test:stats`
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
-- Docs-only: `bun run docs:test`, then `bun run docs:build`
+- Internal docs, `AGENTS.md`, or repo skills: `bun run test:docs:kb`
+- User-facing `docs-site/`: `bun run docs:test`, then `bun run docs:build`
+- macOS mpv window helper: `bun test scripts/get-mpv-window-macos.test.ts`
 - Test lanes are directory-discovered via `scripts/test-lanes.ts`; never hand-list test files in `package.json`
 
 ## Docs Upkeep
 
 - Docs ship with the change, not after. If a change alters behavior, defaults, flags, shortcuts, ports, or APIs, update the matching docs in the same PR. Touching code without reconciling its docs is an incomplete change.
-- Source of truth for config defaults is the generated `config.example.jsonc`. Never write a default value into prose you didn't read from it — and don't restate the same default across multiple docs; cite/link to one place so there's a single thing to update.
+- Source of truth for config defaults is the generated `config.example.jsonc`. Never write a default value into prose you didn't read from it, and don't restate the same default across multiple docs; cite/link to one place so there's a single thing to update.
 - Trigger map (touch left → update right):
   - `src/config/definitions/**` (schema/defaults/template) → `bun run generate:config-example`, then reconcile `docs-site/configuration.md` + any feature doc that cites that default
   - shortcuts/keybindings (`shortcuts.*`, `keybindings`, `stats.*Key`, `subtitleSidebar.toggleKey`, controller bindings) → `docs-site/shortcuts.md`
@@ -71,16 +74,10 @@ Start here, then leave this file.
 
 ## Release / PR Notes
 
-- User-visible PRs need reconciled current-outcome fragment(s) in `changes/*.md` — format and rules in [`changes/README.md`](./changes/README.md) (`type` + `area` keys required; inspect existing same-PR fragments, then update/remove stale bullets or add only genuinely separate outcomes; apply the `skip-changelog` label to opt out)
+- User-visible PRs need reconciled current-outcome fragment(s) in `changes/*.md`. Format and rules live in [`changes/README.md`](./changes/README.md) (`type` + `area` keys required; inspect existing same-PR fragments, then update/remove stale bullets or add only genuinely separate outcomes; apply the `skip-changelog` label to opt out).
 - User-visible docs changes get a `type: docs` fragment
 - CI enforces `bun run changelog:lint` and `bun run changelog:pr-check`
 - PR review helpers:
-  - `gh pr view --json number,title,url --jq '"PR #\\(.number): \\(.title)\\n\\(.url)"'`
+  - `gh pr view --json number,title --jq '"PR #\\(.number): \\(.title)"'`
   - `gh api repos/:owner/:repo/pulls/<num>/comments --paginate`
-
-## Runtime Notes
-
-- Use Codex background for long jobs; tmux only when persistence/interaction is required
-- CI red: `gh run list/view`, rerun, fix, repeat until green
-- TypeScript: keep files small; follow existing patterns
-- Only Swift is the `scripts/get-mpv-window-macos.swift` helper (macOS mpv window detection); validate via `bun test scripts/get-mpv-window-macos.test.ts`
+- For CI debugging, inspect runs with `gh run list/view`; rerun or fix only within the requested scope.
