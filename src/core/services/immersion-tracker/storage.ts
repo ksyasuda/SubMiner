@@ -677,8 +677,11 @@ export function linkVideoToAnimeRecord(
   );
 }
 
-export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): number | null {
-  const row = db
+function getLockedAnimeAssignment(
+  db: DatabaseSync,
+  videoId: number,
+): { animeId: number | null } | null {
+  return db
     .prepare(
       `
         SELECT anime_id AS animeId
@@ -688,7 +691,10 @@ export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): num
       `,
     )
     .get(videoId) as { animeId: number | null } | null;
-  return row?.animeId ?? null;
+}
+
+export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): number | null {
+  return getLockedAnimeAssignment(db, videoId)?.animeId ?? null;
 }
 
 /**
@@ -743,6 +749,11 @@ export function linkYoutubeVideoToAnimeRecord(
   videoId: number,
   metadata: YoutubeVideoMetadata,
 ): number | null {
+  const lockedAssignment = getLockedAnimeAssignment(db, videoId);
+  if (lockedAssignment) {
+    return lockedAssignment.animeId;
+  }
+
   const identity = buildYoutubeChannelAnimeIdentity(metadata);
   if (!identity) {
     return null;

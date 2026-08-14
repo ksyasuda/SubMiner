@@ -1366,6 +1366,70 @@ test('youtube videos can be regrouped under a shared channel anime identity', ()
   }
 });
 
+test('youtube channel relinking preserves a locked manual assignment', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'remote:https://www.youtube.com/watch?v=locked', {
+      canonicalTitle: 'Locked Video',
+      sourcePath: null,
+      sourceUrl: 'https://www.youtube.com/watch?v=locked',
+      sourceType: SOURCE_TYPE_REMOTE,
+    });
+    const manualAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Manual Collection',
+      canonicalTitle: 'Manual Collection',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId: manualAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'Manual Collection',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'manual-test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    db.prepare('UPDATE imm_videos SET anime_assignment_locked = 1 WHERE video_id = ?').run(videoId);
+
+    const linkedAnimeId = linkYoutubeVideoToAnimeRecord(db, videoId, {
+      youtubeVideoId: 'locked',
+      videoUrl: 'https://www.youtube.com/watch?v=locked',
+      videoTitle: 'Locked Video',
+      videoThumbnailUrl: null,
+      channelId: 'UC-locked',
+      channelName: 'Automatic Channel',
+      channelUrl: null,
+      channelThumbnailUrl: null,
+      uploaderId: null,
+      uploaderUrl: null,
+      description: null,
+      metadataJson: null,
+    });
+
+    assert.equal(linkedAnimeId, manualAnimeId);
+    const video = db
+      .prepare('SELECT anime_id, parsed_title FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { anime_id: number | null; parsed_title: string | null };
+    assert.equal(video.anime_id, manualAnimeId);
+    assert.equal(video.parsed_title, 'Manual Collection');
+    const automaticAnime = db
+      .prepare(`SELECT anime_id FROM imm_anime WHERE canonical_title = 'Automatic Channel'`)
+      .get();
+    assert.equal(automaticAnime, undefined);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('start/finalize session updates ended_at and status', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

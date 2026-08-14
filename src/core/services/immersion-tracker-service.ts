@@ -1318,6 +1318,7 @@ export class ImmersionTrackerService {
           LEFT JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
           WHERE
             v.source_type = ?
+            AND v.anime_assignment_locked = 0
             AND v.source_url IS NOT NULL
             AND (
               LOWER(v.source_url) LIKE 'https://www.youtube.com/%'

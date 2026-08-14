@@ -406,15 +406,13 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         currentTimestamp,
         candidate.video_id,
       );
-      if (assignmentAnimeId !== null) {
-        db.prepare(
-          `
-            UPDATE imm_subtitle_lines
-            SET anime_id = ?, LAST_UPDATE_DATE = ?
-            WHERE video_id = ?
-          `,
-        ).run(assignmentAnimeId, currentTimestamp, candidate.video_id);
-      }
+      db.prepare(
+        `
+          UPDATE imm_subtitle_lines
+          SET anime_id = ?, LAST_UPDATE_DATE = ?
+          WHERE video_id = ?
+        `,
+      ).run(assignmentAnimeId, currentTimestamp, candidate.video_id);
       summary.repaired += 1;
     }
     summary.repaired += repairLeakedJellyfinAnimeTitles(db, currentTimestamp);
