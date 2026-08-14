@@ -442,8 +442,7 @@ export class ImmersionTrackerService {
       batchWindowMs: DELETE_MAINTENANCE_BATCH_WINDOW_MS,
       runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
       onBusy: () => {
-        this.flushTelemetry(true);
-        while (this.queue.length > 0) this.flushNow();
+        this.requireWriteQueueDrained('delete maintenance');
         this.writeLock.locked = true;
       },
       onIdle: () => {
@@ -891,6 +890,7 @@ export class ImmersionTrackerService {
       coverUrl?: string | null;
     },
   ): Promise<void> {
+    this.requireWriteQueueDrained('reassigning an AniList entry');
     // The user is acting on this entry, so it is the one that survives when
     // another row already claims the same AniList id.
     const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId, {

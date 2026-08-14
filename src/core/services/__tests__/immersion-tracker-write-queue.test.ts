@@ -33,11 +33,84 @@ interface TrackerInternals {
   db: DatabaseSync;
   queue: unknown[];
   recordWrite: (write: Record<string, unknown>) => void;
+  deleteSession: (sessionId: number) => Promise<void>;
   mergeAnime: (targetAnimeId: number, sourceAnimeIds: number[]) => Promise<unknown>;
   moveVideoToAnime: (videoId: number, targetAnimeId: number) => Promise<unknown>;
   rebuildLifetimeSummaries: () => Promise<unknown>;
+  reassignAnimeAnilist: (animeId: number, info: { anilistId: number }) => Promise<void>;
   flushNow: () => void;
+  writeLock: { locked: boolean };
 }
+
+test('delete maintenance fails closed when queued writes cannot drain', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let deleteRunnerCalls = 0;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath, policy: { batchSize: 2 } },
+      {
+        runDeleteMaintenanceTask: async () => {
+          deleteRunnerCalls += 1;
+        },
+      },
+    );
+    const internals = tracker as unknown as TrackerInternals;
+    seedTwoEntries(internals.db);
+    queueSubtitleLines(internals, 1);
+    let flushCalls = 0;
+    internals.flushNow = () => {
+      flushCalls += 1;
+      if (flushCalls > 1) throw new Error('bounded no-progress sentinel');
+    };
+
+    await assert.rejects(internals.deleteSession(1), /queue did not drain/i);
+
+    assert.equal(flushCalls, 1);
+    assert.equal(deleteRunnerCalls, 0);
+    assert.equal(internals.writeLock.locked, false);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('reassignAnimeAnilist fails closed before resolving a conflict when writes cannot drain', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath, policy: { batchSize: 2 } });
+    const internals = tracker as unknown as TrackerInternals;
+    seedTwoEntries(internals.db);
+    internals.db.prepare('UPDATE imm_anime SET anilist_id = 123 WHERE anime_id = 2').run();
+    queueSubtitleLines(internals, 1);
+    internals.flushNow = () => {};
+
+    await assert.rejects(
+      internals.reassignAnimeAnilist(1, { anilistId: 123 }),
+      /queue did not drain/i,
+    );
+
+    assert.deepEqual(
+      internals.db
+        .prepare(
+          'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
+        )
+        .all(),
+      [
+        { animeId: 1, anilistId: null },
+        { animeId: 2, anilistId: 123 },
+      ],
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
 
 test('mergeAnime fails closed when queued writes cannot drain', async () => {
   const dbPath = makeDbPath();
