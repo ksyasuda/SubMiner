@@ -26,8 +26,16 @@ import { normalizeMediaInput, type MediaInput } from './media-input';
 const log = createLogger('media');
 const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-23:TP=-2:LRA=11';
 const AUDIO_AMPLIFICATION_LIMITER_FILTER = 'alimiter=limit=0.891251:level=false';
+export const AUDIO_GENERATION_TIMEOUT_MS = 120_000;
 
 export type { MediaInput, MediaInputOptions } from './media-input';
+
+type MediaGeneratorExecFile = (
+  file: string,
+  args: readonly string[],
+  options: { timeout: number },
+  callback: (error: ExecFileException | null) => void,
+) => void;
 
 function normalizeAnimatedImageFps(fps: number | undefined): number {
   const fallbackFps = 10;
@@ -77,6 +85,7 @@ export function buildAnimatedImageVideoFilter(options: {
 export interface MediaGeneratorOptions {
   logDebug?: (message: string) => void;
   now?: () => number;
+  execFile?: MediaGeneratorExecFile;
 }
 
 function sanitizeDebugToken(value: string, fallback: string): string {
@@ -274,6 +283,14 @@ export class MediaGenerator {
     const duration = endTime - start + safePadding;
     const mediaInput = normalizeMediaInput(videoPath);
     const inputDescription = describeMediaInputForDebugLog(videoPath);
+    const hasSelectedAudioStream =
+      !mediaInput.singleResolvedStream &&
+      typeof audioStreamIndex === 'number' &&
+      Number.isInteger(audioStreamIndex) &&
+      audioStreamIndex >= 0;
+    const isLocalMatroskaMedia =
+      !/^[A-Za-z][A-Za-z\d+.-]*:\/\//.test(mediaInput.path) &&
+      /\.(?:mkv|mka|mks|webm)$/i.test(mediaInput.path);
 
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('audio', 'mp3');
@@ -284,16 +301,14 @@ export class MediaGenerator {
         '-t',
         duration.toString(),
         ...mediaInput.inputArgs,
+        ...(hasSelectedAudioStream && isLocalMatroskaMedia
+          ? ['-probesize', '32768', '-analyzeduration', '0']
+          : []),
         '-i',
         mediaInput.path,
       ];
 
-      if (
-        !mediaInput.singleResolvedStream &&
-        typeof audioStreamIndex === 'number' &&
-        Number.isInteger(audioStreamIndex) &&
-        audioStreamIndex >= 0
-      ) {
+      if (hasSelectedAudioStream) {
         args.push('-map', `0:${audioStreamIndex}`);
       }
 
@@ -321,7 +336,8 @@ export class MediaGenerator {
       this.logMediaDebug(
         `audio start ${inputDescription} start=${start} duration=${duration} padding=${safePadding}`,
       );
-      execFile('ffmpeg', args, { timeout: 30000 }, (error) => {
+      const runExecFile: MediaGeneratorExecFile = this.options.execFile ?? execFile;
+      runExecFile('ffmpeg', args, { timeout: AUDIO_GENERATION_TIMEOUT_MS }, (error) => {
         if (error) {
           this.logMediaDebug(
             `audio failed ${inputDescription} elapsedMs=${this.elapsedMs(startedAt)} ${describeFfmpegFailureForDebugLog(error)}`,
@@ -338,7 +354,15 @@ export class MediaGenerator {
           );
           resolve(data);
         } catch (err) {
-          reject(err);
+          if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+            reject(
+              new Error(
+                'FFmpeg audio generation failed: FFmpeg exited without creating an output file.',
+              ),
+            );
+          } else {
+            reject(err);
+          }
         }
       });
     });

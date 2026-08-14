@@ -171,7 +171,9 @@ Without FFmpeg, card creation still works but audio and image fields will be emp
 
 **Audio or screenshot generation hangs**
 
-Media generation has a 30-second timeout (60 seconds for animated AVIF). If your video file is on a slow network mount or the codec requires software decoding, generation may time out. Try:
+Audio extraction has a 2-minute timeout. SubMiner also limits FFmpeg probing when mpv provides the selected audio stream, which avoids scanning unrelated subtitle and font-attachment streams in large MKV files. Screenshots retain a 30-second timeout, and animated AVIF uses 60 seconds.
+
+If your video file is on a slow or unresponsive network mount, generation may still time out. Try:
 
 - Using a local copy of the video file.
 - Reducing `ankiConnect.media.imageQuality` or switching from `avif` to `static` image type.
