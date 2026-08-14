@@ -1,7 +1,7 @@
 import type { DatabaseSync } from './sqlite';
 import { finalizeSessionRecord } from './session';
 import { nowMs } from './time';
-import { toDbTimestamp } from './query-shared';
+import { forEachIdChunk, makePlaceholders, toDbTimestamp } from './query-shared';
 import type { LifetimeRebuildSummary, SessionState } from './types';
 
 interface TelemetryRow {
@@ -708,26 +708,284 @@ export function rebuildLifetimeSummariesInTransaction(
   return rebuildLifetimeSummariesInternal(db, rebuiltAtMs);
 }
 
+const LOCAL_DAY_EXPR = `CAST(
+  julianday(CAST(started_at_ms AS REAL) / 1000, 'unixepoch', 'localtime') - 2440587.5
+  AS INTEGER
+)`;
+
+interface LifetimeMediaRemoval {
+  videoId: number;
+  sessions: number;
+  activeMs: number;
+  cards: number;
+  linesSeen: number;
+  tokensSeen: number;
+}
+
 /**
- * Re-derive every per-anime lifetime row from the per-video summaries after
- * episodes changed owners (merge, move, season repair).
+ * What a pending delete removes from the lifetime summary tables.
  *
- * Deliberately NOT a full rebuild: {@link rebuildLifetimeSummariesInTransaction}
- * recomputes from raw sessions, which are pruned after the retention window, so
- * it silently truncates lifetime history. `imm_lifetime_media` is keyed by
- * video and survives repointing, so aggregating it preserves all-time totals;
- * `imm_lifetime_global` only needs `anime_completed` refreshed because moving
- * attribution between entries cannot change the global counters.
- *
- * Assumes the caller holds a write transaction; use
- * {@link recomputeLifetimeAnimeAggregates} otherwise.
+ * Lifetime totals intentionally outlive raw-session retention, so they can
+ * never be rebuilt from `imm_sessions` without collapsing history to the
+ * retention window. Deletes instead subtract exactly what the deleted rows
+ * contributed: this plan is measured before the rows are removed and applied
+ * after.
  */
-export function recomputeLifetimeAnimeAggregatesInTransaction(db: DatabaseSync): void {
-  const updatedAt = toDbTimestamp(nowMs());
-  db.exec('DELETE FROM imm_lifetime_anime');
-  db.prepare(
+export interface LifetimeRemovalPlan {
+  /** Per surviving video: summed metrics of its deleted, lifetime-applied sessions. */
+  mediaRemovals: LifetimeMediaRemoval[];
+  /** Surviving anime whose lifetime rows must be recomputed from their media rows. */
+  affectedAnimeIds: number[];
+  /** Local-day keys touched by deleted applied sessions, for active_days upkeep. */
+  affectedDayKeys: number[];
+}
+
+export function planLifetimeRemovals(
+  db: DatabaseSync,
+  args: {
+    /** Every session being deleted, including ones expanded from video/anime deletes. */
+    deletedSessionIds: number[];
+    /** Deleted sessions whose video survives the delete. */
+    sessionIdsOnSurvivingVideos: number[];
+    deletedVideoIds: number[];
+    deletedAnimeIds: number[];
+  },
+): LifetimeRemovalPlan {
+  const mediaRemovalsByVideo = new Map<number, LifetimeMediaRemoval>();
+  forEachIdChunk(args.sessionIdsOnSurvivingVideos, (chunk) => {
+    const rows = db
+      .prepare(
+        `
+        SELECT
+          s.video_id AS videoId,
+          COUNT(*) AS sessions,
+          COALESCE(SUM(MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0)), 0) AS activeMs,
+          COALESCE(SUM(MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0)), 0) AS cards,
+          COALESCE(SUM(MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0)), 0) AS linesSeen,
+          COALESCE(SUM(MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0)), 0) AS tokensSeen
+        FROM imm_sessions s
+        JOIN imm_lifetime_applied_sessions a ON a.session_id = s.session_id
+        LEFT JOIN imm_session_telemetry t
+          ON t.telemetry_id = (
+            SELECT telemetry_id
+            FROM imm_session_telemetry
+            WHERE session_id = s.session_id
+            ORDER BY sample_ms DESC, telemetry_id DESC
+            LIMIT 1
+          )
+        WHERE s.session_id IN (${makePlaceholders(chunk)})
+        GROUP BY s.video_id
+        `,
+      )
+      .all(...chunk) as LifetimeMediaRemoval[];
+    for (const row of rows) {
+      const existing = mediaRemovalsByVideo.get(row.videoId);
+      if (!existing) {
+        mediaRemovalsByVideo.set(row.videoId, { ...row });
+        continue;
+      }
+      existing.sessions += row.sessions;
+      existing.activeMs += row.activeMs;
+      existing.cards += row.cards;
+      existing.linesSeen += row.linesSeen;
+      existing.tokensSeen += row.tokensSeen;
+    }
+  });
+
+  const deletedAnimeIds = new Set(args.deletedAnimeIds);
+  const affectedAnimeIds = new Set<number>();
+  forEachIdChunk(args.deletedVideoIds, (chunk) => {
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT anime_id AS animeId FROM imm_videos
+         WHERE video_id IN (${makePlaceholders(chunk)}) AND anime_id IS NOT NULL`,
+      )
+      .all(...chunk) as Array<{ animeId: number }>;
+    for (const row of rows) affectedAnimeIds.add(row.animeId);
+  });
+  forEachIdChunk(args.sessionIdsOnSurvivingVideos, (chunk) => {
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT v.anime_id AS animeId
+         FROM imm_sessions s
+         JOIN imm_videos v ON v.video_id = s.video_id
+         WHERE s.session_id IN (${makePlaceholders(chunk)}) AND v.anime_id IS NOT NULL`,
+      )
+      .all(...chunk) as Array<{ animeId: number }>;
+    for (const row of rows) affectedAnimeIds.add(row.animeId);
+  });
+  for (const animeId of deletedAnimeIds) affectedAnimeIds.delete(animeId);
+
+  const affectedDayKeys = new Set<number>();
+  forEachIdChunk(args.deletedSessionIds, (chunk) => {
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT ${LOCAL_DAY_EXPR} AS dayKey
+         FROM imm_sessions s
+         JOIN imm_lifetime_applied_sessions a ON a.session_id = s.session_id
+         WHERE s.session_id IN (${makePlaceholders(chunk)})`,
+      )
+      .all(...chunk) as Array<{ dayKey: number }>;
+    for (const row of rows) affectedDayKeys.add(row.dayKey);
+  });
+
+  return {
+    mediaRemovals: [...mediaRemovalsByVideo.values()],
+    affectedAnimeIds: [...affectedAnimeIds],
+    affectedDayKeys: [...affectedDayKeys],
+  };
+}
+
+/**
+ * Apply a removal plan after the underlying rows are gone.
+ *
+ * Media rows are adjusted by subtraction (pruned-session history stays intact),
+ * affected anime rows are recomputed from their surviving media rows, and the
+ * global row is re-derived from the media/anime tables. `active_days` is the
+ * one metric that can't be derived, so a touched day is only decremented when
+ * no ended session remains on that local day; days whose sessions were pruned
+ * by retention keep their count because pruning never subtracts.
+ */
+export function applyLifetimeRemovals(db: DatabaseSync, plan: LifetimeRemovalPlan): void {
+  const updatedAtMs = toDbTimestamp(nowMs());
+
+  const subtractMediaStmt = db.prepare(
     `
-    INSERT INTO imm_lifetime_anime (
+    UPDATE imm_lifetime_media SET
+      total_sessions = MAX(total_sessions - ?, 0),
+      total_active_ms = MAX(total_active_ms - ?, 0),
+      total_cards = MAX(total_cards - ?, 0),
+      total_lines_seen = MAX(total_lines_seen - ?, 0),
+      total_tokens_seen = MAX(total_tokens_seen - ?, 0),
+      LAST_UPDATE_DATE = ?
+    WHERE video_id = ?
+    `,
+  );
+  const dropEmptyMediaStmt = db.prepare(
+    'DELETE FROM imm_lifetime_media WHERE video_id = ? AND total_sessions <= 0',
+  );
+  const remainingSessionRangeStmt = db.prepare(
+    `
+    SELECT
+      MIN(CAST(started_at_ms AS REAL)) AS minStartedMs,
+      MAX(CAST(ended_at_ms AS REAL)) AS maxEndedMs
+    FROM imm_sessions
+    WHERE video_id = ? AND ended_at_ms IS NOT NULL
+    `,
+  );
+  const storedMediaRangeStmt = db.prepare(
+    `
+    SELECT CAST(first_watched_ms AS REAL) AS firstWatchedMs
+    FROM imm_lifetime_media
+    WHERE video_id = ?
+    `,
+  );
+  const refreshMediaRangeStmt = db.prepare(
+    `
+    UPDATE imm_lifetime_media SET
+      first_watched_ms = ?,
+      last_watched_ms = ?
+    WHERE video_id = ?
+    `,
+  );
+
+  for (const removal of plan.mediaRemovals) {
+    subtractMediaStmt.run(
+      removal.sessions,
+      removal.activeMs,
+      removal.cards,
+      removal.linesSeen,
+      removal.tokensSeen,
+      updatedAtMs,
+      removal.videoId,
+    );
+    dropEmptyMediaStmt.run(removal.videoId);
+    const stored = storedMediaRangeStmt.get(removal.videoId) as {
+      firstWatchedMs: number | null;
+    } | null;
+    if (!stored) continue;
+    const range = remainingSessionRangeStmt.get(removal.videoId) as {
+      minStartedMs: number | null;
+      maxEndedMs: number | null;
+    } | null;
+    // Retained sessions are always newer than pruned ones, so the surviving
+    // range is authoritative for last_watched while first_watched can only
+    // keep or extend the stored (possibly pruned-history) minimum. When no
+    // session survives, the stored values are all that's left.
+    if (range && range.minStartedMs !== null && range.maxEndedMs !== null) {
+      const firstWatchedMs =
+        stored.firstWatchedMs === null
+          ? range.minStartedMs
+          : Math.min(stored.firstWatchedMs, range.minStartedMs);
+      refreshMediaRangeStmt.run(
+        toDbTimestamp(firstWatchedMs),
+        toDbTimestamp(range.maxEndedMs),
+        removal.videoId,
+      );
+    }
+  }
+
+  recomputeLifetimeAnimeFromMedia(db, plan.affectedAnimeIds, updatedAtMs);
+
+  // One pass over the sessions rather than a probe per affected day: the local
+  // day is a computed expression with no index, so each probe would be a table
+  // scan — and the miss case (the day we need to count) is the full-scan one.
+  let removedDays = 0;
+  if (plan.affectedDayKeys.length > 0) {
+    const survivingDayKeys = new Set(
+      (
+        db
+          .prepare(
+            `SELECT DISTINCT ${LOCAL_DAY_EXPR} AS dayKey
+             FROM imm_sessions
+             WHERE ended_at_ms IS NOT NULL`,
+          )
+          .all() as Array<{ dayKey: number }>
+      ).map((row) => row.dayKey),
+    );
+    for (const dayKey of plan.affectedDayKeys) {
+      if (!survivingDayKeys.has(dayKey)) removedDays += 1;
+    }
+  }
+
+  recomputeLifetimeGlobalFromSummaries(db, { removedActiveDays: removedDays, updatedAtMs });
+}
+
+/**
+ * Recompute lifetime anime rows exactly from their surviving media rows.
+ *
+ * Media rows are the durable per-video ledger (they outlive session pruning and
+ * follow a video when it moves between anime), so this is the correct refresh
+ * after merges, moves, and deletes. Anime with no media rows left are dropped.
+ */
+export function recomputeLifetimeAnimeFromMedia(
+  db: DatabaseSync,
+  animeIds: number[],
+  updatedAtMs = toDbTimestamp(nowMs()),
+): void {
+  if (animeIds.length === 0) return;
+
+  const animeSummaryStmt = db.prepare(
+    `
+    SELECT
+      COUNT(*) AS episodeRows,
+      COALESCE(SUM(m.total_sessions), 0) AS totalSessions,
+      COALESCE(SUM(m.total_active_ms), 0) AS totalActiveMs,
+      COALESCE(SUM(m.total_cards), 0) AS totalCards,
+      COALESCE(SUM(m.total_lines_seen), 0) AS totalLinesSeen,
+      COALESCE(SUM(m.total_tokens_seen), 0) AS totalTokensSeen,
+      COALESCE(SUM(CASE WHEN m.completed > 0 THEN 1 ELSE 0 END), 0) AS episodesCompleted,
+      MIN(CAST(m.first_watched_ms AS REAL)) AS firstWatchedMs,
+      MAX(CAST(m.last_watched_ms AS REAL)) AS lastWatchedMs
+    FROM imm_lifetime_media m
+    JOIN imm_videos v ON v.video_id = m.video_id
+    WHERE v.anime_id = ?
+    `,
+  );
+  const dropAnimeStmt = db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?');
+  const upsertAnimeStmt = db.prepare(
+    `
+    INSERT INTO imm_lifetime_anime(
       anime_id,
       total_sessions,
       total_active_ms,
@@ -741,48 +999,166 @@ export function recomputeLifetimeAnimeAggregatesInTransaction(db: DatabaseSync):
       CREATED_DATE,
       LAST_UPDATE_DATE
     )
-    SELECT
-      v.anime_id,
-      COALESCE(SUM(m.total_sessions), 0),
-      COALESCE(SUM(m.total_active_ms), 0),
-      COALESCE(SUM(m.total_cards), 0),
-      COALESCE(SUM(m.total_lines_seen), 0),
-      COALESCE(SUM(m.total_tokens_seen), 0),
-      COUNT(*),
-      COUNT(CASE WHEN m.completed > 0 THEN 1 END),
-      MIN(m.first_watched_ms),
-      MAX(m.last_watched_ms),
-      ?,
-      ?
-    FROM imm_lifetime_media m
-    JOIN imm_videos v ON v.video_id = m.video_id
-    WHERE v.anime_id IS NOT NULL
-    GROUP BY v.anime_id
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(anime_id) DO UPDATE SET
+      total_sessions = excluded.total_sessions,
+      total_active_ms = excluded.total_active_ms,
+      total_cards = excluded.total_cards,
+      total_lines_seen = excluded.total_lines_seen,
+      total_tokens_seen = excluded.total_tokens_seen,
+      episodes_started = excluded.episodes_started,
+      episodes_completed = excluded.episodes_completed,
+      first_watched_ms = excluded.first_watched_ms,
+      last_watched_ms = excluded.last_watched_ms,
+      LAST_UPDATE_DATE = excluded.LAST_UPDATE_DATE
     `,
-  ).run(updatedAt, updatedAt);
+  );
+
+  for (const animeId of animeIds) {
+    const summary = animeSummaryStmt.get(animeId) as {
+      episodeRows: number;
+      totalSessions: number;
+      totalActiveMs: number;
+      totalCards: number;
+      totalLinesSeen: number;
+      totalTokensSeen: number;
+      episodesCompleted: number;
+      firstWatchedMs: number | null;
+      lastWatchedMs: number | null;
+    };
+    if (Number(summary.episodeRows) === 0) {
+      dropAnimeStmt.run(animeId);
+      continue;
+    }
+    upsertAnimeStmt.run(
+      animeId,
+      summary.totalSessions,
+      summary.totalActiveMs,
+      summary.totalCards,
+      summary.totalLinesSeen,
+      summary.totalTokensSeen,
+      summary.episodeRows,
+      summary.episodesCompleted,
+      summary.firstWatchedMs === null ? null : toDbTimestamp(summary.firstWatchedMs),
+      summary.lastWatchedMs === null ? null : toDbTimestamp(summary.lastWatchedMs),
+      updatedAtMs,
+      updatedAtMs,
+    );
+  }
+}
+
+/**
+ * Re-derive the global lifetime row from the media/anime summary tables.
+ *
+ * Every global metric except active_days is a pure aggregate of those tables;
+ * active_days can't be derived, so callers pass how many day slots their change
+ * removed (0 for moves/merges, which never touch sessions).
+ */
+export function recomputeLifetimeGlobalFromSummaries(
+  db: DatabaseSync,
+  options: { removedActiveDays?: number; updatedAtMs?: string } = {},
+): void {
+  const updatedAtMs = options.updatedAtMs ?? toDbTimestamp(nowMs());
+  const mediaTotals = db
+    .prepare(
+      `
+      SELECT
+        COUNT(*) AS episodesStarted,
+        COALESCE(SUM(total_sessions), 0) AS totalSessions,
+        COALESCE(SUM(total_active_ms), 0) AS totalActiveMs,
+        COALESCE(SUM(total_cards), 0) AS totalCards,
+        COALESCE(SUM(CASE WHEN completed > 0 THEN 1 ELSE 0 END), 0) AS episodesCompleted
+      FROM imm_lifetime_media
+      `,
+    )
+    .get() as {
+    episodesStarted: number;
+    totalSessions: number;
+    totalActiveMs: number;
+    totalCards: number;
+    episodesCompleted: number;
+  };
+  const animeCompletedRow = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS animeCompleted
+      FROM imm_lifetime_anime la
+      JOIN imm_anime a ON a.anime_id = la.anime_id
+      WHERE a.episodes_total IS NOT NULL
+        AND a.episodes_total > 0
+        AND la.episodes_completed >= a.episodes_total
+      `,
+    )
+    .get() as { animeCompleted: number };
+
   db.prepare(
     `
-    UPDATE imm_lifetime_global
-    SET
-      anime_completed = (
-        SELECT COUNT(*)
-        FROM imm_lifetime_anime la
-        JOIN imm_anime a ON a.anime_id = la.anime_id
-        WHERE a.episodes_total IS NOT NULL
-          AND a.episodes_total > 0
-          AND la.episodes_completed >= a.episodes_total
-      ),
+    UPDATE imm_lifetime_global SET
+      total_sessions = ?,
+      total_active_ms = ?,
+      total_cards = ?,
+      episodes_started = ?,
+      episodes_completed = ?,
+      anime_completed = ?,
+      active_days = MAX(active_days - ?, 0),
       LAST_UPDATE_DATE = ?
     WHERE global_id = 1
     `,
-  ).run(updatedAt);
+  ).run(
+    mediaTotals.totalSessions,
+    mediaTotals.totalActiveMs,
+    mediaTotals.totalCards,
+    mediaTotals.episodesStarted,
+    mediaTotals.episodesCompleted,
+    animeCompletedRow.animeCompleted,
+    options.removedActiveDays ?? 0,
+    updatedAtMs,
+  );
 }
 
-export function recomputeLifetimeAnimeAggregates(db: DatabaseSync): void {
-  db.exec('BEGIN IMMEDIATE');
+export interface LifetimeRepairSummary {
+  recomputedAnime: number;
+  repairedAtMs: number;
+}
+
+/**
+ * Non-destructive lifetime repair: recompute every anime row and the global row
+ * from the per-video media ledger.
+ *
+ * Unlike {@link rebuildLifetimeSummaries}, this never resets the tables from
+ * retained sessions, so lifetime history older than the session retention
+ * window survives. The one exception is a database whose lifetime tables were
+ * never populated — there is no ledger to repair from, so it bootstraps with
+ * the full rebuild instead.
+ */
+export function repairLifetimeSummariesFromMedia(db: DatabaseSync): LifetimeRepairSummary {
+  if (shouldBackfillLifetimeSummaries(db)) {
+    const rebuilt = rebuildLifetimeSummaries(db);
+    const animeRow = db
+      .prepare('SELECT COUNT(*) AS count FROM imm_lifetime_anime')
+      .get() as ExistenceRow;
+    return { recomputedAnime: Number(animeRow.count), repairedAtMs: rebuilt.rebuiltAtMs };
+  }
+
+  const repairedAtMs = nowMs();
+  db.exec('BEGIN');
   try {
-    recomputeLifetimeAnimeAggregatesInTransaction(db);
+    const animeIds = new Set<number>();
+    for (const row of db
+      .prepare('SELECT DISTINCT anime_id AS animeId FROM imm_videos WHERE anime_id IS NOT NULL')
+      .all() as Array<{ animeId: number }>) {
+      animeIds.add(row.animeId);
+    }
+    for (const row of db
+      .prepare('SELECT anime_id AS animeId FROM imm_lifetime_anime')
+      .all() as Array<{ animeId: number }>) {
+      animeIds.add(row.animeId);
+    }
+    const updatedAtMs = toDbTimestamp(repairedAtMs);
+    recomputeLifetimeAnimeFromMedia(db, [...animeIds], updatedAtMs);
+    recomputeLifetimeGlobalFromSummaries(db, { updatedAtMs });
     db.exec('COMMIT');
+    return { recomputedAnime: animeIds.size, repairedAtMs };
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;

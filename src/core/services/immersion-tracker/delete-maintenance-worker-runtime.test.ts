@@ -32,7 +32,7 @@ function createFakeWorker() {
 
 type FakeWorker = ReturnType<typeof createFakeWorker>['worker'];
 
-test('a delete batch rebuilds lifetime summaries once', () => {
+test('a delete batch never runs a full lifetime rebuild', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-delete-batch-test-'));
   const dbPath = path.join(tempDir, 'immersion.sqlite');
   let db = new Database(dbPath);
@@ -87,8 +87,8 @@ test('a delete batch rebuilds lifetime summaries once', () => {
     assert.equal(deletedVideo, undefined);
     assert.equal(
       audit.total,
-      2,
-      'one rebuild performs exactly its reset and final global summary writes',
+      0,
+      'delete maintenance subtracts incrementally instead of rewriting last_rebuilt_ms',
     );
   } finally {
     try {
@@ -98,6 +98,14 @@ test('a delete batch rebuilds lifetime summaries once', () => {
     }
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+});
+
+test('delete worker module resolves in the current layout', () => {
+  // If this resolves to null, every delete silently runs on the serving thread
+  // and blocks the stats API for the whole maintenance run.
+  const workerPath = resolveDeleteMaintenanceWorkerPath();
+  assert.ok(workerPath, 'delete-maintenance worker module must resolve');
+  assert.ok(workerPath.endsWith(__filename.endsWith('.ts') ? '.ts' : '.js'));
 });
 
 test(
@@ -178,19 +186,51 @@ test('worker runtime terminates a worker after successful settlement', async () 
   assert.equal(terminationState.calls, 1);
 });
 
-test('worker runtime terminates a worker after failed settlement', async () => {
+test('worker runtime falls back to the current thread when the worker crashes', async () => {
   const { worker, listeners, terminationState } = createFakeWorker();
+  const fallbackTasks: unknown[] = [];
+  const warnings: string[] = [];
   const runtime = new DeleteMaintenanceWorkerRuntime({
     resolveWorkerPath: () => '/tmp/delete-worker.js',
     createWorker: async () => worker,
+    executeFallback: (dbPath, task) => {
+      fallbackTasks.push({ dbPath, task });
+    },
+    warn: (message) => {
+      warnings.push(message);
+    },
   });
 
   const result = runtime.run('/tmp/test.sqlite', { kind: 'session', sessionId: 1 });
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
   listeners.get('error')?.(new Error('worker failed') as never);
 
-  await assert.rejects(result, /worker failed/);
+  await result;
   assert.equal(terminationState.calls, 1);
+  assert.deepEqual(fallbackTasks, [
+    { dbPath: '/tmp/test.sqlite', task: { kind: 'session', sessionId: 1 } },
+  ]);
+  assert.equal(warnings.length, 1);
+});
+
+test('worker runtime surfaces a task failure without rerunning it', async () => {
+  const { worker, listeners, terminationState } = createFakeWorker();
+  const fallbackTasks: unknown[] = [];
+  const runtime = new DeleteMaintenanceWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/delete-worker.js',
+    createWorker: async () => worker,
+    executeFallback: () => {
+      fallbackTasks.push('ran');
+    },
+  });
+
+  const result = runtime.run('/tmp/test.sqlite', { kind: 'session', sessionId: 1 });
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  listeners.get('message')?.({ ok: false, error: 'constraint violated' } as never);
+
+  await assert.rejects(result, /constraint violated/);
+  assert.equal(terminationState.calls, 1);
+  assert.equal(fallbackTasks.length, 0);
 });
 
 test('worker runtime terminates a worker created after shutdown begins', async () => {

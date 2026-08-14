@@ -1,5 +1,5 @@
 import type { DatabaseSync } from './sqlite';
-import { rebuildLifetimeSummariesInTransaction } from './lifetime';
+import { applyLifetimeRemovals, planLifetimeRemovals } from './lifetime';
 import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import {
   applyLexicalRemovals,
@@ -8,9 +8,10 @@ import {
   forEachIdChunk,
   makePlaceholders,
   planLexicalRemovalsForSessions,
-  SQLITE_ID_CHUNK_SIZE,
+  planLexicalRemovalsForVideos,
   type LexicalRemovalPlan,
 } from './query-shared';
+import type { RollupGroup } from './maintenance';
 
 export type DeleteMaintenanceOperation =
   | { kind: 'session'; sessionId: number }
@@ -59,40 +60,59 @@ function selectIds(
   return ids;
 }
 
-function planLexicalRemovalsInChunks(db: DatabaseSync, sessionIds: number[]): LexicalRemovalPlan {
-  const combined: LexicalRemovalPlan = { words: [], kanji: [] };
-  const merge = (target: LexicalRemovalPlan['words'], source: LexicalRemovalPlan['words']) => {
-    const byId = new Map(target.map((entry) => [entry.id, entry]));
-    for (const entry of source) {
-      const existing = byId.get(entry.id);
-      if (!existing) {
-        const added = { ...entry };
-        target.push(added);
-        byId.set(entry.id, added);
-        continue;
-      }
-      existing.removedFrequency += entry.removedFrequency;
-      if (
-        entry.removedFirstSeenMs !== null &&
-        (existing.removedFirstSeenMs === null ||
-          entry.removedFirstSeenMs < existing.removedFirstSeenMs)
-      ) {
-        existing.removedFirstSeenMs = entry.removedFirstSeenMs;
-      }
-      if (
-        entry.removedLastSeenMs !== null &&
-        (existing.removedLastSeenMs === null ||
-          entry.removedLastSeenMs > existing.removedLastSeenMs)
-      ) {
-        existing.removedLastSeenMs = entry.removedLastSeenMs;
-      }
+function mergeLexicalPlanEntries(
+  target: LexicalRemovalPlan['words'],
+  source: LexicalRemovalPlan['words'],
+): void {
+  const byId = new Map(target.map((entry) => [entry.id, entry]));
+  for (const entry of source) {
+    const existing = byId.get(entry.id);
+    if (!existing) {
+      const added = { ...entry };
+      target.push(added);
+      byId.set(entry.id, added);
+      continue;
     }
-  };
+    existing.removedFrequency += entry.removedFrequency;
+    if (
+      entry.removedFirstSeenMs !== null &&
+      (existing.removedFirstSeenMs === null ||
+        entry.removedFirstSeenMs < existing.removedFirstSeenMs)
+    ) {
+      existing.removedFirstSeenMs = entry.removedFirstSeenMs;
+    }
+    if (
+      entry.removedLastSeenMs !== null &&
+      (existing.removedLastSeenMs === null || entry.removedLastSeenMs > existing.removedLastSeenMs)
+    ) {
+      existing.removedLastSeenMs = entry.removedLastSeenMs;
+    }
+  }
+}
 
-  forEachIdChunk(sessionIds, (chunk) => {
-    const plan = planLexicalRemovalsForSessions(db, chunk);
-    merge(combined.words, plan.words);
-    merge(combined.kanji, plan.kanji);
+function mergeLexicalPlans(target: LexicalRemovalPlan, source: LexicalRemovalPlan): void {
+  mergeLexicalPlanEntries(target.words, source.words);
+  mergeLexicalPlanEntries(target.kanji, source.kanji);
+}
+
+/**
+ * Plan what the delete removes from imm_words/imm_kanji.
+ *
+ * Deleted videos are planned by video so orphaned subtitle lines (whose session
+ * is already gone) still get subtracted; sessions on surviving videos are
+ * planned by session. The two scopes are disjoint, so nothing is counted twice.
+ */
+function planLexicalRemovalsForDelete(
+  db: DatabaseSync,
+  sessionIdsOnSurvivingVideos: number[],
+  videoIds: number[],
+): LexicalRemovalPlan {
+  const combined: LexicalRemovalPlan = { words: [], kanji: [] };
+  forEachIdChunk(sessionIdsOnSurvivingVideos, (chunk) => {
+    mergeLexicalPlans(combined, planLexicalRemovalsForSessions(db, chunk));
+  });
+  forEachIdChunk(videoIds, (chunk) => {
+    mergeLexicalPlans(combined, planLexicalRemovalsForVideos(db, chunk));
   });
   return combined;
 }
@@ -121,24 +141,37 @@ export function deleteMaintenanceBatch(
     }
 
     const videoIdList = [...videoIds];
-    for (const sessionId of selectIds(
-      db,
-      (placeholders) => `SELECT session_id FROM imm_sessions WHERE video_id IN (${placeholders})`,
-      videoIdList,
-      'session_id',
-    )) {
-      sessionIds.add(sessionId);
-    }
+    const sessionIdsOnDeletedVideos = new Set(
+      selectIds(
+        db,
+        (placeholders) => `SELECT session_id FROM imm_sessions WHERE video_id IN (${placeholders})`,
+        videoIdList,
+        'session_id',
+      ),
+    );
+    for (const sessionId of sessionIdsOnDeletedVideos) sessionIds.add(sessionId);
 
     const sessionIdList = [...sessionIds];
-    const lexicalRemovals = planLexicalRemovalsInChunks(db, sessionIdList);
-    const affectedRollupGroups = sessionIdList
-      .flatMap((_, index) =>
-        index % SQLITE_ID_CHUNK_SIZE === 0
-          ? getRollupGroupsForSessions(db, sessionIdList.slice(index, index + SQLITE_ID_CHUNK_SIZE))
-          : [],
-      )
-      .filter((group) => !videoIds.has(group.videoId));
+    const sessionIdsOnSurvivingVideos = sessionIdList.filter(
+      (sessionId) => !sessionIdsOnDeletedVideos.has(sessionId),
+    );
+
+    // Both plans must be measured before any rows are removed.
+    const lexicalRemovals = planLexicalRemovalsForDelete(
+      db,
+      sessionIdsOnSurvivingVideos,
+      videoIdList,
+    );
+    const lifetimeRemovals = planLifetimeRemovals(db, {
+      deletedSessionIds: sessionIdList,
+      sessionIdsOnSurvivingVideos,
+      deletedVideoIds: videoIdList,
+      deletedAnimeIds: animeIdList,
+    });
+    const affectedRollupGroups: RollupGroup[] = [];
+    forEachIdChunk(sessionIdsOnSurvivingVideos, (chunk) => {
+      affectedRollupGroups.push(...getRollupGroupsForSessions(db, chunk));
+    });
     const coverBlobHashes = new Set<string>();
     if (videoIdList.length > 0) {
       forEachIdChunk(videoIdList, (chunk) => {
@@ -152,25 +185,30 @@ export function deleteMaintenanceBatch(
           .all(...chunk) as Array<{ coverBlobHash: string }>;
         for (const row of artRows) coverBlobHashes.add(row.coverBlobHash);
       });
-
-      deleteSessionsByIds(db, sessionIdList);
-      forEachIdChunk(videoIdList, (chunk) => {
-        const placeholders = makePlaceholders(chunk);
-        db.prepare(`DELETE FROM imm_subtitle_lines WHERE video_id IN (${placeholders})`).run(
-          ...chunk,
-        );
-        db.prepare(`DELETE FROM imm_daily_rollups WHERE video_id IN (${placeholders})`).run(
-          ...chunk,
-        );
-        db.prepare(`DELETE FROM imm_monthly_rollups WHERE video_id IN (${placeholders})`).run(
-          ...chunk,
-        );
-        db.prepare(`DELETE FROM imm_media_art WHERE video_id IN (${placeholders})`).run(...chunk);
-        db.prepare(`DELETE FROM imm_videos WHERE video_id IN (${placeholders})`).run(...chunk);
-      });
-    } else {
-      deleteSessionsByIds(db, sessionIdList);
     }
+
+    deleteSessionsByIds(db, sessionIdList);
+    forEachIdChunk(sessionIdList, (chunk) => {
+      const placeholders = makePlaceholders(chunk);
+      db.prepare(
+        `DELETE FROM imm_lifetime_applied_sessions WHERE session_id IN (${placeholders})`,
+      ).run(...chunk);
+    });
+    forEachIdChunk(videoIdList, (chunk) => {
+      const placeholders = makePlaceholders(chunk);
+      db.prepare(`DELETE FROM imm_subtitle_lines WHERE video_id IN (${placeholders})`).run(
+        ...chunk,
+      );
+      db.prepare(`DELETE FROM imm_daily_rollups WHERE video_id IN (${placeholders})`).run(...chunk);
+      db.prepare(`DELETE FROM imm_monthly_rollups WHERE video_id IN (${placeholders})`).run(
+        ...chunk,
+      );
+      db.prepare(`DELETE FROM imm_media_art WHERE video_id IN (${placeholders})`).run(...chunk);
+      db.prepare(`DELETE FROM imm_lifetime_media WHERE video_id IN (${placeholders})`).run(
+        ...chunk,
+      );
+      db.prepare(`DELETE FROM imm_videos WHERE video_id IN (${placeholders})`).run(...chunk);
+    });
 
     for (const coverBlobHash of coverBlobHashes) {
       cleanupUnusedCoverArtBlobHash(db, coverBlobHash);
@@ -186,7 +224,7 @@ export function deleteMaintenanceBatch(
     }
 
     applyLexicalRemovals(db, lexicalRemovals);
-    rebuildLifetimeSummariesInTransaction(db);
+    applyLifetimeRemovals(db, lifetimeRemovals);
     refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
     db.exec('COMMIT');
   } catch (error) {

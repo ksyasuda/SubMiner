@@ -30,9 +30,11 @@ import {
 } from './immersion-tracker/storage';
 import {
   applySessionLifetimeSummary,
-  recomputeLifetimeAnimeAggregates,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
+  recomputeLifetimeAnimeFromMedia,
+  recomputeLifetimeGlobalFromSummaries,
+  repairLifetimeSummariesFromMedia,
   shouldBackfillLifetimeSummaries,
 } from './immersion-tracker/lifetime';
 import {
@@ -534,7 +536,7 @@ export class ImmersionTrackerService {
       this.logger.info(
         `Repaired season-scoped stats links on startup: scanned=${seasonRepair.scanned} movedVideos=${seasonRepair.movedVideos} deletedAnimeRows=${seasonRepair.deletedAnimeRows}`,
       );
-      recomputeLifetimeAnimeAggregates(this.db);
+      repairLifetimeSummariesFromMedia(this.db);
     }
     if (shouldBackfillLifetimeSummaries(this.db)) {
       const result = rebuildLifetimeSummaryTables(this.db);
@@ -660,7 +662,17 @@ export class ImmersionTrackerService {
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
     this.requireWriteQueueDrained('rebuilding lifetime summaries');
-    return rebuildLifetimeSummaryTables(this.db);
+    // Non-destructive: recomputes from the media ledger (or bootstraps empty
+    // lifetime tables), so history older than session retention is never reset.
+    const repaired = repairLifetimeSummariesFromMedia(this.db);
+    // Sessions currently tracked in the applied-sessions ledger, not sessions
+    // processed by this call — the repair recomputes summaries instead of
+    // re-applying sessions. Retention prunes these rows (FK cascade), so on an
+    // old database this reads lower than the history the totals still include.
+    const appliedRow = this.db
+      .prepare('SELECT COUNT(*) AS count FROM imm_lifetime_applied_sessions')
+      .get() as { count: number };
+    return { appliedSessions: Number(appliedRow.count), rebuiltAtMs: repaired.repairedAtMs };
   }
 
   async getKanjiStats(limit = 100): Promise<KanjiStatsRow[]> {
@@ -943,9 +955,9 @@ export class ImmersionTrackerService {
         nowMs(),
         animeId,
       );
-    if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-      recomputeLifetimeAnimeAggregates(this.db);
-    }
+    // Covers both the merge repair (media rows changed owners) and an
+    // episodes_total change flipping anime_completed.
+    repairLifetimeSummariesFromMedia(this.db);
 
     // Update cover art for all videos in this anime
     if (info.coverUrl) {
@@ -1393,7 +1405,7 @@ export class ImmersionTrackerService {
         metadataJson: candidate.metadataJson,
       });
     }
-    recomputeLifetimeAnimeAggregates(this.db);
+    repairLifetimeSummariesFromMedia(this.db);
   }
 
   recordJellyfinPlaybackMetadata(metadata: JellyfinPlaybackMetadataInput): void {
@@ -1468,7 +1480,19 @@ export class ImmersionTrackerService {
       this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
     );
     if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
-      recomputeLifetimeAnimeAggregates(this.db);
+      // Playback-time relink: only the old and new anime are affected, so
+      // recompute just those from the media ledger instead of a full repair.
+      const affectedAnimeIds = new Set<number>([animeId]);
+      if (previousLink?.animeId) affectedAnimeIds.add(previousLink.animeId);
+      this.db.exec('BEGIN');
+      try {
+        recomputeLifetimeAnimeFromMedia(this.db, [...affectedAnimeIds]);
+        recomputeLifetimeGlobalFromSummaries(this.db);
+        this.db.exec('COMMIT');
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
     }
   }
 
