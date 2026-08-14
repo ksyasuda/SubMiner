@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.19.3 (2026-08-13)
+
+**Added**
+- Changelog Modal: Adds an in-app changelog you can open from the tray ("View Changelog") or the "What's New" button on the update notification, so the notification stays reachable while you read. It shows the newest published release notes (falling back to the bundled changelog if that fetch fails), folds older versions while keeping the current one expanded, and supports keyboard navigation (`J`/`K`/arrows, `Enter`, `R`, `Esc`).
+
+**Changed**
+- Subtitle Tokenization Performance: Reworks subtitle dictionary lookups to cut per-line work roughly in half, cache repeated lookups across lines, and stop tokenization from competing with on-screen subtitle prefetching. Also fixes several accuracy issues along the way: dropped readings on trailing kana, character names being skipped after a dictionary sync, annotations not refreshing after mining a card, and halfwidth katakana character names losing their reading or being swallowed by other words.
+
+**Fixed**
+- Character Dictionary Large Imports: Large character dictionaries (e.g. One Piece) no longer fail to install from a fixed timeout budget; the import now scales its time budget to dictionary size and reports detailed progress (page/character counts, image download progress, elapsed time) instead of one static message.
+- Stats Delete Responsiveness: Deleting sessions, episodes, or library entries no longer freezes the stats page or an active video player; deletes are now batched into a single transaction.
+- Styled Subtitle Cue Parsing: Heavily typeset subtitles (karaoke, signs) no longer flood the subtitle sidebar with garbage; vector drawing commands are no longer shown as text, and duplicate/animation-burst cues now collapse into one.
+- X11 mpv Renderer: Fixes an mpv crash on the first fullscreen toggle for X11/XWayland users with `gpu-next` shaders (e.g. ArtCNN), which was caused by X11 mode forcing the legacy OpenGL renderer.
+- X11 Overlay Display Scaling: Fixes the overlay appearing oversized and offset from mpv on X11/XWayland under fractional or mixed-monitor display scaling.
+
+<details>
+<summary>Internal changes</summary>
+
+**Internal**
+- Subtitle text is now decoded from ASS exactly once at ingest, so the renderer, timing tracker, and tokenizer all share one decoded value instead of each re-deriving it.
+- Added per-stage debug timings (`scanMs`, `mecabMs`, `frequencyMs`, `annotateMs`) to the subtitle tokenization pipeline log.
+
+</details>
+
 ## v0.19.2 (2026-08-04)
 
 **Changed**
