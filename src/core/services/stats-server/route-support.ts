@@ -88,6 +88,35 @@ export function parseExcludedWordsBody(body: unknown): StatsExcludedWord[] | nul
   return words;
 }
 
+/**
+ * Read a duplicate-line cleanup request. An explicit object with no lookback scans all
+ * history. Invalid bodies and invalid windows are rejected instead of broadening scope.
+ */
+export function parseDuplicateLineCleanupBody(body: unknown): {
+  dryRun: boolean;
+  lookbackDays: number | null;
+} | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const source = body as Record<string, unknown>;
+  if (source.dryRun !== undefined && typeof source.dryRun !== 'boolean') {
+    return null;
+  }
+  const rawLookback = source.lookbackDays;
+  if (
+    rawLookback !== undefined &&
+    rawLookback !== null &&
+    (typeof rawLookback !== 'number' || !Number.isFinite(rawLookback) || rawLookback < 1)
+  ) {
+    return null;
+  }
+  return {
+    dryRun: source.dryRun === true,
+    lookbackDays: typeof rawLookback === 'number' ? Math.floor(rawLookback) : null,
+  };
+}
+
 export function loadKnownWordsSet(cachePath: string | undefined): Set<string> | null {
   if (!cachePath || !existsSync(cachePath)) return null;
   try {

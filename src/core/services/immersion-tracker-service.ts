@@ -92,6 +92,11 @@ import {
   type RunDeleteMaintenanceTask,
 } from './immersion-tracker/delete-maintenance-worker-runtime';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
+import {
+  cleanupDuplicateSubtitleLines,
+  type DuplicateSubtitleLineCleanupOptions,
+  type DuplicateSubtitleLineCleanupSummary,
+} from './immersion-tracker/duplicate-line-cleanup';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   repairLegacySeasonlessAnimeRows,
@@ -628,6 +633,18 @@ export class ImmersionTrackerService {
     return cleanupVocabularyStats(this.db, {
       resolveLegacyPos: this.resolveLegacyVocabularyPos,
     });
+  }
+
+  /**
+   * Collapse animation bursts that earlier versions recorded frame by frame. The whole
+   * queue is drained first so a burst still waiting to be written is scanned as stored
+   * rows rather than surviving the cleanup and landing a moment after it.
+   */
+  async cleanupDuplicateSubtitleLines(
+    options: DuplicateSubtitleLineCleanupOptions = {},
+  ): Promise<DuplicateSubtitleLineCleanupSummary> {
+    this.drainQueue();
+    return cleanupDuplicateSubtitleLines(this.db, options);
   }
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
@@ -1845,6 +1862,24 @@ export class ImmersionTrackerService {
       this.flushScheduled = false;
       if (this.queue.length > 0) {
         this.scheduleFlush(this.flushIntervalMs);
+      }
+    }
+  }
+
+  /**
+   * Write out everything queued, not just the next batch.
+   *
+   * `flushNow` writes at most `batchSize` entries and does nothing at all while the write
+   * lock is held, so a maintenance pass that runs straight after it can still be reading
+   * a database that is missing rows. Each pass has to shrink the queue to continue: a
+   * failed flush puts its batch back, and looping on that would never finish.
+   */
+  private drainQueue(): void {
+    while (this.queue.length > 0) {
+      const pendingBefore = this.queue.length;
+      this.flushNow();
+      if (this.queue.length >= pendingBefore) {
+        return;
       }
     }
   }

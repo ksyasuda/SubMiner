@@ -95,6 +95,8 @@ subminer texthooker               # Texthooker-only mode (-o also opens the brow
 subminer stats -b                 # Start/reuse the background stats daemon
 subminer stats -s                 # Stop the background stats daemon
 subminer stats cleanup            # Backfill vocabulary metadata, prune stale rows
+subminer stats cleanup -d --dry-run  # Preview cleanup of repeated typeset subtitle lines
+subminer stats cleanup -d --lookback-days 30  # Clean only lines recorded in the last 30 days
 subminer stats rebuild            # Rebuild rollup data
 subminer doctor --refresh-known-words  # Refresh the known-word cache
 subminer logs -e                  # Export a sanitized log ZIP and print its path
@@ -106,6 +108,8 @@ subminer mpv idle                 # Launch a detached idle mpv with SubMiner def
 subminer app --stop               # Stop the background app
 subminer --version                # Print the launcher's version
 ```
+
+`stats cleanup` runs one mode per invocation: `-v`/`--vocab` (the default), `-l`/`--lifetime`, or `-d`/`--duplicate-lines`; explicitly selected modes cannot be combined. `--dry-run` and `--lookback-days <days>` apply to `--duplicate-lines` only and are rejected without it; `--lookback-days` must be at least one day, and leaving it off scans all history.
 
 Jellyfin, cross-machine sync, and character-dictionary commands have their own sections: [Jellyfin](/jellyfin-integration), [Sync Between Machines](/launcher-script#sync-between-machines), and [Character Dictionary](/character-dictionary).
 
@@ -137,7 +141,7 @@ SubMiner.AppImage --start --log-level debug  # Verbose logging without dev mode
 SubMiner.AppImage --help                  # Show all options
 ```
 
-The remaining flags are internal or scripting-only surfaces: the `--jellyfin-*` family (login, library listing, item playback, cast announce), `--sync-cli` (the app's headless sync entrypoint that `subminer sync` proxies to), `--dictionary-candidates` / `--dictionary-select`, and `--playback-feedback <text>`. Run `SubMiner.AppImage --help` for the complete list. The previous `--open-animetosho` flag is still accepted as a deprecated alias for `--open-tsukihime`.
+The remaining flags are internal or scripting-only surfaces: the `--jellyfin-*` family (login, library listing, item playback, cast announce), `--sync-cli` (the app's headless sync entrypoint that `subminer sync` proxies to), the `--stats-cleanup-*` family that `subminer stats cleanup` forwards (`--stats-cleanup-vocab`, `--stats-cleanup-lifetime`, `--stats-cleanup-duplicate-lines`, and its `--stats-cleanup-dry-run` / `--stats-cleanup-lookback-days <days>` modifiers), `--dictionary-candidates` / `--dictionary-select`, and `--playback-feedback <text>`. Run `SubMiner.AppImage --help` for the complete list. The previous `--open-animetosho` flag is still accepted as a deprecated alias for `--open-tsukihime`.
 
 </details>
 

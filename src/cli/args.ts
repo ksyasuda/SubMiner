@@ -64,6 +64,9 @@ export interface CliArgs {
   statsCleanup?: boolean;
   statsCleanupVocab?: boolean;
   statsCleanupLifetime?: boolean;
+  statsCleanupDuplicateLines?: boolean;
+  statsCleanupDryRun?: boolean;
+  statsCleanupLookbackDays?: number;
   statsResponsePath?: string;
   jellyfin: boolean;
   jellyfinLogin: boolean;
@@ -108,6 +111,14 @@ export interface CliArgs {
 }
 
 export type CliCommandSource = 'initial' | 'second-instance';
+
+function parseStatsCleanupLookbackDays(value: string | undefined): number {
+  const days = Number(value);
+  if (!Number.isFinite(days) || days < 1) {
+    throw new Error('Stats --lookback-days must be at least one day.');
+  }
+  return Math.floor(days);
+}
 
 export function parseArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
@@ -167,6 +178,8 @@ export function parseArgs(argv: string[]): CliArgs {
     statsCleanup: false,
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
+    statsCleanupDuplicateLines: false,
+    statsCleanupDryRun: false,
     jellyfin: false,
     jellyfinLogin: false,
     jellyfinLogout: false,
@@ -368,7 +381,15 @@ export function parseArgs(argv: string[]): CliArgs {
     } else if (arg === '--stats-cleanup') args.statsCleanup = true;
     else if (arg === '--stats-cleanup-vocab') args.statsCleanupVocab = true;
     else if (arg === '--stats-cleanup-lifetime') args.statsCleanupLifetime = true;
-    else if (arg.startsWith('--stats-response-path=')) {
+    else if (arg === '--stats-cleanup-duplicate-lines') args.statsCleanupDuplicateLines = true;
+    else if (arg === '--stats-cleanup-dry-run') args.statsCleanupDryRun = true;
+    else if (arg.startsWith('--stats-cleanup-lookback-days=')) {
+      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(
+        arg.slice('--stats-cleanup-lookback-days='.length),
+      );
+    } else if (arg === '--stats-cleanup-lookback-days') {
+      args.statsCleanupLookbackDays = parseStatsCleanupLookbackDays(readValue(argv[i + 1]));
+    } else if (arg.startsWith('--stats-response-path=')) {
       const value = arg.split('=', 2)[1];
       if (value) args.statsResponsePath = value;
     } else if (arg === '--stats-response-path') {

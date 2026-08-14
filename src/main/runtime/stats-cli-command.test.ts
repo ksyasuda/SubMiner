@@ -200,6 +200,59 @@ test('stats cli command fails when immersion tracking is disabled', async () => 
   ]);
 });
 
+test('stats cli command runs a duplicate-line cleanup preview without touching the dashboard', async () => {
+  const { handler, calls, responses } = makeHandler({
+    getImmersionTracker: () => ({
+      cleanupDuplicateSubtitleLines: async (options: {
+        dryRun?: boolean;
+        lookbackDays?: number | null;
+      }) => ({
+        dryRun: options.dryRun === true,
+        lookbackDays: options.lookbackDays ?? null,
+        scannedLines: 900,
+        burstGroups: 2,
+        removedLines: 180,
+        removedWordOccurrences: 540,
+        removedKanjiOccurrences: 120,
+        samples: [
+          {
+            videoId: 7,
+            videoTitle: 'Ep 1',
+            text: '飛び上がる',
+            frames: 90,
+            removedLines: 89,
+            startMs: 1000,
+            endMs: 5000,
+          },
+        ],
+      }),
+    }),
+  });
+
+  await handler(
+    {
+      statsResponsePath: '/tmp/subminer-stats-response.json',
+      statsCleanup: true,
+      statsCleanupDuplicateLines: true,
+      statsCleanupDryRun: true,
+      statsCleanupLookbackDays: 30,
+    },
+    'initial',
+  );
+
+  assert.deepEqual(calls, [
+    'ensureImmersionTrackerStarted',
+    'info:Stats duplicate-line cleanup preview (last 30d): scanned=900 bursts=2 removedLines=180 removedWordCounts=540 removedKanjiCounts=120',
+    'info:  Ep 1: "飛び上がる" x90',
+  ]);
+  assert.deepEqual(responses, [
+    {
+      responsePath: '/tmp/subminer-stats-response.json',
+      payload: { ok: true },
+    },
+  ]);
+});
+
 test('stats cli command runs vocab cleanup instead of opening dashboard when cleanup mode is requested', async () => {
   const { handler, calls, responses } = makeHandler({
     getImmersionTracker: () => ({

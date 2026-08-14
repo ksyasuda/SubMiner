@@ -1,4 +1,5 @@
-import type { MergedToken, SubtitleData } from '../../types';
+import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
+import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
 
 type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
@@ -34,6 +35,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     subtitleTimingTracker: {
       recordSubtitle?: (text: string, start: number, end: number, secondaryText?: string) => void;
     } | null;
+    activeParsedSubtitleCues?: SubtitleCue[] | null;
     currentMediaPath?: string | null;
     currentSubText: string;
     currentSubAssText: string;
@@ -86,6 +88,11 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     deps.ensureImmersionTrackerInitialized();
     deps.appState.immersionTracker?.recordPlaybackPosition?.(normalizedTimeSec);
   };
+  // mpv reports every animation frame of a typeset line as its own subtitle event, so
+  // stats have to collapse bursts the same way the parsed cue list already does.
+  const immersionLineDedupGate = createSubtitleLineDedupGate({
+    getParsedCues: () => deps.appState.activeParsedSubtitleCues,
+  });
   const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
     Boolean(
       deps.appState.initialArgs?.managedPlayback ||
@@ -108,6 +115,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.ensureImmersionTrackerInitialized();
       const tracker = deps.appState.immersionTracker;
       if (!tracker?.recordSubtitleLine) {
+        return;
+      }
+      if (!immersionLineDedupGate.shouldRecord({ text, startSec: start, endSec: end })) {
         return;
       }
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || null;
@@ -159,9 +169,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     logSubtitleProcessingDebug: deps.logSubtitleProcessingDebug
       ? (message: string) => deps.logSubtitleProcessingDebug!(message)
       : undefined,
-    onSubtitleTrackChange: deps.onSubtitleTrackChange
-      ? (sid: number | null) => deps.onSubtitleTrackChange!(sid)
-      : undefined,
+    onSubtitleTrackChange: (sid: number | null) => {
+      immersionLineDedupGate.reset();
+      deps.onSubtitleTrackChange?.(sid);
+    },
     onSubtitleTrackListChange: deps.onSubtitleTrackListChange
       ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
       : undefined,
@@ -173,7 +184,10 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.broadcastToOverlayWindows('subtitle-ass:set', text),
     broadcastSecondarySubtitle: (text: string) =>
       deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
-    updateCurrentMediaPath: (path: string) => deps.updateCurrentMediaPath(path),
+    updateCurrentMediaPath: (path: string) => {
+      immersionLineDedupGate.reset();
+      deps.updateCurrentMediaPath(path);
+    },
     restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
     resetSubtitleSidebarEmbeddedLayout: () => deps.resetSubtitleSidebarEmbeddedLayout?.(),
     getCurrentAnilistMediaKey: () => deps.getCurrentAnilistMediaKey(),

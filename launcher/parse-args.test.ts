@@ -232,6 +232,75 @@ test('parseArgs maps lifetime stats cleanup flag', () => {
   assert.equal(parsed.statsCleanupLifetime, true);
 });
 
+test('parseArgs maps duplicate-line stats cleanup flags', () => {
+  const parsed = parseArgs(
+    ['stats', 'cleanup', '--duplicate-lines', '--dry-run', '--lookback-days', '30'],
+    'subminer',
+    {},
+  );
+
+  assert.equal(parsed.statsCleanup, true);
+  assert.equal(parsed.statsCleanupVocab, false);
+  assert.equal(parsed.statsCleanupDuplicateLines, true);
+  assert.equal(parsed.statsCleanupDryRun, true);
+  assert.equal(parsed.statsCleanupLookbackDays, 30);
+
+  const fractional = parseArgs(
+    ['stats', 'cleanup', '--duplicate-lines', '--lookback-days', '1.5'],
+    'subminer',
+    {},
+  );
+  assert.equal(fractional.statsCleanupLookbackDays, 1);
+});
+
+test('parseArgs rejects duplicate-line flags without the duplicate-lines mode', () => {
+  const error = withProcessExitIntercept(() => {
+    parseArgs(['stats', 'cleanup', '--dry-run'], 'subminer', {});
+  });
+
+  assert.equal(error.code, 1);
+  assert.match(error.stderr, /--dry-run and --lookback-days require --duplicate-lines/);
+});
+
+test('parseArgs rejects an empty lookback value outside duplicate-line cleanup', () => {
+  const error = withProcessExitIntercept(() => {
+    parseArgs(['stats', '--lookback-days', ''], 'subminer', {});
+  });
+
+  assert.equal(error.code, 1);
+  assert.match(error.stderr, /--dry-run and --lookback-days require --duplicate-lines/);
+});
+
+test('parseArgs rejects combining explicit cleanup modes', () => {
+  for (const modes of [
+    ['--lifetime', '--duplicate-lines'],
+    ['--vocab', '--duplicate-lines'],
+    ['--vocab', '--lifetime'],
+  ]) {
+    const error = withProcessExitIntercept(() => {
+      parseArgs(['stats', 'cleanup', ...modes], 'subminer', {});
+    });
+
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /Stats cleanup runs one mode at a time/);
+  }
+});
+
+test('parseArgs rejects unusable lookback windows', () => {
+  for (const value of ['0', '0.5', '-5', 'soon']) {
+    const error = withProcessExitIntercept(() => {
+      parseArgs(
+        ['stats', 'cleanup', '--duplicate-lines', '--lookback-days', value],
+        'subminer',
+        {},
+      );
+    });
+
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /--lookback-days must be at least one day/);
+  }
+});
+
 test('parseArgs rejects cleanup-only stats flags without cleanup action', () => {
   const error = withProcessExitIntercept(() => {
     parseArgs(['stats', '--vocab'], 'subminer', {});
@@ -239,7 +308,10 @@ test('parseArgs rejects cleanup-only stats flags without cleanup action', () => 
 
   assert.equal(error.code, 1);
   assert.match(error.message, /exit:1/);
-  assert.match(error.stderr, /Stats --vocab and --lifetime flags require the cleanup action/);
+  assert.match(
+    error.stderr,
+    /Stats --vocab, --lifetime and --duplicate-lines flags require the cleanup action/,
+  );
 });
 
 test('parseArgs maps stats rebuild action to cleanup lifetime mode', () => {

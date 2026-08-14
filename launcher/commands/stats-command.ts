@@ -157,6 +157,15 @@ export async function runStatsCommand(
     if (args.statsCleanupLifetime) {
       forwarded.push('--stats-cleanup-lifetime');
     }
+    if (args.statsCleanupDuplicateLines) {
+      forwarded.push('--stats-cleanup-duplicate-lines');
+    }
+    if (args.statsCleanupDryRun) {
+      forwarded.push('--stats-cleanup-dry-run');
+    }
+    if (args.statsCleanupLookbackDays) {
+      forwarded.push('--stats-cleanup-lookback-days', String(args.statsCleanupLookbackDays));
+    }
     if (shouldForwardLogLevel(args.logLevel)) {
       forwarded.push('--log-level', args.logLevel);
     }

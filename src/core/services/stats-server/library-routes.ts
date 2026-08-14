@@ -5,6 +5,7 @@ import {
   buildSentenceSearchOptions,
   enrichSessionsWithKnownWordMetrics,
   parseBooleanQuery,
+  parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
   parseIntQuery,
 } from './route-support.js';
@@ -38,6 +39,19 @@ export function registerStatsLibraryRoutes(
     if (!words) return c.body(null, 400);
     await tracker.replaceStatsExcludedWords(words);
     return c.json(statsJson('setExcludedWords', { ok: true }));
+  });
+
+  // Collapse animation bursts older versions recorded frame by frame. `dryRun` measures
+  // the same scan without writing, so the confirmation the user sees is the real cost.
+  app.post('/api/stats/maintenance/duplicate-lines', async (c) => {
+    const contentType = c.req.header('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+    if (contentType !== 'application/json') return c.body(null, 415);
+    const body = await c.req.json().catch(() => null);
+    const options = parseDuplicateLineCleanupBody(body);
+    if (!options) return c.body(null, 400);
+    const { dryRun, lookbackDays } = options;
+    const result = await tracker.cleanupDuplicateSubtitleLines({ dryRun, lookbackDays });
+    return c.json(statsJson('duplicateLineCleanup', result));
   });
 
   app.get('/api/stats/vocabulary/occurrences', async (c) => {

@@ -151,6 +151,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer stats`                           | Start the stats server (opens the dashboard when `stats.autoOpenBrowser` is on)                   |
 | `subminer stats -b` / `-s`                 | Start/reuse or stop the background stats daemon                                                   |
 | `subminer stats cleanup`                   | Backfill vocabulary metadata and prune stale rows (`-v` vocab, `-l` lifetime summaries)           |
+| `subminer stats cleanup -d`                | Collapse repeated lines from typeset subs (`--dry-run`, `--lookback-days <n>`)                    |
 | `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                                                   |
 | `subminer doctor`                          | Dependency + config + socket diagnostics (`--refresh-known-words` refreshes the known-word cache) |
 | `subminer settings`                        | Open the SubMiner settings window                                                                 |

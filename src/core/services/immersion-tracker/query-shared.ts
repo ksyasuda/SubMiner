@@ -276,6 +276,19 @@ export function planLexicalRemovalsForSessions(
   return planLexicalRemovals(db, `sl.session_id IN (${makePlaceholders(sessionIds)})`, sessionIds);
 }
 
+/**
+ * Measure what deleting these individual subtitle lines removes from the vocabulary
+ * tables. Used by the duplicate-line cleanup, which drops animation frames out of the
+ * middle of sessions that otherwise stay intact.
+ */
+export function planLexicalRemovalsForLines(
+  db: DatabaseSync,
+  lineIds: number[],
+): LexicalRemovalPlan {
+  if (lineIds.length === 0) return EMPTY_LEXICAL_REMOVAL_PLAN;
+  return planLexicalRemovals(db, `sl.line_id IN (${makePlaceholders(lineIds)})`, lineIds);
+}
+
 /** Measure what deleting these videos removes from the vocabulary tables. */
 export function planLexicalRemovalsForVideos(
   db: DatabaseSync,

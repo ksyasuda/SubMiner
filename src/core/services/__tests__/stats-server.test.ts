@@ -1032,6 +1032,180 @@ describe('stats server API routes', () => {
     ]);
   });
 
+  it('POST /api/stats/maintenance/duplicate-lines forwards the window and dry-run flag', async () => {
+    let seenOptions: unknown = null;
+    const summary = {
+      dryRun: true,
+      lookbackDays: 30,
+      scannedLines: 900,
+      burstGroups: 2,
+      removedLines: 180,
+      removedWordOccurrences: 540,
+      removedKanjiOccurrences: 120,
+      samples: [],
+    };
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return summary;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, lookbackDays: 30 }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), summary);
+    assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 30 });
+  });
+
+  it('POST /api/stats/maintenance/duplicate-lines rejects cross-origin simple requests', async () => {
+    let cleanupCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async () => {
+          cleanupCalls += 1;
+          throw new Error('cleanup must not run');
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        Origin: 'https://attacker.example',
+      },
+      body: JSON.stringify({ dryRun: false, lookbackDays: null }),
+    });
+
+    assert.equal(res.status, 415);
+    assert.equal(cleanupCalls, 0);
+  });
+
+  it('POST /api/stats/maintenance/duplicate-lines rejects a window shorter than a day', async () => {
+    let cleanupCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async () => {
+          cleanupCalls += 1;
+          return {
+            dryRun: true,
+            lookbackDays: null,
+            scannedLines: 0,
+            burstGroups: 0,
+            removedLines: 0,
+            removedWordOccurrences: 0,
+            removedKanjiOccurrences: 0,
+            samples: [],
+          };
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, lookbackDays: 0.5 }),
+    });
+
+    assert.equal(res.status, 400);
+    assert.equal(cleanupCalls, 0);
+  });
+
+  it('POST /api/stats/maintenance/duplicate-lines floors a fractional multi-day window', async () => {
+    let seenOptions: unknown = null;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return {
+            dryRun: true,
+            lookbackDays: 1,
+            scannedLines: 0,
+            burstGroups: 0,
+            removedLines: 0,
+            removedWordOccurrences: 0,
+            removedKanjiOccurrences: 0,
+            samples: [],
+          };
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dryRun: true, lookbackDays: 1.5 }),
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenOptions, { dryRun: true, lookbackDays: 1 });
+  });
+
+  it('POST /api/stats/maintenance/duplicate-lines accepts an explicit empty object for all history', async () => {
+    let seenOptions: unknown = null;
+    const app = createStatsApp(
+      createMockTracker({
+        cleanupDuplicateSubtitleLines: async (options: unknown) => {
+          seenOptions = options;
+          return {
+            dryRun: false,
+            lookbackDays: null,
+            scannedLines: 0,
+            burstGroups: 0,
+            removedLines: 0,
+            removedWordOccurrences: 0,
+            removedKanjiOccurrences: 0,
+            samples: [],
+          };
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(seenOptions, { dryRun: false, lookbackDays: null });
+  });
+
+  for (const malformed of [
+    { name: 'a missing body', body: undefined },
+    { name: 'malformed JSON', body: '{' },
+    { name: 'JSON null', body: 'null' },
+    { name: 'a JSON array', body: '[]' },
+  ]) {
+    it(`POST /api/stats/maintenance/duplicate-lines rejects ${malformed.name}`, async () => {
+      let cleanupCalls = 0;
+      const app = createStatsApp(
+        createMockTracker({
+          cleanupDuplicateSubtitleLines: async () => {
+            cleanupCalls += 1;
+            throw new Error('cleanup must not run');
+          },
+        }),
+      );
+
+      const res = await app.request('/api/stats/maintenance/duplicate-lines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: malformed.body,
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(cleanupCalls, 0);
+    });
+  }
+
   it('PUT /api/stats/excluded-words rejects malformed rows', async () => {
     const app = createStatsApp(createMockTracker());
 

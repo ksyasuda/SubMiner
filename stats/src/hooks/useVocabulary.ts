@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { VocabularyEntry, KanjiEntry } from '../types/stats';
 
@@ -8,6 +8,9 @@ export function useVocabulary() {
   const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Bumped by `reload` after maintenance rewrites the vocabulary tables.
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,7 +49,7 @@ export function useVocabulary() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadToken]);
 
-  return { words, kanji, knownWords, loading, error };
+  return { words, kanji, knownWords, loading, error, reload };
 }

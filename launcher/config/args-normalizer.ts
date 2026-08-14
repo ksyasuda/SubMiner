@@ -162,6 +162,8 @@ export function createDefaultArgs(
     statsCleanup: false,
     statsCleanupVocab: false,
     statsCleanupLifetime: false,
+    statsCleanupDuplicateLines: false,
+    statsCleanupDryRun: false,
     doctor: false,
     doctorRefreshKnownWords: false,
     logsExport: false,
@@ -258,6 +260,11 @@ export function applyInvocationsToArgs(parsed: Args, invocations: CliInvocations
   if (invocations.statsCleanup) parsed.statsCleanup = true;
   if (invocations.statsCleanupVocab) parsed.statsCleanupVocab = true;
   if (invocations.statsCleanupLifetime) parsed.statsCleanupLifetime = true;
+  if (invocations.statsCleanupDuplicateLines) parsed.statsCleanupDuplicateLines = true;
+  if (invocations.statsCleanupDryRun) parsed.statsCleanupDryRun = true;
+  if (invocations.statsCleanupLookbackDays !== null) {
+    parsed.statsCleanupLookbackDays = invocations.statsCleanupLookbackDays;
+  }
   if (invocations.dictionaryTarget) {
     parsed.dictionaryTarget = parseDictionaryTarget(invocations.dictionaryTarget);
   } else if (

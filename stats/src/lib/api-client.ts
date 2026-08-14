@@ -6,6 +6,8 @@ import type {
   StatsAnkiNotesInfoRequest,
   StatsCoverImagesRequest,
   StatsDeleteSessionsRequest,
+  StatsDuplicateLineCleanupRequest,
+  StatsDuplicateLineCleanupResult,
   StatsExcludedWordsRequest,
   StatsHttpClient,
   StatsJsonResponseMap,
@@ -101,6 +103,19 @@ export const apiClient = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ words } satisfies StatsExcludedWordsRequest),
     });
+  },
+  cleanupDuplicateLines: async (
+    options: StatsDuplicateLineCleanupRequest = {},
+  ): Promise<StatsDuplicateLineCleanupResult> => {
+    const res = await fetchResponse('/api/stats/maintenance/duplicate-lines', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dryRun: options.dryRun === true,
+        lookbackDays: options.lookbackDays ?? null,
+      } satisfies StatsDuplicateLineCleanupRequest),
+    });
+    return res.json() as Promise<StatsDuplicateLineCleanupResult>;
   },
   getWordOccurrences: (headword: string, word: string, reading: string, limit = 50, offset = 0) =>
     fetchJson(
