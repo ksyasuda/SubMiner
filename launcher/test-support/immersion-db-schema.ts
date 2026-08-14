@@ -1,4 +1,4 @@
-// Schema-version-18 shape of the tables the sync merge touches (plus the
+// Current schema shape of the tables the sync merge touches (plus the
 // app's indexes), mirroring ensureSchema / ensureLifetimeSummaryTables /
 // ensureStatsExcludedWordsTable in src/core/services/immersion-tracker/storage.ts.
 export const IMMERSION_DB_FIXTURE_DDL = `
@@ -39,6 +39,7 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     parser_source TEXT,
     parser_confidence REAL,
     parse_metadata_json TEXT,
+    anime_assignment_locked INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1)),
     watched INTEGER NOT NULL DEFAULT 0,
     duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
     file_size_bytes INTEGER CHECK(file_size_bytes>=0),

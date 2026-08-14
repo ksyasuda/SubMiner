@@ -397,7 +397,14 @@ export async function resolveAnilistSeasonMedia(
     deps.logInfo?.(
       `[anilist] season ${season} of "${searchTitle}" resolved via sequel chain: ${displayTitle(viaChain, searchTitle)} (${viaChain.id})`,
     );
-    return toResolution(viaChain, searchTitle, season, 'sequel-chain', true, exactMatchFor(viaChain));
+    return toResolution(
+      viaChain,
+      searchTitle,
+      season,
+      'sequel-chain',
+      true,
+      exactMatchFor(viaChain),
+    );
   }
 
   const viaAirOrder = pickByAirOrder(anchor, season, media);

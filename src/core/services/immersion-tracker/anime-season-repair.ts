@@ -61,6 +61,7 @@ interface ParsedVideoRow {
   video_id: number;
   parsed_title: string | null;
   parsed_season: number | null;
+  anime_assignment_locked: number;
 }
 
 interface RedistributeOptions {
@@ -137,7 +138,7 @@ function getParsedVideos(db: DatabaseSync, animeId: number): ParsedVideoRow[] {
   return db
     .prepare(
       `
-        SELECT video_id, parsed_title, parsed_season
+        SELECT video_id, parsed_title, parsed_season, anime_assignment_locked
         FROM imm_videos
         WHERE anime_id = ?
         ORDER BY video_id ASC
@@ -231,6 +232,9 @@ function redistributeAnimeRowByParsedSeasonsInTransaction(
   const targetBySeason = new Map<number, number>();
 
   for (const video of videos) {
+    if (video.anime_assignment_locked === 1) {
+      continue;
+    }
     const parsedTitle = video.parsed_title?.trim();
     const season = normalizeSeason(video.parsed_season);
     if (!parsedTitle || season === null) {

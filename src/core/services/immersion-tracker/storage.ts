@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
 import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
@@ -648,7 +649,10 @@ export function linkVideoToAnimeRecord(
     `
       UPDATE imm_videos
       SET
-        anime_id = ?,
+        anime_id = CASE
+          WHEN anime_assignment_locked = 1 THEN anime_id
+          ELSE ?
+        END,
         parsed_basename = ?,
         parsed_title = ?,
         parsed_season = ?,
@@ -671,6 +675,67 @@ export function linkVideoToAnimeRecord(
     toDbTimestamp(nowMs()),
     videoId,
   );
+}
+
+export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): number | null {
+  const row = db
+    .prepare(
+      `
+        SELECT anime_id AS animeId
+        FROM imm_videos
+        WHERE video_id = ?
+          AND anime_assignment_locked = 1
+      `,
+    )
+    .get(videoId) as { animeId: number | null } | null;
+  return row?.animeId ?? null;
+}
+
+/**
+ * A manual correction in the same folder is a useful grouping hint, but only
+ * when every season-compatible correction agrees on the destination.
+ */
+export function findManualDirectoryAnimeAssignment(
+  db: DatabaseSync,
+  videoId: number,
+  mediaPath: string,
+  parsedSeason: number | null,
+): number | null {
+  const directory = path.dirname(path.resolve(mediaPath));
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          anime_id AS animeId,
+          source_path AS sourcePath,
+          parsed_season AS parsedSeason
+        FROM imm_videos
+        WHERE video_id != ?
+          AND anime_assignment_locked = 1
+          AND anime_id IS NOT NULL
+          AND source_path IS NOT NULL
+      `,
+    )
+    .all(videoId) as Array<{
+    animeId: number;
+    sourcePath: string;
+    parsedSeason: number | null;
+  }>;
+
+  const candidates = new Set<number>();
+  for (const row of rows) {
+    if (path.dirname(path.resolve(row.sourcePath)) !== directory) {
+      continue;
+    }
+    if (parsedSeason !== null && row.parsedSeason !== null && parsedSeason !== row.parsedSeason) {
+      continue;
+    }
+    candidates.add(row.animeId);
+    if (candidates.size > 1) {
+      return null;
+    }
+  }
+  return candidates.values().next().value ?? null;
 }
 
 export function linkYoutubeVideoToAnimeRecord(
@@ -817,6 +882,7 @@ export function ensureSchema(db: DatabaseSync): void {
       parser_source TEXT,
       parser_confidence REAL,
       parse_metadata_json TEXT,
+      anime_assignment_locked INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1)),
       watched INTEGER NOT NULL DEFAULT 0,
       duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
       file_size_bytes INTEGER CHECK(file_size_bytes>=0),
@@ -830,6 +896,12 @@ export function ensureSchema(db: DatabaseSync): void {
       FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
     );
   `);
+  addColumnIfMissing(
+    db,
+    'imm_videos',
+    'anime_assignment_locked',
+    'INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1))',
+  );
   ensureAnimeMergeTables(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_sessions(

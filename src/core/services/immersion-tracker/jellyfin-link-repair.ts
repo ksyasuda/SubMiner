@@ -8,6 +8,8 @@ import type { JellyfinLinkRepairSummary } from './types';
 type LegacyJellyfinVideoRow = {
   video_id: number;
   video_key: string;
+  anime_id: number | null;
+  anime_assignment_locked: number;
   source_url: string | null;
   canonical_title: string;
 };
@@ -15,6 +17,7 @@ type LegacyJellyfinVideoRow = {
 type JellyfinTargetVideoRow = {
   video_id: number;
   anime_id: number | null;
+  anime_assignment_locked: number;
   canonical_title: string;
   parsed_basename: string | null;
   parsed_title: string | null;
@@ -258,7 +261,13 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
   const candidates = db
     .prepare(
       `
-        SELECT video_id, video_key, source_url, canonical_title
+        SELECT
+          video_id,
+          video_key,
+          anime_id,
+          anime_assignment_locked,
+          source_url,
+          canonical_title
         FROM imm_videos
         WHERE source_type = 2
           AND (
@@ -310,6 +319,7 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
             SELECT
               video_id,
               anime_id,
+              anime_assignment_locked,
               canonical_title,
               parsed_basename,
               parsed_title,
@@ -357,12 +367,17 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         continue;
       }
 
+      const assignmentAnimeId =
+        candidate.anime_assignment_locked === 1 ? candidate.anime_id : target.anime_id;
+      const assignmentLocked =
+        candidate.anime_assignment_locked === 1 || target.anime_assignment_locked === 1 ? 1 : 0;
       db.prepare(
         `
           UPDATE imm_videos
           SET
             video_key = ?,
             anime_id = ?,
+            anime_assignment_locked = ?,
             canonical_title = ?,
             source_url = ?,
             parsed_basename = ?,
@@ -377,7 +392,8 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         `,
       ).run(
         sanitizedVideoKey,
-        target.anime_id,
+        assignmentAnimeId,
+        assignmentLocked,
         target.canonical_title,
         statsUrl,
         target.parsed_basename,
@@ -390,14 +406,14 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         currentTimestamp,
         candidate.video_id,
       );
-      if (target.anime_id !== null) {
+      if (assignmentAnimeId !== null) {
         db.prepare(
           `
             UPDATE imm_subtitle_lines
             SET anime_id = ?, LAST_UPDATE_DATE = ?
             WHERE video_id = ?
           `,
-        ).run(target.anime_id, currentTimestamp, candidate.video_id);
+        ).run(assignmentAnimeId, currentTimestamp, candidate.video_id);
       }
       summary.repaired += 1;
     }

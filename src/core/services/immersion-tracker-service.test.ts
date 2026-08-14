@@ -2132,6 +2132,78 @@ test('handleMediaChange reuses the same provisional anime row across matching fi
   }
 });
 
+test('local parsing reuses a unique compatible manual assignment from the same directory', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const anchorPath = '/tmp/grouped/Incorrect Name S01E01.mkv';
+    tracker.handleMediaChange(anchorPath, 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number } | null;
+    };
+    const anchorVideoId = privateApi.sessionState?.videoId;
+    assert.ok(anchorVideoId);
+    tracker.handleMediaChange(null, null);
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const target = privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES ('correct show season 1', 'Correct Show Season 1', ?, ?)
+          RETURNING anime_id AS animeId
+        `,
+      )
+      .get(timestamp, timestamp) as { animeId: number };
+    await tracker.moveVideoToAnime(anchorVideoId, target.animeId);
+
+    tracker.handleMediaChange(anchorPath, 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange('/tmp/grouped/Another Wrong Name S01E02.mkv', 'Episode 2');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange('/tmp/grouped/Another Wrong Name S02E01.mkv', 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT source_path AS sourcePath, anime_id AS animeId, anime_assignment_locked AS locked
+          FROM imm_videos
+          WHERE source_path LIKE '/tmp/grouped/%'
+          ORDER BY source_path
+        `,
+      )
+      .all() as Array<{ sourcePath: string; animeId: number; locked: number }>;
+    const assignments = new Map(rows.map((row) => [row.sourcePath, row]));
+    assert.deepEqual(assignments.get(anchorPath), {
+      sourcePath: anchorPath,
+      animeId: target.animeId,
+      locked: 1,
+    });
+    assert.deepEqual(assignments.get('/tmp/grouped/Another Wrong Name S01E02.mkv'), {
+      sourcePath: '/tmp/grouped/Another Wrong Name S01E02.mkv',
+      animeId: target.animeId,
+      locked: 0,
+    });
+    assert.notEqual(
+      assignments.get('/tmp/grouped/Another Wrong Name S02E01.mkv')?.animeId,
+      target.animeId,
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('handleMediaChange splits matching parsed titles across distinct seasons', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -2612,6 +2684,67 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
     assert.equal(streamVariantRow.parsed_episode, 3);
     assert.equal(streamVariantRow.parser_source, 'jellyfin');
     assert.equal(streamVariantRow.anime_title, 'The Beginning After the End Season 2');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('Jellyfin metadata refresh preserves a manual episode assignment', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const metadata = {
+      mediaPath: 'http://jellyfin.local/Videos/item-locked/stream?api_key=token',
+      displayTitle: 'Parsed Show S01E01',
+      itemTitle: 'Episode 1',
+      seriesTitle: 'Parsed Show',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      itemId: 'item-locked',
+    };
+    tracker.recordJellyfinPlaybackMetadata(metadata);
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const video = privateApi.db.prepare('SELECT video_id AS videoId FROM imm_videos').get() as {
+      videoId: number;
+    };
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const target = privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES ('correct show', 'Correct Show', ?, ?)
+          RETURNING anime_id AS animeId
+        `,
+      )
+      .get(timestamp, timestamp) as { animeId: number };
+
+    await tracker.moveVideoToAnime(video.videoId, target.animeId);
+    tracker.recordJellyfinPlaybackMetadata(metadata);
+
+    const assignment = privateApi.db
+      .prepare(
+        `
+          SELECT anime_id AS animeId, anime_assignment_locked AS locked
+          FROM imm_videos
+          WHERE video_id = ?
+        `,
+      )
+      .get(video.videoId) as { animeId: number; locked: number };
+    assert.equal(assignment.animeId, target.animeId);
+    assert.equal(assignment.locked, 1);
+    const animeCount = privateApi.db.prepare('SELECT COUNT(*) AS count FROM imm_anime').get() as {
+      count: number;
+    };
+    assert.equal(animeCount.count, 1);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

@@ -5,7 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 import { Database } from '../sqlite.js';
 import type { DatabaseSync } from '../sqlite.js';
-import { applyPragmas, ensureSchema, getOrCreateAnimeRecord } from '../storage.js';
+import {
+  applyPragmas,
+  ensureSchema,
+  findManualDirectoryAnimeAssignment,
+  getManualAnimeAssignment,
+  getOrCreateAnimeRecord,
+  linkVideoToAnimeRecord,
+} from '../storage.js';
 import { mergeAnimeRecords, moveVideoToAnime } from '../anime-merge.js';
 import {
   dismissAnimeMergeRecommendation,
@@ -140,6 +147,14 @@ function videoAnimeId(db: DatabaseSync, videoId: number): number | null {
   ).id;
 }
 
+function assignmentLocked(db: DatabaseSync, videoId: number): number {
+  return (
+    db
+      .prepare('SELECT anime_assignment_locked AS locked FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { locked: number }
+  ).locked;
+}
+
 function lineAnimeIds(db: DatabaseSync, animeId: number): number {
   return Number(
     (
@@ -216,7 +231,10 @@ test('merge and move preserve lifetime history whose raw sessions were pruned', 
     assert.equal(survivor.activeMs, 7000);
     assert.equal(survivor.cards, 9);
     assert.equal(survivor.episodes, 3);
-    assert.equal(db.prepare('SELECT 1 FROM imm_lifetime_anime WHERE anime_id = 3').get(), undefined);
+    assert.equal(
+      db.prepare('SELECT 1 FROM imm_lifetime_anime WHERE anime_id = 3').get(),
+      undefined,
+    );
   });
 });
 
@@ -348,6 +366,8 @@ test('moveVideoToAnime moves one episode and prunes the emptied entry', () => {
     assert.equal(summary.removedPreviousAnime, true);
     assert.deepEqual(animeIds(db), [1]);
     assert.equal(videoAnimeId(db, 2), 1);
+    assert.equal(assignmentLocked(db, 2), 1);
+    assert.equal(getManualAnimeAssignment(db, 2), 1);
     assert.equal(lineAnimeIds(db, 1), 2);
     const lifetime = db
       .prepare('SELECT total_active_ms AS activeMs FROM imm_lifetime_anime WHERE anime_id = 1')
@@ -374,6 +394,76 @@ test('moveVideoToAnime is a no-op when the episode is already in the target entr
     assert.equal(summary.removedPreviousAnime, false);
     assert.deepEqual(animeIds(db), [1]);
     assert.equal(videoAnimeId(db, 1), 1);
+    assert.equal(assignmentLocked(db, 1), 1);
+  });
+});
+
+test('automatic metadata cannot overwrite a manual episode assignment', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertAnime(db, { animeId: 2, key: 'stray', title: 'Stray' });
+    insertAnime(db, { animeId: 3, key: 'parser result', title: 'Parser Result' });
+    insertEpisode(db, { videoId: 1, animeId: 2, season: 1 });
+
+    moveVideoToAnime(db, 1, 1);
+    linkVideoToAnimeRecord(db, 1, {
+      animeId: 3,
+      parsedBasename: 'Parser Result S01E01.mkv',
+      parsedTitle: 'Parser Result',
+      parsedSeason: 1,
+      parsedEpisode: 1,
+      parserSource: 'guessit',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    assert.equal(videoAnimeId(db, 1), 1);
+    assert.equal(getManualAnimeAssignment(db, 1), 1);
+    const parsedTitle = db
+      .prepare('SELECT parsed_title AS parsedTitle FROM imm_videos WHERE video_id = 1')
+      .get() as { parsedTitle: string | null };
+    assert.equal(parsedTitle.parsedTitle, 'Parser Result');
+  });
+});
+
+test('directory grouping requires one season-compatible manual destination', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show' });
+    insertAnime(db, { animeId: 2, key: 'stray', title: 'Stray' });
+    insertAnime(db, { animeId: 3, key: 'other', title: 'Other' });
+    insertEpisode(db, { videoId: 1, animeId: 2, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 3, season: 1 });
+    insertEpisode(db, { videoId: 3, animeId: 3, season: 1 });
+    db.prepare('UPDATE imm_videos SET source_path = ? WHERE video_id = ?').run(
+      '/library/show/Show S01E01.mkv',
+      1,
+    );
+    db.prepare('UPDATE imm_videos SET source_path = ? WHERE video_id = ?').run(
+      '/library/show/Stray S01E02.mkv',
+      2,
+    );
+    db.prepare('UPDATE imm_videos SET source_path = ? WHERE video_id = ?').run(
+      '/library/show/Other S01E03.mkv',
+      3,
+    );
+
+    moveVideoToAnime(db, 1, 1);
+
+    assert.equal(findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 1), 1);
+    assert.equal(
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S02E02.mkv', 2),
+      null,
+    );
+    assert.equal(
+      findManualDirectoryAnimeAssignment(db, 2, '/library/other/Stray S01E02.mkv', 1),
+      null,
+    );
+
+    moveVideoToAnime(db, 3, 3);
+    assert.equal(
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 1),
+      null,
+    );
   });
 });
 
@@ -581,6 +671,24 @@ test('resolveAnimeAnilistConflict falls back to season redistribution for multi-
     assert.equal(videoAnimeId(db, 1), 2);
     assert.equal(videoAnimeId(db, 3), 2);
     assert.notEqual(videoAnimeId(db, 2), 2);
+  });
+});
+
+test('season redistribution leaves manually assigned episodes in place', () => {
+  withDb((db) => {
+    insertAnime(db, { animeId: 1, key: 'show', title: 'Show', anilistId: 163132 });
+    insertAnime(db, { animeId: 2, key: 'show season 1', title: 'Show Season 1' });
+    insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+    insertEpisode(db, { videoId: 2, animeId: 1, season: 2 });
+    insertEpisode(db, { videoId: 3, animeId: 2, season: 1 });
+    moveVideoToAnime(db, 1, 1);
+
+    const summary = resolveAnimeAnilistConflict(db, 2, 163132);
+
+    assert.equal(videoAnimeId(db, 1), 1);
+    assert.equal(assignmentLocked(db, 1), 1);
+    assert.notEqual(videoAnimeId(db, 2), 1);
+    assert.equal(summary.movedVideos, 1);
   });
 });
 

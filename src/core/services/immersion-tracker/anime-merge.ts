@@ -263,15 +263,18 @@ export function moveVideoToAnime(
 
     const previousAnimeId = videoRow.animeId;
     if (previousAnimeId === targetAnimeId) {
+      db.prepare(
+        'UPDATE imm_videos SET anime_assignment_locked = 1, LAST_UPDATE_DATE = ? WHERE video_id = ?',
+      ).run(toDbTimestamp(nowMs()), videoId);
       return { targetAnimeId, previousAnimeId, removedPreviousAnime: false };
     }
 
     const updatedAt = toDbTimestamp(nowMs());
-    db.prepare('UPDATE imm_videos SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?').run(
-      targetAnimeId,
-      updatedAt,
-      videoId,
-    );
+    db.prepare(
+      `UPDATE imm_videos
+       SET anime_id = ?, anime_assignment_locked = 1, LAST_UPDATE_DATE = ?
+       WHERE video_id = ?`,
+    ).run(targetAnimeId, updatedAt, videoId);
     db.prepare(
       'UPDATE imm_subtitle_lines SET anime_id = ?, LAST_UPDATE_DATE = ? WHERE video_id = ?',
     ).run(targetAnimeId, updatedAt, videoId);

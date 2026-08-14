@@ -16,6 +16,8 @@ import {
   applyPragmas,
   createTrackerPreparedStatements,
   ensureSchema,
+  findManualDirectoryAnimeAssignment,
+  getManualAnimeAssignment,
   executeQueuedWrite,
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
@@ -1421,16 +1423,18 @@ export class ImmersionTrackerService {
       seasonNumber,
       episodeNumber,
     });
-    const animeId = getOrCreateAnimeRecord(this.db, {
-      parsedTitle: libraryTitle,
-      canonicalTitle: libraryTitle,
-      seasonScope: seasonNumber,
-      anilistId: null,
-      titleRomaji: null,
-      titleEnglish: null,
-      titleNative: null,
-      metadataJson,
-    });
+    const animeId =
+      getManualAnimeAssignment(this.db, videoId) ??
+      getOrCreateAnimeRecord(this.db, {
+        parsedTitle: libraryTitle,
+        canonicalTitle: libraryTitle,
+        seasonScope: seasonNumber,
+        anilistId: null,
+        titleRomaji: null,
+        titleEnglish: null,
+        titleNative: null,
+        metadataJson,
+      });
     linkVideoToAnimeRecord(this.db, videoId, {
       animeId,
       parsedBasename: null,
@@ -2067,16 +2071,21 @@ export class ImmersionTrackerService {
           return;
         }
 
-        const animeId = getOrCreateAnimeRecord(this.db, {
-          parsedTitle: parsed.parsedTitle,
-          canonicalTitle: parsed.parsedTitle,
-          seasonScope: parsed.parsedSeason,
-          anilistId: null,
-          titleRomaji: null,
-          titleEnglish: null,
-          titleNative: null,
-          metadataJson: parsed.parseMetadataJson,
-        });
+        const animeId =
+          getManualAnimeAssignment(this.db, videoId) ??
+          (mediaPath && !isRemoteSource(mediaPath)
+            ? findManualDirectoryAnimeAssignment(this.db, videoId, mediaPath, parsed.parsedSeason)
+            : null) ??
+          getOrCreateAnimeRecord(this.db, {
+            parsedTitle: parsed.parsedTitle,
+            canonicalTitle: parsed.parsedTitle,
+            seasonScope: parsed.parsedSeason,
+            anilistId: null,
+            titleRomaji: null,
+            titleEnglish: null,
+            titleNative: null,
+            metadataJson: parsed.parseMetadataJson,
+          });
         linkVideoToAnimeRecord(this.db, videoId, {
           animeId,
           parsedBasename: parsed.parsedBasename,

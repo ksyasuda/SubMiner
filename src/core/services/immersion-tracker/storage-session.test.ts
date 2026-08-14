@@ -20,6 +20,7 @@ import {
 } from './storage';
 import {
   EVENT_SUBTITLE_LINE,
+  SCHEMA_VERSION,
   SESSION_STATUS_ENDED,
   SOURCE_TYPE_LOCAL,
   SOURCE_TYPE_REMOTE,
@@ -132,6 +133,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(videoColumns.has('parser_source'));
     assert.ok(videoColumns.has('parser_confidence'));
     assert.ok(videoColumns.has('parse_metadata_json'));
+    assert.ok(videoColumns.has('anime_assignment_locked'));
 
     const mediaArtColumns = new Set(
       (
@@ -149,6 +151,33 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(Number(rollupStateRow?.state_value ?? 0), 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema adds manual assignment locks when upgrading the previous schema', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.exec('ALTER TABLE imm_videos DROP COLUMN anime_assignment_locked');
+    db.prepare('UPDATE imm_schema_version SET schema_version = ?').run(SCHEMA_VERSION - 1);
+
+    ensureSchema(db);
+
+    const columns = new Set(
+      (db.prepare('PRAGMA table_info(imm_videos)').all() as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    );
+    assert.ok(columns.has('anime_assignment_locked'));
+    const version = db
+      .prepare('SELECT MAX(schema_version) AS version FROM imm_schema_version')
+      .get() as { version: number };
+    assert.equal(version.version, SCHEMA_VERSION);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -807,6 +836,7 @@ test('ensureSchema migrates legacy videos and backfills anime metadata from file
     assert.ok(videoColumns.has('parser_source'));
     assert.ok(videoColumns.has('parser_confidence'));
     assert.ok(videoColumns.has('parse_metadata_json'));
+    assert.ok(videoColumns.has('anime_assignment_locked'));
 
     const animeRows = db
       .prepare('SELECT canonical_title FROM imm_anime ORDER BY canonical_title')
