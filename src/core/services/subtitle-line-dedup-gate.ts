@@ -52,12 +52,18 @@ interface CueSpan {
 }
 
 interface StreamingRunState {
-  text: string;
   startMs: number;
   chainEndSec: number;
   /** Contiguous identical short frames seen so far, including the recorded first one. */
   frames: number;
 }
+
+/**
+ * Dual-line karaoke interleaves two texts frame by frame, so runs are tracked per text.
+ * Dead runs are pruned as playback moves past them; the cap only matters after a
+ * backward seek leaves runs whose ends sit ahead of the new position.
+ */
+const MAX_ACTIVE_STREAMING_RUNS = 32;
 
 /** Exact cue identity, separate from the looser tolerance used to chain adjacent frames. */
 const CUE_START_IDENTITY_TOLERANCE_SECONDS = 0.005;
@@ -118,7 +124,7 @@ export function createSubtitleLineDedupGate(
   let indexedCues: readonly SubtitleCue[] | null | undefined;
   let ignoredCuesAfterReset: readonly SubtitleCue[] | null | undefined;
   let spansByText: Map<string, CueSpan[]> = new Map();
-  let run: StreamingRunState | null = null;
+  const runs = new Map<string, StreamingRunState>();
 
   const lookupSpans = (text: string): CueSpan[] | null => {
     const cues = deps.getParsedCues() ?? null;
@@ -131,9 +137,22 @@ export function createSubtitleLineDedupGate(
     if (cues !== indexedCues) {
       indexedCues = cues;
       spansByText = cues?.length ? buildSpansByText(cues) : new Map();
-      run = null;
+      runs.clear();
     }
     return spansByText.get(text) ?? null;
+  };
+
+  /**
+   * A run this sample cannot continue is a run no later sample can continue either --
+   * continuation needs a start inside the running end plus tolerance, and starts only
+   * move forward outside of seeks.
+   */
+  const pruneDeadRuns = (startSec: number): void => {
+    for (const [text, state] of runs) {
+      if (state.chainEndSec + DUPLICATE_CUE_GAP_TOLERANCE_SECONDS < startSec) {
+        runs.delete(text);
+      }
+    }
   };
 
   /**
@@ -142,10 +161,12 @@ export function createSubtitleLineDedupGate(
    * dropped -- an OP costs a handful of counted lines instead of several hundred.
    */
   const advanceStreamingRun = (text: string, sample: SubtitleLineSample): boolean => {
+    pruneDeadRuns(sample.startSec);
     const startMs = Math.round(sample.startSec * 1000);
+    const run = runs.get(text);
     // mpv reports `sub-start` and `sub-end` separately, so one event can be offered
     // twice. The same start is the same frame, never the next one in a run.
-    if (run && run.text === text && run.startMs === startMs) {
+    if (run && run.startMs === startMs) {
       run.chainEndSec = Math.max(run.chainEndSec, sample.endSec);
       return run.frames < MIN_TIMING_ONLY_FRAMES;
     }
@@ -154,8 +175,7 @@ export function createSubtitleLineDedupGate(
     // Frames are authored flush against each other, but typesetters do overlap them, so
     // the chain only requires forward progress that stays inside the running end.
     const continuesRun =
-      run !== null &&
-      run.text === text &&
+      run !== undefined &&
       isShortFrame &&
       startMs > run.startMs &&
       sample.startSec <= run.chainEndSec + DUPLICATE_CUE_GAP_TOLERANCE_SECONDS;
@@ -164,16 +184,29 @@ export function createSubtitleLineDedupGate(
       run.startMs = startMs;
       run.chainEndSec = Math.max(run.chainEndSec, sample.endSec);
       run.frames += 1;
-    } else {
-      run = {
-        text,
-        startMs,
-        chainEndSec: sample.endSec,
-        frames: isShortFrame ? 1 : 0,
-      };
+      return run.frames < MIN_TIMING_ONLY_FRAMES;
     }
 
-    return run.frames < MIN_TIMING_ONLY_FRAMES;
+    const fresh: StreamingRunState = {
+      startMs,
+      chainEndSec: sample.endSec,
+      frames: isShortFrame ? 1 : 0,
+    };
+    runs.set(text, fresh);
+    if (runs.size > MAX_ACTIVE_STREAMING_RUNS) {
+      let oldestText: string | undefined;
+      let oldestEnd = Infinity;
+      for (const [runText, state] of runs) {
+        if (runText !== text && state.chainEndSec < oldestEnd) {
+          oldestEnd = state.chainEndSec;
+          oldestText = runText;
+        }
+      }
+      if (oldestText !== undefined) {
+        runs.delete(oldestText);
+      }
+    }
+    return fresh.frames < MIN_TIMING_ONLY_FRAMES;
   };
 
   return {
@@ -191,7 +224,7 @@ export function createSubtitleLineDedupGate(
       if (spans) {
         const mergedAway = isMergedAwayFrame(spans, sample.startSec);
         if (mergedAway !== null) {
-          run = null;
+          runs.delete(text);
           return !mergedAway;
         }
       }
@@ -199,7 +232,7 @@ export function createSubtitleLineDedupGate(
       return advanceStreamingRun(text, sample);
     },
     reset: () => {
-      run = null;
+      runs.clear();
       ignoredCuesAfterReset = deps.getParsedCues() ?? null;
       indexedCues = undefined;
       spansByText = new Map();

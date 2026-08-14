@@ -38,3 +38,11 @@ export const MIN_TAGGED_BURST_FRAMES = 2;
  */
 export const TIMING_ONLY_FRAME_MAX_SECONDS = 0.1;
 export const MIN_TIMING_ONLY_FRAMES = 5;
+
+/**
+ * The live gate can only recognise a streaming burst from the inside, so it records the
+ * first `MIN_TIMING_ONLY_FRAMES - 1` frames before it starts dropping. That stored
+ * residue is one frame short of the timing-only minimum, and the retroactive cleanup
+ * accepts it only when every event also sits under the strict timing-only frame bound.
+ */
+export const MIN_STREAM_RESIDUE_FRAMES = MIN_TIMING_ONLY_FRAMES - 1;

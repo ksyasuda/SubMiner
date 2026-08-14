@@ -244,14 +244,70 @@ test('a run of frames longer than the animation bound survives', () => {
   }
 });
 
-test('a short run below the threshold survives', () => {
+test('the four-frame residue the live gate stores is cleaned up', () => {
+  // The streaming gate records the first four frames of a burst before the run is long
+  // enough to recognise. Four contiguous identical events under the strict timing-only
+  // bound are that residue, and no real dialogue.
   const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 40));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 1);
+    assert.equal(summary.removedLines, 3);
+    assert.equal(countLines(db), 1);
+    assert.equal(wordFrequency(db), 1);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a four-frame run above the strict frame bound survives', () => {
+  // Long enough per event to be plausible dialogue; only a five-event run may use the
+  // looser animation-frame bound.
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 250));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
 
     assert.equal(summary.burstGroups, 0);
     assert.equal(countLines(db), 4);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('a short run below every threshold survives', () => {
+  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 3, 40));
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 0);
+    assert.equal(countLines(db), 3);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('interleaved dual-line karaoke collapses each line to one row', () => {
+  // Kanji and romaji lines frame-flipped together, the way fansub OPs are typeset. The
+  // rows arrive interleaved in time order; each text must still chain into its own run.
+  const kanji = karaokeFrames(1, '飛び上がる', 10_000, 20, 60);
+  const romaji = karaokeFrames(1, 'tobiagaru', 10_001, 20, 60);
+  const interleaved = [...kanji, ...romaji].sort((a, b) => a.startMs - b.startMs);
+  const { db, dbPath } = createDb(interleaved);
+
+  try {
+    const summary = cleanupDuplicateSubtitleLines(db);
+
+    assert.equal(summary.burstGroups, 2);
+    assert.equal(summary.removedLines, 38);
+    assert.equal(countLines(db), 2);
+    assert.equal(wordFrequency(db), 2);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

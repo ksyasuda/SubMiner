@@ -30,7 +30,9 @@ import type { DatabaseSync } from './sqlite';
 import {
   ANIMATION_FRAME_MAX_SECONDS,
   DUPLICATE_CUE_GAP_TOLERANCE_SECONDS,
+  MIN_STREAM_RESIDUE_FRAMES,
   MIN_TIMING_ONLY_FRAMES,
+  TIMING_ONLY_FRAME_MAX_SECONDS,
 } from '../subtitle-burst-constants';
 import {
   applyLexicalRemovals,
@@ -103,6 +105,9 @@ interface ResolvedBounds {
   lookbackDays: number | null;
   minRunLength: number;
   maxFrameMs: number;
+  /** Shorter runs qualify only when every event sits under this much stricter bound. */
+  residueMinRunLength: number;
+  strictFrameMs: number;
   gapToleranceMs: number;
   sampleLimit: number;
 }
@@ -128,6 +133,8 @@ function resolveBounds(options: DuplicateSubtitleLineCleanupOptions): ResolvedBo
     lookbackDays,
     minRunLength,
     maxFrameMs: Math.round(maxFrameSeconds * 1000),
+    residueMinRunLength: Math.max(MIN_STREAM_RESIDUE_FRAMES, minRunLength - 1),
+    strictFrameMs: Math.round(TIMING_ONLY_FRAME_MAX_SECONDS * 1000),
     gapToleranceMs: Math.round(DUPLICATE_CUE_GAP_TOLERANCE_SECONDS * 1000),
     sampleLimit,
   };
@@ -168,11 +175,21 @@ function readCandidateLines(db: DatabaseSync, bounds: ResolvedBounds): StoredSub
 }
 
 function isBurst(run: StoredSubtitleLineRow[], bounds: ResolvedBounds): boolean {
+  const isShortFrame = (row: StoredSubtitleLineRow): boolean =>
+    row.endMs - row.startMs <= bounds.maxFrameMs;
+  // The residue the live gate leaves behind: it records the first frames of a burst
+  // before the run is long enough to recognise, so one frame fewer than the timing-only
+  // minimum, every one under the strict timing-only bound. No dialogue holds identical
+  // sub-tenth-second lines back to back that many times.
+  if (
+    run.length >= bounds.residueMinRunLength &&
+    run.every((row) => row.endMs - row.startMs <= bounds.strictFrameMs)
+  ) {
+    return true;
+  }
   if (run.length < bounds.minRunLength) {
     return false;
   }
-  const isShortFrame = (row: StoredSubtitleLineRow): boolean =>
-    row.endMs - row.startMs <= bounds.maxFrameMs;
   if (run.every(isShortFrame)) {
     return true;
   }
@@ -202,6 +219,10 @@ function toBurst(run: StoredSubtitleLineRow[]): DuplicateSubtitleLineBurst {
 /**
  * Group stored lines into animation runs.
  *
+ * Rows are bucketed per (session, video, text) before chaining, the way the file-level
+ * dedup buckets cues: dual-line karaoke interleaves two texts frame by frame, and
+ * chaining across the interleave would break every run at length one.
+ *
  * Runs never cross a session, which is what keeps a rewatch intact: the same episode
  * watched twice stores the same line twice, and those two belong to different sessions.
  */
@@ -210,37 +231,47 @@ export function findDuplicateSubtitleLineBursts(
   options: DuplicateSubtitleLineCleanupOptions = {},
 ): DuplicateSubtitleLineBurst[] {
   const bounds = resolveBounds(options);
-  const bursts: DuplicateSubtitleLineBurst[] = [];
-  let run: StoredSubtitleLineRow[] = [];
-  let chainEndMs = 0;
 
-  const closeRun = (): void => {
-    if (run.length > 1 && isBurst(run, bounds)) {
-      bursts.push(toBurst(run));
-    }
-    run = [];
-  };
-
+  // Insertion order preserves the query's startMs ordering within each bucket.
+  const rowsByKey = new Map<string, StoredSubtitleLineRow[]>();
   for (const row of rows) {
-    const previous = run[run.length - 1];
-    const continuesRun =
-      previous !== undefined &&
-      previous.sessionId === row.sessionId &&
-      previous.videoId === row.videoId &&
-      previous.text === row.text &&
-      row.startMs <= chainEndMs + bounds.gapToleranceMs;
+    const key = `${row.sessionId}|${row.videoId}|${row.text}`;
+    const bucket = rowsByKey.get(key);
+    if (bucket) {
+      bucket.push(row);
+    } else {
+      rowsByKey.set(key, [row]);
+    }
+  }
 
-    if (continuesRun) {
-      run.push(row);
-      chainEndMs = Math.max(chainEndMs, row.endMs);
+  const bursts: DuplicateSubtitleLineBurst[] = [];
+  for (const bucket of rowsByKey.values()) {
+    if (bucket.length < 2) {
       continue;
     }
 
+    let run: StoredSubtitleLineRow[] = [];
+    let chainEndMs = 0;
+
+    const closeRun = (): void => {
+      if (run.length > 1 && isBurst(run, bounds)) {
+        bursts.push(toBurst(run));
+      }
+      run = [];
+    };
+
+    for (const row of bucket) {
+      if (run.length > 0 && row.startMs <= chainEndMs + bounds.gapToleranceMs) {
+        run.push(row);
+        chainEndMs = Math.max(chainEndMs, row.endMs);
+        continue;
+      }
+      closeRun();
+      run = [row];
+      chainEndMs = row.endMs;
+    }
     closeRun();
-    run = [row];
-    chainEndMs = row.endMs;
   }
-  closeRun();
 
   return bursts;
 }

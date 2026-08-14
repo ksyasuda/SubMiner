@@ -114,6 +114,40 @@ test('without parsed cues a long run of identical short frames stops recording',
   assert.equal(recorded.length, 4);
 });
 
+test('without parsed cues interleaved dual-line karaoke stops recording per line', () => {
+  // Fansub OPs typically run two typeset lines at once -- kanji and romaji -- and mpv
+  // reports their frames interleaved. Each line must build its own run.
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => null });
+
+  const samples = Array.from({ length: 40 }, (_, index) => {
+    const start = 10 + Math.floor(index / 2) * 0.06;
+    return index % 2 === 0
+      ? { text: '歌詞', startSec: start, endSec: start + 0.06 }
+      : { text: 'kashi', startSec: start + 0.001, endSec: start + 0.061 };
+  });
+  const recorded = samples.filter((sample) => gate.shouldRecord(sample));
+
+  assert.equal(recorded.filter((sample) => sample.text === '歌詞').length, 4);
+  assert.equal(recorded.filter((sample) => sample.text === 'kashi').length, 4);
+});
+
+test('interleaved dialogue between two speakers keeps recording', () => {
+  const gate = createSubtitleLineDedupGate({ getParsedCues: () => null });
+
+  // Two characters trading normal-length lines back and forth.
+  const samples = Array.from({ length: 12 }, (_, index) => {
+    const start = 5 + index * 0.7;
+    return {
+      text: index % 2 === 0 ? 'えっ' : 'なに',
+      startSec: start,
+      endSec: start + 0.7,
+    };
+  });
+  const recorded = samples.filter((sample) => gate.shouldRecord(sample));
+
+  assert.equal(recorded.length, 12);
+});
+
 test('without parsed cues ordinary repeated dialogue keeps recording', () => {
   const gate = createSubtitleLineDedupGate({ getParsedCues: () => null });
 

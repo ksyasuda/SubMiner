@@ -132,7 +132,7 @@ Karaoke openings and animated signs are authored as one subtitle event per anima
 Recording now collapses those runs as they happen, matching what the subtitle sidebar shows:
 
 - When the active subtitle source has been parsed, its cue list has already had duplicate events and animation bursts merged. A line landing inside a surviving cue but after that cue's start is a frame the sidebar merged away, and is not recorded.
-- When no parsed cue covers the live timing, including while a subtitle source is changing or shifted, the strict metadata-free rule applies: a run of identical, contiguous lines each shorter than 0.1s stops being recorded after a few frames. Ordinary repeated dialogue, and lines held for a normal beat, always record.
+- When no parsed cue covers the live timing, including while a subtitle source is changing or shifted, the strict metadata-free rule applies: a run of identical, contiguous lines each shorter than 0.1s stops being recorded after a few frames. Runs are tracked per line of text, so dual-line karaoke (a kanji and a romaji line frame-flipped together) collapses both lines. Ordinary repeated dialogue, and lines held for a normal beat, always record.
 
 For stats recorded before this, the Vocabulary tab toolbar has a **Duplicates** button:
 
@@ -148,6 +148,8 @@ subminer stats cleanup --duplicate-lines --lookback-days 30
 ```
 
 `--duplicate-lines` (short: `-d`) picks the cleanup mode, so it cannot be combined with `--vocab` or `--lifetime`, and `--dry-run` and `--lookback-days <days>` only apply to it. Omitting `--lookback-days` scans all history; the value must be at least one day.
+
+The cleanup chains runs per line of text, so interleaved dual-line karaoke collapses each of its lines. It also removes the short residue the live rule stores before a run is long enough to recognize: a run one frame short of the usual minimum qualifies when every event is under the strict 0.1s bound.
 
 Runs never cross a session boundary, so rewatching an episode keeps both watches. Session telemetry (watch time, lines seen, tokens seen) and the rollups derived from it are left as recorded: they are cumulative samples taken during playback, and cannot be recomputed for sessions whose raw rows have since been pruned.
 
