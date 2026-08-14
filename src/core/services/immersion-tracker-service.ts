@@ -955,9 +955,17 @@ export class ImmersionTrackerService {
         nowMs(),
         animeId,
       );
-    // Covers both the merge repair (media rows changed owners) and an
-    // episodes_total change flipping anime_completed.
-    repairLifetimeSummariesFromMedia(this.db);
+    // Empty lifetime tables still need the retained-session bootstrap. Once a
+    // media ledger exists, only the redistributed and explicitly edited anime
+    // can have changed.
+    if (shouldBackfillLifetimeSummaries(this.db)) {
+      repairLifetimeSummariesFromMedia(this.db);
+    } else {
+      const affectedAnimeIds = new Set(repair.affectedAnimeIds);
+      affectedAnimeIds.add(animeId);
+      recomputeLifetimeAnimeFromMedia(this.db, [...affectedAnimeIds]);
+      recomputeLifetimeGlobalFromSummaries(this.db);
+    }
 
     // Update cover art for all videos in this anime
     if (info.coverUrl) {
@@ -1484,13 +1492,15 @@ export class ImmersionTrackerService {
       // recompute just those from the media ledger instead of a full repair.
       const affectedAnimeIds = new Set<number>([animeId]);
       if (previousLink?.animeId) affectedAnimeIds.add(previousLink.animeId);
-      this.db.exec('BEGIN');
+      let transactionStarted = false;
       try {
+        this.db.exec('BEGIN IMMEDIATE');
+        transactionStarted = true;
         recomputeLifetimeAnimeFromMedia(this.db, [...affectedAnimeIds]);
         recomputeLifetimeGlobalFromSummaries(this.db);
         this.db.exec('COMMIT');
       } catch (error) {
-        this.db.exec('ROLLBACK');
+        if (transactionStarted) this.db.exec('ROLLBACK');
         throw error;
       }
     }

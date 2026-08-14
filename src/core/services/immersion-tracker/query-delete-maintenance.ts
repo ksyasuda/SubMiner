@@ -62,9 +62,9 @@ function selectIds(
 
 function mergeLexicalPlanEntries(
   target: LexicalRemovalPlan['words'],
+  byId: Map<number, LexicalRemovalPlan['words'][number]>,
   source: LexicalRemovalPlan['words'],
 ): void {
-  const byId = new Map(target.map((entry) => [entry.id, entry]));
   for (const entry of source) {
     const existing = byId.get(entry.id);
     if (!existing) {
@@ -90,9 +90,18 @@ function mergeLexicalPlanEntries(
   }
 }
 
-function mergeLexicalPlans(target: LexicalRemovalPlan, source: LexicalRemovalPlan): void {
-  mergeLexicalPlanEntries(target.words, source.words);
-  mergeLexicalPlanEntries(target.kanji, source.kanji);
+interface LexicalPlanEntryMaps {
+  words: Map<number, LexicalRemovalPlan['words'][number]>;
+  kanji: Map<number, LexicalRemovalPlan['kanji'][number]>;
+}
+
+function mergeLexicalPlans(
+  target: LexicalRemovalPlan,
+  byId: LexicalPlanEntryMaps,
+  source: LexicalRemovalPlan,
+): void {
+  mergeLexicalPlanEntries(target.words, byId.words, source.words);
+  mergeLexicalPlanEntries(target.kanji, byId.kanji, source.kanji);
 }
 
 /**
@@ -108,11 +117,15 @@ function planLexicalRemovalsForDelete(
   videoIds: number[],
 ): LexicalRemovalPlan {
   const combined: LexicalRemovalPlan = { words: [], kanji: [] };
+  const byId: LexicalPlanEntryMaps = {
+    words: new Map(),
+    kanji: new Map(),
+  };
   forEachIdChunk(sessionIdsOnSurvivingVideos, (chunk) => {
-    mergeLexicalPlans(combined, planLexicalRemovalsForSessions(db, chunk));
+    mergeLexicalPlans(combined, byId, planLexicalRemovalsForSessions(db, chunk));
   });
   forEachIdChunk(videoIds, (chunk) => {
-    mergeLexicalPlans(combined, planLexicalRemovalsForVideos(db, chunk));
+    mergeLexicalPlans(combined, byId, planLexicalRemovalsForVideos(db, chunk));
   });
   return combined;
 }

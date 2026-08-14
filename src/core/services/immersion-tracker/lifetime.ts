@@ -21,10 +21,8 @@ interface AnimeRow {
 }
 
 function asPositiveNumber(value: number | null, fallback: number): number {
-  if (value === null || !Number.isFinite(value)) {
-    return fallback;
-  }
-  return Math.max(0, Math.floor(value));
+  const resolved = value !== null && Number.isFinite(value) ? value : fallback;
+  return Number.isFinite(resolved) ? Math.floor(Math.max(resolved, 0)) : 0;
 }
 
 interface ExistenceRow {
@@ -68,10 +66,10 @@ const RETAINED_SESSION_METRICS_CTE = `
       v.anime_id,
       s.started_at_ms,
       s.ended_at_ms,
-      MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0) AS active_ms,
-      MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0) AS cards_mined,
-      MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0) AS lines_seen,
-      MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0) AS tokens_seen,
+      CAST(MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0) AS INTEGER) AS active_ms,
+      CAST(MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0) AS INTEGER) AS cards_mined,
+      CAST(MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0) AS INTEGER) AS lines_seen,
+      CAST(MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0) AS INTEGER) AS tokens_seen,
       CASE WHEN v.watched > 0 THEN 1 ELSE 0 END AS completed
     FROM imm_sessions s
     JOIN imm_videos v
@@ -599,18 +597,10 @@ export function applySessionLifetimeSummary(
         .get(video.anime_id) as AnimeRow | null | undefined) ?? null)
     : null;
 
-  const activeMs = telemetry
-    ? asPositiveNumber(telemetry.active_watched_ms, session.activeWatchedMs)
-    : session.activeWatchedMs;
-  const cardsMined = telemetry
-    ? asPositiveNumber(telemetry.cards_mined, session.cardsMined)
-    : session.cardsMined;
-  const linesSeen = telemetry
-    ? asPositiveNumber(telemetry.lines_seen, session.linesSeen)
-    : session.linesSeen;
-  const tokensSeen = telemetry
-    ? asPositiveNumber(telemetry.tokens_seen, session.tokensSeen)
-    : session.tokensSeen;
+  const activeMs = asPositiveNumber(telemetry?.active_watched_ms ?? null, session.activeWatchedMs);
+  const cardsMined = asPositiveNumber(telemetry?.cards_mined ?? null, session.cardsMined);
+  const linesSeen = asPositiveNumber(telemetry?.lines_seen ?? null, session.linesSeen);
+  const tokensSeen = asPositiveNumber(telemetry?.tokens_seen ?? null, session.tokensSeen);
   const watched = video?.watched ?? 0;
   const isFirstSessionForVideoRun =
     mediaLifetime === null &&
@@ -759,10 +749,10 @@ export function planLifetimeRemovals(
         SELECT
           s.video_id AS videoId,
           COUNT(*) AS sessions,
-          COALESCE(SUM(MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0)), 0) AS activeMs,
-          COALESCE(SUM(MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0)), 0) AS cards,
-          COALESCE(SUM(MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0)), 0) AS linesSeen,
-          COALESCE(SUM(MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0)), 0) AS tokensSeen
+          COALESCE(SUM(CAST(MAX(COALESCE(t.active_watched_ms, s.active_watched_ms, 0), 0) AS INTEGER)), 0) AS activeMs,
+          COALESCE(SUM(CAST(MAX(COALESCE(t.cards_mined, s.cards_mined, 0), 0) AS INTEGER)), 0) AS cards,
+          COALESCE(SUM(CAST(MAX(COALESCE(t.lines_seen, s.lines_seen, 0), 0) AS INTEGER)), 0) AS linesSeen,
+          COALESCE(SUM(CAST(MAX(COALESCE(t.tokens_seen, s.tokens_seen, 0), 0) AS INTEGER)), 0) AS tokensSeen
         FROM imm_sessions s
         JOIN imm_lifetime_applied_sessions a ON a.session_id = s.session_id
         LEFT JOIN imm_session_telemetry t
@@ -1132,17 +1122,20 @@ export interface LifetimeRepairSummary {
  * the full rebuild instead.
  */
 export function repairLifetimeSummariesFromMedia(db: DatabaseSync): LifetimeRepairSummary {
-  if (shouldBackfillLifetimeSummaries(db)) {
-    const rebuilt = rebuildLifetimeSummaries(db);
-    const animeRow = db
-      .prepare('SELECT COUNT(*) AS count FROM imm_lifetime_anime')
-      .get() as ExistenceRow;
-    return { recomputedAnime: Number(animeRow.count), repairedAtMs: rebuilt.rebuiltAtMs };
-  }
-
   const repairedAtMs = nowMs();
-  db.exec('BEGIN');
+  let transactionStarted = false;
   try {
+    db.exec('BEGIN IMMEDIATE');
+    transactionStarted = true;
+    if (shouldBackfillLifetimeSummaries(db)) {
+      const rebuilt = rebuildLifetimeSummariesInTransaction(db, repairedAtMs);
+      const animeRow = db
+        .prepare('SELECT COUNT(*) AS count FROM imm_lifetime_anime')
+        .get() as ExistenceRow;
+      db.exec('COMMIT');
+      return { recomputedAnime: Number(animeRow.count), repairedAtMs: rebuilt.rebuiltAtMs };
+    }
+
     const animeIds = new Set<number>();
     for (const row of db
       .prepare('SELECT DISTINCT anime_id AS animeId FROM imm_videos WHERE anime_id IS NOT NULL')
@@ -1160,7 +1153,7 @@ export function repairLifetimeSummariesFromMedia(db: DatabaseSync): LifetimeRepa
     db.exec('COMMIT');
     return { recomputedAnime: animeIds.size, repairedAtMs };
   } catch (error) {
-    db.exec('ROLLBACK');
+    if (transactionStarted) db.exec('ROLLBACK');
     throw error;
   }
 }

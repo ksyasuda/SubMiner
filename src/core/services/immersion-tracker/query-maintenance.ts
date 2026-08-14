@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
-import { repairLifetimeSummariesFromMedia } from './lifetime';
+import {
+  recomputeLifetimeAnimeFromMedia,
+  recomputeLifetimeGlobalFromSummaries,
+  repairLifetimeSummariesFromMedia,
+  shouldBackfillLifetimeSummaries,
+} from './lifetime';
 import { nowMs } from './time';
 import { resolveAnimeAnilistConflict } from './anime-season-repair';
 import { deleteMaintenanceBatch } from './query-delete-maintenance';
@@ -455,10 +460,15 @@ export function updateAnimeAnilistInfo(
     toDbTimestamp(nowMs()),
     targetRow.anime_id,
   );
-  // Moves change which anime owns the media rows, and an episodes_total change
-  // can flip anime_completed even without a move. Both are derivable from the
-  // summary tables, so a full (retention-lossy) rebuild is never needed here.
-  repairLifetimeSummariesFromMedia(db);
+  if (shouldBackfillLifetimeSummaries(db)) {
+    repairLifetimeSummariesFromMedia(db);
+  } else {
+    const affectedAnimeIds = new Set(repair.affectedAnimeIds);
+    affectedAnimeIds.add(row.anime_id);
+    affectedAnimeIds.add(targetRow.anime_id);
+    recomputeLifetimeAnimeFromMedia(db, [...affectedAnimeIds]);
+    recomputeLifetimeGlobalFromSummaries(db);
+  }
 }
 
 export function markVideoWatched(db: DatabaseSync, videoId: number, watched: boolean): void {

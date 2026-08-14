@@ -213,6 +213,27 @@ test('worker runtime falls back to the current thread when the worker crashes', 
   assert.equal(warnings.length, 1);
 });
 
+test('worker runtime falls back when a worker exits cleanly without a response', async () => {
+  const { worker, listeners, terminationState } = createFakeWorker();
+  const fallbackTasks: unknown[] = [];
+  const runtime = new DeleteMaintenanceWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/delete-worker.js',
+    createWorker: async () => worker,
+    executeFallback: (dbPath, task) => {
+      fallbackTasks.push({ dbPath, task });
+    },
+  });
+  const task = { kind: 'session' as const, sessionId: 1 };
+
+  const result = runtime.run('/tmp/test.sqlite', task);
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  listeners.get('exit')?.(0 as never);
+
+  await result;
+  assert.equal(terminationState.calls, 1);
+  assert.deepEqual(fallbackTasks, [{ dbPath: '/tmp/test.sqlite', task }]);
+});
+
 test('worker runtime surfaces a task failure without rerunning it', async () => {
   const { worker, listeners, terminationState } = createFakeWorker();
   const fallbackTasks: unknown[] = [];

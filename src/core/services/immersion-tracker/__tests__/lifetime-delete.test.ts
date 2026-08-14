@@ -10,7 +10,11 @@ import {
   linkVideoToAnimeRecord,
 } from '../storage.js';
 import { startSessionRecord } from '../session.js';
-import { rebuildLifetimeSummaries, repairLifetimeSummariesFromMedia } from '../lifetime.js';
+import {
+  applySessionLifetimeSummary,
+  rebuildLifetimeSummaries,
+  repairLifetimeSummariesFromMedia,
+} from '../lifetime.js';
 import { deleteMaintenanceBatch } from '../query-delete-maintenance.js';
 import { toDbTimestamp } from '../query-shared.js';
 
@@ -159,6 +163,123 @@ function snapshotAnime(db: DatabaseSync): unknown[] {
     .all()
     .map((row) => cleanRow(row));
 }
+
+test('fractional lifetime metrics stay normalized across apply, rebuild, and delete', () => {
+  const db = createDb();
+  try {
+    const videoId = seedVideo(db, null, 'fractional-metrics');
+    const seedFractionalSession = (
+      startedAtMs: number,
+      metrics: { activeMs: number; cards: number; lines: number; tokens: number },
+    ) => {
+      const { state } = startSessionRecord(db, videoId, startedAtMs);
+      state.activeWatchedMs = metrics.activeMs;
+      state.cardsMined = metrics.cards;
+      state.linesSeen = metrics.lines;
+      state.tokensSeen = metrics.tokens;
+      const endedAtMs = startedAtMs + 2_000;
+      db.prepare(
+        `UPDATE imm_sessions SET
+           ended_at_ms = ?,
+           active_watched_ms = ?,
+           cards_mined = ?,
+           lines_seen = ?,
+           tokens_seen = ?
+         WHERE session_id = ?`,
+      ).run(
+        toDbTimestamp(endedAtMs),
+        metrics.activeMs,
+        metrics.cards,
+        metrics.lines,
+        metrics.tokens,
+        state.sessionId,
+      );
+      return { state, endedAtMs };
+    };
+    const readMediaMetrics = () =>
+      cleanRow<{
+        total_sessions: number;
+        total_active_ms: number;
+        total_cards: number;
+        total_lines_seen: number;
+        total_tokens_seen: number;
+      }>(
+        db
+          .prepare(
+            `SELECT total_sessions, total_active_ms, total_cards,
+                    total_lines_seen, total_tokens_seen
+             FROM imm_lifetime_media WHERE video_id = ?`,
+          )
+          .get(videoId),
+      );
+
+    const withoutTelemetry = seedFractionalSession(BASE_MS, {
+      activeMs: 1_234.9,
+      cards: 2.8,
+      lines: 3.7,
+      tokens: 4.6,
+    });
+    applySessionLifetimeSummary(db, withoutTelemetry.state, withoutTelemetry.endedAtMs);
+    assert.deepEqual(readMediaMetrics(), {
+      total_sessions: 1,
+      total_active_ms: 1_234,
+      total_cards: 2,
+      total_lines_seen: 3,
+      total_tokens_seen: 4,
+    });
+
+    const withTelemetry = seedFractionalSession(BASE_MS + DAY_MS, {
+      activeMs: 9_999.9,
+      cards: 9.9,
+      lines: 9.9,
+      tokens: 9.9,
+    });
+    db.prepare(
+      `INSERT INTO imm_session_telemetry (
+         session_id, sample_ms, active_watched_ms, cards_mined, lines_seen, tokens_seen
+       ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(withTelemetry.state.sessionId, withTelemetry.endedAtMs, 2_345.9, 5.8, 6.7, 7.6);
+    applySessionLifetimeSummary(db, withTelemetry.state, withTelemetry.endedAtMs);
+    assert.deepEqual(readMediaMetrics(), {
+      total_sessions: 2,
+      total_active_ms: 3_579,
+      total_cards: 7,
+      total_lines_seen: 9,
+      total_tokens_seen: 11,
+    });
+
+    deleteMaintenanceBatch(db, [{ kind: 'session', sessionId: withTelemetry.state.sessionId }]);
+    const retainedMetrics = {
+      total_sessions: 1,
+      total_active_ms: 1_234,
+      total_cards: 2,
+      total_lines_seen: 3,
+      total_tokens_seen: 4,
+    };
+    assert.deepEqual(readMediaMetrics(), retainedMetrics, 'delete subtracts floored telemetry');
+
+    rebuildLifetimeSummaries(db);
+    assert.deepEqual(
+      readMediaMetrics(),
+      retainedMetrics,
+      'rebuild floors session-row fallback values',
+    );
+
+    deleteMaintenanceBatch(db, [{ kind: 'session', sessionId: withoutTelemetry.state.sessionId }]);
+    assert.deepEqual(snapshotMedia(db), [], 'delete subtracts the normalized metrics exactly');
+    assert.deepEqual(snapshotGlobal(db), {
+      total_sessions: 0,
+      total_active_ms: 0,
+      total_cards: 0,
+      active_days: 0,
+      episodes_started: 0,
+      episodes_completed: 0,
+      anime_completed: 0,
+    });
+  } finally {
+    db.close();
+  }
+});
 
 test('incremental delete maintenance matches a full rebuild when no history is pruned', () => {
   const db = createDb();
@@ -383,6 +504,25 @@ test('repair preserves lifetime history from pruned sessions where a rebuild wou
       .prepare('SELECT total_sessions FROM imm_lifetime_anime WHERE anime_id = ?')
       .get(animeId);
     assert.equal(cleanRow<{ total_sessions: number }>(animeRow).total_sessions, 2);
+  } finally {
+    db.close();
+  }
+});
+
+test('repair leaves a caller-owned transaction intact when its begin fails', () => {
+  const db = createDb();
+  try {
+    db.exec('BEGIN');
+    const animeId = seedAnime(db, 'Caller Transaction', null);
+
+    assert.throws(() => repairLifetimeSummariesFromMedia(db), /transaction/i);
+    assert.ok(
+      db.prepare('SELECT 1 FROM imm_anime WHERE anime_id = ?').get(animeId),
+      'the repair did not roll back the caller transaction',
+    );
+
+    db.exec('ROLLBACK');
+    assert.equal(db.prepare('SELECT 1 FROM imm_anime WHERE anime_id = ?').get(animeId), undefined);
   } finally {
     db.close();
   }
