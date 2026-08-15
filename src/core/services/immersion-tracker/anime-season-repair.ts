@@ -97,7 +97,10 @@ function mergeSummary(
 }
 
 function runInTransaction<T>(db: DatabaseSync, work: () => T): T {
-  db.exec('BEGIN');
+  // IMMEDIATE: the reads before the first write must hold the write lock, or a
+  // concurrent writer (app vs stats daemon on the same WAL db) upgrades this
+  // deferred snapshot into an unretried SQLITE_BUSY_SNAPSHOT mid-repair.
+  db.exec('BEGIN IMMEDIATE');
   try {
     const result = work();
     db.exec('COMMIT');
