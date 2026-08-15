@@ -96,12 +96,15 @@ type NotifySendEntry = {
 const NOTIFY_SEND_MAX_CONSECUTIVE_FAILURES = 3;
 
 /**
- * Spawn failures surface a libuv string code (`ENOENT`, `EACCES`), while a daemon that answers
- * badly surfaces a numeric exit code or a kill signal. Only the former means notify-send itself is
- * unusable.
+ * A missing or non-executable binary never fixes itself, so notify-send is abandoned on the spot.
+ * Every other failure (a bad exit code, a kill signal, or a transient spawn error like `EMFILE`
+ * under fd pressure) goes through the consecutive-failure threshold instead.
  */
+const NOTIFY_SEND_PERMANENT_ERROR_CODES = new Set(['ENOENT', 'EACCES', 'EPERM']);
+
 function isNotifySendUnusable(error: unknown): boolean {
-  return typeof (error as NodeJS.ErrnoException | null)?.code === 'string';
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  return typeof code === 'string' && NOTIFY_SEND_PERMANENT_ERROR_CODES.has(code);
 }
 
 /**

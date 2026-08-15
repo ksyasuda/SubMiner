@@ -186,6 +186,22 @@ test('notify-send replacer keeps using notify-send after a transient daemon fail
   assert.equal(fallbacks, 1);
 });
 
+test('notify-send replacer retries after a transient spawn failure', () => {
+  let execCalls = 0;
+  let fallbacks = 0;
+  const replacer = createNotifySendReplacer((_args, callback) => {
+    execCalls += 1;
+    // EMFILE means the process was out of descriptors, not that notify-send is unusable.
+    callback(execCalls === 1 ? spawnError('EMFILE') : null, '5');
+  });
+
+  replacer('sync', { title: 'SubMiner', body: 'first' }, () => (fallbacks += 1));
+  replacer('sync', { title: 'SubMiner', body: 'second' }, () => assert.fail('no fallback'));
+
+  assert.equal(execCalls, 2);
+  assert.equal(fallbacks, 1);
+});
+
 test('notify-send replacer gives up after a run of transient failures', () => {
   let execCalls = 0;
   let fallbacks = 0;
