@@ -674,6 +674,41 @@ test('resolveAnimeAnilistConflict falls back to season redistribution for multi-
   });
 });
 
+test('weak collision with a multi-season entry blocks the assignment instead of redistributing', () => {
+  for (const options of [{ matchConfidence: 'weak' as const }, {}]) {
+    withDb((db) => {
+      // Titles deliberately share nothing with the fixture's parsed title
+      // ('Show'), so the undefined-confidence pass has no stored-title match.
+      insertAnime(db, { animeId: 1, key: 'actual show', title: 'Actual Show', anilistId: 163132 });
+      insertAnime(db, { animeId: 2, key: 'unrelated release', title: 'Unrelated Release' });
+      insertEpisode(db, { videoId: 1, animeId: 1, season: 1 });
+      insertEpisode(db, { videoId: 2, animeId: 1, season: 2 });
+      insertEpisode(db, { videoId: 3, animeId: 2, season: 1 });
+
+      const summary = resolveAnimeAnilistConflict(db, 2, 163132, options);
+
+      // The legitimate multi-season owner keeps its id and both seasons; the
+      // weakly matched card gets nothing rather than the owner's identity.
+      assert.equal(summary.anilistAssignmentBlocked, true);
+      assert.equal(summary.repaired, 0);
+      assert.deepEqual(animeIds(db), [1, 2]);
+      assert.equal(videoAnimeId(db, 1), 1);
+      assert.equal(videoAnimeId(db, 2), 1);
+      assert.equal(videoAnimeId(db, 3), 2);
+      const anilistIds = db
+        .prepare(
+          'SELECT anime_id AS animeId, anilist_id AS anilistId FROM imm_anime ORDER BY anime_id',
+        )
+        .all() as Array<{ animeId: number; anilistId: number | null }>;
+      assert.deepEqual(anilistIds, [
+        { animeId: 1, anilistId: 163132 },
+        { animeId: 2, anilistId: null },
+      ]);
+      assert.deepEqual(getAnimeMergeRecommendations(db), []);
+    });
+  }
+});
+
 test('season redistribution leaves manually assigned episodes in place', () => {
   withDb((db) => {
     insertAnime(db, { animeId: 1, key: 'show', title: 'Show', anilistId: 163132 });

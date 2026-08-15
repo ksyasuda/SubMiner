@@ -352,8 +352,9 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
  * Two library entries cannot both hold the same AniList id
  * (`imm_anime.anilist_id` is UNIQUE). Fold an automatic collision only when
  * exact title evidence and compatible parsed seasons make it safe. Persist a
- * review recommendation for compatible weak matches. Fall back to legacy
- * season redistribution when the conflicting row spans several seasons.
+ * review recommendation for compatible weak matches. Legacy season
+ * redistribution of a conflicting multi-season row is reserved for exact or
+ * manual matches; a weak automatic match blocks the assignment instead.
  */
 export function resolveAnimeAnilistConflict(
   db: DatabaseSync,
@@ -431,6 +432,21 @@ export function resolveAnimeAnilistConflict(
       recordAnimeMergeRecommendation(db, targetAnimeId, conflict.animeId, anilistId);
       const summary = emptySummary(1);
       summary.mergeRecommended = true;
+      return summary;
+    }
+
+    const isExactAutomaticMatch =
+      options.matchConfidence === 'exact' ||
+      (options.matchConfidence === undefined &&
+        hasExactStoredTitleMatch(db, targetAnimeId, conflict.animeId));
+    if (!isManual && !isExactAutomaticMatch) {
+      // Redistribution dismantles the id's current owner and hands the id to
+      // the target. On a weak automatic match that owner is usually the
+      // correctly linked card (e.g. a legitimate multi-season entry), so
+      // splitting it here is exactly the fuzzy false merge this gate exists to
+      // stop. Only exact or manual evidence may fall through.
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
       return summary;
     }
 
