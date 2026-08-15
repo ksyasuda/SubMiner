@@ -61,6 +61,14 @@ function resolveRuntimeDefaultNotificationIconPath(): string | null {
  */
 const notificationsByReplaceId = new Map<string, Electron.Notification>();
 
+/** Untracks first, so the notification's own `close` handler cannot race a replacement into it. */
+function closeTrackedElectronNotification(replaceId: string): void {
+  const tracked = notificationsByReplaceId.get(replaceId);
+  if (!tracked) return;
+  notificationsByReplaceId.delete(replaceId);
+  tracked.close();
+}
+
 /** The freedesktop body is markup; unescaped `&`/`<` in an anime title would corrupt or drop it. */
 function escapeFreedesktopNotificationBody(body: string): string {
   return body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -82,19 +90,35 @@ type NotifySendEntry = {
 };
 
 /**
+ * A sick daemon should not make every later update wait out the spawn timeout first, so a run of
+ * failures still gives up on notify-send even when none of them is a missing binary.
+ */
+const NOTIFY_SEND_MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * Spawn failures surface a libuv string code (`ENOENT`, `EACCES`), while a daemon that answers
+ * badly surfaces a numeric exit code or a kill signal. Only the former means notify-send itself is
+ * unusable.
+ */
+function isNotifySendUnusable(error: unknown): boolean {
+  return typeof (error as NodeJS.ErrnoException | null)?.code === 'string';
+}
+
+/**
  * In-place notification replacement for Linux. Electron cannot reuse a freedesktop notification id,
  * so its close+show fallback makes every progress update flicker off-screen and back. notify-send
  * `--replace-id` updates the existing popup statically instead. The daemon-assigned id comes from
  * `--print-id`, so only one send per replaceId is in flight at a time and a fast progress stream
  * cannot race the id capture. Updates arriving mid-send collapse to the latest one, since a stale
- * progress message is never worth showing. Any failure (notify-send missing, daemon error) drops
- * back to the Electron path for good.
+ * progress message is never worth showing. Any failed update falls back to the Electron path, and
+ * notify-send is abandoned for good once it looks unusable rather than merely unlucky.
  */
 export function createNotifySendReplacer(
   execNotifySend: NotifySendExec,
 ): (replaceId: string, notification: NotifySendNotification, fallback: () => void) => void {
   const stateByReplaceId = new Map<string, NotifySendEntry>();
   let unavailable = false;
+  let consecutiveFailures = 0;
 
   const flush = (entry: NotifySendEntry): void => {
     if (entry.sending) return;
@@ -123,28 +147,41 @@ export function createNotifySendReplacer(
       flush(entry);
     };
 
+    const handleFailure = (error: unknown, unusable: boolean): void => {
+      consecutiveFailures += 1;
+      if (unusable || consecutiveFailures >= NOTIFY_SEND_MAX_CONSECUTIVE_FAILURES) {
+        unavailable = true;
+        logger.warn('notify-send unusable; falling back to Electron notifications', error);
+      } else {
+        logger.warn('notify-send update failed; showing it as an Electron notification', error);
+      }
+      // A queued update has already superseded this one, so flushing it would flash a stale message
+      // before the newer one renders. The pending update falls back on its own turn if needed.
+      if (!entry.pending) {
+        next.fallback();
+      }
+      finish();
+    };
+
     entry.sending = true;
     // A synchronous throw would otherwise leave `sending` stuck true and wedge the entry, silently
-    // dropping every later update for this replaceId, so spawn failures are caught here too.
+    // dropping every later update for this replaceId, so spawn failures are caught here too. It
+    // also means the call itself is malformed, which will not fix itself on the next update.
     try {
       execNotifySend(args, (error, stdout) => {
         if (error) {
-          unavailable = true;
-          logger.warn('notify-send failed; falling back to Electron notifications', error);
-          next.fallback();
-        } else {
-          const id = stdout.trim();
-          if (/^[1-9]\d*$/.test(id)) {
-            entry.dbusId = id;
-          }
+          handleFailure(error, isNotifySendUnusable(error));
+          return;
+        }
+        consecutiveFailures = 0;
+        const id = stdout.trim();
+        if (/^[1-9]\d*$/.test(id)) {
+          entry.dbusId = id;
         }
         finish();
       });
     } catch (error) {
-      unavailable = true;
-      logger.warn('notify-send failed; falling back to Electron notifications', error);
-      next.fallback();
-      finish();
+      handleFailure(error, true);
     }
   };
 
@@ -218,7 +255,7 @@ export function showDesktopNotification(
   const showElectronNotification = (): void => {
     const notification = new Notification(notificationOptions);
     if (replaceId) {
-      notificationsByReplaceId.get(replaceId)?.close();
+      closeTrackedElectronNotification(replaceId);
       notificationsByReplaceId.set(replaceId, notification);
       notification.once('close', () => {
         if (notificationsByReplaceId.get(replaceId) === notification) {
@@ -237,6 +274,10 @@ export function showDesktopNotification(
   const iconNeedsElectron = notificationOptions.icon !== undefined && iconPath === undefined;
 
   if (replaceId && process.platform === 'linux' && !iconNeedsElectron) {
+    // An earlier update for this id may have rendered through Electron (a transient notify-send
+    // failure, or a NativeImage icon). That toast is not the one notify-send replaces, so it would
+    // sit on screen next to the updated popup.
+    closeTrackedElectronNotification(replaceId);
     showLinuxReplaceableNotification(
       replaceId,
       { title, body: options.body, iconPath },
