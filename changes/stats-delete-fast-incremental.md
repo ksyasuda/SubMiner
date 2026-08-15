@@ -6,3 +6,4 @@ area: stats
 - If the delete worker crashes, the delete now retries on the current thread instead of failing.
 - Library merges, video moves, AniList reassignments, and `subminer stats cleanup -l` also stopped rebuilding lifetime summaries from retained sessions; they now recompute from per-episode history, so those operations are faster and no longer erase lifetime totals older than the session retention window.
 - Deleting content that contains very common words no longer rescans every occurrence of those words across the whole library; first/last-seen dates are refreshed with index seeks instead.
+- Session deletes on large databases dropped from minutes to milliseconds: an index on the subtitle-line event reference now prevents each deleted session event from scanning the whole subtitle-line table for foreign-key enforcement.

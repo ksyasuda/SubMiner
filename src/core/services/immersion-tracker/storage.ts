@@ -1525,6 +1525,13 @@ export function ensureSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_subtitle_lines_anime_line
     ON imm_subtitle_lines(anime_id, line_index)
   `);
+  // The event_id FK is ON DELETE SET NULL; without this index every deleted
+  // imm_session_events row full-scans imm_subtitle_lines looking for children,
+  // which made session deletes take minutes on large databases.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_subtitle_lines_event_id
+    ON imm_subtitle_lines(event_id) WHERE event_id IS NOT NULL
+  `);
   if (currentVersion?.schema_version && currentVersion.schema_version < 19) {
     backfillLexicalOccurrenceSeenMs(db);
   }
