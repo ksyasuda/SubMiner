@@ -222,17 +222,11 @@ export interface AnimeBrowserPlayResult {
   quality: string | null;
 }
 
-/**
- * One episode waiting for its turn.
- *
- * It is the play request itself rather than a resolved stream: extension stream
- * URLs are signed and short-lived, so a queued episode is resolved when it
- * reaches the front, not when it was queued half an hour earlier.
- */
+/** One resolved episode waiting in mpv's playlist. */
 export type AnimeBrowserQueueEntry = AnimeBrowserPlayRequest;
 
 export interface AnimeBrowserQueueState {
-  /** In play order; the first entry starts when the current episode ends. */
+  /** In mpv play order; the first entry starts when the current episode ends. */
   entries: AnimeBrowserQueueEntry[];
   /**
    * Why the last automatic advance failed, or null. Cleared by the next queue

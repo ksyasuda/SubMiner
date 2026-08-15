@@ -254,6 +254,14 @@ success. If mpv gives up instead — a dead host, an undecodable stream — the
 browser shows mpv's error rather than pretending playback started (a failed
 load leaves no mpv window, because the player idles windowless).
 
+Choosing **Queue** resolves the episode and appends the playable stream to mpv's
+own playlist immediately, while its subtitle tracks cache in the background.
+That makes mpv's next command available at once and lets the next episode begin
+automatically when the current one ends, without waiting for another source
+request. Resolved stream URLs can be short-lived, so a very long queue can still
+outlive what its source issued; dequeue and queue that episode again to refresh
+it.
+
 ### Japanese audio, and switching tracks
 
 Sources often return a dub and the original audio as two separate entries — or

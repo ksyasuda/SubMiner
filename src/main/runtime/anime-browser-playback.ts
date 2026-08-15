@@ -4,12 +4,15 @@ import { resolveStream } from '../../anime-bridge/headers';
 import { resolveBridgeMediaUrl, routeHlsThroughProxy } from '../../anime-bridge/media-url';
 import {
   buildPlaybackCommands,
+  buildQueuedPlaybackCommands,
   buildTrackCommands,
   selectPreferredStream,
 } from '../../anime-bridge/mpv-playback';
 import { watchPlaybackOutcome } from '../../anime-bridge/playback-outcome';
 import { cacheSubtitleTracks, removeSubtitleCache } from '../../anime-bridge/subtitle-cache';
 import type { StreamStripProxyHandle } from '../../anime-bridge/stream-strip-proxy';
+import type { AnimeStreamMetadata } from '../../anime-bridge/episode-metadata';
+import type { ResolvedStream } from '../../anime-bridge/types';
 import type { AnimeBrowserPlayRequest, AnimeBrowserPlayResult } from '../../types/anime-browser';
 import type { AnimeBrowserPlaybackDeps } from './anime-browser-runtime-deps';
 
@@ -22,11 +25,29 @@ interface AnimeBrowserPlaybackOptions {
   stripProxy: () => StreamStripProxyHandle | null;
 }
 
+export interface PreparedAnimeBrowserPlayback {
+  request: AnimeBrowserPlayRequest;
+  stream: ResolvedStream;
+  metadata: AnimeStreamMetadata;
+  trackPreparation: Promise<PreparedTrackSetup>;
+}
+
+interface PreparedTrackSetup {
+  stream: ResolvedStream;
+  subtitleCacheDir: string | null;
+}
+
+export type PrepareAnimeBrowserPlaybackResult =
+  | { ok: true; playback: PreparedAnimeBrowserPlayback; quality: string | null; error: null }
+  | { ok: false; playback: null; quality: null; error: string };
+
 export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions) {
   const { deps, bridge, sourceFor, stripProxy } = options;
   const wait =
     deps.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let subtitleCacheDir: string | null = null;
+  const queuedSubtitleCacheDirs = new Set<string>();
+  const queuedTrackPreparations = new Set<Promise<PreparedTrackSetup>>();
   // Overlapping playEpisode calls share mpv and subtitleCacheDir, so each call
   // carries a generation and only acts while it is still the newest one.
   let playbackGeneration = 0;
@@ -68,39 +89,175 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
     return cached.tracks.map((track) => ({ url: track.url, lang: track.lang }));
   }
 
+  async function resolveEpisode(request: AnimeBrowserPlayRequest): Promise<{
+    stream: ResolvedStream;
+    metadata: AnimeStreamMetadata;
+  } | null> {
+    const { client, baseUrl } = await bridge();
+    const videos = await client.getVideoList(await sourceFor(request.sourceId), request.episodeUrl);
+    const streams = videos
+      .map((video) => resolveStream(video))
+      .filter((stream): stream is NonNullable<typeof stream> => stream !== null)
+      .map((stream) => ({
+        ...stream,
+        url: resolveBridgeMediaUrl(baseUrl, stream.url),
+        audios: stream.audios.map((track) => ({
+          ...track,
+          url: resolveBridgeMediaUrl(baseUrl, track.url),
+        })),
+        subtitles: stream.subtitles.map((track) => ({
+          ...track,
+          url: resolveBridgeMediaUrl(baseUrl, track.url),
+        })),
+      }));
+
+    const selected = selectPreferredStream(streams, deps.preferredQuality?.());
+    if (!selected) return null;
+    const proxy = stripProxy();
+    const stream = proxy
+      ? { ...selected, url: routeHlsThroughProxy(selected.url, baseUrl, proxy.origin) }
+      : selected;
+    const metadata = buildAnimeStreamMetadata({
+      sourceId: request.sourceId,
+      animeUrl: request.animeUrl,
+      animeTitle: request.animeTitle,
+      episodeUrl: request.episodeUrl,
+      episodeName: request.episodeName,
+      episodeNumber: request.episodeNumber ?? null,
+      mediaPath: stream.url,
+    });
+    return { stream, metadata };
+  }
+
+  /** Resolve a queued stream and start preparing its external tracks. */
+  async function prepareEpisode(
+    request: AnimeBrowserPlayRequest,
+  ): Promise<PrepareAnimeBrowserPlaybackResult> {
+    try {
+      const resolved = await resolveEpisode(request);
+      if (!resolved) {
+        return {
+          ok: false,
+          playback: null,
+          error: 'That source returned no playable video.',
+          quality: null,
+        };
+      }
+      if (!(await deps.ensureMpvConnected())) {
+        return {
+          ok: false,
+          playback: null,
+          error: 'mpv is not running and could not be started.',
+          quality: null,
+        };
+      }
+
+      // Do not hold the mpv append behind subtitle downloads. The preparation
+      // starts now and activation waits for it only when this item begins.
+      const trackPreparation = prepareQueuedTracks(resolved.stream);
+      return {
+        ok: true,
+        playback: {
+          request,
+          stream: resolved.stream,
+          metadata: resolved.metadata,
+          trackPreparation,
+        },
+        error: null,
+        quality: resolved.stream.quality || null,
+      };
+    } catch (error) {
+      deps.log(`[anime-browser] queued playback preparation failed: ${String(error)}`);
+      return { ok: false, playback: null, error: describeError(error), quality: null };
+    }
+  }
+
+  function prepareQueuedTracks(stream: ResolvedStream): Promise<PreparedTrackSetup> {
+    const preparation = (async (): Promise<PreparedTrackSetup> => {
+      try {
+        const cached = await cacheSubtitleTracks({
+          tracks: stream.subtitles,
+          headers: stream.headers,
+          io: deps.subtitleCacheIo,
+          log: deps.log,
+        });
+        if (cached.dir) queuedSubtitleCacheDirs.add(cached.dir);
+        return {
+          stream: {
+            ...stream,
+            subtitles: cached.tracks.map((track) => ({ url: track.url, lang: track.lang })),
+          },
+          subtitleCacheDir: cached.dir,
+        };
+      } catch (error) {
+        deps.log(`[anime-browser] queued subtitle preparation failed: ${String(error)}`);
+        return { stream, subtitleCacheDir: null };
+      }
+    })();
+    queuedTrackPreparations.add(preparation);
+    void preparation.then(() => queuedTrackPreparations.delete(preparation));
+    return preparation;
+  }
+
+  /** The prepared stream becomes a real mpv playlist entry immediately. */
+  function appendEpisode(playback: PreparedAnimeBrowserPlayback): void {
+    deps.onPreparedPlaybackMetadata?.(playback.metadata);
+    for (const command of buildQueuedPlaybackCommands({
+      stream: playback.stream,
+      title: playback.metadata.displayTitle,
+    })) {
+      deps.sendMpvCommand(command);
+    }
+  }
+
+  /** Attach the prepared external tracks when mpv reaches this playlist item. */
+  async function activateEpisode(playback: PreparedAnimeBrowserPlayback): Promise<void> {
+    const generation = ++playbackGeneration;
+    const preparedTracks = await playback.trackPreparation;
+    if (generation !== playbackGeneration) {
+      await releasePreparedTracks(preparedTracks);
+      return;
+    }
+    const previousDir = subtitleCacheDir;
+    subtitleCacheDir = preparedTracks.subtitleCacheDir;
+    if (preparedTracks.subtitleCacheDir) {
+      queuedSubtitleCacheDirs.delete(preparedTracks.subtitleCacheDir);
+    }
+    if (previousDir !== preparedTracks.subtitleCacheDir) {
+      await removeSubtitleCache(previousDir, deps.subtitleCacheIo);
+    }
+    if (generation !== playbackGeneration) return;
+
+    if (preparedTracks.stream.audios.length > 0 || preparedTracks.stream.subtitles.length > 0) {
+      await wait(TRACK_ATTACH_DELAY_MS);
+      if (generation !== playbackGeneration) return;
+      for (const command of buildTrackCommands(preparedTracks.stream)) {
+        deps.sendMpvCommand(command);
+      }
+    }
+    deps.showVisibleOverlay?.();
+    deps.showMpvOsd?.(playback.metadata.displayTitle);
+  }
+
+  async function discardEpisode(playback: PreparedAnimeBrowserPlayback): Promise<void> {
+    await releasePreparedTracks(await playback.trackPreparation);
+  }
+
+  async function releasePreparedTracks(preparedTracks: PreparedTrackSetup): Promise<void> {
+    const dir = preparedTracks.subtitleCacheDir;
+    if (!dir || !queuedSubtitleCacheDirs.delete(dir)) return;
+    await removeSubtitleCache(dir, deps.subtitleCacheIo);
+  }
+
   async function playEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserPlayResult> {
     const generation = ++playbackGeneration;
     const isCurrent = (): boolean => generation === playbackGeneration;
     try {
-      const { client, baseUrl } = await bridge();
-      const videos = await client.getVideoList(
-        await sourceFor(request.sourceId),
-        request.episodeUrl,
-      );
-      const streams = videos
-        .map((video) => resolveStream(video))
-        .filter((stream): stream is NonNullable<typeof stream> => stream !== null)
-        .map((stream) => ({
-          ...stream,
-          url: resolveBridgeMediaUrl(baseUrl, stream.url),
-          audios: stream.audios.map((track) => ({
-            ...track,
-            url: resolveBridgeMediaUrl(baseUrl, track.url),
-          })),
-          subtitles: stream.subtitles.map((track) => ({
-            ...track,
-            url: resolveBridgeMediaUrl(baseUrl, track.url),
-          })),
-        }));
-
-      const selected = selectPreferredStream(streams, deps.preferredQuality?.());
-      if (!selected) {
+      const resolved = await resolveEpisode(request);
+      if (!resolved) {
         return { ok: false, error: 'That source returned no playable video.', quality: null };
       }
-      const proxy = stripProxy();
-      const stream = proxy
-        ? { ...selected, url: routeHlsThroughProxy(selected.url, baseUrl, proxy.origin) }
-        : selected;
+      const { stream, metadata } = resolved;
 
       if (!(await deps.ensureMpvConnected())) {
         return { ok: false, error: 'mpv is not running and could not be started.', quality: null };
@@ -120,15 +277,6 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
           : null;
 
       try {
-        const metadata = buildAnimeStreamMetadata({
-          sourceId: request.sourceId,
-          animeUrl: request.animeUrl,
-          animeTitle: request.animeTitle,
-          episodeUrl: request.episodeUrl,
-          episodeName: request.episodeName,
-          episodeNumber: request.episodeNumber ?? null,
-          mediaPath: stream.url,
-        });
         const title = metadata.displayTitle;
         deps.onPlaybackMetadata?.(metadata);
         for (const command of buildPlaybackCommands({ stream, title })) {
@@ -188,10 +336,16 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
     playbackGeneration += 1;
     const cacheDir = subtitleCacheDir;
     subtitleCacheDir = null;
-    await removeSubtitleCache(cacheDir, deps.subtitleCacheIo);
+    await Promise.all(queuedTrackPreparations);
+    const queuedDirs = [...queuedSubtitleCacheDirs];
+    queuedSubtitleCacheDirs.clear();
+    await Promise.all([
+      removeSubtitleCache(cacheDir, deps.subtitleCacheIo),
+      ...queuedDirs.map((dir) => removeSubtitleCache(dir, deps.subtitleCacheIo)),
+    ]);
   }
 
-  return { playEpisode, dispose };
+  return { playEpisode, prepareEpisode, appendEpisode, activateEpisode, discardEpisode, dispose };
 }
 
 function superseded(): AnimeBrowserPlayResult {

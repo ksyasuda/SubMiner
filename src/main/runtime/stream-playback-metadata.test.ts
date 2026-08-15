@@ -43,6 +43,21 @@ test('the store stops answering once the player moves on', () => {
   assert.equal(store.match(metadata().mediaPath), null);
 });
 
+test('the store keeps metadata for more than one resolved playlist entry', () => {
+  const store = createStreamPlaybackMetadataStore();
+  const first = metadata();
+  const second = metadata({
+    mediaPath: 'http://127.0.0.1:41234/video/def.m3u8',
+    statsPath: 'animebrowser://9001/%2Fanime%2Fmushoku/%2Fwatch%2Fep-5',
+    episodeNumber: 5,
+  });
+  store.set(first);
+  store.set(second);
+
+  assert.equal(store.match(first.mediaPath), first);
+  assert.equal(store.match(second.mediaPath), second);
+});
+
 test('an explicit target path does not inherit the current stream metadata', () => {
   const store = createStreamPlaybackMetadataStore();
   const current = metadata();

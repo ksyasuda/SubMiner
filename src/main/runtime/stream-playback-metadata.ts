@@ -3,7 +3,7 @@ import type { AnilistMediaGuess } from '../../core/services/anilist/anilist-upda
 import type { JimakuMediaInfo } from '../../types';
 
 /**
- * Holds what the anime browser resolved for the episode currently streaming.
+ * Holds what the anime browser resolved for active and queued streams.
  *
  * Consumers otherwise have to re-derive the series and episode from the mpv
  * title, and some of them only ever see the stream URL, which carries no title
@@ -13,30 +13,30 @@ export interface StreamPlaybackMetadataStore {
   set: (metadata: AnimeStreamMetadata) => void;
   clear: () => void;
   /**
-   * The metadata for `mediaPath`, or null when the player has moved on to
-   * something else. Matching on the path is what makes this self-expiring —
-   * there is no teardown hook to miss.
+   * The registered metadata for `mediaPath`, whether that stream is active or
+   * waiting in the playlist. A match identifies the stream but does not prove
+   * that mpv is currently playing it.
    */
   match: (mediaPath: string | null) => AnimeStreamMetadata | null;
 }
 
 export function createStreamPlaybackMetadataStore(): StreamPlaybackMetadataStore {
-  let current: AnimeStreamMetadata | null = null;
+  const byPath = new Map<string, AnimeStreamMetadata>();
 
   return {
     set(metadata: AnimeStreamMetadata): void {
-      current = metadata;
+      byPath.set(metadata.mediaPath, metadata);
+      byPath.set(metadata.statsPath, metadata);
     },
     clear(): void {
-      current = null;
+      byPath.clear();
     },
     match(mediaPath: string | null): AnimeStreamMetadata | null {
-      if (!current) return null;
       const trimmed = typeof mediaPath === 'string' ? mediaPath.trim() : '';
       if (!trimmed) return null;
-      // The stats path is accepted too: stats rewrites the volatile stream URL
+      // The stats path is indexed too: stats rewrites the volatile stream URL
       // to it, so callers reading from there still resolve.
-      return trimmed === current.mediaPath || trimmed === current.statsPath ? current : null;
+      return byPath.get(trimmed) ?? null;
     },
   };
 }

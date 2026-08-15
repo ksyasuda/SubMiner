@@ -34,12 +34,16 @@ export interface AnimeBrowserRuntimeDeps {
   ensureMpvConnected: () => Promise<boolean>;
   /** Subscribe to mpv end-file events so playback startup can be confirmed. */
   onPlaybackEndFile?: (listener: (event: PlaybackEndFileEvent) => void) => () => void;
+  /** Subscribe to the active mpv path for real-playlist anime queue advances. */
+  onPlaybackPathChange?: (listener: (path: string) => void) => () => void;
   /** One-shot mpv property read; rejects while the property is unavailable. */
   readMpvProperty?: (name: string) => Promise<unknown>;
   showMpvOsd?: (message: string) => void;
   showVisibleOverlay?: () => void;
   /** Publishes stream identity before loadfile starts the stats session. */
   onPlaybackMetadata?: (metadata: AnimeStreamMetadata) => void;
+  /** Registers a queued stream before mpv can navigate to its playlist entry. */
+  onPreparedPlaybackMetadata?: (metadata: AnimeStreamMetadata) => void;
   /**
    * Watch state for the given stats paths, from the same store playback writes
    * to. Absent (or resolving empty) when stats tracking is disabled, which the
@@ -78,6 +82,7 @@ export type AnimeBrowserPlaybackDeps = Pick<
   | 'showMpvOsd'
   | 'showVisibleOverlay'
   | 'onPlaybackMetadata'
+  | 'onPreparedPlaybackMetadata'
   | 'wait'
   | 'subtitleCacheIo'
   | 'preferredQuality'

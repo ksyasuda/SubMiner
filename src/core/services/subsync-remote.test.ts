@@ -16,9 +16,12 @@ const SUBTITLE_BODY = '1\n00:00:01,000 --> 00:00:02,000\nhello\n';
  */
 async function startStubHost(): Promise<{
   url: (pathname: string) => string;
+  paths: string[];
   close: () => Promise<void>;
 }> {
-  const server = http.createServer((_req, res) => {
+  const paths: string[] = [];
+  const server = http.createServer((req, res) => {
+    paths.push(new URL(req.url ?? '/', 'http://localhost').pathname);
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end(SUBTITLE_BODY);
   });
@@ -28,6 +31,7 @@ async function startStubHost(): Promise<{
 
   return {
     url: (pathname) => `http://127.0.0.1:${port}${pathname}`,
+    paths,
     close: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());
@@ -114,6 +118,7 @@ test('runSubsyncManual syncs stream subtitle tracks served over http', async (t)
     assert.equal(alassArgs.length, 3);
     assert.equal(fs.readFileSync(path.join(tmpDir, 'reference.copy'), 'utf8'), SUBTITLE_BODY);
     assert.equal(fs.readFileSync(path.join(tmpDir, 'target.copy'), 'utf8'), SUBTITLE_BODY);
+    assert.deepEqual(host.paths, ['/subs/en.srt', '/subs/ja.srt']);
 
     const loadCommand = sentCommands.find((command) => command[0] === 'sub-add');
     assert.equal(loadCommand?.[1], alassArgs[2]);
@@ -209,6 +214,7 @@ test('runSubsyncManual retimes a dropped file:// track against a stream referenc
     assert.equal(fs.readFileSync(path.join(tmpDir, 'target.copy'), 'utf8'), targetBody);
     assert.equal(alassArgs[2], targetPath);
     assert.equal(fs.readFileSync(targetPath, 'utf8'), 'retimed');
+    assert.deepEqual(host.paths, ['/subs/en.srt']);
 
     const loadCommand = sentCommands.find((command) => command[0] === 'sub-add');
     assert.equal(loadCommand?.[1], targetPath);

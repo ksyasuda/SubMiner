@@ -86,8 +86,8 @@ export function createEpisodeQueueControls(options: EpisodeQueueControlsOptions)
     if (!anime) return;
 
     const queued = isQueued(episode);
-    // Queueing behind nothing would wait for an end that never comes, so with
-    // an idle player the second option collapses into the first.
+    // With an idle player the second option still collapses into Play so the
+    // browser can report mpv's startup outcome before claiming success.
     if (!queued) {
       const playing = await capture(() => api.isPlaying());
       if (playing.ok && !playing.value) {

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   buildLoadfileOptions,
   buildPlaybackCommands,
+  buildQueuedLoadfileOptions,
+  buildQueuedPlaybackCommands,
   buildTrackCommands,
   normalizeLangTag,
   selectPreferredStream,
@@ -37,6 +39,41 @@ test('loadfile options keep one visible track and never scan the filesystem', ()
   // preferences ride as properties instead.
   assert.ok(!options.includes('alang'));
   assert.ok(!options.includes('slang'));
+});
+
+test('queued playback carries file-local title and language preferences into mpv', () => {
+  const options = {
+    stream: {
+      url: 'https://video.example/episode.m3u8',
+      quality: '1080p',
+      headers: { Referer: 'https://source.example/watch?a=1,b=2' },
+      audios: [],
+      subtitles: [],
+    },
+    title: 'Series, Part 1 = Episode 2',
+  };
+
+  const languagePreference = 'ja,jpn,jp,japanese';
+  assert.ok(
+    buildQueuedLoadfileOptions(options).includes(
+      `alang=%${Buffer.byteLength(languagePreference)}%${languagePreference}`,
+    ),
+  );
+  assert.ok(
+    buildQueuedLoadfileOptions(options).includes(
+      `force-media-title=%${Buffer.byteLength(options.title)}%${options.title}`,
+    ),
+  );
+  assert.deepEqual(buildQueuedPlaybackCommands(options), [
+    ['script-message', 'subminer-managed-subtitles-loading'],
+    [
+      'loadfile',
+      'https://video.example/episode.m3u8',
+      'append-play',
+      -1,
+      buildQueuedLoadfileOptions(options),
+    ],
+  ]);
 });
 
 test('headers are percent-escaped so their commas do not split the option list', () => {

@@ -903,8 +903,9 @@ test('runSubsyncManual keeps a retimed secondary track in the secondary slot', a
   );
 });
 
-test('runSubsyncManual converts VTT stream tracks to SRT before running alass', async () => {
+test('runSubsyncManual converts VTT stream tracks to SRT before running alass', async (t) => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subsync-alass-vtt-'));
+  t.after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
   const alassLogPath = path.join(tmpDir, 'alass-args.log');
   const alassPath = path.join(tmpDir, 'alass.sh');
   const ffmpegPath = path.join(tmpDir, 'ffmpeg.sh');
@@ -978,8 +979,6 @@ test('runSubsyncManual converts VTT stream tracks to SRT before running alass', 
   assert.equal(sentCommands[0]?.[0], 'sub-add');
   assert.equal(typeof loadedPath, 'string');
   assert.match(fs.readFileSync(fromShellPath(String(loadedPath)), 'utf8'), /しっかし/);
-
-  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 test('runSubsyncManual keeps internal alass source file alive until sync finishes', async () => {

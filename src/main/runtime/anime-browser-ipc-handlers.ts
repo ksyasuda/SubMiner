@@ -79,10 +79,7 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   );
 }
 
-/**
- * Coerce a play (or queue) request. A queued request is held until its turn
- * comes, so a bad field would surface long after the click that sent it.
- */
+/** Coerce a play (or queue) request at the renderer trust boundary. */
 function toPlayRequest(value: unknown): AnimeBrowserPlayRequest {
   const request = (value ?? {}) as Partial<AnimeBrowserPlayRequest>;
   return {

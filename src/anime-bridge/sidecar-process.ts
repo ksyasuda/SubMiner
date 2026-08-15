@@ -14,6 +14,18 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForExit(hasExited: Promise<void>, timeoutMs: number): Promise<void> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timedOut = new Promise<void>((resolve) => {
+    timeout = setTimeout(resolve, timeoutMs);
+  });
+  try {
+    await Promise.race([hasExited, timedOut]);
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
+  }
+}
+
 /** Ask the OS for a free loopback port, then hand it to the JVM. */
 export async function allocatePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -122,10 +134,10 @@ export async function startSidecar(options: StartSidecarOptions): Promise<Sideca
     child.kill();
     // kill() only sends the signal. Wait for the process to actually go, so a
     // restart cannot race the old one still holding the port.
-    await Promise.race([hasExited, delay(stopTimeoutMs)]);
+    await waitForExit(hasExited, stopTimeoutMs);
     if (exited === null) {
       child.kill('SIGKILL');
-      await Promise.race([hasExited, delay(stopTimeoutMs)]);
+      await waitForExit(hasExited, stopTimeoutMs);
     }
     // Never report success while the child may still hold the port: a caller
     // that restarts on the same port would race the survivor.

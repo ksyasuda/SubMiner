@@ -13,7 +13,11 @@ function withTempBin(run: (dir: string) => void): void {
     process.env.PATH = dir;
     run(dir);
   } finally {
-    process.env.PATH = previousPath;
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

@@ -355,8 +355,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   });
 
   const queue = createAnimeBrowserQueue({
-    play: (request) => playback.playEpisode(request),
-    onPlaybackEndFile: deps.onPlaybackEndFile,
+    prepareEpisode: (request) => playback.prepareEpisode(request),
+    appendEpisode: (prepared) => playback.appendEpisode(prepared),
+    activateEpisode: (prepared) => playback.activateEpisode(prepared),
+    discardEpisode: (prepared) => playback.discardEpisode(prepared),
+    armNextEpisode: () =>
+      deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']),
+    onPlaybackPathChange: deps.onPlaybackPathChange,
     readMpvProperty: deps.readMpvProperty,
     sendMpvCommand: deps.sendMpvCommand,
     onQueueState: deps.onQueueState,
@@ -598,16 +603,16 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       return result;
     },
 
-    queueEpisode(request: AnimeBrowserPlayRequest): AnimeBrowserQueueState {
-      return queue.enqueue(request);
+    async queueEpisode(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserQueueState> {
+      return await queue.enqueue(request);
     },
 
-    dequeueEpisode(sourceId: string, episodeUrl: string): AnimeBrowserQueueState {
-      return queue.dequeue(sourceId, episodeUrl);
+    async dequeueEpisode(sourceId: string, episodeUrl: string): Promise<AnimeBrowserQueueState> {
+      return await queue.dequeue(sourceId, episodeUrl);
     },
 
-    clearQueue(): AnimeBrowserQueueState {
-      return queue.clear();
+    async clearQueue(): Promise<AnimeBrowserQueueState> {
+      return await queue.clear();
     },
 
     getQueue(): AnimeBrowserQueueState {
@@ -634,7 +639,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       stripProxy = null;
       starting = null;
       setState(IDLE_STATE);
-      queue.dispose();
+      await queue.dispose();
       await playback.dispose();
       await proxy?.close();
       await handle?.stop();

@@ -3330,6 +3330,13 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
     client.on('end-file', listener);
     return () => client.off('end-file', listener);
   },
+  onPlaybackPathChange: (listener) => {
+    const client = appState.mpvClient;
+    if (!client) return () => {};
+    const handler = ({ path: mediaPath }: { path: string }) => listener(mediaPath);
+    client.on('media-path-change', handler);
+    return () => client.off('media-path-change', handler);
+  },
   readMpvProperty: (name) => {
     const client = appState.mpvClient;
     if (!client) return Promise.reject(new Error('mpv is not connected.'));
@@ -3360,6 +3367,20 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
     // is titled and grouped from the source's own listing rather than from the
     // proxy URL, whose only readable part is the `.m3u8` extension.
     mediaRuntime.updateCurrentMediaTitle(metadata.displayTitle);
+    ensureImmersionTrackerStarted();
+    appState.immersionTracker?.recordStreamPlaybackMetadata({
+      mediaPath: metadata.mediaPath,
+      statsPath: metadata.statsPath,
+      displayTitle: metadata.displayTitle,
+      seriesTitle: metadata.seriesTitle,
+      seasonNumber: metadata.seasonNumber,
+      episodeNumber: metadata.episodeNumber,
+    });
+  },
+  onPreparedPlaybackMetadata: (metadata) => {
+    streamPlaybackMetadata.set(metadata);
+    // Register the URL alias before mpv can advance to it, but do not replace
+    // the title of the file that is still playing now.
     ensureImmersionTrackerStarted();
     appState.immersionTracker?.recordStreamPlaybackMetadata({
       mediaPath: metadata.mediaPath,

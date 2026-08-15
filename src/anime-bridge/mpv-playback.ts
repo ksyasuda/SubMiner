@@ -74,6 +74,23 @@ export function buildLoadfileOptions(options: BuildPlaybackOptions): string {
 }
 
 /**
+ * Build the file-local options needed when a resolved stream waits in mpv's
+ * playlist. Unlike the regular playback path, there is no opportunity to set
+ * global properties immediately before mpv advances to this file.
+ */
+export function buildQueuedLoadfileOptions(options: BuildPlaybackOptions): string {
+  const parts = [
+    buildLoadfileOptions(options),
+    `alang=${escapeOptionValue(JAPANESE_LANGUAGE_PREFERENCE)}`,
+    `slang=${escapeOptionValue(JAPANESE_LANGUAGE_PREFERENCE)}`,
+  ];
+  if (options.title !== undefined && options.title.length > 0) {
+    parts.push(`force-media-title=${escapeOptionValue(options.title)}`);
+  }
+  return parts.join(',');
+}
+
+/**
  * mpv splits `loadfile` options on commas and `=`-separates keys, so a value
  * containing either must be quoted. Percent-encoding is mpv's own escape for
  * embedded separators in option values.
@@ -105,6 +122,14 @@ export function buildPlaybackCommands(options: BuildPlaybackOptions): MpvCommand
   }
 
   return commands;
+}
+
+/** Append a fully resolved stream without replacing the file playing now. */
+export function buildQueuedPlaybackCommands(options: BuildPlaybackOptions): MpvCommand[] {
+  return [
+    ['script-message', 'subminer-managed-subtitles-loading'],
+    ['loadfile', options.stream.url, 'append-play', -1, buildQueuedLoadfileOptions(options)],
+  ];
 }
 
 /**
