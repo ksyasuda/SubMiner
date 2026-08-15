@@ -23,6 +23,12 @@ const TS_SYNC_BYTE = 0x47;
  * row at 188-byte strides do not.
  */
 const SYNC_RUN = 5;
+/**
+ * FFmpeg 8.1 rejects HLS media whose URL suffix is not in its segment allowlist.
+ * The disguised MPEG-TS segments seen in the wild use `.image`, so the local
+ * playlist gives them this safe alias and removes it again before forwarding.
+ */
+export const TS_SEGMENT_ALIAS_SUFFIX = '.subminer.ts';
 /** A disguise prefix is small; give up scanning after this much. */
 export const DEFAULT_SCAN_LIMIT_BYTES = 1024 * 1024;
 /** Bytes needed to either find a run within the limit or rule one out. */
@@ -61,7 +67,36 @@ export function rewritePlaylistOrigins(
   upstreamOrigin: string,
   proxyOrigin: string,
 ): string {
-  return body.split(upstreamOrigin).join(proxyOrigin);
+  const rebased = body.split(upstreamOrigin).join(proxyOrigin);
+  return rebased
+    .split(/(\r?\n)/)
+    .map((line) => {
+      const uri = line.trim();
+      if (!uri || uri.startsWith('#')) return line;
+
+      let resolved: URL;
+      try {
+        resolved = new URL(uri, proxyOrigin);
+      } catch {
+        return line;
+      }
+      if (resolved.origin !== proxyOrigin || !resolved.pathname.toLowerCase().endsWith('.image')) {
+        return line;
+      }
+
+      const queryIndex = uri.search(/[?#]/);
+      const aliasIndex = queryIndex === -1 ? uri.length : queryIndex;
+      const leadingWhitespace = line.slice(0, line.indexOf(uri));
+      const trailingWhitespace = line.slice(leadingWhitespace.length + uri.length);
+      return `${leadingWhitespace}${uri.slice(0, aliasIndex)}${TS_SEGMENT_ALIAS_SUFFIX}${uri.slice(aliasIndex)}${trailingWhitespace}`;
+    })
+    .join('');
+}
+
+function removeTsSegmentAlias(url: URL): void {
+  if (url.pathname.endsWith(TS_SEGMENT_ALIAS_SUFFIX)) {
+    url.pathname = url.pathname.slice(0, -TS_SEGMENT_ALIAS_SUFFIX.length);
+  }
 }
 
 export interface StreamStripProxyOptions {
@@ -118,6 +153,7 @@ export function startStreamStripProxy(
     let upstreamUrl: URL;
     try {
       upstreamUrl = new URL(req.url ?? '/', options.upstreamOrigin());
+      removeTsSegmentAlias(upstreamUrl);
     } catch {
       res.writeHead(502).end();
       return;

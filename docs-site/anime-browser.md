@@ -246,7 +246,9 @@ probes the segment as a picture and playback dies with "no audio or video data
 played". The proxy scans each segment for the first genuine MPEG-TS packet run
 and drops whatever junk sits in front of it. Segments that are not TS (fMP4,
 subtitles, encryption keys) pass through untouched, and direct-file streams
-skip the proxy entirely.
+skip the proxy entirely. Disguised `.image` segment URLs are exposed locally
+with a `.ts` suffix so current ffmpeg releases accept them when Anki extracts
+audio, screenshots, or animated images from the playing stream.
 
 "Playing" in the status bar means playing: after handing mpv the stream,
 SubMiner waits until mpv actually configures a video output before reporting

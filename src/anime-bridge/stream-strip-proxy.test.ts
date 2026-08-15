@@ -6,6 +6,7 @@ import {
   findTsSyncOffset,
   rewritePlaylistOrigins,
   startStreamStripProxy,
+  TS_SEGMENT_ALIAS_SUFFIX,
   TS_PACKET_LENGTH,
 } from './stream-strip-proxy';
 
@@ -58,6 +59,25 @@ test('rewritePlaylistOrigins swaps absolute upstream URLs and keeps relative lin
   assert.ok(rewritten.includes('http://127.0.0.1:9999/video/bbb.ts'));
   assert.ok(rewritten.includes('\n/video/aaa.ts\n'));
   assert.ok(!rewritten.includes('41569'));
+});
+
+test('rewritePlaylistOrigins gives proxied image segments an ffmpeg-safe TS suffix', () => {
+  const body = [
+    '#EXTM3U',
+    '#EXTINF:6.006,',
+    '/video/relative.image?token=one',
+    '#EXTINF:4.463,',
+    'http://127.0.0.1:41569/video/absolute.image',
+    '#EXTINF:3,',
+    'https://cdn.example/video/external.image',
+  ].join('\n');
+  const rewritten = rewritePlaylistOrigins(body, 'http://127.0.0.1:41569', 'http://127.0.0.1:9999');
+
+  assert.ok(rewritten.includes(`/video/relative.image${TS_SEGMENT_ALIAS_SUFFIX}?token=one`));
+  assert.ok(
+    rewritten.includes(`http://127.0.0.1:9999/video/absolute.image${TS_SEGMENT_ALIAS_SUFFIX}`),
+  );
+  assert.ok(rewritten.includes('https://cdn.example/video/external.image'));
 });
 
 /* ---------- proxy end-to-end ---------- */
@@ -154,6 +174,32 @@ test('proxy rewrites absolute upstream playlist entries to its own origin', asyn
       const text = body.toString('utf8');
       assert.ok(text.includes(`${proxyOrigin}/video/abs.ts`));
       assert.ok(!text.includes(upstreamOrigin));
+    },
+  );
+});
+
+test('proxy aliases image segment URLs and removes the alias before fetching upstream', async () => {
+  const ts = makeTsPackets(8);
+  const disguised = Buffer.concat([PNG_HEADER, ts]);
+  await withProxy(
+    {
+      '/video/list.m3u8': {
+        status: 200,
+        contentType: 'application/vnd.apple.mpegurl',
+        body: Buffer.from('#EXTM3U\n#EXTINF:6,\n/video/seg.image\n'),
+      },
+      '/video/seg.image': { status: 200, contentType: 'image/png', body: disguised },
+    },
+    async (proxyOrigin) => {
+      const playlist = await fetch(`${proxyOrigin}/video/list.m3u8`).then((response) =>
+        response.text(),
+      );
+      const segmentPath = playlist.split('\n').find((line) => line.startsWith('/video/'));
+      assert.equal(segmentPath, `/video/seg.image${TS_SEGMENT_ALIAS_SUFFIX}`);
+
+      const { status, body } = await fetchBytes(`${proxyOrigin}${segmentPath}`);
+      assert.equal(status, 200);
+      assert.deepEqual(body, ts);
     },
   );
 });
