@@ -238,7 +238,7 @@ export interface SubtitleSidebarSnapshot {
 }
 
 export interface SubtitleMiningContext {
-  source: 'subtitle-sidebar';
+  source: 'subtitle-sidebar' | 'overlay';
   text: string;
   startTime: number;
   endTime: number;

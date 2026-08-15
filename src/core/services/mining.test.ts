@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  captureLiveSubtitleMiningContext,
   copyCurrentSubtitle,
   handleMineSentenceDigit,
   handleMultiCopyDigit,
@@ -344,4 +345,47 @@ test('handleMineSentenceDigit joins per-entry secondary subtitles when available
   } finally {
     tracker.destroy();
   }
+});
+
+test('captureLiveSubtitleMiningContext snapshots the current line and timings', () => {
+  const context = captureLiveSubtitleMiningContext(
+    { currentSubText: ' 食べる ', currentSubStart: 12.5, currentSubEnd: 15.25 },
+    () => 1234,
+  );
+
+  assert.deepEqual(context, {
+    source: 'overlay',
+    text: '食べる',
+    startTime: 12.5,
+    endTime: 15.25,
+    capturedAtMs: 1234,
+  });
+});
+
+test('captureLiveSubtitleMiningContext rejects missing client, empty text and bad timings', () => {
+  assert.equal(captureLiveSubtitleMiningContext(null), null);
+  assert.equal(
+    captureLiveSubtitleMiningContext({
+      currentSubText: '  ',
+      currentSubStart: 1,
+      currentSubEnd: 2,
+    }),
+    null,
+  );
+  assert.equal(
+    captureLiveSubtitleMiningContext({
+      currentSubText: 'line',
+      currentSubStart: 5,
+      currentSubEnd: 5,
+    }),
+    null,
+  );
+  assert.equal(
+    captureLiveSubtitleMiningContext({
+      currentSubText: 'line',
+      currentSubStart: NaN,
+      currentSubEnd: 2,
+    }),
+    null,
+  );
 });

@@ -1,4 +1,5 @@
 import type { SubtitleTimingBlock } from '../../subtitle-timing-tracker';
+import type { SubtitleMiningContext } from '../../types/subtitle';
 
 interface SubtitleTimingTrackerLike {
   getRecentBlocks: (count: number) => string[];
@@ -52,6 +53,27 @@ export function handleMultiCopyDigit(
   } else {
     deps.showMpvOsd(`Copied ${actualCount} lines`);
   }
+}
+
+/**
+ * Snapshot the live mpv subtitle line and its timings as a mining context. Media
+ * generation can run tens of seconds after the user mines (slow audio extraction),
+ * so anything that reads `currentSubStart`/`currentSubEnd` lazily clips whichever
+ * line is on screen by then; callers capture here at mining time instead.
+ */
+export function captureLiveSubtitleMiningContext(
+  client: Pick<MpvClientLike, 'currentSubText' | 'currentSubStart' | 'currentSubEnd'> | null,
+  now: () => number = Date.now,
+): SubtitleMiningContext | null {
+  if (!client) {
+    return null;
+  }
+  const text = client.currentSubText?.trim();
+  const { currentSubStart: startTime, currentSubEnd: endTime } = client;
+  if (!text || !Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) {
+    return null;
+  }
+  return { source: 'overlay', text, startTime, endTime, capturedAtMs: now() };
 }
 
 export function copyCurrentSubtitle(deps: {

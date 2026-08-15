@@ -87,6 +87,7 @@ export interface NoteUpdateWorkflowDeps {
   ) => Promise<Buffer | null>;
   formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
   consumeSubtitleMiningContext?: () => SubtitleMiningContext | null;
+  captureSubtitleMediaContext?: () => SubtitleMiningContext | null;
   queuePendingYoutubeMediaUpdate?: (job: {
     noteId: number;
     noteInfo: NoteUpdateWorkflowNoteInfo;
@@ -203,6 +204,11 @@ export class NoteUpdateWorkflow {
         sentenceField,
         config.fields?.sentence,
       );
+      // Audio and image generation run sequentially and audio extraction can take tens of
+      // seconds, so resolve the clip range exactly once up front; reading live mpv sub
+      // timings per generator clips whichever line is on screen when each one starts.
+      const mediaTimingContext =
+        subtitleMiningContext ?? this.deps.captureSubtitleMediaContext?.() ?? null;
       const noteLabel = hasExpressionText ? expressionText : noteId;
 
       const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
@@ -240,7 +246,7 @@ export class NoteUpdateWorkflow {
           ? await this.deps.queuePendingYoutubeMediaUpdate({
               noteId,
               noteInfo,
-              context: subtitleMiningContext ?? undefined,
+              context: mediaTimingContext ?? undefined,
               label: noteLabel,
             })
           : false;
@@ -248,7 +254,7 @@ export class NoteUpdateWorkflow {
       if (!mediaCacheQueued && generateAudio) {
         try {
           const audioFilename = this.deps.generateAudioFilename();
-          const audioBuffer = await this.deps.generateAudio(subtitleMiningContext ?? undefined);
+          const audioBuffer = await this.deps.generateAudio(mediaTimingContext ?? undefined);
 
           if (audioBuffer) {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
@@ -276,7 +282,7 @@ export class NoteUpdateWorkflow {
           const imageFilename = this.deps.generateImageFilename();
           const imageBuffer = await this.deps.generateImage(
             animatedLeadInSeconds,
-            subtitleMiningContext ?? undefined,
+            mediaTimingContext ?? undefined,
           );
 
           if (imageBuffer) {
@@ -308,7 +314,7 @@ export class NoteUpdateWorkflow {
       if (!mediaCacheQueued && config.fields?.miscInfo) {
         const miscInfo = this.deps.formatMiscInfoPattern(
           miscInfoFilename || '',
-          subtitleMiningContext?.startTime ?? this.deps.getCurrentSubtitleStart(),
+          mediaTimingContext?.startTime ?? this.deps.getCurrentSubtitleStart(),
         );
         const miscInfoField = this.deps.resolveConfiguredFieldName(
           noteInfo,

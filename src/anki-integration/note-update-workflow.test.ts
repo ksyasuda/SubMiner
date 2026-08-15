@@ -472,6 +472,71 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   assert.equal(miscInfoStartTime, 10);
 });
 
+test('NoteUpdateWorkflow snapshots one media range for audio and image without a mining context', async () => {
+  const harness = createWorkflowHarness();
+  const capturedContext: SubtitleMiningContext = {
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 31.5,
+    endTime: 34.25,
+  };
+  let captureCalls = 0;
+  let audioContext: SubtitleMiningContext | null = null;
+  let imageContext: SubtitleMiningContext | null = null;
+  let miscInfoStartTime: number | undefined;
+
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          SentenceAudio: { value: '' },
+          Picture: { value: '' },
+          MiscInfo: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Sentence',
+      image: 'Picture',
+      miscInfo: 'MiscInfo',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: true,
+      imageType: 'avif',
+    },
+    behavior: {},
+  });
+  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
+  harness.deps.captureSubtitleMediaContext = () => {
+    captureCalls += 1;
+    return capturedContext;
+  };
+  harness.deps.generateAudio = async (context?: SubtitleMiningContext) => {
+    audioContext = context ?? null;
+    return Buffer.from('audio');
+  };
+  harness.deps.generateImage = async (_leadInSeconds?: number, context?: SubtitleMiningContext) => {
+    imageContext = context ?? null;
+    return Buffer.from('image');
+  };
+  harness.deps.formatMiscInfoPattern = (_fallbackFilename, startTimeSeconds) => {
+    miscInfoStartTime = startTimeSeconds;
+    return `start:${startTimeSeconds}`;
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.equal(captureCalls, 1);
+  assert.deepEqual(audioContext, capturedContext);
+  assert.deepEqual(imageContext, capturedContext);
+  assert.equal(miscInfoStartTime, 31.5);
+});
+
 test('NoteUpdateWorkflow queues media updates when YouTube cache is pending', async () => {
   const harness = createWorkflowHarness();
   const queuedUpdates: Array<{
