@@ -899,8 +899,11 @@ function setupDragDropToMpvQueue(): void {
     if (!event.dataTransfer) return;
     event.preventDefault();
 
-    const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer);
-    const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer);
+    const resolvedFilePaths = Array.from(event.dataTransfer.files, (file) =>
+      window.electronAPI.getPathForFile(file),
+    );
+    const droppedVideoPaths = collectDroppedVideoPaths(event.dataTransfer, resolvedFilePaths);
+    const droppedSubtitlePaths = collectDroppedSubtitlePaths(event.dataTransfer, resolvedFilePaths);
     const appendDroppedVideos = event.shiftKey;
     const loadCommands = buildMpvLoadfileCommands(droppedVideoPaths, appendDroppedVideos);
     const subtitleCommands = buildMpvSubtitleAddCommands(droppedSubtitlePaths);

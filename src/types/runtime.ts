@@ -425,6 +425,7 @@ export interface SessionNumericSelectionStartPayload {
 
 export interface ElectronAPI {
   getOverlayLayer: () => 'visible' | 'modal' | null;
+  getPathForFile: (file: File) => string;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
   onOverlayPointerRecoveryRequested: (callback: () => void) => void;
   onOverlayNotification: (callback: (payload: OverlayNotificationEventPayload) => void) => void;
