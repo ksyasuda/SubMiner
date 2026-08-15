@@ -30,6 +30,16 @@ test('collectDroppedVideoPaths keeps supported dropped file paths in order', () 
   assert.deepEqual(result, ['/videos/ep02.mkv', '/videos/ep03.MP4']);
 });
 
+test('collectDroppedVideoPaths accepts paths resolved from standard Web File objects', () => {
+  const transfer = makeTransfer({
+    files: [{ name: 'ep02.mkv' }, { name: 'notes.txt' }],
+  });
+
+  const result = collectDroppedVideoPaths(transfer, ['/videos/ep02.mkv', '/videos/notes.txt']);
+
+  assert.deepEqual(result, ['/videos/ep02.mkv']);
+});
+
 test('collectDroppedVideoPaths parses text/uri-list entries and de-duplicates', () => {
   const transfer = makeTransfer({
     getData: (format: string) =>
