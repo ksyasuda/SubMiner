@@ -307,10 +307,13 @@ function toStoredSeenSeconds(ms: number | null): number | null {
  * Apply a removal plan to the vocabulary aggregates.
  *
  * Frequencies are adjusted by subtraction, which is exact and touches only the
- * affected rows. `first_seen`/`last_seen` only need a rescan when the removed
- * lines held the current extreme, and rows whose frequency reaches zero are
- * verified against the surviving occurrences before deletion — so stored counts
- * that have drifted still converge on the truth instead of dropping a live row.
+ * affected rows. When the removed lines held a `first_seen`/`last_seen`
+ * extreme, the new extremes come from MIN/MAX index-endpoint seeks on the
+ * occurrence covering index — never a re-aggregation of every occurrence, which
+ * for common particles means scanning the whole library. The full re-aggregate
+ * survives only as the repair path: rows whose stored frequency reaches zero
+ * while occurrences remain (drift), and rows with undated pre-migration
+ * occurrences the seeks would skip.
  */
 export function applyLexicalRemovals(db: DatabaseSync, plan: LexicalRemovalPlan): void {
   applyRemovalsForEntity(db, 'word', plan.words);
@@ -339,6 +342,21 @@ function applyRemovalsForEntity(
     `SELECT 1 AS found FROM ${occurrenceTable} WHERE ${col} = ? LIMIT 1`,
   );
   const deleteStmt = db.prepare(`DELETE FROM ${entityTable} WHERE id = ?`);
+  // Seeks to the front of this entity's index range, where NULL seen_ms sorts.
+  const hasUndatedOccurrenceStmt = db.prepare(
+    `SELECT 1 AS found FROM ${occurrenceTable} WHERE ${col} = ? AND seen_ms IS NULL LIMIT 1`,
+  );
+  // Kept as separate single-aggregate statements so SQLite's min/max
+  // optimization turns each into an index-endpoint seek instead of a scan.
+  const minSeenStmt = db.prepare(
+    `SELECT MIN(seen_ms) AS value FROM ${occurrenceTable} WHERE ${col} = ?`,
+  );
+  const maxSeenStmt = db.prepare(
+    `SELECT MAX(seen_ms) AS value FROM ${occurrenceTable} WHERE ${col} = ?`,
+  );
+  const updateAggregatesStmt = db.prepare(
+    `UPDATE ${entityTable} SET frequency = ?, first_seen = ?, last_seen = ? WHERE id = ?`,
+  );
 
   const needsExactRefresh: number[] = [];
 
@@ -371,7 +389,26 @@ function applyRemovalsForEntity(
       current.lastSeen === null ||
       (removedLastSeen !== null && removedLastSeen >= current.lastSeen);
     if (firstSeenMayHaveMoved || lastSeenMayHaveMoved) {
-      needsExactRefresh.push(removal.id);
+      // Undated pre-migration occurrences are invisible to the seeks below;
+      // fall back to the full re-aggregate that resolves their dates.
+      if (hasUndatedOccurrenceStmt.get(removal.id)) {
+        needsExactRefresh.push(removal.id);
+        continue;
+      }
+      const minSeenMs = (minSeenStmt.get(removal.id) as { value: number | null }).value;
+      const maxSeenMs = (maxSeenStmt.get(removal.id) as { value: number | null }).value;
+      if (minSeenMs === null || maxSeenMs === null) {
+        // Frequency says occurrences remain but none exist: stale row, let the
+        // exact refresh reconcile (it deletes rows with nothing left).
+        needsExactRefresh.push(removal.id);
+        continue;
+      }
+      updateAggregatesStmt.run(
+        nextFrequency,
+        Math.floor(Number(minSeenMs) / 1000),
+        Math.floor(Number(maxSeenMs) / 1000),
+        removal.id,
+      );
       continue;
     }
 

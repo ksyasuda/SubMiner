@@ -29,6 +29,7 @@ export interface AnimeSeasonRepairSummary {
   mergeRecommended: boolean;
   /** True when automatic metadata must not assign the colliding AniList id. */
   anilistAssignmentBlocked: boolean;
+  affectedAnimeIds: number[];
 }
 
 export interface AnimeAnilistConflictOptions extends AnimeConflictRecommendationOptions {
@@ -79,6 +80,7 @@ function emptySummary(scanned = 0): AnimeSeasonRepairSummary {
     survivingAnimeId: null,
     mergeRecommended: false,
     anilistAssignmentBlocked: false,
+    affectedAnimeIds: [],
   };
 }
 
@@ -93,6 +95,7 @@ function mergeSummary(
   target.survivingAnimeId = source.survivingAnimeId ?? target.survivingAnimeId;
   target.mergeRecommended ||= source.mergeRecommended;
   target.anilistAssignmentBlocked ||= source.anilistAssignmentBlocked;
+  target.affectedAnimeIds = [...new Set([...target.affectedAnimeIds, ...source.affectedAnimeIds])];
   return target;
 }
 
@@ -231,6 +234,7 @@ function redistributeAnimeRowByParsedSeasonsInTransaction(
 
   const videos = getParsedVideos(db, animeId);
   const summary = emptySummary(1);
+  summary.affectedAnimeIds.push(animeId);
   const updatedAt = toDbTimestamp(nowMs());
   const targetBySeason = new Map<number, number>();
 
@@ -283,6 +287,9 @@ function redistributeAnimeRowByParsedSeasonsInTransaction(
 
     if (videoUpdate.changes > 0 || lineUpdate.changes > 0) {
       summary.movedVideos += 1;
+      if (!summary.affectedAnimeIds.includes(targetAnimeId)) {
+        summary.affectedAnimeIds.push(targetAnimeId);
+      }
     }
   }
 
@@ -425,6 +432,7 @@ export function resolveAnimeAnilistConflict(
         // Only reported once a row really absorbed the other, so callers never
         // follow this to an anime id that was never written.
         summary.survivingAnimeId = survivingAnimeId;
+        summary.affectedAnimeIds.push(survivingAnimeId, absorbedAnimeId);
       }
       // Lifetime summaries are rebuilt by the caller off this summary, the same
       // as the redistribution path below.

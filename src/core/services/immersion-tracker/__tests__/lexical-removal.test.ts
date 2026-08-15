@@ -329,3 +329,28 @@ test('upgrading an older database backfills seen_ms from the subtitle lines', ()
     cleanupDbPath(dbPath);
   }
 });
+
+test('an extreme-moving delete keeps subtraction-exact frequency instead of re-summing', () => {
+  const { db, dbPath } = createDb([
+    { session: 1, wordId: 7, dayOffset: 0, count: 2 },
+    { session: 2, wordId: 7, dayOffset: 3, count: 1 },
+  ]);
+
+  try {
+    // Simulate drift: the stored total is higher than the occurrences justify.
+    // The extremes move via index seeks while the count stays a pure
+    // subtraction; drifted counts reconcile only at the zero-crossing repair
+    // or via the cleanup command, never by rescanning every occurrence here.
+    db.prepare('UPDATE imm_words SET frequency = 10 WHERE id = 7').run();
+
+    deleteSession(db, 1);
+
+    const word = readWord(db, 7);
+    assert.equal(word?.frequency, 10 - 2);
+    assert.equal(word?.firstSeen, Math.floor((BASE_MS + 3 * DAY_MS) / 1000));
+    assert.equal(word?.lastSeen, Math.floor((BASE_MS + 3 * DAY_MS) / 1000));
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});

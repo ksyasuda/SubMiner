@@ -2,22 +2,20 @@ import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
 import {
-  recomputeLifetimeAnimeAggregates,
-  rebuildLifetimeSummariesInTransaction,
+  recomputeLifetimeAnimeFromMedia,
+  recomputeLifetimeGlobalFromSummaries,
+  repairLifetimeSummariesFromMedia,
+  shouldBackfillLifetimeSummaries,
 } from './lifetime';
-import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import { nowMs } from './time';
 import { resolveAnimeAnilistConflict } from './anime-season-repair';
+import { deleteMaintenanceBatch } from './query-delete-maintenance';
 import { PartOfSpeech, type MergedToken } from '../../../types';
 import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import { deriveStoredPartOfSpeech } from '../tokenizer/part-of-speech';
 import {
-  applyLexicalRemovals,
   cleanupUnusedCoverArtBlobHash,
-  deleteSessionsByIds,
   findSharedCoverBlobHash,
-  planLexicalRemovalsForSessions,
-  planLexicalRemovalsForVideos,
   toDbMs,
   toDbTimestamp,
 } from './query-shared';
@@ -462,8 +460,14 @@ export function updateAnimeAnilistInfo(
     toDbTimestamp(nowMs()),
     targetRow.anime_id,
   );
-  if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-    recomputeLifetimeAnimeAggregates(db);
+  if (shouldBackfillLifetimeSummaries(db)) {
+    repairLifetimeSummariesFromMedia(db);
+  } else {
+    const affectedAnimeIds = new Set(repair.affectedAnimeIds);
+    affectedAnimeIds.add(row.anime_id);
+    affectedAnimeIds.add(targetRow.anime_id);
+    recomputeLifetimeAnimeFromMedia(db, [...affectedAnimeIds]);
+    recomputeLifetimeGlobalFromSummaries(db);
   }
 }
 
@@ -490,136 +494,22 @@ export function isVideoWatched(db: DatabaseSync, videoId: number): boolean {
 }
 
 export function deleteSession(db: DatabaseSync, sessionId: number): void {
-  const sessionIds = [sessionId];
-
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    // Measured inside the write lock: the plan records what the delete removes,
-    // and applying a plan taken against a different snapshot would subtract the
-    // wrong totals from imm_words/imm_kanji.
-    const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
-    const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
-    deleteSessionsByIds(db, sessionIds);
-    applyLexicalRemovals(db, lexicalRemovals);
-    rebuildLifetimeSummariesInTransaction(db);
-    refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  deleteMaintenanceBatch(db, [{ kind: 'session', sessionId }]);
 }
 
 export function deleteSessions(db: DatabaseSync, sessionIds: number[]): void {
   if (sessionIds.length === 0) return;
-
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const lexicalRemovals = planLexicalRemovalsForSessions(db, sessionIds);
-    const affectedRollupGroups = getRollupGroupsForSessions(db, sessionIds);
-    deleteSessionsByIds(db, sessionIds);
-    applyLexicalRemovals(db, lexicalRemovals);
-    rebuildLifetimeSummariesInTransaction(db);
-    refreshRollupsForGroupsInTransaction(db, affectedRollupGroups);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  deleteMaintenanceBatch(db, [{ kind: 'sessions', sessionIds }]);
 }
 
 /**
  * Delete an entire library entry: every episode of the anime, all of their
  * sessions and derived stats, and the anime row itself.
- *
- * Mirrors {@link deleteVideo} per episode, but batches the lexical refresh and
- * lifetime rebuild into a single transaction so a multi-episode title doesn't
- * pay for one full rebuild per episode.
  */
 export function deleteAnime(db: DatabaseSync, animeId: number): void {
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const videoIds = (
-      db.prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?').all(animeId) as Array<{
-        video_id: number;
-      }>
-    ).map((row) => row.video_id);
-
-    const lexicalRemovals = planLexicalRemovalsForVideos(db, videoIds);
-    const coverBlobHashes: string[] = [];
-    const sessionIds: number[] = [];
-    for (const videoId of videoIds) {
-      const artRow = db
-        .prepare('SELECT cover_blob_hash AS coverBlobHash FROM imm_media_art WHERE video_id = ?')
-        .get(videoId) as { coverBlobHash: string | null } | undefined;
-      if (artRow?.coverBlobHash) {
-        coverBlobHashes.push(artRow.coverBlobHash);
-      }
-      const sessions = db
-        .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
-        .all(videoId) as Array<{ session_id: number }>;
-      sessionIds.push(...sessions.map((session) => session.session_id));
-    }
-
-    deleteSessionsByIds(db, sessionIds);
-    const deleteLinesStmt = db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?');
-    const deleteDailyStmt = db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?');
-    const deleteMonthlyStmt = db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?');
-    const deleteArtStmt = db.prepare('DELETE FROM imm_media_art WHERE video_id = ?');
-    const deleteVideoStmt = db.prepare('DELETE FROM imm_videos WHERE video_id = ?');
-    for (const videoId of videoIds) {
-      deleteLinesStmt.run(videoId);
-      deleteDailyStmt.run(videoId);
-      deleteMonthlyStmt.run(videoId);
-      deleteArtStmt.run(videoId);
-      deleteVideoStmt.run(videoId);
-    }
-    for (const coverBlobHash of new Set(coverBlobHashes)) {
-      cleanupUnusedCoverArtBlobHash(db, coverBlobHash);
-    }
-    db.prepare('DELETE FROM imm_lifetime_anime WHERE anime_id = ?').run(animeId);
-    db.prepare('DELETE FROM imm_anime WHERE anime_id = ?').run(animeId);
-    applyLexicalRemovals(db, lexicalRemovals);
-    rebuildLifetimeSummariesInTransaction(db);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  deleteMaintenanceBatch(db, [{ kind: 'anime', animeId }]);
 }
 
 export function deleteVideo(db: DatabaseSync, videoId: number): void {
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const artRow = db
-      .prepare(
-        `
-        SELECT cover_blob_hash AS coverBlobHash
-        FROM imm_media_art
-        WHERE video_id = ?
-      `,
-      )
-      .get(videoId) as { coverBlobHash: string | null } | undefined;
-    const lexicalRemovals = planLexicalRemovalsForVideos(db, [videoId]);
-    const sessions = db
-      .prepare('SELECT session_id FROM imm_sessions WHERE video_id = ?')
-      .all(videoId) as Array<{ session_id: number }>;
-
-    deleteSessionsByIds(
-      db,
-      sessions.map((session) => session.session_id),
-    );
-    db.prepare('DELETE FROM imm_subtitle_lines WHERE video_id = ?').run(videoId);
-    db.prepare('DELETE FROM imm_daily_rollups WHERE video_id = ?').run(videoId);
-    db.prepare('DELETE FROM imm_monthly_rollups WHERE video_id = ?').run(videoId);
-    db.prepare('DELETE FROM imm_media_art WHERE video_id = ?').run(videoId);
-    cleanupUnusedCoverArtBlobHash(db, artRow?.coverBlobHash ?? null);
-    db.prepare('DELETE FROM imm_videos WHERE video_id = ?').run(videoId);
-    applyLexicalRemovals(db, lexicalRemovals);
-    rebuildLifetimeSummariesInTransaction(db);
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  deleteMaintenanceBatch(db, [{ kind: 'video', videoId }]);
 }

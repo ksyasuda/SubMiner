@@ -31,7 +31,13 @@ interface DeleteMaintenanceWorkerRuntimeOptions {
 }
 
 export function resolveDeleteMaintenanceWorkerPath(): string | null {
-  const workerPath = path.join(__dirname, 'delete-maintenance-worker-thread.js');
+  // When the process runs TypeScript directly (Bun from source), the emitted
+  // .js sibling doesn't exist — spawn the .ts module instead, which such
+  // runtimes transpile for workers too. Compiled layouts keep using the .js.
+  const fileName = __filename.endsWith('.ts')
+    ? 'delete-maintenance-worker-thread.ts'
+    : 'delete-maintenance-worker-thread.js';
+  const workerPath = path.join(__dirname, fileName);
   return fs.existsSync(workerPath) ? workerPath : null;
 }
 
@@ -76,38 +82,61 @@ export class DeleteMaintenanceWorkerRuntime {
       throw new Error('Delete maintenance worker is shut down');
     }
 
-    await new Promise<void>((resolve, reject) => {
+    type WorkerOutcome =
+      | { kind: 'ok' }
+      | { kind: 'task-error'; detail: string }
+      | { kind: 'worker-failure'; error: Error };
+
+    const outcome = await new Promise<WorkerOutcome>((resolve) => {
       let settled = false;
       this.activeWorkers.add(worker);
 
-      const settle = (error?: Error) => {
+      const settle = (result: WorkerOutcome) => {
         if (settled) return;
         settled = true;
         this.activeWorkers.delete(worker);
-        if (error) reject(error);
-        else resolve();
+        resolve(result);
         void worker.terminate();
       };
 
       worker.once('message', (message: DeleteMaintenanceWorkerResponse) => {
         if (message.ok === true) {
-          settle();
+          settle({ kind: 'ok' });
           return;
         }
         const detail = typeof message.error === 'string' ? message.error : 'unknown worker error';
-        settle(new Error(`Delete maintenance failed: ${detail}`));
+        settle({ kind: 'task-error', detail });
       });
-      worker.once('error', (error) => settle(error));
+      worker.once('error', (error) => settle({ kind: 'worker-failure', error }));
       worker.once('exit', (code) => {
-        settle(
-          new Error(
+        settle({
+          kind: 'worker-failure',
+          error: new Error(
             code === 0
               ? 'Delete maintenance worker exited without a response'
               : `Delete maintenance worker exited with code ${code}`,
           ),
-        );
+        });
       });
     });
+
+    if (outcome.kind === 'ok') return;
+    // The maintenance itself failed inside the worker — rerunning it on this
+    // thread would hit the same error, so surface it instead.
+    if (outcome.kind === 'task-error') {
+      throw new Error(`Delete maintenance failed: ${outcome.detail}`);
+    }
+    if (this.destroyed) {
+      throw new Error('Delete maintenance worker is shut down');
+    }
+    // The worker died without reporting a result (failed to load, crashed).
+    // Its transaction rolled back with its connection, and a rerun re-plans
+    // against the current rows, so falling back on this thread is safe.
+    (this.options.warn ?? logger.warn)(
+      'Delete maintenance worker failed; running maintenance on the current thread',
+      outcome.error,
+    );
+    (this.options.executeFallback ?? executeDeleteMaintenanceTask)(dbPath, task);
   }
 
   destroy(): void {

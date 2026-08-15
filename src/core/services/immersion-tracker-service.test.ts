@@ -4015,6 +4015,8 @@ test('reassignAnimeAnilist redistributes conflicting legacy combined row before 
         (3, 1, 3000, 0, '5000', '6000', 5000, 6000);
     `);
 
+    await tracker.rebuildLifetimeSummaries();
+
     await tracker.reassignAnimeAnilist(2, {
       anilistId: 21202,
       titleRomaji: 'Kono Subarashii Sekai ni Shukufuku wo!',
