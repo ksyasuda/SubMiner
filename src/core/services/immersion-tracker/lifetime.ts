@@ -1112,6 +1112,43 @@ export interface LifetimeRepairSummary {
 }
 
 /**
+ * Refresh every anime aggregate from the durable media ledger while the caller
+ * holds a write transaction. This keeps merge and move operations atomic.
+ */
+export function recomputeLifetimeAnimeAggregatesInTransaction(db: DatabaseSync): void {
+  const animeIds = new Set<number>();
+  for (const row of db
+    .prepare('SELECT DISTINCT anime_id AS animeId FROM imm_videos WHERE anime_id IS NOT NULL')
+    .all() as Array<{ animeId: number }>) {
+    animeIds.add(row.animeId);
+  }
+  for (const row of db
+    .prepare('SELECT anime_id AS animeId FROM imm_lifetime_anime')
+    .all() as Array<{ animeId: number }>) {
+    animeIds.add(row.animeId);
+  }
+  const updatedAtMs = toDbTimestamp(nowMs());
+  recomputeLifetimeAnimeFromMedia(db, [...animeIds], updatedAtMs);
+  // Moving attribution cannot change global totals. Recompute only the one
+  // global metric that depends on per-anime ownership, preserving history that
+  // may outlive the raw sessions and media rows available for aggregation.
+  db.prepare(
+    `
+    UPDATE imm_lifetime_global
+    SET anime_completed = (
+      SELECT COUNT(*)
+      FROM imm_lifetime_anime la
+      JOIN imm_anime a ON a.anime_id = la.anime_id
+      WHERE a.episodes_total IS NOT NULL
+        AND a.episodes_total > 0
+        AND la.episodes_completed >= a.episodes_total
+    ), LAST_UPDATE_DATE = ?
+    WHERE global_id = 1
+    `,
+  ).run(updatedAtMs);
+}
+
+/**
  * Non-destructive lifetime repair: recompute every anime row and the global row
  * from the per-video media ledger.
  *
