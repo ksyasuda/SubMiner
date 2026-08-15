@@ -2075,7 +2075,13 @@ export class ImmersionTrackerService {
         const animeId =
           getManualAnimeAssignment(this.db, videoId) ??
           (mediaPath && !isRemoteSource(mediaPath)
-            ? findManualDirectoryAnimeAssignment(this.db, videoId, mediaPath, parsed.parsedSeason)
+            ? findManualDirectoryAnimeAssignment(
+                this.db,
+                videoId,
+                mediaPath,
+                parsed.parsedTitle,
+                parsed.parsedSeason,
+              )
             : null) ??
           getOrCreateAnimeRecord(this.db, {
             parsedTitle: parsed.parsedTitle,

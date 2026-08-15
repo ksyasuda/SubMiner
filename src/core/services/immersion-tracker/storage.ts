@@ -699,14 +699,28 @@ export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): num
 
 /**
  * A manual correction in the same folder is a useful grouping hint, but only
- * when every season-compatible correction agrees on the destination.
+ * when every season-compatible correction agrees on the destination and the
+ * new file's parsed title has no established identity of its own. Stray
+ * per-episode titles (an episode name parsed as the series) have no library
+ * entry, so they follow the correction; a clean parse of a show that already
+ * owns an entry or alias keeps that identity instead of being captured by a
+ * neighbor's correction in a mixed folder (a flat downloads directory).
  */
 export function findManualDirectoryAnimeAssignment(
   db: DatabaseSync,
   videoId: number,
   mediaPath: string,
+  parsedTitle: string | null,
   parsedSeason: number | null,
 ): number | null {
+  // Mirrors the identity key getOrCreateAnimeRecord would file this video
+  // under, so "established" means exactly "would have joined that entry".
+  const identityKey = normalizeAnimeIdentityKey(
+    buildSeasonScopedAnimeTitle(parsedTitle ?? '', normalizeSeasonScope(parsedSeason)),
+  );
+  if (!identityKey) {
+    return null;
+  }
   const directory = path.dirname(path.resolve(mediaPath));
   const rows = db
     .prepare(
@@ -741,7 +755,23 @@ export function findManualDirectoryAnimeAssignment(
       return null;
     }
   }
-  return candidates.values().next().value ?? null;
+  const candidate = candidates.values().next().value ?? null;
+  if (candidate === null) {
+    return null;
+  }
+  const established = (db
+    .prepare(
+      `
+        SELECT anime_id AS animeId FROM imm_anime WHERE normalized_title_key = ?
+        UNION ALL
+        SELECT anime_id AS animeId FROM imm_anime_title_aliases WHERE normalized_title_key = ?
+      `,
+    )
+    .get(identityKey, identityKey) ?? null) as { animeId: number } | null;
+  if (established && established.animeId !== candidate) {
+    return null;
+  }
+  return candidate;
 }
 
 export function linkYoutubeVideoToAnimeRecord(

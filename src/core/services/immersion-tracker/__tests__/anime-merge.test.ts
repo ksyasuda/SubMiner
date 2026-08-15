@@ -449,19 +449,30 @@ test('directory grouping requires one season-compatible manual destination', () 
 
     moveVideoToAnime(db, 1, 1);
 
-    assert.equal(findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 1), 1);
+    // 'Stray' has no library identity of its own once corrected, so it may
+    // inherit the neighbor's correction.
     assert.equal(
-      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S02E02.mkv', 2),
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 'Stray E02', 1),
+      1,
+    );
+    assert.equal(
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S02E02.mkv', 'Stray E02', 2),
       null,
     );
     assert.equal(
-      findManualDirectoryAnimeAssignment(db, 2, '/library/other/Stray S01E02.mkv', 1),
+      findManualDirectoryAnimeAssignment(db, 2, '/library/other/Stray S01E02.mkv', 'Stray E02', 1),
+      null,
+    );
+    // A clean parse of a show that already owns a library entry keeps that
+    // identity instead of being captured by the neighbor's correction.
+    assert.equal(
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Other E01.mkv', 'Other', null),
       null,
     );
 
     moveVideoToAnime(db, 3, 3);
     assert.equal(
-      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 1),
+      findManualDirectoryAnimeAssignment(db, 2, '/library/show/Stray S01E02.mkv', 'Stray E02', 1),
       null,
     );
   });
