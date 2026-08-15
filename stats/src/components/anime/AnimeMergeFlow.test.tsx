@@ -430,10 +430,10 @@ test('AnimeTab keeps the library visible through a transient background refresh 
     recommendations: [],
   })) as typeof apiClient.getAnimeMergeRecommendations;
 
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
   try {
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
     await act(async () => root.render(<AnimeTab />));
     assert.match(container.textContent ?? '', /Show Season 1/);
 
@@ -444,8 +444,8 @@ test('AnimeTab keeps the library visible through a transient background refresh 
     // whole tab (and any open dialog) with the error screen.
     assert.match(container.textContent ?? '', /Show Season 1/);
     assert.doesNotMatch(container.textContent ?? '', /Error:/);
-    await act(async () => root.unmount());
   } finally {
+    await act(async () => root.unmount());
     Object.assign(apiClient, original);
     uninstallDom();
   }
@@ -477,10 +477,10 @@ test('AnimeTab does not resurrect a dismissed recommendation from a stale in-fli
   apiClient.dismissAnimeMergeRecommendation =
     (async () => {}) as typeof apiClient.dismissAnimeMergeRecommendation;
 
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
   try {
-    const container = document.createElement('div');
-    document.body.append(container);
-    const root = createRoot(container);
     await act(async () => root.render(<AnimeTab />));
     assert.match(container.textContent ?? '', /Possible duplicate/);
 
@@ -496,8 +496,8 @@ test('AnimeTab does not resurrect a dismissed recommendation from a stale in-fli
     });
 
     assert.doesNotMatch(container.textContent ?? '', /Possible duplicate/);
-    await act(async () => root.unmount());
   } finally {
+    await act(async () => root.unmount());
     Object.assign(apiClient, original);
     uninstallDom();
   }
