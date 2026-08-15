@@ -414,3 +414,91 @@ test('AnimeTab keeps an open recommendation review stable during background refr
     uninstallDom();
   }
 });
+
+test('AnimeTab keeps the library visible through a transient background refresh failure', async () => {
+  const uninstallDom = installDom();
+  const original = {
+    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
+  };
+  let failLibrary = false;
+  apiClient.getAnimeLibrary = (async () => {
+    if (failLibrary) throw new Error('temporary failure');
+    return [libraryItem(1, 'Show', 2), libraryItem(2, 'Show Season 1', 1)];
+  }) as typeof apiClient.getAnimeLibrary;
+  apiClient.getAnimeMergeRecommendations = (async () => ({
+    recommendations: [],
+  })) as typeof apiClient.getAnimeMergeRecommendations;
+
+  try {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => root.render(<AnimeTab />));
+    assert.match(container.textContent ?? '', /Show Season 1/);
+
+    failLibrary = true;
+    await act(async () => window.dispatchEvent(new window.Event('focus')));
+
+    // A failed poll keeps the last confirmed library instead of replacing the
+    // whole tab (and any open dialog) with the error screen.
+    assert.match(container.textContent ?? '', /Show Season 1/);
+    assert.doesNotMatch(container.textContent ?? '', /Error:/);
+    await act(async () => root.unmount());
+  } finally {
+    Object.assign(apiClient, original);
+    uninstallDom();
+  }
+});
+
+test('AnimeTab does not resurrect a dismissed recommendation from a stale in-flight refresh', async () => {
+  const uninstallDom = installDom();
+  const original = {
+    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
+    dismissAnimeMergeRecommendation: apiClient.dismissAnimeMergeRecommendation,
+  };
+  const payload = {
+    recommendations: [{ recommendationId: 41, animeIds: [1, 2] as [number, number] }],
+  };
+  let holdNextFetch = false;
+  let releaseHeldFetch: (() => void) | null = null;
+  apiClient.getAnimeLibrary = (async () => [
+    libraryItem(1, 'Show', 2),
+    libraryItem(2, 'Show Season 1', 1),
+  ]) as typeof apiClient.getAnimeLibrary;
+  apiClient.getAnimeMergeRecommendations = ((): Promise<typeof payload> => {
+    if (!holdNextFetch) return Promise.resolve(payload);
+    holdNextFetch = false;
+    return new Promise((resolve) => {
+      releaseHeldFetch = () => resolve(payload);
+    });
+  }) as typeof apiClient.getAnimeMergeRecommendations;
+  apiClient.dismissAnimeMergeRecommendation =
+    (async () => {}) as typeof apiClient.dismissAnimeMergeRecommendation;
+
+  try {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => root.render(<AnimeTab />));
+    assert.match(container.textContent ?? '', /Possible duplicate/);
+
+    // Focus starts a refresh whose response is still in flight when the user
+    // dismisses; the stale payload must not bring the strip back.
+    holdNextFetch = true;
+    await act(async () => window.dispatchEvent(new window.Event('focus')));
+    await act(async () => findButton(container, 'Not duplicates').click());
+    assert.doesNotMatch(container.textContent ?? '', /Possible duplicate/);
+
+    await act(async () => {
+      releaseHeldFetch?.();
+    });
+
+    assert.doesNotMatch(container.textContent ?? '', /Possible duplicate/);
+    await act(async () => root.unmount());
+  } finally {
+    Object.assign(apiClient, original);
+    uninstallDom();
+  }
+});

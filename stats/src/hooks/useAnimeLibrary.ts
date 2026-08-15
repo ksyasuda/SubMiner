@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { getStatsClient } from './useStatsApi';
 import type { AnimeLibraryItem, StatsAnimeMergeRecommendation } from '../types/stats';
 
@@ -12,6 +12,14 @@ export function useAnimeLibrary() {
   const [dismissingRecommendationId, setDismissingRecommendationId] = useState<number | null>(null);
   const [recommendationActionError, setRecommendationActionError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  // Once the library has rendered, a failed background poll must not replace
+  // it with the error screen (and unmount any open dialog with it).
+  const hasLoadedRef = useRef(false);
+  // Ids dismissed or merged away locally. A recommendations response that was
+  // already in flight when the user acted would otherwise resurrect them.
+  // Dismissed and merged rows never return to pending server-side, so the set
+  // only ever suppresses genuinely stale data.
+  const removedRecommendationIdsRef = useRef<Set<number>>(new Set());
 
   const reload = useCallback(() => {
     setReloadToken((token) => token + 1);
@@ -24,12 +32,13 @@ export function useAnimeLibrary() {
       .getAnimeLibrary()
       .then((data) => {
         if (!cancelled) {
+          hasLoadedRef.current = true;
           setAnime(data);
           setError(null);
         }
       })
       .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled && !hasLoadedRef.current) setError(err.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -42,7 +51,11 @@ export function useAnimeLibrary() {
       .getAnimeMergeRecommendations()
       .then((data) => {
         if (!cancelled) {
-          setRecommendations(data.recommendations);
+          setRecommendations(
+            data.recommendations.filter(
+              (item) => !removedRecommendationIdsRef.current.has(item.recommendationId),
+            ),
+          );
           setRecommendationActionError(null);
         }
       })
@@ -70,6 +83,7 @@ export function useAnimeLibrary() {
     setRecommendationActionError(null);
     try {
       await getStatsClient().dismissAnimeMergeRecommendation(recommendationId);
+      removedRecommendationIdsRef.current.add(recommendationId);
       setRecommendations((current) =>
         current.filter((item) => item.recommendationId !== recommendationId),
       );
@@ -81,6 +95,7 @@ export function useAnimeLibrary() {
   }, []);
 
   const clearRecommendation = useCallback((recommendationId: number) => {
+    removedRecommendationIdsRef.current.add(recommendationId);
     setRecommendations((current) =>
       current.filter((item) => item.recommendationId !== recommendationId),
     );
