@@ -715,6 +715,37 @@ test('ensureSchema creates large-history performance indexes', () => {
   }
 });
 
+test('ensureSchema adds the subtitle event index to current-version databases', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.exec('DROP INDEX idx_subtitle_lines_event_id');
+
+    ensureSchema(db);
+
+    const indexes = db.prepare("PRAGMA index_list('imm_subtitle_lines')").all() as Array<{
+      name: string;
+      partial: number;
+    }>;
+    const eventIndex = indexes.find(({ name }) => name === 'idx_subtitle_lines_event_id');
+    assert.ok(eventIndex);
+    assert.equal(eventIndex.partial, 1);
+
+    const columns = db.prepare("PRAGMA index_info('idx_subtitle_lines_event_id')").all() as Array<{
+      name: string;
+    }>;
+    assert.deepEqual(
+      columns.map(({ name }) => name),
+      ['event_id'],
+    );
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('ensureSchema migrates legacy videos and backfills anime metadata from filenames', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
