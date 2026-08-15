@@ -93,18 +93,21 @@ export function parseClipboardVideoPath(text: string): string | null {
 
 export function collectDroppedVideoPaths(
   dataTransfer: DropDataTransferLike | null | undefined,
+  resolvedFilePaths: ArrayLike<string> = [],
 ): string[] {
-  return collectDroppedPaths(dataTransfer, isSupportedVideoPath);
+  return collectDroppedPaths(dataTransfer, resolvedFilePaths, isSupportedVideoPath);
 }
 
 export function collectDroppedSubtitlePaths(
   dataTransfer: DropDataTransferLike | null | undefined,
+  resolvedFilePaths: ArrayLike<string> = [],
 ): string[] {
-  return collectDroppedPaths(dataTransfer, isSupportedSubtitlePath);
+  return collectDroppedPaths(dataTransfer, resolvedFilePaths, isSupportedSubtitlePath);
 }
 
 function collectDroppedPaths(
   dataTransfer: DropDataTransferLike | null | undefined,
+  resolvedFilePaths: ArrayLike<string>,
   isSupportedPath: (pathValue: string) => boolean,
 ): string[] {
   if (!dataTransfer) return [];
@@ -124,6 +127,7 @@ function collectDroppedPaths(
     for (let i = 0; i < dataTransfer.files.length; i += 1) {
       const file = dataTransfer.files[i] as { path?: string } | undefined;
       addPath(file?.path);
+      addPath(resolvedFilePaths[i]);
     }
   }
 

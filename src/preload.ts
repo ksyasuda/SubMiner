@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import { resolveOverlayLayerFromArgv } from './preload-args';
 import type {
   SubtitleData,
@@ -248,6 +248,7 @@ const onSecondarySubtitleModeEvent = createLatestValueIpcListenerWithPayload<Sec
 
 const electronAPI: ElectronAPI = {
   getOverlayLayer: () => overlayLayer,
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   onSubtitle: (callback: (data: SubtitleData) => void) => {
     onSubtitleSetEvent(callback);
   },

@@ -53,6 +53,20 @@ test('collectDroppedSubtitlePaths keeps supported dropped subtitle paths in orde
   assert.deepEqual(result, ['/subs/ep02.ass', '/subs/ep03.SRT']);
 });
 
+test('collectDroppedSubtitlePaths accepts paths resolved from standard Web File objects', () => {
+  const transfer = makeTransfer({
+    files: [{ name: 'ep02.ass' }, { name: 'readme.txt' }, { name: 'ep03.SRT' }],
+  });
+
+  const result = collectDroppedSubtitlePaths(transfer, [
+    '/subs/ep02.ass',
+    '/subs/readme.txt',
+    '/subs/ep03.SRT',
+  ]);
+
+  assert.deepEqual(result, ['/subs/ep02.ass', '/subs/ep03.SRT']);
+});
+
 test('collectDroppedSubtitlePaths parses text/uri-list entries and de-duplicates', () => {
   const transfer = makeTransfer({
     getData: (format: string) =>
