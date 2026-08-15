@@ -306,7 +306,6 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: 'Usage', link: '/usage' },
       { text: 'Mining Workflow', link: '/mining-workflow' },
       { text: 'Launcher Script', link: '/launcher-script' },
-      { text: 'Feature Demos', link: '/demos' },
     ],
   },
   {

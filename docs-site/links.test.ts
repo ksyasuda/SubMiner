@@ -21,6 +21,7 @@ function slugify(heading: string): string {
 }
 
 const EXCLUDED_PAGES = new Set(['README.md']);
+const UNLISTED_ROUTES = new Set(['/demos']);
 const PUBLIC_PREFIXES = ['/assets/', '/screenshots/', '/config.example.jsonc', '/favicon'];
 
 function loadPages(): Map<string, string> {
@@ -114,7 +115,7 @@ test('slugify matches the VitePress cases these docs actually rely on', () => {
   expect(slugify('2. Install SubMiner')).toBe('_2-install-subminer');
 });
 
-test('every docs page is reachable from the sidebar', async () => {
+test('every docs page is reachable from the sidebar unless explicitly unlisted', async () => {
   const { default: config } = await import('./.vitepress/config');
   const sidebar = config.themeConfig?.sidebar as Array<{
     items?: Array<{ text: string; link?: string }>;
@@ -127,6 +128,8 @@ test('every docs page is reachable from the sidebar', async () => {
     }
   }
 
-  const orphans = [...pages.keys()].filter((route) => !linked.has(route));
+  const orphans = [...pages.keys()].filter(
+    (route) => !linked.has(route) && !UNLISTED_ROUTES.has(route),
+  );
   expect(orphans).toEqual([]);
 });
