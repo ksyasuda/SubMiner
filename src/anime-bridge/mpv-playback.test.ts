@@ -65,7 +65,6 @@ test('queued playback carries file-local title and language preferences into mpv
     ),
   );
   assert.deepEqual(buildQueuedPlaybackCommands(options), [
-    ['script-message', 'subminer-managed-subtitles-loading'],
     [
       'loadfile',
       'https://video.example/episode.m3u8',

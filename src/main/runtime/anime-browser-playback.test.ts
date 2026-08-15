@@ -141,6 +141,7 @@ test('queued video can append while subtitle caching continues in the background
     ],
   } as unknown as AnimeBridgeClient;
   const commands: Array<Array<string | number>> = [];
+  let removedDirs = 0;
   const playback = createAnimeBrowserPlayback({
     deps: {
       sendMpvCommand: (command) => void commands.push(command),
@@ -149,7 +150,9 @@ test('queued video can append while subtitle caching continues in the background
         fetch: async () => await fetchPending,
         makeTempDir: async () => '/tmp/subminer-queued-test',
         writeFile: async () => undefined,
-        removeDir: async () => undefined,
+        removeDir: async () => {
+          removedDirs += 1;
+        },
       },
       log: () => undefined,
     },
@@ -164,12 +167,20 @@ test('queued video can append while subtitle caching continues in the background
   playback.appendEpisode(result.playback);
   assert.equal(commands.at(-1)?.[2], 'append-play');
 
+  const discardResult = await Promise.race([
+    playback.discardEpisode(result.playback).then(() => 'discarded'),
+    new Promise<'pending'>((resolve) => setImmediate(() => resolve('pending'))),
+  ]);
+  assert.equal(discardResult, 'discarded');
+
   finishFetch({
     ok: true,
     status: 200,
     arrayBuffer: async () =>
       new TextEncoder().encode('1\n00:00:00,000 --> 00:00:01,000\n字幕').buffer,
   });
-  await playback.discardEpisode(result.playback);
+  await result.playback.trackPreparation;
+  await new Promise(setImmediate);
+  assert.equal(removedDirs, 1);
   await playback.dispose();
 });

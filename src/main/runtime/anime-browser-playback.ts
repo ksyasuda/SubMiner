@@ -239,8 +239,13 @@ export function createAnimeBrowserPlayback(options: AnimeBrowserPlaybackOptions)
     deps.showMpvOsd?.(playback.metadata.displayTitle);
   }
 
-  async function discardEpisode(playback: PreparedAnimeBrowserPlayback): Promise<void> {
-    await releasePreparedTracks(await playback.trackPreparation);
+  function discardEpisode(playback: PreparedAnimeBrowserPlayback): Promise<void> {
+    void playback.trackPreparation
+      .then((preparedTracks) => releasePreparedTracks(preparedTracks))
+      .catch((error) => {
+        deps.log(`[anime-browser] queued track cleanup failed: ${String(error)}`);
+      });
+    return Promise.resolve();
   }
 
   async function releasePreparedTracks(preparedTracks: PreparedTrackSetup): Promise<void> {

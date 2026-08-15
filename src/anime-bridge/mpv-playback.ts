@@ -126,10 +126,7 @@ export function buildPlaybackCommands(options: BuildPlaybackOptions): MpvCommand
 
 /** Append a fully resolved stream without replacing the file playing now. */
 export function buildQueuedPlaybackCommands(options: BuildPlaybackOptions): MpvCommand[] {
-  return [
-    ['script-message', 'subminer-managed-subtitles-loading'],
-    ['loadfile', options.stream.url, 'append-play', -1, buildQueuedLoadfileOptions(options)],
-  ];
+  return [['loadfile', options.stream.url, 'append-play', -1, buildQueuedLoadfileOptions(options)]];
 }
 
 /**
