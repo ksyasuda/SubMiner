@@ -16,6 +16,8 @@ import {
   applyPragmas,
   createTrackerPreparedStatements,
   ensureSchema,
+  findManualDirectoryAnimeAssignment,
+  getManualAnimeAssignment,
   executeQueuedWrite,
   getOrCreateAnimeRecord,
   getOrCreateVideoRecord,
@@ -28,6 +30,7 @@ import {
 } from './immersion-tracker/storage';
 import {
   applySessionLifetimeSummary,
+  recomputeLifetimeAnimeAggregates,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
   shouldBackfillLifetimeSummaries,
@@ -99,9 +102,18 @@ import {
 } from './immersion-tracker/duplicate-line-cleanup';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
+  dismissAnimeMergeRecommendation,
+  getAnimeMergeRecommendations,
   repairLegacySeasonlessAnimeRows,
   resolveAnimeAnilistConflict,
+  type AnimeMergeRecommendation,
 } from './immersion-tracker/anime-season-repair';
+import {
+  mergeAnimeRecords,
+  moveVideoToAnime as moveVideoToAnimeQuery,
+  type AnimeMergeSummary,
+  type VideoMoveSummary,
+} from './immersion-tracker/anime-merge';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -438,8 +450,7 @@ export class ImmersionTrackerService {
       batchWindowMs: DELETE_MAINTENANCE_BATCH_WINDOW_MS,
       runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
       onBusy: () => {
-        this.flushTelemetry(true);
-        while (this.queue.length > 0) this.flushNow();
+        this.requireWriteQueueDrained('delete maintenance');
         this.writeLock.locked = true;
       },
       onIdle: () => {
@@ -523,7 +534,7 @@ export class ImmersionTrackerService {
       this.logger.info(
         `Repaired season-scoped stats links on startup: scanned=${seasonRepair.scanned} movedVideos=${seasonRepair.movedVideos} deletedAnimeRows=${seasonRepair.deletedAnimeRows}`,
       );
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
     if (shouldBackfillLifetimeSummaries(this.db)) {
       const result = rebuildLifetimeSummaryTables(this.db);
@@ -648,8 +659,7 @@ export class ImmersionTrackerService {
   }
 
   async rebuildLifetimeSummaries(): Promise<LifetimeRebuildSummary> {
-    this.flushTelemetry(true);
-    this.flushNow();
+    this.requireWriteQueueDrained('rebuilding lifetime summaries');
     return rebuildLifetimeSummaryTables(this.db);
   }
 
@@ -714,6 +724,14 @@ export class ImmersionTrackerService {
   async getAnimeLibrary(): Promise<AnimeLibraryRow[]> {
     this.relinkYoutubeAnimeLibrary();
     return getAnimeLibrary(this.db);
+  }
+
+  async getAnimeMergeRecommendations(): Promise<AnimeMergeRecommendation[]> {
+    return getAnimeMergeRecommendations(this.db);
+  }
+
+  async dismissAnimeMergeRecommendation(recommendationId: number): Promise<boolean> {
+    return dismissAnimeMergeRecommendation(this.db, recommendationId);
   }
 
   async getAnimeDetail(animeId: number): Promise<AnimeDetailRow | null> {
@@ -823,6 +841,63 @@ export class ImmersionTrackerService {
     return this.deleteMaintenanceScheduler.enqueue(resolveTask);
   }
 
+  /**
+   * Fold duplicate library entries into one. Sources that hold the currently
+   * playing episode are fine: the videos move, nothing is deleted out from
+   * under the active session.
+   */
+  async mergeAnime(targetAnimeId: number, sourceAnimeIds: number[]): Promise<AnimeMergeSummary> {
+    const pendingVideoId = this.sessionState?.videoId;
+    if (pendingVideoId !== undefined) {
+      await this.pendingAnimeMetadataUpdates.get(pendingVideoId);
+    }
+    // This rebuilds the lifetime summaries, which recompute from the database:
+    // queued writes have to land first or the active session is dropped from
+    // the merged totals.
+    this.requireWriteQueueDrained('merging library entries');
+    return mergeAnimeRecords(this.db, targetAnimeId, sourceAnimeIds);
+  }
+
+  async moveVideoToAnime(videoId: number, targetAnimeId: number): Promise<VideoMoveSummary> {
+    await this.pendingAnimeMetadataUpdates.get(videoId);
+    this.requireWriteQueueDrained('moving an episode');
+    return moveVideoToAnimeQuery(this.db, videoId, targetAnimeId);
+  }
+
+  /**
+   * Persist every queued write before a caller recomputes summaries from the
+   * database.
+   *
+   * A single `flushNow()` is not enough: forced telemetry is appended to the
+   * back of the queue while `flushNow()` writes at most `batchSize` entries off
+   * the front, so a busy session leaves the newest sample unwritten. Stops as
+   * soon as a pass makes no progress — a rolled-back batch is pushed back onto
+   * the queue, and looping on that would spin forever.
+   *
+   * Returns false when the queue could not be emptied. Summary-rebuilding
+   * callers fail closed in that case.
+   */
+  private drainWriteQueue(context: string): boolean {
+    this.flushTelemetry(true);
+    while (this.queue.length > 0) {
+      const pending = this.queue.length;
+      this.flushNow();
+      if (this.queue.length >= pending) {
+        this.logger.warn(
+          `Immersion tracker queue did not drain before ${context}; summaries may lag by ${this.queue.length} writes`,
+        );
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private requireWriteQueueDrained(context: string): void {
+    if (!this.drainWriteQueue(context)) {
+      throw new Error(`Immersion tracker queue did not drain before ${context}`);
+    }
+  }
+
   async reassignAnimeAnilist(
     animeId: number,
     info: {
@@ -835,7 +910,14 @@ export class ImmersionTrackerService {
       coverUrl?: string | null;
     },
   ): Promise<void> {
-    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId);
+    this.requireWriteQueueDrained('reassigning an AniList entry');
+    // The user is acting on this entry, so it is the one that survives when
+    // another row already claims the same AniList id.
+    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId, {
+      survivor: 'target',
+      matchConfidence: 'manual',
+    });
+    if (repair.anilistAssignmentBlocked) return;
     this.db
       .prepare(
         `
@@ -862,7 +944,7 @@ export class ImmersionTrackerService {
         animeId,
       );
     if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
 
     // Update cover art for all videos in this anime
@@ -1253,6 +1335,7 @@ export class ImmersionTrackerService {
           LEFT JOIN imm_lifetime_media lm ON lm.video_id = v.video_id
           WHERE
             v.source_type = ?
+            AND v.anime_assignment_locked = 0
             AND v.source_url IS NOT NULL
             AND (
               LOWER(v.source_url) LIKE 'https://www.youtube.com/%'
@@ -1310,7 +1393,7 @@ export class ImmersionTrackerService {
         metadataJson: candidate.metadataJson,
       });
     }
-    rebuildLifetimeSummaryTables(this.db);
+    recomputeLifetimeAnimeAggregates(this.db);
   }
 
   recordJellyfinPlaybackMetadata(metadata: JellyfinPlaybackMetadataInput): void {
@@ -1358,16 +1441,18 @@ export class ImmersionTrackerService {
       seasonNumber,
       episodeNumber,
     });
-    const animeId = getOrCreateAnimeRecord(this.db, {
-      parsedTitle: libraryTitle,
-      canonicalTitle: libraryTitle,
-      seasonScope: seasonNumber,
-      anilistId: null,
-      titleRomaji: null,
-      titleEnglish: null,
-      titleNative: null,
-      metadataJson,
-    });
+    const animeId =
+      getManualAnimeAssignment(this.db, videoId) ??
+      getOrCreateAnimeRecord(this.db, {
+        parsedTitle: libraryTitle,
+        canonicalTitle: libraryTitle,
+        seasonScope: seasonNumber,
+        anilistId: null,
+        titleRomaji: null,
+        titleEnglish: null,
+        titleNative: null,
+        metadataJson,
+      });
     linkVideoToAnimeRecord(this.db, videoId, {
       animeId,
       parsedBasename: null,
@@ -1383,7 +1468,7 @@ export class ImmersionTrackerService {
       this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
     );
     if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
-      rebuildLifetimeSummaryTables(this.db);
+      recomputeLifetimeAnimeAggregates(this.db);
     }
   }
 
@@ -2022,16 +2107,27 @@ export class ImmersionTrackerService {
           return;
         }
 
-        const animeId = getOrCreateAnimeRecord(this.db, {
-          parsedTitle: parsed.parsedTitle,
-          canonicalTitle: parsed.parsedTitle,
-          seasonScope: parsed.parsedSeason,
-          anilistId: null,
-          titleRomaji: null,
-          titleEnglish: null,
-          titleNative: null,
-          metadataJson: parsed.parseMetadataJson,
-        });
+        const animeId =
+          getManualAnimeAssignment(this.db, videoId) ??
+          (mediaPath && !isRemoteSource(mediaPath)
+            ? findManualDirectoryAnimeAssignment(
+                this.db,
+                videoId,
+                mediaPath,
+                parsed.parsedTitle,
+                parsed.parsedSeason,
+              )
+            : null) ??
+          getOrCreateAnimeRecord(this.db, {
+            parsedTitle: parsed.parsedTitle,
+            canonicalTitle: parsed.parsedTitle,
+            seasonScope: parsed.parsedSeason,
+            anilistId: null,
+            titleRomaji: null,
+            titleEnglish: null,
+            titleNative: null,
+            metadataJson: parsed.parseMetadataJson,
+          });
         linkVideoToAnimeRecord(this.db, videoId, {
           animeId,
           parsedBasename: parsed.parsedBasename,

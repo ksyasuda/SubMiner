@@ -80,6 +80,11 @@ test('merges remote-only sessions with catalog, lifetime, and rollups', () => {
         { headword: '食べる', word: '食べた', reading: 'たべた', count: 1 },
       ],
     });
+    withWritableDb(remotePath, (db) => {
+      db.prepare(
+        `UPDATE imm_videos SET anime_assignment_locked = 1 WHERE video_key = 'showb-e1'`,
+      ).run();
+    });
 
     const summary = mergeSnapshotIntoDb(localPath, remotePath);
     assert.equal(summary.sessionsMerged, 1);
@@ -125,6 +130,14 @@ test('merges remote-only sessions with catalog, lifetime, and rollups', () => {
         localPath,
         `SELECT video_id FROM imm_videos WHERE video_key = 'showb-e1'`,
       )?.video_id,
+    );
+    assert.equal(
+      queryOne<{ locked: number }>(
+        localPath,
+        'SELECT anime_assignment_locked AS locked FROM imm_videos WHERE video_id = ?',
+        [mergedVideoId],
+      )?.locked,
+      1,
     );
     assert.equal(
       count(localPath, 'SELECT COUNT(*) AS n FROM imm_daily_rollups WHERE video_id = ?', [

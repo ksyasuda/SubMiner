@@ -199,6 +199,18 @@ export async function enrichSessionsWithKnownWordMetrics<
   );
 }
 
+/** Deduplicated positive integer ids from an untrusted JSON body field. */
+export function parsePositiveIdList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set<number>();
+  for (const value of raw) {
+    if (Number.isSafeInteger(value) && (value as number) > 0) {
+      ids.add(value as number);
+    }
+  }
+  return [...ids];
+}
+
 export function parseBooleanQuery(raw: string | undefined, fallback: boolean): boolean {
   if (raw === undefined) return fallback;
   const normalized = raw.trim().toLowerCase();

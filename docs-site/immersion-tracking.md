@@ -57,6 +57,13 @@ Jellyfin stream URLs are normalized to stable item links before stats titles are
 
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
 
+A library entry is identified by its parsed title plus any detected season, so the same show can end up on several cards when releases disagree about the title or omit the season tag. Two fixes are available:
+
+- **Merge duplicates.** Hit **Select** above the grid, tick the cards that are the same show, and choose **Merge Selected**. Pick which entry to keep in the dialog; every episode moves onto it and the other cards are removed. Nothing is deleted, so sessions, mined cards and watch time all carry over. SubMiner remembers the merged title variants, so future episodes parsed with one of those names join the kept entry instead of recreating a duplicate card.
+- **Move a single episode.** Hover an episode row in a title's episode list and use the **→** button to reassign it to another library entry. The correction is remembered, so later filename parsing or Jellyfin metadata cannot move that episode back. For local files, later episodes in the same directory inherit the correction when their detected seasons are compatible and every manual correction there points to the same entry; a file that parses to a title which already has its own library entry keeps that identity instead. Conflicting seasons or manual destinations are left for review. If the move empties the old entry, that card is removed and you are returned to the grid.
+
+Once cover art resolves a series to an AniList entry, cards with compatible seasons are folded together automatically only when the searched title exactly matches an AniList title or synonym. A fuzzy result that points at an AniList entry already used by another card appears as a **Possible duplicate** review above the Library grid instead. Choose **Review merge** to compare the cards and pick which one to keep, or **Not duplicates** to dismiss that suggestion permanently. Entries with conflicting explicit season numbers are left alone rather than merged or suggested.
+
 Open a title and use **Delete Entry** in its header to remove a mistakenly tracked show outright. This deletes every episode of that title along with their sessions, subtitle lines, rollups and cover art, drops the words and kanji that were only seen there, and removes the card from the Library grid. Individual episodes and sessions can still be deleted on their own from the episode list and session rows. Entry deletion is refused while that title is the one currently playing.
 
 ![Stats Library](/screenshots/stats-library.png)

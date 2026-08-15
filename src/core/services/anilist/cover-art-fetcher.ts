@@ -327,6 +327,7 @@ export function createCoverArtFetcher(
         titleEnglish: selected.title?.english ?? null,
         titleNative: selected.title?.native ?? null,
         episodesTotal: selected.episodes ?? null,
+        exactTitleMatch: resolution?.exactTitleMatch ?? false,
       });
 
       logger.info(

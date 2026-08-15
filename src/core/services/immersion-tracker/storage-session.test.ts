@@ -20,6 +20,7 @@ import {
 } from './storage';
 import {
   EVENT_SUBTITLE_LINE,
+  SCHEMA_VERSION,
   SESSION_STATUS_ENDED,
   SOURCE_TYPE_LOCAL,
   SOURCE_TYPE_REMOTE,
@@ -132,6 +133,7 @@ test('ensureSchema creates immersion core tables', () => {
     assert.ok(videoColumns.has('parser_source'));
     assert.ok(videoColumns.has('parser_confidence'));
     assert.ok(videoColumns.has('parse_metadata_json'));
+    assert.ok(videoColumns.has('anime_assignment_locked'));
 
     const mediaArtColumns = new Set(
       (
@@ -149,6 +151,33 @@ test('ensureSchema creates immersion core tables', () => {
     } | null;
     assert.ok(rollupStateRow);
     assert.equal(Number(rollupStateRow?.state_value ?? 0), 0);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('ensureSchema adds manual assignment locks when upgrading the previous schema', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.exec('ALTER TABLE imm_videos DROP COLUMN anime_assignment_locked');
+    db.prepare('UPDATE imm_schema_version SET schema_version = ?').run(SCHEMA_VERSION - 1);
+
+    ensureSchema(db);
+
+    const columns = new Set(
+      (db.prepare('PRAGMA table_info(imm_videos)').all() as Array<{ name: string }>).map(
+        (row) => row.name,
+      ),
+    );
+    assert.ok(columns.has('anime_assignment_locked'));
+    const version = db
+      .prepare('SELECT MAX(schema_version) AS version FROM imm_schema_version')
+      .get() as { version: number };
+    assert.equal(version.version, SCHEMA_VERSION);
   } finally {
     db.close();
     cleanupDbPath(dbPath);
@@ -807,6 +836,7 @@ test('ensureSchema migrates legacy videos and backfills anime metadata from file
     assert.ok(videoColumns.has('parser_source'));
     assert.ok(videoColumns.has('parser_confidence'));
     assert.ok(videoColumns.has('parse_metadata_json'));
+    assert.ok(videoColumns.has('anime_assignment_locked'));
 
     const animeRows = db
       .prepare('SELECT canonical_title FROM imm_anime ORDER BY canonical_title')
@@ -1330,6 +1360,70 @@ test('youtube videos can be regrouped under a shared channel anime identity', ()
     assert.equal(videoRows[1]?.anime_id, channelAnimeRows[0]?.anime_id);
     assert.equal(videoRows[0]?.parsed_title, 'Channel Name');
     assert.equal(videoRows[1]?.parsed_title, 'Channel Name');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('youtube channel relinking preserves a locked manual assignment', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'remote:https://www.youtube.com/watch?v=locked', {
+      canonicalTitle: 'Locked Video',
+      sourcePath: null,
+      sourceUrl: 'https://www.youtube.com/watch?v=locked',
+      sourceType: SOURCE_TYPE_REMOTE,
+    });
+    const manualAnimeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Manual Collection',
+      canonicalTitle: 'Manual Collection',
+      anilistId: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId: manualAnimeId,
+      parsedBasename: null,
+      parsedTitle: 'Manual Collection',
+      parsedSeason: null,
+      parsedEpisode: null,
+      parserSource: 'manual-test',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+    db.prepare('UPDATE imm_videos SET anime_assignment_locked = 1 WHERE video_id = ?').run(videoId);
+
+    const linkedAnimeId = linkYoutubeVideoToAnimeRecord(db, videoId, {
+      youtubeVideoId: 'locked',
+      videoUrl: 'https://www.youtube.com/watch?v=locked',
+      videoTitle: 'Locked Video',
+      videoThumbnailUrl: null,
+      channelId: 'UC-locked',
+      channelName: 'Automatic Channel',
+      channelUrl: null,
+      channelThumbnailUrl: null,
+      uploaderId: null,
+      uploaderUrl: null,
+      description: null,
+      metadataJson: null,
+    });
+
+    assert.equal(linkedAnimeId, manualAnimeId);
+    const video = db
+      .prepare('SELECT anime_id, parsed_title FROM imm_videos WHERE video_id = ?')
+      .get(videoId) as { anime_id: number | null; parsed_title: string | null };
+    assert.equal(video.anime_id, manualAnimeId);
+    assert.equal(video.parsed_title, 'Manual Collection');
+    const automaticAnime = db
+      .prepare(`SELECT anime_id FROM imm_anime WHERE canonical_title = 'Automatic Channel'`)
+      .get();
+    assert.equal(automaticAnime, undefined);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

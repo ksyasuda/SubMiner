@@ -2132,6 +2132,78 @@ test('handleMediaChange reuses the same provisional anime row across matching fi
   }
 });
 
+test('local parsing reuses a unique compatible manual assignment from the same directory', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const anchorPath = '/tmp/grouped/Incorrect Name S01E01.mkv';
+    tracker.handleMediaChange(anchorPath, 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      sessionState: { videoId: number } | null;
+    };
+    const anchorVideoId = privateApi.sessionState?.videoId;
+    assert.ok(anchorVideoId);
+    tracker.handleMediaChange(null, null);
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const target = privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES ('correct show season 1', 'Correct Show Season 1', ?, ?)
+          RETURNING anime_id AS animeId
+        `,
+      )
+      .get(timestamp, timestamp) as { animeId: number };
+    await tracker.moveVideoToAnime(anchorVideoId, target.animeId);
+
+    tracker.handleMediaChange(anchorPath, 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange('/tmp/grouped/Another Wrong Name S01E02.mkv', 'Episode 2');
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange('/tmp/grouped/Another Wrong Name S02E01.mkv', 'Episode 1');
+    await waitForPendingAnimeMetadata(tracker);
+
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT source_path AS sourcePath, anime_id AS animeId, anime_assignment_locked AS locked
+          FROM imm_videos
+          WHERE source_path LIKE '/tmp/grouped/%'
+          ORDER BY source_path
+        `,
+      )
+      .all() as Array<{ sourcePath: string; animeId: number; locked: number }>;
+    const assignments = new Map(rows.map((row) => [row.sourcePath, row]));
+    assert.deepEqual(assignments.get(anchorPath), {
+      sourcePath: anchorPath,
+      animeId: target.animeId,
+      locked: 1,
+    });
+    assert.deepEqual(assignments.get('/tmp/grouped/Another Wrong Name S01E02.mkv'), {
+      sourcePath: '/tmp/grouped/Another Wrong Name S01E02.mkv',
+      animeId: target.animeId,
+      locked: 0,
+    });
+    assert.notEqual(
+      assignments.get('/tmp/grouped/Another Wrong Name S02E01.mkv')?.animeId,
+      target.animeId,
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('handleMediaChange splits matching parsed titles across distinct seasons', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -2618,6 +2690,67 @@ test('Jellyfin playback metadata links stream videos to existing series title', 
   }
 });
 
+test('Jellyfin metadata refresh preserves a manual episode assignment', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const metadata = {
+      mediaPath: 'http://jellyfin.local/Videos/item-locked/stream?api_key=token',
+      displayTitle: 'Parsed Show S01E01',
+      itemTitle: 'Episode 1',
+      seriesTitle: 'Parsed Show',
+      seasonNumber: 1,
+      episodeNumber: 1,
+      itemId: 'item-locked',
+    };
+    tracker.recordJellyfinPlaybackMetadata(metadata);
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const video = privateApi.db.prepare('SELECT video_id AS videoId FROM imm_videos').get() as {
+      videoId: number;
+    };
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const target = privateApi.db
+      .prepare(
+        `
+          INSERT INTO imm_anime (
+            normalized_title_key,
+            canonical_title,
+            CREATED_DATE,
+            LAST_UPDATE_DATE
+          ) VALUES ('correct show', 'Correct Show', ?, ?)
+          RETURNING anime_id AS animeId
+        `,
+      )
+      .get(timestamp, timestamp) as { animeId: number };
+
+    await tracker.moveVideoToAnime(video.videoId, target.animeId);
+    tracker.recordJellyfinPlaybackMetadata(metadata);
+
+    const assignment = privateApi.db
+      .prepare(
+        `
+          SELECT anime_id AS animeId, anime_assignment_locked AS locked
+          FROM imm_videos
+          WHERE video_id = ?
+        `,
+      )
+      .get(video.videoId) as { animeId: number; locked: number };
+    assert.equal(assignment.animeId, target.animeId);
+    assert.equal(assignment.locked, 1);
+    const animeCount = privateApi.db.prepare('SELECT COUNT(*) AS count FROM imm_anime').get() as {
+      count: number;
+    };
+    assert.equal(animeCount.count, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('startup repairs existing Jellyfin stream video links to metadata rows', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -2839,6 +2972,66 @@ test('Jellyfin link repair removes merged leaked anime rows and sanitizes orphan
       )
       .get() as { canonical_title: string };
     assert.equal(orphanVideo.canonical_title, 'Jellyfin Video');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('Jellyfin link repair clears stale subtitle assignments when the repaired video is unassigned', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const db = (tracker as unknown as { db: DatabaseSync }).db;
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const legacyUrl =
+      'http://jellyfin.local/Videos/item-null/stream?static=true&api_key=secret-token';
+    const stableUrl = 'jellyfin://jellyfin.local/item/item-null';
+    db.prepare(
+      `INSERT INTO imm_anime (anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
+       VALUES (1, 'stale show', 'Stale Show', ?, ?)`,
+    ).run(timestamp, timestamp);
+    db.prepare(
+      `INSERT INTO imm_videos (
+         video_id, video_key, anime_id, canonical_title, source_type, source_url,
+         duration_ms, CREATED_DATE, LAST_UPDATE_DATE
+       ) VALUES
+         (1, ?, 1, 'Legacy Stream', 2, ?, 0, ?, ?),
+         (2, ?, NULL, 'Canonical Stream', 2, ?, 0, ?, ?)`,
+    ).run(
+      `remote:${legacyUrl}`,
+      legacyUrl,
+      timestamp,
+      timestamp,
+      `remote:${stableUrl}`,
+      stableUrl,
+      timestamp,
+      timestamp,
+    );
+    db.prepare(
+      `INSERT INTO imm_sessions (
+         session_id, session_uuid, video_id, started_at_ms, status, CREATED_DATE, LAST_UPDATE_DATE
+       ) VALUES (1, 'jellyfin-null-assignment', 1, ?, 2, ?, ?)`,
+    ).run(timestamp, timestamp, timestamp);
+    db.prepare(
+      `INSERT INTO imm_subtitle_lines (
+         session_id, video_id, anime_id, line_index, text, CREATED_DATE, LAST_UPDATE_DATE
+       ) VALUES (1, 1, 1, 1, 'stale line', ?, ?)`,
+    ).run(timestamp, timestamp);
+
+    repairJellyfinStreamVideoLinks(db);
+
+    const video = db.prepare('SELECT anime_id FROM imm_videos WHERE video_id = 1').get() as {
+      anime_id: number | null;
+    };
+    const line = db.prepare('SELECT anime_id FROM imm_subtitle_lines WHERE video_id = 1').get() as {
+      anime_id: number | null;
+    };
+    assert.equal(video.anime_id, null);
+    assert.equal(line.anime_id, null);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -3804,6 +3997,22 @@ test('reassignAnimeAnilist redistributes conflicting legacy combined row before 
         (1, 2000, 1000, 1000, 1, 10, 0, 0, 0, 0, 0, 0, 0, 0),
         (2, 4000, 2000, 2000, 2, 20, 0, 0, 0, 0, 0, 0, 0, 0),
         (3, 6000, 3000, 3000, 3, 30, 0, 0, 0, 0, 0, 0, 0, 0);
+
+      -- The per-video lifetime rows those finalized sessions would have left
+      -- behind; redistributing videos re-derives imm_lifetime_anime from these.
+      INSERT INTO imm_lifetime_media (
+        video_id,
+        total_sessions,
+        total_active_ms,
+        completed,
+        first_watched_ms,
+        last_watched_ms,
+        CREATED_DATE,
+        LAST_UPDATE_DATE
+      ) VALUES
+        (1, 1, 1000, 0, '1000', '2000', 1000, 2000),
+        (2, 1, 2000, 0, '3000', '4000', 3000, 4000),
+        (3, 1, 3000, 0, '5000', '6000', 5000, 6000);
     `);
 
     await tracker.reassignAnimeAnilist(2, {
@@ -4085,6 +4294,23 @@ printf '%s\n' '${ytDlpOutput}'
       );
     privateApi.db
       .prepare(
+        `INSERT INTO imm_anime (
+           anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE
+         ) VALUES (1, 'manual backfill collection', 'Manual Backfill Collection', ?, ?)`,
+      )
+      .run(nowMs, nowMs);
+    privateApi.db
+      .prepare(
+        `UPDATE imm_videos
+         SET anime_id = 1,
+             anime_assignment_locked = 1,
+             parsed_title = 'Manual Backfill Collection',
+             parser_source = 'manual-test'
+         WHERE video_id = 1`,
+      )
+      .run();
+    privateApi.db
+      .prepare(
         `
           INSERT INTO imm_lifetime_media (
             video_id,
@@ -4137,6 +4363,15 @@ printf '%s\n' '${ytDlpOutput}'
       after[0]?.channelThumbnailUrl,
       'https://yt3.googleusercontent.com/backfill-avatar=s88',
     );
+    const lockedVideo = privateApi.db
+      .prepare(
+        `SELECT anime_id AS animeId, parsed_title AS parsedTitle
+         FROM imm_videos
+         WHERE video_id = 1`,
+      )
+      .get() as { animeId: number | null; parsedTitle: string | null };
+    assert.equal(lockedVideo.animeId, 1);
+    assert.equal(lockedVideo.parsedTitle, 'Manual Backfill Collection');
   } finally {
     process.env.PATH = originalPath;
     tracker?.destroy();
@@ -4147,7 +4382,7 @@ printf '%s\n' '${ytDlpOutput}'
   }
 });
 
-test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async () => {
+test('getAnimeLibrary lazily relinks unlocked youtube rows without moving manual assignments', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
 
@@ -4171,6 +4406,7 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
       INSERT INTO imm_videos (
         video_id,
         anime_id,
+        anime_assignment_locked,
         video_key,
         canonical_title,
         parsed_title,
@@ -4196,6 +4432,7 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
         (
           1,
           1,
+          0,
           'remote:https://www.youtube.com/watch?v=first',
           'watch?v first',
           'watch?v first',
@@ -4221,6 +4458,7 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
         (
           2,
           2,
+          1,
           'remote:https://www.youtube.com/watch?v=second',
           'watch?v second',
           'watch?v second',
@@ -4392,7 +4630,7 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
     const sharedRows = rows.filter((row) => row.canonicalTitle === 'Shared Channel');
 
     assert.equal(sharedRows.length, 1);
-    assert.equal(sharedRows[0]?.episodeCount, 2);
+    assert.equal(sharedRows[0]?.episodeCount, 1);
 
     const relinked = privateApi.db
       .prepare(
@@ -4406,8 +4644,17 @@ test('getAnimeLibrary lazily relinks youtube rows to channel groupings', async (
       )
       .all() as Array<{ canonicalTitle: string; total: number }>;
 
-    assert.equal(relinked[0]?.canonicalTitle, 'Shared Channel');
-    assert.equal(relinked[0]?.total, 2);
+    assert.equal(relinked.find((row) => row.canonicalTitle === 'Shared Channel')?.total, 1);
+    assert.equal(relinked.find((row) => row.canonicalTitle === 'watch?v second')?.total, 1);
+    const lockedVideo = privateApi.db
+      .prepare(
+        `SELECT anime_id AS animeId, parsed_title AS parsedTitle
+         FROM imm_videos
+         WHERE video_id = 2`,
+      )
+      .get() as { animeId: number | null; parsedTitle: string | null };
+    assert.equal(lockedVideo.animeId, 2);
+    assert.equal(lockedVideo.parsedTitle, 'watch?v second');
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
+import { UNKNOWN_MOVE_TARGET_MESSAGE } from '../immersion-tracker/anime-merge.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildSentenceSearchOptions,
@@ -8,6 +9,7 @@ import {
   parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
   parseIntQuery,
+  parsePositiveIdList,
 } from './route-support.js';
 
 export function registerStatsLibraryRoutes(
@@ -144,6 +146,19 @@ export function registerStatsLibraryRoutes(
     return c.json(statsJson('animeLibrary', rows));
   });
 
+  app.get('/api/stats/anime/merge-recommendations', async (c) => {
+    const recommendations = await tracker.getAnimeMergeRecommendations();
+    return c.json(statsJson('animeMergeRecommendations', { recommendations }));
+  });
+
+  app.delete('/api/stats/anime/merge-recommendations/:recommendationId', async (c) => {
+    const recommendationId = parseIntQuery(c.req.param('recommendationId'), 0);
+    if (recommendationId <= 0) return c.body(null, 400);
+    const dismissed = await tracker.dismissAnimeMergeRecommendation(recommendationId);
+    if (!dismissed) return c.body(null, 404);
+    return c.json(statsJson('dismissAnimeMergeRecommendation', { ok: true }));
+  });
+
   app.get('/api/stats/anime/:animeId', async (c) => {
     const animeId = parseIntQuery(c.req.param('animeId'), 0);
     if (animeId <= 0) return c.body(null, 400);
@@ -210,5 +225,51 @@ export function registerStatsLibraryRoutes(
     if (animeId <= 0) return c.body(null, 400);
     await tracker.deleteAnime(animeId);
     return c.json(statsJson('deleteAnime', { ok: true }));
+  });
+
+  app.post('/api/stats/anime/:animeId/merge', async (c) => {
+    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    if (animeId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
+    if (sourceAnimeIds.length === 0) return c.body(null, 400);
+    const summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    // Nothing folded means the target or every source was already gone, so the
+    // caller should not be told the merge succeeded.
+    if (summary.mergedAnimeIds.length === 0) return c.body(null, 404);
+    return c.json(
+      statsJson('mergeAnime', {
+        ok: true,
+        animeId: summary.survivingAnimeId,
+        mergedAnimeIds: summary.mergedAnimeIds,
+        movedVideos: summary.movedVideos,
+      }),
+    );
+  });
+
+  app.patch('/api/stats/media/:videoId/anime', async (c) => {
+    const videoId = parseIntQuery(c.req.param('videoId'), 0);
+    if (videoId <= 0) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const animeId = Number.isSafeInteger(body?.animeId) ? (body.animeId as number) : 0;
+    if (animeId <= 0) return c.body(null, 400);
+    try {
+      const summary = await tracker.moveVideoToAnime(videoId, animeId);
+      return c.json(
+        statsJson('moveVideoToAnime', {
+          ok: true,
+          animeId: summary.targetAnimeId,
+          previousAnimeId: summary.previousAnimeId,
+          removedPreviousAnime: summary.removedPreviousAnime,
+        }),
+      );
+    } catch (error) {
+      // Only a missing episode or entry is a 404; storage failures must not be
+      // reported to the caller as "not found".
+      if (error instanceof Error && error.message === UNKNOWN_MOVE_TARGET_MESSAGE) {
+        return c.body(null, 404);
+      }
+      throw error;
+    }
   });
 }

@@ -1,4 +1,16 @@
 import type { DatabaseSync } from './sqlite';
+import {
+  animeSeasonsAreMergeCompatible,
+  getParsedSeasonsForAnime,
+  mergeAnimeRecordsInTransaction,
+} from './anime-merge';
+import {
+  hasExactStoredTitleMatch,
+  hasDismissedAnimeMergeRecommendation,
+  recordAnimeMergeRecommendation,
+  shouldRecommendAnilistConflict,
+  type AnimeConflictRecommendationOptions,
+} from './anime-merge-recommendations';
 import { getOrCreateAnimeRecord } from './storage';
 import { toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
@@ -8,7 +20,32 @@ export interface AnimeSeasonRepairSummary {
   repaired: number;
   movedVideos: number;
   deletedAnimeRows: number;
+  /**
+   * Entry that owns the videos afterwards when two rows were folded together,
+   * so callers can keep pointing at a row that still exists.
+   */
+  survivingAnimeId: number | null;
+  /** True when an ambiguous AniList collision was saved for user review. */
+  mergeRecommended: boolean;
+  /** True when automatic metadata must not assign the colliding AniList id. */
+  anilistAssignmentBlocked: boolean;
 }
+
+export interface AnimeAnilistConflictOptions extends AnimeConflictRecommendationOptions {
+  /**
+   * Which row keeps its identity when two entries claim the same AniList id.
+   * `existing` (the default) keeps the row that already held the id, so
+   * automatic cover-art resolution does not rename a card under the user;
+   * `target` keeps the row the user is acting on.
+   */
+  survivor?: 'target' | 'existing';
+}
+
+export {
+  dismissAnimeMergeRecommendation,
+  getAnimeMergeRecommendations,
+  type AnimeMergeRecommendation,
+} from './anime-merge-recommendations';
 
 interface AnimeRow {
   anime_id: number;
@@ -24,6 +61,7 @@ interface ParsedVideoRow {
   video_id: number;
   parsed_title: string | null;
   parsed_season: number | null;
+  anime_assignment_locked: number;
 }
 
 interface RedistributeOptions {
@@ -38,6 +76,9 @@ function emptySummary(scanned = 0): AnimeSeasonRepairSummary {
     repaired: 0,
     movedVideos: 0,
     deletedAnimeRows: 0,
+    survivingAnimeId: null,
+    mergeRecommended: false,
+    anilistAssignmentBlocked: false,
   };
 }
 
@@ -49,11 +90,17 @@ function mergeSummary(
   target.repaired += source.repaired;
   target.movedVideos += source.movedVideos;
   target.deletedAnimeRows += source.deletedAnimeRows;
+  target.survivingAnimeId = source.survivingAnimeId ?? target.survivingAnimeId;
+  target.mergeRecommended ||= source.mergeRecommended;
+  target.anilistAssignmentBlocked ||= source.anilistAssignmentBlocked;
   return target;
 }
 
 function runInTransaction<T>(db: DatabaseSync, work: () => T): T {
-  db.exec('BEGIN');
+  // IMMEDIATE: the reads before the first write must hold the write lock, or a
+  // concurrent writer (app vs stats daemon on the same WAL db) upgrades this
+  // deferred snapshot into an unretried SQLITE_BUSY_SNAPSHOT mid-repair.
+  db.exec('BEGIN IMMEDIATE');
   try {
     const result = work();
     db.exec('COMMIT');
@@ -94,7 +141,7 @@ function getParsedVideos(db: DatabaseSync, animeId: number): ParsedVideoRow[] {
   return db
     .prepare(
       `
-        SELECT video_id, parsed_title, parsed_season
+        SELECT video_id, parsed_title, parsed_season, anime_assignment_locked
         FROM imm_videos
         WHERE anime_id = ?
         ORDER BY video_id ASC
@@ -188,6 +235,9 @@ function redistributeAnimeRowByParsedSeasonsInTransaction(
   const targetBySeason = new Map<number, number>();
 
   for (const video of videos) {
+    if (video.anime_assignment_locked === 1) {
+      continue;
+    }
     const parsedTitle = video.parsed_title?.trim();
     const season = normalizeSeason(video.parsed_season);
     if (!parsedTitle || season === null) {
@@ -301,10 +351,19 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
   });
 }
 
+/**
+ * Two library entries cannot both hold the same AniList id
+ * (`imm_anime.anilist_id` is UNIQUE). Fold an automatic collision only when
+ * exact title evidence and compatible parsed seasons make it safe. Persist a
+ * review recommendation for compatible weak matches. Legacy season
+ * redistribution of a conflicting multi-season row is reserved for exact or
+ * manual matches; a weak automatic match blocks the assignment instead.
+ */
 export function resolveAnimeAnilistConflict(
   db: DatabaseSync,
   targetAnimeId: number,
   anilistId: number,
+  options: AnimeAnilistConflictOptions = {},
 ): AnimeSeasonRepairSummary {
   const conflict = db
     .prepare(
@@ -321,10 +380,115 @@ export function resolveAnimeAnilistConflict(
     return emptySummary();
   }
 
-  return runInTransaction(db, () =>
-    redistributeAnimeRowByParsedSeasonsInTransaction(db, conflict.animeId, {
+  return runInTransaction(db, () => {
+    const targetRow = getAnimeRow(db, targetAnimeId);
+    if (
+      options.survivor !== 'target' &&
+      targetRow?.anilist_id != null &&
+      targetRow.anilist_id !== anilistId
+    ) {
+      // An automatic lookup disagreeing with an existing explicit link is a
+      // mis-resolution, not evidence that either row should move or merge. The
+      // colliding id must not be assigned either: another row owns it and
+      // imm_anime.anilist_id is UNIQUE.
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
+      return summary;
+    }
+    const isManual = options.survivor === 'target' || options.matchConfidence === 'manual';
+    if (!isManual && hasDismissedAnimeMergeRecommendation(db, targetAnimeId, conflict.animeId)) {
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
+      return summary;
+    }
+    const targetSeasons = getParsedSeasonsForAnime(db, targetAnimeId);
+    const conflictSeasons = getParsedSeasonsForAnime(db, conflict.animeId);
+    if (
+      !isManual &&
+      targetSeasons.size === 1 &&
+      conflictSeasons.size === 1 &&
+      [...targetSeasons][0] !== [...conflictSeasons][0]
+    ) {
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
+      return summary;
+    }
+    if (canMergeAnilistConflict(db, targetAnimeId, conflict.animeId, anilistId, options)) {
+      const survivingAnimeId = options.survivor === 'target' ? targetAnimeId : conflict.animeId;
+      const absorbedAnimeId = survivingAnimeId === targetAnimeId ? conflict.animeId : targetAnimeId;
+      const merge = mergeAnimeRecordsInTransaction(db, survivingAnimeId, [absorbedAnimeId]);
+      const summary = emptySummary(1);
+      summary.movedVideos = merge.movedVideos;
+      summary.deletedAnimeRows = merge.mergedAnimeIds.length;
+      if (merge.mergedAnimeIds.length > 0) {
+        summary.repaired = 1;
+        // Only reported once a row really absorbed the other, so callers never
+        // follow this to an anime id that was never written.
+        summary.survivingAnimeId = survivingAnimeId;
+      }
+      // Lifetime summaries are rebuilt by the caller off this summary, the same
+      // as the redistribution path below.
+      return summary;
+    }
+
+    if (shouldRecommendAnilistConflict(db, targetAnimeId, conflict.animeId, options)) {
+      recordAnimeMergeRecommendation(db, targetAnimeId, conflict.animeId, anilistId);
+      const summary = emptySummary(1);
+      summary.mergeRecommended = true;
+      return summary;
+    }
+
+    const isExactAutomaticMatch =
+      options.matchConfidence === 'exact' ||
+      (options.matchConfidence === undefined &&
+        hasExactStoredTitleMatch(db, targetAnimeId, conflict.animeId));
+    if (!isManual && !isExactAutomaticMatch) {
+      // Redistribution dismantles the id's current owner and hands the id to
+      // the target. On a weak automatic match that owner is usually the
+      // correctly linked card (e.g. a legitimate multi-season entry), so
+      // splitting it here is exactly the fuzzy false merge this gate exists to
+      // stop. Only exact or manual evidence may fall through.
+      const summary = emptySummary(1);
+      summary.anilistAssignmentBlocked = true;
+      return summary;
+    }
+
+    return redistributeAnimeRowByParsedSeasonsInTransaction(db, conflict.animeId, {
       transferAnilistToAnimeId: targetAnimeId,
       overwriteTargetAnilist: true,
-    }),
+    });
+  });
+}
+
+function canMergeAnilistConflict(
+  db: DatabaseSync,
+  targetAnimeId: number,
+  conflictAnimeId: number,
+  anilistId: number,
+  options: AnimeAnilistConflictOptions,
+): boolean {
+  const targetRow = getAnimeRow(db, targetAnimeId);
+  if (!targetRow) {
+    // Nothing to merge with a row that no longer exists (a stale id from the
+    // caller); fall through to the redistribution path.
+    return false;
+  }
+  if (options.survivor !== 'target') {
+    // The target is the row about to disappear here, so an existing link of its
+    // own means this is a mis-resolution rather than a duplicate: leave it be.
+    if (targetRow.anilist_id != null && targetRow.anilist_id !== anilistId) {
+      return false;
+    }
+  }
+  if (
+    options.matchConfidence === 'weak' ||
+    (options.matchConfidence === undefined &&
+      !hasExactStoredTitleMatch(db, targetAnimeId, conflictAnimeId))
+  ) {
+    return false;
+  }
+  return animeSeasonsAreMergeCompatible(
+    getParsedSeasonsForAnime(db, targetAnimeId),
+    getParsedSeasonsForAnime(db, conflictAnimeId),
   );
 }

@@ -25,6 +25,8 @@ interface AnimeDetailViewProps {
    * keeps showing the previous title's art.
    */
   onAnilistRelinked?: () => void;
+  /** Called after an episode is reassigned to another entry. */
+  onEpisodeMoved?: () => void;
 }
 
 type Range = 14 | 30 | 90;
@@ -150,6 +152,7 @@ export function AnimeDetailView({
   onOpenEpisodeDetail,
   onAnimeDeleted,
   onAnilistRelinked,
+  onEpisodeMoved,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
@@ -223,6 +226,13 @@ export function AnimeDetailView({
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}
+        animeId={animeId}
+        onEpisodeMoved={(removedPreviousAnime) => {
+          onEpisodeMoved?.();
+          // The last episode taking the entry with it leaves nothing to show.
+          if (removedPreviousAnime) onBack();
+          else reload();
+        }}
         onOpenDetail={onOpenEpisodeDetail ? (videoId) => onOpenEpisodeDetail(videoId) : undefined}
       />
       <AnimeWatchChart animeId={animeId} />

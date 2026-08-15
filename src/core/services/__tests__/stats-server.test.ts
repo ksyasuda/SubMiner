@@ -1227,6 +1227,55 @@ describe('stats server API routes', () => {
     assert.equal(body[0].canonicalTitle, 'Little Witch Academia');
   });
 
+  it('GET /api/stats/anime/merge-recommendations returns pending duplicate pairs', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        getAnimeMergeRecommendations: async () => [{ recommendationId: 4, animeIds: [1, 2] }],
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations');
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      recommendations: [{ recommendationId: 4, animeIds: [1, 2] }],
+    });
+  });
+
+  it('DELETE /api/stats/anime/merge-recommendations/:id dismisses a pending pair', async () => {
+    let dismissedId: number | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        dismissAnimeMergeRecommendation: async (recommendationId: number) => {
+          dismissedId = recommendationId;
+          return true;
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations/4', {
+      method: 'DELETE',
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(dismissedId, 4);
+    assert.deepEqual(await res.json(), { ok: true });
+  });
+
+  it('DELETE /api/stats/anime/merge-recommendations/:id reports missing recommendations', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        dismissAnimeMergeRecommendation: async () => false,
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/merge-recommendations/99', {
+      method: 'DELETE',
+    });
+
+    assert.equal(res.status, 404);
+  });
+
   it('GET /api/stats/anime/:animeId returns anime detail with episodes', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/anime/1');
@@ -3196,6 +3245,148 @@ Aligned English subtitle
 
     assert.equal(res.status, 400);
     assert.equal(deleteCalls, 0);
+  });
+
+  it('POST /api/stats/anime/:animeId/merge folds the given entries into the target', async () => {
+    let merged: { targetAnimeId: number; sourceAnimeIds: number[] } | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async (targetAnimeId: number, sourceAnimeIds: number[]) => {
+          merged = { targetAnimeId, sourceAnimeIds };
+          return {
+            survivingAnimeId: targetAnimeId,
+            mergedAnimeIds: sourceAnimeIds,
+            movedVideos: 3,
+          };
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // The target repeated in the sources must not delete the entry we keep.
+      body: '{"sourceAnimeIds":[8,9,8,7]}',
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(merged, { targetAnimeId: 7, sourceAnimeIds: [8, 9] });
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      animeId: 7,
+      mergedAnimeIds: [8, 9],
+      movedVideos: 3,
+    });
+  });
+
+  it('POST /api/stats/anime/:animeId/merge rejects an empty or malformed source list', async () => {
+    let mergeCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          mergeCalls += 1;
+          return { survivingAnimeId: 7, mergedAnimeIds: [], movedVideos: 0 };
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    for (const body of [
+      '{"sourceAnimeIds":[]}',
+      '{"sourceAnimeIds":[7]}',
+      '{"sourceAnimeIds":0}',
+    ]) {
+      const res = await app.request('/api/stats/anime/7/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      assert.equal(res.status, 400);
+    }
+    assert.equal(mergeCalls, 0);
+  });
+
+  it('PATCH /api/stats/media/:videoId/anime moves the episode to another entry', async () => {
+    let moved: { videoId: number; animeId: number } | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        moveVideoToAnime: async (videoId: number, animeId: number) => {
+          moved = { videoId, animeId };
+          return { targetAnimeId: animeId, previousAnimeId: 4, removedPreviousAnime: true };
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/media/12/anime', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"animeId":7}',
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(moved, { videoId: 12, animeId: 7 });
+    assert.deepEqual(await res.json(), {
+      ok: true,
+      animeId: 7,
+      previousAnimeId: 4,
+      removedPreviousAnime: true,
+    });
+  });
+
+  it('POST /api/stats/anime/:animeId/merge reports a merge that folded nothing as 404', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async (targetAnimeId: number) => ({
+          survivingAnimeId: targetAnimeId,
+          mergedAnimeIds: [],
+          movedVideos: 0,
+        }),
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sourceAnimeIds":[8]}',
+    });
+
+    assert.equal(res.status, 404);
+  });
+
+  it('PATCH /api/stats/media/:videoId/anime reports an unknown target as 404', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        moveVideoToAnime: async () => {
+          throw new Error('Unknown episode or target library entry');
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/media/12/anime', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"animeId":99}',
+    });
+
+    assert.equal(res.status, 404);
+  });
+
+  it('PATCH /api/stats/media/:videoId/anime does not disguise storage failures as 404', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        moveVideoToAnime: async () => {
+          throw new Error('database is locked');
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/media/12/anime', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"animeId":7}',
+    });
+
+    assert.notEqual(res.status, 404);
+    assert.equal(res.status >= 500, true);
   });
 
   it('POST /api/stats/anki/browse returns 400 for missing noteId', async () => {

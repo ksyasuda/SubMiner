@@ -708,6 +708,87 @@ export function rebuildLifetimeSummariesInTransaction(
   return rebuildLifetimeSummariesInternal(db, rebuiltAtMs);
 }
 
+/**
+ * Re-derive every per-anime lifetime row from the per-video summaries after
+ * episodes changed owners (merge, move, season repair).
+ *
+ * Deliberately NOT a full rebuild: {@link rebuildLifetimeSummariesInTransaction}
+ * recomputes from raw sessions, which are pruned after the retention window, so
+ * it silently truncates lifetime history. `imm_lifetime_media` is keyed by
+ * video and survives repointing, so aggregating it preserves all-time totals;
+ * `imm_lifetime_global` only needs `anime_completed` refreshed because moving
+ * attribution between entries cannot change the global counters.
+ *
+ * Assumes the caller holds a write transaction; use
+ * {@link recomputeLifetimeAnimeAggregates} otherwise.
+ */
+export function recomputeLifetimeAnimeAggregatesInTransaction(db: DatabaseSync): void {
+  const updatedAt = toDbTimestamp(nowMs());
+  db.exec('DELETE FROM imm_lifetime_anime');
+  db.prepare(
+    `
+    INSERT INTO imm_lifetime_anime (
+      anime_id,
+      total_sessions,
+      total_active_ms,
+      total_cards,
+      total_lines_seen,
+      total_tokens_seen,
+      episodes_started,
+      episodes_completed,
+      first_watched_ms,
+      last_watched_ms,
+      CREATED_DATE,
+      LAST_UPDATE_DATE
+    )
+    SELECT
+      v.anime_id,
+      COALESCE(SUM(m.total_sessions), 0),
+      COALESCE(SUM(m.total_active_ms), 0),
+      COALESCE(SUM(m.total_cards), 0),
+      COALESCE(SUM(m.total_lines_seen), 0),
+      COALESCE(SUM(m.total_tokens_seen), 0),
+      COUNT(*),
+      COUNT(CASE WHEN m.completed > 0 THEN 1 END),
+      MIN(m.first_watched_ms),
+      MAX(m.last_watched_ms),
+      ?,
+      ?
+    FROM imm_lifetime_media m
+    JOIN imm_videos v ON v.video_id = m.video_id
+    WHERE v.anime_id IS NOT NULL
+    GROUP BY v.anime_id
+    `,
+  ).run(updatedAt, updatedAt);
+  db.prepare(
+    `
+    UPDATE imm_lifetime_global
+    SET
+      anime_completed = (
+        SELECT COUNT(*)
+        FROM imm_lifetime_anime la
+        JOIN imm_anime a ON a.anime_id = la.anime_id
+        WHERE a.episodes_total IS NOT NULL
+          AND a.episodes_total > 0
+          AND la.episodes_completed >= a.episodes_total
+      ),
+      LAST_UPDATE_DATE = ?
+    WHERE global_id = 1
+    `,
+  ).run(updatedAt);
+}
+
+export function recomputeLifetimeAnimeAggregates(db: DatabaseSync): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    recomputeLifetimeAnimeAggregatesInTransaction(db);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 export function reconcileStaleActiveSessions(db: DatabaseSync): number {
   const sessions = getRetainedStaleActiveSessions(db);
   if (sessions.length === 0) {

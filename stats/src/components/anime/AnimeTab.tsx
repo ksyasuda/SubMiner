@@ -9,6 +9,8 @@ import {
 } from '../../lib/library-card-size';
 import { AnimeCard } from './AnimeCard';
 import { AnimeDetailView } from './AnimeDetailView';
+import { AnimeMergeDialog } from './AnimeMergeDialog';
+import { DuplicateReviewStrip } from './DuplicateReviewStrip';
 
 type SortKey = 'lastWatched' | 'watchTime' | 'cards' | 'episodes';
 
@@ -53,7 +55,17 @@ export function AnimeTab({
   onNavigateToWord,
   onOpenEpisodeDetail,
 }: AnimeTabProps) {
-  const { anime, loading, error, reload } = useAnimeLibrary();
+  const {
+    anime,
+    loading,
+    error,
+    reload,
+    recommendations,
+    dismissRecommendation,
+    dismissingRecommendationId,
+    recommendationActionError,
+    clearRecommendation,
+  } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
   const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
@@ -62,6 +74,23 @@ export function AnimeTab({
     ),
   );
   const [selectedAnimeId, setSelectedAnimeId] = useState<number | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [checkedAnimeIds, setCheckedAnimeIds] = useState<number[]>([]);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [reviewRecommendationId, setReviewRecommendationId] = useState<number | null>(null);
+  const [reviewAnimeIds, setReviewAnimeIds] = useState<[number, number] | null>(null);
+
+  function toggleChecked(animeId: number): void {
+    setCheckedAnimeIds((ids) =>
+      ids.includes(animeId) ? ids.filter((id) => id !== animeId) : [...ids, animeId],
+    );
+  }
+
+  function exitSelectionMode(): void {
+    setSelectionMode(false);
+    setCheckedAnimeIds([]);
+    setShowMergeDialog(false);
+  }
 
   function handleCardSizeChange(size: LibraryCardSize): void {
     setCardSize(size);
@@ -86,6 +115,22 @@ export function AnimeTab({
   }, [anime, search, sortKey]);
 
   const totalMs = anime.reduce((sum, a) => sum + a.totalActiveMs, 0);
+  const checkedEntries = checkedAnimeIds
+    .map((animeId) => anime.find((entry) => entry.animeId === animeId))
+    .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  const hydratedRecommendations = recommendations
+    .map((recommendation) => ({
+      ...recommendation,
+      entries: recommendation.animeIds
+        .map((animeId) => anime.find((entry) => entry.animeId === animeId))
+        .filter((entry): entry is (typeof anime)[number] => entry !== undefined),
+    }))
+    .filter((recommendation) => recommendation.entries.length >= 2);
+  const activeRecommendation = hydratedRecommendations[0] ?? null;
+  const reviewEntries = (reviewAnimeIds ?? [])
+    .map((animeId) => anime.find((entry) => entry.animeId === animeId))
+    .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  const mergeEntries = reviewRecommendationId !== null ? reviewEntries : checkedEntries;
 
   if (selectedAnimeId !== null) {
     return (
@@ -100,6 +145,7 @@ export function AnimeTab({
         }
         onAnimeDeleted={reload}
         onAnilistRelinked={reload}
+        onEpisodeMoved={reload}
       />
     );
   }
@@ -143,10 +189,56 @@ export function AnimeTab({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+          title="Select several entries to merge them into one"
+          className={`px-2 py-2 rounded-lg border text-xs shrink-0 transition-colors ${
+            selectionMode
+              ? 'bg-ctp-blue/15 border-ctp-blue/40 text-ctp-blue'
+              : 'bg-ctp-surface0 border-ctp-surface1 text-ctp-overlay2 hover:text-ctp-subtext0'
+          }`}
+        >
+          {selectionMode ? 'Cancel' : 'Select'}
+        </button>
         <div className="text-xs text-ctp-overlay2 shrink-0">
           {filtered.length} titles · {formatDuration(totalMs)}
         </div>
       </div>
+
+      {activeRecommendation ? (
+        <DuplicateReviewStrip
+          entries={activeRecommendation.entries}
+          current={1}
+          total={hydratedRecommendations.length}
+          dismissing={dismissingRecommendationId === activeRecommendation.recommendationId}
+          error={recommendationActionError}
+          onReview={() => {
+            setReviewRecommendationId(activeRecommendation.recommendationId);
+            setReviewAnimeIds(activeRecommendation.animeIds);
+            setShowMergeDialog(true);
+          }}
+          onDismiss={() => void dismissRecommendation(activeRecommendation.recommendationId)}
+        />
+      ) : null}
+
+      {selectionMode && (
+        <div className="flex items-center justify-between gap-3 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2">
+          <div className="text-xs text-ctp-overlay2">
+            {checkedEntries.length === 0
+              ? 'Pick the duplicate entries to combine'
+              : `${checkedEntries.length} selected`}
+          </div>
+          <button
+            type="button"
+            disabled={checkedEntries.length < 2}
+            onClick={() => setShowMergeDialog(true)}
+            className="px-3 py-1.5 rounded-lg bg-ctp-blue/15 border border-ctp-blue/40 text-xs text-ctp-blue hover:bg-ctp-blue/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Merge Selected
+          </button>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="text-sm text-ctp-overlay2 p-4">No titles found</div>
@@ -156,10 +248,34 @@ export function AnimeTab({
             <AnimeCard
               key={item.animeId}
               anime={item}
-              onClick={() => setSelectedAnimeId(item.animeId)}
+              selectable={selectionMode}
+              selected={checkedAnimeIds.includes(item.animeId)}
+              onClick={() =>
+                selectionMode ? toggleChecked(item.animeId) : setSelectedAnimeId(item.animeId)
+              }
             />
           ))}
         </div>
+      )}
+
+      {showMergeDialog && mergeEntries.length >= 2 && (
+        <AnimeMergeDialog
+          entries={mergeEntries}
+          onClose={() => {
+            setShowMergeDialog(false);
+            setReviewRecommendationId(null);
+            setReviewAnimeIds(null);
+          }}
+          onMerged={() => {
+            if (reviewRecommendationId !== null) {
+              clearRecommendation(reviewRecommendationId);
+            }
+            exitSelectionMode();
+            setReviewRecommendationId(null);
+            setReviewAnimeIds(null);
+            reload();
+          }}
+        />
       )}
     </div>
   );

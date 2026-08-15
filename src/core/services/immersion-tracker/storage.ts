@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
+import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
 import { SCHEMA_VERSION } from './types';
@@ -319,14 +321,7 @@ export function applyPragmas(db: DatabaseSync): void {
   db.exec(`PRAGMA journal_size_limit = ${WAL_JOURNAL_SIZE_LIMIT_BYTES}`);
 }
 
-export function normalizeAnimeIdentityKey(title: string): string {
-  return title
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
+export const normalizeAnimeIdentityKey = normalizeTitleIdentity;
 
 function normalizeSeasonScope(value: number | null | undefined): number | null {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
@@ -530,6 +525,36 @@ function ensureStatsExcludedWordsTable(db: DatabaseSync): void {
   `);
 }
 
+function ensureAnimeMergeTables(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS imm_anime_title_aliases(
+      normalized_title_key TEXT PRIMARY KEY,
+      anime_id INTEGER NOT NULL,
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_anime_title_aliases_anime_id
+    ON imm_anime_title_aliases(anime_id);
+
+    CREATE TABLE IF NOT EXISTS imm_anime_merge_recommendations(
+      recommendation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      first_anime_id INTEGER NOT NULL,
+      second_anime_id INTEGER NOT NULL,
+      anilist_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'dismissed')),
+      CREATED_DATE TEXT,
+      LAST_UPDATE_DATE TEXT,
+      CHECK(first_anime_id < second_anime_id),
+      UNIQUE(first_anime_id, second_anime_id, anilist_id),
+      FOREIGN KEY(first_anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE,
+      FOREIGN KEY(second_anime_id) REFERENCES imm_anime(anime_id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_anime_merge_recommendations_status
+    ON imm_anime_merge_recommendations(status, recommendation_id);
+  `);
+}
+
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
   const seasonScope = normalizeSeasonScope(input.seasonScope);
   const identityTitle = buildSeasonScopedAnimeTitle(input.parsedTitle, seasonScope);
@@ -550,8 +575,14 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
   const byNormalizedTitle = db
     .prepare('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?')
     .get(normalizedTitleKey) as { anime_id: number } | null;
-  const existing = byAnilistId ?? byNormalizedTitle;
+  const byTitleAlias = db
+    .prepare('SELECT anime_id FROM imm_anime_title_aliases WHERE normalized_title_key = ?')
+    .get(normalizedTitleKey) as { anime_id: number } | null;
+  const existing = byAnilistId ?? byNormalizedTitle ?? byTitleAlias;
   if (existing?.anime_id) {
+    // An alias remembers an intentionally merged-away spelling. Reusing it
+    // must not rename the survivor back to that discarded display title.
+    const canonicalTitleUpdate = byAnilistId || byNormalizedTitle ? canonicalTitle : null;
     db.prepare(
       `
         UPDATE imm_anime
@@ -566,7 +597,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
-      canonicalTitle,
+      canonicalTitleUpdate,
       input.anilistId,
       input.titleRomaji,
       input.titleEnglish,
@@ -618,7 +649,10 @@ export function linkVideoToAnimeRecord(
     `
       UPDATE imm_videos
       SET
-        anime_id = ?,
+        anime_id = CASE
+          WHEN anime_assignment_locked = 1 THEN anime_id
+          ELSE ?
+        END,
         parsed_basename = ?,
         parsed_title = ?,
         parsed_season = ?,
@@ -643,11 +677,113 @@ export function linkVideoToAnimeRecord(
   );
 }
 
+function getLockedAnimeAssignment(
+  db: DatabaseSync,
+  videoId: number,
+): { animeId: number | null } | null {
+  return db
+    .prepare(
+      `
+        SELECT anime_id AS animeId
+        FROM imm_videos
+        WHERE video_id = ?
+          AND anime_assignment_locked = 1
+      `,
+    )
+    .get(videoId) as { animeId: number | null } | null;
+}
+
+export function getManualAnimeAssignment(db: DatabaseSync, videoId: number): number | null {
+  return getLockedAnimeAssignment(db, videoId)?.animeId ?? null;
+}
+
+/**
+ * A manual correction in the same folder is a useful grouping hint, but only
+ * when every season-compatible correction agrees on the destination and the
+ * new file's parsed title has no established identity of its own. Stray
+ * per-episode titles (an episode name parsed as the series) have no library
+ * entry, so they follow the correction; a clean parse of a show that already
+ * owns an entry or alias keeps that identity instead of being captured by a
+ * neighbor's correction in a mixed folder (a flat downloads directory).
+ */
+export function findManualDirectoryAnimeAssignment(
+  db: DatabaseSync,
+  videoId: number,
+  mediaPath: string,
+  parsedTitle: string | null,
+  parsedSeason: number | null,
+): number | null {
+  // Mirrors the identity key getOrCreateAnimeRecord would file this video
+  // under, so "established" means exactly "would have joined that entry".
+  const identityKey = normalizeAnimeIdentityKey(
+    buildSeasonScopedAnimeTitle(parsedTitle ?? '', normalizeSeasonScope(parsedSeason)),
+  );
+  if (!identityKey) {
+    return null;
+  }
+  const directory = path.dirname(path.resolve(mediaPath));
+  const rows = db
+    .prepare(
+      `
+        SELECT
+          anime_id AS animeId,
+          source_path AS sourcePath,
+          parsed_season AS parsedSeason
+        FROM imm_videos
+        WHERE video_id != ?
+          AND anime_assignment_locked = 1
+          AND anime_id IS NOT NULL
+          AND source_path IS NOT NULL
+      `,
+    )
+    .all(videoId) as Array<{
+    animeId: number;
+    sourcePath: string;
+    parsedSeason: number | null;
+  }>;
+
+  const candidates = new Set<number>();
+  for (const row of rows) {
+    if (path.dirname(path.resolve(row.sourcePath)) !== directory) {
+      continue;
+    }
+    if (parsedSeason !== null && row.parsedSeason !== null && parsedSeason !== row.parsedSeason) {
+      continue;
+    }
+    candidates.add(row.animeId);
+    if (candidates.size > 1) {
+      return null;
+    }
+  }
+  const candidate = candidates.values().next().value ?? null;
+  if (candidate === null) {
+    return null;
+  }
+  const established = (db
+    .prepare(
+      `
+        SELECT anime_id AS animeId FROM imm_anime WHERE normalized_title_key = ?
+        UNION ALL
+        SELECT anime_id AS animeId FROM imm_anime_title_aliases WHERE normalized_title_key = ?
+      `,
+    )
+    .get(identityKey, identityKey) ?? null) as { animeId: number } | null;
+  if (established && established.animeId !== candidate) {
+    return null;
+  }
+  return candidate;
+}
+
 export function linkYoutubeVideoToAnimeRecord(
   db: DatabaseSync,
   videoId: number,
   metadata: YoutubeVideoMetadata,
 ): number | null {
+  const lockedAssignment = getLockedAnimeAssignment(db, videoId);
+  if (lockedAssignment) {
+    return lockedAssignment.animeId;
+  }
+
   const identity = buildYoutubeChannelAnimeIdentity(metadata);
   if (!identity) {
     return null;
@@ -751,6 +887,7 @@ export function ensureSchema(db: DatabaseSync): void {
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
+    ensureAnimeMergeTables(db);
     return;
   }
 
@@ -786,6 +923,7 @@ export function ensureSchema(db: DatabaseSync): void {
       parser_source TEXT,
       parser_confidence REAL,
       parse_metadata_json TEXT,
+      anime_assignment_locked INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1)),
       watched INTEGER NOT NULL DEFAULT 0,
       duration_ms INTEGER NOT NULL CHECK(duration_ms>=0),
       file_size_bytes INTEGER CHECK(file_size_bytes>=0),
@@ -799,6 +937,13 @@ export function ensureSchema(db: DatabaseSync): void {
       FOREIGN KEY(anime_id) REFERENCES imm_anime(anime_id) ON DELETE SET NULL
     );
   `);
+  addColumnIfMissing(
+    db,
+    'imm_videos',
+    'anime_assignment_locked',
+    'INTEGER NOT NULL DEFAULT 0 CHECK(anime_assignment_locked IN (0, 1))',
+  );
+  ensureAnimeMergeTables(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_sessions(
       session_id INTEGER PRIMARY KEY AUTOINCREMENT,

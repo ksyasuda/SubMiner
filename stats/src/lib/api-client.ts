@@ -11,6 +11,10 @@ import type {
   StatsExcludedWordsRequest,
   StatsHttpClient,
   StatsJsonResponseMap,
+  StatsMergeAnimeRequest,
+  StatsMergeAnimeResponse,
+  StatsMoveVideoRequest,
+  StatsMoveVideoResponse,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -140,6 +144,8 @@ export const apiClient = {
   getMediaLibrary: () => fetchJson('mediaLibrary', '/api/stats/media'),
   getMediaDetail: (videoId: number) => fetchJson('mediaDetail', `/api/stats/media/${videoId}`),
   getAnimeLibrary: () => fetchJson('animeLibrary', '/api/stats/anime'),
+  getAnimeMergeRecommendations: () =>
+    fetchJson('animeMergeRecommendations', '/api/stats/anime/merge-recommendations'),
   getAnimeDetail: (animeId: number) => fetchJson('animeDetail', `/api/stats/anime/${animeId}`),
   getAnimeWords: (animeId: number, limit = 50) =>
     fetchJson('animeWords', `/api/stats/anime/${animeId}/words?limit=${limit}`),
@@ -208,6 +214,30 @@ export const apiClient = {
     await trackDelete('Deleting library entry', () =>
       fetchResponse(`/api/stats/anime/${animeId}`, { method: 'DELETE' }),
     );
+  },
+  mergeAnime: async (
+    targetAnimeId: number,
+    sourceAnimeIds: number[],
+  ): Promise<StatsMergeAnimeResponse> => {
+    const res = await fetchResponse(`/api/stats/anime/${targetAnimeId}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceAnimeIds } satisfies StatsMergeAnimeRequest),
+    });
+    return res.json() as Promise<StatsMergeAnimeResponse>;
+  },
+  moveVideoToAnime: async (videoId: number, animeId: number): Promise<StatsMoveVideoResponse> => {
+    const res = await fetchResponse(`/api/stats/media/${videoId}/anime`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ animeId } satisfies StatsMoveVideoRequest),
+    });
+    return res.json() as Promise<StatsMoveVideoResponse>;
+  },
+  dismissAnimeMergeRecommendation: async (recommendationId: number): Promise<void> => {
+    await fetchResponse(`/api/stats/anime/merge-recommendations/${recommendationId}`, {
+      method: 'DELETE',
+    });
   },
   getKnownWords: () => fetchJson('knownWords', '/api/stats/known-words'),
   getKnownWordsSummary: () => fetchJson('knownWordsSummary', '/api/stats/known-words-summary'),

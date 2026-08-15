@@ -28,6 +28,7 @@ const VIDEO_COPY_COLUMNS = [
   'parser_source',
   'parser_confidence',
   'parse_metadata_json',
+  'anime_assignment_locked',
   'watched',
   'duration_ms',
   'file_size_bytes',

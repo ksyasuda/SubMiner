@@ -4,21 +4,39 @@ import { apiClient } from '../../lib/api-client';
 import { confirmEpisodeDelete } from '../../lib/delete-confirm';
 import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { EpisodeDetail } from './EpisodeDetail';
+import { LibraryEntryPicker } from './LibraryEntryPicker';
 import type { AnimeEpisode } from '../../types/stats';
+
+/**
+ * Row actions that only appear on hover. Keyboard focus and pointers with no
+ * hover (touch) reveal them too, otherwise those users cannot reach the button
+ * at all.
+ */
+const HOVER_REVEALED =
+  'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100';
 
 interface EpisodeListProps {
   episodes: AnimeEpisode[];
+  /** Entry these episodes currently belong to; excluded from the move picker. */
+  animeId?: number;
   onEpisodeDeleted?: () => void;
+  /** Fires after an episode is reassigned, so the caller can refetch. */
+  onEpisodeMoved?: (removedPreviousAnime: boolean) => void;
   onOpenDetail?: (videoId: number) => void;
 }
 
 export function EpisodeList({
   episodes: initialEpisodes,
+  animeId,
   onEpisodeDeleted,
+  onEpisodeMoved,
   onOpenDetail,
 }: EpisodeListProps) {
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState(initialEpisodes);
+  const [movingEpisode, setMovingEpisode] = useState<AnimeEpisode | null>(null);
+  const [moveTargetId, setMoveTargetId] = useState<number | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
 
   if (episodes.length === 0) return null;
 
@@ -49,6 +67,22 @@ export function EpisodeList({
     setEpisodes((prev) => prev.filter((ep) => ep.videoId !== videoId));
     if (expandedVideoId === videoId) setExpandedVideoId(null);
     onEpisodeDeleted?.();
+  };
+
+  const handleMoveEpisode = async (videoId: number, targetAnimeId: number) => {
+    setMoveTargetId(targetAnimeId);
+    setMoveError(null);
+    try {
+      const result = await apiClient.moveVideoToAnime(videoId, targetAnimeId);
+      setEpisodes((prev) => prev.filter((ep) => ep.videoId !== videoId));
+      if (expandedVideoId === videoId) setExpandedVideoId(null);
+      setMovingEpisode(null);
+      onEpisodeMoved?.(result.removedPreviousAnime);
+    } catch (err) {
+      setMoveError(err instanceof Error ? err.message : 'Failed to move this episode.');
+    } finally {
+      setMoveTargetId(null);
+    }
   };
 
   const watchedCount = episodes.filter((ep) => ep.watched).length;
@@ -168,10 +202,24 @@ export function EpisodeList({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setMoveError(null);
+                            setMovingEpisode(ep);
+                          }}
+                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-blue/50 hover:text-ctp-blue focus-visible:text-ctp-blue hover:bg-ctp-blue/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
+                          title="Move to another library entry"
+                          aria-label="Move to another library entry"
+                        >
+                          {'\u2192'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             void handleDeleteEpisode(ep.videoId, ep.canonicalTitle);
                           }}
-                          className="w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red hover:bg-ctp-red/10 transition-colors opacity-0 group-hover:opacity-100 text-xs flex items-center justify-center"
+                          className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red focus-visible:text-ctp-red hover:bg-ctp-red/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
                           title="Delete episode"
+                          aria-label="Delete episode"
                         >
                           {'\u2715'}
                         </button>
@@ -191,6 +239,19 @@ export function EpisodeList({
           </tbody>
         </table>
       </div>
+      {movingEpisode && (
+        <LibraryEntryPicker
+          heading={`Move "${movingEpisode.canonicalTitle}" To`}
+          excludeAnimeIds={animeId != null ? [animeId] : []}
+          busyAnimeId={moveTargetId}
+          error={moveError}
+          onSelect={(entry) => void handleMoveEpisode(movingEpisode.videoId, entry.animeId)}
+          onClose={() => {
+            setMovingEpisode(null);
+            setMoveError(null);
+          }}
+        />
+      )}
     </div>
   );
 }

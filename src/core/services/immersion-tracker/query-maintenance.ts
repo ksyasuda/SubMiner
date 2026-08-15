@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { DatabaseSync } from './sqlite';
 import { buildCoverBlobReference, normalizeCoverBlobBytes } from './storage';
-import { rebuildLifetimeSummaries, rebuildLifetimeSummariesInTransaction } from './lifetime';
+import {
+  recomputeLifetimeAnimeAggregates,
+  rebuildLifetimeSummariesInTransaction,
+} from './lifetime';
 import { getRollupGroupsForSessions, refreshRollupsForGroupsInTransaction } from './maintenance';
 import { nowMs } from './time';
 import { resolveAnimeAnilistConflict } from './anime-season-repair';
@@ -418,6 +421,7 @@ export function updateAnimeAnilistInfo(
     titleEnglish: string | null;
     titleNative: string | null;
     episodesTotal: number | null;
+    exactTitleMatch?: boolean;
   },
 ): void {
   const row = db.prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?').get(videoId) as {
@@ -425,7 +429,11 @@ export function updateAnimeAnilistInfo(
   } | null;
   if (!row?.anime_id) return;
 
-  const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId);
+  const repair = resolveAnimeAnilistConflict(db, row.anime_id, info.anilistId, {
+    matchConfidence:
+      info.exactTitleMatch === true ? 'exact' : info.exactTitleMatch === false ? 'weak' : undefined,
+  });
+  if (repair.mergeRecommended || repair.anilistAssignmentBlocked) return;
   const targetRow = db
     .prepare('SELECT anime_id FROM imm_videos WHERE video_id = ?')
     .get(videoId) as {
@@ -455,7 +463,7 @@ export function updateAnimeAnilistInfo(
     targetRow.anime_id,
   );
   if (repair.movedVideos > 0 || repair.deletedAnimeRows > 0) {
-    rebuildLifetimeSummaries(db);
+    recomputeLifetimeAnimeAggregates(db);
   }
 }
 
