@@ -369,8 +369,13 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
 
       const assignmentAnimeId =
         candidate.anime_assignment_locked === 1 ? candidate.anime_id : target.anime_id;
+      // A lock without an assignment is meaningless and would pin later
+      // relinking to nothing, so never carry the flag onto a NULL anime_id.
       const assignmentLocked =
-        candidate.anime_assignment_locked === 1 || target.anime_assignment_locked === 1 ? 1 : 0;
+        assignmentAnimeId !== null &&
+        (candidate.anime_assignment_locked === 1 || target.anime_assignment_locked === 1)
+          ? 1
+          : 0;
       db.prepare(
         `
           UPDATE imm_videos
