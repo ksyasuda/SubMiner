@@ -42,6 +42,7 @@ import {
   getPreferredWordValueFromExtractedFields,
 } from './anki-field-config';
 import { createLogger } from './logger';
+import { captureLiveSubtitleMiningContext } from './core/services/mining';
 import {
   createUiFeedbackState,
   beginUpdateProgress,
@@ -669,6 +670,7 @@ export class AnkiIntegration {
       formatMiscInfoPattern: (fallbackFilename, startTimeSeconds) =>
         this.formatMiscInfoPattern(fallbackFilename, startTimeSeconds),
       consumeSubtitleMiningContext: () => this.consumeSubtitleMiningContext(),
+      captureSubtitleMediaContext: () => captureLiveSubtitleMiningContext(this.mpvClient),
       queuePendingYoutubeMediaUpdate: (job) => this.queuePendingYoutubeMediaUpdateForNote(job),
       addConfiguredTagsToNote: (noteId) => this.addConfiguredTagsToNote(noteId),
       showNotification: (noteId, label) => this.showNotification(noteId, label),

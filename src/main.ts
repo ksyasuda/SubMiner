@@ -275,6 +275,7 @@ import {
   applyMpvSubtitleRenderMetricsPatch,
   authenticateWithPasswordRuntime,
   broadcastRuntimeOptionsChangedRuntime,
+  captureLiveSubtitleMiningContext,
   copyCurrentSubtitle as copyCurrentSubtitleCore,
   createConfigHotReloadRuntime,
   createDiscordPresenceService,
@@ -5535,7 +5536,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       },
       onYoutubePickerResolve: (request) => youtubeFlowRuntime.resolveActivePicker(request),
       openYomitanSettings: () => openYomitanSettings(),
-      recordSubtitleMiningContext: (context) => recordSubtitleMiningContext(context),
+      // Overlay lookups carry no cue context of their own; fall back to snapshotting the
+      // live mpv sub timings at lookup time so media generation clips the mined line even
+      // when extraction finishes long after playback has moved on.
+      recordSubtitleMiningContext: (context) =>
+        recordSubtitleMiningContext(
+          context ?? captureLiveSubtitleMiningContext(appState.mpvClient),
+        ),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () => {

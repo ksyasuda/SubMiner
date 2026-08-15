@@ -16,6 +16,7 @@ export {
 export { createOverlayShortcutRuntimeHandlers } from './overlay-shortcut-handler';
 export { createCliCommandDepsRuntime, handleCliCommand } from './cli-command';
 export {
+  captureLiveSubtitleMiningContext,
   copyCurrentSubtitle,
   handleMineSentenceDigit,
   handleMultiCopyDigit,
