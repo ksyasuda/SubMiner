@@ -40,6 +40,24 @@ test('buildStatsWindowOptions uses tracked overlay bounds and preload-friendly w
   assert.equal(options.webPreferences?.sandbox, true);
 });
 
+test('buildStatsWindowOptions uses a fullscreen auxiliary panel on macOS', () => {
+  const options = buildStatsWindowOptions({
+    preloadPath: '/tmp/preload-stats.js',
+    platform: 'darwin',
+  });
+
+  assert.equal(options.type, 'panel');
+});
+
+test('buildStatsWindowOptions remains a regular window off macOS', () => {
+  const options = buildStatsWindowOptions({
+    preloadPath: '/tmp/preload-stats.js',
+    platform: 'linux',
+  });
+
+  assert.equal(options.type, undefined);
+});
+
 test('shouldHideStatsWindowForInput matches Escape and configured bare toggle key', () => {
   assert.equal(
     shouldHideStatsWindowForInput(

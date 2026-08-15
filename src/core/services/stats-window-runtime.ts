@@ -57,7 +57,9 @@ export function shouldHideStatsWindowForInput(input: Electron.Input, toggleKey: 
 export function buildStatsWindowOptions(options: {
   preloadPath: string;
   bounds?: WindowGeometry | null;
+  platform?: NodeJS.Platform;
 }): BrowserWindowConstructorOptions {
+  const platform = options.platform ?? process.platform;
   return {
     title: STATS_WINDOW_TITLE,
     x: options.bounds?.x,
@@ -73,6 +75,9 @@ export function buildStatsWindowOptions(options: {
     focusable: true,
     acceptFirstMouse: true,
     fullscreenable: false,
+    // Panels join fullscreen Spaces on macOS without moving the user back to the
+    // desktop where SubMiner last owned a regular application window.
+    ...(platform === 'darwin' ? { type: 'panel' as const } : {}),
     backgroundColor: '#24273a',
     show: false,
     webPreferences: {

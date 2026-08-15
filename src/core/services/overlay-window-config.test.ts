@@ -15,6 +15,32 @@ test('overlay window config explicitly disables renderer sandbox for preload com
   assert.equal(options.webPreferences?.backgroundThrottling, false);
 });
 
+test('macOS modal overlay uses a fullscreen auxiliary panel without changing the passive overlay', () => {
+  const visibleOptions = buildOverlayWindowOptions('visible', {
+    isDev: false,
+    platform: 'darwin',
+    yomitanSession: null,
+  });
+  const modalOptions = buildOverlayWindowOptions('modal', {
+    isDev: false,
+    platform: 'darwin',
+    yomitanSession: null,
+  });
+
+  assert.equal(visibleOptions.type, undefined);
+  assert.equal(modalOptions.type, 'panel');
+});
+
+test('non-macOS modal overlay remains a regular window', () => {
+  const options = buildOverlayWindowOptions('modal', {
+    isDev: false,
+    platform: 'linux',
+    yomitanSession: null,
+  });
+
+  assert.equal(options.type, undefined);
+});
+
 test('Linux visible overlay window allows compositor resize for mpv-sized placement', () => {
   const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
 
