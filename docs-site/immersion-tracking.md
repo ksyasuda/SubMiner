@@ -82,7 +82,7 @@ Expandable session history with new-word activity, cumulative totals, and pause/
 
 #### Vocabulary
 
-The summary cards show all unique vocabulary and kanji recorded in the local tracking database; **New This Week** is the only weekly figure and uses a rolling seven-day window. The rest of the tab includes top repeated words (click a bar to open the word), new-word timeline, cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
+The summary cards show all unique vocabulary and kanji recorded in the local tracking database; **New This Week** is the only weekly figure and uses a rolling seven-day window. The word and kanji tables load first while those complete totals calculate separately. The rest of the tab includes top repeated words (click a bar to open the word), new-word timeline, cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 

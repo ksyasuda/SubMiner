@@ -59,7 +59,6 @@ import {
   getSimilarWords,
   getStatsExcludedWords,
   getVocabularyStats,
-  getVocabularySummary,
   replaceStatsExcludedWords,
   searchSubtitleSentences,
   getWordAnimeAppearances,
@@ -97,6 +96,10 @@ import {
   DeleteMaintenanceWorkerRuntime,
   type RunDeleteMaintenanceTask,
 } from './immersion-tracker/delete-maintenance-worker-runtime';
+import {
+  VocabularySummaryWorkerRuntime,
+  type RunVocabularySummaryTask,
+} from './immersion-tracker/vocabulary-summary-worker-runtime';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import {
   cleanupDuplicateSubtitleLines,
@@ -186,6 +189,7 @@ import {
   type StatsExcludedWordRow,
   type StreakCalendarRow,
   type VocabularyCleanupSummary,
+  type VocabularyStatsSummary,
   type WatchTimePerAnimeRow,
   type WordAnimeAppearanceRow,
   type WordDetailRow,
@@ -408,6 +412,10 @@ export class ImmersionTrackerService {
   private readonly dbPath: string;
   private readonly writeLock = { locked: false };
   private readonly destroyDeleteMaintenanceRunner: () => void;
+  private readonly runVocabularySummaryTask: (
+    knownWords: ReadonlySet<string> | null,
+  ) => Promise<VocabularyStatsSummary>;
+  private readonly destroyVocabularySummaryRunner: () => void;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -435,6 +443,8 @@ export class ImmersionTrackerService {
     dependencies: {
       runDeleteMaintenanceTask?: RunDeleteMaintenanceTask;
       destroyDeleteMaintenanceRunner?: () => void;
+      runVocabularySummaryTask?: RunVocabularySummaryTask;
+      destroyVocabularySummaryRunner?: () => void;
     } = {},
   ) {
     this.dbPath = options.dbPath;
@@ -461,6 +471,17 @@ export class ImmersionTrackerService {
         if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
       },
     });
+    if (dependencies.runVocabularySummaryTask) {
+      this.runVocabularySummaryTask = (knownWords) =>
+        dependencies.runVocabularySummaryTask!(this.dbPath, knownWords);
+      this.destroyVocabularySummaryRunner =
+        dependencies.destroyVocabularySummaryRunner ?? (() => {});
+    } else {
+      const vocabularySummaryRuntime = new VocabularySummaryWorkerRuntime();
+      this.runVocabularySummaryTask = (knownWords) =>
+        vocabularySummaryRuntime.run(this.dbPath, knownWords);
+      this.destroyVocabularySummaryRunner = () => vocabularySummaryRuntime.destroy();
+    }
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -566,6 +587,7 @@ export class ImmersionTrackerService {
     this.isDestroyed = true;
     this.deleteMaintenanceScheduler.destroy();
     this.destroyDeleteMaintenanceRunner();
+    this.destroyVocabularySummaryRunner();
     this.db.close();
   }
 
@@ -636,7 +658,7 @@ export class ImmersionTrackerService {
   }
 
   async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
-    return getVocabularySummary(this.db, knownWords);
+    return this.runVocabularySummaryTask(knownWords);
   }
 
   async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {

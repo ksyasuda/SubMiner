@@ -98,24 +98,26 @@ export function VocabularyTab({
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           label="Unique Words"
-          value={formatNumber(displayedSummary.uniqueWords)}
+          value={summary ? formatNumber(displayedSummary.uniqueWords) : '…'}
           color="text-ctp-blue"
         />
-        {displayedSummary.knownWordCount !== null && (
+        {displayedSummary.knownWordCount !== null ? (
           <StatCard
             label="Known Words"
             value={`${formatNumber(displayedSummary.knownWordCount)} (${displayedSummary.uniqueWords > 0 ? Math.round((displayedSummary.knownWordCount / displayedSummary.uniqueWords) * 100) : 0}%)`}
             color="text-ctp-green"
           />
-        )}
+        ) : knownWords.size > 0 ? (
+          <StatCard label="Known Words" value="…" color="text-ctp-green" />
+        ) : null}
         <StatCard
           label="Unique Kanji"
-          value={formatNumber(summary?.uniqueKanji ?? 0)}
+          value={summary ? formatNumber(summary.uniqueKanji) : '…'}
           color="text-ctp-teal"
         />
         <StatCard
           label="New This Week"
-          value={`+${formatNumber(displayedSummary.newThisWeek)}`}
+          value={summary ? `+${formatNumber(displayedSummary.newThisWeek)}` : '…'}
           color="text-ctp-mauve"
         />
       </div>

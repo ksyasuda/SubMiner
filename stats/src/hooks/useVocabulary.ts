@@ -17,14 +17,10 @@ export function useVocabulary() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setSummary(null);
     const client = getStatsClient();
-    Promise.allSettled([
-      client.getVocabulary(500),
-      client.getKanji(200),
-      client.getKnownWords(),
-      client.getVocabularySummary(),
-    ])
-      .then(([wordsResult, kanjiResult, knownResult, summaryResult]) => {
+    Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
+      .then(([wordsResult, kanjiResult, knownResult]) => {
         if (cancelled) return;
         const errors: string[] = [];
 
@@ -44,12 +40,6 @@ export function useVocabulary() {
           setKnownWords(new Set(knownResult.value));
         }
 
-        if (summaryResult.status === 'fulfilled') {
-          setSummary(summaryResult.value);
-        } else {
-          errors.push(summaryResult.reason.message);
-        }
-
         if (errors.length > 0) {
           setError(errors.join('; '));
         }
@@ -57,6 +47,14 @@ export function useVocabulary() {
       .finally(() => {
         if (cancelled) return;
         setLoading(false);
+      });
+    void client
+      .getVocabularySummary()
+      .then((nextSummary) => {
+        if (!cancelled) setSummary(nextSummary);
+      })
+      .catch((summaryError: unknown) => {
+        console.error('Failed to load vocabulary summary', summaryError);
       });
     return () => {
       cancelled = true;
