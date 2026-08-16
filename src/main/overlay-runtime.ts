@@ -300,7 +300,7 @@ export function createOverlayModalRuntimeService(
     }
     elevateModalWindow(window);
     if (options.passThroughMouseEvents) {
-      applyOverlayClickThrough(window);
+      applyOverlayClickThrough(window, platform === 'win32');
     } else {
       window.setIgnoreMouseEvents(false);
     }
@@ -361,7 +361,7 @@ export function createOverlayModalRuntimeService(
         mainWindowMousePassthroughForcedByModal = false;
         return;
       }
-      applyOverlayClickThrough(mainWindow);
+      applyOverlayClickThrough(mainWindow, platform === 'win32');
       mainWindowMousePassthroughForcedByModal = true;
       return;
     }
@@ -518,7 +518,7 @@ export function createOverlayModalRuntimeService(
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
         if (reuseModalWindowAfterClose) {
-          applyOverlayClickThrough(modalWindow);
+          applyOverlayClickThrough(modalWindow, platform === 'win32');
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
         } else {

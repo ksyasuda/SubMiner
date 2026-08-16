@@ -200,30 +200,24 @@ function pruneExpiredProcessNames(nowMs: number): void {
 }
 
 type ProcessCommandLineCacheEntry =
-  | { state: 'resolved'; commandLine: string }
+  | { state: 'resolved'; commandLine: string; expiresAtMs: number; refreshInFlight: boolean }
   | { state: 'pending' }
   | { state: 'failed'; retryAtMs: number; backoffMs: number };
 
 const COMMAND_LINE_RETRY_INITIAL_BACKOFF_MS = 2_000;
 const COMMAND_LINE_RETRY_MAX_BACKOFF_MS = 30_000;
+// A process command line never changes, so a resolved entry only has to expire to survive
+// Windows PID reuse (a dead mpv's PID handed to a new instance, whose stale socket path would
+// otherwise match the wrong window forever). Longer than the process-name TTL because each
+// refresh costs a PowerShell spawn, and the cached value keeps being served while the refresh
+// runs, so expiry never interrupts window matching.
+const COMMAND_LINE_CACHE_TTL_MS = 60_000;
 const processCommandLineCache = new Map<number, ProcessCommandLineCacheEntry>();
 
-// Resolves a process command line via a background PowerShell lookup. Returns null until the
-// lookup completes; the caller's next poll picks up the cached result. Failures are
-// negative-cached with exponential backoff: the synchronous version of this lookup could
-// block the main thread for its full 1.5s timeout on every 250ms poll, which (combined with
-// the forward:true mouse hook) stalled mouse input system-wide.
-function getProcessCommandLineByPid(pid: number): string | null {
-  const entry = processCommandLineCache.get(pid);
-  if (entry?.state === 'resolved') return entry.commandLine;
-  if (entry?.state === 'pending') return null;
-  if (entry?.state === 'failed' && Date.now() < entry.retryAtMs) return null;
-
-  const nextBackoffMs =
-    entry?.state === 'failed'
-      ? Math.min(entry.backoffMs * 2, COMMAND_LINE_RETRY_MAX_BACKOFF_MS)
-      : COMMAND_LINE_RETRY_INITIAL_BACKOFF_MS;
-  processCommandLineCache.set(pid, { state: 'pending' });
+function queryProcessCommandLine(
+  pid: number,
+  onResult: (commandLine: string | null) => void,
+): void {
   execFile(
     'powershell.exe',
     [
@@ -241,17 +235,62 @@ function getProcessCommandLineByPid(pid: number): string | null {
     },
     (error, stdout) => {
       const output = error ? '' : stdout.trim();
-      if (output.length > 0) {
-        processCommandLineCache.set(pid, { state: 'resolved', commandLine: output });
-      } else {
-        processCommandLineCache.set(pid, {
-          state: 'failed',
-          retryAtMs: Date.now() + nextBackoffMs,
-          backoffMs: nextBackoffMs,
-        });
-      }
+      onResult(output.length > 0 ? output : null);
     },
   );
+}
+
+// Resolves a process command line via a background PowerShell lookup. Returns null until the
+// first lookup completes; the caller's next poll picks up the cached result. Failures are
+// negative-cached with exponential backoff: the synchronous version of this lookup could
+// block the main thread for its full 1.5s timeout on every 250ms poll, which (combined with
+// the forward:true mouse hook) stalled mouse input system-wide.
+function getProcessCommandLineByPid(pid: number): string | null {
+  const entry = processCommandLineCache.get(pid);
+  const nowMs = Date.now();
+
+  if (entry?.state === 'resolved') {
+    if (nowMs >= entry.expiresAtMs && !entry.refreshInFlight) {
+      entry.refreshInFlight = true;
+      queryProcessCommandLine(pid, (commandLine) => {
+        processCommandLineCache.set(pid, {
+          state: 'resolved',
+          // A failed refresh is usually a transient query error rather than a dead process
+          // (a gone process owns no window, so it is never looked up again). Keep the last
+          // known command line and re-check after the next TTL.
+          commandLine: commandLine ?? entry.commandLine,
+          expiresAtMs: Date.now() + COMMAND_LINE_CACHE_TTL_MS,
+          refreshInFlight: false,
+        });
+      });
+    }
+    return entry.commandLine;
+  }
+
+  if (entry?.state === 'pending') return null;
+  if (entry?.state === 'failed' && nowMs < entry.retryAtMs) return null;
+
+  const nextBackoffMs =
+    entry?.state === 'failed'
+      ? Math.min(entry.backoffMs * 2, COMMAND_LINE_RETRY_MAX_BACKOFF_MS)
+      : COMMAND_LINE_RETRY_INITIAL_BACKOFF_MS;
+  processCommandLineCache.set(pid, { state: 'pending' });
+  queryProcessCommandLine(pid, (commandLine) => {
+    if (commandLine !== null) {
+      processCommandLineCache.set(pid, {
+        state: 'resolved',
+        commandLine,
+        expiresAtMs: Date.now() + COMMAND_LINE_CACHE_TTL_MS,
+        refreshInFlight: false,
+      });
+    } else {
+      processCommandLineCache.set(pid, {
+        state: 'failed',
+        retryAtMs: Date.now() + nextBackoffMs,
+        backoffMs: nextBackoffMs,
+      });
+    }
+  });
   return null;
 }
 
