@@ -30,9 +30,12 @@ Read when: you need to find the owner module for a behavior or test surface
 - AniList tracking + character dictionary: `src/core/services/anilist/`, `src/main/runtime/composers/anilist-*`, `src/main/character-dictionary-runtime.ts`, `src/main/character-dictionary-runtime/`
 - Jellyfin integration: `src/core/services/jellyfin*.ts`, `src/main/runtime/composers/jellyfin-*`
 - Anime browser: extension bridge client, sidecar, and stream handling in `src/anime-bridge/`;
+  the loopback stream proxy separates request transport/retry from response transformation in
+  `stream-strip-transport.ts` and `stream-strip-response.ts`;
   browser window UI in `src/animeui/` (preload `src/preload-animeui.ts`); runtime wiring in
-  `src/main/runtime/anime-browser-runtime.ts`, `src/main/runtime/anime-browser-ipc-handlers.ts`,
-  `src/main/runtime/anime-bridge-installer.ts`, `src/main/runtime/stream-playback-metadata.ts`.
+  `src/main/runtime/anime-browser-application-runtime.ts`, `src/main/runtime/anime-browser-runtime.ts`,
+  `src/main/runtime/anime-browser-ipc-handlers.ts`, `src/main/runtime/anime-browser-sessions.ts`,
+  `src/main/runtime/anime-bridge-installer.ts`, and `src/main/runtime/stream-playback-metadata.ts`.
   The play queue resolves episodes on click and appends them to mpv's real playlist
   (`src/main/runtime/anime-browser-queue.ts`), then observes media-path changes to
   attach prepared external tracks and update the browser queue state.

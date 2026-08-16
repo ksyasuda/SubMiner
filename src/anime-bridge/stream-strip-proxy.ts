@@ -1,147 +1,20 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { handleUpstreamResponse, TS_SEGMENT_ALIAS_SUFFIX } from './stream-strip-response';
+import { forwardableRequestHeaders, requestUpstream } from './stream-strip-transport';
+
+export {
+  DEFAULT_SCAN_LIMIT_BYTES,
+  findTsSyncOffset,
+  rewritePlaylistOrigins,
+  TS_PACKET_LENGTH,
+  TS_SEGMENT_ALIAS_SUFFIX,
+} from './stream-strip-response';
 
 /**
- * Loopback proxy between mpv and the anime bridge that undoes segment
- * disguises. Some hosts prepend a real image header (a 1x1 PNG in the wild) to
- * every HLS segment so scrapers see "an image"; ffmpeg then probes the segment
- * as a picture and playback dies with "no audio or video data played". Aniyomi
- * strips this in its player; mpv needs the bytes fixed before it sees them.
- *
- * Only bridge-origin `.m3u8` streams are routed through here (see
- * anime-browser-runtime). Playlist bodies get their absolute upstream origins
- * rewritten so segment requests come back through the proxy; segment bodies are
- * scanned for the first genuine MPEG-TS packet run and any junk before it is
- * dropped. Anything that is not TS (fMP4, VTT, keys) passes through untouched.
+ * Loopback proxy between mpv and the anime bridge that removes disguised HLS
+ * segment prefixes before ffmpeg sees them.
  */
-
-export const TS_PACKET_LENGTH = 188;
-const TS_SYNC_BYTE = 0x47;
-/**
- * Sync bytes that must repeat at exact packet spacing before an offset counts
- * as TS data. One or two matches happen by chance in binary data; five in a
- * row at 188-byte strides do not.
- */
-const SYNC_RUN = 5;
-/**
- * FFmpeg 8.1 rejects HLS media whose URL suffix is not in its segment allowlist.
- * Hosts disguise MPEG-TS segments behind rotating fake extensions (`.image`,
- * `.jpg`, `.css`, ...), so the local playlist gives every proxied segment
- * without a recognized media extension this safe alias and removes it again
- * before forwarding.
- */
-export const TS_SEGMENT_ALIAS_SUFFIX = '.subminer.ts';
-/** ffmpeg 8.1 hls demuxer `allowed_segment_extensions` defaults (minus `html`,
- * which only newer builds accept and is a disguise whenever it shows up here). */
-const FFMPEG_SAFE_SEGMENT_EXTENSIONS = new Set([
-  '3gp',
-  'aac',
-  'avi',
-  'ac3',
-  'eac3',
-  'flac',
-  'mkv',
-  'm3u8',
-  'm4a',
-  'm4s',
-  'm4v',
-  'mpg',
-  'mov',
-  'mp2',
-  'mp3',
-  'mp4',
-  'mpeg',
-  'mpegts',
-  'ogg',
-  'ogv',
-  'oga',
-  'ts',
-  'vob',
-  'vtt',
-  'wav',
-  'webvtt',
-  'cmfv',
-  'cmfa',
-  'ec3',
-  'fmp4',
-]);
-
-/** True when ffmpeg's picky segment-extension check would reject this path. */
-function needsTsSegmentAlias(pathname: string): boolean {
-  const name = pathname.slice(pathname.lastIndexOf('/') + 1).toLowerCase();
-  const dot = name.lastIndexOf('.');
-  if (dot === -1) return true;
-  return !FFMPEG_SAFE_SEGMENT_EXTENSIONS.has(name.slice(dot + 1));
-}
-/** A disguise prefix is small; give up scanning after this much. */
-export const DEFAULT_SCAN_LIMIT_BYTES = 1024 * 1024;
-/** Bytes needed to either find a run within the limit or rule one out. */
-const DECISION_BYTES = DEFAULT_SCAN_LIMIT_BYTES + (SYNC_RUN - 1) * TS_PACKET_LENGTH + 1;
-
-/**
- * First offset at which a confirmed MPEG-TS packet run starts, or null when
- * the data does not look like TS at all (within the scan limit).
- */
-export function findTsSyncOffset(
-  data: Buffer,
-  scanLimit = DEFAULT_SCAN_LIMIT_BYTES,
-): number | null {
-  const lastConfirmable = data.length - (SYNC_RUN - 1) * TS_PACKET_LENGTH - 1;
-  const end = Math.min(lastConfirmable, scanLimit);
-  for (let offset = 0; offset <= end; offset++) {
-    if (data[offset] !== TS_SYNC_BYTE) continue;
-    let confirmed = true;
-    for (let packet = 1; packet < SYNC_RUN; packet++) {
-      if (data[offset + packet * TS_PACKET_LENGTH] !== TS_SYNC_BYTE) {
-        confirmed = false;
-        break;
-      }
-    }
-    if (confirmed) return offset;
-  }
-  return null;
-}
-
-/**
- * Point absolute playlist entries at the proxy. Relative entries already
- * resolve against whatever origin served the playlist, so they need no help.
- */
-export function rewritePlaylistOrigins(
-  body: string,
-  upstreamOrigin: string,
-  proxyOrigin: string,
-): string {
-  const rebased = body.split(upstreamOrigin).join(proxyOrigin);
-  return rebased
-    .split(/(\r?\n)/)
-    .map((line) => {
-      const uri = line.trim();
-      if (!uri || uri.startsWith('#')) return line;
-
-      let resolved: URL;
-      try {
-        resolved = new URL(uri, proxyOrigin);
-      } catch {
-        return line;
-      }
-      if (resolved.origin !== proxyOrigin || !needsTsSegmentAlias(resolved.pathname)) {
-        return line;
-      }
-
-      const queryIndex = uri.search(/[?#]/);
-      const aliasIndex = queryIndex === -1 ? uri.length : queryIndex;
-      const leadingWhitespace = line.slice(0, line.indexOf(uri));
-      const trailingWhitespace = line.slice(leadingWhitespace.length + uri.length);
-      return `${leadingWhitespace}${uri.slice(0, aliasIndex)}${TS_SEGMENT_ALIAS_SUFFIX}${uri.slice(aliasIndex)}${trailingWhitespace}`;
-    })
-    .join('');
-}
-
-function removeTsSegmentAlias(url: URL): void {
-  if (url.pathname.endsWith(TS_SEGMENT_ALIAS_SUFFIX)) {
-    url.pathname = url.pathname.slice(0, -TS_SEGMENT_ALIAS_SUFFIX.length);
-  }
-}
 
 export interface StreamStripProxyOptions {
   /** Read per request so a bridge restart on a new port keeps working. */
@@ -152,12 +25,6 @@ export interface StreamStripProxyOptions {
 }
 
 const DEFAULT_RETRY_DELAY_MS = 400;
-/**
- * Socket timeout on the upstream GET, cleared once its headers arrive. Node's
- * http client has no deadline of its own, so a host that accepts the
- * connection and then says nothing would hang mpv on that segment forever.
- */
-const UPSTREAM_TIMEOUT_MS = 15_000;
 
 export interface StreamStripProxyHandle {
   origin: string;
@@ -165,26 +32,27 @@ export interface StreamStripProxyHandle {
   close: () => Promise<void>;
 }
 
-interface ClientRequestLifecycle {
-  activeUpstreamRequest: http.ClientRequest | null;
-  closed: boolean;
-}
-
-/** Response headers that must not be forwarded verbatim. */
-const DROPPED_HEADERS = new Set([
-  'connection',
-  'keep-alive',
-  'transfer-encoding',
-  'content-length',
-]);
-
-function forwardableHeaders(headers: http.IncomingHttpHeaders): http.OutgoingHttpHeaders {
-  const result: http.OutgoingHttpHeaders = {};
-  for (const [name, value] of Object.entries(headers)) {
-    if (value === undefined || DROPPED_HEADERS.has(name.toLowerCase())) continue;
-    result[name] = value;
+function resolveUpstreamUrl(requestTarget: string, configuredOrigin: string): URL {
+  if (
+    !requestTarget.startsWith('/') ||
+    requestTarget.startsWith('//') ||
+    requestTarget.includes('#')
+  ) {
+    throw new Error('Stream proxy requests must use origin-form targets.');
   }
-  return result;
+
+  const upstream = new URL(configuredOrigin);
+  if (upstream.protocol !== 'http:') {
+    throw new Error('Stream proxy upstream must use HTTP.');
+  }
+  const resolved = new URL(requestTarget, upstream.origin);
+  if (resolved.protocol !== 'http:' || resolved.origin !== upstream.origin) {
+    throw new Error('Stream proxy request escaped the configured upstream origin.');
+  }
+  if (resolved.pathname.endsWith(TS_SEGMENT_ALIAS_SUFFIX)) {
+    resolved.pathname = resolved.pathname.slice(0, -TS_SEGMENT_ALIAS_SUFFIX.length);
+  }
+  return resolved;
 }
 
 export function startStreamStripProxy(
@@ -192,6 +60,7 @@ export function startStreamStripProxy(
 ): Promise<StreamStripProxyHandle> {
   const log = options.log ?? (() => {});
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+  let origin = '';
 
   const server = http.createServer((req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -201,210 +70,36 @@ export function startStreamStripProxy(
 
     let upstreamUrl: URL;
     try {
-      upstreamUrl = new URL(req.url ?? '/', options.upstreamOrigin());
-      removeTsSegmentAlias(upstreamUrl);
+      upstreamUrl = resolveUpstreamUrl(req.url ?? '/', options.upstreamOrigin());
     } catch {
       res.writeHead(502).end();
       return;
     }
 
-    const requestHeaders = forwardableHeaders(req.headers);
+    const requestHeaders = forwardableRequestHeaders(req.headers);
     delete requestHeaders.host;
-    // Never forward Range: ffmpeg opens every segment with `bytes=0-`, the
-    // bridge answers some of those 206, and a partial response cannot be
-    // stripped (only full 200 bodies are). Byte ranges into a resource whose
-    // bytes this proxy rewrites would be incoherent anyway.
+    // Rewritten bodies cannot honor byte ranges into the original representation.
     delete requestHeaders.range;
     res.on('error', () => {});
 
-    const lifecycle: ClientRequestLifecycle = { activeUpstreamRequest: null, closed: false };
-    const destroyUpstreamOnClientClose = (): void => {
-      lifecycle.closed = true;
-      lifecycle.activeUpstreamRequest?.destroy();
-    };
-    req.once('aborted', destroyUpstreamOnClientClose);
-    res.once('close', destroyUpstreamOnClientClose);
-    res.once('finish', () => {
-      req.off('aborted', destroyUpstreamOnClientClose);
-      res.off('close', destroyUpstreamOnClientClose);
-      lifecycle.activeUpstreamRequest = null;
-    });
-
-    requestUpstream(req, res, upstreamUrl, requestHeaders, 0, lifecycle);
-  });
-
-  /**
-   * One delayed retry on a failed GET: right after an episode resolve, the
-   * bridge (or the host behind it) can error on the very first segment
-   * fetches and be fine a moment later — mpv treats a playlist full of failed
-   * segments as a dead file and gives up for good.
-   */
-  function requestUpstream(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    upstreamUrl: URL,
-    requestHeaders: http.OutgoingHttpHeaders,
-    attempt: number,
-    lifecycle: ClientRequestLifecycle,
-  ): void {
-    if (lifecycle.closed || res.destroyed) return;
-    const mayRetry = req.method === 'GET' && attempt === 0;
-    // Once the response is handed off, its headers (and often part of its body)
-    // are already on the wire: a later upstream error can only be reported by
-    // killing the connection, never by retrying or writing a 502.
-    let handedOff = false;
-    const retry = (): void => {
-      setTimeout(() => {
-        requestUpstream(req, res, upstreamUrl, requestHeaders, attempt + 1, lifecycle);
-      }, retryDelayMs);
-    };
-
-    const upstreamRequest = http.request(
+    requestUpstream({
+      req,
+      res,
       upstreamUrl,
-      { method: req.method, headers: requestHeaders, timeout: UPSTREAM_TIMEOUT_MS },
-      (upstream) => {
-        const clearActiveRequest = (): void => {
-          if (lifecycle.activeUpstreamRequest === upstreamRequest) {
-            lifecycle.activeUpstreamRequest = null;
-          }
-        };
-        upstream.once('end', clearActiveRequest);
-        upstream.once('close', clearActiveRequest);
-        // Body streaming has its own pace; only the wait for headers is capped.
-        upstreamRequest.setTimeout(0);
-        const status = upstream.statusCode ?? 502;
-        if (status === 404 || status >= 500) {
-          if (mayRetry) {
-            log(`[stream-proxy] upstream ${status} for ${upstreamUrl.pathname}; retrying once`);
-            upstream.resume();
-            retry();
-            return;
-          }
-          log(`[stream-proxy] upstream ${status} for ${upstreamUrl.pathname}`);
-        }
-        handedOff = true;
-        handleUpstreamResponse(req, res, upstream);
-      },
-    );
-    lifecycle.activeUpstreamRequest = upstreamRequest;
-    // Destroying with an error routes the stall through the retry/502 path.
-    upstreamRequest.on('timeout', () => {
-      upstreamRequest.destroy(new Error(`upstream silent for ${UPSTREAM_TIMEOUT_MS}ms`));
+      requestHeaders,
+      retryDelayMs,
+      log,
+      handleResponse: (upstream) =>
+        handleUpstreamResponse({
+          req,
+          res,
+          upstream,
+          upstreamOrigin: options.upstreamOrigin,
+          proxyOrigin: () => origin,
+          log,
+        }),
     });
-    upstreamRequest.on('error', (error) => {
-      if (handedOff) {
-        log(`[stream-proxy] upstream failed mid-response: ${String(error)}`);
-        res.destroy();
-        return;
-      }
-      if (mayRetry) {
-        log(`[stream-proxy] upstream request failed: ${String(error)}; retrying once`);
-        retry();
-        return;
-      }
-      log(`[stream-proxy] upstream request failed: ${String(error)}`);
-      if (!res.headersSent) res.writeHead(502);
-      res.end();
-    });
-    upstreamRequest.end();
-  }
-
-  function handleUpstreamResponse(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    upstream: http.IncomingMessage,
-  ): void {
-    const status = upstream.statusCode ?? 502;
-    const pathname = (req.url ?? '').split('?', 1)[0] ?? '';
-    const contentType = String(upstream.headers['content-type'] ?? '');
-    const isPlaylist = pathname.endsWith('.m3u8') || contentType.includes('mpegurl');
-
-    upstream.on('error', () => res.destroy());
-
-    // Only a full 200 body is safe to modify; everything else (errors, range
-    // responses, HEAD) forwards untouched.
-    if (status !== 200 || req.method === 'HEAD') {
-      res.writeHead(status, forwardableHeaders(upstream.headers));
-      upstream.pipe(res);
-      return;
-    }
-
-    if (isPlaylist) {
-      const chunks: Buffer[] = [];
-      let buffered = 0;
-      upstream.on('data', (chunk: Buffer) => {
-        buffered += chunk.length;
-        // A playlist is text and small; anything this large is not one, and it
-        // has to be held whole in memory to be rewritten.
-        if (buffered > DECISION_BYTES) {
-          log(`[stream-proxy] playlist body over ${DECISION_BYTES} bytes; dropping`);
-          upstream.destroy();
-          res.destroy();
-          return;
-        }
-        chunks.push(chunk);
-      });
-      upstream.on('end', () => {
-        const body = rewritePlaylistOrigins(
-          Buffer.concat(chunks).toString('utf8'),
-          options.upstreamOrigin(),
-          origin,
-        );
-        res.writeHead(status, {
-          ...forwardableHeaders(upstream.headers),
-          'content-length': Buffer.byteLength(body, 'utf8'),
-        });
-        res.end(body);
-      });
-      return;
-    }
-
-    stripSegment(res, upstream);
-  }
-
-  /**
-   * Buffer just enough of the body to find (or rule out) a TS packet run,
-   * drop everything before it, then stream the rest through untouched.
-   */
-  function stripSegment(res: http.ServerResponse, upstream: http.IncomingMessage): void {
-    const chunks: Buffer[] = [];
-    let buffered = 0;
-
-    const respond = (data: Buffer, remainderFollows: boolean): void => {
-      const offset = findTsSyncOffset(data) ?? 0;
-      if (offset > 0) log(`[stream-proxy] stripped ${offset} disguise bytes off a segment`);
-      const body = offset > 0 ? data.subarray(offset) : data;
-
-      const headers = forwardableHeaders(upstream.headers);
-      const upstreamLength = Number(upstream.headers['content-length']);
-      if (remainderFollows) {
-        if (Number.isFinite(upstreamLength)) headers['content-length'] = upstreamLength - offset;
-      } else {
-        headers['content-length'] = body.length;
-      }
-
-      res.writeHead(upstream.statusCode ?? 200, headers);
-      res.write(body);
-    };
-
-    const onData = (chunk: Buffer): void => {
-      chunks.push(chunk);
-      buffered += chunk.length;
-      if (buffered < DECISION_BYTES) return;
-      upstream.off('data', onData);
-      upstream.off('end', onEnd);
-      respond(Buffer.concat(chunks), true);
-      upstream.pipe(res);
-    };
-    const onEnd = (): void => {
-      respond(Buffer.concat(chunks), false);
-      res.end();
-    };
-    upstream.on('data', onData);
-    upstream.on('end', onEnd);
-  }
-
-  let origin = '';
+  });
 
   return new Promise((resolve, reject) => {
     server.once('error', reject);

@@ -9,6 +9,7 @@ import {
   type AnimeBrowserIpcSender,
 } from './anime-browser-ipc-handlers';
 import { createAnimeBrowserRuntime, type AnimeBrowserRuntimeDeps } from './anime-browser-runtime';
+import { createAnimeBrowserSessionRegistry } from './anime-browser-sessions';
 import { createOpenConfigSettingsWindowHandler } from './config-settings-window';
 import { createCreateAnimeBrowserWindowHandler } from './setup-window-factory';
 import {
@@ -68,7 +69,6 @@ export interface AnimeBrowserApplicationRuntime {
 export function createAnimeBrowserApplicationRuntime(
   deps: AnimeBrowserApplicationRuntimeDeps,
 ): AnimeBrowserApplicationRuntime {
-  const sessions = new Map<string, AnimeBrowserIpcSender>();
   let playbackState: AnimeBrowserPlaybackState | null = toAnimeBrowserPlaybackState(
     deps.getInitialPlaybackMetadata(),
   );
@@ -114,20 +114,15 @@ export function createAnimeBrowserApplicationRuntime(
     },
     onQueueState: (state) => broadcast(IPC_CHANNELS.event.animeBrowserQueueState, state),
   });
+  const sessions = createAnimeBrowserSessionRegistry((sessionId) =>
+    runtime.releaseSession(sessionId),
+  );
 
   registerAnimeBrowserIpcHandlers({
     ipcMain: deps.ipcMain,
     runtime,
     getPlaybackState: () => playbackState,
-    registerSession: (sessionId, sender) => {
-      if (sessions.get(sessionId) === sender) return;
-      sessions.set(sessionId, sender);
-      sender.once('destroyed', () => {
-        if (sessions.get(sessionId) !== sender) return;
-        sessions.delete(sessionId);
-        runtime.releaseSession(sessionId);
-      });
-    },
+    registerSession: sessions.register,
   });
 
   let dockIconRetained = false;

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import {
   findTsSyncOffset,
@@ -149,6 +150,25 @@ async function fetchBytes(url: string): Promise<{ status: number; body: Buffer }
   return { status: response.status, body: Buffer.from(await response.arrayBuffer()) };
 }
 
+async function requestRawTarget(proxyOrigin: string, target: string): Promise<number> {
+  const proxy = new URL(proxyOrigin);
+  return await new Promise<number>((resolve, reject) => {
+    const socket = net.createConnection(Number(proxy.port), proxy.hostname, () => {
+      socket.write(`GET ${target} HTTP/1.1\r\nHost: ${proxy.host}\r\nConnection: close\r\n\r\n`);
+    });
+    let response = '';
+    socket.setEncoding('utf8');
+    socket.on('data', (chunk) => {
+      response += chunk;
+      const status = /^HTTP\/1\.1 (\d{3})/.exec(response)?.[1];
+      if (!status) return;
+      socket.destroy();
+      resolve(Number(status));
+    });
+    socket.once('error', reject);
+  });
+}
+
 test('proxy strips the PNG disguise off a segment', async () => {
   const ts = makeTsPackets(8);
   const disguised = Buffer.concat([PNG_HEADER, ts]);
@@ -180,6 +200,31 @@ test('proxy leaves non-TS bodies alone', async () => {
     async (origin) => {
       const { body } = await fetchBytes(`${origin}/video/sub.vtt`);
       assert.deepEqual(body, vtt);
+    },
+  );
+});
+
+test('proxy accepts only origin-form targets for its configured HTTP upstream', async () => {
+  let upstreamHits = 0;
+  await withProxy(
+    (_req, res) => {
+      upstreamHits += 1;
+      res.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
+    },
+    async (proxyOrigin, upstreamOrigin) => {
+      const upstream = new URL(upstreamOrigin);
+      const rejectedTargets = [
+        `${upstreamOrigin}/absolute.ts`,
+        `//${upstream.host}/scheme-relative.ts`,
+        'http://127.0.0.1:9/alternate-host.ts',
+        `https://${upstream.host}/https.ts`,
+      ];
+      for (const target of rejectedTargets) {
+        assert.equal(await requestRawTarget(proxyOrigin, target), 502, target);
+      }
+      assert.equal(upstreamHits, 0);
+      assert.equal(await requestRawTarget(proxyOrigin, '/valid.ts?token=one'), 200);
+      assert.equal(upstreamHits, 1);
     },
   );
 });
