@@ -31,6 +31,20 @@ function makeSpawn(): { spawn: SyncLauncherSpawn; children: FakeChild[]; command
   return { spawn, children, commands };
 }
 
+async function waitForResult<T>(promise: Promise<T>, timeoutMs = 3000): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Timed out waiting for result.')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
+  }
+}
+
 test('runSyncLauncher parses NDJSON events across chunk boundaries', async () => {
   const { spawn, children, commands } = makeSpawn();
   const events: SyncProgressEvent[] = [];
@@ -96,7 +110,9 @@ test('runSyncLauncher settles after exit when close never arrives', async () => 
   // so `close` never fires.
   child.emit('exit', 1, null);
 
-  const result = await handle.done;
+  // Keep the isolated Bun test process alive while the production drain timer
+  // remains unref'ed, and fail instead of hanging if the result never settles.
+  const result = await waitForResult(handle.done);
   assert.equal(result.ok, false);
   assert.match(result.error ?? '', /remote refused/);
 });

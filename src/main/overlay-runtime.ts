@@ -87,7 +87,8 @@ export function createOverlayModalRuntimeService(
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
   const platform = options.platform ?? process.platform;
-  const keepModalWindowWarm = platform === 'darwin' || platform === 'win32';
+  const shouldPrimeModalWindow = platform === 'darwin' || platform === 'win32';
+  const reuseModalWindowAfterClose = platform === 'darwin';
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -181,7 +182,7 @@ export function createOverlayModalRuntimeService(
   };
 
   const primeModalWindow = (): boolean => {
-    if (!keepModalWindowWarm) {
+    if (!shouldPrimeModalWindow) {
       return false;
     }
     const modalWindow = resolveModalWindow();
@@ -515,13 +516,19 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        if (keepModalWindowWarm) {
+        if (reuseModalWindowAfterClose) {
           modalWindow.setIgnoreMouseEvents(true, { forward: true });
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
         } else {
           modalWindow.destroy();
           modalWindowPrimedForImmediateShow = false;
+          // Reusing a transparent click-through BrowserWindow can leave later modal sessions
+          // non-interactive on Windows. Recycle the renderer after every close, then warm its
+          // replacement so the next shortcut still opens promptly.
+          if (platform === 'win32') {
+            primeModalWindow();
+          }
         }
       }
       mainWindowMousePassthroughForcedByModal = false;

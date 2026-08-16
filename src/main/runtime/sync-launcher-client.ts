@@ -66,7 +66,7 @@ export function runSyncLauncher(options: {
   spawn?: SyncLauncherSpawn;
   timeoutMs?: number;
 }): SyncLauncherRunHandle {
-  const spawn =
+  const spawn: SyncLauncherSpawn =
     options.spawn ??
     ((command, args) => {
       // The child must boot as a full Electron app (its entry handles
