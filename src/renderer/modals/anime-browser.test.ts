@@ -17,6 +17,7 @@ test('embedded Anime Browser closes only for its own close message', () => {
   const messages: Array<(event: MessageEvent) => void> = [];
   const notifications: string[] = [];
   let staleModalOpen = true;
+  let dismissClearsOtherModal = true;
   let dismissOtherModalCalls = 0;
   const frameWindow = {};
   const closeListeners: Array<() => void> = [];
@@ -88,7 +89,7 @@ test('embedded Anime Browser closes only for its own close message', () => {
         },
         dismissOtherModals: () => {
           dismissOtherModalCalls += 1;
-          staleModalOpen = false;
+          if (dismissClearsOtherModal) staleModalOpen = false;
         },
         syncSettingsModalSubtitleSuppression: () => undefined,
       },
@@ -184,6 +185,42 @@ test('embedded Anime Browser closes only for its own close message', () => {
     );
     assert.equal(dismissOtherModalCalls, dismissCallsBeforeRepair);
     assert.equal(notifications.at(-1), 'open:anime-browser');
+
+    let escapePrevented = false;
+    assert.equal(
+      modal.handleAnimeBrowserKeydown({
+        key: 'Escape',
+        preventDefault: () => {
+          escapePrevented = true;
+        },
+      } as KeyboardEvent),
+      true,
+    );
+    assert.equal(escapePrevented, true);
+    assert.equal(state.animeBrowserModalOpen, false);
+    assert.equal(modalElement.classList.contains('hidden'), true);
+
+    staleModalOpen = true;
+    dismissClearsOtherModal = false;
+    const notificationsBeforeBlockedOpen = [...notifications];
+    assert.equal(modal.openAnimeBrowserModal(), false);
+    assert.equal(state.animeBrowserModalOpen, false);
+    assert.equal(modalElement.classList.contains('hidden'), true);
+    assert.deepEqual(notifications, notificationsBeforeBlockedOpen);
+
+    staleModalOpen = false;
+    dismissClearsOtherModal = true;
+    frame.src = '';
+    frame.dataset.src = '';
+    assert.throws(
+      () => modal.openAnimeBrowserModal(),
+      /missing its embedded source/,
+      'iframe load failure is reported before modal state changes',
+    );
+    assert.equal(state.animeBrowserModalOpen, false);
+    assert.equal(modalElement.classList.contains('hidden'), true);
+    assert.deepEqual(notifications, notificationsBeforeBlockedOpen);
+
     modal.disposeDomEvents();
     assert.deepEqual(removedCloseListeners, closeListeners);
   } finally {

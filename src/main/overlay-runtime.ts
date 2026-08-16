@@ -138,6 +138,13 @@ export function createOverlayModalRuntimeService(
     return null;
   };
 
+  const isWindowDocumentLoaded = (window: BrowserWindow): boolean => {
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
+    };
+    return overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] !== false;
+  };
+
   const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
     if (window.isDestroyed()) {
       return false;
@@ -145,13 +152,12 @@ export function createOverlayModalRuntimeService(
     if (window.webContents.isLoading()) {
       return false;
     }
-    const overlayWindow = window as BrowserWindow & {
-      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
-      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
-    };
-    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] === false) {
+    if (!isWindowDocumentLoaded(window)) {
       return false;
     }
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+    };
     if (
       typeof overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] === 'boolean' &&
       overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] !== true
@@ -166,10 +172,7 @@ export function createOverlayModalRuntimeService(
     if (window.isDestroyed() || window.webContents.isLoading()) {
       return false;
     }
-    const overlayWindow = window as BrowserWindow & {
-      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
-    };
-    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] !== true) {
+    if (!isWindowDocumentLoaded(window)) {
       return false;
     }
     const currentURL = window.webContents.getURL();

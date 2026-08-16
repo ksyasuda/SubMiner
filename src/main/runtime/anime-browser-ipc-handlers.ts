@@ -104,7 +104,7 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
     runtime.getPreferences(String(sourceId)),
   );
   handle(channels.animeBrowserSetPreference, (_event, sourceId, key, value) =>
-    runtime.setPreference(String(sourceId), String(key), value as string | string[] | boolean),
+    runtime.setPreference(String(sourceId), String(key), toPreferenceValue(value)),
   );
 }
 
@@ -167,6 +167,15 @@ function toSetWatchedRequest(value: unknown): AnimeBrowserSetWatchedRequest {
  */
 function toOptionalId(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Keep preference values within the bridge schema's supported scalar and list types. */
+function toPreferenceValue(value: unknown): string | string[] | boolean {
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string');
+  }
+  return '';
 }
 
 /** Bridge pages are 1-based; anything unusable falls back to the first page. */

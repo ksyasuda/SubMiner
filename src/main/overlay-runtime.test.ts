@@ -330,6 +330,30 @@ for (const platform of ['darwin', 'win32'] as const) {
   });
 }
 
+test('priming and IPC delivery both accept an unset document-loaded flag', () => {
+  const modalWindow = createMockWindow();
+  Reflect.deleteProperty(modalWindow, '__subminerOverlayDocumentLoaded');
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => modalWindow as never,
+      createModalWindow: () => modalWindow as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    { platform: 'darwin' },
+  );
+
+  assert.equal(runtime.primeModalWindow(), true);
+  assert.equal(
+    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
+    }),
+    true,
+  );
+  assert.deepEqual(modalWindow.sent, [['runtime-options:open']]);
+});
+
 test('anime browser modal keeps its document warm across close on Linux', () => {
   const modalWindow = createMockWindow();
   const runtime = createOverlayModalRuntimeService(

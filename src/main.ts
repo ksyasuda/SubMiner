@@ -427,7 +427,6 @@ import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
-import { releaseDockIcon, retainDockIcon } from './core/services/dock-icon-visibility';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
 import { dispatchSessionAction as dispatchSessionActionCore } from './core/services/session-actions';
 import { createBuildOverlayShortcutsRuntimeMainDepsHandler } from './main/runtime/domains/shortcuts';
@@ -491,7 +490,6 @@ import { createMediaRuntimeService } from './main/media-runtime';
 import {
   createStreamPlaybackMetadataStore,
   matchRequestedStreamPlaybackMetadata,
-  toAnimeBrowserPlaybackState,
   toAnilistMediaGuess,
   toJimakuMediaInfo,
 } from './main/runtime/stream-playback-metadata';
@@ -542,14 +540,9 @@ import {
   createCreateFirstRunSetupWindowHandler,
   createCreateJellyfinSetupWindowHandler,
   createCreateSyncUiWindowHandler,
-  createCreateAnimeBrowserWindowHandler,
 } from './main/runtime/setup-window-factory';
-import { createAnimeBrowserRuntime } from './main/runtime/anime-browser-runtime';
+import { createAnimeBrowserApplicationRuntime } from './main/runtime/anime-browser-application-runtime';
 import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
-import {
-  registerAnimeBrowserIpcHandlers,
-  type AnimeBrowserIpcSender,
-} from './main/runtime/anime-browser-ipc-handlers';
 import { ensureBridgeBinaries } from './main/runtime/anime-bridge-installer';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
@@ -2469,7 +2462,7 @@ const mediaRuntime = createMediaRuntimeService(
     getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
     setCurrentMediaPath: (nextPath: string | null) => {
       appState.currentMediaPath = nextPath;
-      publishAnimeBrowserPlaybackState(nextPath);
+      animeBrowserApplicationRuntime.publishPlaybackState(nextPath);
     },
     clearPendingSubtitlePosition: () => {
       appState.pendingSubtitlePosition = null;
@@ -3328,200 +3321,93 @@ const {
   },
 });
 
-const DEFAULT_ANIME_EXTENSIONS_DIR = path.join(USER_DATA_PATH, 'anime-extensions');
-const animeBrowserSessions = new Map<string, AnimeBrowserIpcSender>();
-let animeBrowserPlaybackState = toAnimeBrowserPlaybackState(getActiveStreamMetadata());
-
-function broadcastAnimeBrowserEvent(channel: string, payload: unknown): void {
-  const targets = new Set<AnimeBrowserIpcSender>();
-  const standalone = appState.animeBrowserWindow;
-  if (standalone && !standalone.isDestroyed()) targets.add(standalone.webContents);
-  for (const sender of animeBrowserSessions.values()) {
-    if (!sender.isDestroyed()) targets.add(sender);
-  }
-  for (const sender of targets) sender.send(channel, payload);
-}
-
-function publishAnimeBrowserPlaybackState(mediaPath: string | null): void {
-  animeBrowserPlaybackState = toAnimeBrowserPlaybackState(streamPlaybackMetadata.match(mediaPath));
-  broadcastAnimeBrowserEvent(
-    IPC_CHANNELS.event.animeBrowserPlaybackState,
-    animeBrowserPlaybackState,
-  );
-}
-
-function resolveAnimeExtensionsDir(): string {
-  const configured = configService.getConfig().anime?.extensionsDir?.trim();
-  return configured && configured.length > 0 ? configured : DEFAULT_ANIME_EXTENSIONS_DIR;
-}
-
-const animeBrowserRuntime = createAnimeBrowserRuntime({
-  extensionsDir: () => resolveAnimeExtensionsDir(),
-  repos: () => configService.getConfig().anime?.repos ?? [],
-  setRepos: (repos) => {
-    configService.patchRawConfig({ anime: { repos } });
-  },
-  preferredQuality: () => configService.getConfig().anime?.preferredQuality || undefined,
-  preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
-  ensureBinaries: (onProgress) =>
-    ensureBridgeBinaries({
-      installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
-      onProgress,
-    }),
-  sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
-  ensureMpvConnected: () => ensureMpvConnectedForPlayback(),
-  onPlaybackEndFile: (listener) => {
-    const client = appState.mpvClient;
-    if (!client) return () => {};
-    client.on('end-file', listener);
-    return () => client.off('end-file', listener);
-  },
-  onPlaybackPathChange: (listener) => {
-    const client = appState.mpvClient;
-    if (!client) return () => {};
-    const handler = ({ path: mediaPath }: { path: string }) => listener(mediaPath);
-    client.on('media-path-change', handler);
-    return () => client.off('media-path-change', handler);
-  },
-  readMpvProperty: (name) => {
-    const client = appState.mpvClient;
-    if (!client) return Promise.reject(new Error('mpv is not connected.'));
-    return client.requestProperty(name);
-  },
-  showVisibleOverlay: () => {
-    // Launching a video turns a browse-only instance into a regular SubMiner
-    // playback session: tray icon plus the overlay runtime that
-    // setVisibleOverlayVisible initializes on demand.
-    ensureTrayHandler();
-    setVisibleOverlayVisible(true);
-  },
-  showMpvOsd: (text) =>
-    overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
-  getWatchState: async (statsPaths) => {
-    // Browsing can precede any playback, so the tracker may not be up yet; it
-    // is the same instance playback records into once it is.
-    ensureImmersionTrackerStarted();
-    return (await appState.immersionTracker?.getStreamWatchState(statsPaths)) ?? new Map();
-  },
-  setWatchState: async (episodes, watched) => {
-    ensureImmersionTrackerStarted();
-    return (await appState.immersionTracker?.setStreamWatchState(episodes, watched)) ?? 0;
-  },
-  onPlaybackMetadata: (metadata) => {
-    streamPlaybackMetadata.set(metadata);
-    publishAnimeBrowserPlaybackState(metadata.mediaPath);
-    // Set before mpv reports the path change, so the session that change starts
-    // is titled and grouped from the source's own listing rather than from the
-    // proxy URL, whose only readable part is the `.m3u8` extension.
-    mediaRuntime.updateCurrentMediaTitle(metadata.displayTitle);
-    ensureImmersionTrackerStarted();
-    appState.immersionTracker?.recordStreamPlaybackMetadata({
-      mediaPath: metadata.mediaPath,
-      statsPath: metadata.statsPath,
-      displayTitle: metadata.displayTitle,
-      seriesTitle: metadata.seriesTitle,
-      seasonNumber: metadata.seasonNumber,
-      episodeNumber: metadata.episodeNumber,
-    });
-  },
-  onPreparedPlaybackMetadata: (metadata) => {
-    streamPlaybackMetadata.set(metadata);
-    // Register the URL alias before mpv can advance to it, but do not replace
-    // the title of the file that is still playing now.
-    ensureImmersionTrackerStarted();
-    appState.immersionTracker?.recordStreamPlaybackMetadata({
-      mediaPath: metadata.mediaPath,
-      statsPath: metadata.statsPath,
-      displayTitle: metadata.displayTitle,
-      seriesTitle: metadata.seriesTitle,
-      seasonNumber: metadata.seasonNumber,
-      episodeNumber: metadata.episodeNumber,
-    });
-  },
-  onBridgeState: (state) => {
-    broadcastAnimeBrowserEvent(IPC_CHANNELS.event.animeBrowserBridgeState, state);
-  },
-  onSearchUpdate: (update, sessionId) => {
-    const sender = animeBrowserSessions.get(sessionId);
-    if (sender && !sender.isDestroyed()) {
-      sender.send(IPC_CHANNELS.event.animeBrowserSearchUpdate, update);
-    }
-  },
-  onQueueState: (state) => {
-    broadcastAnimeBrowserEvent(IPC_CHANNELS.event.animeBrowserQueueState, state);
-  },
-  log: (message) => logger.info(message),
-});
-
-registerAnimeBrowserIpcHandlers({
-  ipcMain,
-  runtime: animeBrowserRuntime,
-  getPlaybackState: () => animeBrowserPlaybackState,
-  registerSession: (sessionId, sender) => {
-    if (animeBrowserSessions.get(sessionId) === sender) return;
-    animeBrowserSessions.set(sessionId, sender);
-    sender.once('destroyed', () => {
-      if (animeBrowserSessions.get(sessionId) !== sender) return;
-      animeBrowserSessions.delete(sessionId);
-      animeBrowserRuntime.releaseSession(sessionId);
-    });
-  },
-});
-
-let animeBrowserDockIconRetained = false;
-const releaseAnimeBrowserDockIcon = (): void => {
-  if (!animeBrowserDockIconRetained) return;
-  animeBrowserDockIconRetained = false;
-  releaseDockIcon({
-    dock: app.dock,
-    shouldRehide: () => {
-      const mainWindow = overlayManager.getMainWindow();
-      return Boolean(mainWindow && !mainWindow.isDestroyed());
+const animeBrowserApplicationRuntime = createAnimeBrowserApplicationRuntime({
+  userDataPath: USER_DATA_PATH,
+  mainModuleDir: __dirname,
+  configuredExtensionsDir: () => configService.getConfig().anime?.extensionsDir,
+  runtime: {
+    repos: () => configService.getConfig().anime?.repos ?? [],
+    setRepos: (repos) => configService.patchRawConfig({ anime: { repos } }),
+    preferredQuality: () => configService.getConfig().anime?.preferredQuality || undefined,
+    preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
+    ensureBinaries: (onProgress) =>
+      ensureBridgeBinaries({
+        installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
+        onProgress,
+      }),
+    sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+    ensureMpvConnected: () => ensureMpvConnectedForPlayback(),
+    onPlaybackEndFile: (listener) => {
+      const client = appState.mpvClient;
+      if (!client) return () => {};
+      client.on('end-file', listener);
+      return () => client.off('end-file', listener);
     },
-  });
-};
-const openAnimeBrowserWindowBase = createOpenConfigSettingsWindowHandler({
-  getSettingsWindow: () => appState.animeBrowserWindow,
-  setSettingsWindow: (window) => {
+    onPlaybackPathChange: (listener) => {
+      const client = appState.mpvClient;
+      if (!client) return () => {};
+      const handler = ({ path: mediaPath }: { path: string }) => listener(mediaPath);
+      client.on('media-path-change', handler);
+      return () => client.off('media-path-change', handler);
+    },
+    readMpvProperty: (name) => {
+      const client = appState.mpvClient;
+      if (!client) return Promise.reject(new Error('mpv is not connected.'));
+      return client.requestProperty(name);
+    },
+    showVisibleOverlay: () => {
+      ensureTrayHandler();
+      setVisibleOverlayVisible(true);
+    },
+    showMpvOsd: (text) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
+    getWatchState: async (statsPaths) => {
+      ensureImmersionTrackerStarted();
+      return (await appState.immersionTracker?.getStreamWatchState(statsPaths)) ?? new Map();
+    },
+    setWatchState: async (episodes, watched) => {
+      ensureImmersionTrackerStarted();
+      return (await appState.immersionTracker?.setStreamWatchState(episodes, watched)) ?? 0;
+    },
+    log: (message) => logger.info(message),
+  },
+  ipcMain,
+  playbackMetadata: streamPlaybackMetadata,
+  getInitialPlaybackMetadata: () => getActiveStreamMetadata(),
+  handlePlaybackMetadata: (metadata, prepared) => {
+    if (!prepared) {
+      // Set before mpv reports the path change so stats use the source title, not the proxy URL.
+      mediaRuntime.updateCurrentMediaTitle(metadata.displayTitle);
+    }
+    ensureImmersionTrackerStarted();
+    appState.immersionTracker?.recordStreamPlaybackMetadata({
+      mediaPath: metadata.mediaPath,
+      statsPath: metadata.statsPath,
+      displayTitle: metadata.displayTitle,
+      seriesTitle: metadata.seriesTitle,
+      seasonNumber: metadata.seasonNumber,
+      episodeNumber: metadata.episodeNumber,
+    });
+  },
+  getAnimeBrowserWindow: () => appState.animeBrowserWindow,
+  setAnimeBrowserWindow: (window) => {
     appState.animeBrowserWindow = window as BrowserWindow | null;
   },
-  createSettingsWindow: createCreateAnimeBrowserWindowHandler({
-    createBrowserWindow: (options) => new BrowserWindow(options),
-    preloadPath: path.join(__dirname, 'preload-animeui.js'),
-  }),
-  settingsHtmlPath: path.join(__dirname, 'animeui', 'index.html'),
-  promoteSettingsWindowAboveOverlay: (window) =>
-    promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  promoteWindowAboveOverlay: (window) => promoteSettingsWindowAboveOverlay(window as BrowserWindow),
   activateApp: activateAppForForegroundWindow,
-  onClosed: () => {
-    releaseAnimeBrowserDockIcon();
-    // The bridge holds the stream-proxy tokens mpv is playing through, so it
-    // must outlive the window. Only tear it down when the window was the
-    // app's whole reason to be running — and once a video has launched, the
-    // instance has become a regular playback session (tray, overlay, mpv
-    // stream), so closing the browser must not kill it either.
-    if (appState.initialArgs?.animeBrowser && !appState.mpvClient?.connected) {
-      void animeBrowserRuntime.dispose().finally(() => requestAppQuit());
-    }
+  dock: app.dock,
+  shouldRehideDockIcon: () => {
+    const mainWindow = overlayManager.getMainWindow();
+    return Boolean(mainWindow && !mainWindow.isDestroyed());
   },
-  log: (message) => logger.error(message),
+  isStandaloneAnimeBrowserLaunch: () => Boolean(appState.initialArgs?.animeBrowser),
+  isMpvConnected: () => Boolean(appState.mpvClient?.connected),
+  ensureTray: () => ensureTrayHandler(),
+  requestAppQuit,
+  logError: (message) => logger.error(message),
 });
-const openAnimeBrowserWindowHandler = (): boolean => {
-  // Restore the Dock icon *before* showing the window: while the overlay's fullscreen
-  // transform has left the app as a macOS accessory process it cannot become frontmost at
-  // all, so activating first and un-hiding after would leave the window buried.
-  if (!animeBrowserDockIconRetained) {
-    animeBrowserDockIconRetained = true;
-    retainDockIcon({ dock: app.dock });
-  }
-  const opened = openAnimeBrowserWindowBase();
-  if (!opened) {
-    releaseAnimeBrowserDockIcon();
-    return false;
-  }
-  ensureTrayHandler();
-  return true;
-};
+const openAnimeBrowserWindowHandler = animeBrowserApplicationRuntime.openWindow;
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,

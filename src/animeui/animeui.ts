@@ -453,7 +453,12 @@ void (async () => {
   renderBridgeState({ stage: 'idle', progress: null, message: null });
   // A queue survives the window being closed and reopened, so start from what
   // the main process already holds rather than from empty.
-  void api.getQueue().then((state) => detailPanel.setQueue(state));
+  void api.getQueue().then(
+    (state) => detailPanel.setQueue(state),
+    () => {
+      // A live queue event can still populate the panel after a failed snapshot request.
+    },
+  );
   void api.getPlaybackState().then(
     (state) => {
       if (!receivedPlaybackStateEvent) detailPanel.setPlaybackState(state);

@@ -165,6 +165,11 @@ export interface StreamStripProxyHandle {
   close: () => Promise<void>;
 }
 
+interface ClientRequestLifecycle {
+  activeUpstreamRequest: http.ClientRequest | null;
+  closed: boolean;
+}
+
 /** Response headers that must not be forwarded verbatim. */
 const DROPPED_HEADERS = new Set([
   'connection',
@@ -212,7 +217,20 @@ export function startStreamStripProxy(
     delete requestHeaders.range;
     res.on('error', () => {});
 
-    requestUpstream(req, res, upstreamUrl, requestHeaders, 0);
+    const lifecycle: ClientRequestLifecycle = { activeUpstreamRequest: null, closed: false };
+    const destroyUpstreamOnClientClose = (): void => {
+      lifecycle.closed = true;
+      lifecycle.activeUpstreamRequest?.destroy();
+    };
+    req.once('aborted', destroyUpstreamOnClientClose);
+    res.once('close', destroyUpstreamOnClientClose);
+    res.once('finish', () => {
+      req.off('aborted', destroyUpstreamOnClientClose);
+      res.off('close', destroyUpstreamOnClientClose);
+      lifecycle.activeUpstreamRequest = null;
+    });
+
+    requestUpstream(req, res, upstreamUrl, requestHeaders, 0, lifecycle);
   });
 
   /**
@@ -227,23 +245,31 @@ export function startStreamStripProxy(
     upstreamUrl: URL,
     requestHeaders: http.OutgoingHttpHeaders,
     attempt: number,
+    lifecycle: ClientRequestLifecycle,
   ): void {
+    if (lifecycle.closed || res.destroyed) return;
     const mayRetry = req.method === 'GET' && attempt === 0;
     // Once the response is handed off, its headers (and often part of its body)
     // are already on the wire: a later upstream error can only be reported by
     // killing the connection, never by retrying or writing a 502.
     let handedOff = false;
     const retry = (): void => {
-      setTimeout(
-        () => requestUpstream(req, res, upstreamUrl, requestHeaders, attempt + 1),
-        retryDelayMs,
-      );
+      setTimeout(() => {
+        requestUpstream(req, res, upstreamUrl, requestHeaders, attempt + 1, lifecycle);
+      }, retryDelayMs);
     };
 
     const upstreamRequest = http.request(
       upstreamUrl,
       { method: req.method, headers: requestHeaders, timeout: UPSTREAM_TIMEOUT_MS },
       (upstream) => {
+        const clearActiveRequest = (): void => {
+          if (lifecycle.activeUpstreamRequest === upstreamRequest) {
+            lifecycle.activeUpstreamRequest = null;
+          }
+        };
+        upstream.once('end', clearActiveRequest);
+        upstream.once('close', clearActiveRequest);
         // Body streaming has its own pace; only the wait for headers is capped.
         upstreamRequest.setTimeout(0);
         const status = upstream.statusCode ?? 502;
@@ -260,6 +286,7 @@ export function startStreamStripProxy(
         handleUpstreamResponse(req, res, upstream);
       },
     );
+    lifecycle.activeUpstreamRequest = upstreamRequest;
     // Destroying with an error routes the stall through the retry/502 path.
     upstreamRequest.on('timeout', () => {
       upstreamRequest.destroy(new Error(`upstream silent for ${UPSTREAM_TIMEOUT_MS}ms`));

@@ -25,12 +25,12 @@ export function createAnimeBrowserModal(
       if (options.modalStateReader.isAnyModalOpen()) return false;
     }
 
+    ensureFrameLoaded();
     ctx.state.animeBrowserModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
     ctx.dom.animeBrowserModal.classList.remove('hidden');
     ctx.dom.animeBrowserModal.setAttribute('aria-hidden', 'false');
-    ensureFrameLoaded();
     window.electronAPI.notifyOverlayModalOpened('anime-browser');
     return true;
   }
