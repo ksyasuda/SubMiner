@@ -1,6 +1,7 @@
 import { type BrowserWindow, screen } from 'electron';
 import { execFile } from 'node:child_process';
 import { startOverlayWindowTracker as startOverlayWindowTrackerCore } from '../../core/services';
+import { applyOverlayClickThrough } from '../../core/services/overlay-click-through';
 import { isHeadlessInitialCommand, type CliArgs } from '../../cli/args';
 import type { OverlayContentMeasurement, WindowGeometry } from '../../types';
 import { createWindowTracker as createWindowTrackerCore } from '../../window-trackers';
@@ -603,7 +604,7 @@ export function createVisibleOverlayInteractionRuntime(deps: VisibleOverlayInter
     if (active) {
       mainWindow.setIgnoreMouseEvents(false);
     } else {
-      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(mainWindow);
     }
   }
 
