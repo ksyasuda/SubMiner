@@ -7,22 +7,23 @@ interface ClientRequestLifecycle {
   closed: boolean;
 }
 
+const DROPPED_REQUEST_HEADERS = new Set([
+  'accept-encoding',
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'content-length',
+]);
+
 export function forwardableRequestHeaders(
   headers: http.IncomingHttpHeaders,
 ): http.OutgoingHttpHeaders {
   const result: http.OutgoingHttpHeaders = {};
   for (const [name, value] of Object.entries(headers)) {
-    if (
-      value === undefined ||
-      name.toLowerCase() === 'connection' ||
-      name.toLowerCase() === 'keep-alive' ||
-      name.toLowerCase() === 'transfer-encoding' ||
-      name.toLowerCase() === 'content-length'
-    ) {
-      continue;
-    }
+    if (value === undefined || DROPPED_REQUEST_HEADERS.has(name.toLowerCase())) continue;
     result[name] = value;
   }
+  result['accept-encoding'] = 'identity';
   return result;
 }
 
@@ -75,7 +76,6 @@ function requestAttempt(
       };
       upstream.once('end', clearActiveRequest);
       upstream.once('close', clearActiveRequest);
-      upstreamRequest.setTimeout(0);
       const status = upstream.statusCode ?? 502;
       if (status === 404 || status >= 500) {
         if (mayRetry) {

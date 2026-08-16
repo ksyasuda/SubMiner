@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
+import { gzipSync } from 'node:zlib';
 import {
   findTsSyncOffset,
   rewritePlaylistOrigins,
@@ -200,6 +201,31 @@ test('proxy leaves non-TS bodies alone', async () => {
     async (origin) => {
       const { body } = await fetchBytes(`${origin}/video/sub.vtt`);
       assert.deepEqual(body, vtt);
+    },
+  );
+});
+
+test('proxy forces identity encoding so playlists remain readable for rewriting', async () => {
+  let upstreamAcceptEncoding: string | undefined;
+  await withProxy(
+    (req, res) => {
+      upstreamAcceptEncoding = req.headers['accept-encoding'];
+      const body = `#EXTM3U\n#EXTINF:6,\nhttp://${req.headers.host}/video/seg.ts\n`;
+      const compressed = upstreamAcceptEncoding?.includes('gzip') === true;
+      res.writeHead(200, {
+        'content-type': 'application/vnd.apple.mpegurl',
+        ...(compressed ? { 'content-encoding': 'gzip' } : {}),
+      });
+      res.end(compressed ? gzipSync(body) : body);
+    },
+    async (proxyOrigin, upstreamOrigin) => {
+      const response = await fetch(`${proxyOrigin}/video/list.m3u8`, {
+        headers: { 'accept-encoding': 'gzip' },
+      });
+      const body = await response.text();
+      assert.equal(upstreamAcceptEncoding, 'identity');
+      assert.ok(body.includes(`${proxyOrigin}/video/seg.ts`));
+      assert.ok(!body.includes(upstreamOrigin));
     },
   );
 });
