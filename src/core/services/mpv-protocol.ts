@@ -248,7 +248,7 @@ export async function dispatchMpvProtocolMessage(
         isOverlayVisible: overlayVisible,
       });
       deps.setCurrentSubText(nextSubText);
-    } else if (msg.name === 'sub-text-ass') {
+    } else if (msg.name === 'sub-text/ass' || msg.name === 'sub-text-ass') {
       deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
     } else if (msg.name === 'sub-start') {
       deps.setCurrentSubStart((msg.data as number) || 0);

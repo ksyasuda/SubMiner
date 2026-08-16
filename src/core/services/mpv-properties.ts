@@ -53,7 +53,7 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'sub-scale-by-window',
   'osd-height',
   'osd-dimensions',
-  'sub-text-ass',
+  'sub-text/ass',
   'sub-border-size',
   'sub-shadow-offset',
   'sub-ass-override',
@@ -74,7 +74,7 @@ const MPV_INITIAL_PROPERTY_REQUESTS: Array<MpvProtocolCommand> = [
     request_id: MPV_REQUEST_ID_SUBTEXT,
   },
   {
-    command: ['get_property', 'sub-text-ass'],
+    command: ['get_property', 'sub-text/ass'],
     request_id: MPV_REQUEST_ID_SUBTEXT_ASS,
   },
   {

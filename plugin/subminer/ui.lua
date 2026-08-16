@@ -4,6 +4,7 @@ function M.create(ctx)
 	local mp = ctx.mp
 	local input = ctx.input
 	local process = ctx.process
+	local state = ctx.state
 	local subminer_log = ctx.log.subminer_log
 	local show_osd = ctx.log.show_osd
 
@@ -93,7 +94,18 @@ function M.create(ctx)
 			if not ensure_binary_for_menu() then
 				return
 			end
-			process.run_control_command_async("open-session-help")
+			process.run_binary_command_async({
+				state.binary_path,
+				"--session-action",
+				'{"actionId":"openSessionHelp"}',
+			}, function(ok, result, error)
+				if ok then
+					return
+				end
+				local reason = error or (result and result.stderr) or "unknown error"
+				subminer_log("warn", "session-bindings", "Session action failed: " .. tostring(reason))
+				show_osd("Session action failed")
+			end)
 		end)
 	end
 

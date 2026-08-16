@@ -16,7 +16,10 @@ import {
 } from './hyprland-window-placement';
 import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
-import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
+import {
+  OVERLAY_WINDOW_CONTENT_READY_FLAG,
+  OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG,
+} from './overlay-window-flags';
 export { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const logger = createLogger('main:overlay-window');
@@ -133,6 +136,9 @@ export function createOverlayWindow(
   (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
     OVERLAY_WINDOW_CONTENT_READY_FLAG
   ] = false;
+  (window as BrowserWindow & { [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean })[
+    OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG
+  ] = false;
 
   if (!(process.platform === 'win32' && kind === 'visible')) {
     options.ensureOverlayWindowLevel(window);
@@ -144,9 +150,18 @@ export function createOverlayWindow(
   });
 
   window.webContents.on('did-finish-load', () => {
+    (window as BrowserWindow & { [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean })[
+      OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG
+    ] = true;
     window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
     options.onRuntimeOptionsChanged();
     options.onWindowDidFinishLoad?.();
+  });
+
+  window.webContents.on('did-start-loading', () => {
+    (window as BrowserWindow & { [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean })[
+      OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG
+    ] = false;
   });
 
   window.webContents.on('page-title-updated', (event) => {

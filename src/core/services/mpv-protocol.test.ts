@@ -129,6 +129,28 @@ test('dispatchMpvProtocolMessage emits subtitle text on property change', async 
   assert.deepEqual(state.events, [{ text: '字幕', isOverlayVisible: false }]);
 });
 
+test('dispatchMpvProtocolMessage emits ASS subtitle text from the current mpv property', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-text/ass', data: '{\\b1}字幕' },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ text: '{\\b1}字幕' }]);
+});
+
+test('dispatchMpvProtocolMessage emits ASS subtitle text from the legacy mpv property', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'sub-text-ass', data: '{\\b1}字幕' },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ text: '{\\b1}字幕' }]);
+});
+
 test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
   const { deps, state } = createDeps({
     emitSubtitleTrackChange: (payload) => state.events.push(payload),

@@ -12,15 +12,17 @@ export function buildOverlayWindowOptions(
   options: {
     isDev: boolean;
     linuxX11FullscreenOverlay?: boolean;
+    platform?: NodeJS.Platform;
     yomitanSession?: Session | null;
   },
 ): BrowserWindowConstructorOptions {
-  const showNativeDebugFrame = process.platform === 'win32' && options.isDev;
-  const isLinuxVisibleOverlay = process.platform === 'linux' && kind === 'visible';
+  const platform = options.platform ?? process.platform;
+  const showNativeDebugFrame = platform === 'win32' && options.isDev;
+  const isLinuxVisibleOverlay = platform === 'linux' && kind === 'visible';
   const isLinuxFullscreenOverlay =
     isLinuxVisibleOverlay && options.linuxX11FullscreenOverlay === true;
   const shouldStartAlwaysOnTop =
-    !(process.platform === 'win32' && kind === 'visible') &&
+    !(platform === 'win32' && kind === 'visible') &&
     (!isLinuxVisibleOverlay || isLinuxFullscreenOverlay);
   const shouldAllowCompositorResize = isLinuxVisibleOverlay && !isLinuxFullscreenOverlay;
 
@@ -41,7 +43,10 @@ export function buildOverlayWindowOptions(
     hasShadow: false,
     focusable: !isLinuxFullscreenOverlay,
     acceptFirstMouse: true,
-    ...(process.platform === 'win32' ? { thickFrame: showNativeDebugFrame } : {}),
+    // A macOS panel is a fullscreen auxiliary window, so modal surfaces stay on the
+    // active mpv Space instead of opening on SubMiner's last regular desktop.
+    ...(platform === 'darwin' && kind === 'modal' ? { type: 'panel' as const } : {}),
+    ...(platform === 'win32' ? { thickFrame: showNativeDebugFrame } : {}),
     webPreferences: {
       preload: path.join(__dirname, '..', '..', 'preload.js'),
       contextIsolation: true,

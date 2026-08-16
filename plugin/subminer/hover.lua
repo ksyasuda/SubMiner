@@ -106,8 +106,11 @@ function M.create(ctx)
 
 	local function get_subtitle_ass_property()
 		local ass_text = mp.get_property("sub-text/ass")
-		if type(ass_text) == "string" and ass_text ~= "" then
-			return ass_text
+		if ass_text ~= nil then
+			if type(ass_text) == "string" and ass_text ~= "" then
+				return ass_text
+			end
+			return nil
 		end
 		ass_text = mp.get_property("sub-text-ass")
 		if type(ass_text) == "string" and ass_text ~= "" then

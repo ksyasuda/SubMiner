@@ -15,7 +15,7 @@
  *    layer that keeps the two views consistent by construction.
  * 2. Otherwise (embedded track nobody parsed, a source whose timings mpv has shifted)
  *    fall back to timing alone. No authoring metadata is available live -- mpv delivers
- *    `sub-text-ass` after `sub-start`/`sub-end`, so any ASS text read here belongs to the
+ *    `sub-text/ass` after `sub-start`/`sub-end`, so any ASS text read here belongs to the
  *    previous event -- which puts this layer in the same position as the SRT path in
  *    `subtitle-cue-dedup`, and it uses that path's deliberately strict bounds.
  */
