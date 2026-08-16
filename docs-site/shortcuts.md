@@ -49,7 +49,7 @@ These control playback and subtitle display. They require overlay window focus.
 | `J`                  | Cycle primary subtitle track                               |
 | `Shift+J`            | Cycle secondary subtitle track                             |
 | `Ctrl+Alt+P`         | Open playlist browser for current directory + queue        |
-| `Ctrl+Alt+A`         | Open Anime Browser inside the player                        |
+| `Ctrl+Alt+A`         | Toggle Anime Browser inside the player                      |
 | `ArrowRight`         | Seek forward 5 seconds                                     |
 | `ArrowLeft`          | Seek backward 5 seconds                                    |
 | `ArrowUp`            | Seek forward 60 seconds                                    |
@@ -68,7 +68,7 @@ These control playback and subtitle display. They require overlay window focus.
 | `Right-click`        | Toggle pause (outside subtitle area)                       |
 | `Right-click + drag` | Reposition subtitles (on subtitle area)                    |
 
-The mpv-command rows above (`Space`, `F`, `J`, `Shift+J`, the seek/sub-seek/sub-step/sub-delay keys, replay/play-next, and quit) are merged from the `keybindings` config array and can be remapped or disabled there. `V` and the mouse actions are built-in overlay behaviors and are not part of the `keybindings` array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right. The Anime Browser shortcut opens a dedicated overlay modal bounded to the player; the standalone Anime Browser window remains independent.
+The mpv-command rows above (`Space`, `F`, `J`, `Shift+J`, the seek/sub-seek/sub-step/sub-delay keys, replay/play-next, and quit) are merged from the `keybindings` config array and can be remapped or disabled there. `V` and the mouse actions are built-in overlay behaviors and are not part of the `keybindings` array. The playlist browser opens a split overlay modal with sibling video files on the left and the live mpv playlist on the right. The Anime Browser shortcut toggles a dedicated overlay modal bounded to the player; the standalone Anime Browser window remains independent, while active playback is shared.
 
 On macOS managed playback, SubMiner disables mpv's menu-bar shortcuts so configured SubMiner shortcuts like `Cmd+Shift+O` reach the mpv plugin instead of opening native mpv menu actions.
 

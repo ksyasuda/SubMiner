@@ -20,5 +20,12 @@ export function createModalRegistry<TId extends string>(
         }
       }
     },
+    dismissOpenExcept: (id: TId): void => {
+      for (const descriptor of descriptors) {
+        if (descriptor.id !== id && descriptor.isOpen()) {
+          descriptor.close();
+        }
+      }
+    },
   };
 }

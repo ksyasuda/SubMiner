@@ -330,6 +330,37 @@ for (const platform of ['darwin', 'win32'] as const) {
   });
 }
 
+test('anime browser modal keeps its document warm across close on Linux', () => {
+  const modalWindow = createMockWindow();
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => modalWindow as never,
+      createModalWindow: () => modalWindow as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    { platform: 'linux' },
+  );
+
+  runtime.sendToActiveOverlayWindow('anime-browser:open', undefined, {
+    restoreOnModalClose: 'anime-browser',
+    preferModalWindow: true,
+  });
+  runtime.notifyOverlayModalOpened('anime-browser');
+  runtime.handleOverlayModalClosed('anime-browser');
+
+  assert.equal(modalWindow.isDestroyed(), false);
+  assert.equal(modalWindow.isVisible(), false);
+  assert.equal(runtime.isModalOpen('anime-browser'), false);
+
+  runtime.sendToActiveOverlayWindow('anime-browser:open', undefined, {
+    restoreOnModalClose: 'anime-browser',
+    preferModalWindow: true,
+  });
+  assert.equal(modalWindow.isVisible(), true);
+});
+
 test('primeModalWindow leaves Linux modal creation lazy', () => {
   let createCalls = 0;
   const runtime = createOverlayModalRuntimeService(

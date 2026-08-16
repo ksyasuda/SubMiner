@@ -222,6 +222,13 @@ export interface AnimeBrowserPlayResult {
   quality: string | null;
 }
 
+/** The Anime Browser episode mpv is currently playing, shared by every browser surface. */
+export interface AnimeBrowserPlaybackState {
+  sourceId: string;
+  animeUrl: string;
+  episodeUrl: string;
+}
+
 /** One resolved episode waiting in mpv's playlist. */
 export type AnimeBrowserQueueEntry = AnimeBrowserPlayRequest;
 
@@ -267,6 +274,7 @@ export interface AnimeBrowserAPI {
   dequeueEpisode: (sourceId: string, episodeUrl: string) => Promise<AnimeBrowserQueueState>;
   clearQueue: () => Promise<AnimeBrowserQueueState>;
   getQueue: () => Promise<AnimeBrowserQueueState>;
+  getPlaybackState: () => Promise<AnimeBrowserPlaybackState | null>;
   /**
    * Whether mpv has a file open. False when it is idle or not running at all,
    * which is when queueing has no end to wait for.
@@ -288,6 +296,8 @@ export interface AnimeBrowserAPI {
   onSearchUpdate: (listener: (update: AnimeBrowserSearchUpdate) => void) => () => void;
   /** Pushed whenever the queue changes, including when it advances by itself. */
   onQueueState: (listener: (state: AnimeBrowserQueueState) => void) => () => void;
+  /** Pushed when mpv starts an Anime Browser episode or moves to other media. */
+  onPlaybackState: (listener: (state: AnimeBrowserPlaybackState | null) => void) => () => void;
 }
 
 export type { SourcePreferenceView } from '../anime-bridge/preferences';

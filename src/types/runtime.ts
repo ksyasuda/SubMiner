@@ -512,6 +512,7 @@ export interface ElectronAPI {
   onOpenSessionHelp: (callback: () => void) => void;
   onOpenChangelog: (callback: () => void) => void;
   onOpenAnimeBrowser: (callback: () => void) => void;
+  onCloseAnimeBrowser: (callback: () => void) => void;
   getChangelogSnapshot: (options?: { refresh?: boolean }) => Promise<ChangelogSnapshot>;
   onOpenControllerSelect: (callback: () => void) => void;
   onOpenControllerDebug: (callback: () => void) => void;

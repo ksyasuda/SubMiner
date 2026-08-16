@@ -1,6 +1,7 @@
 import type { AnimeStreamMetadata } from '../../anime-bridge/episode-metadata';
 import type { AnilistMediaGuess } from '../../core/services/anilist/anilist-updater';
 import type { JimakuMediaInfo } from '../../types';
+import type { AnimeBrowserPlaybackState } from '../../types/anime-browser';
 
 /**
  * Holds what the anime browser resolved for active and queued streams.
@@ -51,6 +52,17 @@ export function matchRequestedStreamPlaybackMetadata(
   currentMediaPath: string | null,
 ): AnimeStreamMetadata | null {
   return store.match(requestedMediaPath ?? currentMediaPath);
+}
+
+export function toAnimeBrowserPlaybackState(
+  metadata: AnimeStreamMetadata | null,
+): AnimeBrowserPlaybackState | null {
+  if (!metadata) return null;
+  return {
+    sourceId: metadata.sourceId,
+    animeUrl: metadata.animeUrl,
+    episodeUrl: metadata.episodeUrl,
+  };
 }
 
 /** AniList counts whole episodes, so a special numbered 6.5 cannot drive it. */

@@ -593,7 +593,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `KeyJ`                  | `["cycle", "sid"]`            | Cycle primary subtitle track            |
 | `Shift+KeyJ`            | `["cycle", "secondary-sid"]`  | Cycle secondary subtitle track          |
 | `Ctrl+Alt+KeyP`         | `["__playlist-browser-open"]` | Open playlist browser                   |
-| `Ctrl+Alt+KeyA`         | `["__anime-browser-open"]`    | Open Anime Browser in the player        |
+| `Ctrl+Alt+KeyA`         | `["__anime-browser-open"]`    | Toggle Anime Browser in the player      |
 | `Ctrl+Alt+KeyC`         | `["__youtube-picker-open"]`   | Open the manual YouTube subtitle picker |
 | `ArrowRight`            | `["seek", 5]`                 | Seek forward 5 seconds                  |
 | `ArrowLeft`             | `["seek", -5]`                | Seek backward 5 seconds                 |

@@ -19,6 +19,7 @@ test('anime browser open uses a dedicated player-bounded modal window', async ()
       return true;
     },
     waitForModalOpen: async () => true,
+    isModalOpen: () => false,
     logWarn: () => {},
   });
 
@@ -36,9 +37,35 @@ test('anime browser open retries on a fresh modal window after a missed acknowle
       attempts += 1;
       return attempts === 2;
     },
+    isModalOpen: () => false,
     logWarn: () => {},
   });
 
   assert.equal(opened, true);
   assert.equal(attempts, 2);
+});
+
+test('anime browser shortcut closes the open modal without waiting for another open', async () => {
+  const calls: string[] = [];
+  const toggled = await openAnimeBrowserModal({
+    ensureOverlayStartupPrereqs: () => calls.push('prereqs'),
+    ensureOverlayWindowsReadyForVisibilityActions: () => calls.push('windows'),
+    sendToActiveOverlayWindow: (channel, payload, runtimeOptions) => {
+      calls.push(channel);
+      assert.equal(payload, undefined);
+      assert.deepEqual(runtimeOptions, {
+        restoreOnModalClose: 'anime-browser',
+        preferModalWindow: true,
+      });
+      return true;
+    },
+    waitForModalOpen: async () => {
+      assert.fail('closing must not wait for an open acknowledgement');
+    },
+    isModalOpen: (modal) => modal === 'anime-browser',
+    logWarn: () => {},
+  });
+
+  assert.equal(toggled, true);
+  assert.deepEqual(calls, [IPC_CHANNELS.event.animeBrowserClose]);
 });

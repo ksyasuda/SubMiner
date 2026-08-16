@@ -7,16 +7,18 @@ Open it with `subminer anime`, with `SubMiner.AppImage --anime`, or from
 **Browse Anime** in the tray menu. The window stays open while you watch, so you
 can queue the next episode without reopening it.
 
-During playback, `Ctrl+Alt+A` opens the same browser as a modal inside the mpv
+During playback, `Ctrl+Alt+A` toggles the same browser as a modal inside the mpv
 player bounds. It uses a dedicated modal surface, so it stays above fullscreen
-playback and closes like the other in-player tools. The standalone window and
-the modal keep their own search, selected source, tab, and scroll state, so using
-one does not replace or cancel what you were doing in the other.
+playback and closes like the other in-player tools. Toggling it off keeps its
+current page and scroll position ready for the next toggle. The standalone
+window and the modal keep their own search, selected source, tab, and scroll
+state, so using one does not replace or cancel what you were doing in the other.
 
 Both surfaces use the same playback queue, source configuration, and stats
-history. Queue changes appear in both immediately, and watched marks come from
-the same history that playback and the stats window update. Closing and reopening
-the modal therefore picks up progress made from either browser surface.
+history. Queue changes and the currently playing episode appear in both
+immediately, and watched marks come from the same history that playback and the
+stats window update. Closing and reopening the modal therefore picks up progress
+made from either browser surface.
 
 While the window is open, SubMiner shows a tray icon and — on macOS — appears
 in the Cmd+Tab switcher and the Dock (macOS ties the two together), so you can
@@ -257,9 +259,10 @@ probes the segment as a picture and playback dies with "no audio or video data
 played". The proxy scans each segment for the first genuine MPEG-TS packet run
 and drops whatever junk sits in front of it. Segments that are not TS (fMP4,
 subtitles, encryption keys) pass through untouched, and direct-file streams
-skip the proxy entirely. Disguised `.image` segment URLs are exposed locally
-with a `.ts` suffix so current ffmpeg releases accept them when Anki extracts
-audio, screenshots, or animated images from the playing stream.
+skip the proxy entirely. Segment URLs disguised behind fake extensions
+(`.image`, `.jpg`, `.css`, and friends) are exposed locally with a `.ts`
+suffix so current ffmpeg releases accept them when Anki extracts audio,
+screenshots, or animated images from the playing stream.
 
 "Playing" in the status bar means playing: after handing mpv the stream,
 SubMiner waits until mpv actually configures a video output before reporting

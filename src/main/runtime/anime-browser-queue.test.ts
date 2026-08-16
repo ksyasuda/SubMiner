@@ -25,6 +25,9 @@ function prepared(input: AnimeBrowserPlayRequest): PreparedAnimeBrowserPlayback 
     request: input,
     stream: { url: mediaPath, quality: '1080p', headers: {}, audios: [], subtitles: [] },
     metadata: {
+      sourceId: input.sourceId,
+      animeUrl: input.animeUrl,
+      episodeUrl: input.episodeUrl,
       mediaPath,
       statsPath: `animebrowser://${encodeURIComponent(input.episodeUrl)}`,
       seriesTitle: input.animeTitle,

@@ -1,11 +1,14 @@
 import type { ModalStateReader, RendererContext } from '../context';
-
-const CLOSE_MESSAGE = 'subminer:anime-browser-close';
+import {
+  ANIME_BROWSER_CLOSE_MESSAGE,
+  isAnimeBrowserKeydownMessage,
+} from '../../shared/anime-browser-embed';
 
 export function createAnimeBrowserModal(
   ctx: RendererContext,
   options: {
     modalStateReader: Pick<ModalStateReader, 'isAnyModalOpen'>;
+    dismissOtherModals: () => void;
     syncSettingsModalSubtitleSuppression: () => void;
   },
 ) {
@@ -16,8 +19,11 @@ export function createAnimeBrowserModal(
     ctx.dom.animeBrowserFrame.src = source;
   }
 
-  function openAnimeBrowserModal(): void {
-    if (ctx.state.animeBrowserModalOpen || options.modalStateReader.isAnyModalOpen()) return;
+  function openAnimeBrowserModal(): boolean {
+    if (!ctx.state.animeBrowserModalOpen) {
+      options.dismissOtherModals();
+      if (options.modalStateReader.isAnyModalOpen()) return false;
+    }
 
     ctx.state.animeBrowserModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
@@ -26,6 +32,7 @@ export function createAnimeBrowserModal(
     ctx.dom.animeBrowserModal.setAttribute('aria-hidden', 'false');
     ensureFrameLoaded();
     window.electronAPI.notifyOverlayModalOpened('anime-browser');
+    return true;
   }
 
   function closeAnimeBrowserModal(): void {
@@ -48,7 +55,22 @@ export function createAnimeBrowserModal(
   }
 
   function handleFrameMessage(event: MessageEvent): void {
-    if (event.source === ctx.dom.animeBrowserFrame.contentWindow && event.data === CLOSE_MESSAGE) {
+    // Chromium serializes file URL message origins as "null" even though
+    // Location.origin reports "file://" for these bundled pages.
+    const expectedOrigin = window.location.protocol === 'file:' ? 'null' : window.location.origin;
+    if (
+      event.origin !== expectedOrigin ||
+      event.source !== ctx.dom.animeBrowserFrame.contentWindow
+    ) {
+      return;
+    }
+    if (event.data === ANIME_BROWSER_CLOSE_MESSAGE) {
+      closeAnimeBrowserModal();
+      return;
+    }
+    if (!isAnimeBrowserKeydownMessage(event.data) || event.data.repeat) return;
+    const binding = ctx.state.sessionBindingMap.get(event.data.bindingKey);
+    if (binding?.actionType === 'session-action' && binding.actionId === 'openAnimeBrowser') {
       closeAnimeBrowserModal();
     }
   }

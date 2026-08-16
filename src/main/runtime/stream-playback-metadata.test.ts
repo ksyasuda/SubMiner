@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createStreamPlaybackMetadataStore,
   matchRequestedStreamPlaybackMetadata,
+  toAnimeBrowserPlaybackState,
   toAnilistMediaGuess,
   toJimakuMediaInfo,
 } from './stream-playback-metadata';
@@ -10,6 +11,9 @@ import type { AnimeStreamMetadata } from '../../anime-bridge/episode-metadata';
 
 function metadata(overrides: Partial<AnimeStreamMetadata> = {}): AnimeStreamMetadata {
   return {
+    sourceId: '9001',
+    animeUrl: '/anime/mushoku',
+    episodeUrl: '/watch/ep-4',
     mediaPath: 'http://127.0.0.1:41234/video/abc.m3u8',
     statsPath: 'animebrowser://9001/%2Fanime%2Fmushoku/%2Fwatch%2Fep-4',
     seriesTitle: 'Mushoku Tensei: Jobless Reincarnation',
@@ -20,6 +24,15 @@ function metadata(overrides: Partial<AnimeStreamMetadata> = {}): AnimeStreamMeta
     ...overrides,
   };
 }
+
+test('browser playback state keeps the source episode identity and drops other media', () => {
+  assert.deepEqual(toAnimeBrowserPlaybackState(metadata()), {
+    sourceId: '9001',
+    animeUrl: '/anime/mushoku',
+    episodeUrl: '/watch/ep-4',
+  });
+  assert.equal(toAnimeBrowserPlaybackState(null), null);
+});
 
 test('the store answers for the stream URL and for the stats path', () => {
   const store = createStreamPlaybackMetadataStore();

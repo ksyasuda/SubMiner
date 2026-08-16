@@ -12,6 +12,7 @@ export interface AnimeBrowserIpcDeps {
     handle(channel: string, listener: (event: unknown, ...args: unknown[]) => unknown): unknown;
   };
   runtime: AnimeBrowserRuntime;
+  getPlaybackState?: () => unknown;
   registerSession?: (sessionId: string, sender: AnimeBrowserIpcSender) => void;
 }
 
@@ -97,6 +98,7 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   );
   handle(channels.animeBrowserClearQueue, () => runtime.clearQueue());
   handle(channels.animeBrowserGetQueue, () => runtime.getQueue());
+  handle(channels.animeBrowserGetPlaybackState, () => deps.getPlaybackState?.() ?? null);
   handle(channels.animeBrowserIsPlaying, () => runtime.isPlaying());
   handle(channels.animeBrowserGetPreferences, (_event, sourceId) =>
     runtime.getPreferences(String(sourceId)),

@@ -274,6 +274,7 @@ const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
 });
 const animeBrowserModal = createAnimeBrowserModal(ctx, {
   modalStateReader: { isAnyModalOpen },
+  dismissOtherModals: () => modalRegistry.dismissOpenExcept('anime-browser'),
   syncSettingsModalSubtitleSuppression,
 });
 const keyboardHandlers = createKeyboardHandlers(ctx, {
@@ -594,6 +595,11 @@ function registerModalOpenHandlers(): void {
   window.electronAPI.onOpenAnimeBrowser(() => {
     runGuarded('anime-browser:open', () => {
       animeBrowserModal.openAnimeBrowserModal();
+    });
+  });
+  window.electronAPI.onCloseAnimeBrowser(() => {
+    runGuarded('anime-browser:close', () => {
+      animeBrowserModal.closeAnimeBrowserModal();
     });
   });
   window.electronAPI.onCancelYoutubeTrackPicker(() => {

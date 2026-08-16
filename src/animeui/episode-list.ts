@@ -5,7 +5,12 @@ import { filterEpisodes } from './episode-filter';
 import { describeMarkCount, episodesInScope } from './episode-marks';
 import { describeQueuePosition } from './episode-queue';
 import { createEpisodeQueueControls } from './episode-queue-controls';
-import type { AnimeBrowserAPI, AnimeBrowserEpisode } from '../types/anime-browser';
+import { nextPlaybackCue, type EpisodePlaybackCue } from './episode-playback';
+import type {
+  AnimeBrowserAPI,
+  AnimeBrowserEpisode,
+  AnimeBrowserPlaybackState,
+} from '../types/anime-browser';
 
 export interface SelectedAnime {
   url: string;
@@ -47,7 +52,8 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
    * Which episode is resolving or playing. Kept here rather than only on the
    * button, so filtering mid-playback repaints the cue instead of dropping it.
    */
-  let cueState: { url: string; state: 'loading' | 'playing' } | null = null;
+  let cueState: EpisodePlaybackCue | null = null;
+  let activePlayback: AnimeBrowserPlaybackState | null = null;
   const watchStateRequests = new LatestRequest();
   /**
    * Mark writes carry their own token: a background refresh starting mid-write
@@ -69,6 +75,11 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
     }
   }
 
+  function syncPlaybackCue(): void {
+    cueState = nextPlaybackCue(activePlayback, selectedAnime(), cueState);
+    applyCueState();
+  }
+
   const queue = createEpisodeQueueControls({
     api,
     setStatus,
@@ -79,11 +90,12 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
       // The queue started this one, so the cue this window was holding belongs
       // to an episode that has finished. The new one only earns the cue when it
       // is an episode of the anime on screen.
-      const anime = selectedAnime();
-      const mine =
-        anime !== null && anime.sourceId === entry.sourceId && anime.url === entry.animeUrl;
-      cueState = mine ? { url: entry.episodeUrl, state: 'playing' } : null;
-      applyCueState();
+      activePlayback = {
+        sourceId: entry.sourceId,
+        animeUrl: entry.animeUrl,
+        episodeUrl: entry.episodeUrl,
+      };
+      syncPlaybackCue();
       setStatus(`Queue started ${entry.episodeName}.`, 'ok');
     },
   });
@@ -385,6 +397,7 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
       displayIndex: list.length - index,
       name: episode.name,
     }));
+    syncPlaybackCue();
     paint();
     void refreshWatchState();
   }
@@ -412,5 +425,17 @@ export function createEpisodeList({ api, setStatus, selectedAnime }: EpisodeList
   });
   window.addEventListener('focus', () => void refreshWatchState());
 
-  return { render, clear, refreshWatchState, setQueue: queue.setState };
+  function setPlaybackState(state: AnimeBrowserPlaybackState | null): void {
+    activePlayback = state;
+    syncPlaybackCue();
+    void refreshWatchState();
+  }
+
+  return {
+    render,
+    clear,
+    refreshWatchState,
+    setQueue: queue.setState,
+    setPlaybackState,
+  };
 }

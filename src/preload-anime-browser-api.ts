@@ -8,6 +8,7 @@ import type {
   AnimeBrowserEpisodeWatchState,
   AnimeBrowserPlayRequest,
   AnimeBrowserPlayResult,
+  AnimeBrowserPlaybackState,
   AnimeBrowserQueueState,
   AnimeBrowserSearchResult,
   AnimeBrowserSearchUpdate,
@@ -67,6 +68,8 @@ export function createAnimeBrowserAPI(ipcRenderer: AnimeBrowserIpcRenderer): Ani
       ipcRenderer.invoke(request.animeBrowserClearQueue),
     getQueue: (): Promise<AnimeBrowserQueueState> =>
       ipcRenderer.invoke(request.animeBrowserGetQueue),
+    getPlaybackState: (): Promise<AnimeBrowserPlaybackState | null> =>
+      ipcRenderer.invoke(request.animeBrowserGetPlaybackState),
     isPlaying: (): Promise<boolean> => ipcRenderer.invoke(request.animeBrowserIsPlaying),
     getPreferences: (sourceId: string): Promise<SourcePreferenceView[]> =>
       ipcRenderer.invoke(request.animeBrowserGetPreferences, sourceId),
@@ -100,6 +103,15 @@ export function createAnimeBrowserAPI(ipcRenderer: AnimeBrowserIpcRenderer): Ani
       const handler = (_event: unknown, state: AnimeBrowserQueueState): void => listener(state);
       ipcRenderer.on(IPC_CHANNELS.event.animeBrowserQueueState, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserQueueState, handler);
+    },
+    onPlaybackState: (
+      listener: (state: AnimeBrowserPlaybackState | null) => void,
+    ): (() => void) => {
+      const handler = (_event: unknown, state: AnimeBrowserPlaybackState | null): void =>
+        listener(state);
+      ipcRenderer.on(IPC_CHANNELS.event.animeBrowserPlaybackState, handler);
+      return () =>
+        ipcRenderer.removeListener(IPC_CHANNELS.event.animeBrowserPlaybackState, handler);
     },
   };
 }

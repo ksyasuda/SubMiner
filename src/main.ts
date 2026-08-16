@@ -491,6 +491,7 @@ import { createMediaRuntimeService } from './main/media-runtime';
 import {
   createStreamPlaybackMetadataStore,
   matchRequestedStreamPlaybackMetadata,
+  toAnimeBrowserPlaybackState,
   toAnilistMediaGuess,
   toJimakuMediaInfo,
 } from './main/runtime/stream-playback-metadata';
@@ -2468,6 +2469,7 @@ const mediaRuntime = createMediaRuntimeService(
     getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
     setCurrentMediaPath: (nextPath: string | null) => {
       appState.currentMediaPath = nextPath;
+      publishAnimeBrowserPlaybackState(nextPath);
     },
     clearPendingSubtitlePosition: () => {
       appState.pendingSubtitlePosition = null;
@@ -2842,6 +2844,7 @@ function createOverlayHostedModalOpenDeps(): {
     },
   ) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+  isModalOpen: (modal: OverlayHostedModal) => boolean;
   logWarn: (message: string) => void;
 } {
   return {
@@ -2851,6 +2854,7 @@ function createOverlayHostedModalOpenDeps(): {
     sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
       overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+    isModalOpen: (modal) => overlayModalRuntime.isModalOpen(modal),
     logWarn: (message) => logger.warn(message),
   };
 }
@@ -3326,6 +3330,7 @@ const {
 
 const DEFAULT_ANIME_EXTENSIONS_DIR = path.join(USER_DATA_PATH, 'anime-extensions');
 const animeBrowserSessions = new Map<string, AnimeBrowserIpcSender>();
+let animeBrowserPlaybackState = toAnimeBrowserPlaybackState(getActiveStreamMetadata());
 
 function broadcastAnimeBrowserEvent(channel: string, payload: unknown): void {
   const targets = new Set<AnimeBrowserIpcSender>();
@@ -3335,6 +3340,14 @@ function broadcastAnimeBrowserEvent(channel: string, payload: unknown): void {
     if (!sender.isDestroyed()) targets.add(sender);
   }
   for (const sender of targets) sender.send(channel, payload);
+}
+
+function publishAnimeBrowserPlaybackState(mediaPath: string | null): void {
+  animeBrowserPlaybackState = toAnimeBrowserPlaybackState(streamPlaybackMetadata.match(mediaPath));
+  broadcastAnimeBrowserEvent(
+    IPC_CHANNELS.event.animeBrowserPlaybackState,
+    animeBrowserPlaybackState,
+  );
 }
 
 function resolveAnimeExtensionsDir(): string {
@@ -3396,6 +3409,7 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
   },
   onPlaybackMetadata: (metadata) => {
     streamPlaybackMetadata.set(metadata);
+    publishAnimeBrowserPlaybackState(metadata.mediaPath);
     // Set before mpv reports the path change, so the session that change starts
     // is titled and grouped from the source's own listing rather than from the
     // proxy URL, whose only readable part is the `.m3u8` extension.
@@ -3442,6 +3456,7 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
 registerAnimeBrowserIpcHandlers({
   ipcMain,
   runtime: animeBrowserRuntime,
+  getPlaybackState: () => animeBrowserPlaybackState,
   registerSession: (sessionId, sender) => {
     if (animeBrowserSessions.get(sessionId) === sender) return;
     animeBrowserSessions.set(sessionId, sender);

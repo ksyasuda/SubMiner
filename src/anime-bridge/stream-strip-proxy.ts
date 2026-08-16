@@ -25,10 +25,54 @@ const TS_SYNC_BYTE = 0x47;
 const SYNC_RUN = 5;
 /**
  * FFmpeg 8.1 rejects HLS media whose URL suffix is not in its segment allowlist.
- * The disguised MPEG-TS segments seen in the wild use `.image`, so the local
- * playlist gives them this safe alias and removes it again before forwarding.
+ * Hosts disguise MPEG-TS segments behind rotating fake extensions (`.image`,
+ * `.jpg`, `.css`, ...), so the local playlist gives every proxied segment
+ * without a recognized media extension this safe alias and removes it again
+ * before forwarding.
  */
 export const TS_SEGMENT_ALIAS_SUFFIX = '.subminer.ts';
+/** ffmpeg 8.1 hls demuxer `allowed_segment_extensions` defaults (minus `html`,
+ * which only newer builds accept and is a disguise whenever it shows up here). */
+const FFMPEG_SAFE_SEGMENT_EXTENSIONS = new Set([
+  '3gp',
+  'aac',
+  'avi',
+  'ac3',
+  'eac3',
+  'flac',
+  'mkv',
+  'm3u8',
+  'm4a',
+  'm4s',
+  'm4v',
+  'mpg',
+  'mov',
+  'mp2',
+  'mp3',
+  'mp4',
+  'mpeg',
+  'mpegts',
+  'ogg',
+  'ogv',
+  'oga',
+  'ts',
+  'vob',
+  'vtt',
+  'wav',
+  'webvtt',
+  'cmfv',
+  'cmfa',
+  'ec3',
+  'fmp4',
+]);
+
+/** True when ffmpeg's picky segment-extension check would reject this path. */
+function needsTsSegmentAlias(pathname: string): boolean {
+  const name = pathname.slice(pathname.lastIndexOf('/') + 1).toLowerCase();
+  const dot = name.lastIndexOf('.');
+  if (dot === -1) return true;
+  return !FFMPEG_SAFE_SEGMENT_EXTENSIONS.has(name.slice(dot + 1));
+}
 /** A disguise prefix is small; give up scanning after this much. */
 export const DEFAULT_SCAN_LIMIT_BYTES = 1024 * 1024;
 /** Bytes needed to either find a run within the limit or rule one out. */
@@ -80,7 +124,7 @@ export function rewritePlaylistOrigins(
       } catch {
         return line;
       }
-      if (resolved.origin !== proxyOrigin || !resolved.pathname.toLowerCase().endsWith('.image')) {
+      if (resolved.origin !== proxyOrigin || !needsTsSegmentAlias(resolved.pathname)) {
         return line;
       }
 

@@ -10,6 +10,9 @@
 
 /** Where a stream came from, resolved into the fields consumers actually want. */
 export interface AnimeStreamMetadata {
+  sourceId: string;
+  animeUrl: string;
+  episodeUrl: string;
   /** The URL handed to mpv. Matches what mpv reports as `path`. */
   mediaPath: string;
   /**
@@ -192,6 +195,9 @@ export function buildAnimeStreamMetadata(input: AnimeStreamMetadataInput): Anime
   const displayTitle = buildStreamDisplayTitle(seriesTitle, season, episodeNumber, label.title);
 
   return {
+    sourceId: input.sourceId,
+    animeUrl: input.animeUrl,
+    episodeUrl: input.episodeUrl,
     mediaPath: input.mediaPath,
     statsPath: buildAnimeStreamStatsPath(input.sourceId, input.animeUrl, input.episodeUrl),
     seriesTitle,

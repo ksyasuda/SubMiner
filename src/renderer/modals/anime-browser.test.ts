@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createAnimeBrowserKeydownMessage } from '../../shared/anime-browser-embed';
 import { createAnimeBrowserModal } from './anime-browser';
 
 function createClassList(initial: string[] = []) {
@@ -15,6 +16,8 @@ test('embedded Anime Browser closes only for its own close message', () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const messages: Array<(event: MessageEvent) => void> = [];
   const notifications: string[] = [];
+  let staleModalOpen = true;
+  let dismissOtherModalCalls = 0;
   const frameWindow = {};
   const closeListeners: Array<() => void> = [];
   const removedCloseListeners: Array<() => void> = [];
@@ -39,6 +42,7 @@ test('embedded Anime Browser closes only for its own close message', () => {
         notifyOverlayModalOpened: (name: string) => notifications.push(`open:${name}`),
         notifyOverlayModalClosed: (name: string) => notifications.push(`close:${name}`),
       },
+      location: { origin: 'file://', protocol: 'file:' },
       addEventListener: (name: string, listener: (event: MessageEvent) => void) => {
         if (name === 'message') messages.push(listener);
       },
@@ -47,7 +51,22 @@ test('embedded Anime Browser closes only for its own close message', () => {
   });
 
   try {
-    const state = { animeBrowserModalOpen: false, isOverSubtitle: false };
+    const state = {
+      animeBrowserModalOpen: false,
+      isOverSubtitle: false,
+      sessionBindingMap: new Map([
+        [
+          'Ctrl+Alt+KeyA',
+          {
+            actionType: 'session-action',
+            actionId: 'openAnimeBrowser',
+            sourcePath: 'animeBrowser.toggleKey',
+            originalKey: 'Ctrl+Alt+A',
+            key: { code: 'KeyA', modifiers: ['ctrl', 'alt'] },
+          },
+        ],
+      ]),
+    };
     const modal = createAnimeBrowserModal(
       {
         state,
@@ -64,7 +83,13 @@ test('embedded Anime Browser closes only for its own close message', () => {
         },
       } as never,
       {
-        modalStateReader: { isAnyModalOpen: () => state.animeBrowserModalOpen },
+        modalStateReader: {
+          isAnyModalOpen: () => state.animeBrowserModalOpen || staleModalOpen,
+        },
+        dismissOtherModals: () => {
+          dismissOtherModalCalls += 1;
+          staleModalOpen = false;
+        },
         syncSettingsModalSubtitleSuppression: () => undefined,
       },
     );
@@ -72,17 +97,93 @@ test('embedded Anime Browser closes only for its own close message', () => {
     modal.wireDomEvents();
     modal.openAnimeBrowserModal();
     assert.equal(state.animeBrowserModalOpen, true);
+    assert.equal(dismissOtherModalCalls, 1, 'open clears stale retained-window modal state');
     assert.equal(frame.src, frame.dataset.src);
     assert.deepEqual(notifications, ['open:anime-browser']);
 
-    messages[0]?.({ source: {}, data: 'subminer:anime-browser-close' } as MessageEvent);
-    messages[0]?.({ source: frameWindow, data: 'not-the-close-message' } as MessageEvent);
+    messages[0]?.({
+      origin: 'null',
+      source: {},
+      data: 'subminer:anime-browser-close',
+    } as MessageEvent);
+    messages[0]?.({
+      origin: 'https://example.com',
+      source: frameWindow,
+      data: 'subminer:anime-browser-close',
+    } as MessageEvent);
+    messages[0]?.({
+      origin: 'null',
+      source: frameWindow,
+      data: 'not-the-close-message',
+    } as MessageEvent);
     assert.equal(state.animeBrowserModalOpen, true);
 
-    messages[0]?.({ source: frameWindow, data: 'subminer:anime-browser-close' } as MessageEvent);
+    messages[0]?.({
+      origin: 'null',
+      source: frameWindow,
+      data: createAnimeBrowserKeydownMessage({
+        code: 'KeyB',
+        ctrlKey: true,
+        altKey: true,
+        shiftKey: false,
+        metaKey: false,
+        repeat: false,
+      }),
+    } as MessageEvent);
+    assert.equal(state.animeBrowserModalOpen, true, 'unrelated binding leaves modal open');
+
+    messages[0]?.({
+      origin: 'null',
+      source: frameWindow,
+      data: createAnimeBrowserKeydownMessage({
+        code: 'KeyA',
+        ctrlKey: true,
+        altKey: true,
+        shiftKey: false,
+        metaKey: false,
+        repeat: false,
+      }),
+    } as MessageEvent);
+    assert.equal(state.animeBrowserModalOpen, false, 'configured binding toggles modal closed');
+    assert.deepEqual(notifications, ['open:anime-browser', 'close:anime-browser']);
+
+    modal.openAnimeBrowserModal();
+    messages[0]?.({
+      origin: 'null',
+      source: frameWindow,
+      data: 'subminer:anime-browser-close',
+    } as MessageEvent);
     assert.equal(state.animeBrowserModalOpen, false);
     assert.equal(modalElement.classList.contains('hidden'), true);
-    assert.deepEqual(notifications, ['open:anime-browser', 'close:anime-browser']);
+    assert.deepEqual(notifications, [
+      'open:anime-browser',
+      'close:anime-browser',
+      'open:anime-browser',
+      'close:anime-browser',
+    ]);
+
+    modal.openAnimeBrowserModal();
+    assert.equal(state.animeBrowserModalOpen, true);
+    assert.equal(modalElement.classList.contains('hidden'), false);
+    assert.equal(frame.src, frame.dataset.src, 'reopen keeps the existing iframe document');
+    assert.deepEqual(notifications, [
+      'open:anime-browser',
+      'close:anime-browser',
+      'open:anime-browser',
+      'close:anime-browser',
+      'open:anime-browser',
+    ]);
+
+    const dismissCallsBeforeRepair = dismissOtherModalCalls;
+    modalElement.classList.add('hidden');
+    modal.openAnimeBrowserModal();
+    assert.equal(
+      modalElement.classList.contains('hidden'),
+      false,
+      'repeated open repairs stale retained-window DOM state',
+    );
+    assert.equal(dismissOtherModalCalls, dismissCallsBeforeRepair);
+    assert.equal(notifications.at(-1), 'open:anime-browser');
     modal.disposeDomEvents();
     assert.deepEqual(removedCloseListeners, closeListeners);
   } finally {

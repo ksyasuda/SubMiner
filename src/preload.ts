@@ -170,6 +170,7 @@ const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.run
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
 const onOpenChangelogEvent = createQueuedIpcListener(IPC_CHANNELS.event.changelogOpen);
 const onOpenAnimeBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.animeBrowserOpen);
+const onCloseAnimeBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.animeBrowserClose);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
 );
@@ -454,6 +455,7 @@ const electronAPI: ElectronAPI = {
   onOpenSessionHelp: onOpenSessionHelpEvent,
   onOpenChangelog: onOpenChangelogEvent,
   onOpenAnimeBrowser: onOpenAnimeBrowserEvent,
+  onCloseAnimeBrowser: onCloseAnimeBrowserEvent,
   getChangelogSnapshot: (options?: { refresh?: boolean }): Promise<ChangelogSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getChangelogSnapshot, options),
   onOpenControllerSelect: onOpenControllerSelectEvent,

@@ -21,6 +21,10 @@ import type {
   AnimeBrowserEntry,
   AnimeBrowserSource,
 } from '../types/anime-browser';
+import {
+  ANIME_BROWSER_CLOSE_MESSAGE,
+  createAnimeBrowserKeydownMessage,
+} from '../shared/anime-browser-embed';
 
 const embeddedInOverlay =
   new URLSearchParams(window.location.search).get('embedded') === 'overlay-modal';
@@ -95,10 +99,21 @@ function setStatus(message: string, tone: 'info' | 'ok' | 'error' = 'info'): voi
 const detailPanel = createDetailPanel({ api, setStatus });
 
 if (embeddedInOverlay) {
+  const overlayOrigin = window.location.origin;
+  // Keyboard events do not bubble out of an iframe. Forward the physical key
+  // chord so the overlay can apply the user's configured Anime Browser binding.
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key === 'Escape' && detailPanel.isOpen()) return;
+      window.parent.postMessage(createAnimeBrowserKeydownMessage(event), overlayOrigin);
+    },
+    true,
+  );
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented || detailPanel.isOpen()) return;
     event.preventDefault();
-    window.parent.postMessage('subminer:anime-browser-close', '*');
+    window.parent.postMessage(ANIME_BROWSER_CLOSE_MESSAGE, overlayOrigin);
   });
 }
 
@@ -428,12 +443,25 @@ api.onBridgeState(renderBridgeState);
 // The queue changes without this window asking: it advances by itself when an
 // episode ends, whether or not anyone is looking at the browser.
 api.onQueueState((state) => detailPanel.setQueue(state));
+let receivedPlaybackStateEvent = false;
+api.onPlaybackState((state) => {
+  receivedPlaybackStateEvent = true;
+  detailPanel.setPlaybackState(state);
+});
 
 void (async () => {
   renderBridgeState({ stage: 'idle', progress: null, message: null });
   // A queue survives the window being closed and reopened, so start from what
   // the main process already holds rather than from empty.
   void api.getQueue().then((state) => detailPanel.setQueue(state));
+  void api.getPlaybackState().then(
+    (state) => {
+      if (!receivedPlaybackStateEvent) detailPanel.setPlaybackState(state);
+    },
+    () => {
+      // A live playback event can still populate the cue after a failed snapshot request.
+    },
+  );
   try {
     const state = await api.ensureBridge();
     renderBridgeState(state);

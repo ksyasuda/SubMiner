@@ -61,7 +61,7 @@ test('rewritePlaylistOrigins swaps absolute upstream URLs and keeps relative lin
   assert.ok(!rewritten.includes('41569'));
 });
 
-test('rewritePlaylistOrigins gives proxied image segments an ffmpeg-safe TS suffix', () => {
+test('rewritePlaylistOrigins gives proxied disguised segments an ffmpeg-safe TS suffix', () => {
   const body = [
     '#EXTM3U',
     '#EXTINF:6.006,',
@@ -70,6 +70,14 @@ test('rewritePlaylistOrigins gives proxied image segments an ffmpeg-safe TS suff
     'http://127.0.0.1:41569/video/absolute.image',
     '#EXTINF:3,',
     'https://cdn.example/video/external.image',
+    '#EXTINF:2,',
+    '/video/rotating.jpg',
+    '#EXTINF:2,',
+    '/video/rotating.css',
+    '#EXTINF:2,',
+    '/video/rotating.html',
+    '#EXTINF:2,',
+    '/video/extensionless',
   ].join('\n');
   const rewritten = rewritePlaylistOrigins(body, 'http://127.0.0.1:41569', 'http://127.0.0.1:9999');
 
@@ -78,6 +86,25 @@ test('rewritePlaylistOrigins gives proxied image segments an ffmpeg-safe TS suff
     rewritten.includes(`http://127.0.0.1:9999/video/absolute.image${TS_SEGMENT_ALIAS_SUFFIX}`),
   );
   assert.ok(rewritten.includes('https://cdn.example/video/external.image'));
+  assert.ok(rewritten.includes(`/video/rotating.jpg${TS_SEGMENT_ALIAS_SUFFIX}`));
+  assert.ok(rewritten.includes(`/video/rotating.css${TS_SEGMENT_ALIAS_SUFFIX}`));
+  assert.ok(rewritten.includes(`/video/rotating.html${TS_SEGMENT_ALIAS_SUFFIX}`));
+  assert.ok(rewritten.includes(`/video/extensionless${TS_SEGMENT_ALIAS_SUFFIX}`));
+});
+
+test('rewritePlaylistOrigins leaves recognized media extensions unaliased', () => {
+  const body = [
+    '#EXTM3U',
+    '#EXTINF:6,',
+    '/video/plain.ts',
+    '#EXTINF:6,',
+    '/video/fragmented.m4s',
+    '#EXTINF:6,',
+    '/subs/line.vtt',
+    '/video/nested.m3u8',
+  ].join('\n');
+  const rewritten = rewritePlaylistOrigins(body, 'http://127.0.0.1:41569', 'http://127.0.0.1:9999');
+  assert.ok(!rewritten.includes(TS_SEGMENT_ALIAS_SUFFIX));
 });
 
 /* ---------- proxy end-to-end ---------- */

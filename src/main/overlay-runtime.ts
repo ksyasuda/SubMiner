@@ -56,6 +56,7 @@ export interface OverlayModalRuntime {
   openTsukihime: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
   notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
+  isModalOpen: (modal: OverlayHostedModal) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
@@ -84,10 +85,12 @@ export function createOverlayModalRuntimeService(
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
+  let retainModalWindowState = false;
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
   const platform = options.platform ?? process.platform;
   const keepModalWindowWarm = platform === 'darwin' || platform === 'win32';
+  const shouldKeepModalWindowWarm = (): boolean => keepModalWindowWarm || retainModalWindowState;
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -515,7 +518,7 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        if (keepModalWindowWarm) {
+        if (shouldKeepModalWindowWarm()) {
           modalWindow.setIgnoreMouseEvents(true, { forward: true });
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
@@ -538,6 +541,7 @@ export function createOverlayModalRuntimeService(
 
   const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    if (modal === 'anime-browser') retainModalWindowState = true;
     openedModals.add(modal);
     const waiters = modalOpenWaiters.get(modal) ?? [];
     modalOpenWaiters.delete(modal);
@@ -595,6 +599,7 @@ export function createOverlayModalRuntimeService(
     openTsukihime,
     handleOverlayModalClosed,
     notifyOverlayModalOpened,
+    isModalOpen: (modal) => openedModals.has(modal),
     waitForModalOpen,
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };

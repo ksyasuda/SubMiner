@@ -140,6 +140,7 @@ export const IPC_CHANNELS = {
     animeBrowserDequeueEpisode: 'anime-browser:dequeue-episode',
     animeBrowserClearQueue: 'anime-browser:clear-queue',
     animeBrowserGetQueue: 'anime-browser:get-queue',
+    animeBrowserGetPlaybackState: 'anime-browser:get-playback-state',
     animeBrowserIsPlaying: 'anime-browser:is-playing',
     animeBrowserGetPreferences: 'anime-browser:get-preferences',
     animeBrowserSetPreference: 'anime-browser:set-preference',
@@ -174,6 +175,7 @@ export const IPC_CHANNELS = {
     sessionHelpOpen: 'session-help:open',
     changelogOpen: 'changelog:open',
     animeBrowserOpen: 'anime-browser:open',
+    animeBrowserClose: 'anime-browser:close',
     characterDictionaryManagerOpen: 'character-dictionary:manager-open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',
@@ -187,6 +189,7 @@ export const IPC_CHANNELS = {
     animeBrowserBridgeState: 'anime-browser:bridge-state',
     animeBrowserSearchUpdate: 'anime-browser:search-update',
     animeBrowserQueueState: 'anime-browser:queue-state',
+    animeBrowserPlaybackState: 'anime-browser:playback-state',
   },
 } as const;
 

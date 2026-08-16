@@ -1,7 +1,11 @@
 import { LatestRequest } from './browse-state';
 import { describe, el } from './dom';
 import { createEpisodeList, type SelectedAnime } from './episode-list';
-import type { AnimeBrowserAPI, AnimeBrowserEntry } from '../types/anime-browser';
+import type {
+  AnimeBrowserAPI,
+  AnimeBrowserEntry,
+  AnimeBrowserPlaybackState,
+} from '../types/anime-browser';
 
 interface DetailPanelOptions {
   api: AnimeBrowserAPI;
@@ -102,5 +106,7 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
     isOpen: (): boolean => !detail.classList.contains('hidden'),
     /** The queue outlives the open anime, so it is pushed in from outside. */
     setQueue: episodeList.setQueue,
+    setPlaybackState: (state: AnimeBrowserPlaybackState | null) =>
+      episodeList.setPlaybackState(state),
   };
 }

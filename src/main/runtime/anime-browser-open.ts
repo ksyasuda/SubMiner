@@ -17,8 +17,16 @@ export async function openAnimeBrowserModal(deps: {
     },
   ) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+  isModalOpen: (modal: OverlayHostedModal) => boolean;
   logWarn: (message: string) => void;
 }): Promise<boolean> {
+  if (deps.isModalOpen(ANIME_BROWSER_MODAL)) {
+    return deps.sendToActiveOverlayWindow(IPC_CHANNELS.event.animeBrowserClose, undefined, {
+      restoreOnModalClose: ANIME_BROWSER_MODAL,
+      preferModalWindow: true,
+    });
+  }
+
   return await retryOverlayModalOpen(
     {
       waitForModalOpen: deps.waitForModalOpen,
