@@ -11,6 +11,54 @@ export type CardKind = 'sentence' | 'audio' | 'word-and-sentence' | 'click';
 /** Card kind SubMiner flags on word cards; 'none' leaves the flag fields untouched. */
 export type WordCardKind = CardKind | 'none';
 
+export type MediaTimingReviewKind = 'word' | 'sentence' | 'audio';
+
+export interface MediaTimingReviewRequest {
+  kind: MediaTimingReviewKind;
+  text: string;
+  startTime: number;
+  endTime: number;
+  noteId?: number;
+  audioPadding: number;
+  maxMediaDuration: number;
+}
+
+export type MediaTimingReviewDecision =
+  | { action: 'confirm'; startTime: number; endTime: number }
+  | { action: 'use-original' }
+  | { action: 'discard' };
+
+export interface MediaTimingReviewOpenPayload {
+  reviewId: string;
+  kind: MediaTimingReviewKind;
+  text: string;
+  noteId?: number;
+  originalStartTime: number;
+  originalEndTime: number;
+  selectionStartTime: number;
+  selectionEndTime: number;
+  timelineStartTime: number;
+  timelineEndTime: number;
+  mediaDuration?: number;
+  maxMediaDuration: number;
+}
+
+export interface MediaTimingReviewPreviewRequest {
+  reviewId: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface MediaTimingReviewResolveRequest {
+  reviewId: string;
+  decision: MediaTimingReviewDecision;
+}
+
+export interface MediaTimingReviewActionResult {
+  ok: boolean;
+  message?: string;
+}
+
 export interface NotificationOptions {
   body?: string;
   icon?: string;
@@ -85,6 +133,7 @@ export interface AnkiConnectConfig {
     syncAnimatedImageToWordAudio?: boolean;
     normalizeAudio?: boolean;
     mirrorMpvVolume?: boolean;
+    reviewTiming?: boolean;
     audioPadding?: number;
     fallbackDuration?: number;
     maxMediaDuration?: number;

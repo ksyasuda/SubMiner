@@ -42,6 +42,7 @@ test('CardCreationService counts locally created sentence cards', async () => {
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => null,
@@ -74,6 +75,7 @@ test('CardCreationService counts locally created sentence cards', async () => {
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -139,6 +141,7 @@ test('CardCreationService keeps updating after trackLastAddedNoteId throws', asy
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => null,
@@ -173,6 +176,7 @@ test('CardCreationService keeps updating after trackLastAddedNoteId throws', asy
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => {
@@ -238,6 +242,7 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => null,
@@ -272,6 +277,7 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     recordCardsMinedCallback: () => {
@@ -348,6 +354,7 @@ test('CardCreationService uses stream-open-filename for remote media generation'
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async (path) => {
@@ -392,6 +399,7 @@ test('CardCreationService uses stream-open-filename for remote media generation'
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -454,6 +462,7 @@ test('CardCreationService does not use mpv stream indexes for ready cached YouTu
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async (path, _startTime, _endTime, _padding, audioStreamIndex) => {
@@ -495,6 +504,7 @@ test('CardCreationService does not use mpv stream indexes for ready cached YouTu
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -590,6 +600,7 @@ test('CardCreationService queues YouTube media when required cache is not ready'
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => {
@@ -634,6 +645,7 @@ test('CardCreationService queues YouTube media when required cache is not ready'
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -701,6 +713,7 @@ test('CardCreationService tracks pre-add duplicate note ids for kiku sentence ca
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => null,
@@ -733,6 +746,7 @@ test('CardCreationService tracks pre-add duplicate note ids for kiku sentence ca
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -790,6 +804,7 @@ test('CardCreationService does not track duplicate ids when pre-add lookup retur
       storeMediaFile: async () => undefined,
       findNotes: async () => [],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => null,
@@ -822,6 +837,7 @@ test('CardCreationService does not track duplicate ids when pre-add lookup retur
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,

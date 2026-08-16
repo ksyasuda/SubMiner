@@ -3,6 +3,10 @@ import type {
   KikuFieldGroupingRequestData,
   KikuMergePreviewRequest,
   KikuMergePreviewResponse,
+  MediaTimingReviewActionResult,
+  MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewRequest,
+  MediaTimingReviewResolveRequest,
 } from './anki';
 import type { ChangelogSnapshot } from './changelog';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
@@ -516,6 +520,14 @@ export interface ElectronAPI {
   onOpenJimaku: (callback: () => void) => void;
   onOpenTsukihime: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
+  onOpenMediaTimingReview: (callback: (payload: MediaTimingReviewOpenPayload) => void) => void;
+  previewMediaTimingReview: (
+    request: MediaTimingReviewPreviewRequest,
+  ) => Promise<MediaTimingReviewActionResult>;
+  stopMediaTimingReviewPreview: (reviewId: string) => Promise<MediaTimingReviewActionResult>;
+  resolveMediaTimingReview: (
+    request: MediaTimingReviewResolveRequest,
+  ) => Promise<MediaTimingReviewActionResult>;
   onOpenPlaylistBrowser: (callback: () => void) => void;
   onOpenCharacterDictionaryManager: (callback: () => void) => void;
   onSubtitleSidebarToggle: (callback: () => void) => void;
@@ -561,6 +573,7 @@ export interface ElectronAPI {
       | 'jimaku'
       | 'tsukihime'
       | 'youtube-track-picker'
+      | 'media-timing-review'
       | 'playlist-browser'
       | 'kiku'
       | 'controller-select'
@@ -577,6 +590,7 @@ export interface ElectronAPI {
       | 'jimaku'
       | 'tsukihime'
       | 'youtube-track-picker'
+      | 'media-timing-review'
       | 'playlist-browser'
       | 'kiku'
       | 'controller-select'

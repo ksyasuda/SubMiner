@@ -244,6 +244,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
   'ankiConnect.media.mirrorMpvVolume': 'Mirror mpv Volume',
+  'ankiConnect.media.reviewTiming': 'Review Media Timing',
   'discordPresence.updateIntervalMs': 'Update Interval (ms)',
 };
 
@@ -694,6 +695,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.ai.enabled' ||
     path === 'ankiConnect.media.normalizeAudio' ||
     path === 'ankiConnect.media.mirrorMpvVolume' ||
+    path === 'ankiConnect.media.reviewTiming' ||
     path === 'ankiConnect.behavior.autoUpdateNewCards' ||
     path === 'ankiConnect.knownWords.highlightEnabled' ||
     path === 'ankiConnect.knownWords.refreshMinutes' ||

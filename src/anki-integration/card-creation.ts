@@ -3,7 +3,13 @@ import {
   getConfiguredWordFieldName,
   getPreferredWordValueFromExtractedFields,
 } from '../anki-field-config';
-import { AnkiConnectConfig, type CardKind, type WordCardKind } from '../types/anki';
+import {
+  AnkiConnectConfig,
+  type CardKind,
+  type MediaTimingReviewDecision,
+  type MediaTimingReviewRequest,
+  type WordCardKind,
+} from '../types/anki';
 import { createLogger } from '../logger';
 import type { MediaInput } from '../media-input';
 import { SubtitleTimingTracker } from '../subtitle-timing-tracker';
@@ -55,6 +61,7 @@ interface CardCreationClient {
   storeMediaFile(filename: string, data: Buffer): Promise<void>;
   findNotes(query: string, options?: { maxRetries?: number }): Promise<number[]>;
   retrieveMediaFile(filename: string): Promise<string>;
+  deleteNotes(noteIds: number[]): Promise<void>;
 }
 
 interface CardCreationMediaGenerator {
@@ -138,12 +145,16 @@ interface CardCreationDeps {
   };
   getFallbackDurationSeconds: () => number;
   appendKnownWordsFromNoteInfo: (noteInfo: CardCreationNoteInfo) => void;
+  removeKnownWordNote: (noteId: number) => void;
   isUpdateInProgress: () => boolean;
   setUpdateInProgress: (value: boolean) => void;
   trackLastAddedNoteId?: (noteId: number) => void;
   trackLastAddedDuplicateNoteIds?: (noteId: number, duplicateNoteIds: number[]) => void;
   findDuplicateNoteIds?: (expression: string, noteInfo: CardCreationNoteInfo) => Promise<number[]>;
   recordCardsMinedCallback?: (count: number, noteIds?: number[]) => void;
+  reviewMediaTiming?: (
+    request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
+  ) => Promise<MediaTimingReviewDecision>;
 }
 
 export class CardCreationService {
@@ -457,6 +468,27 @@ export class CardCreationService {
           this.deps.getConfig(),
         );
 
+        const timingDecision = this.deps.reviewMediaTiming
+          ? await this.deps.reviewMediaTiming({
+              kind: 'audio',
+              text: mpvClient.currentSubText,
+              startTime,
+              endTime,
+              noteId,
+            })
+          : ({ action: 'use-original' } as const);
+        if (timingDecision.action === 'discard') {
+          await this.deps.client.deleteNotes([noteId]);
+          this.deps.removeKnownWordNote(noteId);
+          this.deps.showStatusNotification('Card deleted.');
+          return;
+        }
+        const exactReviewedRange = timingDecision.action === 'confirm';
+        if (timingDecision.action === 'confirm') {
+          startTime = timingDecision.startTime;
+          endTime = timingDecision.endTime;
+        }
+
         const updatedFields: Record<string, string> = {};
         const errors: string[] = [];
         let miscInfoFilename: string | null = null;
@@ -477,6 +509,7 @@ export class CardCreationService {
             mpvClient.currentVideoPath,
             startTime,
             endTime,
+            exactReviewedRange ? 0 : undefined,
           );
 
           if (audioBuffer) {
@@ -498,6 +531,7 @@ export class CardCreationService {
               startTime,
               endTime,
               animatedLeadInSeconds,
+              exactReviewedRange,
             );
 
             const imageField = this.deps.getConfig().fields?.image;
@@ -570,6 +604,24 @@ export class CardCreationService {
 
     try {
       return await this.deps.withUpdateProgress('Creating sentence card', async () => {
+        const timingDecision = this.deps.reviewMediaTiming
+          ? await this.deps.reviewMediaTiming({
+              kind: 'sentence',
+              text: sentence,
+              startTime,
+              endTime,
+            })
+          : ({ action: 'use-original' } as const);
+        if (timingDecision.action === 'discard') {
+          this.deps.showStatusNotification('Card creation cancelled.');
+          return false;
+        }
+        const exactReviewedRange = timingDecision.action === 'confirm';
+        if (timingDecision.action === 'confirm') {
+          startTime = timingDecision.startTime;
+          endTime = timingDecision.endTime;
+        }
+
         const config = this.deps.getConfig();
         const generateAudio = shouldGenerateAudio(config);
         const generateImage = shouldGenerateImage(config);
@@ -738,6 +790,7 @@ export class CardCreationService {
             generateAudio,
             generateImage,
             volumeScale,
+            ...(exactReviewedRange ? { mediaPaddingSeconds: 0 } : {}),
           });
           await this.deps.showNotification(noteId, label, 'media queued');
           return true;
@@ -753,7 +806,12 @@ export class CardCreationService {
           try {
             const audioFilename = this.generateAudioFilename();
             const audioBuffer = audioSourcePath
-              ? await this.mediaGenerateAudio(audioSourcePath, startTime, endTime)
+              ? await this.mediaGenerateAudio(
+                  audioSourcePath,
+                  startTime,
+                  endTime,
+                  exactReviewedRange ? 0 : undefined,
+                )
               : null;
 
             if (audioBuffer) {
@@ -771,7 +829,13 @@ export class CardCreationService {
         if (generateImage) {
           try {
             const imageFilename = this.generateImageFilename();
-            const imageBuffer = await this.generateImageBuffer(videoPath!, startTime, endTime);
+            const imageBuffer = await this.generateImageBuffer(
+              videoPath!,
+              startTime,
+              endTime,
+              0,
+              exactReviewedRange,
+            );
 
             const imageField = config.fields?.image;
             if (imageBuffer && imageField) {
@@ -823,6 +887,7 @@ export class CardCreationService {
     videoPath: MediaInput,
     startTime: number,
     endTime: number,
+    audioPaddingOverride?: number,
   ): Promise<Buffer | null> {
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient) {
@@ -833,7 +898,7 @@ export class CardCreationService {
       videoPath,
       startTime,
       endTime,
-      this.deps.getConfig().media?.audioPadding,
+      audioPaddingOverride ?? this.deps.getConfig().media?.audioPadding,
       resolveAudioStreamIndexForMediaGeneration(
         videoPath,
         mpvClient.currentAudioStreamIndex ?? undefined,
@@ -851,13 +916,16 @@ export class CardCreationService {
     startTime: number,
     endTime: number,
     animatedLeadInSeconds = 0,
+    exactReviewedRange = false,
   ): Promise<Buffer | null> {
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient) {
       return null;
     }
 
-    const timestamp = mpvClient.currentTimePos || 0;
+    const timestamp = exactReviewedRange
+      ? startTime + (endTime - startTime) / 2
+      : mpvClient.currentTimePos || 0;
 
     if (this.deps.getConfig().media?.imageType === 'avif') {
       let imageStart = startTime;
@@ -873,7 +941,7 @@ export class CardCreationService {
         videoPath,
         imageStart,
         imageEnd,
-        this.deps.getConfig().media?.audioPadding,
+        exactReviewedRange ? 0 : this.deps.getConfig().media?.audioPadding,
         {
           fps: this.deps.getConfig().media?.animatedFps,
           maxWidth: this.deps.getConfig().media?.animatedMaxWidth,

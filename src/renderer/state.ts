@@ -64,6 +64,8 @@ export type RendererState = {
   youtubePickerSecondaryTrackId: string | null;
   youtubePickerStatus: string;
 
+  mediaTimingReviewModalOpen: boolean;
+
   kikuModalOpen: boolean;
   kikuSelectedCard: 1 | 2;
   kikuOriginalData: KikuDuplicateCardInfo | null;
@@ -193,6 +195,8 @@ export function createRendererState(): RendererState {
     youtubePickerPrimaryTrackId: null,
     youtubePickerSecondaryTrackId: null,
     youtubePickerStatus: '',
+
+    mediaTimingReviewModalOpen: false,
 
     kikuModalOpen: false,
     kikuSelectedCard: 1,

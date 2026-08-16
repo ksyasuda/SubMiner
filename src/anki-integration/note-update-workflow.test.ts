@@ -44,6 +44,7 @@ function createWorkflowHarness() {
         updates.push({ noteId, fields });
       },
       storeMediaFile: async () => undefined,
+      deleteNotes: async () => undefined,
     },
     getConfig: () => ({
       fields: {
@@ -61,6 +62,7 @@ function createWorkflowHarness() {
       kikuFieldGrouping: 'disabled' as const,
     }),
     appendKnownWordsFromNoteInfo: (_noteInfo: NoteUpdateWorkflowNoteInfo) => undefined,
+    removeKnownWordNote: (_noteId: number) => undefined,
     extractFields: (fields: Record<string, { value: string }>) => {
       const out: Record<string, string> = {};
       for (const [key, value] of Object.entries(fields)) {
@@ -633,4 +635,63 @@ test('NoteUpdateWorkflow queues media updates when YouTube cache is pending', as
   assert.equal(queuedUpdates[0]?.label, 'taberu');
   assert.equal(queuedUpdates[0]?.context, undefined);
   assert.deepEqual(harness.updates, [{ noteId: 42, fields: { Sentence: 'subtitle-text' } }]);
+});
+
+test('NoteUpdateWorkflow deletes an existing word card when timing review discards it', async () => {
+  const harness = createWorkflowHarness();
+  const deletedNoteIds: number[][] = [];
+  const removedKnownWordNoteIds: number[] = [];
+  let appendedKnownWords = false;
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.client.deleteNotes = async (noteIds) => {
+    deletedNoteIds.push(noteIds);
+  };
+  harness.deps.appendKnownWordsFromNoteInfo = () => {
+    appendedKnownWords = true;
+  };
+  harness.deps.removeKnownWordNote = (noteId) => {
+    removedKnownWordNoteIds.push(noteId);
+  };
+  harness.deps.reviewMediaTiming = async () => ({ action: 'discard' });
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(deletedNoteIds, [[42]]);
+  assert.deepEqual(removedKnownWordNoteIds, [42]);
+  assert.equal(appendedKnownWords, false);
+  assert.deepEqual(harness.updates, []);
+  assert.deepEqual(harness.notifications, []);
+});
+
+test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails', async () => {
+  const harness = createWorkflowHarness();
+  const statusMessages: string[] = [];
+  let removedKnownWord = false;
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.client.deleteNotes = async () => {
+    throw new Error('delete failed');
+  };
+  harness.deps.removeKnownWordNote = () => {
+    removedKnownWord = true;
+  };
+  harness.deps.showOsdNotification = (message) => {
+    statusMessages.push(message);
+  };
+  harness.deps.reviewMediaTiming = async () => ({ action: 'discard' });
+
+  await harness.workflow.execute(42);
+
+  assert.equal(removedKnownWord, false);
+  assert.deepEqual(statusMessages, ['Card deletion failed: delete failed']);
+  assert.ok(harness.warnings.length === 0);
 });

@@ -44,6 +44,35 @@ export type RendererDom = {
   youtubePickerStatus: HTMLDivElement;
   youtubePickerTracks: HTMLUListElement;
 
+  mediaTimingReviewModal: HTMLDivElement;
+  mediaTimingReviewKind: HTMLDivElement;
+  mediaTimingReviewText: HTMLElement;
+  mediaTimingReviewStartValue: HTMLElement;
+  mediaTimingReviewEndValue: HTMLElement;
+  mediaTimingReviewDuration: HTMLElement;
+  mediaTimingReviewTimelineStart: HTMLElement;
+  mediaTimingReviewTimelineEnd: HTMLElement;
+  mediaTimingReviewSelectionTrack: HTMLDivElement;
+  mediaTimingReviewStartRange: HTMLInputElement;
+  mediaTimingReviewEndRange: HTMLInputElement;
+  mediaTimingReviewShowEarlier: HTMLButtonElement;
+  mediaTimingReviewShowLater: HTMLButtonElement;
+  mediaTimingReviewStartBack: HTMLButtonElement;
+  mediaTimingReviewStartForward: HTMLButtonElement;
+  mediaTimingReviewEndBack: HTMLButtonElement;
+  mediaTimingReviewEndForward: HTMLButtonElement;
+  mediaTimingReviewPlay: HTMLButtonElement;
+  mediaTimingReviewReset: HTMLButtonElement;
+  mediaTimingReviewCancel: HTMLButtonElement;
+  mediaTimingReviewConfirm: HTMLButtonElement;
+  mediaTimingReviewStatus: HTMLDivElement;
+  mediaTimingReviewEditor: HTMLDivElement;
+  mediaTimingReviewCancelStep: HTMLDivElement;
+  mediaTimingReviewCancelMessage: HTMLParagraphElement;
+  mediaTimingReviewCancelBack: HTMLButtonElement;
+  mediaTimingReviewUseOriginal: HTMLButtonElement;
+  mediaTimingReviewDiscard: HTMLButtonElement;
+
   kikuModal: HTMLDivElement;
   kikuCard1: HTMLDivElement;
   kikuCard2: HTMLDivElement;
@@ -203,6 +232,53 @@ export function resolveRendererDom(): RendererDom {
     youtubePickerCloseButton: getRequiredElement<HTMLButtonElement>('youtubePickerCloseButton'),
     youtubePickerStatus: getRequiredElement<HTMLDivElement>('youtubePickerStatus'),
     youtubePickerTracks: getRequiredElement<HTMLUListElement>('youtubePickerTracks'),
+
+    mediaTimingReviewModal: getRequiredElement<HTMLDivElement>('mediaTimingReviewModal'),
+    mediaTimingReviewKind: getRequiredElement<HTMLDivElement>('mediaTimingReviewKind'),
+    mediaTimingReviewText: getRequiredElement<HTMLElement>('mediaTimingReviewText'),
+    mediaTimingReviewStartValue: getRequiredElement<HTMLElement>('mediaTimingReviewStartValue'),
+    mediaTimingReviewEndValue: getRequiredElement<HTMLElement>('mediaTimingReviewEndValue'),
+    mediaTimingReviewDuration: getRequiredElement<HTMLElement>('mediaTimingReviewDuration'),
+    mediaTimingReviewTimelineStart: getRequiredElement<HTMLElement>(
+      'mediaTimingReviewTimelineStart',
+    ),
+    mediaTimingReviewTimelineEnd: getRequiredElement<HTMLElement>('mediaTimingReviewTimelineEnd'),
+    mediaTimingReviewSelectionTrack: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewSelectionTrack',
+    ),
+    mediaTimingReviewStartRange: getRequiredElement<HTMLInputElement>(
+      'mediaTimingReviewStartRange',
+    ),
+    mediaTimingReviewEndRange: getRequiredElement<HTMLInputElement>('mediaTimingReviewEndRange'),
+    mediaTimingReviewShowEarlier: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewShowEarlier',
+    ),
+    mediaTimingReviewShowLater: getRequiredElement<HTMLButtonElement>('mediaTimingReviewShowLater'),
+    mediaTimingReviewStartBack: getRequiredElement<HTMLButtonElement>('mediaTimingReviewStartBack'),
+    mediaTimingReviewStartForward: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewStartForward',
+    ),
+    mediaTimingReviewEndBack: getRequiredElement<HTMLButtonElement>('mediaTimingReviewEndBack'),
+    mediaTimingReviewEndForward: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewEndForward',
+    ),
+    mediaTimingReviewPlay: getRequiredElement<HTMLButtonElement>('mediaTimingReviewPlay'),
+    mediaTimingReviewReset: getRequiredElement<HTMLButtonElement>('mediaTimingReviewReset'),
+    mediaTimingReviewCancel: getRequiredElement<HTMLButtonElement>('mediaTimingReviewCancel'),
+    mediaTimingReviewConfirm: getRequiredElement<HTMLButtonElement>('mediaTimingReviewConfirm'),
+    mediaTimingReviewStatus: getRequiredElement<HTMLDivElement>('mediaTimingReviewStatus'),
+    mediaTimingReviewEditor: getRequiredElement<HTMLDivElement>('mediaTimingReviewEditor'),
+    mediaTimingReviewCancelStep: getRequiredElement<HTMLDivElement>('mediaTimingReviewCancelStep'),
+    mediaTimingReviewCancelMessage: getRequiredElement<HTMLParagraphElement>(
+      'mediaTimingReviewCancelMessage',
+    ),
+    mediaTimingReviewCancelBack: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewCancelBack',
+    ),
+    mediaTimingReviewUseOriginal: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewUseOriginal',
+    ),
+    mediaTimingReviewDiscard: getRequiredElement<HTMLButtonElement>('mediaTimingReviewDiscard'),
 
     kikuModal: getRequiredElement<HTMLDivElement>('kikuFieldGroupingModal'),
     kikuCard1: getRequiredElement<HTMLDivElement>('kikuCard1'),

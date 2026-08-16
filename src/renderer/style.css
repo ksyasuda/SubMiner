@@ -1323,6 +1323,436 @@ body:focus-visible,
   }
 }
 
+/* Media timing review uses the Catppuccin Macchiato palette without opacity-shifted colors. */
+.media-timing-review-modal {
+  background: rgba(24, 25, 38, 0.74);
+  backdrop-filter: blur(8px);
+}
+
+.media-timing-review-content {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 18px;
+  background: var(--ctp-base);
+  color: var(--ctp-text);
+  box-shadow:
+    0 26px 80px rgba(24, 25, 38, 0.74),
+    0 0 0 1px rgba(183, 189, 248, 0.08) inset;
+  animation: media-timing-review-enter 180ms cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+@keyframes media-timing-review-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.media-timing-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--ctp-surface0);
+  background: var(--ctp-mantle);
+}
+
+.media-timing-review-eyebrow {
+  margin-bottom: 3px;
+  color: var(--ctp-teal);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.media-timing-review-title {
+  color: var(--ctp-text);
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.media-timing-review-editor {
+  padding: 20px 24px 24px;
+}
+
+.media-timing-review-text {
+  max-height: 108px;
+  overflow: auto;
+  margin: 0 0 18px;
+  padding: 13px 16px;
+  border-left: 3px solid var(--ctp-mauve);
+  border-radius: 0 10px 10px 0;
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext1);
+  font-size: 16px;
+  font-weight: 560;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.media-timing-review-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 12px;
+  background: var(--ctp-mantle);
+}
+
+.media-timing-review-readout > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 14px;
+}
+
+.media-timing-review-readout > div + div {
+  border-left: 1px solid var(--ctp-surface0);
+}
+
+.media-timing-review-readout span {
+  color: var(--ctp-overlay2);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.media-timing-review-readout strong {
+  color: var(--ctp-lavender);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.media-timing-review-readout .media-timing-review-duration {
+  align-items: center;
+  background: var(--ctp-surface0);
+  text-align: center;
+}
+
+.media-timing-review-timeline-shell {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 14px;
+  background: var(--ctp-mantle);
+}
+
+.media-timing-review-timeline-labels,
+.media-timing-review-expand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ctp-overlay1);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+}
+
+.media-timing-review-timeline-labels span:first-child,
+.media-timing-review-timeline-labels span:last-child {
+  color: var(--ctp-subtext0);
+  font-variant-numeric: tabular-nums;
+}
+
+.media-timing-review-track {
+  --selection-start: 20%;
+  --selection-end: 80%;
+
+  position: relative;
+  height: 44px;
+  margin: 8px 0 9px;
+  border: 1px solid var(--ctp-surface2);
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent calc(10% - 1px),
+      var(--ctp-surface1) calc(10% - 1px),
+      var(--ctp-surface1) 10%
+    ),
+    var(--ctp-surface0);
+}
+
+.media-timing-review-selected-range {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: var(--selection-start);
+  right: calc(100% - var(--selection-end));
+  border: 1px solid var(--ctp-teal);
+  border-radius: 6px;
+  background: var(--ctp-sapphire);
+  box-shadow: 0 0 18px rgba(125, 196, 228, 0.24);
+  pointer-events: none;
+}
+
+.media-timing-review-range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+}
+
+.media-timing-review-range::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.media-timing-review-range::-webkit-slider-thumb {
+  width: 15px;
+  height: 34px;
+  margin-top: 4px;
+  appearance: none;
+  border: 2px solid var(--ctp-base);
+  border-radius: 5px;
+  background: var(--ctp-text);
+  box-shadow: 0 2px 7px var(--ctp-crust);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.media-timing-review-range::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+
+.media-timing-review-range::-moz-range-thumb {
+  width: 15px;
+  height: 34px;
+  border: 2px solid var(--ctp-base);
+  border-radius: 5px;
+  background: var(--ctp-text);
+  box-shadow: 0 2px 7px var(--ctp-crust);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.media-timing-review-expand-row span {
+  text-align: center;
+}
+
+.media-timing-review-expand-button,
+.media-timing-review-quiet-button,
+.media-timing-review-original-button,
+.media-timing-review-discard-button,
+.media-timing-review-play-button,
+.media-timing-review-confirm-button,
+.media-timing-review-fine-control button {
+  border: 1px solid var(--ctp-surface2);
+  border-radius: 8px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 720;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    border-color 130ms ease,
+    transform 130ms ease;
+}
+
+.media-timing-review-expand-button {
+  padding: 5px 9px;
+  color: var(--ctp-sky);
+}
+
+.media-timing-review-expand-button:disabled,
+.media-timing-review-content button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.media-timing-review-content button:not(:disabled):hover {
+  border-color: var(--ctp-lavender);
+  background: var(--ctp-surface1);
+}
+
+.media-timing-review-content button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.media-timing-review-content button:focus-visible,
+.media-timing-review-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--ctp-yellow);
+  outline-offset: 2px;
+}
+
+.media-timing-review-fine-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.media-timing-review-fine-control {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid var(--ctp-surface0);
+  border-radius: 10px;
+  color: var(--ctp-subtext1);
+}
+
+.media-timing-review-fine-control span {
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.media-timing-review-fine-control button {
+  min-width: 62px;
+  padding: 5px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.media-timing-review-status {
+  min-height: 21px;
+  padding-top: 7px;
+  color: var(--ctp-teal);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.media-timing-review-status.is-error {
+  color: var(--ctp-red);
+}
+
+.media-timing-review-footer,
+.media-timing-review-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.media-timing-review-footer {
+  justify-content: space-between;
+  padding-top: 5px;
+}
+
+.media-timing-review-play-button,
+.media-timing-review-confirm-button,
+.media-timing-review-quiet-button,
+.media-timing-review-original-button,
+.media-timing-review-discard-button {
+  padding: 9px 14px;
+}
+
+.media-timing-review-play-button {
+  border-color: var(--ctp-teal);
+  background: var(--ctp-teal);
+  color: var(--ctp-crust);
+}
+
+.media-timing-review-play-button.is-playing {
+  border-color: var(--ctp-yellow);
+  background: var(--ctp-yellow);
+}
+
+.media-timing-review-confirm-button {
+  border-color: var(--ctp-blue);
+  background: var(--ctp-blue);
+  color: var(--ctp-crust);
+}
+
+.media-timing-review-original-button {
+  border-color: var(--ctp-yellow);
+  color: var(--ctp-yellow);
+}
+
+.media-timing-review-discard-button {
+  border-color: var(--ctp-red);
+  background: var(--ctp-red);
+  color: var(--ctp-crust);
+}
+
+.media-timing-review-cancel-step {
+  min-height: 330px;
+  padding: 48px 38px 38px;
+  text-align: center;
+}
+
+.media-timing-review-cancel-mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 16px;
+  place-items: center;
+  border: 2px solid var(--ctp-yellow);
+  border-radius: 50%;
+  color: var(--ctp-yellow);
+  font-size: 26px;
+  font-weight: 760;
+}
+
+.media-timing-review-cancel-step h2 {
+  color: var(--ctp-text);
+  font-size: 22px;
+  font-weight: 760;
+}
+
+.media-timing-review-cancel-step p {
+  max-width: 520px;
+  margin: 8px auto 26px;
+  color: var(--ctp-subtext0);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.media-timing-review-cancel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .media-timing-review-content {
+    width: calc(100vw - 18px);
+    max-height: calc(100vh - 18px);
+  }
+
+  .media-timing-review-header,
+  .media-timing-review-editor {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .media-timing-review-fine-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .media-timing-review-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .media-timing-review-preview-actions > *,
+  .media-timing-review-confirm-button {
+    flex: 1;
+  }
+}
+
 body.subtitle-sidebar-embedded-open #subtitleContainer {
   max-width: min(80%, calc(100vw - var(--subtitle-sidebar-reserved-width) - 24px));
   transform: translateX(calc(var(--subtitle-sidebar-reserved-width) * -0.5));

@@ -465,6 +465,9 @@ import { createMainBootServices, type MainBootServicesResult } from './main/boot
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
+import { MediaTimingPreviewSession } from './core/services/media-timing-preview';
+import { createMediaTimingReviewRuntime } from './main/runtime/media-timing-review';
+import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
 import { openJimakuModal as openJimakuModalRuntime } from './main/runtime/jimaku-open';
@@ -2885,6 +2888,18 @@ function createOverlayHostedModalOpenDeps(): {
   };
 }
 
+const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
+  getMpvClient: () => appState.mpvClient,
+  getCurrentMediaPath: () =>
+    appState.currentMediaPath?.trim() || appState.mpvClient?.currentVideoPath?.trim() || null,
+  getMpvExecutablePath: () =>
+    configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
+  createPreviewSession: () => new MediaTimingPreviewSession(),
+  openModal: (payload) => openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload),
+  showStatus: (message) =>
+    overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
+});
+
 function openOverlayHostedModalWithOsd(
   openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
   unavailableMessage: string,
@@ -5121,6 +5136,7 @@ function initializeOverlayRuntime(): void {
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
   appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
+  appState.ankiIntegration?.setMediaTimingReviewCallback(mediaTimingReviewRuntime.requestReview);
   syncOverlayMpvSubtitleSuppression();
 }
 
@@ -5530,6 +5546,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       showMpvOsd: (text: string) => showConfiguredPlaybackFeedback(text),
     },
     mainDeps: {
+      previewMediaTimingReview: (request) => mediaTimingReviewRuntime.previewRange(request),
+      stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
+      resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),
       getMainWindow: () => overlayManager.getMainWindow(),
       getVisibleOverlayVisibility: () => overlayManager.getVisibleOverlayVisible(),
       focusMainWindow: () => {
@@ -5563,6 +5582,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         }
       },
       onOverlayModalClosed: (modal, senderWindow) => {
+        if (modal === 'media-timing-review') {
+          void mediaTimingReviewRuntime.dispose();
+        }
         if (modal === 'subtitle-sidebar' && senderWindow === overlayManager.getMainWindow()) {
           subtitleSidebarRequestedOpen = false;
         }
@@ -5916,6 +5938,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         appState.ankiIntegration?.setSubtitleMiningContextConsumer(
           consumePendingSubtitleMiningContext,
         );
+        appState.ankiIntegration?.setMediaTimingReviewCallback(
+          mediaTimingReviewRuntime.requestReview,
+        );
       },
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
@@ -6240,6 +6265,7 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
           if (overlayManager.getModalWindow() !== window) {
             return;
           }
+          void mediaTimingReviewRuntime.dispose();
           overlayManager.setModalWindow(null);
         }
       },

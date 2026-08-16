@@ -196,6 +196,195 @@
           </div>
         </div>
       </div>
+      <div
+        id="mediaTimingReviewModal"
+        class="modal media-timing-review-modal hidden"
+        aria-hidden="true"
+      >
+        <div
+          class="modal-content media-timing-review-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mediaTimingReviewTitle"
+        >
+          <div class="media-timing-review-header">
+            <div>
+              <div id="mediaTimingReviewKind" class="media-timing-review-eyebrow">
+                Sentence card
+              </div>
+              <div id="mediaTimingReviewTitle" class="media-timing-review-title">
+                Review media timing
+              </div>
+            </div>
+            <button
+              id="mediaTimingReviewCancel"
+              class="media-timing-review-quiet-button"
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div id="mediaTimingReviewEditor" class="media-timing-review-editor">
+            <blockquote id="mediaTimingReviewText" class="media-timing-review-text"></blockquote>
+
+            <div class="media-timing-review-readout" aria-live="polite">
+              <div>
+                <span>Starts</span>
+                <strong id="mediaTimingReviewStartValue">00:00.000</strong>
+              </div>
+              <div class="media-timing-review-duration">
+                <span>Clip length</span>
+                <strong id="mediaTimingReviewDuration">0.00s</strong>
+              </div>
+              <div>
+                <span>Ends</span>
+                <strong id="mediaTimingReviewEndValue">00:00.000</strong>
+              </div>
+            </div>
+
+            <div class="media-timing-review-timeline-shell">
+              <div class="media-timing-review-timeline-labels">
+                <span id="mediaTimingReviewTimelineStart">00:00</span>
+                <span>available media</span>
+                <span id="mediaTimingReviewTimelineEnd">00:00</span>
+              </div>
+              <div id="mediaTimingReviewSelectionTrack" class="media-timing-review-track">
+                <div class="media-timing-review-selected-range"></div>
+                <input
+                  id="mediaTimingReviewStartRange"
+                  class="media-timing-review-range media-timing-review-range-start"
+                  type="range"
+                  step="0.01"
+                  aria-label="Clip start"
+                />
+                <input
+                  id="mediaTimingReviewEndRange"
+                  class="media-timing-review-range media-timing-review-range-end"
+                  type="range"
+                  step="0.01"
+                  aria-label="Clip end"
+                />
+              </div>
+              <div class="media-timing-review-expand-row">
+                <button
+                  id="mediaTimingReviewShowEarlier"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                >
+                  Show earlier
+                </button>
+                <span>Drag either edge to set the exact clip.</span>
+                <button
+                  id="mediaTimingReviewShowLater"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                >
+                  Show later
+                </button>
+              </div>
+            </div>
+
+            <div class="media-timing-review-fine-grid">
+              <div class="media-timing-review-fine-control">
+                <span>Start</span>
+                <button
+                  id="mediaTimingReviewStartBack"
+                  type="button"
+                  aria-label="Move start backward 100 milliseconds"
+                >
+                  − 0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewStartForward"
+                  type="button"
+                  aria-label="Move start forward 100 milliseconds"
+                >
+                  + 0.1s
+                </button>
+              </div>
+              <div class="media-timing-review-fine-control">
+                <span>End</span>
+                <button
+                  id="mediaTimingReviewEndBack"
+                  type="button"
+                  aria-label="Move end backward 100 milliseconds"
+                >
+                  − 0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewEndForward"
+                  type="button"
+                  aria-label="Move end forward 100 milliseconds"
+                >
+                  + 0.1s
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="mediaTimingReviewStatus"
+              class="media-timing-review-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="media-timing-review-footer">
+              <div class="media-timing-review-preview-actions">
+                <button
+                  id="mediaTimingReviewPlay"
+                  class="media-timing-review-play-button"
+                  type="button"
+                >
+                  Play selection
+                </button>
+                <button
+                  id="mediaTimingReviewReset"
+                  class="media-timing-review-quiet-button"
+                  type="button"
+                >
+                  Reset timing
+                </button>
+              </div>
+              <button
+                id="mediaTimingReviewConfirm"
+                class="media-timing-review-confirm-button"
+                type="button"
+              >
+                Use this timing
+              </button>
+            </div>
+          </div>
+
+          <div id="mediaTimingReviewCancelStep" class="media-timing-review-cancel-step hidden">
+            <div class="media-timing-review-cancel-mark" aria-hidden="true">?</div>
+            <h2>Stop reviewing?</h2>
+            <p id="mediaTimingReviewCancelMessage">Choose what should happen to this card.</p>
+            <div class="media-timing-review-cancel-actions">
+              <button
+                id="mediaTimingReviewCancelBack"
+                class="media-timing-review-quiet-button"
+                type="button"
+              >
+                Keep editing
+              </button>
+              <button
+                id="mediaTimingReviewUseOriginal"
+                class="media-timing-review-original-button"
+                type="button"
+              >
+                Use original timing
+              </button>
+              <button
+                id="mediaTimingReviewDiscard"
+                class="media-timing-review-discard-button"
+                type="button"
+              >
+                Delete card
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">

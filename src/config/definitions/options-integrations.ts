@@ -197,6 +197,13 @@ export function buildIntegrationConfigOptionRegistry(
         "Apply mpv's current software volume curve to generated sentence audio. Changes apply live.",
     },
     {
+      path: 'ankiConnect.media.reviewTiming',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.media.reviewTiming,
+      description:
+        'Review and preview subtitle media timing before SubMiner creates or enriches a mined card.',
+    },
+    {
       path: 'ankiConnect.media.generateImage',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.media.generateImage,

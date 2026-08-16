@@ -69,6 +69,9 @@ import type {
   OverlayNotificationEventPayload,
   OverlayNotificationPosition,
   ChangelogSnapshot,
+  MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewRequest,
+  MediaTimingReviewResolveRequest,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -181,6 +184,11 @@ const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<Youtube
   IPC_CHANNELS.event.youtubePickerOpen,
   (payload) => payload as YoutubePickerOpenPayload,
 );
+const onOpenMediaTimingReviewEvent =
+  createQueuedIpcListenerWithPayload<MediaTimingReviewOpenPayload>(
+    IPC_CHANNELS.event.mediaTimingReviewOpen,
+    (payload) => payload as MediaTimingReviewOpenPayload,
+  );
 const onOpenPlaylistBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.playlistBrowserOpen);
 const onCancelYoutubeTrackPickerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.youtubePickerCancel,
@@ -458,6 +466,13 @@ const electronAPI: ElectronAPI = {
   onOpenJimaku: onOpenJimakuEvent,
   onOpenTsukihime: onOpenTsukihimeEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
+  onOpenMediaTimingReview: onOpenMediaTimingReviewEvent,
+  previewMediaTimingReview: (request: MediaTimingReviewPreviewRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewPreview, request),
+  stopMediaTimingReviewPreview: (reviewId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewStopPreview, reviewId),
+  resolveMediaTimingReview: (request: MediaTimingReviewResolveRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewResolve, request),
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,

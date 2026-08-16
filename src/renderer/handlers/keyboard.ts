@@ -18,6 +18,7 @@ export function createKeyboardHandlers(
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
     handleTsukihimeKeydown: (e: KeyboardEvent) => boolean;
     handleYoutubePickerKeydown: (e: KeyboardEvent) => boolean;
+    handleMediaTimingReviewKeydown?: (e: KeyboardEvent) => boolean;
     handlePlaylistBrowserKeydown: (e: KeyboardEvent) => boolean;
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
@@ -1078,6 +1079,11 @@ export function createKeyboardHandlers(
     );
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (ctx.state.mediaTimingReviewModalOpen) {
+        options.handleMediaTimingReviewKeydown?.(e);
+        return;
+      }
+
       if (isKeyboardDrivenModeToggle(e) && ctx.platform.isModalLayer) {
         e.preventDefault();
         handleKeyboardModeToggleRequested();

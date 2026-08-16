@@ -967,6 +967,7 @@ Enable automatic Anki card creation and updates with media generation:
       "animatedCrf": 35,
       "normalizeAudio": true,
       "mirrorMpvVolume": true,
+      "reviewTiming": false,
       "audioPadding": 0,
       "fallbackDuration": 3,
       "maxMediaDuration": 30
@@ -1019,6 +1020,7 @@ This example is intentionally compact. The option table below documents availabl
 | `media.generateAudio`                             | `true`, `false`                             | Generate audio clips from video (default: `true`)                                                                                                                                                                               |
 | `media.normalizeAudio`                            | `true`, `false`                             | Normalize generated sentence-audio loudness during media extraction (default: `true`). Set to `false` to keep raw source loudness. Changes apply live.                                                                          |
 | `media.mirrorMpvVolume`                           | `true`, `false`                             | Apply mpv's cubic software-volume curve to each generated sentence-audio clip (default: `true`). This ignores mpv's separate mute state, falls back to unity scaling if volume cannot be read, and applies changes live.        |
+| `media.reviewTiming`                              | `true`, `false`                             | Pause playback and review word, sentence, and audio card timing before media generation (default: `false`). Clipboard updates and stats-dashboard mining do not open the review.                                              |
 | `media.generateImage`                             | `true`, `false`                             | Generate image/animation screenshots (default: `true`)                                                                                                                                                                          |
 | `media.imageType`                                 | `"static"`, `"avif"`                        | Image type: static screenshot or animated AVIF (default: `"static"`)                                                                                                                                                            |
 | `media.imageFormat`                               | `"jpg"`, `"png"`, `"webp"`                  | Image format (default: `"jpg"`)                                                                                                                                                                                                 |
