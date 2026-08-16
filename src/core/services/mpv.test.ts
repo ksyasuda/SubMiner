@@ -505,6 +505,17 @@ test('MpvIpcClient reconnect replays property subscriptions and initial state re
       (command as { command: unknown[] }).command[1] === 1 &&
       (command as { command: unknown[] }).command[2] === 'sub-text',
   );
+  const hasAssSubtitleSubscription = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command[0] === 'observe_property' &&
+      (command as { command: unknown[] }).command[2] === 'sub-text/ass',
+  );
+  const hasDeprecatedAssSubtitleProperty = commands.some(
+    (command) =>
+      Array.isArray((command as { command: unknown[] }).command) &&
+      (command as { command: unknown[] }).command.includes('sub-text-ass'),
+  );
   const hasPathRequest = commands.some(
     (command) =>
       Array.isArray((command as { command: unknown[] }).command) &&
@@ -514,6 +525,8 @@ test('MpvIpcClient reconnect replays property subscriptions and initial state re
 
   assert.equal(hasSecondaryVisibilityReset, true);
   assert.equal(hasTrackSubscription, true);
+  assert.equal(hasAssSubtitleSubscription, true);
+  assert.equal(hasDeprecatedAssSubtitleProperty, false);
   assert.equal(hasPathRequest, true);
 });
 

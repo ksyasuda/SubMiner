@@ -24,9 +24,16 @@ import {
   shouldForwardStartupArgvViaAppControl,
   applyBackgroundBootstrapCommandLineSwitches,
   applyEarlyLinuxCommandLineSwitches,
+  resolveAppControlHandoffTimeoutMs,
   resolveLinuxPasswordStoreValue,
   spawnDetachedApp,
 } from './main-entry-runtime';
+
+test('app-control handoffs allow for macOS application activation latency', () => {
+  assert.equal(resolveAppControlHandoffTimeoutMs('darwin'), 3000);
+  assert.equal(resolveAppControlHandoffTimeoutMs('linux'), 500);
+  assert.equal(resolveAppControlHandoffTimeoutMs('win32'), 500);
+});
 
 test('detached app launch policy stays in the startup runtime utilities', () => {
   const entrySource = fs.readFileSync(path.join(process.cwd(), 'src/main-entry.ts'), 'utf8');

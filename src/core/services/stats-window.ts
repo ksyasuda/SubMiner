@@ -13,6 +13,7 @@ import {
   scheduleStatsWindowPostShowReconciles,
   showStatsNativeConfirmDialog,
   shouldHideStatsWindowForInput,
+  shouldPresentStatsWindowAfterLoad,
   STATS_WINDOW_TITLE,
 } from './stats-window-runtime.js';
 import { ensureHyprlandWindowFloatingByTitle } from './hyprland-window-placement.js';
@@ -209,10 +210,15 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
         options.onVisibilityChanged?.(false);
       }
     });
-    statsWindow.once('ready-to-show', () => {
+    const showInitialStatsWindow = () => {
       if (!statsWindow) return;
       showStatsWindow(statsWindow, options);
-    });
+    };
+    if (shouldPresentStatsWindowAfterLoad()) {
+      statsWindow.webContents.once('did-finish-load', showInitialStatsWindow);
+    } else {
+      statsWindow.once('ready-to-show', showInitialStatsWindow);
+    }
 
     statsWindow.on('blur', () => {
       if (!statsWindow || statsWindow.isDestroyed() || !statsWindow.isVisible()) {

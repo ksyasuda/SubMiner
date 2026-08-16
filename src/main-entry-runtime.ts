@@ -14,6 +14,8 @@ const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
 const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
 const MAX_TRANSPORTED_APP_ARGS = 256;
 const APP_NAME = 'SubMiner';
+const DEFAULT_APP_CONTROL_HANDOFF_TIMEOUT_MS = 500;
+const MACOS_APP_CONTROL_HANDOFF_TIMEOUT_MS = 3000;
 const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
   '--alang',
   '--audio-file',
@@ -184,6 +186,14 @@ export function shouldForwardStartupArgvViaAppControl(
   if (argv.includes('--sync-cli')) return false;
 
   return hasExplicitCommand(args);
+}
+
+export function resolveAppControlHandoffTimeoutMs(
+  platform: NodeJS.Platform = process.platform,
+): number {
+  return platform === 'darwin'
+    ? MACOS_APP_CONTROL_HANDOFF_TIMEOUT_MS
+    : DEFAULT_APP_CONTROL_HANDOFF_TIMEOUT_MS;
 }
 
 function readTransportedStartupArgs(env: NodeJS.ProcessEnv): string[] | null {

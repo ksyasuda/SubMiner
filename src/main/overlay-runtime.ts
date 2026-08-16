@@ -2,7 +2,10 @@ import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
-import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from '../core/services/overlay-window-flags';
+import {
+  OVERLAY_WINDOW_CONTENT_READY_FLAG,
+  OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG,
+} from '../core/services/overlay-window-flags';
 
 const MODAL_REVEAL_FALLBACK_DELAY_MS = 250;
 // The dedicated modal window maps asynchronously on Wayland; a single reconcile can fire
@@ -39,6 +42,7 @@ export interface OverlayWindowResolver {
 }
 
 export interface OverlayModalRuntime {
+  primeModalWindow: () => boolean;
   sendToActiveOverlayWindow: (
     channel: string,
     payload?: unknown,
@@ -59,6 +63,8 @@ export interface OverlayModalRuntime {
 type RevealFallbackHandle = NonNullable<Parameters<typeof globalThis.clearTimeout>[0]>;
 
 export interface OverlayModalRuntimeOptions {
+  platform?: NodeJS.Platform;
+  focusApplication?: () => void;
   onModalStateChange?: (isActive: boolean) => void;
   onFinalModalClosed?: () => void;
   scheduleRevealFallback?: (callback: () => void, delayMs: number) => RevealFallbackHandle;
@@ -79,6 +85,9 @@ export function createOverlayModalRuntimeService(
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
+  const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
+  const platform = options.platform ?? process.platform;
+  const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
   const clearRevealFallback = (timeout: RevealFallbackHandle): void =>
@@ -134,7 +143,11 @@ export function createOverlayModalRuntimeService(
     }
     const overlayWindow = window as BrowserWindow & {
       [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
     };
+    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] === false) {
+      return false;
+    }
     if (
       typeof overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] === 'boolean' &&
       overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] !== true
@@ -143,6 +156,50 @@ export function createOverlayModalRuntimeService(
     }
     const currentURL = window.webContents.getURL();
     return currentURL !== '' && currentURL !== 'about:blank';
+  };
+
+  const isWindowLoadedForIpc = (window: BrowserWindow): boolean => {
+    if (window.isDestroyed() || window.webContents.isLoading()) {
+      return false;
+    }
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
+    };
+    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] !== true) {
+      return false;
+    }
+    const currentURL = window.webContents.getURL();
+    return currentURL !== '' && currentURL !== 'about:blank';
+  };
+
+  const markModalWindowPrimed = (window: BrowserWindow): void => {
+    if (deps.getModalWindow() !== window || !isWindowLoadedForIpc(window)) {
+      return;
+    }
+    modalWindowPrimedForImmediateShow = true;
+  };
+
+  const primeModalWindow = (): boolean => {
+    if (platform !== 'darwin') {
+      return false;
+    }
+    const modalWindow = resolveModalWindow();
+    if (!modalWindow) {
+      return false;
+    }
+
+    deps.setModalWindowBounds(deps.getModalGeometry());
+    if (isWindowReadyForIpc(modalWindow)) {
+      modalWindowPrimedForImmediateShow = true;
+      return true;
+    }
+
+    if (!modalWindowPrimeListenersRegistered.has(modalWindow)) {
+      modalWindowPrimeListenersRegistered.add(modalWindow);
+      modalWindow.webContents.once('did-finish-load', () => markModalWindowPrimed(modalWindow));
+      modalWindow.once('ready-to-show', () => markModalWindowPrimed(modalWindow));
+    }
+    return true;
   };
 
   const elevateModalWindow = (window: BrowserWindow): void => {
@@ -205,16 +262,19 @@ export function createOverlayModalRuntimeService(
     }
 
     let delivered = false;
-    const deliverWhenReady = (): void => {
-      if (delivered || window.isDestroyed() || !isWindowReadyForIpc(window)) {
+    const deliver = (isReady: () => boolean): void => {
+      if (delivered || window.isDestroyed() || !isReady()) {
         return;
       }
       delivered = true;
       sendNow(window);
     };
 
-    window.webContents.once('did-finish-load', deliverWhenReady);
-    window.once('ready-to-show', deliverWhenReady);
+    // A hidden macOS panel may not emit ready-to-show until it is presented. The
+    // renderer can safely receive IPC as soon as its document has finished loading.
+    window.webContents.once('did-finish-load', () => deliver(() => isWindowLoadedForIpc(window)));
+    window.once('ready-to-show', () => deliver(() => isWindowReadyForIpc(window)));
+    deliver(() => isWindowLoadedForIpc(window));
   };
 
   const showModalWindow = (
@@ -224,8 +284,15 @@ export function createOverlayModalRuntimeService(
     } = { passThroughMouseEvents: false },
   ): void => {
     setWindowFocusable(window);
-    requestOverlayApplicationFocus();
-    if (!window.isVisible()) {
+    const wasVisible = window.isVisible();
+    if (!wasVisible && platform === 'darwin') {
+      // Mapping the panel first keeps it attached to mpv's active fullscreen Space.
+      window.showInactive();
+      focusApplication();
+    } else {
+      focusApplication();
+    }
+    if (!wasVisible && platform !== 'darwin') {
       window.show();
     }
     elevateModalWindow(window);
@@ -245,11 +312,11 @@ export function createOverlayModalRuntimeService(
 
   const ensureModalWindowInteractive = (window: BrowserWindow): void => {
     setWindowFocusable(window);
-    requestOverlayApplicationFocus();
     window.setIgnoreMouseEvents(false);
     elevateModalWindow(window);
 
     if (window.isVisible()) {
+      focusApplication();
       window.focus();
       window.webContents.focus();
       const reconcileGeneration = nextModalWindowBoundsReconcileGeneration(window);
@@ -447,9 +514,15 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        modalWindow.destroy();
+        if (platform === 'darwin') {
+          modalWindow.setIgnoreMouseEvents(true, { forward: true });
+          modalWindow.hide();
+          markModalWindowPrimed(modalWindow);
+        } else {
+          modalWindow.destroy();
+          modalWindowPrimedForImmediateShow = false;
+        }
       }
-      modalWindowPrimedForImmediateShow = false;
       mainWindowMousePassthroughForcedByModal = false;
       setMainWindowVisibilityForModal(false);
       try {
@@ -478,17 +551,16 @@ export function createOverlayModalRuntimeService(
     }
 
     const modalWindow = deps.getModalWindow();
+    if (targetWindow.isVisible()) {
+      ensureModalWindowInteractive(targetWindow);
+    } else {
+      showModalWindow(targetWindow);
+    }
+
     if (modalWindow && !modalWindow.isDestroyed() && targetWindow === modalWindow) {
       setMainWindowMousePassthroughForModal(true);
       setMainWindowVisibilityForModal(true);
     }
-
-    if (targetWindow.isVisible()) {
-      ensureModalWindowInteractive(targetWindow);
-      return;
-    }
-
-    showModalWindow(targetWindow);
   };
 
   const waitForModalOpen = async (modal: OverlayHostedModal, timeoutMs: number): Promise<boolean> =>
@@ -515,6 +587,7 @@ export function createOverlayModalRuntimeService(
     });
 
   return {
+    primeModalWindow,
     sendToActiveOverlayWindow,
     openRuntimeOptionsPalette,
     openJimaku,

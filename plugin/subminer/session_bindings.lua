@@ -232,7 +232,7 @@ function M.create(ctx)
 		elseif action_id == "triggerFieldGrouping" then
 			return { "--trigger-field-grouping" }
 		elseif action_id == "triggerSubsync" then
-			return { "--trigger-subsync" }
+			return { "--session-action", '{"actionId":"triggerSubsync"}' }
 		elseif action_id == "mineSentence" then
 			return { "--mine-sentence" }
 		elseif action_id == "mineSentenceMultiple" then
@@ -251,7 +251,7 @@ function M.create(ctx)
 		elseif action_id == "markWatched" then
 			return { "--mark-watched" }
 		elseif action_id == "openRuntimeOptions" then
-			return { "--open-runtime-options" }
+			return { "--session-action", '{"actionId":"openRuntimeOptions"}' }
 		elseif action_id == "openJimaku" then
 			return { "--open-jimaku" }
 		elseif action_id == "openTsukihime" or action_id == "openAnimetosho" then
@@ -259,7 +259,7 @@ function M.create(ctx)
 		elseif action_id == "openYoutubePicker" then
 			return { "--open-youtube-picker" }
 		elseif action_id == "openSessionHelp" then
-			return { "--open-session-help" }
+			return { "--session-action", '{"actionId":"openSessionHelp"}' }
 		elseif action_id == "openCharacterDictionaryManager" then
 			return { "--session-action", '{"actionId":"openCharacterDictionaryManager"}' }
 		elseif action_id == "openControllerSelect" then

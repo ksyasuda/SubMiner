@@ -89,6 +89,12 @@ export function buildStatsWindowOptions(options: {
   };
 }
 
+export function shouldPresentStatsWindowAfterLoad(
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  return platform === 'darwin';
+}
+
 export function resolveStatsWindowOuterBoundsForContent(
   window: StatsWindowBoundsController,
   target: WindowGeometry,

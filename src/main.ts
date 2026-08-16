@@ -5009,6 +5009,9 @@ function syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen: boolean): void {
 
 function initializeOverlayRuntime(): void {
   initializeOverlayRuntimeHandler();
+  if (!(appState.initialArgs && isHeadlessInitialCommand(appState.initialArgs))) {
+    overlayModalRuntime.primeModalWindow();
+  }
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
   appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
     refreshCurrentSubtitleAfterKnownWordUpdate,

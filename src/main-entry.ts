@@ -9,6 +9,7 @@ import {
   normalizeLaunchMpvTargets,
   normalizeStartupArgv,
   applyEarlyLinuxCommandLineSwitches,
+  resolveAppControlHandoffTimeoutMs,
   sanitizeStartupEnv,
   sanitizeBackgroundEnv,
   sanitizeHelpEnv,
@@ -214,7 +215,7 @@ async function forwardStartupArgvViaAppControlIfAvailable(): Promise<boolean> {
 
   const result = await sendAppControlCommand(process.argv, {
     configDir: userDataPath,
-    timeoutMs: 500,
+    timeoutMs: resolveAppControlHandoffTimeoutMs(),
   });
   if (result.ok) {
     app.exit(0);
