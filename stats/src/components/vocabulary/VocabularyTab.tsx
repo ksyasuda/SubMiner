@@ -55,13 +55,15 @@ export function VocabularyTab({
           value: word.frequency,
         })) ?? [],
       newWordsTimeline:
-        ((hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []).map((point) => ({
-          label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
+        ((hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []).map(
+          (point) => ({
+            label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+            }),
+            value: point.wordCount,
           }),
-          value: point.wordCount,
-        })) ?? [],
+        ) ?? [],
     }),
     [charts, hideNames],
   );
