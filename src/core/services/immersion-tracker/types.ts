@@ -306,6 +306,16 @@ export interface VocabularyStatsRow {
   lastSeen: number;
 }
 
+export interface VocabularyStatsSummary {
+  uniqueWords: number;
+  uniqueWordsWithoutNames: number;
+  uniqueKanji: number;
+  newThisWeek: number;
+  newThisWeekWithoutNames: number;
+  knownWordCount: number | null;
+  knownWordCountWithoutNames: number | null;
+}
+
 export interface StatsExcludedWordRow {
   headword: string;
   word: string;

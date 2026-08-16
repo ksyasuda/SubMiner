@@ -13,6 +13,7 @@ import type {
   SimilarWordRow,
   StatsExcludedWordRow,
   VocabularyStatsRow,
+  VocabularyStatsSummary,
   WordAnimeAppearanceRow,
   WordDetailRow,
   WordOccurrenceRow,
@@ -151,6 +152,75 @@ export function getVocabularyStats(
   }
 
   return visibleRows.slice(0, limit);
+}
+
+function excludedVocabularyAliases(
+  word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>,
+): string[] {
+  const aliases = [word.headword.trim(), word.word.trim()].filter(Boolean);
+  if (aliases.length === 0) aliases.push(word.reading.trim());
+  return [...new Set(aliases)];
+}
+
+function timestampSeconds(timestamp: number): number {
+  return timestamp < 10_000_000_000 ? timestamp : Math.floor(timestamp / 1000);
+}
+
+export function getVocabularySummary(
+  db: DatabaseSync,
+  knownWords: ReadonlySet<string> | null,
+  nowMs: number = Date.now(),
+): VocabularyStatsSummary {
+  const words = db
+    .prepare(
+      `
+      SELECT id AS wordId, headword, word, reading,
+        part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+        frequency, frequency_rank AS frequencyRank,
+        first_seen AS firstSeen, last_seen AS lastSeen,
+        0 AS animeCount
+      FROM imm_words
+    `,
+    )
+    .all() as VocabularyStatsRow[];
+  const excludedAliases = new Set(
+    getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
+  );
+  const weekAgoSec = nowMs / 1000 - 7 * 86_400;
+  const summary: VocabularyStatsSummary = {
+    uniqueWords: 0,
+    uniqueWordsWithoutNames: 0,
+    uniqueKanji: (db.prepare('SELECT COUNT(*) AS count FROM imm_kanji').get() as { count: number })
+      .count,
+    newThisWeek: 0,
+    newThisWeekWithoutNames: 0,
+    knownWordCount: knownWords ? 0 : null,
+    knownWordCountWithoutNames: knownWords ? 0 : null,
+  };
+
+  for (const word of words) {
+    if (
+      !isVocabularyStatsRowVisible(word) ||
+      excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias))
+    ) {
+      continue;
+    }
+    const isName = word.pos2 === '固有名詞';
+    const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
+    const isKnown = knownWords?.has(word.headword) ?? false;
+    summary.uniqueWords += 1;
+    if (!isName) summary.uniqueWordsWithoutNames += 1;
+    if (isNewThisWeek) {
+      summary.newThisWeek += 1;
+      if (!isName) summary.newThisWeekWithoutNames += 1;
+    }
+    if (isKnown) {
+      summary.knownWordCount! += 1;
+      if (!isName) summary.knownWordCountWithoutNames! += 1;
+    }
+  }
+
+  return summary;
 }
 
 export function getStatsExcludedWords(db: DatabaseSync): StatsExcludedWordRow[] {

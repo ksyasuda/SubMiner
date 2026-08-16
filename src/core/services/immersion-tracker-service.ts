@@ -59,6 +59,7 @@ import {
   getSimilarWords,
   getStatsExcludedWords,
   getVocabularyStats,
+  getVocabularySummary,
   replaceStatsExcludedWords,
   searchSubtitleSentences,
   getWordAnimeAppearances,
@@ -632,6 +633,10 @@ export class ImmersionTrackerService {
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
     return getVocabularyStats(this.db, limit, excludePos);
+  }
+
+  async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
+    return getVocabularySummary(this.db, knownWords);
   }
 
   async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {

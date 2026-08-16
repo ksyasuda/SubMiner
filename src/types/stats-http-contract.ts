@@ -50,6 +50,16 @@ export interface StatsKnownWordsSummary {
   knownWordCount: number;
 }
 
+export interface StatsVocabularySummary {
+  uniqueWords: number;
+  uniqueWordsWithoutNames: number;
+  uniqueKanji: number;
+  newThisWeek: number;
+  newThisWeekWithoutNames: number;
+  knownWordCount: number | null;
+  knownWordCountWithoutNames: number | null;
+}
+
 export interface StatsAnilistSearchResult {
   id: number;
   episodes: number | null;
@@ -164,6 +174,7 @@ export interface StatsJsonResponseMap {
   sessionEvents: SessionEvent[];
   sessionKnownWordsTimeline: StatsSessionKnownWordsTimelinePoint[];
   vocabulary: VocabularyEntry[];
+  vocabularySummary: StatsVocabularySummary;
   excludedWords: StatsExcludedWord[];
   setExcludedWords: StatsOkResponse;
   duplicateLineCleanup: StatsDuplicateLineCleanupResult;
@@ -222,6 +233,7 @@ export interface StatsHttpClient {
   getSessionEvents: (id: number, limit?: number, eventTypes?: number[]) => Promise<SessionEvent[]>;
   getSessionKnownWordsTimeline: (id: number) => Promise<StatsSessionKnownWordsTimelinePoint[]>;
   getVocabulary: (limit?: number) => Promise<VocabularyEntry[]>;
+  getVocabularySummary: () => Promise<StatsVocabularySummary>;
   getExcludedWords: () => Promise<StatsExcludedWord[]>;
   setExcludedWords: (words: StatsExcludedWord[]) => Promise<void>;
   cleanupDuplicateLines: (

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStatsClient } from './useStatsApi';
-import type { VocabularyEntry, KanjiEntry } from '../types/stats';
+import type { VocabularyEntry, KanjiEntry, StatsVocabularySummary } from '../types/stats';
 
 export function useVocabulary() {
   const [words, setWords] = useState<VocabularyEntry[]>([]);
   const [kanji, setKanji] = useState<KanjiEntry[]>([]);
   const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
+  const [summary, setSummary] = useState<StatsVocabularySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Bumped by `reload` after maintenance rewrites the vocabulary tables.
@@ -17,8 +18,13 @@ export function useVocabulary() {
     setLoading(true);
     setError(null);
     const client = getStatsClient();
-    Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
-      .then(([wordsResult, kanjiResult, knownResult]) => {
+    Promise.allSettled([
+      client.getVocabulary(500),
+      client.getKanji(200),
+      client.getKnownWords(),
+      client.getVocabularySummary(),
+    ])
+      .then(([wordsResult, kanjiResult, knownResult, summaryResult]) => {
         if (cancelled) return;
         const errors: string[] = [];
 
@@ -38,6 +44,12 @@ export function useVocabulary() {
           setKnownWords(new Set(knownResult.value));
         }
 
+        if (summaryResult.status === 'fulfilled') {
+          setSummary(summaryResult.value);
+        } else {
+          errors.push(summaryResult.reason.message);
+        }
+
         if (errors.length > 0) {
           setError(errors.join('; '));
         }
@@ -51,5 +63,5 @@ export function useVocabulary() {
     };
   }, [reloadToken]);
 
-  return { words, kanji, knownWords, loading, error, reload };
+  return { words, kanji, knownWords, summary, loading, error, reload };
 }

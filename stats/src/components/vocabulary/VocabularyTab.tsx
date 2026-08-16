@@ -35,7 +35,7 @@ export function VocabularyTab({
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
-  const { words, kanji, knownWords, loading, error, reload } = useVocabulary();
+  const { words, kanji, knownWords, summary, loading, error, reload } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
@@ -48,19 +48,10 @@ export function VocabularyTab({
     if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
     return result;
   }, [words, hideNames, excluded, isExcluded]);
-  const summary = useMemo(
+  const chartSummary = useMemo(
     () => buildVocabularySummary(filteredWords, kanji),
     [filteredWords, kanji],
   );
-  const knownWordCount = useMemo(() => {
-    if (knownWords.size === 0) return 0;
-
-    let count = 0;
-    for (const w of filteredWords) {
-      if (knownWords.has(w.headword)) count += 1;
-    }
-    return count;
-  }, [filteredWords, knownWords]);
 
   if (loading) {
     return (
@@ -90,29 +81,41 @@ export function VocabularyTab({
     setSelectedKanjiId(entry.kanjiId);
   };
 
+  const displayedSummary = hideNames
+    ? {
+        uniqueWords: summary?.uniqueWordsWithoutNames ?? 0,
+        newThisWeek: summary?.newThisWeekWithoutNames ?? 0,
+        knownWordCount: summary?.knownWordCountWithoutNames ?? null,
+      }
+    : {
+        uniqueWords: summary?.uniqueWords ?? 0,
+        newThisWeek: summary?.newThisWeek ?? 0,
+        knownWordCount: summary?.knownWordCount ?? null,
+      };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           label="Unique Words"
-          value={formatNumber(summary.uniqueWords)}
+          value={formatNumber(displayedSummary.uniqueWords)}
           color="text-ctp-blue"
         />
-        {knownWords.size > 0 && (
+        {displayedSummary.knownWordCount !== null && (
           <StatCard
             label="Known Words"
-            value={`${formatNumber(knownWordCount)} (${summary.uniqueWords > 0 ? Math.round((knownWordCount / summary.uniqueWords) * 100) : 0}%)`}
+            value={`${formatNumber(displayedSummary.knownWordCount)} (${displayedSummary.uniqueWords > 0 ? Math.round((displayedSummary.knownWordCount / displayedSummary.uniqueWords) * 100) : 0}%)`}
             color="text-ctp-green"
           />
         )}
         <StatCard
           label="Unique Kanji"
-          value={formatNumber(summary.uniqueKanji)}
+          value={formatNumber(summary?.uniqueKanji ?? 0)}
           color="text-ctp-teal"
         />
         <StatCard
           label="New This Week"
-          value={`+${formatNumber(summary.newThisWeek)}`}
+          value={`+${formatNumber(displayedSummary.newThisWeek)}`}
           color="text-ctp-mauve"
         />
       </div>
@@ -154,14 +157,14 @@ export function VocabularyTab({
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <TrendChart
           title="Top Repeated Words"
-          data={summary.topWords}
+          data={chartSummary.topWords}
           color="#8aadf4"
           type="bar"
           onBarClick={handleBarClick}
         />
         <TrendChart
           title="New Words by Day"
-          data={summary.newWordsTimeline}
+          data={chartSummary.newWordsTimeline}
           color="#c6a0f6"
           type="line"
         />

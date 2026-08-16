@@ -284,6 +284,15 @@ function createMockTracker(
     getSessionTimeline: async () => [],
     getSessionEvents: async () => [],
     getVocabularyStats: async () => VOCABULARY_STATS,
+    getVocabularySummary: async () => ({
+      uniqueWords: 501,
+      uniqueWordsWithoutNames: 500,
+      uniqueKanji: 201,
+      newThisWeek: 7,
+      newThisWeekWithoutNames: 6,
+      knownWordCount: 250,
+      knownWordCountWithoutNames: 249,
+    }),
     getStatsExcludedWords: async () => [],
     replaceStatsExcludedWords: async () => {},
     getKanjiStats: async () => KANJI_STATS,
@@ -709,6 +718,23 @@ describe('stats server API routes', () => {
     const body = await res.json();
     assert.ok(Array.isArray(body));
     assert.equal(body[0].headword, 'する');
+  });
+
+  it('GET /api/stats/vocabulary/summary returns database-wide card totals', async () => {
+    const app = createStatsApp(createMockTracker());
+
+    const res = await app.request('/api/stats/vocabulary/summary');
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      uniqueWords: 501,
+      uniqueWordsWithoutNames: 500,
+      uniqueKanji: 201,
+      newThisWeek: 7,
+      newThisWeekWithoutNames: 6,
+      knownWordCount: 250,
+      knownWordCountWithoutNames: 249,
+    });
   });
 
   it('GET /api/stats/kanji returns kanji frequency data', async () => {

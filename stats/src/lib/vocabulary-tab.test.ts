@@ -20,15 +20,18 @@ test('VocabularyTab declares all hooks before loading and error early returns', 
   assert.deepEqual(hooksAfterLoadingGuard ?? [], []);
 });
 
-test('VocabularyTab memoizes summary and known-word aggregate calculations', () => {
+test('VocabularyTab uses database-wide summary totals for its stat cards', () => {
   const source = fs.readFileSync(VOCABULARY_TAB_PATH, 'utf8');
 
   assert.match(
     source,
-    /const summary = useMemo\([\s\S]*buildVocabularySummary\(filteredWords, kanji\)[\s\S]*\[filteredWords, kanji\][\s\S]*\);/,
+    /const chartSummary = useMemo\([\s\S]*buildVocabularySummary\(filteredWords, kanji\)[\s\S]*\[filteredWords, kanji\][\s\S]*\);/,
   );
   assert.match(
     source,
-    /const knownWordCount = useMemo\(\(\) => \{[\s\S]*for \(const w of filteredWords\) \{[\s\S]*knownWords\.has\(w\.headword\)[\s\S]*\}\s*return count;\s*\}, \[filteredWords, knownWords\]\);/,
+    /const \{ words, kanji, knownWords, summary, loading, error, reload \} = useVocabulary\(\);/,
   );
+  assert.match(source, /uniqueWords: summary\?\.uniqueWordsWithoutNames \?\? 0/);
+  assert.match(source, /uniqueWords: summary\?\.uniqueWords \?\? 0/);
+  assert.match(source, /value=\{formatNumber\(summary\?\.uniqueKanji \?\? 0\)\}/);
 });
