@@ -49,3 +49,19 @@ test('vocabulary summary worker module resolves in the current layout', () => {
   assert.ok(workerPath, 'expected the vocabulary summary worker module to resolve');
   assert.ok(workerPath.endsWith(__filename.endsWith('.ts') ? '.ts' : '.js'));
 });
+
+test('vocabulary summary worker never falls back to the caller thread', async () => {
+  const runtime = new VocabularySummaryWorkerRuntime({
+    resolveWorkerPath: () => null,
+    warn: () => {},
+  });
+
+  try {
+    await assert.rejects(
+      runtime.run('/tmp/subminer-summary-worker-not-used.sqlite', null),
+      /worker unavailable/i,
+    );
+  } finally {
+    runtime.destroy();
+  }
+});

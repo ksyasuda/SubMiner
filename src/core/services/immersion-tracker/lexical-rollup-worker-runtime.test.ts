@@ -67,3 +67,37 @@ test('lexical rollup worker leaves a backfill pending when no worker can start',
     runtime.destroy();
   }
 });
+
+test('lexical rollup worker absorbs termination failures after settling', async () => {
+  let sendMessage: ((message: { ok: boolean }) => void) | null = null;
+  const runtime = new LexicalRollupWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/fake-worker.js',
+    createWorker: async () => ({
+      once(event: string, listener: (value: never) => void) {
+        if (event === 'message') sendMessage = listener as (message: { ok: boolean }) => void;
+        return this;
+      },
+      terminate: async () => {
+        throw new Error('termination failed');
+      },
+    }),
+    warn: () => {},
+  } as never);
+
+  const unhandled: unknown[] = [];
+  const captureUnhandled = (reason: unknown) => unhandled.push(reason);
+  process.on('unhandledRejection', captureUnhandled);
+  try {
+    const task = runtime.run('/tmp/not-used.sqlite');
+    await new Promise((resolve) => setImmediate(resolve));
+    const notify = sendMessage as ((message: { ok: boolean }) => void) | null;
+    assert.ok(notify);
+    notify({ ok: true });
+    await task;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', captureUnhandled);
+    runtime.destroy();
+  }
+});

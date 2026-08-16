@@ -70,7 +70,7 @@ export class LexicalRollupWorkerRuntime {
         if (settled) return;
         settled = true;
         this.activeWorkers.delete(worker);
-        void worker.terminate();
+        void worker.terminate().catch(() => undefined);
         if (error) reject(error);
         else resolve();
       };
@@ -101,7 +101,9 @@ export class LexicalRollupWorkerRuntime {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    for (const worker of this.activeWorkers) void worker.terminate();
+    for (const worker of this.activeWorkers) {
+      void worker.terminate().catch(() => undefined);
+    }
     this.activeWorkers.clear();
   }
 }

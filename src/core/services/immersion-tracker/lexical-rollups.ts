@@ -153,7 +153,13 @@ export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
     markLexicalDailyRollupsReady(db);
     db.exec('COMMIT');
   } catch (error) {
-    if (transactionStarted) db.exec('ROLLBACK');
+    if (transactionStarted) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // Preserve the rebuild failure; it is the actionable cause.
+      }
+    }
     throw error;
   }
 }

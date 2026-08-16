@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { getLexicalDailyRollups } from './lexical-rollups';
+import { getLexicalDailyRollups, rebuildLexicalDailyRollups } from './lexical-rollups';
 import { getTrendsDashboard } from './query-trends';
-import { getVocabularyChartData } from './query-lexical';
+import { getVocabularyChartData, replaceStatsExcludedWords } from './query-lexical';
 import { Database } from './sqlite';
+import type { DatabaseSync } from './sqlite';
 import { ensureSchema } from './storage';
 
 function makeDbPath(): string {
@@ -73,6 +74,81 @@ test('vocabulary charts use complete top-word and lexical rollup data', () => {
     db.close();
     fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
   }
+});
+
+test('vocabulary charts find full top-word sets beyond excluded and name rows', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    const insertWord = db.prepare(
+      `INSERT INTO imm_words(headword, word, reading, pos2, first_seen, last_seen, frequency)
+       VALUES (?, ?, '', ?, 1700000000, 1700000000, ?)`,
+    );
+    const exclusions = [];
+    for (let index = 0; index < 100; index += 1) {
+      const headword = `語${index}`;
+      insertWord.run(
+        headword,
+        headword,
+        index < 80 && index >= 60 ? '固有名詞' : '一般',
+        100 - index,
+      );
+      if (index < 60) exclusions.push({ headword, word: headword, reading: '' });
+    }
+    replaceStatsExcludedWords(db, exclusions);
+
+    const charts = getVocabularyChartData(db);
+
+    assert.equal(charts.topWords.length, 12);
+    assert.equal(charts.topWords[0]?.headword, '語60');
+    assert.equal(charts.topWordsWithoutNames.length, 12);
+    assert.equal(charts.topWordsWithoutNames[0]?.headword, '語80');
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+test('vocabulary charts handle exclusion lists above one SQLite variable batch', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.prepare(
+      `INSERT INTO imm_words(headword, word, reading, first_seen, last_seen, frequency)
+       VALUES ('語0', '語0', '', 1700000000, 1700000000, 1)`,
+    ).run();
+    const exclusions = Array.from({ length: 10_923 }, (_, index) => ({
+      headword: `語${index}`,
+      word: `語${index}`,
+      reading: '',
+    }));
+    replaceStatsExcludedWords(db, exclusions);
+
+    const charts = getVocabularyChartData(db);
+
+    assert.deepEqual(charts.topWords, []);
+    assert.deepEqual(charts.newWordsTimeline, []);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
+test('lexical rollup rebuild preserves the original error when rollback also fails', () => {
+  const originalError = new Error('rebuild failed');
+  const db = {
+    exec(sql: string) {
+      if (sql === 'BEGIN IMMEDIATE') return;
+      if (sql === 'ROLLBACK') throw new Error('rollback failed');
+      throw originalError;
+    },
+  } as unknown as DatabaseSync;
+
+  assert.throws(() => rebuildLexicalDailyRollups(db), originalError);
 });
 
 test('trends read historical new-word buckets from lexical rollups', () => {

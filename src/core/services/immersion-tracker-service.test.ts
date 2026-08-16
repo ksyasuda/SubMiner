@@ -559,6 +559,56 @@ test('fresh tracker DB creates lifetime summary tables', async () => {
   }
 });
 
+test('fresh tracker DB skips lexical rollup backfill work', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let backfillRuns = 0;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath }, {
+      runLexicalRollupBackfillTask: async () => {
+        backfillRuns += 1;
+      },
+    } as never);
+
+    assert.equal(backfillRuns, 0);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('tracker starts the injected lexical rollup backfill when it is pending', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let backfillRuns = 0;
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_ready'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath }, {
+      runLexicalRollupBackfillTask: async () => {
+        backfillRuns += 1;
+      },
+    } as never);
+
+    assert.equal(backfillRuns, 1);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('startup backfills lifetime summaries when retained sessions exist but summary tables are empty', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

@@ -28,6 +28,9 @@ import {
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+const VOCABULARY_CHART_LIMIT = 12;
+const VOCABULARY_CHART_PAGE_SIZE = 100;
+const EXCLUSION_ALIAS_BATCH_SIZE = 300;
 const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
 const SENTENCE_SEARCH_MAX_LIMIT = 100;
 const KANJI_PATTERN = /\p{Script=Han}/gu;
@@ -179,25 +182,39 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   );
   const isExcluded = (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>): boolean =>
     excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias));
-  const topWords = getVocabularyStats(db, 48).filter((word) => !isExcluded(word));
+  const topWords = getTopVocabularyChartWords(db, isExcluded);
   const rollups = ready ? getLexicalDailyRollups(db) : [];
   const timeline = new Map(rollups.map((row) => [row.epochDay, { ...row }]));
   if (excludedAliases.size > 0 && ready) {
     const aliases = [...excludedAliases];
-    const placeholders = aliases.map(() => '?').join(', ');
-    const excludedRows = db
-      .prepare(
-        `
-          SELECT headword, word, reading, pos2,
-            ${localEpochDaySql('first_seen')} AS epochDay
-          FROM imm_words
-          WHERE headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders})
-        `,
-      )
-      .all(...aliases, ...aliases, ...aliases) as Array<
-      Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & { epochDay: number }
-    >;
-    for (const word of excludedRows) {
+    const excludedRows = new Map<
+      number,
+      Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
+        wordId: number;
+        epochDay: number;
+      }
+    >();
+    for (let offset = 0; offset < aliases.length; offset += EXCLUSION_ALIAS_BATCH_SIZE) {
+      const batch = aliases.slice(offset, offset + EXCLUSION_ALIAS_BATCH_SIZE);
+      const placeholders = batch.map(() => '?').join(', ');
+      const rows = db
+        .prepare(
+          `
+            SELECT id AS wordId, headword, word, reading, pos2,
+              ${localEpochDaySql('first_seen')} AS epochDay
+            FROM imm_words
+            WHERE headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders})
+          `,
+        )
+        .all(...batch, ...batch, ...batch) as Array<
+        Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
+          wordId: number;
+          epochDay: number;
+        }
+      >;
+      for (const row of rows) excludedRows.set(row.wordId, row);
+    }
+    for (const word of excludedRows.values()) {
       if (!isExcluded(word)) continue;
       const rollup = timeline.get(word.epochDay);
       if (!rollup) continue;
@@ -207,15 +224,16 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
   }
   return {
     ready,
-    topWords: topWords.slice(0, 12).map((word) => ({
+    topWords: topWords.all.map((word) => ({
       wordId: word.wordId,
       headword: word.headword,
       frequency: word.frequency,
     })),
-    topWordsWithoutNames: topWords
-      .filter((word) => word.pos2 !== '固有名詞')
-      .slice(0, 12)
-      .map((word) => ({ wordId: word.wordId, headword: word.headword, frequency: word.frequency })),
+    topWordsWithoutNames: topWords.withoutNames.map((word) => ({
+      wordId: word.wordId,
+      headword: word.headword,
+      frequency: word.frequency,
+    })),
     newWordsTimeline: [...timeline.values()]
       .filter((row) => row.wordCount > 0)
       .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCount })),
@@ -223,6 +241,40 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
       .filter((row) => row.wordCountWithoutNames > 0)
       .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCountWithoutNames })),
   };
+}
+
+function getTopVocabularyChartWords(
+  db: DatabaseSync,
+  isExcluded: (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>) => boolean,
+): { all: VocabularyStatsRow[]; withoutNames: VocabularyStatsRow[] } {
+  const stmt = db.prepare(`
+    SELECT id AS wordId, headword, word, reading,
+      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen,
+      0 AS animeCount
+    FROM imm_words
+    ORDER BY frequency DESC, id
+    LIMIT ? OFFSET ?
+  `);
+  const all: VocabularyStatsRow[] = [];
+  const withoutNames: VocabularyStatsRow[] = [];
+  let offset = 0;
+
+  while (all.length < VOCABULARY_CHART_LIMIT || withoutNames.length < VOCABULARY_CHART_LIMIT) {
+    const page = stmt.all(VOCABULARY_CHART_PAGE_SIZE, offset) as VocabularyStatsRow[];
+    if (page.length === 0) break;
+    for (const word of page) {
+      if (!isVocabularyStatsRowVisible(word) || isExcluded(word)) continue;
+      if (all.length < VOCABULARY_CHART_LIMIT) all.push(word);
+      if (word.pos2 !== '固有名詞' && withoutNames.length < VOCABULARY_CHART_LIMIT) {
+        withoutNames.push(word);
+      }
+    }
+    offset += page.length;
+  }
+
+  return { all, withoutNames };
 }
 
 function excludedVocabularyAliases(

@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createLogger } from '../../../logger';
 import type { VocabularyStatsSummary } from './types';
-import { executeVocabularySummaryTask } from './vocabulary-summary-worker';
 
 interface VocabularySummaryWorkerResponse {
   summary?: VocabularyStatsSummary;
@@ -22,7 +21,6 @@ interface VocabularySummaryWorkerRuntimeOptions {
     workerPath: string,
     workerData: { dbPath: string; knownWords: string[] | null },
   ) => Promise<VocabularySummaryWorkerHandle>;
-  executeFallback?: typeof executeVocabularySummaryTask;
   warn?: (message: string, ...meta: unknown[]) => void;
 }
 
@@ -67,13 +65,10 @@ export class VocabularySummaryWorkerRuntime {
     } catch (error) {
       if (this.destroyed) throw new Error('Vocabulary summary worker is shut down');
       (this.options.warn ?? logger.warn)(
-        'Vocabulary summary worker unavailable; running summary on the current thread',
+        'Vocabulary summary worker unavailable; refusing to scan vocabulary on the current thread',
         error,
       );
-      return (this.options.executeFallback ?? executeVocabularySummaryTask)(
-        dbPath,
-        workerData.knownWords,
-      );
+      throw new Error('Vocabulary summary worker unavailable');
     }
 
     if (this.destroyed) {
@@ -88,7 +83,7 @@ export class VocabularySummaryWorkerRuntime {
         if (settled) return;
         settled = true;
         this.activeWorkers.delete(worker);
-        void worker.terminate();
+        void worker.terminate().catch(() => undefined);
         if (result instanceof Error) reject(result);
         else resolve(result);
       };
@@ -122,7 +117,9 @@ export class VocabularySummaryWorkerRuntime {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    for (const worker of this.activeWorkers) void worker.terminate();
+    for (const worker of this.activeWorkers) {
+      void worker.terminate().catch(() => undefined);
+    }
     this.activeWorkers.clear();
   }
 }

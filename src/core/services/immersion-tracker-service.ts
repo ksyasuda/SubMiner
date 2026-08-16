@@ -102,6 +102,7 @@ import {
   type RunVocabularySummaryTask,
 } from './immersion-tracker/vocabulary-summary-worker-runtime';
 import { LexicalRollupWorkerRuntime } from './immersion-tracker/lexical-rollup-worker-runtime';
+import { areLexicalDailyRollupsReady } from './immersion-tracker/lexical-rollups';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import {
   cleanupDuplicateSubtitleLines,
@@ -418,6 +419,7 @@ export class ImmersionTrackerService {
     knownWords: ReadonlySet<string> | null,
   ) => Promise<VocabularyStatsSummary>;
   private readonly destroyVocabularySummaryRunner: () => void;
+  private readonly runLexicalRollupBackfillTask: () => Promise<void>;
   private readonly destroyLexicalRollupBackfillRunner: () => void;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -448,6 +450,8 @@ export class ImmersionTrackerService {
       destroyDeleteMaintenanceRunner?: () => void;
       runVocabularySummaryTask?: RunVocabularySummaryTask;
       destroyVocabularySummaryRunner?: () => void;
+      runLexicalRollupBackfillTask?: (dbPath: string) => Promise<void>;
+      destroyLexicalRollupBackfillRunner?: () => void;
     } = {},
   ) {
     this.dbPath = options.dbPath;
@@ -485,8 +489,16 @@ export class ImmersionTrackerService {
         vocabularySummaryRuntime.run(this.dbPath, knownWords);
       this.destroyVocabularySummaryRunner = () => vocabularySummaryRuntime.destroy();
     }
-    const lexicalRollupRuntime = new LexicalRollupWorkerRuntime();
-    this.destroyLexicalRollupBackfillRunner = () => lexicalRollupRuntime.destroy();
+    if (dependencies.runLexicalRollupBackfillTask) {
+      this.runLexicalRollupBackfillTask = () =>
+        dependencies.runLexicalRollupBackfillTask!(this.dbPath);
+      this.destroyLexicalRollupBackfillRunner =
+        dependencies.destroyLexicalRollupBackfillRunner ?? (() => {});
+    } else {
+      const lexicalRollupRuntime = new LexicalRollupWorkerRuntime();
+      this.runLexicalRollupBackfillTask = () => lexicalRollupRuntime.run(this.dbPath);
+      this.destroyLexicalRollupBackfillRunner = () => lexicalRollupRuntime.destroy();
+    }
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -546,12 +558,14 @@ export class ImmersionTrackerService {
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
-    void lexicalRollupRuntime.run(this.dbPath).catch((error: unknown) => {
-      this.logger.warn(
-        'Lexical daily rollup backfill failed; it will retry on next startup',
-        error,
-      );
-    });
+    if (!areLexicalDailyRollupsReady(this.db)) {
+      void this.runLexicalRollupBackfillTask().catch((error: unknown) => {
+        this.logger.warn(
+          'Lexical daily rollup backfill failed; it will retry on next startup',
+          error,
+        );
+      });
+    }
     const reconciledSessions = reconcileStaleActiveSessions(this.db);
     if (reconciledSessions > 0) {
       this.logger.info(
