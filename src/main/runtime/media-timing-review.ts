@@ -6,13 +6,17 @@ import type {
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewWaveformRequest,
+  MediaTimingReviewWaveformResult,
 } from '../../types/anki';
+import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
 
 const INITIAL_TIMELINE_MARGIN_SECONDS = 2;
 
 interface ReviewMpvClient {
   connected: boolean;
   currentVideoPath: string;
+  currentAudioStreamIndex?: number | null;
   requestProperty?: (name: string) => Promise<unknown>;
   send: (payload: { command: Array<string | number> }) => void;
 }
@@ -31,6 +35,8 @@ interface PreviewSession {
 
 interface ActiveReview {
   payload: MediaTimingReviewOpenPayload;
+  mediaPath: string;
+  audioStreamIndex?: number;
   mpvClient: ReviewMpvClient;
   restorePlayback: boolean;
   preview: Promise<PreviewSession>;
@@ -42,6 +48,7 @@ export interface MediaTimingReviewRuntimeDeps {
   getCurrentMediaPath: () => string | null;
   getMpvExecutablePath: () => string;
   createPreviewSession: () => PreviewSession;
+  generateWaveform: (options: SpeechWaveformOptions) => Promise<number[]>;
   openModal: (payload: MediaTimingReviewOpenPayload) => Promise<boolean>;
   showStatus: (message: string) => void;
 }
@@ -152,6 +159,11 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     });
     active = {
       payload,
+      mediaPath,
+      ...(mpvClient.currentAudioStreamIndex !== null &&
+      mpvClient.currentAudioStreamIndex !== undefined
+        ? { audioStreamIndex: mpvClient.currentAudioStreamIndex }
+        : {}),
       mpvClient,
       restorePlayback: pendingPauseRestore === mpvClient,
       preview,
@@ -222,6 +234,42 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
   }
 
+  async function getWaveform(
+    request: MediaTimingReviewWaveformRequest,
+  ): Promise<MediaTimingReviewWaveformResult> {
+    const current = active;
+    if (!current || request.reviewId !== current.payload.reviewId) {
+      return { ok: false, message: 'This timing review is no longer active.' };
+    }
+    if (
+      !Number.isFinite(request.startTime) ||
+      !Number.isFinite(request.endTime) ||
+      request.startTime < 0 ||
+      request.endTime <= request.startTime ||
+      (current.payload.mediaDuration !== undefined &&
+        request.endTime > current.payload.mediaDuration + 0.001)
+    ) {
+      return { ok: false, message: 'The waveform range is invalid.' };
+    }
+
+    try {
+      const peaks = await deps.generateWaveform({
+        mediaPath: current.mediaPath,
+        startTime: request.startTime,
+        endTime: request.endTime,
+        ...(current.audioStreamIndex !== undefined
+          ? { audioStreamIndex: current.audioStreamIndex }
+          : {}),
+      });
+      if (active !== current || peaks.length < 2 || peaks.some((peak) => !Number.isFinite(peak))) {
+        return { ok: false, message: 'Timing waveform is unavailable.' };
+      }
+      return { ok: true, peaks };
+    } catch {
+      return { ok: false, message: 'Timing waveform is unavailable.' };
+    }
+  }
+
   async function stopPreview(reviewId: string): Promise<MediaTimingReviewActionResult> {
     const current = active;
     if (!current || reviewId !== current.payload.reviewId) {
@@ -282,6 +330,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   return {
     requestReview,
     previewRange,
+    getWaveform,
     stopPreview,
     resolveReview,
     dispose,

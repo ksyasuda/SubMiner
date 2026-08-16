@@ -3,6 +3,7 @@ import type { ModalStateReader, RendererContext } from '../context';
 
 const MINIMUM_CLIP_SECONDS = 0.1;
 const FINE_ADJUST_SECONDS = 0.1;
+const COARSE_ADJUST_SECONDS = 0.5;
 const TIMELINE_EXPANSION_SECONDS = 5;
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -48,6 +49,19 @@ export function createMediaTimingPreviewRequestGuard() {
   };
 }
 
+export function buildMediaTimingWaveformPath(peaks: number[]): string {
+  if (peaks.length < 2) return '';
+  const points = peaks.map((peak, index) => ({
+    x: (index / (peaks.length - 1)) * 1_000,
+    amplitude: clamp(Number.isFinite(peak) ? peak : 0, 0, 1) * 44,
+  }));
+  const upper = points.map(({ x, amplitude }) => `${x.toFixed(2)} ${(50 - amplitude).toFixed(2)}`);
+  const lower = [...points]
+    .reverse()
+    .map(({ x, amplitude }) => `${x.toFixed(2)} ${(50 + amplitude).toFixed(2)}`);
+  return `M ${upper.join(' L ')} L ${lower.join(' L ')} Z`;
+}
+
 export function constrainMediaTimingSelection(options: {
   nextStart: number;
   nextEnd: number;
@@ -74,6 +88,33 @@ export function constrainMediaTimingSelection(options: {
   };
 }
 
+/** Maps a pointer position over the timeline track back onto a media timestamp. */
+export function mediaTimingTimeFromPointer(options: {
+  clientX: number;
+  trackLeft: number;
+  trackWidth: number;
+  timelineStart: number;
+  timelineEnd: number;
+}): number {
+  if (options.trackWidth <= 0) return options.timelineStart;
+  const ratio = clamp((options.clientX - options.trackLeft) / options.trackWidth, 0, 1);
+  return options.timelineStart + ratio * (options.timelineEnd - options.timelineStart);
+}
+
+/** Slides the selection without resizing it, keeping the whole clip inside the visible timeline. */
+export function slideMediaTimingSelection(options: {
+  nextStart: number;
+  span: number;
+  timelineStart: number;
+  timelineEnd: number;
+  mediaEnd: number;
+}): { start: number; end: number } {
+  const latestEnd = Math.min(options.timelineEnd, options.mediaEnd);
+  const maxStart = Math.max(options.timelineStart, latestEnd - options.span);
+  const start = clamp(options.nextStart, options.timelineStart, maxStart);
+  return { start, end: start + options.span };
+}
+
 export function createMediaTimingReviewModal(
   ctx: RendererContext,
   options: {
@@ -89,6 +130,15 @@ export function createMediaTimingReviewModal(
   let resolveInFlight = false;
   let previewPlaying = false;
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
+  let waveformTimer: ReturnType<typeof setTimeout> | null = null;
+  let waveformSequence = 0;
+  let drag: {
+    edge: 'start' | 'end' | 'both';
+    pointerId: number;
+    trackLeft: number;
+    trackWidth: number;
+    grabOffset: number;
+  } | null = null;
   const previewRequest = createMediaTimingPreviewRequestGuard();
 
   function setStatus(message: string, isError = false): void {
@@ -101,28 +151,49 @@ export function createMediaTimingReviewModal(
     previewTimer = null;
   }
 
+  /** Drives the play button label plus the playhead sweep that mirrors the hidden audio player. */
   function setPreviewPlaying(playing: boolean): void {
     previewPlaying = playing;
-    ctx.dom.mediaTimingReviewPlay.textContent = playing ? 'Stop preview' : 'Play selection';
+    ctx.dom.mediaTimingReviewPlayLabel.textContent = playing ? 'Stop preview' : 'Play selection';
     ctx.dom.mediaTimingReviewPlay.classList.toggle('is-playing', playing);
     clearPreviewTimer();
-    if (playing) {
-      previewTimer = setTimeout(() => stopPreview(), (selectionEnd - selectionStart) * 1000);
-    }
+    const track = ctx.dom.mediaTimingReviewSelectionTrack;
+    track.classList.remove('is-previewing');
+    if (!playing) return;
+    const clipSeconds = Math.max(MINIMUM_CLIP_SECONDS, selectionEnd - selectionStart);
+    track.style.setProperty('--playhead-duration', `${clipSeconds}s`);
+    void track.offsetWidth;
+    track.classList.add('is-previewing');
+    previewTimer = setTimeout(() => stopPreview(), clipSeconds * 1000);
   }
 
+  /** Callers that need to report a failure set their own status after stopping the preview. */
   function stopPreview(): void {
     previewRequest.invalidate();
     setPreviewPlaying(false);
+    setStatus('');
     if (payload) {
       void window.electronAPI.stopMediaTimingReviewPreview(payload.reviewId).catch(() => {});
     }
+  }
+
+  function renderHandle(handle: HTMLDivElement, value: number): void {
+    handle.setAttribute('aria-valuemin', timelineStart.toFixed(3));
+    handle.setAttribute('aria-valuemax', timelineEnd.toFixed(3));
+    handle.setAttribute('aria-valuenow', value.toFixed(3));
+    handle.setAttribute('aria-valuetext', formatMediaTimingTimestamp(value));
   }
 
   function renderSelection(): void {
     const span = Math.max(MINIMUM_CLIP_SECONDS, timelineEnd - timelineStart);
     const startPercent = ((selectionStart - timelineStart) / span) * 100;
     const endPercent = ((selectionEnd - timelineStart) / span) * 100;
+    const originalStartPercent = payload
+      ? ((payload.originalStartTime - timelineStart) / span) * 100
+      : 0;
+    const originalEndPercent = payload
+      ? ((payload.originalEndTime - timelineStart) / span) * 100
+      : 0;
     ctx.dom.mediaTimingReviewSelectionTrack.style.setProperty(
       '--selection-start',
       `${clamp(startPercent, 0, 100)}%`,
@@ -131,12 +202,16 @@ export function createMediaTimingReviewModal(
       '--selection-end',
       `${clamp(endPercent, 0, 100)}%`,
     );
-    ctx.dom.mediaTimingReviewStartRange.min = String(timelineStart);
-    ctx.dom.mediaTimingReviewStartRange.max = String(timelineEnd);
-    ctx.dom.mediaTimingReviewStartRange.value = String(selectionStart);
-    ctx.dom.mediaTimingReviewEndRange.min = String(timelineStart);
-    ctx.dom.mediaTimingReviewEndRange.max = String(timelineEnd);
-    ctx.dom.mediaTimingReviewEndRange.value = String(selectionEnd);
+    ctx.dom.mediaTimingReviewSelectionTrack.style.setProperty(
+      '--original-start',
+      `${clamp(originalStartPercent, 0, 100)}%`,
+    );
+    ctx.dom.mediaTimingReviewSelectionTrack.style.setProperty(
+      '--original-end',
+      `${clamp(originalEndPercent, 0, 100)}%`,
+    );
+    renderHandle(ctx.dom.mediaTimingReviewStartHandle, selectionStart);
+    renderHandle(ctx.dom.mediaTimingReviewEndHandle, selectionEnd);
     ctx.dom.mediaTimingReviewStartValue.textContent = formatMediaTimingTimestamp(selectionStart);
     ctx.dom.mediaTimingReviewEndValue.textContent = formatMediaTimingTimestamp(selectionEnd);
     ctx.dom.mediaTimingReviewDuration.textContent = `${(selectionEnd - selectionStart).toFixed(2)}s`;
@@ -151,6 +226,70 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewShowEarlier.disabled = timelineStart <= 0;
     ctx.dom.mediaTimingReviewShowLater.disabled =
       payload?.mediaDuration !== undefined && timelineEnd >= payload.mediaDuration;
+  }
+
+  function setWaveformState(state: 'loading' | 'ready' | 'unavailable'): void {
+    ctx.dom.mediaTimingReviewSelectionTrack.classList.toggle('is-loading', state === 'loading');
+    ctx.dom.mediaTimingReviewSelectionTrack.classList.toggle(
+      'is-waveform-unavailable',
+      state === 'unavailable',
+    );
+    ctx.dom.mediaTimingReviewWaveformLabel.textContent =
+      state === 'loading'
+        ? 'isolating dialogue...'
+        : state === 'ready'
+          ? 'speech-weighted waveform'
+          : 'waveform unavailable';
+  }
+
+  async function loadWaveform(): Promise<void> {
+    if (!payload || !ctx.state.mediaTimingReviewModalOpen) return;
+    waveformSequence += 1;
+    const sequence = waveformSequence;
+    const reviewId = payload.reviewId;
+    const startTime = timelineStart;
+    const endTime = timelineEnd;
+    setWaveformState('loading');
+    ctx.dom.mediaTimingReviewWaveformPath.setAttribute('d', '');
+    try {
+      const result = await window.electronAPI.getMediaTimingReviewWaveform({
+        reviewId,
+        startTime,
+        endTime,
+      });
+      if (
+        sequence !== waveformSequence ||
+        payload?.reviewId !== reviewId ||
+        timelineStart !== startTime ||
+        timelineEnd !== endTime
+      ) {
+        return;
+      }
+      const path = result.ok ? buildMediaTimingWaveformPath(result.peaks ?? []) : '';
+      if (!path) {
+        setWaveformState('unavailable');
+        return;
+      }
+      ctx.dom.mediaTimingReviewWaveformPath.setAttribute('d', path);
+      setWaveformState('ready');
+    } catch {
+      if (sequence === waveformSequence && payload?.reviewId === reviewId) {
+        setWaveformState('unavailable');
+      }
+    }
+  }
+
+  function queueWaveformLoad(delayMs = 0): void {
+    if (waveformTimer !== null) clearTimeout(waveformTimer);
+    waveformSequence += 1;
+    if (payload && ctx.state.mediaTimingReviewModalOpen) {
+      ctx.dom.mediaTimingReviewWaveformPath.setAttribute('d', '');
+      setWaveformState('loading');
+    }
+    waveformTimer = setTimeout(() => {
+      waveformTimer = null;
+      void loadWaveform();
+    }, delayMs);
   }
 
   function updateSelection(nextStart: number, nextEnd: number): void {
@@ -170,6 +309,116 @@ export function createMediaTimingReviewModal(
     if (previewPlaying || previewRequest.isInFlight()) stopPreview();
     setStatus('');
     renderSelection();
+  }
+
+  /** Shifts the whole clip without changing its length. */
+  function moveSelection(nextStart: number): void {
+    if (!payload) return;
+    const slid = slideMediaTimingSelection({
+      nextStart,
+      span: selectionEnd - selectionStart,
+      timelineStart,
+      timelineEnd,
+      mediaEnd: payload.mediaDuration ?? Number.POSITIVE_INFINITY,
+    });
+    updateSelection(slid.start, slid.end);
+  }
+
+  function setEdge(edge: 'start' | 'end', value: number): void {
+    if (edge === 'start') updateSelection(value, selectionEnd);
+    else updateSelection(selectionStart, value);
+  }
+
+  function applyDrag(clientX: number): void {
+    if (!drag) return;
+    const pointerTime = mediaTimingTimeFromPointer({
+      clientX,
+      trackLeft: drag.trackLeft,
+      trackWidth: drag.trackWidth,
+      timelineStart,
+      timelineEnd,
+    });
+    const time = pointerTime - drag.grabOffset;
+    if (drag.edge === 'both') moveSelection(time);
+    else setEdge(drag.edge, time);
+  }
+
+  /**
+   * Grabbing a handle drags that edge, grabbing the highlighted clip slides the whole selection,
+   * and pressing anywhere else snaps the nearest edge to that point and keeps dragging it.
+   */
+  function beginDrag(event: PointerEvent): void {
+    if (!payload || resolveInFlight || drag !== null || event.button !== 0) return;
+    const track = ctx.dom.mediaTimingReviewSelectionTrack;
+    const rect = track.getBoundingClientRect();
+    const pointerTime = mediaTimingTimeFromPointer({
+      clientX: event.clientX,
+      trackLeft: rect.left,
+      trackWidth: rect.width,
+      timelineStart,
+      timelineEnd,
+    });
+    const target = event.target;
+    let edge: 'start' | 'end' | 'both';
+    let grabOffset: number;
+    if (target === ctx.dom.mediaTimingReviewStartHandle) {
+      edge = 'start';
+      grabOffset = pointerTime - selectionStart;
+    } else if (target === ctx.dom.mediaTimingReviewEndHandle) {
+      edge = 'end';
+      grabOffset = pointerTime - selectionEnd;
+    } else if (target === ctx.dom.mediaTimingReviewSelectedRange) {
+      edge = 'both';
+      grabOffset = pointerTime - selectionStart;
+    } else {
+      edge =
+        Math.abs(pointerTime - selectionStart) <= Math.abs(pointerTime - selectionEnd)
+          ? 'start'
+          : 'end';
+      grabOffset = 0;
+    }
+    event.preventDefault();
+    drag = {
+      edge,
+      pointerId: event.pointerId,
+      trackLeft: rect.left,
+      trackWidth: rect.width,
+      grabOffset,
+    };
+    track.setPointerCapture(event.pointerId);
+    ctx.dom.mediaTimingReviewModal.classList.add(edge === 'both' ? 'is-sliding' : 'is-scrubbing');
+    if (edge !== 'both') {
+      const handle =
+        edge === 'start'
+          ? ctx.dom.mediaTimingReviewStartHandle
+          : ctx.dom.mediaTimingReviewEndHandle;
+      handle.focus();
+      if (grabOffset === 0) applyDrag(event.clientX);
+    }
+  }
+
+  function endDrag(event: PointerEvent): void {
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const track = ctx.dom.mediaTimingReviewSelectionTrack;
+    if (track.hasPointerCapture(event.pointerId)) track.releasePointerCapture(event.pointerId);
+    drag = null;
+    ctx.dom.mediaTimingReviewModal.classList.remove('is-scrubbing', 'is-sliding');
+  }
+
+  function cancelDrag(): void {
+    drag = null;
+    ctx.dom.mediaTimingReviewModal.classList.remove('is-scrubbing', 'is-sliding');
+  }
+
+  function handleEdgeKeydown(event: KeyboardEvent, edge: 'start' | 'end'): void {
+    const step = event.shiftKey ? COARSE_ADJUST_SECONDS : FINE_ADJUST_SECONDS;
+    const current = edge === 'start' ? selectionStart : selectionEnd;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') setEdge(edge, current - step);
+    else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') setEdge(edge, current + step);
+    else if (event.key === 'Home') setEdge(edge, timelineStart);
+    else if (event.key === 'End') setEdge(edge, timelineEnd);
+    else return;
+    event.preventDefault();
   }
 
   function showEditor(): void {
@@ -195,7 +444,11 @@ export function createMediaTimingReviewModal(
 
   function closeResolvedReview(): void {
     if (!ctx.state.mediaTimingReviewModalOpen) return;
+    cancelDrag();
     clearPreviewTimer();
+    if (waveformTimer !== null) clearTimeout(waveformTimer);
+    waveformTimer = null;
+    waveformSequence += 1;
     previewPlaying = false;
     ctx.state.mediaTimingReviewModalOpen = false;
     ctx.dom.mediaTimingReviewModal.classList.add('hidden');
@@ -285,6 +538,7 @@ export function createMediaTimingReviewModal(
 
   function openMediaTimingReviewModal(nextPayload: MediaTimingReviewOpenPayload): void {
     previewRequest.invalidate();
+    cancelDrag();
     payload = nextPayload;
     selectionStart = nextPayload.selectionStartTime;
     selectionEnd = nextPayload.selectionEndTime;
@@ -298,6 +552,7 @@ export function createMediaTimingReviewModal(
         : nextPayload.kind === 'audio'
           ? 'Audio card'
           : 'Sentence card';
+    ctx.dom.mediaTimingReviewKind.dataset.kind = nextPayload.kind;
     ctx.dom.mediaTimingReviewText.textContent = nextPayload.text;
     ctx.dom.mediaTimingReviewDiscard.textContent =
       nextPayload.noteId !== undefined ? 'Delete card' : "Don't create card";
@@ -311,7 +566,8 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewModal.classList.remove('hidden');
     ctx.dom.mediaTimingReviewModal.setAttribute('aria-hidden', 'false');
     window.electronAPI.notifyOverlayModalOpened('media-timing-review');
-    ctx.dom.mediaTimingReviewPlay.focus();
+    ctx.dom.mediaTimingReviewStartHandle.focus();
+    queueWaveformLoad();
   }
 
   function expandTimeline(direction: 'earlier' | 'later'): void {
@@ -325,6 +581,7 @@ export function createMediaTimingReviewModal(
       );
     }
     renderSelection();
+    queueWaveformLoad(120);
   }
 
   function handleMediaTimingReviewKeydown(event: KeyboardEvent): boolean {
@@ -357,12 +614,19 @@ export function createMediaTimingReviewModal(
   }
 
   function wireDomEvents(): void {
-    ctx.dom.mediaTimingReviewStartRange.addEventListener('input', () => {
-      updateSelection(Number(ctx.dom.mediaTimingReviewStartRange.value), selectionEnd);
+    const track = ctx.dom.mediaTimingReviewSelectionTrack;
+    track.addEventListener('pointerdown', beginDrag);
+    track.addEventListener('pointermove', (event) => {
+      if (drag?.pointerId === event.pointerId) applyDrag(event.clientX);
     });
-    ctx.dom.mediaTimingReviewEndRange.addEventListener('input', () => {
-      updateSelection(selectionStart, Number(ctx.dom.mediaTimingReviewEndRange.value));
-    });
+    track.addEventListener('pointerup', endDrag);
+    track.addEventListener('pointercancel', endDrag);
+    ctx.dom.mediaTimingReviewStartHandle.addEventListener('keydown', (event) =>
+      handleEdgeKeydown(event, 'start'),
+    );
+    ctx.dom.mediaTimingReviewEndHandle.addEventListener('keydown', (event) =>
+      handleEdgeKeydown(event, 'end'),
+    );
     ctx.dom.mediaTimingReviewShowEarlier.addEventListener('click', () => expandTimeline('earlier'));
     ctx.dom.mediaTimingReviewShowLater.addEventListener('click', () => expandTimeline('later'));
     ctx.dom.mediaTimingReviewStartBack.addEventListener('click', () =>

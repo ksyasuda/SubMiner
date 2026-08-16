@@ -63,6 +63,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   handleOverlayNotificationAction?: IpcDepsRuntimeOptions['handleOverlayNotificationAction'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
   previewMediaTimingReview?: IpcDepsRuntimeOptions['previewMediaTimingReview'];
+  getMediaTimingReviewWaveform?: IpcDepsRuntimeOptions['getMediaTimingReviewWaveform'];
   stopMediaTimingReviewPreview?: IpcDepsRuntimeOptions['stopMediaTimingReviewPreview'];
   resolveMediaTimingReview?: IpcDepsRuntimeOptions['resolveMediaTimingReview'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
@@ -261,6 +262,7 @@ export function createMainIpcRuntimeServiceDeps(
     handleOverlayNotificationAction: params.handleOverlayNotificationAction,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
     previewMediaTimingReview: params.previewMediaTimingReview,
+    getMediaTimingReviewWaveform: params.getMediaTimingReviewWaveform,
     stopMediaTimingReviewPreview: params.stopMediaTimingReviewPreview,
     resolveMediaTimingReview: params.resolveMediaTimingReview,
     openYomitanSettings: params.openYomitanSettings,

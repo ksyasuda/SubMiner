@@ -79,6 +79,7 @@ test('media timing review pauses playback, resolves exact timing, and restores p
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
     getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
     createPreviewSession: () => ({
       start: async () => undefined,
       play: async (startTime, endTime) => {
@@ -125,6 +126,69 @@ test('media timing review pauses playback, resolves exact timing, and restores p
   assert.deepEqual(previewCalls, [[9.5, 12.5]]);
 });
 
+test('media timing review analyzes the visible range on the selected audio stream', async () => {
+  const waveformCalls: Array<{
+    mediaPath: string;
+    startTime: number;
+    endTime: number;
+    audioStreamIndex?: number;
+  }> = [];
+  let runtime: ReturnType<typeof createMediaTimingReviewRuntime>;
+  runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      currentAudioStreamIndex: 4,
+      requestProperty: async (name) => (name === 'duration' ? 100 : name === 'pause' ? true : null),
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async (options) => {
+      waveformCalls.push(options);
+      return [0.1, 0.8, 0.2];
+    },
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      dispose: () => undefined,
+    }),
+    openModal: async (payload) => {
+      const waveform = await runtime.getWaveform({
+        reviewId: payload.reviewId,
+        startTime: payload.timelineStartTime,
+        endTime: payload.timelineEndTime,
+      });
+      assert.deepEqual(waveform, { ok: true, peaks: [0.1, 0.8, 0.2] });
+      runtime.resolveReview({
+        reviewId: payload.reviewId,
+        decision: { action: 'use-original' },
+      });
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+
+  await runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0.5,
+    maxMediaDuration: 30,
+  });
+
+  assert.deepEqual(waveformCalls, [
+    {
+      mediaPath: '/video/show.mkv',
+      startTime: 7.5,
+      endTime: 14.5,
+      audioStreamIndex: 4,
+    },
+  ]);
+});
+
 test('media timing review does not resume playback when the prior state is unavailable', async () => {
   const commands: Array<Array<string | number>> = [];
   let runtime: ReturnType<typeof createMediaTimingReviewRuntime>;
@@ -137,6 +201,7 @@ test('media timing review does not resume playback when the prior state is unava
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
     getMpvExecutablePath: () => '',
+    generateWaveform: async () => [],
     createPreviewSession: () => ({
       start: async () => {
         throw new Error('preview unavailable');
@@ -182,6 +247,7 @@ test('media timing review restores playback when setup fails after pausing', asy
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
     getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
     createPreviewSession: () => {
       throw new Error('preview setup failed');
     },
@@ -217,6 +283,7 @@ test('disposing an open review settles it with original timing and restores play
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
     getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
     createPreviewSession: () => ({
       start: async () => undefined,
       play: async () => undefined,

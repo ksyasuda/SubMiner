@@ -466,6 +466,7 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { MediaTimingPreviewSession } from './core/services/media-timing-preview';
+import { generateSpeechWaveform } from './core/services/media-timing-waveform';
 import { createMediaTimingReviewRuntime } from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
@@ -2895,6 +2896,7 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   getMpvExecutablePath: () =>
     configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
   createPreviewSession: () => new MediaTimingPreviewSession(),
+  generateWaveform: (options) => generateSpeechWaveform(options),
   openModal: (payload) => openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload),
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
@@ -5547,6 +5549,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     },
     mainDeps: {
       previewMediaTimingReview: (request) => mediaTimingReviewRuntime.previewRange(request),
+      getMediaTimingReviewWaveform: (request) => mediaTimingReviewRuntime.getWaveform(request),
       stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
       resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),
       getMainWindow: () => overlayManager.getMainWindow(),

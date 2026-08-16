@@ -23,6 +23,8 @@ import type {
   MediaTimingReviewActionResult,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewWaveformRequest,
+  MediaTimingReviewWaveformResult,
 } from '../../types/anki';
 import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import {
@@ -107,6 +109,9 @@ export interface IpcServiceDeps {
   previewMediaTimingReview?: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;
+  getMediaTimingReviewWaveform?: (
+    request: MediaTimingReviewWaveformRequest,
+  ) => Promise<MediaTimingReviewWaveformResult>;
   stopMediaTimingReviewPreview?: (reviewId: string) => Promise<MediaTimingReviewActionResult>;
   resolveMediaTimingReview?: (
     request: MediaTimingReviewResolveRequest,
@@ -256,6 +261,12 @@ function parseMediaTimingReviewPreviewRequest(
   };
 }
 
+function parseMediaTimingReviewWaveformRequest(
+  payload: unknown,
+): MediaTimingReviewWaveformRequest | null {
+  return parseMediaTimingReviewPreviewRequest(payload);
+}
+
 function parseMediaTimingReviewResolveRequest(
   payload: unknown,
 ): MediaTimingReviewResolveRequest | null {
@@ -344,6 +355,7 @@ export interface IpcDepsRuntimeOptions {
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
   previewMediaTimingReview?: IpcServiceDeps['previewMediaTimingReview'];
+  getMediaTimingReviewWaveform?: IpcServiceDeps['getMediaTimingReviewWaveform'];
   stopMediaTimingReviewPreview?: IpcServiceDeps['stopMediaTimingReviewPreview'];
   resolveMediaTimingReview?: IpcServiceDeps['resolveMediaTimingReview'];
   getAnkiConnectStatus: () => boolean;
@@ -440,6 +452,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     runSubsyncManual: options.runSubsyncManual,
     onYoutubePickerResolve: options.onYoutubePickerResolve,
     previewMediaTimingReview: options.previewMediaTimingReview,
+    getMediaTimingReviewWaveform: options.getMediaTimingReviewWaveform,
     stopMediaTimingReviewPreview: options.stopMediaTimingReviewPreview,
     resolveMediaTimingReview: options.resolveMediaTimingReview,
     getAnkiConnectStatus: options.getAnkiConnectStatus,
@@ -577,6 +590,16 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
         return { ok: false, message: 'Timing preview is unavailable.' };
       }
       return await deps.previewMediaTimingReview(request);
+    },
+  );
+  ipc.handle(
+    IPC_CHANNELS.request.mediaTimingReviewWaveform,
+    async (_event: unknown, payload: unknown) => {
+      const request = parseMediaTimingReviewWaveformRequest(payload);
+      if (!request || !deps.getMediaTimingReviewWaveform) {
+        return { ok: false, message: 'Timing waveform is unavailable.' };
+      }
+      return await deps.getMediaTimingReviewWaveform(request);
     },
   );
   ipc.handle(

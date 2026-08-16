@@ -7,6 +7,8 @@ import type {
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewWaveformRequest,
+  MediaTimingReviewWaveformResult,
 } from './anki';
 import type { ChangelogSnapshot } from './changelog';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
@@ -524,6 +526,9 @@ export interface ElectronAPI {
   previewMediaTimingReview: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;
+  getMediaTimingReviewWaveform: (
+    request: MediaTimingReviewWaveformRequest,
+  ) => Promise<MediaTimingReviewWaveformResult>;
   stopMediaTimingReviewPreview: (reviewId: string) => Promise<MediaTimingReviewActionResult>;
   resolveMediaTimingReview: (
     request: MediaTimingReviewResolveRequest,

@@ -72,6 +72,7 @@ import type {
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewWaveformRequest,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -469,6 +470,8 @@ const electronAPI: ElectronAPI = {
   onOpenMediaTimingReview: onOpenMediaTimingReviewEvent,
   previewMediaTimingReview: (request: MediaTimingReviewPreviewRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewPreview, request),
+  getMediaTimingReviewWaveform: (request: MediaTimingReviewWaveformRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewWaveform, request),
   stopMediaTimingReviewPreview: (reviewId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewStopPreview, reviewId),
   resolveMediaTimingReview: (request: MediaTimingReviewResolveRequest) =>

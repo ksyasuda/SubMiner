@@ -53,8 +53,11 @@ export type RendererDom = {
   mediaTimingReviewTimelineStart: HTMLElement;
   mediaTimingReviewTimelineEnd: HTMLElement;
   mediaTimingReviewSelectionTrack: HTMLDivElement;
-  mediaTimingReviewStartRange: HTMLInputElement;
-  mediaTimingReviewEndRange: HTMLInputElement;
+  mediaTimingReviewWaveformLabel: HTMLElement;
+  mediaTimingReviewWaveformPath: SVGPathElement;
+  mediaTimingReviewSelectedRange: HTMLDivElement;
+  mediaTimingReviewStartHandle: HTMLDivElement;
+  mediaTimingReviewEndHandle: HTMLDivElement;
   mediaTimingReviewShowEarlier: HTMLButtonElement;
   mediaTimingReviewShowLater: HTMLButtonElement;
   mediaTimingReviewStartBack: HTMLButtonElement;
@@ -62,6 +65,7 @@ export type RendererDom = {
   mediaTimingReviewEndBack: HTMLButtonElement;
   mediaTimingReviewEndForward: HTMLButtonElement;
   mediaTimingReviewPlay: HTMLButtonElement;
+  mediaTimingReviewPlayLabel: HTMLElement;
   mediaTimingReviewReset: HTMLButtonElement;
   mediaTimingReviewCancel: HTMLButtonElement;
   mediaTimingReviewConfirm: HTMLButtonElement;
@@ -174,8 +178,8 @@ export type RendererDom = {
   playlistBrowserClose: HTMLButtonElement;
 };
 
-function getRequiredElement<T extends HTMLElement>(id: string): T {
-  const element = document.getElementById(id);
+function getRequiredElement<T extends Element>(id: string): T {
+  const element = document.querySelector(`#${id}`);
   if (!element) {
     throw new Error(`Missing required DOM element #${id}`);
   }
@@ -246,10 +250,19 @@ export function resolveRendererDom(): RendererDom {
     mediaTimingReviewSelectionTrack: getRequiredElement<HTMLDivElement>(
       'mediaTimingReviewSelectionTrack',
     ),
-    mediaTimingReviewStartRange: getRequiredElement<HTMLInputElement>(
-      'mediaTimingReviewStartRange',
+    mediaTimingReviewWaveformLabel: getRequiredElement<HTMLElement>(
+      'mediaTimingReviewWaveformLabel',
     ),
-    mediaTimingReviewEndRange: getRequiredElement<HTMLInputElement>('mediaTimingReviewEndRange'),
+    mediaTimingReviewWaveformPath: getRequiredElement<SVGPathElement>(
+      'mediaTimingReviewWaveformPath',
+    ),
+    mediaTimingReviewSelectedRange: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewSelectedRange',
+    ),
+    mediaTimingReviewStartHandle: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewStartHandle',
+    ),
+    mediaTimingReviewEndHandle: getRequiredElement<HTMLDivElement>('mediaTimingReviewEndHandle'),
     mediaTimingReviewShowEarlier: getRequiredElement<HTMLButtonElement>(
       'mediaTimingReviewShowEarlier',
     ),
@@ -263,6 +276,7 @@ export function resolveRendererDom(): RendererDom {
       'mediaTimingReviewEndForward',
     ),
     mediaTimingReviewPlay: getRequiredElement<HTMLButtonElement>('mediaTimingReviewPlay'),
+    mediaTimingReviewPlayLabel: getRequiredElement<HTMLElement>('mediaTimingReviewPlayLabel'),
     mediaTimingReviewReset: getRequiredElement<HTMLButtonElement>('mediaTimingReviewReset'),
     mediaTimingReviewCancel: getRequiredElement<HTMLButtonElement>('mediaTimingReviewCancel'),
     mediaTimingReviewConfirm: getRequiredElement<HTMLButtonElement>('mediaTimingReviewConfirm'),

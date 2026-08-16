@@ -127,6 +127,7 @@ export const IPC_CHANNELS = {
     syncUiPickSnapshotFile: 'sync-ui:pick-snapshot-file',
     getChangelogSnapshot: 'changelog:get-snapshot',
     mediaTimingReviewPreview: 'media-timing-review:preview',
+    mediaTimingReviewWaveform: 'media-timing-review:waveform',
     mediaTimingReviewStopPreview: 'media-timing-review:stop-preview',
     mediaTimingReviewResolve: 'media-timing-review:resolve',
   },

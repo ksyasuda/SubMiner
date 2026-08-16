@@ -49,6 +49,16 @@ export interface MediaTimingReviewPreviewRequest {
   endTime: number;
 }
 
+export interface MediaTimingReviewWaveformRequest {
+  reviewId: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface MediaTimingReviewWaveformResult extends MediaTimingReviewActionResult {
+  peaks?: number[];
+}
+
 export interface MediaTimingReviewResolveRequest {
   reviewId: string;
   decision: MediaTimingReviewDecision;
