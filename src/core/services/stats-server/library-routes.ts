@@ -39,6 +39,10 @@ export function registerStatsLibraryRoutes(
     return c.json(statsJson('vocabularySummary', summary));
   });
 
+  app.get('/api/stats/vocabulary/charts', async (c) => {
+    return c.json(statsJson('vocabularyCharts', await tracker.getVocabularyChartData()));
+  });
+
   app.get('/api/stats/excluded-words', async (c) => {
     return c.json(statsJson('excludedWords', await tracker.getStatsExcludedWords()));
   });

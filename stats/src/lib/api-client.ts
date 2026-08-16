@@ -101,6 +101,7 @@ export const apiClient = {
     fetchJson('sessionKnownWordsTimeline', `/api/stats/sessions/${id}/known-words-timeline`),
   getVocabulary: (limit = 100) => fetchJson('vocabulary', `/api/stats/vocabulary?limit=${limit}`),
   getVocabularySummary: () => fetchJson('vocabularySummary', '/api/stats/vocabulary/summary'),
+  getVocabularyCharts: () => fetchJson('vocabularyCharts', '/api/stats/vocabulary/charts'),
   getExcludedWords: () => fetchJson('excludedWords', '/api/stats/excluded-words'),
   setExcludedWords: async (words: StatsExcludedWord[]): Promise<void> => {
     await fetchResponse('/api/stats/excluded-words', {

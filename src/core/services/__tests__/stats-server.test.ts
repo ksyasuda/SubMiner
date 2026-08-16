@@ -293,6 +293,13 @@ function createMockTracker(
       knownWordCount: 250,
       knownWordCountWithoutNames: 249,
     }),
+    getVocabularyChartData: async () => ({
+      ready: true,
+      topWords: [{ wordId: 1, headword: 'する', frequency: 50 }],
+      topWordsWithoutNames: [{ wordId: 1, headword: 'する', frequency: 50 }],
+      newWordsTimeline: [{ epochDay: 20_000, wordCount: 3 }],
+      newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 3 }],
+    }),
     getStatsExcludedWords: async () => [],
     replaceStatsExcludedWords: async () => {},
     getKanjiStats: async () => KANJI_STATS,

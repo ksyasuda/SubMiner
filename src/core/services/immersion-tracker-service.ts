@@ -58,6 +58,7 @@ import {
   getSessionEvents,
   getSimilarWords,
   getStatsExcludedWords,
+  getVocabularyChartData,
   getVocabularyStats,
   replaceStatsExcludedWords,
   searchSubtitleSentences,
@@ -100,6 +101,7 @@ import {
   VocabularySummaryWorkerRuntime,
   type RunVocabularySummaryTask,
 } from './immersion-tracker/vocabulary-summary-worker-runtime';
+import { LexicalRollupWorkerRuntime } from './immersion-tracker/lexical-rollup-worker-runtime';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import {
   cleanupDuplicateSubtitleLines,
@@ -416,6 +418,7 @@ export class ImmersionTrackerService {
     knownWords: ReadonlySet<string> | null,
   ) => Promise<VocabularyStatsSummary>;
   private readonly destroyVocabularySummaryRunner: () => void;
+  private readonly destroyLexicalRollupBackfillRunner: () => void;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -482,6 +485,8 @@ export class ImmersionTrackerService {
         vocabularySummaryRuntime.run(this.dbPath, knownWords);
       this.destroyVocabularySummaryRunner = () => vocabularySummaryRuntime.destroy();
     }
+    const lexicalRollupRuntime = new LexicalRollupWorkerRuntime();
+    this.destroyLexicalRollupBackfillRunner = () => lexicalRollupRuntime.destroy();
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -541,6 +546,12 @@ export class ImmersionTrackerService {
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
+    void lexicalRollupRuntime.run(this.dbPath).catch((error: unknown) => {
+      this.logger.warn(
+        'Lexical daily rollup backfill failed; it will retry on next startup',
+        error,
+      );
+    });
     const reconciledSessions = reconcileStaleActiveSessions(this.db);
     if (reconciledSessions > 0) {
       this.logger.info(
@@ -588,6 +599,7 @@ export class ImmersionTrackerService {
     this.deleteMaintenanceScheduler.destroy();
     this.destroyDeleteMaintenanceRunner();
     this.destroyVocabularySummaryRunner();
+    this.destroyLexicalRollupBackfillRunner();
     this.db.close();
   }
 
@@ -659,6 +671,10 @@ export class ImmersionTrackerService {
 
   async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
     return this.runVocabularySummaryTask(knownWords);
+  }
+
+  async getVocabularyChartData() {
+    return getVocabularyChartData(this.db);
   }
 
   async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {

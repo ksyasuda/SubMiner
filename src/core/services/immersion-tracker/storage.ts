@@ -4,6 +4,7 @@ import { parseMediaInfo } from '../../../jimaku/utils';
 import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
+import { ensureLexicalDailyRollupTables, markLexicalDailyRollupsReady } from './lexical-rollups';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
 import { toDbMs, toDbTimestamp } from './query-shared';
@@ -890,11 +891,11 @@ export function ensureSchema(db: DatabaseSync): void {
     VALUES ('last_rollup_sample_ms', 0)
     ON CONFLICT(state_key) DO NOTHING
   `);
-
   const currentVersion = db
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
+    ensureLexicalDailyRollupTables(db);
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
     ensureAnimeMergeTables(db);
@@ -1453,6 +1454,7 @@ export function ensureSchema(db: DatabaseSync): void {
 
   migrateSessionEventTimestampsToText(db);
 
+  ensureLexicalDailyRollupTables(db);
   ensureLifetimeSummaryTables(db);
   ensureStatsExcludedWordsTable(db);
 
@@ -1585,6 +1587,12 @@ export function ensureSchema(db: DatabaseSync): void {
     VALUES (${SCHEMA_VERSION}, ${toDbTimestamp(nowMs())})
     ON CONFLICT DO NOTHING
   `);
+
+  // A new database has no history to materialize. Upgrades are populated by the
+  // background worker so startup never scans the existing vocabulary table.
+  if (!currentVersion) {
+    markLexicalDailyRollupsReady(db);
+  }
 }
 
 export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPreparedStatements {

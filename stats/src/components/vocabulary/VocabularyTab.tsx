@@ -6,11 +6,10 @@ import { KanjiBreakdown } from './KanjiBreakdown';
 import { KanjiDetailPanel } from './KanjiDetailPanel';
 import { ExclusionManager } from './ExclusionManager';
 import { DuplicateLineCleanup } from './DuplicateLineCleanup';
-import { formatNumber } from '../../lib/formatters';
+import { epochDayToDate, formatNumber } from '../../lib/formatters';
 import { TrendChart } from '../trends/TrendChart';
 import { FrequencyRankTable } from './FrequencyRankTable';
 import { CrossAnimeWordsTable } from './CrossAnimeWordsTable';
-import { buildVocabularySummary } from '../../lib/dashboard-data';
 import type { ExcludedWord } from '../../hooks/useExcludedWords';
 import type { KanjiEntry, VocabularyEntry } from '../../types/stats';
 
@@ -35,7 +34,7 @@ export function VocabularyTab({
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
-  const { words, kanji, knownWords, summary, loading, error, reload } = useVocabulary();
+  const { words, kanji, knownWords, summary, charts, loading, error, reload } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
@@ -48,9 +47,23 @@ export function VocabularyTab({
     if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
     return result;
   }, [words, hideNames, excluded, isExcluded]);
-  const chartSummary = useMemo(
-    () => buildVocabularySummary(filteredWords, kanji),
-    [filteredWords, kanji],
+  const chartData = useMemo(
+    () => ({
+      topWords:
+        ((hideNames ? charts?.topWordsWithoutNames : charts?.topWords) ?? []).map((word) => ({
+          label: word.headword,
+          value: word.frequency,
+        })) ?? [],
+      newWordsTimeline:
+        ((hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []).map((point) => ({
+          label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+          }),
+          value: point.wordCount,
+        })) ?? [],
+    }),
+    [charts, hideNames],
   );
 
   if (loading) {
@@ -73,7 +86,9 @@ export function VocabularyTab({
   };
 
   const handleBarClick = (headword: string): void => {
-    const match = filteredWords.find((w) => w.headword === headword);
+    const match = (hideNames ? charts?.topWordsWithoutNames : charts?.topWords)?.find(
+      (word) => word.headword === headword,
+    );
     if (match) onOpenWordDetail?.(match.wordId);
   };
 
@@ -159,18 +174,24 @@ export function VocabularyTab({
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <TrendChart
           title="Top Repeated Words"
-          data={chartSummary.topWords}
+          data={chartData.topWords}
           color="#8aadf4"
           type="bar"
           onBarClick={handleBarClick}
         />
         <TrendChart
           title="New Words by Day"
-          data={chartSummary.newWordsTimeline}
+          data={chartData.newWordsTimeline}
           color="#c6a0f6"
           type="line"
         />
       </div>
+
+      {charts && !charts.ready && (
+        <p className="text-xs text-ctp-overlay1" role="status">
+          Building vocabulary history in the background…
+        </p>
+      )}
 
       <FrequencyRankTable
         words={filteredWords}

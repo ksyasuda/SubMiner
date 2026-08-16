@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getStatsClient } from './useStatsApi';
-import type { VocabularyEntry, KanjiEntry, StatsVocabularySummary } from '../types/stats';
+import type {
+  VocabularyEntry,
+  KanjiEntry,
+  StatsVocabularyCharts,
+  StatsVocabularySummary,
+} from '../types/stats';
 
 export function useVocabulary() {
   const [words, setWords] = useState<VocabularyEntry[]>([]);
   const [kanji, setKanji] = useState<KanjiEntry[]>([]);
   const [knownWords, setKnownWords] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState<StatsVocabularySummary | null>(null);
+  const [charts, setCharts] = useState<StatsVocabularyCharts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Bumped by `reload` after maintenance rewrites the vocabulary tables.
@@ -18,6 +24,7 @@ export function useVocabulary() {
     setLoading(true);
     setError(null);
     setSummary(null);
+    setCharts(null);
     const client = getStatsClient();
     Promise.allSettled([client.getVocabulary(500), client.getKanji(200), client.getKnownWords()])
       .then(([wordsResult, kanjiResult, knownResult]) => {
@@ -56,10 +63,27 @@ export function useVocabulary() {
       .catch((summaryError: unknown) => {
         console.error('Failed to load vocabulary summary', summaryError);
       });
+    let chartRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    const loadCharts = (): void => {
+      void client
+        .getVocabularyCharts()
+        .then((nextCharts) => {
+          if (cancelled) return;
+          setCharts(nextCharts);
+          if (!nextCharts.ready) {
+            chartRetryTimer = setTimeout(loadCharts, 1_000);
+          }
+        })
+        .catch((chartError: unknown) => {
+          console.error('Failed to load vocabulary charts', chartError);
+        });
+    };
+    loadCharts();
     return () => {
       cancelled = true;
+      if (chartRetryTimer) clearTimeout(chartRetryTimer);
     };
   }, [reloadToken]);
 
-  return { words, kanji, knownWords, summary, loading, error, reload };
+  return { words, kanji, knownWords, summary, charts, loading, error, reload };
 }
