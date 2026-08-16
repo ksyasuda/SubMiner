@@ -98,10 +98,10 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
 
         <div className="space-y-4 px-5 py-4">
           <p className="text-xs leading-relaxed text-ctp-subtext0">
-            Typeset subtitles — karaoke openings, animated signs — are authored as one event per
-            animation frame, and older versions counted every frame as its own line. This finds
-            those runs and collapses each one back to a single line, giving back the word and kanji
-            counts they inflated. Ordinary repeated dialogue is left alone.
+            Karaoke openings and animated signs are typeset as one subtitle event per animation
+            frame, and older versions counted every frame as a line. This collapses those runs back
+            to one line and drops the word and kanji counts they added. Repeated dialogue is left
+            alone.
           </p>
 
           <div>
@@ -192,8 +192,8 @@ export function DuplicateLineCleanup({ onClose, onCleaned }: DuplicateLineCleanu
             </button>
           </div>
           <p className="text-[11px] text-ctp-overlay1">
-            Scan first: cleanup removes rows and cannot be undone. Session watch time and lines-seen
-            totals are left untouched.
+            Scan first: cleanup deletes rows and can't be undone. Watch time and lines-seen totals
+            stay as they are.
           </p>
         </div>
       </div>
