@@ -518,7 +518,7 @@ export function createOverlayModalRuntimeService(
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
         if (reuseModalWindowAfterClose) {
-          applyOverlayClickThrough(modalWindow, platform === 'win32');
+          applyOverlayClickThrough(modalWindow, false);
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
         } else {
