@@ -54,3 +54,16 @@ test('lexical rollup worker module resolves in the current layout', () => {
   assert.ok(workerPath, 'expected the lexical rollup worker module to resolve');
   assert.ok(workerPath.endsWith(__filename.endsWith('.ts') ? '.ts' : '.js'));
 });
+
+test('lexical rollup worker leaves a backfill pending when no worker can start', async () => {
+  const runtime = new LexicalRollupWorkerRuntime({
+    resolveWorkerPath: () => null,
+    warn: () => {},
+  } as never);
+
+  try {
+    await assert.doesNotReject(runtime.run('/tmp/not-used.sqlite'));
+  } finally {
+    runtime.destroy();
+  }
+});

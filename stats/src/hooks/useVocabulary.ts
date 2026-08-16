@@ -76,6 +76,7 @@ export function useVocabulary() {
         })
         .catch((chartError: unknown) => {
           console.error('Failed to load vocabulary charts', chartError);
+          if (!cancelled) chartRetryTimer = setTimeout(loadCharts, 1_000);
         });
     };
     loadCharts();

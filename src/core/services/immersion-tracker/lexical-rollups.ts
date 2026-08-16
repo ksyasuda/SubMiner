@@ -11,7 +11,7 @@ const LOCAL_EPOCH_DAY_SQL = `
   CAST(julianday(CAST(%VALUE% AS REAL), 'unixepoch', 'localtime') - 2440587.5 AS INTEGER)
 `;
 
-function localEpochDaySql(value: string): string {
+export function localEpochDaySql(value: string): string {
   return LOCAL_EPOCH_DAY_SQL.replace('%VALUE%', value);
 }
 
@@ -131,8 +131,10 @@ export function markLexicalDailyRollupsReady(db: DatabaseSync): void {
 
 /** Rebuild from the first-seen source of truth; run off the UI/main DB thread. */
 export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
-  db.exec('BEGIN IMMEDIATE');
+  let transactionStarted = false;
   try {
+    db.exec('BEGIN IMMEDIATE');
+    transactionStarted = true;
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.exec(`
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
@@ -151,7 +153,7 @@ export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
     markLexicalDailyRollupsReady(db);
     db.exec('COMMIT');
   } catch (error) {
-    db.exec('ROLLBACK');
+    if (transactionStarted) db.exec('ROLLBACK');
     throw error;
   }
 }

@@ -662,6 +662,8 @@ function buildNewWordsPerDay(
   axis: number[] | null,
 ): TrendChartPoint[] {
   if (areLexicalDailyRollupsReady(db)) {
+    // A trend range is defined in calendar buckets, so the rollup includes the
+    // complete local cutoff day rather than applying a time-of-day boundary.
     const cutoffDay = cutoffMs === null ? null : getLocalEpochDay(db, cutoffMs);
     const rows = getLexicalDailyRollups(db).filter(
       (row) => cutoffDay === null || row.epochDay >= cutoffDay,

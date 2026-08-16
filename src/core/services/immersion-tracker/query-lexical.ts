@@ -20,7 +20,11 @@ import type {
 } from './types';
 import { fromDbTimestamp, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
-import { areLexicalDailyRollupsReady, getLexicalDailyRollups } from './lexical-rollups';
+import {
+  areLexicalDailyRollupsReady,
+  getLexicalDailyRollups,
+  localEpochDaySql,
+} from './lexical-rollups';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
@@ -185,7 +189,7 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
       .prepare(
         `
           SELECT headword, word, reading, pos2,
-            CAST(julianday(CAST(first_seen AS REAL), 'unixepoch', 'localtime') - 2440587.5 AS INTEGER) AS epochDay
+            ${localEpochDaySql('first_seen')} AS epochDay
           FROM imm_words
           WHERE headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders})
         `,

@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createLogger } from '../../../logger';
-import { executeLexicalRollupBackfillTask } from './lexical-rollup-worker';
 
 interface WorkerResponse {
   ok?: boolean;
@@ -13,6 +12,12 @@ interface WorkerHandle {
   once(event: 'error', listener: (error: Error) => void): this;
   once(event: 'exit', listener: (code: number) => void): this;
   terminate(): Promise<number>;
+}
+
+interface LexicalRollupWorkerRuntimeOptions {
+  resolveWorkerPath?: () => string | null;
+  createWorker?: (workerPath: string, workerData: { dbPath: string }) => Promise<WorkerHandle>;
+  warn?: (message: string, ...meta: unknown[]) => void;
 }
 
 const logger = createLogger('main:immersion-tracker:lexical-rollup-worker');
@@ -29,21 +34,27 @@ export class LexicalRollupWorkerRuntime {
   private readonly activeWorkers = new Set<WorkerHandle>();
   private destroyed = false;
 
+  constructor(private readonly options: LexicalRollupWorkerRuntimeOptions = {}) {}
+
   async run(dbPath: string): Promise<void> {
     if (this.destroyed) throw new Error('Lexical rollup worker is shut down');
     let worker: WorkerHandle;
     try {
-      const workerPath = resolveLexicalRollupWorkerPath();
+      const workerPath = (this.options.resolveWorkerPath ?? resolveLexicalRollupWorkerPath)();
       if (!workerPath) throw new Error('Emitted lexical rollup worker module was not found');
-      const { Worker } = await import('node:worker_threads');
-      worker = new Worker(workerPath, { workerData: { dbPath } });
+      const createWorker =
+        this.options.createWorker ??
+        (async (resolvedPath, workerData) => {
+          const { Worker } = await import('node:worker_threads');
+          return new Worker(resolvedPath, { workerData });
+        });
+      worker = await createWorker(workerPath, { dbPath });
     } catch (error) {
       if (this.destroyed) throw new Error('Lexical rollup worker is shut down');
-      logger.warn(
-        'Lexical rollup worker unavailable; running backfill on the current thread',
+      (this.options.warn ?? logger.warn)(
+        'Lexical rollup worker unavailable; leaving backfill pending for a later startup',
         error,
       );
-      executeLexicalRollupBackfillTask(dbPath);
       return;
     }
 
