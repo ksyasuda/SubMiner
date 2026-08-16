@@ -609,6 +609,99 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
   }
 });
 
+test('tracker queues playback writes until lexical rollup backfill settles', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let startBackfill = (): void => {};
+  let releaseBackfill = (): void => {};
+  let markBackfillStarted = (): void => {};
+  const backfillStartGate = new Promise<void>((resolve) => {
+    startBackfill = resolve;
+  });
+  const heldBackfill = new Promise<void>((resolve) => {
+    releaseBackfill = resolve;
+  });
+  const backfillStarted = new Promise<void>((resolve) => {
+    markBackfillStarted = resolve;
+  });
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_ready'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runLexicalRollupBackfillTask: async (workerDbPath) => {
+          await backfillStartGate;
+          const workerDb = new Database(workerDbPath);
+          try {
+            workerDb.exec('BEGIN IMMEDIATE');
+            markBackfillStarted();
+            await heldBackfill;
+            workerDb.exec('COMMIT');
+          } catch (error) {
+            try {
+              workerDb.exec('ROLLBACK');
+            } catch {
+              // Preserve the original worker failure.
+            }
+            throw error;
+          } finally {
+            workerDb.close();
+          }
+        },
+      },
+    );
+    tracker.handleMediaChange('https://example.com/backfill-test.mp4', 'Backfill Test');
+    startBackfill();
+    await backfillStarted;
+    tracker.recordCardsMined(1);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      queue: unknown[];
+      flushNow: () => void;
+      writeLock: { locked: boolean };
+    };
+    assert.equal(privateApi.writeLock.locked, true);
+    privateApi.flushNow();
+
+    assert.ok(privateApi.queue.length > 0);
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+          total: number;
+        }
+      ).total,
+      0,
+    );
+
+    releaseBackfill();
+    await waitForCondition(() => privateApi.queue.length === 0);
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+          total: number;
+        }
+      ).total,
+      1,
+    );
+  } finally {
+    releaseBackfill();
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('startup backfills lifetime summaries when retained sessions exist but summary tables are empty', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

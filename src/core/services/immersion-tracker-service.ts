@@ -413,7 +413,10 @@ export class ImmersionTrackerService {
   private readonly monthlyRollupRetentionMs: number;
   private readonly vacuumIntervalMs: number;
   private readonly dbPath: string;
-  private readonly writeLock = { locked: false };
+  private readonly writeLock = {
+    locked: false,
+    reasons: new Set<'flush' | 'delete-maintenance' | 'lexical-rollup-backfill'>(),
+  };
   private readonly destroyDeleteMaintenanceRunner: () => void;
   private readonly runVocabularySummaryTask: (
     knownWords: ReadonlySet<string> | null,
@@ -471,10 +474,10 @@ export class ImmersionTrackerService {
       runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
       onBusy: () => {
         this.requireWriteQueueDrained('delete maintenance');
-        this.writeLock.locked = true;
+        this.setWriteLock('delete-maintenance', true);
       },
       onIdle: () => {
-        this.writeLock.locked = false;
+        this.setWriteLock('delete-maintenance', false);
         if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
       },
     });
@@ -558,14 +561,6 @@ export class ImmersionTrackerService {
     this.db = new Database(this.dbPath);
     applyPragmas(this.db);
     ensureSchema(this.db);
-    if (!areLexicalDailyRollupsReady(this.db)) {
-      void this.runLexicalRollupBackfillTask().catch((error: unknown) => {
-        this.logger.warn(
-          'Lexical daily rollup backfill failed; it will retry on next startup',
-          error,
-        );
-      });
-    }
     const reconciledSessions = reconcileStaleActiveSessions(this.db);
     if (reconciledSessions > 0) {
       this.logger.info(
@@ -594,6 +589,7 @@ export class ImmersionTrackerService {
       }
     }
     this.preparedStatements = createTrackerPreparedStatements(this.db);
+    if (!areLexicalDailyRollupsReady(this.db)) this.startLexicalRollupBackfill();
     this.scheduleMaintenance();
     this.scheduleFlush();
   }
@@ -965,6 +961,31 @@ export class ImmersionTrackerService {
     if (!this.drainWriteQueue(context)) {
       throw new Error(`Immersion tracker queue did not drain before ${context}`);
     }
+  }
+
+  private setWriteLock(
+    reason: 'flush' | 'delete-maintenance' | 'lexical-rollup-backfill',
+    active: boolean,
+  ): void {
+    if (active) this.writeLock.reasons.add(reason);
+    else this.writeLock.reasons.delete(reason);
+    this.writeLock.locked = this.writeLock.reasons.size > 0;
+  }
+
+  private startLexicalRollupBackfill(): void {
+    this.requireWriteQueueDrained('lexical rollup backfill');
+    this.setWriteLock('lexical-rollup-backfill', true);
+    void this.runLexicalRollupBackfillTask()
+      .catch((error: unknown) => {
+        this.logger.warn(
+          'Lexical daily rollup backfill failed; it will retry on next startup',
+          error,
+        );
+      })
+      .finally(() => {
+        this.setWriteLock('lexical-rollup-backfill', false);
+        if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
+      });
   }
 
   async reassignAnimeAnilist(
@@ -2022,7 +2043,7 @@ export class ImmersionTrackerService {
     }
 
     const batch = this.queue.splice(0, Math.min(this.batchSize, this.queue.length));
-    this.writeLock.locked = true;
+    this.setWriteLock('flush', true);
     try {
       this.db.exec('BEGIN IMMEDIATE');
       for (const write of batch) {
@@ -2034,7 +2055,7 @@ export class ImmersionTrackerService {
       this.queue.unshift(...batch);
       this.logger.warn('Immersion tracker flush failed, retrying later', error as Error);
     } finally {
-      this.writeLock.locked = false;
+      this.setWriteLock('flush', false);
       this.flushScheduled = false;
       if (this.queue.length > 0) {
         this.scheduleFlush(this.flushIntervalMs);
