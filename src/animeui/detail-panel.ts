@@ -89,7 +89,11 @@ export function createDetailPanel({ api, setStatus }: DetailPanelOptions) {
 
   detailBack.addEventListener('click', close);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !detail.classList.contains('hidden')) close();
+    if (event.key === 'Escape' && !detail.classList.contains('hidden')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+    }
   });
 
   return {

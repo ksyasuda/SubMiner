@@ -52,6 +52,23 @@ body {
   overflow: hidden;
 }
 
+html[data-embedded='overlay-modal'] .topbar {
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+html[data-embedded='overlay-modal'] .brand-block {
+  display: none;
+}
+
+html[data-embedded='overlay-modal'] .bridge-banner {
+  padding-inline: 14px;
+}
+
+html[data-embedded='overlay-modal'] .statusbar {
+  padding-inline: 14px;
+}
+
 body {
   display: flex;
   flex-direction: column;

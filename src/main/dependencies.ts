@@ -234,6 +234,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   openTsukihime: HandleMpvCommandFromIpcOptions['openTsukihime'];
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
+  openAnimeBrowser: HandleMpvCommandFromIpcOptions['openAnimeBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
   showRawMpvOsd?: HandleMpvCommandFromIpcOptions['showRawMpvOsd'];
   showPlaybackFeedback?: HandleMpvCommandFromIpcOptions['showPlaybackFeedback'];
@@ -444,6 +445,7 @@ export function createMpvCommandRuntimeServiceDeps(
     openTsukihime: params.openTsukihime,
     openYoutubeTrackPicker: params.openYoutubeTrackPicker,
     openPlaylistBrowser: params.openPlaylistBrowser,
+    openAnimeBrowser: params.openAnimeBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
     showRawMpvOsd: params.showRawMpvOsd,

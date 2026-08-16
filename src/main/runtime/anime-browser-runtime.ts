@@ -63,11 +63,20 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let starting: Promise<SidecarHandle> | null = null;
   let extensions: InstalledExtension[] = [];
   let sources: ExtensionSource[] = [];
-  let selectedSourceId: string | null = null;
   let loadFailures: ExtensionLoadFailure[] = [];
-  // Monotonic; identifies the newest browse so stale ones stop emitting.
-  let searchToken = 0;
+  const browserSessions = new Map<
+    string,
+    { selectedSourceId: string | null; searchToken: number }
+  >();
   const preferenceStore = new PreferenceStore(deps.preferencesFile);
+
+  function getBrowserSession(sessionId = 'default') {
+    const existing = browserSessions.get(sessionId);
+    if (existing) return existing;
+    const created = { selectedSourceId: sources[0]?.id ?? null, searchToken: 0 };
+    browserSessions.set(sessionId, created);
+    return created;
+  }
 
   function setState(state: AnimeBrowserBridgeState): void {
     bridgeState = state;
@@ -175,11 +184,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       deps.log(`[anime-bridge] extension ${extension.fallbackName} failed to load: ${message}`);
     });
 
-    // Keep the current selection if it survived the rescan. "All sources"
-    // survives as long as anything is installed.
-    const keptAll = selectedSourceId === ALL_SOURCES_ID && sources.length > 0;
-    if (!keptAll && !sources.some((source) => source.id === selectedSourceId)) {
-      selectedSourceId = sources[0]?.id ?? null;
+    // Each open browser keeps its own source selection. Reconcile all of them
+    // after a rescan without making one renderer change another renderer's UI.
+    for (const session of browserSessions.values()) {
+      const keptAll = session.selectedSourceId === ALL_SOURCES_ID && sources.length > 0;
+      if (!keptAll && !sources.some((source) => source.id === session.selectedSourceId)) {
+        session.selectedSourceId = sources[0]?.id ?? null;
+      }
     }
 
     setState({
@@ -252,23 +263,27 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
    */
   async function browse(
     page: number,
+    sessionId: string,
     fetchPage: (
       source: Awaited<ReturnType<typeof sourceFor>>,
       page: number,
     ) => Promise<BridgeAnimePage>,
   ): Promise<AnimeBrowserSearchResult> {
     const { baseUrl } = await bridge();
+    const session = getBrowserSession(sessionId);
     const targets =
-      selectedSourceId === ALL_SOURCES_ID ? sources : [requireSource(selectedSourceId)];
+      session.selectedSourceId === ALL_SOURCES_ID
+        ? sources
+        : [requireSource(session.selectedSourceId)];
     if (targets.length === 0) throw new Error('No sources are installed.');
 
     // Each source's answer is pushed the moment it lands, so a fast source is
     // on screen while a slow one is still resolving. Guarded by the token: a
     // superseded search stops emitting, and its remaining sources run out
     // quietly.
-    const token = ++searchToken;
+    const token = ++session.searchToken;
     const emit = (update: AnimeBrowserSearchUpdate): void => {
-      if (token === searchToken) deps.onSearchUpdate?.(update);
+      if (token === session.searchToken) deps.onSearchUpdate?.(update, sessionId);
     };
     emit({ kind: 'start', token, sourceCount: targets.length });
 
@@ -370,7 +385,8 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   });
 
   return {
-    getSnapshot(): AnimeBrowserSnapshot {
+    getSnapshot(sessionId = 'default'): AnimeBrowserSnapshot {
+      const session = getBrowserSession(sessionId);
       return {
         bridge: bridgeState,
         sources: sources.map((source) => ({
@@ -379,7 +395,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           lang: source.lang,
           pkg: source.pkg,
         })),
-        selectedSourceId,
+        selectedSourceId: session.selectedSourceId,
         loadFailures,
         installed: toInstalledExtensionViews(extensions, sources, loadFailures),
         extensionsDir: deps.extensionsDir(),
@@ -458,12 +474,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       if (sidecar) await scanExtensions(sidecar);
     },
 
-    selectSource(sourceId: string): void {
+    selectSource(sourceId: string, sessionId = 'default'): void {
+      const session = getBrowserSession(sessionId);
       if (sourceId === ALL_SOURCES_ID && sources.length > 0) {
-        selectedSourceId = ALL_SOURCES_ID;
+        session.selectedSourceId = ALL_SOURCES_ID;
         return;
       }
-      if (sources.some((source) => source.id === sourceId)) selectedSourceId = sourceId;
+      if (sources.some((source) => source.id === sourceId)) session.selectedSourceId = sourceId;
     },
 
     /**
@@ -507,21 +524,31 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       return parsePreferences(refreshed.length > 0 ? refreshed : updated);
     },
 
-    async search(query: string, page = 1): Promise<AnimeBrowserSearchResult> {
+    async search(
+      query: string,
+      page = 1,
+      sessionId = 'default',
+    ): Promise<AnimeBrowserSearchResult> {
       const { client } = await bridge();
-      return browse(page, (source, requestedPage) =>
+      return browse(page, sessionId, (source, requestedPage) =>
         client.searchAnime(source, query, requestedPage),
       );
     },
 
-    async getPopular(page = 1): Promise<AnimeBrowserSearchResult> {
+    async getPopular(page = 1, sessionId = 'default'): Promise<AnimeBrowserSearchResult> {
       const { client } = await bridge();
-      return browse(page, (source, requestedPage) => client.getPopularAnime(source, requestedPage));
+      return browse(page, sessionId, (source, requestedPage) =>
+        client.getPopularAnime(source, requestedPage),
+      );
     },
 
-    async getDetails(animeUrl: string, sourceId?: string): Promise<AnimeBrowserDetails> {
+    async getDetails(
+      animeUrl: string,
+      sourceId?: string,
+      sessionId = 'default',
+    ): Promise<AnimeBrowserDetails> {
       const { client, baseUrl } = await bridge();
-      const source = requireSource(sourceId ?? selectedSourceId);
+      const source = requireSource(sourceId ?? getBrowserSession(sessionId).selectedSourceId);
       const details = await client.getAnimeDetails(await sourceFor(source.id), animeUrl);
       return {
         ...toEntry(baseUrl, { ...details, url: details.url ?? animeUrl }, source),
@@ -532,9 +559,13 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       };
     },
 
-    async getEpisodes(animeUrl: string, sourceId?: string): Promise<AnimeBrowserEpisode[]> {
+    async getEpisodes(
+      animeUrl: string,
+      sourceId?: string,
+      sessionId = 'default',
+    ): Promise<AnimeBrowserEpisode[]> {
       const { client } = await bridge();
-      const source = requireSource(sourceId ?? selectedSourceId);
+      const source = requireSource(sourceId ?? getBrowserSession(sessionId).selectedSourceId);
       const episodes = await client.getEpisodeList(await sourceFor(source.id), animeUrl);
       return episodes.map((episode) => ({
         url: episode.url ?? '',
@@ -630,6 +661,12 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       } catch {
         return false;
       }
+    },
+
+    releaseSession(sessionId: string): void {
+      const session = browserSessions.get(sessionId);
+      if (session) session.searchToken += 1;
+      browserSessions.delete(sessionId);
     },
 
     async dispose(): Promise<void> {

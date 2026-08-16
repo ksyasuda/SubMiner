@@ -17,6 +17,7 @@ test('ipc bridge action main deps builders map callbacks', async () => {
       openTsukihime: () => {},
       openYoutubeTrackPicker: () => {},
       openPlaylistBrowser: () => {},
+      openAnimeBrowser: () => {},
       cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},

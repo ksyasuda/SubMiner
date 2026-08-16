@@ -544,7 +544,11 @@ import {
   createCreateAnimeBrowserWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createAnimeBrowserRuntime } from './main/runtime/anime-browser-runtime';
-import { registerAnimeBrowserIpcHandlers } from './main/runtime/anime-browser-ipc-handlers';
+import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
+import {
+  registerAnimeBrowserIpcHandlers,
+  type AnimeBrowserIpcSender,
+} from './main/runtime/anime-browser-ipc-handlers';
 import { ensureBridgeBinaries } from './main/runtime/anime-bridge-installer';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
@@ -2965,6 +2969,24 @@ function openPlaylistBrowser(): void {
   );
 }
 
+function openAnimeBrowserModal(): void {
+  if (!appState.mpvClient?.connected) {
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
+      'The in-player Anime Browser requires active playback.',
+      {
+        title: 'Anime Browser',
+        variant: 'warning',
+      },
+    );
+    return;
+  }
+  openOverlayHostedModalWithOsd(
+    openAnimeBrowserModalRuntime,
+    'Anime Browser overlay unavailable.',
+    'Failed to open Anime Browser overlay.',
+  );
+}
+
 function getRuntimeBooleanOption(
   id:
     | 'subtitle.annotation.knownWords.highlightEnabled'
@@ -3303,6 +3325,17 @@ const {
 });
 
 const DEFAULT_ANIME_EXTENSIONS_DIR = path.join(USER_DATA_PATH, 'anime-extensions');
+const animeBrowserSessions = new Map<string, AnimeBrowserIpcSender>();
+
+function broadcastAnimeBrowserEvent(channel: string, payload: unknown): void {
+  const targets = new Set<AnimeBrowserIpcSender>();
+  const standalone = appState.animeBrowserWindow;
+  if (standalone && !standalone.isDestroyed()) targets.add(standalone.webContents);
+  for (const sender of animeBrowserSessions.values()) {
+    if (!sender.isDestroyed()) targets.add(sender);
+  }
+  for (const sender of targets) sender.send(channel, payload);
+}
 
 function resolveAnimeExtensionsDir(): string {
   const configured = configService.getConfig().anime?.extensionsDir?.trim();
@@ -3392,27 +3425,33 @@ const animeBrowserRuntime = createAnimeBrowserRuntime({
     });
   },
   onBridgeState: (state) => {
-    const window = appState.animeBrowserWindow;
-    if (window && !window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.event.animeBrowserBridgeState, state);
-    }
+    broadcastAnimeBrowserEvent(IPC_CHANNELS.event.animeBrowserBridgeState, state);
   },
-  onSearchUpdate: (update) => {
-    const window = appState.animeBrowserWindow;
-    if (window && !window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.event.animeBrowserSearchUpdate, update);
+  onSearchUpdate: (update, sessionId) => {
+    const sender = animeBrowserSessions.get(sessionId);
+    if (sender && !sender.isDestroyed()) {
+      sender.send(IPC_CHANNELS.event.animeBrowserSearchUpdate, update);
     }
   },
   onQueueState: (state) => {
-    const window = appState.animeBrowserWindow;
-    if (window && !window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.event.animeBrowserQueueState, state);
-    }
+    broadcastAnimeBrowserEvent(IPC_CHANNELS.event.animeBrowserQueueState, state);
   },
   log: (message) => logger.info(message),
 });
 
-registerAnimeBrowserIpcHandlers({ ipcMain, runtime: animeBrowserRuntime });
+registerAnimeBrowserIpcHandlers({
+  ipcMain,
+  runtime: animeBrowserRuntime,
+  registerSession: (sessionId, sender) => {
+    if (animeBrowserSessions.get(sessionId) === sender) return;
+    animeBrowserSessions.set(sessionId, sender);
+    sender.once('destroyed', () => {
+      if (animeBrowserSessions.get(sessionId) !== sender) return;
+      animeBrowserSessions.delete(sessionId);
+      animeBrowserRuntime.releaseSession(sessionId);
+    });
+  },
+});
 
 let animeBrowserDockIconRetained = false;
 const releaseAnimeBrowserDockIcon = (): void => {
@@ -5590,6 +5629,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
+    openAnimeBrowser: () => openAnimeBrowserModal(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     cycleRuntimeOption: (id, direction) => {
@@ -5620,6 +5660,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     openTsukihime: () => openTsukihimeOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
+    openAnimeBrowser: () => openAnimeBrowserModal(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };

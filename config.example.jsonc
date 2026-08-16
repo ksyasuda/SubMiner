@@ -342,6 +342,12 @@
       ] // Command setting.
     },
     {
+      "key": "Ctrl+Alt+KeyA", // Key setting.
+      "command": [
+        "__anime-browser-open"
+      ] // Command setting.
+    },
+    {
       "key": "Ctrl+Shift+KeyH", // Key setting.
       "command": [
         "__replay-subtitle"

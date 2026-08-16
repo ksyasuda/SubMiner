@@ -14,6 +14,7 @@ test('handle mpv command handler forwards command and built deps', () => {
     openTsukihime: () => {},
     openYoutubeTrackPicker: () => {},
     openPlaylistBrowser: () => {},
+    openAnimeBrowser: () => {},
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: () => {},
     replayCurrentSubtitle: () => {},

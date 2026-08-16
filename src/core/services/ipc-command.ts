@@ -20,6 +20,7 @@ export interface HandleMpvCommandFromIpcOptions {
     PLAY_NEXT_SUBTITLE: string;
     YOUTUBE_PICKER_OPEN: string;
     PLAYLIST_BROWSER_OPEN: string;
+    ANIME_BROWSER_OPEN: string;
   };
   triggerSubsyncFromConfig: () => void;
   openRuntimeOptionsPalette: () => void;
@@ -27,6 +28,7 @@ export interface HandleMpvCommandFromIpcOptions {
   openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
+  openAnimeBrowser: () => void | Promise<void>;
   runtimeOptionsCycle: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   showRawMpvOsd?: (text: string) => void;
@@ -137,6 +139,16 @@ export function handleMpvCommandFromIpc(
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         options.showMpvOsd(`Playlist browser failed: ${message}`);
+      });
+    return;
+  }
+
+  if (first === options.specialCommands.ANIME_BROWSER_OPEN) {
+    Promise.resolve()
+      .then(() => options.openAnimeBrowser())
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        options.showMpvOsd(`Anime Browser failed: ${message}`);
       });
     return;
   }

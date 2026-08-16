@@ -144,6 +144,10 @@ export type RendererDom = {
   playlistBrowserDirectoryList: HTMLUListElement;
   playlistBrowserPlaylistList: HTMLUListElement;
   playlistBrowserClose: HTMLButtonElement;
+
+  animeBrowserModal: HTMLDivElement;
+  animeBrowserClose: HTMLButtonElement;
+  animeBrowserFrame: HTMLIFrameElement;
 };
 
 function getRequiredElement<T extends HTMLElement>(id: string): T {
@@ -326,5 +330,9 @@ export function resolveRendererDom(): RendererDom {
       'playlistBrowserPlaylistList',
     ),
     playlistBrowserClose: getRequiredElement<HTMLButtonElement>('playlistBrowserClose'),
+
+    animeBrowserModal: getRequiredElement<HTMLDivElement>('animeBrowserModal'),
+    animeBrowserClose: getRequiredElement<HTMLButtonElement>('animeBrowserClose'),
+    animeBrowserFrame: getRequiredElement<HTMLIFrameElement>('animeBrowserFrame'),
   };
 }

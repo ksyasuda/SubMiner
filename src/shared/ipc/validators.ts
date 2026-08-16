@@ -46,6 +46,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openTsukihime',
   'openYoutubePicker',
   'openPlaylistBrowser',
+  'openAnimeBrowser',
   'replayCurrentSubtitle',
   'playNextSubtitle',
   'cycleRuntimeOption',

@@ -520,6 +520,25 @@
           </div>
         </div>
       </div>
+      <div id="animeBrowserModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content anime-browser-modal-content">
+          <div class="modal-header anime-browser-modal-header">
+            <div>
+              <div class="modal-title">Anime Browser</div>
+              <div class="anime-browser-modal-kicker">Playing inside mpv</div>
+            </div>
+            <button id="animeBrowserClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body anime-browser-modal-body">
+            <iframe
+              id="animeBrowserFrame"
+              class="anime-browser-frame"
+              title="Anime Browser"
+              data-src="../animeui/index.html?embedded=overlay-modal"
+            ></iframe>
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="renderer.js"></script>
   </body>

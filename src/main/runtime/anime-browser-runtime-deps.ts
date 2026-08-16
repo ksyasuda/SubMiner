@@ -64,7 +64,7 @@ export interface AnimeBrowserRuntimeDeps {
   /** Pushes the play queue to the browser window, advances included. */
   onQueueState?: (state: AnimeBrowserQueueState) => void;
   /** Streams per-source progress while a search invoke is pending. */
-  onSearchUpdate?: (update: AnimeBrowserSearchUpdate) => void;
+  onSearchUpdate?: (update: AnimeBrowserSearchUpdate, sessionId: string) => void;
   preferredQuality?: () => string | undefined;
   log: (message: string) => void;
   /** Overrides process startup in focused runtime tests. */

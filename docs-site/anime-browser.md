@@ -7,6 +7,17 @@ Open it with `subminer anime`, with `SubMiner.AppImage --anime`, or from
 **Browse Anime** in the tray menu. The window stays open while you watch, so you
 can queue the next episode without reopening it.
 
+During playback, `Ctrl+Alt+A` opens the same browser as a modal inside the mpv
+player bounds. It uses a dedicated modal surface, so it stays above fullscreen
+playback and closes like the other in-player tools. The standalone window and
+the modal keep their own search, selected source, tab, and scroll state, so using
+one does not replace or cancel what you were doing in the other.
+
+Both surfaces use the same playback queue, source configuration, and stats
+history. Queue changes appear in both immediately, and watched marks come from
+the same history that playback and the stats window update. Closing and reopening
+the modal therefore picks up progress made from either browser surface.
+
 While the window is open, SubMiner shows a tray icon and — on macOS — appears
 in the Cmd+Tab switcher and the Dock (macOS ties the two together), so you can
 flip between the browser and mpv. SubMiner normally hides itself from the Dock

@@ -15,6 +15,7 @@ export const OVERLAY_HOSTED_MODALS = [
   'session-help',
   'character-dictionary',
   'changelog',
+  'anime-browser',
 ] as const;
 export type OverlayHostedModal = (typeof OVERLAY_HOSTED_MODALS)[number];
 
@@ -172,6 +173,7 @@ export const IPC_CHANNELS = {
     lookupWindowToggleRequested: 'lookup-window-toggle:requested',
     sessionHelpOpen: 'session-help:open',
     changelogOpen: 'changelog:open',
+    animeBrowserOpen: 'anime-browser:open',
     characterDictionaryManagerOpen: 'character-dictionary:manager-open',
     controllerSelectOpen: 'controller-select:open',
     controllerDebugOpen: 'controller-debug:open',

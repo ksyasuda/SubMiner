@@ -22,13 +22,25 @@ import type {
   AnimeBrowserSource,
 } from '../types/anime-browser';
 
-declare global {
-  interface Window {
-    animeBrowserAPI: AnimeBrowserAPI;
+const embeddedInOverlay =
+  new URLSearchParams(window.location.search).get('embedded') === 'overlay-modal';
+if (embeddedInOverlay) document.documentElement.dataset.embedded = 'overlay-modal';
+
+function resolveAnimeBrowserAPI(): AnimeBrowserAPI {
+  const local = (window as Window & { animeBrowserAPI?: AnimeBrowserAPI }).animeBrowserAPI;
+  if (local) return local;
+  try {
+    const parent = (window.parent as Window & { animeBrowserAPI?: AnimeBrowserAPI })
+      .animeBrowserAPI;
+    if (parent) return parent;
+  } catch {
+    // The embedded document is expected to be same-origin. Fall through to a
+    // direct error if Chromium blocks that relationship unexpectedly.
   }
+  throw new Error('Anime Browser API is unavailable.');
 }
 
-const api = window.animeBrowserAPI;
+const api = resolveAnimeBrowserAPI();
 
 const searchForm = el<HTMLFormElement>('search-form');
 const searchInput = el<HTMLInputElement>('search-input');
@@ -81,6 +93,14 @@ function setStatus(message: string, tone: 'info' | 'ok' | 'error' = 'info'): voi
 }
 
 const detailPanel = createDetailPanel({ api, setStatus });
+
+if (embeddedInOverlay) {
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || detailPanel.isOpen()) return;
+    event.preventDefault();
+    window.parent.postMessage('subminer:anime-browser-close', '*');
+  });
+}
 
 const BRIDGE_LABELS: Record<AnimeBrowserBridgeState['stage'], string> = {
   idle: 'Starting the extension bridge',

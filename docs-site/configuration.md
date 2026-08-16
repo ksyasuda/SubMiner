@@ -593,6 +593,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `KeyJ`                  | `["cycle", "sid"]`            | Cycle primary subtitle track            |
 | `Shift+KeyJ`            | `["cycle", "secondary-sid"]`  | Cycle secondary subtitle track          |
 | `Ctrl+Alt+KeyP`         | `["__playlist-browser-open"]` | Open playlist browser                   |
+| `Ctrl+Alt+KeyA`         | `["__anime-browser-open"]`    | Open Anime Browser in the player        |
 | `Ctrl+Alt+KeyC`         | `["__youtube-picker-open"]`   | Open the manual YouTube subtitle picker |
 | `ArrowRight`            | `["seek", 5]`                 | Seek forward 5 seconds                  |
 | `ArrowLeft`             | `["seek", -5]`                | Seek backward 5 seconds                 |
@@ -634,7 +635,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 { "key": "Space", "command": null }
 ```
 
-**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__playlist-browser-open` opens the split-pane playlist browser for the current file's parent directory and the live mpv queue. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
+**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__playlist-browser-open` opens the split-pane playlist browser for the current file's parent directory and the live mpv queue. `__anime-browser-open` opens the Anime Browser inside the player bounds. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 

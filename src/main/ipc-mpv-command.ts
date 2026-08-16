@@ -16,6 +16,7 @@ export interface MpvCommandFromIpcRuntimeDeps {
   openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => void | Promise<void>;
+  openAnimeBrowser: () => void | Promise<void>;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
   showMpvOsd: (text: string) => void;
   showRawMpvOsd?: (text: string) => void;
@@ -42,6 +43,7 @@ export function handleMpvCommandFromIpcRuntime(
       openTsukihime: deps.openTsukihime,
       openYoutubeTrackPicker: deps.openYoutubeTrackPicker,
       openPlaylistBrowser: deps.openPlaylistBrowser,
+      openAnimeBrowser: deps.openAnimeBrowser,
       runtimeOptionsCycle: deps.cycleRuntimeOption,
       showMpvOsd: deps.showMpvOsd,
       showRawMpvOsd: deps.showRawMpvOsd,

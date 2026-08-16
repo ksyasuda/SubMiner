@@ -12,6 +12,17 @@ export interface AnimeBrowserIpcDeps {
     handle(channel: string, listener: (event: unknown, ...args: unknown[]) => unknown): unknown;
   };
   runtime: AnimeBrowserRuntime;
+  registerSession?: (sessionId: string, sender: AnimeBrowserIpcSender) => void;
+}
+
+export interface AnimeBrowserIpcSender {
+  send(channel: string, ...args: unknown[]): void;
+  isDestroyed(): boolean;
+  once(event: 'destroyed', listener: () => void): unknown;
+}
+
+interface AnimeBrowserIpcEvent {
+  sender: AnimeBrowserIpcSender;
 }
 
 /**
@@ -28,20 +39,36 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
     deps.ipcMain.handle(channel, listener);
   };
 
-  handle(channels.animeBrowserGetSnapshot, () => runtime.getSnapshot());
-  handle(channels.animeBrowserEnsureBridge, () => runtime.ensureBridge());
-  handle(channels.animeBrowserSelectSource, (_event, sourceId) =>
-    runtime.selectSource(String(sourceId)),
+  handle(channels.animeBrowserGetSnapshot, (event, sessionId) => {
+    const session = registerSession(deps, event, sessionId);
+    return runtime.getSnapshot(session);
+  });
+  handle(channels.animeBrowserEnsureBridge, (event, sessionId) => {
+    registerSession(deps, event, sessionId);
+    return runtime.ensureBridge();
+  });
+  handle(channels.animeBrowserSelectSource, (event, sessionId, sourceId) =>
+    runtime.selectSource(String(sourceId), registerSession(deps, event, sessionId)),
   );
-  handle(channels.animeBrowserSearch, (_event, query, page) =>
-    runtime.search(String(query ?? ''), toPage(page)),
+  handle(channels.animeBrowserSearch, (event, sessionId, query, page) =>
+    runtime.search(String(query ?? ''), toPage(page), registerSession(deps, event, sessionId)),
   );
-  handle(channels.animeBrowserGetPopular, (_event, page) => runtime.getPopular(toPage(page)));
-  handle(channels.animeBrowserGetDetails, (_event, animeUrl, sourceId) =>
-    runtime.getDetails(String(animeUrl), toOptionalId(sourceId)),
+  handle(channels.animeBrowserGetPopular, (event, sessionId, page) =>
+    runtime.getPopular(toPage(page), registerSession(deps, event, sessionId)),
   );
-  handle(channels.animeBrowserGetEpisodes, (_event, animeUrl, sourceId) =>
-    runtime.getEpisodes(String(animeUrl), toOptionalId(sourceId)),
+  handle(channels.animeBrowserGetDetails, (event, sessionId, animeUrl, sourceId) =>
+    runtime.getDetails(
+      String(animeUrl),
+      toOptionalId(sourceId),
+      registerSession(deps, event, sessionId),
+    ),
+  );
+  handle(channels.animeBrowserGetEpisodes, (event, sessionId, animeUrl, sourceId) =>
+    runtime.getEpisodes(
+      String(animeUrl),
+      toOptionalId(sourceId),
+      registerSession(deps, event, sessionId),
+    ),
   );
   handle(channels.animeBrowserGetWatchState, (_event, request) =>
     runtime.getWatchState(toWatchStateRequest(request)),
@@ -77,6 +104,13 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserSetPreference, (_event, sourceId, key, value) =>
     runtime.setPreference(String(sourceId), String(key), value as string | string[] | boolean),
   );
+}
+
+function registerSession(deps: AnimeBrowserIpcDeps, event: unknown, sessionId: unknown): string {
+  const normalized = typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : 'default';
+  const sender = (event as AnimeBrowserIpcEvent | undefined)?.sender;
+  if (sender) deps.registerSession?.(normalized, sender);
+  return normalized;
 }
 
 /** Coerce a play (or queue) request at the renderer trust boundary. */

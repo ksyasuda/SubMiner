@@ -21,6 +21,10 @@ test('build:syncui bundles the sandboxed preload and keeps Electron external', (
 
 test('build:animeui bundles the sandboxed preload and keeps Electron external', () => {
   const command = buildScript('build:animeui');
+  const sharedPreloadSource = fs.readFileSync(
+    path.join(import.meta.dir, '..', 'src', 'preload-anime-browser-api.ts'),
+    'utf8',
+  );
 
   // The preload imports IPC_CHANNELS, so it must be bundled rather than
   // emitted by plain tsc with a relative runtime require.
@@ -28,6 +32,9 @@ test('build:animeui bundles the sandboxed preload and keeps Electron external', 
   assert.match(command, /--bundle/);
   assert.match(command, /--external:electron/);
   assert.match(command, /--outfile=dist\/preload-animeui\.js/);
+  // The standalone Anime window uses Electron's sandboxed preload runtime,
+  // which exposes `electron` but cannot require arbitrary Node built-ins.
+  assert.doesNotMatch(sharedPreloadSource, /from ['"]node:/);
 });
 
 test('build:animeui runs as part of the top-level build', () => {

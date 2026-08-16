@@ -4,6 +4,8 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { BridgePreference } from '../../anime-bridge/types';
+import type { BridgeAnimePage } from '../../anime-bridge/types';
+import type { AnimeBrowserSearchUpdate } from '../../types/anime-browser';
 import { createAnimeBrowserRuntime } from './anime-browser-runtime';
 import type { AnimeBridgeClient } from '../../anime-bridge/bridge-client';
 
@@ -15,6 +17,7 @@ async function setupRuntime(
   client: Record<string, unknown>,
   packages: Record<string, string>,
   storedPreferences?: Record<string, BridgePreference[]>,
+  onSearchUpdate?: (update: AnimeBrowserSearchUpdate, sessionId: string) => void,
 ) {
   const dir = await mkdtemp(path.join(tmpdir(), 'subminer-anime-runtime-'));
   for (const [pkg, contents] of Object.entries(packages)) {
@@ -31,6 +34,7 @@ async function setupRuntime(
     sendMpvCommand: () => undefined,
     ensureMpvConnected: async () => true,
     onBridgeState: () => undefined,
+    onSearchUpdate,
     log: () => undefined,
     startSidecar: async () => ({
       client: client as unknown as AnimeBridgeClient,
@@ -134,5 +138,74 @@ test('colliding bridge ids keep package preferences isolated and uninstall clear
   const persisted = JSON.parse(await readFile(preferencesFile, 'utf8')) as Record<string, unknown>;
   assert.equal(persisted['pkg.one:shared'], undefined);
   assert.deepEqual(persisted['pkg.two:shared'], [two]);
+  await runtime.dispose();
+});
+
+test('standalone and modal browser sessions keep source selection and searches isolated', async () => {
+  const client = {
+    listAnimeSources: async () => [{ id: 'shared', name: 'Source', lang: 'en' }],
+    searchAnime: async (source: { fingerprint: string }, query: string) => ({
+      animes: [{ url: `${source.fingerprint}/${query}`, title: source.fingerprint }],
+      hasNextPage: false,
+    }),
+  };
+  const { runtime } = await setupRuntime(client, { 'pkg.one': 'one', 'pkg.two': 'two' });
+  const sourceIds = runtime.getSnapshot('standalone').sources.map((source) => source.id);
+  runtime.selectSource(sourceIds[0]!, 'standalone');
+  runtime.selectSource(sourceIds[1]!, 'modal');
+
+  const [standalone, modal] = await Promise.all([
+    runtime.search('one', 1, 'standalone'),
+    runtime.search('two', 1, 'modal'),
+  ]);
+
+  assert.equal(runtime.getSnapshot('standalone').selectedSourceId, sourceIds[0]);
+  assert.equal(runtime.getSnapshot('modal').selectedSourceId, sourceIds[1]);
+  assert.equal(standalone.entries[0]?.sourceId, sourceIds[0]);
+  assert.equal(modal.entries[0]?.sourceId, sourceIds[1]);
+  await runtime.dispose();
+});
+
+test('releasing a browser session suppresses its pending search updates', async () => {
+  let resolveOldSearch: (page: BridgeAnimePage) => void = () => undefined;
+  let notifyOldSearchStarted: () => void = () => undefined;
+  const oldSearchStarted = new Promise<void>((resolve) => {
+    notifyOldSearchStarted = resolve;
+  });
+  const updates: Array<{ sessionId: string; update: AnimeBrowserSearchUpdate }> = [];
+  const client = {
+    listAnimeSources: async () => [{ id: 'shared', name: 'Source', lang: 'en' }],
+    searchAnime: async (_source: unknown, query: string): Promise<BridgeAnimePage> => {
+      if (query !== 'old') {
+        return { animes: [{ url: `/${query}`, title: query }], hasNextPage: false };
+      }
+      notifyOldSearchStarted();
+      return await new Promise<BridgeAnimePage>((resolve) => {
+        resolveOldSearch = resolve;
+      });
+    },
+  };
+  const { runtime } = await setupRuntime(
+    client,
+    { 'pkg.one': 'one' },
+    undefined,
+    (update, sessionId) => {
+      updates.push({ sessionId, update });
+    },
+  );
+
+  const oldSearch = runtime.search('old', 1, 'reused');
+  await oldSearchStarted;
+  runtime.releaseSession('reused');
+  await runtime.search('new', 1, 'reused');
+  resolveOldSearch({ animes: [{ url: '/old', title: 'old' }], hasNextPage: false });
+  await oldSearch;
+
+  const resultUrls = updates.flatMap(({ sessionId, update }) =>
+    sessionId === 'reused' && update.kind === 'result'
+      ? update.entries.map((entry) => entry.url)
+      : [],
+  );
+  assert.deepEqual(resultUrls, ['/new']);
   await runtime.dispose();
 });
