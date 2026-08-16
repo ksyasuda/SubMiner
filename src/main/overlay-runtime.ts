@@ -87,6 +87,7 @@ export function createOverlayModalRuntimeService(
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
   const platform = options.platform ?? process.platform;
+  const keepModalWindowWarm = platform === 'darwin' || platform === 'win32';
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -180,7 +181,7 @@ export function createOverlayModalRuntimeService(
   };
 
   const primeModalWindow = (): boolean => {
-    if (platform !== 'darwin') {
+    if (!keepModalWindowWarm) {
       return false;
     }
     const modalWindow = resolveModalWindow();
@@ -514,7 +515,7 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        if (platform === 'darwin') {
+        if (keepModalWindowWarm) {
           modalWindow.setIgnoreMouseEvents(true, { forward: true });
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);

@@ -283,52 +283,54 @@ test('sendToActiveOverlayWindow creates modal window lazily when absent', () => 
   assert.deepEqual(window.sent, [['jimaku:open']]);
 });
 
-test('primeModalWindow creates and warms a hidden modal before the first open', () => {
-  const modalWindow = createMockWindow();
-  modalWindow.loading = true;
-  modalWindow.url = '';
-  modalWindow.contentReady = false;
-  modalWindow.documentLoaded = false;
-  let currentModal: ReturnType<typeof createMockWindow> | null = null;
-  let createCalls = 0;
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => currentModal as never,
-      createModalWindow: () => {
-        createCalls += 1;
-        currentModal = modalWindow;
-        return modalWindow as never;
+for (const platform of ['darwin', 'win32'] as const) {
+  test(`primeModalWindow creates and warms a hidden modal on ${platform}`, () => {
+    const modalWindow = createMockWindow();
+    modalWindow.loading = true;
+    modalWindow.url = '';
+    modalWindow.contentReady = false;
+    modalWindow.documentLoaded = false;
+    let currentModal: ReturnType<typeof createMockWindow> | null = null;
+    let createCalls = 0;
+    const runtime = createOverlayModalRuntimeService(
+      {
+        getMainWindow: () => null,
+        getModalWindow: () => currentModal as never,
+        createModalWindow: () => {
+          createCalls += 1;
+          currentModal = modalWindow;
+          return modalWindow as never;
+        },
+        getModalGeometry: () => ({ x: 1, y: 2, width: 300, height: 200 }),
+        setModalWindowBounds: () => {},
       },
-      getModalGeometry: () => ({ x: 1, y: 2, width: 300, height: 200 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'darwin' },
-  );
+      { platform },
+    );
 
-  assert.equal(runtime.primeModalWindow(), true);
-  assert.equal(createCalls, 1);
-  assert.equal(modalWindow.isVisible(), false);
+    assert.equal(runtime.primeModalWindow(), true);
+    assert.equal(createCalls, 1);
+    assert.equal(modalWindow.isVisible(), false);
 
-  modalWindow.loading = false;
-  modalWindow.url = 'file:///overlay/index.html?layer=modal';
-  modalWindow.emitDidFinishLoad();
-  modalWindow.emitReadyToShow();
-  modalWindow.contentReady = true;
+    modalWindow.loading = false;
+    modalWindow.url = 'file:///overlay/index.html?layer=modal';
+    modalWindow.emitDidFinishLoad();
+    modalWindow.emitReadyToShow();
+    modalWindow.contentReady = true;
 
-  assert.equal(
-    runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
-      restoreOnModalClose: 'session-help',
-      preferModalWindow: true,
-    }),
-    true,
-  );
-  assert.equal(createCalls, 1);
-  assert.equal(modalWindow.isVisible(), true);
-  assert.deepEqual(modalWindow.sent, [['session-help:open']]);
-});
+    assert.equal(
+      runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
+        restoreOnModalClose: 'session-help',
+        preferModalWindow: true,
+      }),
+      true,
+    );
+    assert.equal(createCalls, 1);
+    assert.equal(modalWindow.isVisible(), true);
+    assert.deepEqual(modalWindow.sent, [['session-help:open']]);
+  });
+}
 
-test('primeModalWindow leaves non-macOS modal creation lazy', () => {
+test('primeModalWindow leaves Linux modal creation lazy', () => {
   let createCalls = 0;
   const runtime = createOverlayModalRuntimeService(
     {
@@ -1008,42 +1010,44 @@ test('sendToActiveOverlayWindow flushes every queued load and ready listener bef
   assert.deepEqual(window.sent, [['runtime-options:open'], ['session-help:open']]);
 });
 
-test('modal reopen reuses the warm window and shows it immediately', () => {
-  const modalWindow = createMockWindow();
-  let createCalls = 0;
+for (const platform of ['darwin', 'win32'] as const) {
+  test(`modal reopen reuses the warm window and shows it immediately on ${platform}`, () => {
+    const modalWindow = createMockWindow();
+    let createCalls = 0;
 
-  const runtime = createOverlayModalRuntimeService(
-    {
-      getMainWindow: () => null,
-      getModalWindow: () => modalWindow as never,
-      createModalWindow: () => {
-        createCalls += 1;
-        return modalWindow as never;
+    const runtime = createOverlayModalRuntimeService(
+      {
+        getMainWindow: () => null,
+        getModalWindow: () => modalWindow as never,
+        createModalWindow: () => {
+          createCalls += 1;
+          return modalWindow as never;
+        },
+        getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+        setModalWindowBounds: () => {},
       },
-      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-      setModalWindowBounds: () => {},
-    },
-    { platform: 'darwin' },
-  );
+      { platform },
+    );
 
-  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
+    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
+    });
+    runtime.notifyOverlayModalOpened('runtime-options');
+    runtime.handleOverlayModalClosed('runtime-options');
+
+    assert.equal(modalWindow.isDestroyed(), false);
+    assert.equal(modalWindow.isVisible(), false);
+
+    const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+      restoreOnModalClose: 'runtime-options',
+    });
+
+    assert.equal(sent, true);
+    assert.equal(createCalls, 0);
+    assert.equal(modalWindow.isVisible(), true);
+    assert.equal(modalWindow.getShowCount(), 2);
   });
-  runtime.notifyOverlayModalOpened('runtime-options');
-  runtime.handleOverlayModalClosed('runtime-options');
-
-  assert.equal(modalWindow.isDestroyed(), false);
-  assert.equal(modalWindow.isVisible(), false);
-
-  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-    restoreOnModalClose: 'runtime-options',
-  });
-
-  assert.equal(sent, true);
-  assert.equal(createCalls, 0);
-  assert.equal(modalWindow.isVisible(), true);
-  assert.equal(modalWindow.getShowCount(), 2);
-});
+}
 
 test('modal reopen on the warm window notifies state change for each lifecycle', () => {
   const modalWindow = createMockWindow();
