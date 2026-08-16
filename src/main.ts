@@ -331,6 +331,7 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { applyOverlayClickThrough } from './core/services/overlay-click-through';
 import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
@@ -5469,7 +5470,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           senderWindow === modalWindow &&
           !senderWindow.isDestroyed()
         ) {
-          senderWindow.setIgnoreMouseEvents(true, { forward: true });
+          applyOverlayClickThrough(senderWindow);
           senderWindow.hide();
         }
         handleOverlayModalClosedHandler(modal);

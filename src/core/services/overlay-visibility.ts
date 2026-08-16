@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron';
 import { BaseWindowTracker } from '../../window-trackers';
 import { WindowGeometry } from '../../types';
+import { applyOverlayClickThrough } from './overlay-click-through';
 import { OVERLAY_WINDOW_CONTENT_READY_FLAG } from './overlay-window-flags';
 
 const WINDOWS_OVERLAY_REVEAL_DELAY_MS = 48;
@@ -117,7 +118,7 @@ export function updateVisibleOverlayVisibility(args: {
       clearPendingWindowsOverlayReveal(mainWindow);
       setOverlayWindowOpacity(mainWindow, 0);
     }
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    applyOverlayClickThrough(mainWindow, args.isWindowsPlatform);
     releaseOverlayWindowLevel(mainWindow);
     mainWindow.hide();
     args.syncOverlayShortcuts();
@@ -215,7 +216,7 @@ export function updateVisibleOverlayVisibility(args: {
       shouldPreserveWindowsOverlayDuringFocusHandoff ||
       (hasWindowsForegroundProcessSignal && windowsForegroundProcessName === 'mpv');
     if (shouldIgnoreMouseEvents) {
-      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(mainWindow, args.isWindowsPlatform);
     } else {
       mainWindow.setIgnoreMouseEvents(false);
     }
@@ -263,7 +264,7 @@ export function updateVisibleOverlayVisibility(args: {
         if (hasNonNativeInputRegion) {
           mainWindow.setIgnoreMouseEvents(false);
         } else {
-          mainWindow.setIgnoreMouseEvents(true, { forward: true });
+          applyOverlayClickThrough(mainWindow, args.isWindowsPlatform);
         }
         if (args.isWindowsPlatform) {
           scheduleWindowsOverlayReveal(
@@ -424,7 +425,7 @@ export function updateVisibleOverlayVisibility(args: {
       return;
     }
     args.setTrackerNotReadyWarningShown(false);
-    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+    applyOverlayClickThrough(mainWindow, args.isWindowsPlatform);
     releaseOverlayWindowLevel(mainWindow);
     mainWindow.hide();
     args.syncOverlayShortcuts();

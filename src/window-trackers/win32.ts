@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import koffi from 'koffi';
 import { matchesMpvSocketPathInCommandLine } from './mpv-socket-match';
 
@@ -173,43 +173,86 @@ function getProcessNameByPid(pid: number): string | null {
   }
 }
 
-const processCommandLineCache = new Map<number, string>();
+// Short-lived cache so the 250ms poll doesn't re-query every top-level window's process
+// on each pass. The TTL bounds staleness from PID reuse.
+const PROCESS_NAME_CACHE_TTL_MS = 5_000;
+const PROCESS_NAME_CACHE_PRUNE_THRESHOLD = 512;
+const processNameCache = new Map<number, { name: string | null; expiresAtMs: number }>();
 
+function getCachedProcessNameByPid(pid: number): string | null {
+  const nowMs = Date.now();
+  const cached = processNameCache.get(pid);
+  if (cached && cached.expiresAtMs > nowMs) {
+    return cached.name;
+  }
+  const name = getProcessNameByPid(pid);
+  processNameCache.set(pid, { name, expiresAtMs: nowMs + PROCESS_NAME_CACHE_TTL_MS });
+  return name;
+}
+
+function pruneExpiredProcessNames(nowMs: number): void {
+  if (processNameCache.size <= PROCESS_NAME_CACHE_PRUNE_THRESHOLD) return;
+  for (const [pid, entry] of processNameCache) {
+    if (entry.expiresAtMs <= nowMs) {
+      processNameCache.delete(pid);
+    }
+  }
+}
+
+type ProcessCommandLineCacheEntry =
+  | { state: 'resolved'; commandLine: string }
+  | { state: 'pending' }
+  | { state: 'failed'; retryAtMs: number; backoffMs: number };
+
+const COMMAND_LINE_RETRY_INITIAL_BACKOFF_MS = 2_000;
+const COMMAND_LINE_RETRY_MAX_BACKOFF_MS = 30_000;
+const processCommandLineCache = new Map<number, ProcessCommandLineCacheEntry>();
+
+// Resolves a process command line via a background PowerShell lookup. Returns null until the
+// lookup completes; the caller's next poll picks up the cached result. Failures are
+// negative-cached with exponential backoff: the synchronous version of this lookup could
+// block the main thread for its full 1.5s timeout on every 250ms poll, which (combined with
+// the forward:true mouse hook) stalled mouse input system-wide.
 function getProcessCommandLineByPid(pid: number): string | null {
-  if (processCommandLineCache.has(pid)) {
-    return processCommandLineCache.get(pid) ?? null;
-  }
+  const entry = processCommandLineCache.get(pid);
+  if (entry?.state === 'resolved') return entry.commandLine;
+  if (entry?.state === 'pending') return null;
+  if (entry?.state === 'failed' && Date.now() < entry.retryAtMs) return null;
 
-  let commandLine: string | null = null;
-  try {
-    const output = execFileSync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        `$process = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; if ($process -and $process.CommandLine) { [Console]::Out.Write($process.CommandLine) }`,
-      ],
-      {
-        encoding: 'utf8',
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'ignore'],
-        timeout: 1500,
-      },
-    ).trim();
-    commandLine = output.length > 0 ? output : null;
-  } catch {
-    commandLine = null;
-  }
-
-  if (commandLine !== null) {
-    processCommandLineCache.set(pid, commandLine);
-  } else {
-    processCommandLineCache.delete(pid);
-  }
-  return commandLine;
+  const nextBackoffMs =
+    entry?.state === 'failed'
+      ? Math.min(entry.backoffMs * 2, COMMAND_LINE_RETRY_MAX_BACKOFF_MS)
+      : COMMAND_LINE_RETRY_INITIAL_BACKOFF_MS;
+  processCommandLineCache.set(pid, { state: 'pending' });
+  execFile(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      `$process = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"; if ($process -and $process.CommandLine) { [Console]::Out.Write($process.CommandLine) }`,
+    ],
+    {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 1500,
+    },
+    (error, stdout) => {
+      const output = error ? '' : stdout.trim();
+      if (output.length > 0) {
+        processCommandLineCache.set(pid, { state: 'resolved', commandLine: output });
+      } else {
+        processCommandLineCache.set(pid, {
+          state: 'failed',
+          retryAtMs: Date.now() + nextBackoffMs,
+          backoffMs: nextBackoffMs,
+        });
+      }
+    },
+  );
+  return null;
 }
 
 export function findMpvWindows(targetSocketPath?: string | null): MpvPollResult {
@@ -217,8 +260,7 @@ export function findMpvWindows(targetSocketPath?: string | null): MpvPollResult 
   const matches: MpvWindowMatch[] = [];
   let hasMinimized = false;
   let hasFocused = false;
-  const processNameCache = new Map<number, string | null>();
-  const processCommandLineLookupCache = new Map<number, string | null>();
+  pruneExpiredProcessNames(Date.now());
 
   const cb = koffi.register((hwnd: number, _lParam: number) => {
     if (!IsWindowVisible(hwnd)) return true;
@@ -228,21 +270,12 @@ export function findMpvWindows(targetSocketPath?: string | null): MpvPollResult 
     const pidValue = pid[0]!;
     if (pidValue === 0) return true;
 
-    let processName = processNameCache.get(pidValue);
-    if (processName === undefined) {
-      processName = getProcessNameByPid(pidValue);
-      processNameCache.set(pidValue, processName);
-    }
-
+    const processName = getCachedProcessNameByPid(pidValue);
     if (!processName || processName.toLowerCase() !== 'mpv') return true;
 
     let commandLine: string | null = null;
     if (targetSocketPath) {
-      commandLine = processCommandLineLookupCache.get(pidValue) ?? null;
-      if (!processCommandLineLookupCache.has(pidValue)) {
-        commandLine = getProcessCommandLineByPid(pidValue);
-        processCommandLineLookupCache.set(pidValue, commandLine);
-      }
+      commandLine = getProcessCommandLineByPid(pidValue);
       if (!commandLine || !matchesMpvSocketPathInCommandLine(commandLine, targetSocketPath)) {
         return true;
       }

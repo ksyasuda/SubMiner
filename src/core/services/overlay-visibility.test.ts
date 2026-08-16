@@ -848,7 +848,7 @@ test('Windows visible overlay stays click-through and binds to mpv while tracked
   } as never);
 
   assert.ok(calls.includes('opacity:0'));
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('show-inactive'));
   assert.ok(calls.includes('sync-windows-z-order'));
   assert.ok(!calls.includes('move-top'));
@@ -1060,7 +1060,7 @@ test('tracked Windows overlay refresh rebinds while already visible', () => {
     isWindowsPlatform: true,
   } as never);
 
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('sync-windows-z-order'));
   assert.ok(!calls.includes('move-top'));
   assert.ok(!calls.includes('show'));
@@ -1134,7 +1134,7 @@ test('forced passthrough still reapplies while visible on Windows', () => {
     forceMousePassthrough: true,
   } as never);
 
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(!calls.includes('always-on-top:false'));
   assert.ok(!calls.includes('move-top'));
   assert.ok(calls.includes('sync-windows-z-order'));
@@ -1339,7 +1339,7 @@ test('tracked Windows overlay rebinds without hiding when tracker focus changes'
 
   assert.ok(!calls.includes('always-on-top:false'));
   assert.ok(!calls.includes('move-top'));
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('sync-windows-z-order'));
   assert.ok(!calls.includes('ensure-level'));
   assert.ok(!calls.includes('enforce-order'));
@@ -1489,7 +1489,7 @@ test('tracked Windows overlay reshows click-through even if focus state is stale
     isWindowsPlatform: true,
   } as never);
 
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('show-inactive'));
   assert.ok(!calls.includes('show'));
 });
@@ -1532,7 +1532,7 @@ test('tracked Windows overlay binds above mpv even when tracker focus lags', () 
 
   assert.ok(!calls.includes('always-on-top:false'));
   assert.ok(!calls.includes('move-top'));
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('sync-windows-z-order'));
   assert.ok(!calls.includes('ensure-level'));
 });
@@ -2193,7 +2193,7 @@ test('Windows preserves visible overlay and rebinds to mpv while tracker transie
   assert.ok(!calls.includes('show'));
   assert.ok(!calls.includes('always-on-top:false'));
   assert.ok(!calls.includes('move-top'));
-  assert.ok(calls.includes('mouse-ignore:true:forward'));
+  assert.ok(calls.includes('mouse-ignore:true:plain'));
   assert.ok(calls.includes('sync-windows-z-order'));
   assert.ok(!calls.includes('ensure-level'));
   assert.ok(calls.includes('sync-shortcuts'));

@@ -129,7 +129,11 @@ coming and prefetching would otherwise idle for the rest of the cue.
   path, empty or stale bounding shapes produced invisible or clipped subtitles even though the
   overlay window remained mapped above mpv.
 - Pointer pass-through should continue to use `setIgnoreMouseEvents(true, { forward: true })` and
-  the Linux cursor-poll fallback, not bounding-shape clipping.
+  the Linux cursor-poll fallback, not bounding-shape clipping. Note that on Windows click-through
+  must go through `applyOverlayClickThrough()` (`src/core/services/overlay-click-through.ts`),
+  which omits `forward: true` there: Electron implements forwarding with a global low-level mouse
+  hook that lags mouse input system-wide whenever the main thread stalls; the Windows cursor poll
+  handles overlay wake-up instead.
 - Visible-overlay show/reset marks Linux pointer passthrough state dirty even when the logical
   interaction state is already inactive. The next cursor-poll tick must still reapply
   `setIgnoreMouseEvents(true, { forward: true })`; otherwise a newly shown Electron overlay can keep

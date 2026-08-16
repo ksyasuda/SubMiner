@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
+import { applyOverlayClickThrough } from '../core/services/overlay-click-through';
 import {
   OVERLAY_WINDOW_CONTENT_READY_FLAG,
   OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG,
@@ -299,7 +300,7 @@ export function createOverlayModalRuntimeService(
     }
     elevateModalWindow(window);
     if (options.passThroughMouseEvents) {
-      window.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(window);
     } else {
       window.setIgnoreMouseEvents(false);
     }
@@ -360,7 +361,7 @@ export function createOverlayModalRuntimeService(
         mainWindowMousePassthroughForcedByModal = false;
         return;
       }
-      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(mainWindow);
       mainWindowMousePassthroughForcedByModal = true;
       return;
     }
@@ -517,7 +518,7 @@ export function createOverlayModalRuntimeService(
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
         if (reuseModalWindowAfterClose) {
-          modalWindow.setIgnoreMouseEvents(true, { forward: true });
+          applyOverlayClickThrough(modalWindow);
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
         } else {
