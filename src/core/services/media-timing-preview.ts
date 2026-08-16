@@ -290,6 +290,7 @@ export class MediaTimingPreviewSession {
         settled = true;
         clearAttemptTimeout();
         socket.off('connect', onConnect);
+        socket.on('error', () => {});
         socket.destroy();
         reject(error);
       };
@@ -301,6 +302,7 @@ export class MediaTimingPreviewSession {
         timeout = null;
         socket.off('connect', onConnect);
         socket.off('error', onError);
+        socket.on('error', () => {});
         socket.destroy();
         reject(new Error('Timed out connecting to the hidden mpv preview player'));
       }, timeoutMs);

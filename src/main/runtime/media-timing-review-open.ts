@@ -1,4 +1,4 @@
-import type { OverlayHostedModal } from '../../shared/ipc/contracts';
+import { IPC_CHANNELS, type OverlayHostedModal } from '../../shared/ipc/contracts';
 import type { MediaTimingReviewOpenPayload } from '../../types/anki';
 import { openOverlayHostedModal, retryOverlayModalOpen } from './overlay-hosted-modal-open';
 
@@ -30,7 +30,7 @@ export async function openMediaTimingReviewModal(
         'Media timing review did not acknowledge modal open; retrying the dedicated modal window.',
       sendOpen: () =>
         openOverlayHostedModal(deps, {
-          channel: 'media-timing-review:open',
+          channel: IPC_CHANNELS.event.mediaTimingReviewOpen,
           modal: MODAL,
           payload,
           preferModalWindow: true,

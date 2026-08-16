@@ -22,6 +22,23 @@ describe('buildMediaTimingPreviewArgs', () => {
     assert.equal(args.at(-2), '--');
     assert.equal(args.at(-1), '/video/show.mkv');
   });
+
+  test('separates an option-like media path without adding optional audio arguments', () => {
+    const args = buildMediaTimingPreviewArgs('/tmp/review.sock', {
+      mediaPath: '--fullscreen',
+    });
+
+    assert.equal(args.at(-2), '--');
+    assert.equal(args.at(-1), '--fullscreen');
+    assert.equal(
+      args.some((arg) => arg.startsWith('--aid=')),
+      false,
+    );
+    assert.equal(
+      args.some((arg) => arg.startsWith('--volume=')),
+      false,
+    );
+  });
 });
 
 test('preview session handles socket errors after connecting', async () => {
@@ -43,6 +60,31 @@ test('preview session handles socket errors after connecting', async () => {
   assert.doesNotThrow(() => socket.emit('error', new Error('pipe closed')));
   await assert.rejects(session.play(1, 2), /not ready/);
   session.dispose();
+});
+
+test('preview session keeps failed connection errors handled through destruction', async () => {
+  const socket = new EventEmitter() as EventEmitter & {
+    destroy: () => void;
+  };
+  socket.destroy = () => {
+    socket.emit('error', new Error('socket failed again while closing'));
+  };
+  const child = new EventEmitter() as EventEmitter & { kill: () => boolean };
+  child.kill = () => true;
+  const times = [0, 0, 0, 6_000];
+  const session = new MediaTimingPreviewSession({
+    platform: 'linux',
+    spawnProcess: () => child as never,
+    connectSocket: () => {
+      queueMicrotask(() => socket.emit('error', new Error('connection failed')));
+      return socket as never;
+    },
+    now: () => times.shift() ?? 6_000,
+    removeSocketFile: () => undefined,
+    createSocketPath: () => '/tmp/review.sock',
+  });
+
+  await assert.rejects(session.start({ mediaPath: '/video/show.mkv' }), /Timed out starting/);
 });
 
 test('preview session rejects a connection that finishes after disposal', async () => {
@@ -126,7 +168,12 @@ test('preview session bounds a connection attempt that never settles', async () 
     spawnProcess: () => child as never,
     connectSocket: () => {
       connectAttempts += 1;
-      return new net.Socket();
+      const socket = new net.Socket();
+      socket.destroy = (() => {
+        socket.emit('error', new Error('socket failed while timing out'));
+        return socket;
+      }) as typeof socket.destroy;
+      return socket;
     },
     now: () => {
       const current = nowMs;

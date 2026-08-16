@@ -12,6 +12,7 @@ import type {
 import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
 
 const INITIAL_TIMELINE_MARGIN_SECONDS = 2;
+const REVIEW_DECISION_TIMEOUT_MS = 5 * 60_000;
 
 interface ReviewMpvClient {
   connected: boolean;
@@ -49,6 +50,7 @@ export interface MediaTimingReviewRuntimeDeps {
   getMpvExecutablePath: () => string;
   createPreviewSession: () => PreviewSession;
   generateWaveform: (options: SpeechWaveformOptions) => Promise<number[]>;
+  decisionTimeoutMs?: number;
   openModal: (payload: MediaTimingReviewOpenPayload) => Promise<boolean>;
   showStatus: (message: string) => void;
 }
@@ -62,6 +64,21 @@ function booleanProperty(value: unknown): boolean | null {
   if (value === 'yes' || value === 1) return true;
   if (value === 'no' || value === 0) return false;
   return null;
+}
+
+function isValidMediaTimingRange(
+  payload: MediaTimingReviewOpenPayload,
+  startTime: number,
+  endTime: number,
+): boolean {
+  return (
+    Number.isFinite(startTime) &&
+    Number.isFinite(endTime) &&
+    startTime >= 0 &&
+    endTime > startTime &&
+    (payload.maxMediaDuration <= 0 || endTime - startTime <= payload.maxMediaDuration + 0.001) &&
+    (payload.mediaDuration === undefined || endTime <= payload.mediaDuration + 0.001)
+  );
 }
 
 export function buildMediaTimingReviewPayload(
@@ -178,7 +195,16 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { action: 'use-original' };
     }
 
-    const decision = await decisionPromise;
+    const decisionWatchdog = setTimeout(
+      () => resolveDecision({ action: 'use-original' }),
+      Math.max(0, deps.decisionTimeoutMs ?? REVIEW_DECISION_TIMEOUT_MS),
+    );
+    let decision: MediaTimingReviewDecision;
+    try {
+      decision = await decisionPromise;
+    } finally {
+      clearTimeout(decisionWatchdog);
+    }
     await cleanupActiveReview();
     return decision;
   }
@@ -210,16 +236,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     if (!current || request.reviewId !== current.payload.reviewId) {
       return { ok: false, message: 'This timing review is no longer active.' };
     }
-    if (
-      !Number.isFinite(request.startTime) ||
-      !Number.isFinite(request.endTime) ||
-      request.startTime < 0 ||
-      request.endTime <= request.startTime ||
-      (current.payload.maxMediaDuration > 0 &&
-        request.endTime - request.startTime > current.payload.maxMediaDuration + 0.001) ||
-      (current.payload.mediaDuration !== undefined &&
-        request.endTime > current.payload.mediaDuration + 0.001)
-    ) {
+    if (!isValidMediaTimingRange(current.payload, request.startTime, request.endTime)) {
       return { ok: false, message: 'The selected preview range is invalid.' };
     }
     try {
@@ -294,16 +311,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
     if (request.decision.action === 'confirm') {
       const { startTime, endTime } = request.decision;
-      if (
-        !Number.isFinite(startTime) ||
-        !Number.isFinite(endTime) ||
-        startTime < 0 ||
-        endTime <= startTime ||
-        (current.payload.maxMediaDuration > 0 &&
-          endTime - startTime > current.payload.maxMediaDuration + 0.001) ||
-        (current.payload.mediaDuration !== undefined &&
-          endTime > current.payload.mediaDuration + 0.001)
-      ) {
+      if (!isValidMediaTimingRange(current.payload, startTime, endTime)) {
         return { ok: false, message: 'The selected timing range is invalid.' };
       }
     }

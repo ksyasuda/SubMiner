@@ -494,6 +494,7 @@ function createKeyboardHandlerHarness() {
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,
     handleTsukihimeKeydown: () => false,
+    handleMediaTimingReviewKeydown: () => false,
     handleControllerSelectKeydown: () => {
       controllerSelectKeydownCount += 1;
       return true;

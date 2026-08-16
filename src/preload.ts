@@ -69,6 +69,7 @@ import type {
   OverlayNotificationEventPayload,
   OverlayNotificationPosition,
   ChangelogSnapshot,
+  MediaTimingReviewActionResult,
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
@@ -468,13 +469,17 @@ const electronAPI: ElectronAPI = {
   onOpenTsukihime: onOpenTsukihimeEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
   onOpenMediaTimingReview: onOpenMediaTimingReviewEvent,
-  previewMediaTimingReview: (request: MediaTimingReviewPreviewRequest) =>
+  previewMediaTimingReview: (
+    request: MediaTimingReviewPreviewRequest,
+  ): Promise<MediaTimingReviewActionResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewPreview, request),
   getMediaTimingReviewWaveform: (request: MediaTimingReviewWaveformRequest) =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewWaveform, request),
-  stopMediaTimingReviewPreview: (reviewId: string) =>
+  stopMediaTimingReviewPreview: (reviewId: string): Promise<MediaTimingReviewActionResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewStopPreview, reviewId),
-  resolveMediaTimingReview: (request: MediaTimingReviewResolveRequest) =>
+  resolveMediaTimingReview: (
+    request: MediaTimingReviewResolveRequest,
+  ): Promise<MediaTimingReviewActionResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewResolve, request),
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,

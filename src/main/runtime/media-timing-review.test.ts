@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
+import type { MediaTimingReviewOpenPayload } from '../../types/anki';
 import {
   buildMediaTimingReviewPayload,
   createMediaTimingReviewRuntime,
@@ -62,6 +63,54 @@ describe('buildMediaTimingReviewPayload', () => {
     assert.equal(payload.maxMediaDuration, 0);
   });
 });
+
+async function startActiveMediaTimingReview(
+  options: {
+    maxMediaDuration?: number;
+    decisionTimeoutMs?: number;
+  } = {},
+) {
+  const previewCalls: Array<[number, number]> = [];
+  let publishPayload!: (payload: MediaTimingReviewOpenPayload) => void;
+  const openedPayload = new Promise<MediaTimingReviewOpenPayload>((resolve) => {
+    publishPayload = resolve;
+  });
+  const runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: async (name) => (name === 'duration' ? 100 : name === 'pause' ? true : null),
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
+    decisionTimeoutMs: options.decisionTimeoutMs,
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async (startTime, endTime) => {
+        previewCalls.push([startTime, endTime]);
+      },
+      stop: async () => undefined,
+      dispose: () => undefined,
+    }),
+    openModal: async (payload) => {
+      publishPayload(payload);
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+  const pendingDecision = runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0,
+    maxMediaDuration: options.maxMediaDuration ?? 30,
+  });
+
+  return { runtime, payload: await openedPayload, pendingDecision, previewCalls };
+}
 
 test('media timing review pauses playback, resolves exact timing, and restores playing state', async () => {
   const commands: Array<Array<string | number>> = [];
@@ -187,6 +236,50 @@ test('media timing review analyzes the visible range on the selected audio strea
       audioStreamIndex: 4,
     },
   ]);
+});
+
+test('media timing review rejects stale and out-of-range actions before allowing discard', async () => {
+  const { runtime, payload, pendingDecision, previewCalls } = await startActiveMediaTimingReview({
+    maxMediaDuration: 3,
+  });
+
+  assert.deepEqual(
+    await runtime.previewRange({ reviewId: 'stale-review', startTime: 10, endTime: 12 }),
+    { ok: false, message: 'This timing review is no longer active.' },
+  );
+  assert.deepEqual(
+    runtime.resolveReview({
+      reviewId: 'stale-review',
+      decision: { action: 'confirm', startTime: 10, endTime: 12 },
+    }),
+    { ok: false, message: 'This timing review is no longer active.' },
+  );
+  assert.deepEqual(
+    runtime.resolveReview({
+      reviewId: payload.reviewId,
+      decision: { action: 'confirm', startTime: 10, endTime: 14 },
+    }),
+    { ok: false, message: 'The selected timing range is invalid.' },
+  );
+  assert.deepEqual(
+    runtime.resolveReview({
+      reviewId: payload.reviewId,
+      decision: { action: 'confirm', startTime: 99, endTime: 100.5 },
+    }),
+    { ok: false, message: 'The selected timing range is invalid.' },
+  );
+  assert.deepEqual(
+    runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'discard' } }),
+    { ok: true },
+  );
+  assert.deepEqual(await pendingDecision, { action: 'discard' });
+  assert.deepEqual(previewCalls, []);
+});
+
+test('media timing review watchdog falls back when the renderer stops responding', async () => {
+  const { pendingDecision } = await startActiveMediaTimingReview({ decisionTimeoutMs: 0 });
+
+  assert.deepEqual(await pendingDecision, { action: 'use-original' });
 });
 
 test('media timing review does not resume playback when the prior state is unavailable', async () => {
