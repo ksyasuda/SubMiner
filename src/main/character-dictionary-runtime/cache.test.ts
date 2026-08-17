@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
 import { getSnapshotPath, readSnapshot, writeSnapshot } from './cache';
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
 import type { CharacterDictionarySnapshot } from './types';
@@ -46,31 +47,46 @@ test('concurrent writeSnapshot calls for the same media leave one complete snaps
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const base = createSnapshot();
-  const wide: CharacterDictionarySnapshot = {
-    ...base,
-    entryCount: 400,
-    termEntries: Array.from({ length: 400 }, (_entry, index) => [
-      `名前${index}`,
-      'なまえ',
-      'name primary',
-      '',
-      75,
-      [`Character ${index}`.repeat(200)],
-      0,
-      '',
-    ]) as CharacterDictionarySnapshot['termEntries'],
-  };
+  // Distinct titles, lengths, and term text so the surviving file can be pinned to exactly one
+  // writer rather than merely "a snapshot that parses". A shared temp file is caught by the
+  // losing writers failing to rename; interleaved content is only caught when the timing happens
+  // to leave a mix, which is why the assertion checks identity rather than shape.
+  const variants: CharacterDictionarySnapshot[] = ['alpha', 'beta', 'gamma'].map((label, index) => {
+    const entryCount = 400 + index * 100;
+    return {
+      ...base,
+      mediaTitle: `${base.mediaTitle} ${label}`,
+      entryCount,
+      termEntries: Array.from({ length: entryCount }, (_entry, entryIndex) => [
+        `${label}${entryIndex}`,
+        'なまえ',
+        'name primary',
+        '',
+        75,
+        [`${label} character ${entryIndex} `.repeat(600)],
+        0,
+        '',
+      ]) as CharacterDictionarySnapshot['termEntries'],
+    };
+  });
 
-  await Promise.all([
-    writeSnapshot(snapshotPath, wide),
-    writeSnapshot(snapshotPath, wide),
-    writeSnapshot(snapshotPath, wide),
-  ]);
+  await Promise.all(variants.map((variant) => writeSnapshot(snapshotPath, variant)));
 
   const restored = await readSnapshot(snapshotPath);
-  assert.equal(restored?.entryCount, 400);
-  assert.equal(restored?.termEntries.length, 400);
-  assert.deepEqual(restored, { ...wide, nameSplitSource: 'heuristic' });
+  const expected = variants.map((variant) => ({
+    ...variant,
+    nameSplitSource: 'heuristic' as const,
+  }));
+  const matches = expected.filter((candidate) => isDeepStrictEqual(restored, candidate));
+  assert.equal(
+    matches.length,
+    1,
+    `expected exactly one writer's complete snapshot to survive, got ${
+      restored === null
+        ? 'an unreadable file'
+        : `entryCount=${restored.entryCount}, terms=${restored.termEntries.length}, title=${restored.mediaTitle}`
+    }`,
+  );
 
   // Every writer cleaned up after itself, so no temp files are left behind.
   const leftovers = fs
