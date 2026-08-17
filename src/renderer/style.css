@@ -1341,13 +1341,13 @@ body:focus-visible,
 }
 
 .media-timing-review-content {
-  width: min(820px, calc(100vw - 32px));
-  max-height: min(780px, calc(100vh - 32px));
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(700px, calc(100vh - 32px));
   overflow: auto;
   gap: 0;
   padding: 0;
   border: 1px solid var(--ctp-surface1);
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--ctp-base);
   color: var(--ctp-text);
   box-shadow:
@@ -1375,12 +1375,9 @@ body:focus-visible,
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 20px 24px 16px;
+  padding: 16px 20px 13px;
   border-bottom: 1px solid var(--ctp-surface0);
-  background:
-    linear-gradient(90deg, var(--ctp-teal), var(--ctp-blue) 45%, var(--ctp-mauve)) top / 100% 2px
-      no-repeat,
-    var(--ctp-mantle);
+  background: var(--ctp-mantle);
 }
 
 .media-timing-review-heading {
@@ -1392,7 +1389,7 @@ body:focus-visible,
 
 .media-timing-review-title {
   color: var(--ctp-text);
-  font-size: 21px;
+  font-size: 19px;
   font-weight: 750;
   letter-spacing: -0.025em;
 }
@@ -1420,21 +1417,21 @@ body:focus-visible,
 }
 
 .media-timing-review-editor {
-  padding: 18px 24px 22px;
+  padding: 14px 20px 18px;
 }
 
 .media-timing-review-text {
-  max-height: 108px;
+  max-height: 88px;
   overflow: auto;
-  margin: 0 0 16px;
-  padding: 12px 16px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
   border-left: 3px solid var(--ctp-mauve);
   border-radius: 0 10px 10px 0;
   background: var(--ctp-mantle);
   color: var(--ctp-subtext1);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 560;
-  line-height: 1.55;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 
@@ -1453,7 +1450,7 @@ body:focus-visible,
   min-width: 0;
   flex-direction: column;
   gap: 3px;
-  padding: 10px 14px;
+  padding: 8px 12px;
 }
 
 .media-timing-review-readout > div + div {
@@ -1492,7 +1489,7 @@ body:focus-visible,
 }
 
 .media-timing-review-timeline-shell {
-  padding: 12px 14px 10px;
+  padding: 10px 12px 8px;
   border: 1px solid var(--ctp-surface1);
   border-radius: 14px;
   background: var(--ctp-mantle);
@@ -1524,7 +1521,7 @@ body:focus-visible,
   --playhead-duration: 1s;
 
   position: relative;
-  height: 96px;
+  height: 76px;
   margin: 8px 0 9px;
   overflow: hidden;
   border: 1px solid var(--ctp-surface2);
@@ -1566,33 +1563,61 @@ body:focus-visible,
   stop-color: var(--ctp-blue);
 }
 
-/* Sits above the dimming scrim so the subtitle bounds stay readable outside the selection. */
+/* Sits above the selection scrim so adjacent dialogue reads as outside the mined subtitle. */
 .media-timing-review-original-range {
   position: absolute;
   z-index: 4;
-  top: 3px;
-  bottom: 3px;
+  top: 0;
+  bottom: 0;
   left: var(--original-start);
   right: calc(100% - var(--original-end));
   min-width: 1px;
-  border-inline: 1px dashed var(--ctp-peach);
+  background: color-mix(in srgb, var(--ctp-peach) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ctp-peach) 28%, transparent);
   pointer-events: none;
 }
 
-.media-timing-review-original-range::before {
+.media-timing-review-original-boundary {
   position: absolute;
   top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ctp-peach);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ctp-peach) 45%, transparent);
+}
+
+.media-timing-review-original-boundary.is-start {
   left: 0;
-  padding: 2px 4px;
-  border-radius: 0 0 5px;
-  background: color-mix(in srgb, var(--ctp-crust) 72%, transparent);
-  content: 'subtitle';
-  color: var(--ctp-peach);
+}
+
+.media-timing-review-original-boundary.is-end {
+  right: 0;
+}
+
+.media-timing-review-original-boundary::after {
+  position: absolute;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: var(--ctp-peach);
+  color: var(--ctp-crust);
   font-size: 8px;
-  font-weight: 760;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   line-height: 1;
+  white-space: nowrap;
   text-transform: uppercase;
+}
+
+.media-timing-review-original-boundary.is-start::after {
+  top: 5px;
+  left: 5px;
+  content: 'line start';
+}
+
+.media-timing-review-original-boundary.is-end::after {
+  right: 5px;
+  bottom: 5px;
+  content: 'line end';
 }
 
 .media-timing-review-track.is-loading::after {
