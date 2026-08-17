@@ -130,7 +130,9 @@ local function run_plugin_scenario(config)
 
 		function mp.add_timeout(seconds, callback)
 			recorded.timeouts[#recorded.timeouts + 1] = seconds
+			local delay = tonumber(seconds) or 0
 			local timeout = {
+				seconds = delay,
 				killed = false,
 				callback = callback,
 			}
@@ -138,7 +140,6 @@ local function run_plugin_scenario(config)
 				self.killed = true
 			end
 
-			local delay = tonumber(seconds) or 0
 			if callback and delay < 5 and not config.defer_timeouts then
 				callback()
 			end
@@ -512,6 +513,15 @@ local function has_timeout(timeouts, target)
 		end
 	end
 	return false
+end
+
+local function find_timeout_handle(recorded, target)
+	for _, timeout in ipairs(recorded.timeout_handles) do
+		if math.abs(timeout.seconds - target) < 0.0001 then
+			return timeout
+		end
+	end
+	return nil
 end
 
 local function env_has(call, target)
@@ -1636,6 +1646,8 @@ do
 		#recorded.periodic_timers == 1,
 		"auto-start visible overlay should refresh the early overlay loading OSD"
 	)
+	local overlay_loading_deadline = find_timeout_handle(recorded, 30)
+	assert_true(overlay_loading_deadline ~= nil, "overlay loading OSD should have a bounded deadline")
 	local overlay_loading_timer = recorded.periodic_timers[1]
 	recorded.periodic_timers[1].callback()
 	assert_true(
@@ -1669,6 +1681,46 @@ do
 	assert_true(
 		recorded.periodic_timers[1].killed == true,
 		"overlay loading ready should stop the early overlay loading OSD refresher"
+	)
+	assert_true(
+		overlay_loading_deadline.killed == true,
+		"overlay loading ready should cancel the bounded loading deadline"
+	)
+end
+
+do
+	local recorded, err = run_plugin_scenario({
+		defer_timeouts = true,
+		process_list = "",
+		option_overrides = {
+			binary_path = binary_path,
+			auto_start = "yes",
+			auto_start_visible_overlay = "yes",
+			osd_messages = false,
+			socket_path = "/tmp/subminer-socket",
+		},
+		input_ipc_server = "/tmp/subminer-socket",
+		media_title = "Random Movie",
+		files = {
+			[binary_path] = true,
+		},
+	})
+	assert_true(recorded ~= nil, "plugin failed to load for overlay loading deadline scenario: " .. tostring(err))
+	fire_event(recorded, "start-file")
+	local overlay_loading_deadline = find_timeout_handle(recorded, 30)
+	assert_true(overlay_loading_deadline ~= nil, "overlay loading deadline should be scheduled")
+	overlay_loading_deadline.callback()
+	assert_true(
+		recorded.periodic_timers[1].killed == true,
+		"overlay loading deadline should stop the loading spinner"
+	)
+	assert_true(
+		has_osd_message(recorded.osd, "SubMiner: Overlay did not become ready; check SubMiner logs"),
+		"overlay loading deadline should replace the spinner with actionable feedback"
+	)
+	assert_true(
+		has_log_containing(recorded.logs, "Overlay loading deadline expired"),
+		"overlay loading deadline should leave a diagnostic log entry"
 	)
 end
 

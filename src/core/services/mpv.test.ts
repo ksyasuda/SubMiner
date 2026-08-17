@@ -24,6 +24,18 @@ function makeDeps(overrides: Partial<MpvIpcClientProtocolDeps> = {}): MpvIpcClie
   };
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error('Timed out waiting for MPV retry connection');
+    }
+    await wait(10);
+  }
+}
+
 function captureWarnLogs(run: () => void): string[] {
   const originalWarn = console.warn;
   const originalLogLevel = process.env.SUBMINER_LOG_LEVEL;
@@ -775,6 +787,73 @@ class HangingTestSocket extends EventEmitter {
     this.destroyed = true;
   }
 }
+
+class RetryTestSocket extends EventEmitter {
+  public connectedPaths: string[] = [];
+  public destroyed = false;
+
+  constructor(private readonly shouldConnect: boolean) {
+    super();
+  }
+
+  connect(path: string): void {
+    this.connectedPaths.push(path);
+    if (this.shouldConnect) {
+      setTimeout(() => this.emit('connect'), 0);
+    }
+  }
+
+  write(): boolean {
+    return true;
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.emit('close');
+  }
+}
+
+test('MpvIpcClient automatically retries the same socket path after a connect timeout', async () => {
+  const sockets: RetryTestSocket[] = [];
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  const originalLogLevel = process.env.SUBMINER_LOG_LEVEL;
+  const client = new MpvIpcClient(
+    '/tmp/mpv.sock',
+    makeDeps({
+      connectTimeoutMs: 5,
+      getReconnectTimer: () => reconnectTimer,
+      setReconnectTimer: (timer) => {
+        reconnectTimer = timer;
+      },
+      socketFactory: () => {
+        const socket = new RetryTestSocket(sockets.length > 0);
+        sockets.push(socket);
+        return socket as unknown as import('node:net').Socket;
+      },
+    }),
+  );
+
+  process.env.SUBMINER_LOG_LEVEL = 'error';
+  try {
+    client.connect();
+    await waitFor(() => client.connected);
+
+    assert.equal(sockets.length, 2);
+    assert.equal(sockets[0]!.destroyed, true);
+    assert.equal(sockets[0]!.connectedPaths.at(0), '/tmp/mpv.sock');
+    assert.equal(sockets[1]!.connectedPaths.at(0), '/tmp/mpv.sock');
+    assert.equal(client.connected, true);
+  } finally {
+    if (originalLogLevel === undefined) {
+      delete process.env.SUBMINER_LOG_LEVEL;
+    } else {
+      process.env.SUBMINER_LOG_LEVEL = originalLogLevel;
+    }
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    (client as any).transport.shutdown();
+  }
+});
 
 test('MpvIpcClient.setSocketPath aborts an in-flight connect so the next dial targets the new path', () => {
   const sockets: HangingTestSocket[] = [];
