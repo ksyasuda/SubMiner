@@ -34,7 +34,18 @@ export function VocabularyTab({
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
-  const { words, kanji, knownWords, summary, charts, loading, error, reload } = useVocabulary();
+  const {
+    words,
+    kanji,
+    knownWords,
+    summary,
+    charts,
+    loading,
+    error,
+    aggregatesError,
+    refreshAggregates,
+    reload,
+  } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
@@ -49,21 +60,21 @@ export function VocabularyTab({
   }, [words, hideNames, excluded, isExcluded]);
   const chartData = useMemo(
     () => ({
-      topWords:
-        ((hideNames ? charts?.topWordsWithoutNames : charts?.topWords) ?? []).map((word) => ({
+      topWords: ((hideNames ? charts?.topWordsWithoutNames : charts?.topWords) ?? []).map(
+        (word) => ({
           label: word.headword,
           value: word.frequency,
-        })) ?? [],
-      newWordsTimeline:
-        ((hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []).map(
-          (point) => ({
-            label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-            }),
-            value: point.wordCount,
-          }),
-        ) ?? [],
+        }),
+      ),
+      newWordsTimeline: (
+        (hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []
+      ).map((point) => ({
+        label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        }),
+        value: point.wordCount,
+      })),
     }),
     [charts, hideNames],
   );
@@ -138,6 +149,19 @@ export function VocabularyTab({
           color="text-ctp-mauve"
         />
       </div>
+
+      {aggregatesError && (
+        <p className="text-xs text-ctp-red" role="alert">
+          {aggregatesError}{' '}
+          <button
+            type="button"
+            onClick={refreshAggregates}
+            className="underline hover:text-ctp-text"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <div className="flex items-center justify-end gap-3">
         {hasNames && (

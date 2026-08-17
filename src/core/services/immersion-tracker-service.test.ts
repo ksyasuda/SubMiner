@@ -5052,3 +5052,58 @@ test('ensureAnimeCoverArt fetches art via the latest video of the anime', async 
     cleanupDbPath(dbPath);
   }
 });
+
+test('getVocabularySummary coalesces concurrent requests into one worker task', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let taskRuns = 0;
+  let releaseTask: (() => void) | null = null;
+  const summary = {
+    uniqueWords: 1,
+    uniqueWordsWithoutNames: 1,
+    uniqueKanji: 0,
+    newThisWeek: 0,
+    newThisWeekWithoutNames: 0,
+    knownWordCount: null,
+    knownWordCountWithoutNames: null,
+  };
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async () => {
+          taskRuns += 1;
+          await new Promise<void>((resolve) => {
+            releaseTask = resolve;
+          });
+          return summary;
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const first = tracker.getVocabularySummary(null);
+    const second = tracker.getVocabularySummary(new Set(['猫']));
+    await waitForCondition(() => releaseTask !== null);
+    let release = releaseTask as (() => void) | null;
+    assert.ok(release);
+    release();
+    assert.deepEqual(await first, summary);
+    assert.equal(await second, await first);
+    assert.equal(taskRuns, 1);
+
+    releaseTask = null;
+    const third = tracker.getVocabularySummary(null);
+    await waitForCondition(() => releaseTask !== null);
+    release = releaseTask as (() => void) | null;
+    assert.ok(release);
+    release();
+    assert.deepEqual(await third, summary);
+    assert.equal(taskRuns, 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});

@@ -1958,6 +1958,33 @@ test('getVocabularySummary applies vocabulary exclusions and Hide Names totals',
   }
 });
 
+test('getVocabularySummary counts identically across id-keyed scan batches', () => {
+  const dbPath = makeDbPath();
+  const db = openTestDb(dbPath);
+
+  try {
+    ensureSchema(db);
+    const insertWord = db.prepare(`
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3,
+        first_seen, last_seen, frequency
+      ) VALUES (?, ?, '', 'noun', '名詞', '一般', '', 1, 1, 1)
+    `);
+    for (let index = 0; index < 5; index += 1) {
+      insertWord.run(`単語${index}`, `単語${index}`);
+    }
+
+    const fullScan = getVocabularySummary(db, new Set(['単語0']), 9 * 86_400_000);
+    const batchedScan = getVocabularySummary(db, new Set(['単語0']), 9 * 86_400_000, 2);
+
+    assert.equal(fullScan.uniqueWords, 5);
+    assert.deepEqual(batchedScan, fullScan);
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getVocabularyStats filters rows that fail tokenizer vocabulary rules', () => {
   const dbPath = makeDbPath();
   const db = openTestDb(dbPath);

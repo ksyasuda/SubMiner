@@ -31,6 +31,7 @@ const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
 const VOCABULARY_CHART_LIMIT = 12;
 const VOCABULARY_CHART_PAGE_SIZE = 100;
 const EXCLUSION_ALIAS_BATCH_SIZE = 300;
+const VOCABULARY_SUMMARY_SCAN_BATCH_SIZE = 5_000;
 const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
 const SENTENCE_SEARCH_MAX_LIMIT = 100;
 const KANJI_PATTERN = /\p{Script=Han}/gu;
@@ -293,19 +294,21 @@ export function getVocabularySummary(
   db: DatabaseSync,
   knownWords: ReadonlySet<string> | null,
   nowMs: number = Date.now(),
+  scanBatchSize: number = VOCABULARY_SUMMARY_SCAN_BATCH_SIZE,
 ): VocabularyStatsSummary {
-  const words = db
-    .prepare(
-      `
-      SELECT id AS wordId, headword, word, reading,
-        part_of_speech AS partOfSpeech, pos1, pos2, pos3,
-        frequency, frequency_rank AS frequencyRank,
-        first_seen AS firstSeen, last_seen AS lastSeen,
-        0 AS animeCount
-      FROM imm_words
-    `,
-    )
-    .all() as VocabularyStatsRow[];
+  // Visibility and exclusion rules live in JS, so rows are scanned in id-keyed
+  // batches to keep memory bounded on large vocabularies.
+  const scanStmt = db.prepare(`
+    SELECT id AS wordId, headword, word, reading,
+      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen,
+      0 AS animeCount
+    FROM imm_words
+    WHERE id > ?
+    ORDER BY id
+    LIMIT ?
+  `);
   const excludedAliases = new Set(
     getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
   );
@@ -321,26 +324,33 @@ export function getVocabularySummary(
     knownWordCountWithoutNames: knownWords ? 0 : null,
   };
 
-  for (const word of words) {
-    if (
-      !isVocabularyStatsRowVisible(word) ||
-      excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias))
-    ) {
-      continue;
+  let lastId = Number.MIN_SAFE_INTEGER;
+  for (;;) {
+    const words = scanStmt.all(lastId, scanBatchSize) as VocabularyStatsRow[];
+    if (words.length === 0) break;
+    lastId = words[words.length - 1]!.wordId;
+    for (const word of words) {
+      if (
+        !isVocabularyStatsRowVisible(word) ||
+        excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias))
+      ) {
+        continue;
+      }
+      const isName = word.pos2 === '固有名詞';
+      const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
+      const isKnown = knownWords?.has(word.headword) ?? false;
+      summary.uniqueWords += 1;
+      if (!isName) summary.uniqueWordsWithoutNames += 1;
+      if (isNewThisWeek) {
+        summary.newThisWeek += 1;
+        if (!isName) summary.newThisWeekWithoutNames += 1;
+      }
+      if (isKnown) {
+        summary.knownWordCount! += 1;
+        if (!isName) summary.knownWordCountWithoutNames! += 1;
+      }
     }
-    const isName = word.pos2 === '固有名詞';
-    const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
-    const isKnown = knownWords?.has(word.headword) ?? false;
-    summary.uniqueWords += 1;
-    if (!isName) summary.uniqueWordsWithoutNames += 1;
-    if (isNewThisWeek) {
-      summary.newThisWeek += 1;
-      if (!isName) summary.newThisWeekWithoutNames += 1;
-    }
-    if (isKnown) {
-      summary.knownWordCount! += 1;
-      if (!isName) summary.knownWordCountWithoutNames! += 1;
-    }
+    if (words.length < scanBatchSize) break;
   }
 
   return summary;

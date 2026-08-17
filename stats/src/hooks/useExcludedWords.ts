@@ -44,6 +44,16 @@ let cachedKeys: Set<string> | null = null;
 let initialized: Promise<void> | null = null;
 let revision = 0;
 const listeners = new Set<() => void>();
+// Fires only after the stats server acknowledged an exclusion write, so
+// subscribers can refetch server-computed aggregates without racing the POST.
+const serverSyncListeners = new Set<() => void>();
+
+export function subscribeExcludedWordsServerSync(fn: () => void): () => void {
+  serverSyncListeners.add(fn);
+  return () => {
+    serverSyncListeners.delete(fn);
+  };
+}
 
 function readLocalStorage(): ExcludedWord[] {
   if (typeof localStorage === 'undefined') return [];
@@ -104,6 +114,7 @@ export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
   applyWords(normalized);
   try {
     await apiClient.setExcludedWords(normalized);
+    for (const fn of serverSyncListeners) fn();
   } catch (error) {
     if (revision === writeRevision) {
       revision = previousRevision;
@@ -155,6 +166,7 @@ export function resetExcludedWordsStoreForTests(): void {
   initialized = null;
   revision = 0;
   listeners.clear();
+  serverSyncListeners.clear();
 }
 
 function subscribe(fn: () => void): () => void {

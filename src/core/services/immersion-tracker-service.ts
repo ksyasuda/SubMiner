@@ -421,6 +421,7 @@ export class ImmersionTrackerService {
   private readonly runVocabularySummaryTask: (
     knownWords: ReadonlySet<string> | null,
   ) => Promise<VocabularyStatsSummary>;
+  private vocabularySummaryInFlight: Promise<VocabularyStatsSummary> | null = null;
   private readonly destroyVocabularySummaryRunner: () => void;
   private readonly runLexicalRollupBackfillTask: () => Promise<void>;
   private readonly destroyLexicalRollupBackfillRunner: () => void;
@@ -680,7 +681,17 @@ export class ImmersionTrackerService {
   }
 
   async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
-    return this.runVocabularySummaryTask(knownWords);
+    // Concurrent dashboard refreshes share one worker scan; the coalesced
+    // callers accept the first caller's known-words snapshot.
+    const inFlight = this.vocabularySummaryInFlight;
+    if (inFlight) return inFlight;
+    const task = this.runVocabularySummaryTask(knownWords);
+    this.vocabularySummaryInFlight = task;
+    try {
+      return await task;
+    } finally {
+      if (this.vocabularySummaryInFlight === task) this.vocabularySummaryInFlight = null;
+    }
   }
 
   async getVocabularyChartData() {
