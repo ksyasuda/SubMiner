@@ -220,6 +220,7 @@ export class NoteUpdateWorkflow {
       // timings per generator clips whichever line is on screen when each one starts.
       let mediaTimingContext =
         subtitleMiningContext ?? this.deps.captureSubtitleMediaContext?.() ?? null;
+      let skipMedia = false;
       const noteLabel = hasExpressionText ? expressionText : noteId;
 
       if (mediaTimingContext) {
@@ -252,6 +253,8 @@ export class NoteUpdateWorkflow {
             endTime: timingDecision.endTime,
             mediaPaddingSeconds: 0,
           };
+        } else if (timingDecision.action === 'skip-media') {
+          skipMedia = true;
         }
       }
 
@@ -285,8 +288,8 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      const generateAudio = config.media?.generateAudio !== false;
-      const generateImage = config.media?.generateImage !== false;
+      const generateAudio = !skipMedia && config.media?.generateAudio !== false;
+      const generateImage = !skipMedia && config.media?.generateImage !== false;
       const mediaCacheQueued =
         (generateAudio || generateImage) && this.deps.queuePendingYoutubeMediaUpdate
           ? await this.deps.queuePendingYoutubeMediaUpdate({

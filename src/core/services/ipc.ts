@@ -276,7 +276,11 @@ function parseMediaTimingReviewResolveRequest(
   const decision = record.decision;
   if (!decision || typeof decision !== 'object') return null;
   const decisionRecord = decision as Record<string, unknown>;
-  if (decisionRecord.action === 'use-original' || decisionRecord.action === 'discard') {
+  if (
+    decisionRecord.action === 'use-original' ||
+    decisionRecord.action === 'skip-media' ||
+    decisionRecord.action === 'discard'
+  ) {
     return { reviewId: record.reviewId, decision: { action: decisionRecord.action } };
   }
   if (

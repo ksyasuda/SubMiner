@@ -271,6 +271,12 @@
                   <span class="media-timing-review-original-boundary is-start"></span>
                   <span class="media-timing-review-original-boundary is-end"></span>
                 </div>
+                <span class="media-timing-review-original-label is-start" aria-hidden="true">
+                  Line start
+                </span>
+                <span class="media-timing-review-original-label is-end" aria-hidden="true">
+                  Line end
+                </span>
                 <div
                   id="mediaTimingReviewSelectedRange"
                   class="media-timing-review-selected-range"
@@ -299,18 +305,20 @@
                   id="mediaTimingReviewShowEarlier"
                   class="media-timing-review-expand-button"
                   type="button"
-                  aria-label="Reveal five more seconds before the timeline"
+                  aria-label="Show two more seconds before the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds before the visible timeline. The selected clip does not move."
                 >
-                  &minus;5s
+                  Earlier &minus;2s
                 </button>
-                <span>Drag an edge to trim, or drag the middle to slide the clip.</span>
+                <span>Drag an edge to trim, or drag the highlighted clip to move it.</span>
                 <button
                   id="mediaTimingReviewShowLater"
                   class="media-timing-review-expand-button"
                   type="button"
-                  aria-label="Reveal five more seconds after the timeline"
+                  aria-label="Show two more seconds after the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds after the visible timeline. The selected clip does not move."
                 >
-                  +5s
+                  Later +2s
                 </button>
               </div>
             </div>
@@ -410,6 +418,14 @@
                 type="button"
               >
                 Use original timing
+              </button>
+              <button
+                id="mediaTimingReviewSkipMedia"
+                class="media-timing-review-skip-button"
+                type="button"
+                title="Keep this card but do not add audio or an image."
+              >
+                Keep without media
               </button>
               <button
                 id="mediaTimingReviewDiscard"

@@ -26,6 +26,7 @@ export interface MediaTimingReviewRequest {
 export type MediaTimingReviewDecision =
   | { action: 'confirm'; startTime: number; endTime: number }
   | { action: 'use-original' }
+  | { action: 'skip-media' }
   | { action: 'discard' };
 
 export interface MediaTimingReviewOpenPayload {

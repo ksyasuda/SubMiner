@@ -75,6 +75,7 @@ export type RendererDom = {
   mediaTimingReviewCancelMessage: HTMLParagraphElement;
   mediaTimingReviewCancelBack: HTMLButtonElement;
   mediaTimingReviewUseOriginal: HTMLButtonElement;
+  mediaTimingReviewSkipMedia: HTMLButtonElement;
   mediaTimingReviewDiscard: HTMLButtonElement;
 
   kikuModal: HTMLDivElement;
@@ -292,6 +293,7 @@ export function resolveRendererDom(): RendererDom {
     mediaTimingReviewUseOriginal: getRequiredElement<HTMLButtonElement>(
       'mediaTimingReviewUseOriginal',
     ),
+    mediaTimingReviewSkipMedia: getRequiredElement<HTMLButtonElement>('mediaTimingReviewSkipMedia'),
     mediaTimingReviewDiscard: getRequiredElement<HTMLButtonElement>('mediaTimingReviewDiscard'),
 
     kikuModal: getRequiredElement<HTMLDivElement>('kikuFieldGroupingModal'),

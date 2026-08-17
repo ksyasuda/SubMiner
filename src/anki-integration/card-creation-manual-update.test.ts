@@ -563,3 +563,50 @@ test('discarding an audio-card timing review deletes the note before evicting it
   assert.deepEqual(events, ['delete:42', 'cache:42']);
   assert.deepEqual(statusMessages, ['Card deleted.']);
 });
+
+test('keeping an audio card without media skips generation and preserves the note', async () => {
+  let generatedAudio = false;
+  let deleted = false;
+  const { service, storedMedia } = createManualUpdateService({
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentSubText: '字幕',
+        currentSubStart: 4,
+        currentSubEnd: 6,
+        currentTimePos: 5,
+      }) as never,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: { Expression: { value: '単語' }, Sentence: { value: '' } },
+        },
+      ],
+      updateNoteFields: async () => undefined,
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+      deleteNotes: async () => {
+        deleted = true;
+      },
+    },
+    mediaGenerator: {
+      generateAudio: async () => {
+        generatedAudio = true;
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+    reviewMediaTiming: async () => ({ action: 'skip-media' }),
+  });
+
+  await service.markLastCardAsAudioCard();
+
+  assert.equal(generatedAudio, false);
+  assert.equal(deleted, false);
+  assert.deepEqual(storedMedia, []);
+});

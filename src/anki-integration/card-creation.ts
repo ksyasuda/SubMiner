@@ -483,6 +483,7 @@ export class CardCreationService {
           this.deps.showStatusNotification('Card deleted.');
           return;
         }
+        const skipMedia = timingDecision.action === 'skip-media';
         const exactReviewedRange = timingDecision.action === 'confirm';
         if (timingDecision.action === 'confirm') {
           startTime = timingDecision.startTime;
@@ -503,26 +504,28 @@ export class CardCreationService {
         }
 
         const audioFieldName = sentenceCardConfig.audioField;
-        try {
-          const audioFilename = this.generateAudioFilename();
-          const audioBuffer = await this.mediaGenerateAudio(
-            mpvClient.currentVideoPath,
-            startTime,
-            endTime,
-            exactReviewedRange ? 0 : undefined,
-          );
+        if (!skipMedia) {
+          try {
+            const audioFilename = this.generateAudioFilename();
+            const audioBuffer = await this.mediaGenerateAudio(
+              mpvClient.currentVideoPath,
+              startTime,
+              endTime,
+              exactReviewedRange ? 0 : undefined,
+            );
 
-          if (audioBuffer) {
-            await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-            updatedFields[audioFieldName] = `[sound:${audioFilename}]`;
-            miscInfoFilename = audioFilename;
+            if (audioBuffer) {
+              await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
+              updatedFields[audioFieldName] = `[sound:${audioFilename}]`;
+              miscInfoFilename = audioFilename;
+            }
+          } catch (error) {
+            log.error('Failed to generate audio for audio card:', (error as Error).message);
+            errors.push('audio');
           }
-        } catch (error) {
-          log.error('Failed to generate audio for audio card:', (error as Error).message);
-          errors.push('audio');
         }
 
-        if (shouldGenerateImage(this.deps.getConfig())) {
+        if (!skipMedia && shouldGenerateImage(this.deps.getConfig())) {
           try {
             const animatedLeadInSeconds = await this.deps.getAnimatedImageLeadInSeconds(noteInfo);
             const imageFilename = this.generateImageFilename();
@@ -616,6 +619,7 @@ export class CardCreationService {
           this.deps.showStatusNotification('Card creation cancelled.');
           return false;
         }
+        const skipMedia = timingDecision.action === 'skip-media';
         const exactReviewedRange = timingDecision.action === 'confirm';
         if (timingDecision.action === 'confirm') {
           startTime = timingDecision.startTime;
@@ -623,8 +627,8 @@ export class CardCreationService {
         }
 
         const config = this.deps.getConfig();
-        const generateAudio = shouldGenerateAudio(config);
-        const generateImage = shouldGenerateImage(config);
+        const generateAudio = !skipMedia && shouldGenerateAudio(config);
+        const generateImage = !skipMedia && shouldGenerateImage(config);
         const mediaResolverOptions = this.getMediaResolverOptions();
         const videoPath = generateImage
           ? await resolveMediaGenerationInput(mpvClient, 'video', mediaResolverOptions)

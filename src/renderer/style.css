@@ -1594,30 +1594,32 @@ body:focus-visible,
   right: 0;
 }
 
-.media-timing-review-original-boundary::after {
+.media-timing-review-original-label {
   position: absolute;
+  z-index: 7;
   padding: 3px 5px;
+  border: 1px solid color-mix(in srgb, var(--ctp-crust) 35%, transparent);
   border-radius: 4px;
   background: var(--ctp-peach);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ctp-crust) 55%, transparent);
   color: var(--ctp-crust);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.06em;
   line-height: 1;
+  pointer-events: none;
   white-space: nowrap;
   text-transform: uppercase;
 }
 
-.media-timing-review-original-boundary.is-start::after {
+.media-timing-review-original-label.is-start {
   top: 5px;
-  left: 5px;
-  content: 'line start';
+  left: calc(var(--original-start) + 7px);
 }
 
-.media-timing-review-original-boundary.is-end::after {
-  right: 5px;
+.media-timing-review-original-label.is-end {
+  right: calc(100% - var(--original-end) + 7px);
   bottom: 5px;
-  content: 'line end';
 }
 
 .media-timing-review-track.is-loading::after {
@@ -1749,6 +1751,7 @@ body:focus-visible,
 .media-timing-review-expand-button,
 .media-timing-review-quiet-button,
 .media-timing-review-original-button,
+.media-timing-review-skip-button,
 .media-timing-review-discard-button,
 .media-timing-review-play-button,
 .media-timing-review-confirm-button,
@@ -1768,7 +1771,8 @@ body:focus-visible,
 }
 
 .media-timing-review-expand-button {
-  padding: 5px 10px;
+  min-width: 82px;
+  padding: 5px 9px;
   color: var(--ctp-sky);
   font-variant-numeric: tabular-nums;
 }
@@ -1853,6 +1857,7 @@ body:focus-visible,
 .media-timing-review-confirm-button,
 .media-timing-review-quiet-button,
 .media-timing-review-original-button,
+.media-timing-review-skip-button,
 .media-timing-review-discard-button {
   padding: 9px 15px;
 }
@@ -1895,6 +1900,11 @@ body:focus-visible,
 .media-timing-review-original-button {
   border-color: var(--ctp-yellow);
   color: var(--ctp-yellow);
+}
+
+.media-timing-review-skip-button {
+  border-color: var(--ctp-sky);
+  color: var(--ctp-sky);
 }
 
 .media-timing-review-discard-button {

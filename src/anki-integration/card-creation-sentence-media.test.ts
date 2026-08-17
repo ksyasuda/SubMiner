@@ -153,4 +153,11 @@ test('sentence card writes generated audio only to sentence audio field', async 
   deps.reviewMediaTiming = async () => ({ action: 'discard' });
   assert.equal(await service.createSentenceCard('作らない', 20, 22), false);
   assert.equal(addedFields.length, 1);
+
+  deps.reviewMediaTiming = async () => ({ action: 'skip-media' });
+  assert.equal(await service.createSentenceCard('メディアなし', 30, 32), true);
+  assert.equal(addedFields.length, 2);
+  assert.equal(storedMedia.length, 1);
+  assert.deepEqual(audioRanges, [{ start: 11.4, end: 14.2, padding: 0 }]);
+  assert.deepEqual(requestedProperties, ['volume']);
 });

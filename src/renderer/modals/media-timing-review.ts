@@ -5,7 +5,7 @@ import { createModalFocusGuard } from './modal-focus-guard';
 const MINIMUM_CLIP_SECONDS = 0.1;
 const FINE_ADJUST_SECONDS = 0.1;
 const COARSE_ADJUST_SECONDS = 0.5;
-const TIMELINE_EXPANSION_SECONDS = 5;
+const TIMELINE_EXPANSION_SECONDS = 2;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -447,8 +447,10 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewCancelStep.classList.remove('hidden');
     ctx.dom.mediaTimingReviewCancelMessage.textContent =
       payload.noteId !== undefined
-        ? 'Keep editing, finish this card with its original timing, or delete the card.'
-        : 'Keep editing, finish this card with its original timing, or do not create it.';
+        ? 'Keep editing, keep this card without media, use its original timing, or delete it.'
+        : 'Keep editing, create this card without media, use its original timing, or do not create it.';
+    ctx.dom.mediaTimingReviewSkipMedia.textContent =
+      payload.noteId !== undefined ? 'Keep without media' : 'Create without media';
     ctx.dom.mediaTimingReviewDiscard.textContent =
       payload.noteId !== undefined ? 'Delete card' : "Don't create card";
     ctx.dom.mediaTimingReviewCancelBack.focus();
@@ -667,6 +669,10 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewUseOriginal.addEventListener(
       'click',
       () => void resolveReview({ action: 'use-original' }),
+    );
+    ctx.dom.mediaTimingReviewSkipMedia.addEventListener(
+      'click',
+      () => void resolveReview({ action: 'skip-media' }),
     );
     ctx.dom.mediaTimingReviewDiscard.addEventListener(
       'click',

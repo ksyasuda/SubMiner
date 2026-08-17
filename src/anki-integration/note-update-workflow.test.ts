@@ -668,6 +668,48 @@ test('NoteUpdateWorkflow deletes an existing word card when timing review discar
   assert.deepEqual(harness.notifications, []);
 });
 
+test('NoteUpdateWorkflow keeps the word card but skips media after timing review', async () => {
+  const harness = createWorkflowHarness();
+  const mediaCalls: string[] = [];
+  const deletedNoteIds: number[][] = [];
+  const queuedUpdates: unknown[] = [];
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'subtitle-text',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.getConfig = () => ({
+    fields: { sentence: 'Sentence', image: 'Picture' },
+    media: { generateAudio: true, generateImage: true },
+    behavior: {},
+  });
+  harness.deps.reviewMediaTiming = async () => ({ action: 'skip-media' });
+  harness.deps.generateAudio = async () => {
+    mediaCalls.push('audio');
+    return Buffer.from('audio');
+  };
+  harness.deps.generateImage = async () => {
+    mediaCalls.push('image');
+    return Buffer.from('image');
+  };
+  harness.deps.queuePendingYoutubeMediaUpdate = async (update) => {
+    queuedUpdates.push(update);
+    return true;
+  };
+  harness.deps.client.deleteNotes = async (noteIds) => {
+    deletedNoteIds.push(noteIds);
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(mediaCalls, []);
+  assert.deepEqual(queuedUpdates, []);
+  assert.deepEqual(deletedNoteIds, []);
+  assert.deepEqual(harness.updates, [{ noteId: 42, fields: { Sentence: 'subtitle-text' } }]);
+  assert.deepEqual(harness.notifications, [{ noteId: 42, label: 'taberu' }]);
+});
+
 test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails', async () => {
   const harness = createWorkflowHarness();
   const statusMessages: string[] = [];
