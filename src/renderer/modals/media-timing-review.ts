@@ -1,5 +1,6 @@
 import type { MediaTimingReviewDecision, MediaTimingReviewOpenPayload } from '../../types/anki';
 import type { ModalStateReader, RendererContext } from '../context';
+import { createModalFocusGuard } from './modal-focus-guard';
 
 const MINIMUM_CLIP_SECONDS = 0.1;
 const FINE_ADJUST_SECONDS = 0.1;
@@ -139,6 +140,17 @@ export function createMediaTimingReviewModal(
     trackWidth: number;
     grabOffset: number;
   } | null = null;
+
+  const focus = createModalFocusGuard({
+    isOpen: () => ctx.state.mediaTimingReviewModalOpen,
+    getModalRoot: () => ctx.dom.mediaTimingReviewModal,
+    getPreferredFocusTargets: () => [
+      ctx.dom.mediaTimingReviewStartHandle,
+      ctx.dom.mediaTimingReviewCancelBack,
+    ],
+    getFallbackFocusTarget: () => ctx.dom.mediaTimingReviewCancel,
+    isModalLayer: ctx.platform.isModalLayer,
+  });
   const previewRequest = createMediaTimingPreviewRequestGuard();
 
   function setStatus(message: string, isError = false): void {
@@ -453,6 +465,7 @@ export function createMediaTimingReviewModal(
     ctx.state.mediaTimingReviewModalOpen = false;
     ctx.dom.mediaTimingReviewModal.classList.add('hidden');
     ctx.dom.mediaTimingReviewModal.setAttribute('aria-hidden', 'true');
+    focus.detach();
     window.electronAPI.notifyOverlayModalClosed('media-timing-review');
     options.syncSettingsModalSubtitleSuppression();
     payload = null;
@@ -566,7 +579,10 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewModal.classList.remove('hidden');
     ctx.dom.mediaTimingReviewModal.setAttribute('aria-hidden', 'false');
     window.electronAPI.notifyOverlayModalOpened('media-timing-review');
-    ctx.dom.mediaTimingReviewStartHandle.focus();
+    focus.attach();
+    focus.requestOverlayFocus();
+    window.focus();
+    focus.enforceModalFocus();
     queueWaveformLoad();
   }
 
