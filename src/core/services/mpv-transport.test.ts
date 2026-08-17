@@ -38,7 +38,15 @@ class ManualCloseSocket extends FakeSocket {
   }
 }
 
-const wait = () => new Promise((resolve) => setTimeout(resolve, 0));
+class HangingSocket extends FakeSocket {
+  override connect(path: string): void {
+    this.connectedPaths.push(path);
+    // Never emits 'connect', 'error', or 'close' on its own: models a named
+    // pipe dial that stalls indefinitely.
+  }
+}
+
+const wait = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('getMpvReconnectDelay follows existing reconnect ramp', () => {
   assert.equal(getMpvReconnectDelay(0, true), 1000);
@@ -230,6 +238,75 @@ test('MpvSocketTransport.shutdown clears socket and lifecycle flags', async () =
   assert.equal(transport.isConnecting, false);
   assert.equal(transport.getSocket(), null);
   assert.deepEqual(events, []);
+});
+
+test('MpvSocketTransport aborts a hung connect after the timeout and allows a fresh dial', async () => {
+  const events: string[] = [];
+  const errors: Error[] = [];
+  const sockets: HangingSocket[] = [];
+  const transport = new MpvSocketTransport({
+    socketPath: '/tmp/mpv.sock',
+    connectTimeoutMs: 5,
+    onConnect: () => {
+      events.push('connect');
+    },
+    onData: () => {},
+    onError: (error) => {
+      events.push('error');
+      errors.push(error);
+    },
+    onClose: () => {
+      events.push('close');
+    },
+    socketFactory: () => {
+      const socket = new HangingSocket();
+      sockets.push(socket);
+      return socket as unknown as net.Socket;
+    },
+  });
+
+  transport.connect();
+  assert.equal(transport.isConnecting, true);
+
+  await wait(20);
+
+  assert.deepEqual(events, ['error', 'close']);
+  assert.match(errors[0]!.message, /connect timed out/);
+  assert.equal(sockets[0]!.destroyed, true);
+  assert.equal(transport.isConnecting, false);
+  assert.equal(transport.isConnected, false);
+
+  transport.connect();
+  assert.equal(transport.isConnecting, true);
+  assert.equal(sockets.length, 2);
+  assert.equal(sockets[1]!.connectedPaths.at(0), '/tmp/mpv.sock');
+
+  transport.shutdown();
+});
+
+test('MpvSocketTransport does not fire the connect timeout after a successful connect', async () => {
+  const events: string[] = [];
+  const transport = new MpvSocketTransport({
+    socketPath: '/tmp/mpv.sock',
+    connectTimeoutMs: 5,
+    onConnect: () => {
+      events.push('connect');
+    },
+    onData: () => {},
+    onError: () => {
+      events.push('error');
+    },
+    onClose: () => {
+      events.push('close');
+    },
+    socketFactory: () => new FakeSocket() as unknown as net.Socket,
+  });
+
+  transport.connect();
+  await wait(20);
+
+  assert.deepEqual(events, ['connect']);
+  assert.equal(transport.isConnected, true);
 });
 
 test('MpvSocketTransport ignores stale socket events after shutdown and reconnect', async () => {

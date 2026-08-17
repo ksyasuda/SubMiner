@@ -62,6 +62,8 @@ interface MpvSocketTransportEvents {
   onClose: () => void;
 }
 
+export const MPV_CONNECT_TIMEOUT_MS = 5000;
+
 export interface MpvSocketTransportOptions {
   socketPath: string;
   onConnect: () => void;
@@ -69,13 +71,16 @@ export interface MpvSocketTransportOptions {
   onError: (error: Error) => void;
   onClose: () => void;
   socketFactory?: () => net.Socket;
+  connectTimeoutMs?: number;
 }
 
 export class MpvSocketTransport {
   private socketPath: string;
   private readonly callbacks: MpvSocketTransportEvents;
   private readonly socketFactory: () => net.Socket;
+  private readonly connectTimeoutMs: number;
   private socketRef: net.Socket | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
   public socket: net.Socket | null = null;
   public connected = false;
   public connecting = false;
@@ -83,12 +88,38 @@ export class MpvSocketTransport {
   constructor(options: MpvSocketTransportOptions) {
     this.socketPath = options.socketPath;
     this.socketFactory = options.socketFactory ?? (() => new net.Socket());
+    this.connectTimeoutMs = options.connectTimeoutMs ?? MPV_CONNECT_TIMEOUT_MS;
     this.callbacks = {
       onConnect: options.onConnect,
       onData: options.onData,
       onError: options.onError,
       onClose: options.onClose,
     };
+  }
+
+  private clearConnectTimeout(): void {
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+  }
+
+  // A named-pipe/socket dial that neither connects nor errors would otherwise
+  // latch `connecting` forever and silently block every future connect().
+  private armConnectTimeout(socket: net.Socket): void {
+    this.clearConnectTimeout();
+    this.connectTimer = setTimeout(() => {
+      this.connectTimer = null;
+      if (this.socketRef !== socket || this.connected) return;
+      this.connecting = false;
+      this.callbacks.onError(
+        new Error(`MPV IPC connect timed out after ${this.connectTimeoutMs}ms: ${this.socketPath}`),
+      );
+      // Destroying the socket emits 'close', which drives the normal
+      // disconnect path (including reconnect scheduling) upstream.
+      socket.destroy();
+    }, this.connectTimeoutMs);
+    this.connectTimer.unref?.();
   }
 
   setSocketPath(socketPath: string): void {
@@ -111,6 +142,7 @@ export class MpvSocketTransport {
 
     socket.on('connect', () => {
       if (this.socketRef !== socket) return;
+      this.clearConnectTimeout();
       this.connected = true;
       this.connecting = false;
       this.callbacks.onConnect();
@@ -123,6 +155,7 @@ export class MpvSocketTransport {
 
     socket.on('error', (error: Error) => {
       if (this.socketRef !== socket) return;
+      this.clearConnectTimeout();
       this.connected = false;
       this.connecting = false;
       this.callbacks.onError(error);
@@ -130,12 +163,14 @@ export class MpvSocketTransport {
 
     socket.on('close', () => {
       if (this.socketRef !== socket) return;
+      this.clearConnectTimeout();
       this.connected = false;
       this.connecting = false;
       this.callbacks.onClose();
     });
 
     socket.connect(this.socketPath);
+    this.armConnectTimeout(socket);
   }
 
   send(payload: MpvSocketMessagePayload): boolean {
@@ -149,6 +184,7 @@ export class MpvSocketTransport {
   }
 
   shutdown(): void {
+    this.clearConnectTimeout();
     const socket = this.socketRef;
     this.socketRef = null;
     this.socket = null;
