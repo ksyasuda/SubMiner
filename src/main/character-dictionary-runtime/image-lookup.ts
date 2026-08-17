@@ -204,11 +204,11 @@ function getSnapshotDirectorySignature(outputDir: string): string {
   return parts.sort().join('|');
 }
 
-export function buildCharacterNameImageIndexFromSnapshots(
+export async function buildCharacterNameImageIndexFromSnapshots(
   outputDir: string,
-): Map<string, CharacterNameImage> {
+): Promise<Map<string, CharacterNameImage>> {
   const index = new Map<string, CharacterNameImage>();
-  for (const snapshot of readCachedSnapshots(outputDir)) {
+  for (const snapshot of await readCachedSnapshots(outputDir)) {
     appendSnapshotImages(index, snapshot);
   }
   return index;
@@ -228,7 +228,12 @@ export function createCharacterDictionaryImageLookup(deps: {
   let signature: string | null = null;
   let index = new Map<string, CharacterNameImage>();
   let indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
+  let refreshInFlight = false;
 
+  // Rebuilding means re-reading every cached snapshot (potentially GBs of JSON), which used to run
+  // synchronously inside a lookup and froze the whole app right after a snapshot changed. Lookups
+  // now serve the previous index while a single background rebuild catches up; the swap is atomic
+  // and the signature only advances once the rebuild it belongs to has landed.
   function refreshIfNeeded(): void {
     if (!outputDir) {
       index = new Map<string, CharacterNameImage>();
@@ -237,20 +242,30 @@ export function createCharacterDictionaryImageLookup(deps: {
       return;
     }
     const nextSignature = getSnapshotDirectorySignature(outputDir);
-    if (nextSignature === signature) {
+    if (nextSignature === signature || refreshInFlight) {
       return;
     }
-    signature = nextSignature;
-    index = new Map<string, CharacterNameImage>();
-    indexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
-    for (const snapshot of readCachedSnapshots(outputDir)) {
-      appendSnapshotImages(index, snapshot);
-      const mediaIndex = new Map<string, CharacterNameImage>();
-      appendSnapshotImages(mediaIndex, snapshot);
-      if (mediaIndex.size > 0) {
-        indexByMediaId.set(snapshot.mediaId, mediaIndex);
+    refreshInFlight = true;
+    void (async () => {
+      try {
+        const snapshots = await readCachedSnapshots(outputDir);
+        const nextIndex = new Map<string, CharacterNameImage>();
+        const nextIndexByMediaId = new Map<number, Map<string, CharacterNameImage>>();
+        for (const snapshot of snapshots) {
+          appendSnapshotImages(nextIndex, snapshot);
+          const mediaIndex = new Map<string, CharacterNameImage>();
+          appendSnapshotImages(mediaIndex, snapshot);
+          if (mediaIndex.size > 0) {
+            nextIndexByMediaId.set(snapshot.mediaId, mediaIndex);
+          }
+        }
+        index = nextIndex;
+        indexByMediaId = nextIndexByMediaId;
+        signature = nextSignature;
+      } finally {
+        refreshInFlight = false;
       }
-    }
+    })();
   }
 
   return {

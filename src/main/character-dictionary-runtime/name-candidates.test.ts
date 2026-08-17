@@ -32,17 +32,33 @@ function writeSnapshot(outputDir: string, mediaId: number, entries: Array<[strin
   );
 }
 
-function withTempDir<T>(run: (dir: string) => T): T {
+async function withTempDir<T>(run: (dir: string) => Promise<T> | T): Promise<T> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-name-candidates-'));
   try {
-    return run(dir);
+    return await run(dir);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
 
-test('collects terms and readings for the current media', () => {
-  withTempDir((dir) => {
+// The snapshot index rebuilds in the background while lookups serve stale data, so tests poll the
+// probe until the refresh they triggered has landed.
+async function waitForRefresh<T>(probe: () => T | null | undefined): Promise<T> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const value = probe();
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+    if (Date.now() > deadline) {
+      throw new Error('timed out waiting for background snapshot refresh');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+test('collects terms and readings for the current media', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [
       ['ミナト', 'みなと'],
       ['湊', 'みなと'],
@@ -53,17 +69,16 @@ test('collects terms and readings for the current media', () => {
       outputDir: dir,
       getCurrentMediaId: () => 1,
     });
-    const candidates = lookup.get();
+    const candidates = await waitForRefresh(() => lookup.get());
 
-    assert.ok(candidates);
     assert.deepEqual([...candidates.forms].sort(), ['みなと', 'ミナト', '湊'].sort());
     // Deduplicated: both entries share the みなと reading.
     assert.equal(candidates.forms.length, 3);
   });
 });
 
-test('returns null without a media scope so the scanner stays exhaustive', () => {
-  withTempDir((dir) => {
+test('returns null without a media scope so the scanner stays exhaustive', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
 
     const lookup = createCharacterNameCandidateLookup({
@@ -71,12 +86,14 @@ test('returns null without a media scope so the scanner stays exhaustive', () =>
       getCurrentMediaId: () => null,
     });
 
+    // The explicitly-scoped probe proves the index has loaded before the unscoped case is judged.
+    await waitForRefresh(() => lookup.get(1));
     assert.equal(lookup.get(), null);
   });
 });
 
-test('returns null for a media with no cached snapshot', () => {
-  withTempDir((dir) => {
+test('returns null for a media with no cached snapshot', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
 
     const lookup = createCharacterNameCandidateLookup({
@@ -84,29 +101,31 @@ test('returns null for a media with no cached snapshot', () => {
       getCurrentMediaId: () => 999,
     });
 
+    await waitForRefresh(() => lookup.get(1));
     assert.equal(lookup.get(), null);
   });
 });
 
-test('key changes when the snapshot content changes', () => {
-  withTempDir((dir) => {
+test('key changes when the snapshot content changes', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
     const lookup = createCharacterNameCandidateLookup({
       outputDir: dir,
       getCurrentMediaId: () => 1,
     });
-    const first = lookup.get();
+    const first = await waitForRefresh(() => lookup.get());
 
     writeSnapshot(dir, 1, [
       ['ミナト', 'みなと'],
       ['アクア', 'あくあ'],
     ]);
     lookup.invalidate();
-    const second = lookup.get();
+    const second = await waitForRefresh(() => {
+      const candidates = lookup.get();
+      return candidates && candidates.forms.length === 4 ? candidates : null;
+    });
 
-    assert.ok(first && second);
     assert.notEqual(first.key, second.key);
-    assert.equal(second.forms.length, 4);
   });
 });
 
@@ -114,8 +133,8 @@ test('key changes when the snapshot content changes', () => {
 // directory every call. Asserted behaviorally: an unannounced on-disk change is
 // invisible until the recheck interval elapses, which can only be true if the
 // filesystem is not consulted per lookup.
-test('does not re-read the snapshot directory on every lookup', () => {
-  withTempDir((dir) => {
+test('does not re-read the snapshot directory on every lookup', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
     let nowMs = 1_000_000;
     const lookup = createCharacterNameCandidateLookup({
@@ -124,6 +143,7 @@ test('does not re-read the snapshot directory on every lookup', () => {
       now: () => nowMs,
     });
 
+    await waitForRefresh(() => lookup.get());
     assert.equal(lookup.get()?.forms.length, 2);
 
     writeSnapshot(dir, 1, [
@@ -135,12 +155,16 @@ test('does not re-read the snapshot directory on every lookup', () => {
     assert.equal(lookup.get()?.forms.length, 2, 'expected the cached list within the interval');
 
     nowMs += 10_000;
-    assert.equal(lookup.get()?.forms.length, 4, 'expected a refresh past the interval');
+    const refreshed = await waitForRefresh(() => {
+      const candidates = lookup.get();
+      return candidates && candidates.forms.length === 4 ? candidates : null;
+    });
+    assert.equal(refreshed.forms.length, 4, 'expected a refresh past the interval');
   });
 });
 
-test('invalidate picks up a snapshot change immediately', () => {
-  withTempDir((dir) => {
+test('invalidate picks up a snapshot change on the next refresh', async () => {
+  await withTempDir(async (dir) => {
     writeSnapshot(dir, 1, [['ミナト', 'みなと']]);
     let nowMs = 1_000_000;
     const lookup = createCharacterNameCandidateLookup({
@@ -149,6 +173,7 @@ test('invalidate picks up a snapshot change immediately', () => {
       now: () => nowMs,
     });
 
+    await waitForRefresh(() => lookup.get());
     assert.equal(lookup.get()?.forms.length, 2);
 
     writeSnapshot(dir, 1, [
@@ -158,6 +183,10 @@ test('invalidate picks up a snapshot change immediately', () => {
     nowMs += 1;
     lookup.invalidate();
 
-    assert.equal(lookup.get()?.forms.length, 4);
+    const refreshed = await waitForRefresh(() => {
+      const candidates = lookup.get();
+      return candidates && candidates.forms.length === 4 ? candidates : null;
+    });
+    assert.equal(refreshed.forms.length, 4);
   });
 });

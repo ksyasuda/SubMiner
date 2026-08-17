@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { readStoredZipFirstFile, writeStoredZip } from '../../shared/stored-zip';
+import { readStoredZipFirstFile, writeStoredZipAsync } from '../../shared/stored-zip';
 import { ensureDir } from './fs-utils';
 import type { CharacterDictionarySnapshotImage, CharacterDictionaryTermEntry } from './types';
 
@@ -48,14 +48,14 @@ export function readDictionaryZipRevision(zipPath: string): string | null {
   }
 }
 
-export function buildDictionaryZip(
+export async function buildDictionaryZip(
   outputPath: string,
   dictionaryTitle: string,
   description: string,
   revision: string,
   termEntries: CharacterDictionaryTermEntry[],
   images: CharacterDictionarySnapshotImage[],
-): { zipPath: string; entryCount: number } {
+): Promise<{ zipPath: string; entryCount: number }> {
   ensureDir(path.dirname(outputPath));
 
   function* zipFiles(): Iterable<{ name: string; data: Buffer }> {
@@ -87,6 +87,6 @@ export function buildDictionaryZip(
     }
   }
 
-  writeStoredZip(outputPath, zipFiles());
+  await writeStoredZipAsync(outputPath, zipFiles());
   return { zipPath: outputPath, entryCount: termEntries.length };
 }

@@ -29,17 +29,17 @@ function createSnapshot(): CharacterDictionarySnapshot {
   };
 }
 
-test('writeSnapshot persists and readSnapshot restores current-format snapshots', () => {
+test('writeSnapshot persists and readSnapshot restores current-format snapshots', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const snapshot = createSnapshot();
 
-  writeSnapshot(snapshotPath, snapshot);
+  await writeSnapshot(snapshotPath, snapshot);
 
-  assert.deepEqual(readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
+  assert.deepEqual(await readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
 });
 
-test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', () => {
+test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const snapshot: CharacterDictionarySnapshot = {
@@ -47,12 +47,12 @@ test('readSnapshot preserves the mecab name-split source and defaults missing va
     nameSplitSource: 'mecab',
   };
 
-  writeSnapshot(snapshotPath, snapshot);
+  await writeSnapshot(snapshotPath, snapshot);
 
-  assert.equal(readSnapshot(snapshotPath)?.nameSplitSource, 'mecab');
+  assert.equal((await readSnapshot(snapshotPath))?.nameSplitSource, 'mecab');
 });
 
-test('readSnapshot ignores snapshots written with an older format version', () => {
+test('readSnapshot ignores snapshots written with an older format version', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const staleSnapshot = {
@@ -63,10 +63,10 @@ test('readSnapshot ignores snapshots written with an older format version', () =
   fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
   fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
 
-  assert.equal(readSnapshot(snapshotPath), null);
+  assert.equal(await readSnapshot(snapshotPath), null);
 });
 
-test('readSnapshot ignores v15 snapshots with stale romanized character-name entries', () => {
+test('readSnapshot ignores v15 snapshots with stale romanized character-name entries', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const staleSnapshot = {
@@ -78,5 +78,5 @@ test('readSnapshot ignores v15 snapshots with stale romanized character-name ent
   fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
   fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
 
-  assert.equal(readSnapshot(snapshotPath), null);
+  assert.equal(await readSnapshot(snapshotPath), null);
 });

@@ -102,24 +102,42 @@ export function writeCachedMediaResolution(
   writeMediaResolutionEntries(outputDir, [...remaining, normalized]);
 }
 
-export function readCachedSnapshots(outputDir: string): CharacterDictionarySnapshot[] {
+/**
+ * Snapshots for long series run to hundreds of MB each, so everything here reads them off the main
+ * thread's critical path: file IO is async and only the unavoidable JSON.parse runs on the loop,
+ * one file at a time. Reading the whole directory synchronously used to block the process for
+ * multiple seconds, long enough for the compositor to declare the app unresponsive mid-playback.
+ */
+export async function readCachedSnapshots(
+  outputDir: string,
+): Promise<CharacterDictionarySnapshot[]> {
   let entries: fs.Dirent[] = [];
   try {
-    entries = fs.readdirSync(getSnapshotsDir(outputDir), { withFileTypes: true });
+    entries = await fs.promises.readdir(getSnapshotsDir(outputDir), { withFileTypes: true });
   } catch {
     return [];
   }
 
-  return entries
+  const names = entries
     .filter((entry) => entry.isFile() && /^anilist-\d+\.json$/.test(entry.name))
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((entry) => readSnapshot(path.join(getSnapshotsDir(outputDir), entry.name)))
-    .filter((snapshot): snapshot is CharacterDictionarySnapshot => snapshot !== null);
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+
+  const snapshots: CharacterDictionarySnapshot[] = [];
+  for (const name of names) {
+    const snapshot = await readSnapshot(path.join(getSnapshotsDir(outputDir), name));
+    if (snapshot) {
+      snapshots.push(snapshot);
+    }
+  }
+  return snapshots;
 }
 
-export function readSnapshot(snapshotPath: string): CharacterDictionarySnapshot | null {
+export async function readSnapshot(
+  snapshotPath: string,
+): Promise<CharacterDictionarySnapshot | null> {
   try {
-    const raw = fs.readFileSync(snapshotPath, 'utf8');
+    const raw = await fs.promises.readFile(snapshotPath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<CharacterDictionarySnapshot>;
     if (!parsed || typeof parsed !== 'object') {
       return null;
@@ -150,9 +168,59 @@ export function readSnapshot(snapshotPath: string): CharacterDictionarySnapshot 
   }
 }
 
-export function writeSnapshot(snapshotPath: string, snapshot: CharacterDictionarySnapshot): void {
+// Flushing in a few-MB batches keeps each stringify-and-write slice short; a single
+// JSON.stringify of a large snapshot blocks the event loop for seconds.
+const SNAPSHOT_WRITE_FLUSH_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Streams the snapshot to disk piece by piece instead of stringifying it in one shot, then renames
+ * the finished file into place so a crash mid-write (or two concurrent writers for the same media)
+ * can never leave a torn file where a snapshot used to be.
+ */
+export async function writeSnapshot(
+  snapshotPath: string,
+  snapshot: CharacterDictionarySnapshot,
+): Promise<void> {
   ensureDir(path.dirname(snapshotPath));
-  fs.writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), 'utf8');
+  const tempPath = `${snapshotPath}.tmp-${process.pid}`;
+  const handle = await fs.promises.open(tempPath, 'w');
+  try {
+    let buffered: string[] = [];
+    let bufferedBytes = 0;
+    const push = async (chunk: string): Promise<void> => {
+      buffered.push(chunk);
+      bufferedBytes += chunk.length;
+      if (bufferedBytes >= SNAPSHOT_WRITE_FLUSH_BYTES) {
+        const joined = buffered.join('');
+        buffered = [];
+        bufferedBytes = 0;
+        await handle.write(joined, null, 'utf8');
+      }
+    };
+    const writeArray = async (key: string, items: readonly unknown[]): Promise<void> => {
+      await push(`,${JSON.stringify(key)}:[`);
+      for (let i = 0; i < items.length; i += 1) {
+        await push(`${i > 0 ? ',' : ''}${JSON.stringify(items[i])}`);
+      }
+      await push(']');
+    };
+
+    const { termEntries, images, ...scalars } = snapshot;
+    const head = JSON.stringify(scalars);
+    await push(head.slice(0, -1));
+    await writeArray('termEntries', termEntries);
+    await writeArray('images', images);
+    await push('}');
+    if (buffered.length > 0) {
+      await handle.write(buffered.join(''), null, 'utf8');
+    }
+  } catch (error) {
+    await handle.close();
+    await fs.promises.rm(tempPath, { force: true });
+    throw error;
+  }
+  await handle.close();
+  await fs.promises.rename(tempPath, snapshotPath);
 }
 
 export function buildMergedRevision(

@@ -244,13 +244,13 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     };
   };
 
-  const findCachedSnapshotForSeriesKey = (
+  const findCachedSnapshotForSeriesKey = async (
     seriesKey: string,
     fallbackSeriesKey?: string,
-  ): CharacterDictionarySnapshot | null => {
+  ): Promise<CharacterDictionarySnapshot | null> => {
     const acceptedKeys = new Set([seriesKey, fallbackSeriesKey].filter(Boolean));
     return (
-      readCachedSnapshots(outputDir).find((snapshot) => {
+      (await readCachedSnapshots(outputDir)).find((snapshot) => {
         const snapshotSeriesKey = buildCharacterDictionarySeriesKey({
           mediaPath: null,
           mediaTitle: snapshot.mediaTitle,
@@ -293,7 +293,9 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
 
     const cachedResolution = readCachedMediaResolution(outputDir, seriesKey);
     if (cachedResolution) {
-      const cachedSnapshot = readSnapshot(getSnapshotPath(outputDir, cachedResolution.mediaId));
+      const cachedSnapshot = await readSnapshot(
+        getSnapshotPath(outputDir, cachedResolution.mediaId),
+      );
       if (cachedSnapshot) {
         deps.logInfo?.(
           `[dictionary] cached AniList match: ${cachedSnapshot.mediaTitle} -> AniList ${cachedSnapshot.mediaId}`,
@@ -305,7 +307,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       }
     }
 
-    const cachedSnapshot = findCachedSnapshotForSeriesKey(seriesKey, unscopedSeriesKey);
+    const cachedSnapshot = await findCachedSnapshotForSeriesKey(seriesKey, unscopedSeriesKey);
     if (cachedSnapshot) {
       writeCachedMediaResolution(outputDir, {
         seriesKey,
@@ -348,7 +350,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     progress?: CharacterDictionarySnapshotProgressCallbacks,
   ): Promise<CharacterDictionarySnapshotResult> => {
     const snapshotPath = getSnapshotPath(outputDir, mediaId);
-    const cachedSnapshot = readSnapshot(snapshotPath);
+    const cachedSnapshot = await readSnapshot(snapshotPath);
     const refreshReason = cachedSnapshot ? getCachedSnapshotRefreshReason(cachedSnapshot) : null;
     if (cachedSnapshot && refreshReason === null) {
       deps.logInfo?.(`[dictionary] snapshot hit for AniList ${mediaId}`);
@@ -485,7 +487,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       resolvedNameSplits,
       nameSplitSource,
     );
-    writeSnapshot(snapshotPath, snapshot);
+    await writeSnapshot(snapshotPath, snapshot);
     deps.logInfo?.(
       `[dictionary] stored snapshot for AniList ${mediaId}: ${snapshot.entryCount} terms`,
     );
@@ -526,19 +528,22 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       const snapshotResults = await Promise.all(
         normalizedMediaIds.map((mediaId) => getOrCreateSnapshot(mediaId)),
       );
-      const snapshots = snapshotResults.map(({ mediaId }) => {
-        const snapshot = readSnapshot(getSnapshotPath(outputDir, mediaId));
+      // Sequential on purpose: each snapshot parse is a chunk of main-thread work, so reading them
+      // one at a time keeps the event loop breathing between files.
+      const snapshots: CharacterDictionarySnapshot[] = [];
+      for (const { mediaId } of snapshotResults) {
+        const snapshot = await readSnapshot(getSnapshotPath(outputDir, mediaId));
         if (!snapshot) {
           throw new Error(`Missing character dictionary snapshot for AniList ${mediaId}.`);
         }
-        return snapshot;
-      });
+        snapshots.push(snapshot);
+      }
       const revision = buildMergedRevision(normalizedMediaIds, snapshots);
       const description =
         snapshots.length === 1
           ? `Character names from ${snapshots[0]!.mediaTitle}`
           : `Character names from ${snapshots.length} recent anime`;
-      const { zipPath, entryCount } = buildDictionaryZip(
+      const { zipPath, entryCount } = await buildDictionaryZip(
         getMergedZipPath(outputDir),
         CHARACTER_DICTIONARY_MERGED_TITLE,
         description,
@@ -633,7 +638,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
         resolvedMedia.title,
         waitForAniListRequestSlot,
       );
-      const storedSnapshot = readSnapshot(getSnapshotPath(outputDir, resolvedMedia.id));
+      const storedSnapshot = await readSnapshot(getSnapshotPath(outputDir, resolvedMedia.id));
       if (!storedSnapshot) {
         throw new Error(`Snapshot missing after generation for AniList ${resolvedMedia.id}.`);
       }
@@ -642,7 +647,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
       const description = `Character names from ${storedSnapshot.mediaTitle} [AniList media ID ${resolvedMedia.id}]`;
       const zipPath = path.join(outputDir, `anilist-${resolvedMedia.id}.zip`);
       deps.logInfo?.(`[dictionary] building ZIP for AniList ${resolvedMedia.id}`);
-      buildDictionaryZip(
+      await buildDictionaryZip(
         zipPath,
         dictionaryTitle,
         description,

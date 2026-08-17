@@ -98,7 +98,12 @@ export function createCharacterNameCandidateLookup(deps: {
   let signature: string | null = null;
   let lastSignatureCheckAtMs = 0;
   let formsByMediaId = new Map<number, string[]>();
+  let refreshInFlight = false;
 
+  // Same stale-while-revalidate shape as the image lookup: the rebuild re-reads every cached
+  // snapshot, so it runs in the background while lookups keep serving the previous forms. The
+  // signature only advances once its rebuild has landed, so a failed or superseded rebuild is
+  // retried on the next signature check.
   function refreshIfNeeded(): void {
     if (!outputDir) {
       formsByMediaId = new Map<number, string[]>();
@@ -114,17 +119,26 @@ export function createCharacterNameCandidateLookup(deps: {
     }
     lastSignatureCheckAtMs = nowMs;
     const nextSignature = getSnapshotDirectorySignature(outputDir);
-    if (nextSignature === signature) {
+    if (nextSignature === signature || refreshInFlight) {
       return;
     }
-    signature = nextSignature;
-    formsByMediaId = new Map<number, string[]>();
-    for (const snapshot of readCachedSnapshots(outputDir)) {
-      const forms = collectSnapshotNameForms(snapshot);
-      if (forms.length > 0) {
-        formsByMediaId.set(snapshot.mediaId, forms);
+    refreshInFlight = true;
+    void (async () => {
+      try {
+        const snapshots = await readCachedSnapshots(outputDir);
+        const nextFormsByMediaId = new Map<number, string[]>();
+        for (const snapshot of snapshots) {
+          const forms = collectSnapshotNameForms(snapshot);
+          if (forms.length > 0) {
+            nextFormsByMediaId.set(snapshot.mediaId, forms);
+          }
+        }
+        formsByMediaId = nextFormsByMediaId;
+        signature = nextSignature;
+      } finally {
+        refreshInFlight = false;
       }
-    }
+    })();
   }
 
   return {

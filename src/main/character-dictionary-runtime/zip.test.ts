@@ -42,7 +42,7 @@ function readStoredZipEntries(zipPath: string): Map<string, Buffer> {
   return entries;
 }
 
-test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', () => {
+test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', async () => {
   const tempDir = makeTempDir();
   const outputPath = path.join(tempDir, 'dictionary.zip');
   const termEntries: CharacterDictionaryTermEntry[] = [
@@ -62,7 +62,7 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
       );
     }) as typeof Buffer.concat;
 
-    const result = buildDictionaryZip(
+    const result = await buildDictionaryZip(
       outputPath,
       'Dictionary Title',
       'Dictionary Description',
@@ -106,11 +106,11 @@ test('buildDictionaryZip writes a valid stored zip without fs.writeFileSync', ()
   }
 });
 
-test('readDictionaryZipRevision reads the built revision and rejects foreign archives', () => {
+test('readDictionaryZipRevision reads the built revision and rejects foreign archives', async () => {
   const dir = makeTempDir();
   try {
     const zipPath = path.join(dir, 'merged.zip');
-    buildDictionaryZip(
+    await buildDictionaryZip(
       zipPath,
       'SubMiner Character Dictionary',
       'Character names',
