@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import {
   MpvIpcClient,
   MpvIpcClientDeps,
@@ -755,4 +756,51 @@ test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playi
 
   assert.equal((client as any).pendingPauseAtSubEnd, true);
   assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+});
+
+class HangingTestSocket extends EventEmitter {
+  public connectedPaths: string[] = [];
+  public destroyed = false;
+
+  connect(path: string): void {
+    this.connectedPaths.push(path);
+    // Never resolves: models a stalled named-pipe dial.
+  }
+
+  write(): boolean {
+    return true;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+test('MpvIpcClient.setSocketPath aborts an in-flight connect so the next dial targets the new path', () => {
+  const sockets: HangingTestSocket[] = [];
+  const client = new MpvIpcClient(
+    '/tmp/mpv-old.sock',
+    makeDeps({
+      socketFactory: () => {
+        const socket = new HangingTestSocket();
+        sockets.push(socket);
+        return socket as unknown as import('node:net').Socket;
+      },
+    }),
+  );
+
+  client.connect();
+  assert.equal(sockets.length, 1);
+  assert.equal(sockets[0]!.connectedPaths.at(0), '/tmp/mpv-old.sock');
+  assert.equal((client as any).connecting, true);
+
+  client.setSocketPath('/tmp/mpv-new.sock');
+  assert.equal((client as any).connecting, false);
+  assert.equal(sockets[0]!.destroyed, true);
+
+  client.connect();
+  assert.equal(sockets.length, 2);
+  assert.equal(sockets[1]!.connectedPaths.at(0), '/tmp/mpv-new.sock');
+
+  (client as any).transport.shutdown();
 });

@@ -9,7 +9,11 @@ import {
   splitMpvMessagesFromBuffer,
 } from './mpv-protocol';
 import { requestMpvInitialState, subscribeToMpvProperties } from './mpv-properties';
-import { scheduleMpvReconnect, MpvSocketTransport } from './mpv-transport';
+import {
+  scheduleMpvReconnect,
+  MpvSocketTransport,
+  MpvSocketTransportOptions,
+} from './mpv-transport';
 import { createLogger } from '../../logger';
 
 const logger = createLogger('main:mpv');
@@ -110,6 +114,8 @@ export interface MpvIpcClientProtocolDeps {
   shouldAutoLoadSecondarySubTrack?: (path: string) => boolean;
   shouldQuitOnMpvShutdown?: () => boolean;
   requestAppQuit?: () => void;
+  socketFactory?: MpvSocketTransportOptions['socketFactory'];
+  connectTimeoutMs?: number;
 }
 
 export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
@@ -188,6 +194,8 @@ export class MpvIpcClient implements MpvClient {
 
     this.transport = new MpvSocketTransport({
       socketPath,
+      socketFactory: deps.socketFactory,
+      connectTimeoutMs: deps.connectTimeoutMs,
       onConnect: () => {
         this.connected = true;
         this.connecting = false;
@@ -289,6 +297,14 @@ export class MpvIpcClient implements MpvClient {
         previousSocketPath: this.socketPath,
         socketPath,
       });
+      if (this.connecting && !this.connected) {
+        // Abort the in-flight dial to the old path; otherwise the connecting
+        // latch turns every later connect() into a no-op while we hang on a
+        // stale socket.
+        logger.debug('Aborting in-flight MPV IPC connect for socket path change.');
+        this.transport.shutdown();
+        this.connecting = false;
+      }
     }
     this.socketPath = socketPath;
     this.transport.setSocketPath(socketPath);
