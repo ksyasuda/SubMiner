@@ -123,7 +123,7 @@ interface Harness {
   flush: () => Promise<void>;
   tick: (ms: number) => Promise<void>;
   unmount: () => Promise<void>;
-  teardown: () => void;
+  teardown: () => Promise<void>;
 }
 
 async function mountHook(): Promise<Harness> {
@@ -170,9 +170,15 @@ async function mountHook(): Promise<Harness> {
         root = null;
       });
     },
-    teardown: () => {
-      if (root) root.unmount();
+    teardown: async () => {
+      await act(async () => {
+        root?.unmount();
+        root = null;
+      });
       clock.restore();
+      // React's scheduler can still have deferred work queued; let it drain on
+      // a real timer while the DOM globals it reads are still installed.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       uninstallLocalStorage();
       uninstallDom();
       resetExcludedWordsStoreForTests();
@@ -242,7 +248,7 @@ test('aggregate failures retry with backoff, then surface an error that Retry cl
     assert.equal(harness.state().aggregatesError, null);
     assert.deepEqual(harness.state().summary, summaryFixture());
   } finally {
-    harness.teardown();
+    await harness.teardown();
     restoreClient();
     console.error = originalConsoleError;
   }
@@ -274,7 +280,7 @@ test('charts poll while the backfill is pending and stop once it is ready', asyn
     await harness.tick(60_000);
     assert.equal(chartCalls, 3);
   } finally {
-    harness.teardown();
+    await harness.teardown();
     restoreClient();
   }
 });
@@ -307,7 +313,7 @@ test('aggregates refetch after an exclusion edit is acknowledged by the server',
     assert.equal(summaryCalls, 2, 'totals must not keep counting the excluded word');
     assert.equal(chartCalls, 2);
   } finally {
-    harness.teardown();
+    await harness.teardown();
     restoreClient();
   }
 });
@@ -334,8 +340,60 @@ test('pending retries are cancelled when the tab unmounts', async () => {
 
     assert.equal(summaryCalls, 1, 'no retry may run after unmount');
   } finally {
-    harness.teardown();
+    await harness.teardown();
     restoreClient();
     console.error = originalConsoleError;
+  }
+});
+
+test('a slow response from a superseded refresh cannot replace the newest aggregates', async () => {
+  let summaryCalls = 0;
+  let releaseSuperseded: (() => void) | null = null;
+  const restoreClient = stubVocabularyClient({
+    getVocabularySummary: async () => {
+      summaryCalls += 1;
+      const call = summaryCalls;
+      // The second call is the one that gets superseded while still in flight.
+      if (call === 2) {
+        await new Promise<void>((resolve) => {
+          releaseSuperseded = resolve;
+        });
+      }
+      return { ...summaryFixture(), uniqueWords: call };
+    },
+    getVocabularyCharts: async () => chartsFixture(),
+  });
+  const harness = await mountHook();
+
+  try {
+    await harness.flush();
+    assert.equal(harness.state().summary?.uniqueWords, 1);
+
+    // First refresh stalls, then a second refresh supersedes it and resolves.
+    await act(async () => {
+      harness.state().refreshAggregates();
+    });
+    await harness.flush();
+    await act(async () => {
+      harness.state().refreshAggregates();
+    });
+    await harness.flush();
+
+    assert.equal(summaryCalls, 3);
+    assert.equal(harness.state().summary?.uniqueWords, 3);
+
+    const release = releaseSuperseded as (() => void) | null;
+    assert.ok(release, 'expected the superseded request to still be in flight');
+    release();
+    await harness.flush();
+
+    assert.equal(
+      harness.state().summary?.uniqueWords,
+      3,
+      'the superseded response must not overwrite the newest totals',
+    );
+  } finally {
+    await harness.teardown();
+    restoreClient();
   }
 });

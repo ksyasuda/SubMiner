@@ -142,7 +142,10 @@ export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
       console.error('Failed to persist excluded words to stats database', error);
       throw error;
     }
-    notifyServerSync();
+    // A newer edit arrived while this write was in flight, so the server state
+    // this acknowledges is already obsolete. Its own acknowledgement notifies
+    // with the newest list; skipping here avoids a wasted aggregate scan.
+    if (revision === writeRevision) notifyServerSync();
   });
   writeChain = write.catch(() => {});
   return write;

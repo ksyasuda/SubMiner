@@ -278,8 +278,9 @@ test('overlapping writes serialize so an older list cannot overwrite a newer edi
       JSON.stringify({ words: third }),
     ]);
     assert.deepEqual(getExcludedWordsSnapshot(), third);
-    assert.equal(syncs.length, 2);
-    assert.equal(syncs.at(-1), JSON.stringify(third));
+    // Only the final revision notifies: the first write's acknowledgement was
+    // already obsolete, so it must not trigger an aggregate recomputation.
+    assert.deepEqual(syncs, [JSON.stringify(third)]);
   } finally {
     unsubscribe();
     globalThis.fetch = originalFetch;
