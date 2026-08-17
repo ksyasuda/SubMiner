@@ -39,6 +39,46 @@ test('writeSnapshot persists and readSnapshot restores current-format snapshots'
   assert.deepEqual(await readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
 });
 
+// A manual generate and an auto-sync can both land on the same media, so two writes for one
+// snapshot can overlap. They must not stream into a shared temp file and interleave into a
+// half-and-half snapshot.
+test('concurrent writeSnapshot calls for the same media leave one complete snapshot', async () => {
+  const outputDir = makeTempDir();
+  const snapshotPath = getSnapshotPath(outputDir, 130298);
+  const base = createSnapshot();
+  const wide: CharacterDictionarySnapshot = {
+    ...base,
+    entryCount: 400,
+    termEntries: Array.from({ length: 400 }, (_entry, index) => [
+      `名前${index}`,
+      'なまえ',
+      'name primary',
+      '',
+      75,
+      [`Character ${index}`.repeat(200)],
+      0,
+      '',
+    ]) as CharacterDictionarySnapshot['termEntries'],
+  };
+
+  await Promise.all([
+    writeSnapshot(snapshotPath, wide),
+    writeSnapshot(snapshotPath, wide),
+    writeSnapshot(snapshotPath, wide),
+  ]);
+
+  const restored = await readSnapshot(snapshotPath);
+  assert.equal(restored?.entryCount, 400);
+  assert.equal(restored?.termEntries.length, 400);
+  assert.deepEqual(restored, { ...wide, nameSplitSource: 'heuristic' });
+
+  // Every writer cleaned up after itself, so no temp files are left behind.
+  const leftovers = fs
+    .readdirSync(path.dirname(snapshotPath))
+    .filter((name) => name.includes('.tmp-'));
+  assert.deepEqual(leftovers, []);
+});
+
 test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);

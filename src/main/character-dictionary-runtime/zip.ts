@@ -78,7 +78,11 @@ export async function buildDictionaryZip(
       };
     }
 
-    const entriesPerBank = 10_000;
+    // Each bank is stringified in one shot, so the bank size sets the longest single block in the
+    // build. 10k entries measured ~38MB and ~135ms per bank on a real merged dictionary; 2k keeps
+    // every bank under the archive writer's yield budget at ~27ms. Yomitan reads any number of
+    // term_bank_N.json files, so this only changes how the terms are split across them.
+    const entriesPerBank = 2_000;
     for (let i = 0; i < termEntries.length; i += entriesPerBank) {
       yield {
         name: `term_bank_${Math.floor(i / entriesPerBank) + 1}.json`,

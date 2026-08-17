@@ -172,6 +172,10 @@ export async function readSnapshot(
 // JSON.stringify of a large snapshot blocks the event loop for seconds.
 const SNAPSHOT_WRITE_FLUSH_BYTES = 4 * 1024 * 1024;
 
+// Distinguishes concurrent writes of the same snapshot within one process; the pid alone only
+// separates processes, so two overlapping writers would otherwise stream into the same temp file.
+let snapshotWriteSequence = 0;
+
 /**
  * Streams the snapshot to disk piece by piece instead of stringifying it in one shot, then renames
  * the finished file into place so a crash mid-write (or two concurrent writers for the same media)
@@ -182,7 +186,8 @@ export async function writeSnapshot(
   snapshot: CharacterDictionarySnapshot,
 ): Promise<void> {
   ensureDir(path.dirname(snapshotPath));
-  const tempPath = `${snapshotPath}.tmp-${process.pid}`;
+  snapshotWriteSequence += 1;
+  const tempPath = `${snapshotPath}.tmp-${process.pid}-${snapshotWriteSequence}`;
   const handle = await fs.promises.open(tempPath, 'w');
   try {
     let buffered: string[] = [];
