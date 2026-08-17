@@ -202,6 +202,7 @@ export function buildIntegrationConfigOptionRegistry(
       defaultValue: defaultConfig.ankiConnect.media.reviewTiming,
       description:
         'Review and preview subtitle media timing before SubMiner creates or enriches a mined card.',
+      runtime: runtimeOptionById.get('anki.mediaReviewTiming'),
     },
     {
       path: 'ankiConnect.media.generateImage',

@@ -100,6 +100,9 @@ function buildAnkiRuntimeConfigPatch(
   if (diff.hotReloadFields.includes('ankiConnect.media.mirrorMpvVolume')) {
     mediaPatch.mirrorMpvVolume = config.ankiConnect.media.mirrorMpvVolume;
   }
+  if (diff.hotReloadFields.includes('ankiConnect.media.reviewTiming')) {
+    mediaPatch.reviewTiming = config.ankiConnect.media.reviewTiming;
+  }
   if (Object.keys(mediaPatch).length > 0) {
     patch.media = mediaPatch;
   }

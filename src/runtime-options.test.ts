@@ -82,3 +82,19 @@ test('RuntimeOptionsManager keeps known-word and n+1 annotation toggles separate
   assert.equal(effective.nPlusOne?.enabled, true);
   assert.deepEqual(patches, []);
 });
+
+test('RuntimeOptionsManager applies media timing review to the live Anki config', () => {
+  const baseConfig = structuredClone(DEFAULT_CONFIG.ankiConnect);
+  const patches: unknown[] = [];
+  const manager = new RuntimeOptionsManager(() => structuredClone(baseConfig), {
+    applyAnkiPatch: (patch) => {
+      patches.push(patch);
+    },
+    onOptionsChanged: () => undefined,
+  });
+
+  assert.equal(manager.getOptionValue('anki.mediaReviewTiming'), false);
+  assert.equal(manager.setOptionValue('anki.mediaReviewTiming', true).ok, true);
+  assert.equal(manager.getEffectiveAnkiConnectConfig().media?.reviewTiming, true);
+  assert.deepEqual(patches, [{ media: { reviewTiming: true } }]);
+});

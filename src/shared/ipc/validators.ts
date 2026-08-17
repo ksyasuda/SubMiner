@@ -53,6 +53,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
 
 const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'anki.autoUpdateNewCards',
+  'anki.mediaReviewTiming',
   'subtitle.annotation.knownWords.highlightEnabled',
   'subtitle.annotation.knownWords.maturityEnabled',
   'subtitle.annotation.nPlusOne',

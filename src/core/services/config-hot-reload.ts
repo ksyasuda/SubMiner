@@ -70,6 +70,7 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'ankiConnect.deck',
   'ankiConnect.media.normalizeAudio',
   'ankiConnect.media.mirrorMpvVolume',
+  'ankiConnect.media.reviewTiming',
   'ankiConnect.behavior.autoUpdateNewCards',
   'ankiConnect.knownWords.highlightEnabled',
   'ankiConnect.knownWords.refreshMinutes',
