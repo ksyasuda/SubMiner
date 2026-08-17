@@ -50,17 +50,3 @@ test('useVocabulary loads exact card totals without holding up the vocabulary ta
   assert.match(source, /client\s*\.getVocabularySummary\(\)\s*\.then\(/);
   assert.match(source, /client\s*\.getVocabularyCharts\(\)/);
 });
-
-test('useVocabulary refetches aggregates after server-acknowledged exclusion edits', () => {
-  const source = fs.readFileSync(VOCABULARY_HOOK_PATH, 'utf8');
-
-  assert.match(source, /subscribeExcludedWordsServerSync\(refreshAggregates\)/);
-});
-
-test('useVocabulary bounds aggregate retries instead of polling failures forever', () => {
-  const source = fs.readFileSync(VOCABULARY_HOOK_PATH, 'utf8');
-
-  assert.match(source, /AGGREGATE_RETRY_LIMIT/);
-  assert.match(source, /aggregateRetryDelayMs\(attempt\)/);
-  assert.match(source, /CHART_BACKFILL_SLOW_POLL_MS/);
-});

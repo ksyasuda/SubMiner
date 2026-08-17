@@ -5058,6 +5058,7 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
   let tracker: ImmersionTrackerService | null = null;
   let taskRuns = 0;
   let releaseTask: (() => void) | null = null;
+  const seenKnownWords: Array<ReadonlySet<string> | null> = [];
   const summary = {
     uniqueWords: 1,
     uniqueWordsWithoutNames: 1,
@@ -5073,8 +5074,9 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
     tracker = new Ctor(
       { dbPath },
       {
-        runVocabularySummaryTask: async () => {
+        runVocabularySummaryTask: async (_dbPath, knownWords) => {
           taskRuns += 1;
+          seenKnownWords.push(knownWords);
           await new Promise<void>((resolve) => {
             releaseTask = resolve;
           });
@@ -5093,6 +5095,9 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
     assert.deepEqual(await first, summary);
     assert.equal(await second, await first);
     assert.equal(taskRuns, 1);
+    // The coalesced caller's known-words set must not replace the snapshot the
+    // in-flight scan already started with.
+    assert.deepEqual(seenKnownWords, [null]);
 
     releaseTask = null;
     const third = tracker.getVocabularySummary(null);

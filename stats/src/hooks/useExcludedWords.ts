@@ -55,6 +55,22 @@ export function subscribeExcludedWordsServerSync(fn: () => void): () => void {
   };
 }
 
+function notifyServerSync(): void {
+  // Listener failures are their own concern: one must not roll back a write
+  // that already succeeded, nor stop the remaining listeners from running.
+  for (const fn of serverSyncListeners) {
+    try {
+      fn();
+    } catch (error) {
+      console.error('Excluded words server-sync listener failed', error);
+    }
+  }
+}
+
+// Full-list writes are serialized so a slow earlier request cannot land after a
+// newer one and overwrite it with a stale list.
+let writeChain: Promise<void> = Promise.resolve();
+
 function readLocalStorage(): ExcludedWord[] {
   if (typeof localStorage === 'undefined') return [];
   try {
@@ -112,17 +128,24 @@ export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
   const normalized = dedupeExcludedWords(words);
   revision = writeRevision;
   applyWords(normalized);
-  try {
-    await apiClient.setExcludedWords(normalized);
-    for (const fn of serverSyncListeners) fn();
-  } catch (error) {
-    if (revision === writeRevision) {
-      revision = previousRevision;
-      applyWords(previousWords);
+  const write = writeChain.then(async () => {
+    // A newer edit already superseded this list and carries the newest state,
+    // so sending this one would push a stale list to the server.
+    if (revision !== writeRevision) return;
+    try {
+      await apiClient.setExcludedWords(normalized);
+    } catch (error) {
+      if (revision === writeRevision) {
+        revision = previousRevision;
+        applyWords(previousWords);
+      }
+      console.error('Failed to persist excluded words to stats database', error);
+      throw error;
     }
-    console.error('Failed to persist excluded words to stats database', error);
-    throw error;
-  }
+    notifyServerSync();
+  });
+  writeChain = write.catch(() => {});
+  return write;
 }
 
 export function initializeExcludedWordsStore(): Promise<void> {
@@ -167,6 +190,7 @@ export function resetExcludedWordsStoreForTests(): void {
   revision = 0;
   listeners.clear();
   serverSyncListeners.clear();
+  writeChain = Promise.resolve();
 }
 
 function subscribe(fn: () => void): () => void {
