@@ -257,6 +257,27 @@ test('legacy lexical rollup readiness does not satisfy the current rollup versio
   }
 });
 
+test('current lexical rollup readiness accepts legacy integer state storage', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    db.exec(`
+      CREATE TABLE imm_rollup_state(
+        state_key TEXT PRIMARY KEY,
+        state_value INTEGER NOT NULL
+      );
+      INSERT INTO imm_rollup_state(state_key, state_value)
+      VALUES ('lexical_daily_rollups_version', 2);
+    `);
+
+    assert.equal(areLexicalDailyRollupsReady(db), true);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
 test('imm_words persists vocabulary visibility for rollup maintenance', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

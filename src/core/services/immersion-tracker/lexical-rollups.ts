@@ -140,8 +140,11 @@ export function ensureLexicalDailyRollupTables(db: DatabaseSync): void {
 export function areLexicalDailyRollupsReady(db: DatabaseSync): boolean {
   const row = db
     .prepare(`SELECT state_value AS value FROM imm_rollup_state WHERE state_key = ?`)
-    .get(LEXICAL_DAILY_ROLLUP_VERSION_KEY) as { value: string } | null;
-  return row?.value === LEXICAL_DAILY_ROLLUP_VERSION;
+    .get(LEXICAL_DAILY_ROLLUP_VERSION_KEY) as { value: string | number } | undefined;
+  // Older databases created this column with INTEGER affinity, while current
+  // databases use TEXT. SQLite returns the same persisted version with a
+  // different JS type depending on that legacy schema.
+  return row !== undefined && String(row.value) === LEXICAL_DAILY_ROLLUP_VERSION;
 }
 
 export function markLexicalDailyRollupsReady(db: DatabaseSync): void {
