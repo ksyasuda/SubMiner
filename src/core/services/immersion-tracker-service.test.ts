@@ -590,7 +590,7 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
     ensureSchema(setupDb);
     setupDb
       .prepare(
-        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_ready'`,
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
       )
       .run();
     setupDb.close();
@@ -603,6 +603,14 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
     } as never);
 
     assert.equal(backfillRuns, 1);
+    await waitForCondition(
+      () => !(tracker as unknown as { writeLock: { locked: boolean } }).writeLock.locked,
+    );
+    assert.equal(
+      (tracker as unknown as { preserveWriteQueueUntilDrained: boolean })
+        .preserveWriteQueueUntilDrained,
+      false,
+    );
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
@@ -631,14 +639,14 @@ test('tracker queues playback writes until lexical rollup backfill settles', asy
     ensureSchema(setupDb);
     setupDb
       .prepare(
-        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_ready'`,
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
       )
       .run();
     setupDb.close();
 
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor(
-      { dbPath },
+      { dbPath, policy: { queueCap: 100 } },
       {
         runLexicalRollupBackfillTask: async (workerDbPath) => {
           await backfillStartGate;
@@ -664,18 +672,20 @@ test('tracker queues playback writes until lexical rollup backfill settles', asy
     tracker.handleMediaChange('https://example.com/backfill-test.mp4', 'Backfill Test');
     startBackfill();
     await backfillStarted;
-    tracker.recordCardsMined(1);
+    for (let index = 0; index < 125; index += 1) tracker.recordCardsMined(1);
 
     const privateApi = tracker as unknown as {
       db: DatabaseSync;
       queue: unknown[];
+      droppedWriteCount: number;
       flushNow: () => void;
       writeLock: { locked: boolean };
     };
     assert.equal(privateApi.writeLock.locked, true);
     privateApi.flushNow();
 
-    assert.ok(privateApi.queue.length > 0);
+    assert.ok(privateApi.queue.length > 100, 'the protected queue may grow past its normal cap');
+    assert.equal(privateApi.droppedWriteCount, 0, 'backfill must not discard playback writes');
     assert.equal(
       (
         privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
@@ -686,17 +696,23 @@ test('tracker queues playback writes until lexical rollup backfill settles', asy
     );
 
     releaseBackfill();
-    await waitForCondition(() => privateApi.queue.length === 0);
+    await waitForCondition(() => privateApi.queue.length === 0, 5_000);
     assert.equal(
       (
         privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
           total: number;
         }
       ).total,
-      1,
+      125,
     );
   } finally {
     releaseBackfill();
+    if (tracker) {
+      await waitForCondition(
+        () => !(tracker as unknown as { writeLock: { locked: boolean } }).writeLock.locked,
+        5_000,
+      );
+    }
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
@@ -5086,8 +5102,9 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
       },
     );
 
-    const first = tracker.getVocabularySummary(null);
-    const second = tracker.getVocabularySummary(new Set(['猫']));
+    const knownWordsSnapshot = new Set(['猫']);
+    const first = tracker.getVocabularySummary(knownWordsSnapshot);
+    const second = tracker.getVocabularySummary(knownWordsSnapshot);
     await waitForCondition(() => releaseTask !== null);
     let release = releaseTask as (() => void) | null;
     assert.ok(release);
@@ -5095,9 +5112,7 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
     assert.deepEqual(await first, summary);
     assert.equal(await second, await first);
     assert.equal(taskRuns, 1);
-    // The coalesced caller's known-words set must not replace the snapshot the
-    // in-flight scan already started with.
-    assert.deepEqual(seenKnownWords, [null]);
+    assert.deepEqual(seenKnownWords, [knownWordsSnapshot]);
 
     releaseTask = null;
     const third = tracker.getVocabularySummary(null);
@@ -5107,6 +5122,45 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
     release();
     assert.deepEqual(await third, summary);
     assert.equal(taskRuns, 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary keeps different known-word snapshots independent', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const releases: Array<() => void> = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async (_dbPath, knownWords) => {
+          await new Promise<void>((resolve) => releases.push(resolve));
+          return {
+            uniqueWords: 1,
+            uniqueWordsWithoutNames: 1,
+            uniqueKanji: 0,
+            newThisWeek: 0,
+            newThisWeekWithoutNames: 0,
+            knownWordCount: knownWords?.size ?? null,
+            knownWordCountWithoutNames: knownWords?.size ?? null,
+          };
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const withoutKnownWords = tracker.getVocabularySummary(null);
+    const withKnownWords = tracker.getVocabularySummary(new Set(['猫']));
+    await waitForCondition(() => releases.length === 2);
+    for (const release of releases) release();
+
+    assert.equal((await withoutKnownWords).knownWordCount, null);
+    assert.equal((await withKnownWords).knownWordCount, 1);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

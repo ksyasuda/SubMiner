@@ -89,6 +89,7 @@ const WORD_COPY_COLUMNS = [
   'last_seen',
   'frequency',
   'frequency_rank',
+  'vocabulary_visible',
 ] as const;
 
 export function mergeAnime(

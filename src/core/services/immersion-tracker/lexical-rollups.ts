@@ -1,4 +1,5 @@
 import type { DatabaseSync } from './sqlite';
+import { isVocabularyStatsRowVisible, type VocabularyVisibilityRow } from './vocabulary-visibility';
 
 export interface LexicalDailyRollup {
   epochDay: number;
@@ -8,11 +9,20 @@ export interface LexicalDailyRollup {
 }
 
 const LOCAL_EPOCH_DAY_SQL = `
-  CAST(julianday(CAST(%VALUE% AS REAL), 'unixepoch', 'localtime') - 2440587.5 AS INTEGER)
+  CAST(julianday(
+    CASE
+      WHEN ABS(CAST(%VALUE% AS REAL)) >= 10000000000 THEN CAST(%VALUE% AS REAL) / 1000
+      ELSE CAST(%VALUE% AS REAL)
+    END,
+    'unixepoch', 'localtime'
+  ) - 2440587.5 AS INTEGER)
 `;
 
+const LEXICAL_DAILY_ROLLUP_VERSION = '2';
+const LEXICAL_DAILY_ROLLUP_VERSION_KEY = 'lexical_daily_rollups_version';
+
 export function localEpochDaySql(value: string): string {
-  return LOCAL_EPOCH_DAY_SQL.replace('%VALUE%', value);
+  return LOCAL_EPOCH_DAY_SQL.replaceAll('%VALUE%', value);
 }
 
 function createWordRollupTriggers(db: DatabaseSync): void {
@@ -20,9 +30,13 @@ function createWordRollupTriggers(db: DatabaseSync): void {
   const dayForOld = localEpochDaySql('OLD.first_seen');
 
   db.exec(`
-    CREATE TRIGGER IF NOT EXISTS imm_words_lexical_rollup_insert
+    DROP TRIGGER IF EXISTS imm_words_lexical_rollup_insert;
+    DROP TRIGGER IF EXISTS imm_words_lexical_rollup_delete;
+    DROP TRIGGER IF EXISTS imm_words_lexical_rollup_first_seen_update;
+
+    CREATE TRIGGER imm_words_lexical_rollup_insert
     AFTER INSERT ON imm_words
-    WHEN NEW.first_seen IS NOT NULL
+    WHEN NEW.first_seen IS NOT NULL AND NEW.vocabulary_visible = 1
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       VALUES (${dayForNew}, 1, CASE WHEN NEW.pos2 = '固有名詞' THEN 0 ELSE 1 END, 0)
@@ -31,9 +45,9 @@ function createWordRollupTriggers(db: DatabaseSync): void {
         word_count_without_names = word_count_without_names + excluded.word_count_without_names;
     END;
 
-    CREATE TRIGGER IF NOT EXISTS imm_words_lexical_rollup_delete
+    CREATE TRIGGER imm_words_lexical_rollup_delete
     AFTER DELETE ON imm_words
-    WHEN OLD.first_seen IS NOT NULL
+    WHEN OLD.first_seen IS NOT NULL AND OLD.vocabulary_visible = 1
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       VALUES (${dayForOld}, -1, CASE WHEN OLD.pos2 = '固有名詞' THEN 0 ELSE -1 END, 0)
@@ -44,19 +58,21 @@ function createWordRollupTriggers(db: DatabaseSync): void {
       WHERE epoch_day = ${dayForOld} AND word_count = 0 AND kanji_count = 0;
     END;
 
-    CREATE TRIGGER IF NOT EXISTS imm_words_lexical_rollup_first_seen_update
-    AFTER UPDATE OF first_seen, pos2 ON imm_words
-    WHEN OLD.first_seen IS NOT NEW.first_seen OR OLD.pos2 IS NOT NEW.pos2
+    CREATE TRIGGER imm_words_lexical_rollup_first_seen_update
+    AFTER UPDATE OF first_seen, pos2, vocabulary_visible ON imm_words
+    WHEN OLD.first_seen IS NOT NEW.first_seen
+      OR OLD.pos2 IS NOT NEW.pos2
+      OR OLD.vocabulary_visible IS NOT NEW.vocabulary_visible
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       SELECT ${dayForOld}, -1, CASE WHEN OLD.pos2 = '固有名詞' THEN 0 ELSE -1 END, 0
-      WHERE OLD.first_seen IS NOT NULL
+      WHERE OLD.first_seen IS NOT NULL AND OLD.vocabulary_visible = 1
       ON CONFLICT(epoch_day) DO UPDATE SET
         word_count = word_count - 1,
         word_count_without_names = word_count_without_names + excluded.word_count_without_names;
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       SELECT ${dayForNew}, 1, CASE WHEN NEW.pos2 = '固有名詞' THEN 0 ELSE 1 END, 0
-      WHERE NEW.first_seen IS NOT NULL
+      WHERE NEW.first_seen IS NOT NULL AND NEW.vocabulary_visible = 1
       ON CONFLICT(epoch_day) DO UPDATE SET
         word_count = word_count + 1,
         word_count_without_names = word_count_without_names + excluded.word_count_without_names;
@@ -70,14 +86,18 @@ function createKanjiRollupTriggers(db: DatabaseSync): void {
   const dayForNew = localEpochDaySql('NEW.first_seen');
   const dayForOld = localEpochDaySql('OLD.first_seen');
   db.exec(`
-    CREATE TRIGGER IF NOT EXISTS imm_kanji_lexical_rollup_insert
+    DROP TRIGGER IF EXISTS imm_kanji_lexical_rollup_insert;
+    DROP TRIGGER IF EXISTS imm_kanji_lexical_rollup_delete;
+    DROP TRIGGER IF EXISTS imm_kanji_lexical_rollup_first_seen_update;
+
+    CREATE TRIGGER imm_kanji_lexical_rollup_insert
     AFTER INSERT ON imm_kanji WHEN NEW.first_seen IS NOT NULL
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       VALUES (${dayForNew}, 0, 0, 1)
       ON CONFLICT(epoch_day) DO UPDATE SET kanji_count = kanji_count + 1;
     END;
-    CREATE TRIGGER IF NOT EXISTS imm_kanji_lexical_rollup_delete
+    CREATE TRIGGER imm_kanji_lexical_rollup_delete
     AFTER DELETE ON imm_kanji WHEN OLD.first_seen IS NOT NULL
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
@@ -86,7 +106,7 @@ function createKanjiRollupTriggers(db: DatabaseSync): void {
       DELETE FROM imm_lexical_daily_rollups
       WHERE epoch_day = ${dayForOld} AND word_count = 0 AND kanji_count = 0;
     END;
-    CREATE TRIGGER IF NOT EXISTS imm_kanji_lexical_rollup_first_seen_update
+    CREATE TRIGGER imm_kanji_lexical_rollup_first_seen_update
     AFTER UPDATE OF first_seen ON imm_kanji WHEN OLD.first_seen IS NOT NEW.first_seen
     BEGIN
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
@@ -109,7 +129,7 @@ export function ensureLexicalDailyRollupTables(db: DatabaseSync): void {
       kanji_count INTEGER NOT NULL DEFAULT 0
     );
     INSERT INTO imm_rollup_state(state_key, state_value)
-    VALUES ('lexical_daily_rollups_ready', '0')
+    VALUES ('${LEXICAL_DAILY_ROLLUP_VERSION_KEY}', '0')
     ON CONFLICT(state_key) DO NOTHING;
   `);
   createWordRollupTriggers(db);
@@ -119,14 +139,16 @@ export function ensureLexicalDailyRollupTables(db: DatabaseSync): void {
 export function areLexicalDailyRollupsReady(db: DatabaseSync): boolean {
   const row = db
     .prepare(`SELECT state_value AS value FROM imm_rollup_state WHERE state_key = ?`)
-    .get('lexical_daily_rollups_ready') as { value: string } | null;
-  return row?.value === '1';
+    .get(LEXICAL_DAILY_ROLLUP_VERSION_KEY) as { value: string } | null;
+  return row?.value === LEXICAL_DAILY_ROLLUP_VERSION;
 }
 
 export function markLexicalDailyRollupsReady(db: DatabaseSync): void {
-  db.prepare(`UPDATE imm_rollup_state SET state_value = '1' WHERE state_key = ?`).run(
-    'lexical_daily_rollups_ready',
-  );
+  db.prepare(
+    `INSERT INTO imm_rollup_state(state_key, state_value)
+     VALUES (?, ?)
+     ON CONFLICT(state_key) DO UPDATE SET state_value = excluded.state_value`,
+  ).run(LEXICAL_DAILY_ROLLUP_VERSION_KEY, LEXICAL_DAILY_ROLLUP_VERSION);
 }
 
 /** Rebuild from the first-seen source of truth; run off the UI/main DB thread. */
@@ -135,13 +157,27 @@ export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
   try {
     db.exec('BEGIN IMMEDIATE');
     transactionStarted = true;
+    const vocabularyRows = db
+      .prepare(
+        `SELECT id, word, headword, reading, part_of_speech AS partOfSpeech,
+           pos1, pos2, pos3, frequency_rank AS frequencyRank
+         FROM imm_words`,
+      )
+      .all() as Array<VocabularyVisibilityRow & { id: number }>;
+    const updateVisibility = db.prepare(
+      `UPDATE imm_words SET vocabulary_visible = ? WHERE id = ? AND vocabulary_visible IS NOT ?`,
+    );
+    for (const row of vocabularyRows) {
+      const visible = isVocabularyStatsRowVisible(row) ? 1 : 0;
+      updateVisibility.run(visible, row.id, visible);
+    }
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.exec(`
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       SELECT ${localEpochDaySql('first_seen')}, COUNT(*),
         SUM(CASE WHEN pos2 = '固有名詞' THEN 0 ELSE 1 END), 0
       FROM imm_words
-      WHERE first_seen IS NOT NULL
+      WHERE first_seen IS NOT NULL AND vocabulary_visible = 1
       GROUP BY ${localEpochDaySql('first_seen')};
       INSERT INTO imm_lexical_daily_rollups(epoch_day, word_count, word_count_without_names, kanji_count)
       SELECT ${localEpochDaySql('first_seen')}, 0, 0, COUNT(*)

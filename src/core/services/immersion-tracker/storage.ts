@@ -1069,6 +1069,7 @@ export function ensureSchema(db: DatabaseSync): void {
       last_seen REAL,
       frequency INTEGER,
       frequency_rank INTEGER,
+      vocabulary_visible INTEGER NOT NULL DEFAULT 1 CHECK(vocabulary_visible IN (0, 1)),
       UNIQUE(headword, word, reading)
     );
   `);
@@ -1452,6 +1453,15 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_sessions', 'ended_media_ms', 'INTEGER');
   }
 
+  if (currentVersion?.schema_version && currentVersion.schema_version < 23) {
+    addColumnIfMissing(
+      db,
+      'imm_words',
+      'vocabulary_visible',
+      'INTEGER NOT NULL DEFAULT 1 CHECK(vocabulary_visible IN (0, 1))',
+    );
+  }
+
   migrateSessionEventTimestampsToText(db);
 
   ensureLexicalDailyRollupTables(db);
@@ -1625,9 +1635,10 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     `),
     wordUpsertStmt: db.prepare(`
       INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency, frequency_rank
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen,
+        frequency, frequency_rank, vocabulary_visible
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1
       )
       ON CONFLICT(headword, word, reading) DO UPDATE SET
         frequency = COALESCE(frequency, 0) + 1,
@@ -1640,6 +1651,7 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         pos1 = COALESCE(NULLIF(imm_words.pos1, ''), excluded.pos1),
         pos2 = COALESCE(NULLIF(imm_words.pos2, ''), excluded.pos2),
         pos3 = COALESCE(NULLIF(imm_words.pos3, ''), excluded.pos3),
+        vocabulary_visible = 1,
         first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
         last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen),
         frequency_rank = CASE

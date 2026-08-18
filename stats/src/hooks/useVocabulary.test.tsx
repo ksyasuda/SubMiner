@@ -285,6 +285,36 @@ test('charts poll while the backfill is pending and stop once it is ready', asyn
   }
 });
 
+test('chart backfill polling stops and surfaces Retry when readiness never arrives', async () => {
+  let chartCalls = 0;
+  const restoreClient = stubVocabularyClient({
+    getVocabularySummary: async () => summaryFixture(),
+    getVocabularyCharts: async () => {
+      chartCalls += 1;
+      return chartsFixture({ ready: false });
+    },
+  });
+  const harness = await mountHook();
+
+  try {
+    await harness.flush();
+    for (let poll = 0; poll < 65; poll += 1) await harness.tick(5_000);
+
+    assert.equal(chartCalls, 60, 'a failed backfill must not poll for the lifetime of the tab');
+    assert.match(harness.state().aggregatesError ?? '', /still building/i);
+
+    await act(async () => {
+      harness.state().refreshAggregates();
+    });
+    await harness.flush();
+    assert.equal(chartCalls, 61, 'Retry starts one fresh bounded polling cycle');
+    assert.equal(harness.state().aggregatesError, null);
+  } finally {
+    await harness.teardown();
+    restoreClient();
+  }
+});
+
 test('aggregates refetch after an exclusion edit is acknowledged by the server', async () => {
   let summaryCalls = 0;
   let chartCalls = 0;

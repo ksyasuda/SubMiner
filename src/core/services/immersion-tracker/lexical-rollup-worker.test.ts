@@ -21,7 +21,7 @@ test('lexical rollup backfill materializes pre-existing vocabulary off the calle
     ).run('犬', '犬', 'いぬ', 1_700_000_000, 1_700_000_000);
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.prepare(`UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = ?`).run(
-      'lexical_daily_rollups_ready',
+      'lexical_daily_rollups_version',
     );
 
     executeLexicalRollupBackfillTask(dbPath);

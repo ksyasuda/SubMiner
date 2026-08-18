@@ -421,7 +421,10 @@ export class ImmersionTrackerService {
   private readonly runVocabularySummaryTask: (
     knownWords: ReadonlySet<string> | null,
   ) => Promise<VocabularyStatsSummary>;
-  private vocabularySummaryInFlight: Promise<VocabularyStatsSummary> | null = null;
+  private readonly vocabularySummariesInFlight = new Map<
+    ReadonlySet<string> | null,
+    Promise<VocabularyStatsSummary>
+  >();
   private readonly destroyVocabularySummaryRunner: () => void;
   private readonly runLexicalRollupBackfillTask: () => Promise<void>;
   private readonly destroyLexicalRollupBackfillRunner: () => void;
@@ -430,6 +433,7 @@ export class ImmersionTrackerService {
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private flushScheduled = false;
   private droppedWriteCount = 0;
+  private preserveWriteQueueUntilDrained = false;
   private lastVacuumMs = 0;
   private isDestroyed = false;
   private sessionState: SessionState | null = null;
@@ -681,16 +685,16 @@ export class ImmersionTrackerService {
   }
 
   async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
-    // Concurrent dashboard refreshes share one worker scan; the coalesced
-    // callers accept the first caller's known-words snapshot.
-    const inFlight = this.vocabularySummaryInFlight;
+    const inFlight = this.vocabularySummariesInFlight.get(knownWords);
     if (inFlight) return inFlight;
     const task = this.runVocabularySummaryTask(knownWords);
-    this.vocabularySummaryInFlight = task;
+    this.vocabularySummariesInFlight.set(knownWords, task);
     try {
       return await task;
     } finally {
-      if (this.vocabularySummaryInFlight === task) this.vocabularySummaryInFlight = null;
+      if (this.vocabularySummariesInFlight.get(knownWords) === task) {
+        this.vocabularySummariesInFlight.delete(knownWords);
+      }
     }
   }
 
@@ -985,6 +989,7 @@ export class ImmersionTrackerService {
 
   private startLexicalRollupBackfill(): void {
     this.requireWriteQueueDrained('lexical rollup backfill');
+    this.preserveWriteQueueUntilDrained = true;
     this.setWriteLock('lexical-rollup-backfill', true);
     void this.runLexicalRollupBackfillTask()
       .catch((error: unknown) => {
@@ -995,7 +1000,8 @@ export class ImmersionTrackerService {
       })
       .finally(() => {
         this.setWriteLock('lexical-rollup-backfill', false);
-        if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
+        if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
+        else if (!this.isDestroyed) this.scheduleFlush(0);
       });
   }
 
@@ -1995,7 +2001,12 @@ export class ImmersionTrackerService {
 
   private recordWrite(write: QueuedWrite): void {
     if (this.isDestroyed) return;
-    const { dropped } = enqueueWrite(this.queue, write, this.queueCap);
+    // A lexical migration owns the database write lock, so dropping the oldest
+    // entry cannot relieve pressure: nothing can flush until the worker exits.
+    // Preserve that finite startup burst and drain it as soon as the lock lifts.
+    const { dropped } = this.preserveWriteQueueUntilDrained
+      ? (this.queue.push(write), { dropped: 0 })
+      : enqueueWrite(this.queue, write, this.queueCap);
     if (dropped > 0) {
       this.droppedWriteCount += dropped;
       this.logger.warn(`Immersion tracker queue overflow; dropped ${dropped} oldest writes`);
@@ -2043,6 +2054,7 @@ export class ImmersionTrackerService {
   private flushNow(): void {
     if (this.writeLock.locked || this.isDestroyed) return;
     if (this.queue.length === 0) {
+      this.preserveWriteQueueUntilDrained = false;
       this.flushScheduled = false;
       return;
     }
@@ -2068,6 +2080,7 @@ export class ImmersionTrackerService {
     } finally {
       this.setWriteLock('flush', false);
       this.flushScheduled = false;
+      if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
       if (this.queue.length > 0) {
         this.scheduleFlush(this.flushIntervalMs);
       }

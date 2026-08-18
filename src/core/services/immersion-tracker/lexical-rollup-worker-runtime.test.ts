@@ -26,7 +26,7 @@ test('lexical rollup worker backfills without using the tracker connection', asy
     ).run();
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.prepare(`UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = ?`).run(
-      'lexical_daily_rollups_ready',
+      'lexical_daily_rollups_version',
     );
     db.close();
 
@@ -98,6 +98,39 @@ test('lexical rollup worker absorbs termination failures after settling', async 
     assert.deepEqual(unhandled, []);
   } finally {
     process.off('unhandledRejection', captureUnhandled);
+    runtime.destroy();
+  }
+});
+
+test('lexical rollup worker times out when it never responds', async () => {
+  let terminated = false;
+  const runtime = new LexicalRollupWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/fake-worker.js',
+    createWorker: async () => ({
+      once() {
+        return this;
+      },
+      terminate: async () => {
+        terminated = true;
+        return 0;
+      },
+    }),
+    timeoutMs: 1,
+    warn: () => {},
+  } as never);
+
+  try {
+    const outcome = await Promise.race([
+      runtime.run('/tmp/not-used.sqlite').then(
+        () => 'resolved',
+        (error: unknown) => String(error),
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve('still pending'), 50)),
+    ]);
+
+    assert.match(outcome, /timed out/);
+    assert.equal(terminated, true);
+  } finally {
     runtime.destroy();
   }
 });

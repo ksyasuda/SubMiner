@@ -14,6 +14,7 @@ const AGGREGATE_RETRY_LIMIT = 5;
 const CHART_BACKFILL_POLL_MS = 1_000;
 const CHART_BACKFILL_SLOW_POLL_MS = 5_000;
 const CHART_BACKFILL_FAST_POLLS = 30;
+const CHART_BACKFILL_POLL_LIMIT = 60;
 
 function aggregateRetryDelayMs(attempt: number): number {
   return Math.min(AGGREGATE_RETRY_BASE_MS * 2 ** attempt, AGGREGATE_RETRY_MAX_MS);
@@ -117,12 +118,20 @@ export function useVocabulary() {
           if (cancelled) return;
           setCharts(nextCharts);
           if (!nextCharts.ready) {
-            schedule(
-              () => loadCharts(0, readyPolls + 1),
-              readyPolls < CHART_BACKFILL_FAST_POLLS
-                ? CHART_BACKFILL_POLL_MS
-                : CHART_BACKFILL_SLOW_POLL_MS,
-            );
+            const completedPolls = readyPolls + 1;
+            if (completedPolls < CHART_BACKFILL_POLL_LIMIT) {
+              schedule(
+                () => loadCharts(0, completedPolls),
+                completedPolls < CHART_BACKFILL_FAST_POLLS
+                  ? CHART_BACKFILL_POLL_MS
+                  : CHART_BACKFILL_SLOW_POLL_MS,
+              );
+            } else {
+              setAggregatesError(
+                (previous) =>
+                  previous ?? 'Vocabulary charts are still building. Retry to check again.',
+              );
+            }
           }
         })
         .catch((chartError: unknown) => {

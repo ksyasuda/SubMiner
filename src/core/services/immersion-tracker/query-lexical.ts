@@ -1,6 +1,4 @@
 import type { DatabaseSync } from './sqlite';
-import { PartOfSpeech, type MergedToken } from '../../../types';
-import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import type {
   KanjiAnimeAppearanceRow,
   KanjiDetailRow,
@@ -25,6 +23,7 @@ import {
   getLexicalDailyRollups,
   localEpochDaySql,
 } from './lexical-rollups';
+import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
@@ -89,33 +88,6 @@ function getHeadwordCandidatesForSentenceSearchTerm(
 
 function uniqueKanji(text: string): string[] {
   return Array.from(new Set(text.match(KANJI_PATTERN) ?? []));
-}
-
-function toVocabularyToken(row: VocabularyStatsRow): MergedToken {
-  const partOfSpeech =
-    row.partOfSpeech && Object.values(PartOfSpeech).includes(row.partOfSpeech as PartOfSpeech)
-      ? (row.partOfSpeech as PartOfSpeech)
-      : PartOfSpeech.other;
-
-  return {
-    surface: row.word,
-    reading: row.reading ?? '',
-    headword: row.headword,
-    startPos: 0,
-    endPos: row.word.length,
-    partOfSpeech,
-    pos1: row.pos1 ?? '',
-    pos2: row.pos2 ?? '',
-    pos3: row.pos3 ?? '',
-    frequencyRank: row.frequencyRank ?? undefined,
-    isMerged: false,
-    isKnown: false,
-    isNPlusOneTarget: false,
-  };
-}
-
-function isVocabularyStatsRowVisible(row: VocabularyStatsRow): boolean {
-  return !shouldExcludeTokenFromVocabularyPersistence(toVocabularyToken(row));
 }
 
 export function getVocabularyStats(
@@ -204,7 +176,8 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
             SELECT id AS wordId, headword, word, reading, pos2,
               ${localEpochDaySql('first_seen')} AS epochDay
             FROM imm_words
-            WHERE headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders})
+            WHERE vocabulary_visible = 1
+              AND (headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders}))
           `,
         )
         .all(...batch, ...batch, ...batch) as Array<
@@ -227,12 +200,12 @@ export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
     ready,
     topWords: topWords.all.map((word) => ({
       wordId: word.wordId,
-      headword: word.headword,
+      headword: vocabularyDisplayHeadword(word),
       frequency: word.frequency,
     })),
     topWordsWithoutNames: topWords.withoutNames.map((word) => ({
       wordId: word.wordId,
-      headword: word.headword,
+      headword: vocabularyDisplayHeadword(word),
       frequency: word.frequency,
     })),
     newWordsTimeline: [...timeline.values()]
@@ -281,9 +254,15 @@ function getTopVocabularyChartWords(
 function excludedVocabularyAliases(
   word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>,
 ): string[] {
-  const aliases = [word.headword.trim(), word.word.trim()].filter(Boolean);
-  if (aliases.length === 0) aliases.push(word.reading.trim());
+  const aliases = [word.headword?.trim() ?? '', word.word?.trim() ?? ''].filter(Boolean);
+  if (aliases.length === 0) aliases.push(word.reading?.trim() ?? '');
   return [...new Set(aliases)];
+}
+
+function vocabularyDisplayHeadword(
+  word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>,
+): string {
+  return word.headword?.trim() || word.word?.trim() || word.reading?.trim() || '';
 }
 
 function timestampSeconds(timestamp: number): number {
@@ -338,7 +317,7 @@ export function getVocabularySummary(
       }
       const isName = word.pos2 === '固有名詞';
       const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
-      const isKnown = knownWords?.has(word.headword) ?? false;
+      const isKnown = knownWords?.has(vocabularyDisplayHeadword(word)) ?? false;
       summary.uniqueWords += 1;
       if (!isName) summary.uniqueWordsWithoutNames += 1;
       if (isNewThisWeek) {

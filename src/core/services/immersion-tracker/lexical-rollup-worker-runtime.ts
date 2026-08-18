@@ -17,10 +17,12 @@ interface WorkerHandle {
 interface LexicalRollupWorkerRuntimeOptions {
   resolveWorkerPath?: () => string | null;
   createWorker?: (workerPath: string, workerData: { dbPath: string }) => Promise<WorkerHandle>;
+  timeoutMs?: number;
   warn?: (message: string, ...meta: unknown[]) => void;
 }
 
 const logger = createLogger('main:immersion-tracker:lexical-rollup-worker');
+const DEFAULT_WORKER_TIMEOUT_MS = 5 * 60 * 1_000;
 
 export function resolveLexicalRollupWorkerPath(): string | null {
   const fileName = __filename.endsWith('.ts')
@@ -65,15 +67,21 @@ export class LexicalRollupWorkerRuntime {
 
     return new Promise<void>((resolve, reject) => {
       let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       this.activeWorkers.add(worker);
       const settle = (error?: Error) => {
         if (settled) return;
         settled = true;
+        if (timeout) clearTimeout(timeout);
         this.activeWorkers.delete(worker);
         void worker.terminate().catch(() => undefined);
         if (error) reject(error);
         else resolve();
       };
+      timeout = setTimeout(
+        () => settle(new Error('Lexical rollup worker timed out')),
+        this.options.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+      );
       worker.once('message', (message) => {
         if (message.ok) settle();
         else

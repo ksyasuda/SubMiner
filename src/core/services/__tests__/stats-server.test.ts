@@ -744,6 +744,21 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('GET /api/stats/vocabulary/charts returns complete chart datasets', async () => {
+    const app = createStatsApp(createMockTracker());
+
+    const res = await app.request('/api/stats/vocabulary/charts');
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), {
+      ready: true,
+      topWords: [{ wordId: 1, headword: 'する', frequency: 50 }],
+      topWordsWithoutNames: [{ wordId: 1, headword: 'する', frequency: 50 }],
+      newWordsTimeline: [{ epochDay: 20_000, wordCount: 3 }],
+      newWordsTimelineWithoutNames: [{ epochDay: 20_000, wordCount: 3 }],
+    });
+  });
+
   it('GET /api/stats/kanji returns kanji frequency data', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/kanji');
