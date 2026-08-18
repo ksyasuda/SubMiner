@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-08-17
+Last verified: 2026-08-18
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -69,6 +69,11 @@ coming and prefetching would otherwise idle for the rest of the cue.
 
 ## Live Cue Delivery
 
+- Primary live text first resolves recovered canonical ASS animations. Otherwise, when
+  every live mpv line matches an active parsed cue, it uses the parsed cue text so exact
+  full-span style layers appear once instead of repeating for fill, border, blur, and
+  shadow events. Any unmatched live line keeps the complete live stack, preserving
+  dialogue or signs that overlap a lyric.
 - A tokenization cache miss emits the plain cue synchronously. Tokenization remains serialized so
   live work does not contend for Yomitan state.
 - If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty

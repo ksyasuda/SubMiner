@@ -3,13 +3,13 @@ import type { SubtitleCue } from '../../types';
 // Slack on top of each cue's recorded animation envelope, for time-pos observation
 // staleness and small user sub-delay offsets. The envelope itself covers how far
 // entrance/exit frames actually run past the authored timing.
-const CANONICAL_ANIMATION_EDGE_TOLERANCE_SECONDS = 1;
+const LIVE_CUE_EDGE_TOLERANCE_SECONDS = 1;
 
 export interface ResolvedPrimarySubtitle {
   text: string;
   startTime: number;
   endTime: number;
-  /** The canonical cues behind `text`, for consumers that record lines individually. */
+  /** The parsed cues behind `text`, for consumers that record lines individually. */
   cues: SubtitleCue[];
 }
 
@@ -30,14 +30,73 @@ function nearbyCanonicalCues(
     }
     const span = animationSpan(cue);
     return (
-      span.end >= currentTimeSec - CANONICAL_ANIMATION_EDGE_TOLERANCE_SECONDS &&
-      span.start <= currentTimeSec + CANONICAL_ANIMATION_EDGE_TOLERANCE_SECONDS
+      span.end >= currentTimeSec - LIVE_CUE_EDGE_TOLERANCE_SECONDS &&
+      span.start <= currentTimeSec + LIVE_CUE_EDGE_TOLERANCE_SECONDS
     );
   });
 }
 
 function compactWhitespace(text: string): string {
   return text.replace(/\s+/gu, '');
+}
+
+function compactLineSegments(text: string): string[] {
+  return text.split('\n').map(compactWhitespace).filter(Boolean);
+}
+
+/**
+ * Parsed cues have already collapsed exact ASS layers and animation runs. Trust that
+ * cleaner view only when every live mpv line is accounted for by an active parsed cue.
+ * This keeps unrelated concurrent dialogue on the live fallback while removing style
+ * stacks where mpv repeats one full lyric for fill, border, blur, and shadow layers.
+ */
+function resolveActiveParsedPrimarySubtitle(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): ResolvedPrimarySubtitle | null {
+  if (!Number.isFinite(options.currentTimeSec)) {
+    return null;
+  }
+
+  const liveSegments = compactLineSegments(options.liveText);
+  if (liveSegments.length === 0) {
+    return null;
+  }
+  const liveSegmentSet = new Set(liveSegments);
+  const selected = (options.cues ?? []).filter((cue) => {
+    if (
+      cue.startTime > options.currentTimeSec + LIVE_CUE_EDGE_TOLERANCE_SECONDS ||
+      cue.endTime <= options.currentTimeSec - LIVE_CUE_EDGE_TOLERANCE_SECONDS
+    ) {
+      return false;
+    }
+    const cueSegments = compactLineSegments(cue.text);
+    return cueSegments.length > 0 && cueSegments.every((segment) => liveSegmentSet.has(segment));
+  });
+  if (selected.length === 0) {
+    return null;
+  }
+
+  const parsedSegmentSet = new Set(selected.flatMap((cue) => compactLineSegments(cue.text)));
+  if (!liveSegments.every((segment) => parsedSegmentSet.has(segment))) {
+    return null;
+  }
+
+  const texts: string[] = [];
+  const seen = new Set<string>();
+  for (const cue of selected) {
+    if (!seen.has(cue.text)) {
+      seen.add(cue.text);
+      texts.push(cue.text);
+    }
+  }
+  return {
+    text: texts.join('\n'),
+    startTime: Math.min(...selected.map((cue) => cue.startTime)),
+    endTime: Math.max(...selected.map((cue) => cue.endTime)),
+    cues: selected,
+  };
 }
 
 /**
@@ -155,6 +214,8 @@ export function resolvePrimarySubtitleText(options: {
       liveText: options.liveText,
       currentTimeSec: options.currentTimeSec,
       cues: options.cues,
-    })?.text ?? options.liveText
+    })?.text ??
+    resolveActiveParsedPrimarySubtitle(options)?.text ??
+    options.liveText
   );
 }

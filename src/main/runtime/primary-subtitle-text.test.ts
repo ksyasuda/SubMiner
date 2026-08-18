@@ -1,10 +1,79 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
 import {
   resolveCanonicalPrimarySubtitle,
   resolvePrimarySubtitleText,
   stripCanonicalFragmentLines,
 } from './primary-subtitle-text';
+
+test('resolvePrimarySubtitleText collapses full-span ASS style layers through parsed cues', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 3,0:22:40.05,0:22:45.76,EDJP,,0,0,0,,{\\fad(400,400)\\bord0\\blur0.8}鏡の奥まで目を凝らして',
+    'Dialogue: 2,0:22:40.05,0:22:45.76,EDJP,,0,0,0,,{\\fad(400,400)}鏡の奥まで目を凝らして',
+    'Dialogue: 1,0:22:40.05,0:22:45.76,EDJP,,0,0,0,,{\\fad(400,400)\\bord6}鏡の奥まで目を凝らして',
+    'Dialogue: 0,0:22:40.05,0:22:45.76,EDJP,,0,0,0,,{\\fad(400,400)\\bord8\\blur4}鏡の奥まで目を凝らして',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s01e08.ass');
+
+  assert.deepEqual(cues, [
+    { startTime: 22 * 60 + 40.05, endTime: 22 * 60 + 45.76, text: '鏡の奥まで目を凝らして' },
+  ]);
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: [
+        '鏡の奥まで目を凝らして',
+        '鏡の奥まで目を凝らして',
+        '鏡の奥まで目を凝らして',
+        '鏡の奥まで目を凝らして',
+      ].join('\n'),
+      currentTimeSec: 22 * 60 + 44,
+      cues,
+    }),
+    '鏡の奥まで目を凝らして',
+  );
+});
+
+test('resolvePrimarySubtitleText keeps live text when active parsed cues do not explain it all', () => {
+  const liveText = '普通のセリフ\n鏡の奥まで目を凝らして\n鏡の奥まで目を凝らして';
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText,
+      currentTimeSec: 2,
+      cues: [{ startTime: 1, endTime: 3, text: '鏡の奥まで目を凝らして' }],
+    }),
+    liveText,
+  );
+});
+
+test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '一行目\n一行目\n二行目\n二行目',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: '一行目' },
+        { startTime: 1, endTime: 3, text: '二行目' },
+      ],
+    }),
+    '一行目\n二行目',
+  );
+});
+
+test('resolvePrimarySubtitleText tolerates stale time-pos at a parsed cue edge', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '新しい行\n新しい行',
+      currentTimeSec: 0.8,
+      cues: [{ startTime: 1, endTime: 3, text: '新しい行' }],
+    }),
+    '新しい行',
+  );
+});
 
 test('resolvePrimarySubtitleText prefers an active canonical cue over flattened mpv glyphs', () => {
   // mpv renders each simultaneously active ASS event on its own sub-text line.
