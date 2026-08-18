@@ -1424,10 +1424,11 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
 });
 
-test('prepareSecondarySubtitleLines drops layered duplicate lines in short stacks', () => {
-  // A word-level animation stacks one event per layer copy; the stack is too short for
-  // the karaoke heuristic but the duplicates are still never distinct content.
+test('prepareSecondarySubtitleLines preserves short stacks without layer metadata', () => {
   assert.deepEqual(prepareSecondarySubtitleLines('Your\\NYour\\NYour\\NYour\\Nmosaic'), [
+    'Your',
+    'Your',
+    'Your',
     'Your',
     'mosaic',
   ]);
