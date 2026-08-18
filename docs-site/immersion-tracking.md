@@ -82,7 +82,7 @@ Expandable session history with new-word activity, cumulative totals, and pause/
 
 #### Vocabulary
 
-Top repeated words (click a bar to open the word), new-word timeline, cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
+The summary cards show all unique vocabulary and kanji recorded in the local tracking database; **New This Week** is the only weekly figure and uses a rolling seven-day window. The word and kanji tables load first while those complete totals calculate separately. Top Repeated Words and New Words by Day use complete tracking history rather than the table's browsing page. New-word history is maintained as a permanent daily lexical rollup using the same token-visibility rules as the totals, including normalization of older timestamps stored in either seconds or milliseconds and retroactive corrections when tracked material is removed or reprocessed. On the first launch after an applicable upgrade, that history is version-rebuilt in the background and the chart refreshes when it is ready; if it remains unavailable, polling stops and an inline Retry control appears. The cards and charts also refresh automatically after the word exclusion list changes. The rest of the tab includes cross-title and frequency rank tables with Hide Known / Hide Kana filters, kanji breakdown, word exclusion list, and click-through occurrence drilldown with Mine Word / Mine Sentence / Mine Audio buttons.
 
 ![Stats Vocabulary](/screenshots/stats-vocabulary.png)
 
@@ -182,6 +182,7 @@ In practice:
 - Anime and episode pages keep lifetime totals from summary tables while session drill-down still reads retained sessions directly. With the current defaults, both are kept forever.
 - Trends can read the full available history because daily/monthly rollups are also kept forever by default.
 - Vocabulary and kanji totals are cumulative and not bounded by the raw session retention knobs.
+- New-word charts use their own permanent lexical daily rollups, which are not pruned by activity-rollup retention.
 
 ## Storage / Performance Model
 
@@ -351,6 +352,7 @@ Rollup tables:
 
 - `imm_daily_rollups`
 - `imm_monthly_rollups`
+- `imm_lexical_daily_rollups` - permanent first-discovery counts for vocabulary and kanji chart history
 - `imm_rollup_state` - incremental rollup progress bookkeeping
 
 Vocabulary tables:

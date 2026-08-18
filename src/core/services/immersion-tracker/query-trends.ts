@@ -13,6 +13,7 @@ import {
   toDbTimestamp,
 } from './query-shared';
 import { getDailyRollups, getMonthlyRollups } from './query-sessions';
+import { areLexicalDailyRollupsReady, getLexicalDailyRollups } from './lexical-rollups';
 
 type TrendRange = '7d' | '30d' | '90d' | '365d' | 'all';
 type TrendGroupBy = 'day' | 'month';
@@ -660,6 +661,16 @@ function buildNewWordsPerDay(
   cutoffMs: string | null,
   axis: number[] | null,
 ): TrendChartPoint[] {
+  if (areLexicalDailyRollupsReady(db)) {
+    // A trend range is defined in calendar buckets, so the rollup includes the
+    // complete local cutoff day rather than applying a time-of-day boundary.
+    const cutoffDay = cutoffMs === null ? null : getLocalEpochDay(db, cutoffMs);
+    const rows = getLexicalDailyRollups(db).filter(
+      (row) => cutoffDay === null || row.epochDay >= cutoffDay,
+    );
+    return fillAxisPoints(axis, new Map(rows.map((row) => [row.epochDay, row.wordCount])));
+  }
+
   const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
   const prepared = db.prepare(`
     SELECT
@@ -691,6 +702,18 @@ function buildNewWordsPerMonth(
   cutoffMs: string | null,
   axis: number[] | null,
 ): TrendChartPoint[] {
+  if (areLexicalDailyRollupsReady(db)) {
+    const cutoffDay = cutoffMs === null ? null : getLocalEpochDay(db, cutoffMs);
+    const byMonth = new Map<number, number>();
+    for (const row of getLexicalDailyRollups(db)) {
+      if (cutoffDay !== null && row.epochDay < cutoffDay) continue;
+      const { year, month } = dayPartsFromEpochDay(row.epochDay);
+      const monthKey = year * 100 + month;
+      byMonth.set(monthKey, (byMonth.get(monthKey) ?? 0) + row.wordCount);
+    }
+    return fillAxisPoints(axis, byMonth);
+  }
+
   const whereClause = cutoffMs === null ? '' : 'AND first_seen >= ?';
   const prepared = db.prepare(`
     SELECT

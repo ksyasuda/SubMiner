@@ -4,6 +4,7 @@ import { parseMediaInfo } from '../../../jimaku/utils';
 import { normalizeTitleIdentity } from '../../utils/title-normalization';
 import type { DatabaseSync } from './sqlite';
 import { nowMs } from './time';
+import { ensureLexicalDailyRollupTables, markLexicalDailyRollupsReady } from './lexical-rollups';
 import { SCHEMA_VERSION } from './types';
 import type { QueuedWrite, VideoMetadata, YoutubeVideoMetadata } from './types';
 import { toDbMs, toDbTimestamp } from './query-shared';
@@ -890,11 +891,11 @@ export function ensureSchema(db: DatabaseSync): void {
     VALUES ('last_rollup_sample_ms', 0)
     ON CONFLICT(state_key) DO NOTHING
   `);
-
   const currentVersion = db
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
+    ensureLexicalDailyRollupTables(db);
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
     ensureAnimeMergeTables(db);
@@ -1068,6 +1069,7 @@ export function ensureSchema(db: DatabaseSync): void {
       last_seen REAL,
       frequency INTEGER,
       frequency_rank INTEGER,
+      vocabulary_visible INTEGER NOT NULL DEFAULT 1 CHECK(vocabulary_visible IN (0, 1)),
       UNIQUE(headword, word, reading)
     );
   `);
@@ -1451,8 +1453,18 @@ export function ensureSchema(db: DatabaseSync): void {
     addColumnIfMissing(db, 'imm_sessions', 'ended_media_ms', 'INTEGER');
   }
 
+  if (currentVersion?.schema_version && currentVersion.schema_version < 23) {
+    addColumnIfMissing(
+      db,
+      'imm_words',
+      'vocabulary_visible',
+      'INTEGER NOT NULL DEFAULT 1 CHECK(vocabulary_visible IN (0, 1))',
+    );
+  }
+
   migrateSessionEventTimestampsToText(db);
 
+  ensureLexicalDailyRollupTables(db);
   ensureLifetimeSummaryTables(db);
   ensureStatsExcludedWordsTable(db);
 
@@ -1585,6 +1597,12 @@ export function ensureSchema(db: DatabaseSync): void {
     VALUES (${SCHEMA_VERSION}, ${toDbTimestamp(nowMs())})
     ON CONFLICT DO NOTHING
   `);
+
+  // A new database has no history to materialize. Upgrades are populated by the
+  // background worker so startup never scans the existing vocabulary table.
+  if (!currentVersion) {
+    markLexicalDailyRollupsReady(db);
+  }
 }
 
 export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPreparedStatements {
@@ -1617,9 +1635,10 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
     `),
     wordUpsertStmt: db.prepare(`
       INSERT INTO imm_words (
-        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen, frequency, frequency_rank
+        headword, word, reading, part_of_speech, pos1, pos2, pos3, first_seen, last_seen,
+        frequency, frequency_rank, vocabulary_visible
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1
       )
       ON CONFLICT(headword, word, reading) DO UPDATE SET
         frequency = COALESCE(frequency, 0) + 1,
@@ -1632,6 +1651,7 @@ export function createTrackerPreparedStatements(db: DatabaseSync): TrackerPrepar
         pos1 = COALESCE(NULLIF(imm_words.pos1, ''), excluded.pos1),
         pos2 = COALESCE(NULLIF(imm_words.pos2, ''), excluded.pos2),
         pos3 = COALESCE(NULLIF(imm_words.pos3, ''), excluded.pos3),
+        vocabulary_visible = 1,
         first_seen = MIN(COALESCE(first_seen, excluded.first_seen), excluded.first_seen),
         last_seen = MAX(COALESCE(last_seen, excluded.last_seen), excluded.last_seen),
         frequency_rank = CASE

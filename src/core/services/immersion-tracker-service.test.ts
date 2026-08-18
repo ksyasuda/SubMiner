@@ -559,6 +559,165 @@ test('fresh tracker DB creates lifetime summary tables', async () => {
   }
 });
 
+test('fresh tracker DB skips lexical rollup backfill work', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let backfillRuns = 0;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath }, {
+      runLexicalRollupBackfillTask: async () => {
+        backfillRuns += 1;
+      },
+    } as never);
+
+    assert.equal(backfillRuns, 0);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('tracker starts the injected lexical rollup backfill when it is pending', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let backfillRuns = 0;
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath }, {
+      runLexicalRollupBackfillTask: async () => {
+        backfillRuns += 1;
+      },
+    } as never);
+
+    assert.equal(backfillRuns, 1);
+    await waitForCondition(
+      () => !(tracker as unknown as { writeLock: { locked: boolean } }).writeLock.locked,
+    );
+    assert.equal(
+      (tracker as unknown as { preserveWriteQueueUntilDrained: boolean })
+        .preserveWriteQueueUntilDrained,
+      false,
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('tracker queues playback writes until lexical rollup backfill settles', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let startBackfill = (): void => {};
+  let releaseBackfill = (): void => {};
+  let markBackfillStarted = (): void => {};
+  const backfillStartGate = new Promise<void>((resolve) => {
+    startBackfill = resolve;
+  });
+  const heldBackfill = new Promise<void>((resolve) => {
+    releaseBackfill = resolve;
+  });
+  const backfillStarted = new Promise<void>((resolve) => {
+    markBackfillStarted = resolve;
+  });
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath, policy: { queueCap: 100 } },
+      {
+        runLexicalRollupBackfillTask: async (workerDbPath) => {
+          await backfillStartGate;
+          const workerDb = new Database(workerDbPath);
+          try {
+            workerDb.exec('BEGIN IMMEDIATE');
+            markBackfillStarted();
+            await heldBackfill;
+            workerDb.exec('COMMIT');
+          } catch (error) {
+            try {
+              workerDb.exec('ROLLBACK');
+            } catch {
+              // Preserve the original worker failure.
+            }
+            throw error;
+          } finally {
+            workerDb.close();
+          }
+        },
+      },
+    );
+    tracker.handleMediaChange('https://example.com/backfill-test.mp4', 'Backfill Test');
+    startBackfill();
+    await backfillStarted;
+    for (let index = 0; index < 125; index += 1) tracker.recordCardsMined(1);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      queue: unknown[];
+      droppedWriteCount: number;
+      flushNow: () => void;
+      writeLock: { locked: boolean };
+    };
+    assert.equal(privateApi.writeLock.locked, true);
+    privateApi.flushNow();
+
+    assert.ok(privateApi.queue.length > 100, 'the protected queue may grow past its normal cap');
+    assert.equal(privateApi.droppedWriteCount, 0, 'backfill must not discard playback writes');
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+          total: number;
+        }
+      ).total,
+      0,
+    );
+
+    releaseBackfill();
+    await waitForCondition(() => privateApi.queue.length === 0, 5_000);
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+          total: number;
+        }
+      ).total,
+      125,
+    );
+  } finally {
+    releaseBackfill();
+    if (tracker) {
+      await waitForCondition(
+        () => !(tracker as unknown as { writeLock: { locked: boolean } }).writeLock.locked,
+        5_000,
+      );
+    }
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('startup backfills lifetime summaries when retained sessions exist but summary tables are empty', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -4904,6 +5063,152 @@ test('ensureAnimeCoverArt fetches art via the latest video of the anime', async 
     const missing = await tracker.ensureAnimeCoverArt(999);
     assert.equal(missing, false);
     assert.deepEqual(fetchedVideoIds, [2]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary coalesces concurrent requests into one worker task', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let taskRuns = 0;
+  let releaseTask: (() => void) | null = null;
+  const seenKnownWords: Array<ReadonlySet<string> | null> = [];
+  const summary = {
+    uniqueWords: 1,
+    uniqueWordsWithoutNames: 1,
+    uniqueKanji: 0,
+    newThisWeek: 0,
+    newThisWeekWithoutNames: 0,
+    knownWordCount: null,
+    knownWordCountWithoutNames: null,
+  };
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async (_dbPath, knownWords) => {
+          taskRuns += 1;
+          seenKnownWords.push(knownWords);
+          await new Promise<void>((resolve) => {
+            releaseTask = resolve;
+          });
+          return summary;
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const knownWordsSnapshot = new Set(['猫']);
+    const first = tracker.getVocabularySummary(knownWordsSnapshot);
+    const second = tracker.getVocabularySummary(knownWordsSnapshot);
+    await waitForCondition(() => releaseTask !== null);
+    let release = releaseTask as (() => void) | null;
+    assert.ok(release);
+    release();
+    assert.deepEqual(await first, summary);
+    assert.equal(await second, await first);
+    assert.equal(taskRuns, 1);
+    assert.deepEqual(seenKnownWords, [knownWordsSnapshot]);
+
+    releaseTask = null;
+    const third = tracker.getVocabularySummary(null);
+    await waitForCondition(() => releaseTask !== null);
+    release = releaseTask as (() => void) | null;
+    assert.ok(release);
+    release();
+    assert.deepEqual(await third, summary);
+    assert.equal(taskRuns, 2);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary coalesces equivalent known-word snapshots by value', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let taskRuns = 0;
+  const releases: Array<() => void> = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async () => {
+          taskRuns += 1;
+          await new Promise<void>((resolve) => releases.push(resolve));
+          return {
+            uniqueWords: 2,
+            uniqueWordsWithoutNames: 2,
+            uniqueKanji: 2,
+            newThisWeek: 0,
+            newThisWeekWithoutNames: 0,
+            knownWordCount: 2,
+            knownWordCountWithoutNames: 2,
+          };
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const first = tracker.getVocabularySummary(new Set(['猫', '犬']));
+    const second = tracker.getVocabularySummary(new Set(['犬', '猫']));
+    await waitForCondition(() => releases.length > 0);
+    const observedTaskRuns = taskRuns;
+    for (const release of releases) release();
+    await Promise.all([first, second]);
+
+    assert.equal(observedTaskRuns, 1);
+
+    const third = tracker.getVocabularySummary(new Set(['猫', '犬']));
+    await waitForCondition(() => releases.length === 2);
+    releases[1]!();
+    await third;
+    assert.equal(taskRuns, 2, 'a settled snapshot must be evicted from the in-flight map');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary keeps different known-word snapshots independent', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  const releases: Array<() => void> = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async (_dbPath, knownWords) => {
+          await new Promise<void>((resolve) => releases.push(resolve));
+          return {
+            uniqueWords: 1,
+            uniqueWordsWithoutNames: 1,
+            uniqueKanji: 0,
+            newThisWeek: 0,
+            newThisWeekWithoutNames: 0,
+            knownWordCount: knownWords?.size ?? null,
+            knownWordCountWithoutNames: knownWords?.size ?? null,
+          };
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const withoutKnownWords = tracker.getVocabularySummary(null);
+    const withKnownWords = tracker.getVocabularySummary(new Set(['猫']));
+    await waitForCondition(() => releases.length === 2);
+    for (const release of releases) release();
+
+    assert.equal((await withoutKnownWords).knownWordCount, null);
+    assert.equal((await withKnownWords).knownWordCount, 1);
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);
