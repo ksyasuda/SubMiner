@@ -21,6 +21,7 @@ interface VocabularySummaryWorkerRuntimeOptions {
     workerPath: string,
     workerData: { dbPath: string; knownWords: string[] | null },
   ) => Promise<VocabularySummaryWorkerHandle>;
+  timeoutMs?: number;
   warn?: (message: string, ...meta: unknown[]) => void;
 }
 
@@ -38,6 +39,7 @@ export function resolveVocabularySummaryWorkerPath(): string | null {
 }
 
 const logger = createLogger('main:immersion-tracker:vocabulary-summary-worker');
+const DEFAULT_WORKER_TIMEOUT_MS = 5 * 60 * 1_000;
 
 export class VocabularySummaryWorkerRuntime {
   private readonly activeWorkers = new Set<VocabularySummaryWorkerHandle>();
@@ -78,15 +80,21 @@ export class VocabularySummaryWorkerRuntime {
 
     return new Promise<VocabularyStatsSummary>((resolve, reject) => {
       let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
       this.activeWorkers.add(worker);
       const settle = (result: VocabularyStatsSummary | Error) => {
         if (settled) return;
         settled = true;
+        if (timeout) clearTimeout(timeout);
         this.activeWorkers.delete(worker);
         void worker.terminate().catch(() => undefined);
         if (result instanceof Error) reject(result);
         else resolve(result);
       };
+      timeout = setTimeout(
+        () => settle(new Error('Vocabulary summary worker timed out')),
+        this.options.timeoutMs ?? DEFAULT_WORKER_TIMEOUT_MS,
+      );
 
       worker.once('message', (message) => {
         if (message.summary) {

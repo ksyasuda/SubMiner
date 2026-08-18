@@ -5128,6 +5128,54 @@ test('getVocabularySummary coalesces concurrent requests into one worker task', 
   }
 });
 
+test('getVocabularySummary coalesces equivalent known-word snapshots by value', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let taskRuns = 0;
+  const releases: Array<() => void> = [];
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runVocabularySummaryTask: async () => {
+          taskRuns += 1;
+          await new Promise<void>((resolve) => releases.push(resolve));
+          return {
+            uniqueWords: 2,
+            uniqueWordsWithoutNames: 2,
+            uniqueKanji: 2,
+            newThisWeek: 0,
+            newThisWeekWithoutNames: 0,
+            knownWordCount: 2,
+            knownWordCountWithoutNames: 2,
+          };
+        },
+        destroyVocabularySummaryRunner: () => {},
+      },
+    );
+
+    const first = tracker.getVocabularySummary(new Set(['猫', '犬']));
+    const second = tracker.getVocabularySummary(new Set(['犬', '猫']));
+    await waitForCondition(() => releases.length > 0);
+    const observedTaskRuns = taskRuns;
+    for (const release of releases) release();
+    await Promise.all([first, second]);
+
+    assert.equal(observedTaskRuns, 1);
+
+    const third = tracker.getVocabularySummary(new Set(['猫', '犬']));
+    await waitForCondition(() => releases.length === 2);
+    releases[1]!();
+    await third;
+    assert.equal(taskRuns, 2, 'a settled snapshot must be evicted from the in-flight map');
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('getVocabularySummary keeps different known-word snapshots independent', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

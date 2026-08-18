@@ -65,3 +65,36 @@ test('vocabulary summary worker never falls back to the caller thread', async ()
     runtime.destroy();
   }
 });
+
+test('vocabulary summary worker times out when it never responds', async () => {
+  let terminated = false;
+  const runtime = new VocabularySummaryWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/fake-worker.js',
+    createWorker: async () => ({
+      once() {
+        return this;
+      },
+      terminate: async () => {
+        terminated = true;
+        return 0;
+      },
+    }),
+    timeoutMs: 1,
+    warn: () => {},
+  } as never);
+
+  try {
+    const outcome = await Promise.race([
+      runtime.run('/tmp/not-used.sqlite', null).then(
+        () => 'resolved',
+        (error: unknown) => String(error),
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve('still pending'), 50)),
+    ]);
+
+    assert.match(outcome, /timed out/);
+    assert.equal(terminated, true);
+  } finally {
+    runtime.destroy();
+  }
+});

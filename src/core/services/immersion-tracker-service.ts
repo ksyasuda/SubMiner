@@ -421,10 +421,7 @@ export class ImmersionTrackerService {
   private readonly runVocabularySummaryTask: (
     knownWords: ReadonlySet<string> | null,
   ) => Promise<VocabularyStatsSummary>;
-  private readonly vocabularySummariesInFlight = new Map<
-    ReadonlySet<string> | null,
-    Promise<VocabularyStatsSummary>
-  >();
+  private readonly vocabularySummariesInFlight = new Map<string, Promise<VocabularyStatsSummary>>();
   private readonly destroyVocabularySummaryRunner: () => void;
   private readonly runLexicalRollupBackfillTask: () => Promise<void>;
   private readonly destroyLexicalRollupBackfillRunner: () => void;
@@ -685,15 +682,16 @@ export class ImmersionTrackerService {
   }
 
   async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
-    const inFlight = this.vocabularySummariesInFlight.get(knownWords);
+    const key = knownWords ? JSON.stringify([...knownWords].sort()) : 'null';
+    const inFlight = this.vocabularySummariesInFlight.get(key);
     if (inFlight) return inFlight;
     const task = this.runVocabularySummaryTask(knownWords);
-    this.vocabularySummariesInFlight.set(knownWords, task);
+    this.vocabularySummariesInFlight.set(key, task);
     try {
       return await task;
     } finally {
-      if (this.vocabularySummariesInFlight.get(knownWords) === task) {
-        this.vocabularySummariesInFlight.delete(knownWords);
+      if (this.vocabularySummariesInFlight.get(key) === task) {
+        this.vocabularySummariesInFlight.delete(key);
       }
     }
   }

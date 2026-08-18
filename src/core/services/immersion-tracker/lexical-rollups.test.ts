@@ -151,6 +151,59 @@ test('lexical rollup rebuild tolerates nullable legacy vocabulary text', () => {
   }
 });
 
+test('lexical rollup rebuild scans vocabulary visibility in bounded id batches', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  const expectedBatchSize = 5_000;
+
+  try {
+    ensureSchema(db);
+    const insertWord = db.prepare(
+      `INSERT INTO imm_words(headword, word, reading, first_seen, last_seen, frequency)
+       VALUES (?, ?, '', 1700000000, 1700000000, 1)`,
+    );
+    db.exec('BEGIN');
+    for (let index = 0; index <= expectedBatchSize; index += 1) {
+      insertWord.run(`語${index}`, `語${index}`);
+    }
+    db.exec('COMMIT');
+
+    const scanPageSizes: number[] = [];
+    const instrumentedDb: DatabaseSync = {
+      prepare(source) {
+        const statement = db.prepare(source);
+        if (!source.includes('WHERE id > ?') || !source.includes('ORDER BY id')) {
+          return statement;
+        }
+        return {
+          run: (...params) => statement.run(...params),
+          get: (...params) => statement.get(...params),
+          all: (...params) => {
+            const rows = statement.all(...params);
+            scanPageSizes.push(rows.length);
+            return rows;
+          },
+        };
+      },
+      exec(source) {
+        db.exec(source);
+        return instrumentedDb;
+      },
+      close() {
+        return instrumentedDb;
+      },
+    };
+
+    rebuildLexicalDailyRollups(instrumentedDb);
+
+    assert.deepEqual(scanPageSizes, [expectedBatchSize, 1]);
+    assert.equal(getVocabularySummary(db, null).uniqueWords, expectedBatchSize + 1);
+  } finally {
+    db.close();
+    fs.rmSync(path.dirname(dbPath), { recursive: true, force: true });
+  }
+});
+
 test('chart exclusions do not subtract vocabulary rows already hidden from the rollup', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

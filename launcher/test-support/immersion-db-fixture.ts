@@ -19,7 +19,7 @@ export function createImmersionDbFixture(dbPath: string): void {
       `INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('last_rollup_sample_ms', 0)`,
     ).run();
     db.prepare(
-      `INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('lexical_daily_rollups_version', 2)`,
+      `INSERT INTO imm_rollup_state(state_key, state_value) VALUES ('lexical_daily_rollups_version', 0)`,
     ).run();
     db.prepare(
       `INSERT INTO imm_lifetime_global(global_id, CREATED_DATE, LAST_UPDATE_DATE) VALUES (1, ?, ?)`,

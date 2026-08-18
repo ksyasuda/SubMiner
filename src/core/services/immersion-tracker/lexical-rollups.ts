@@ -20,6 +20,7 @@ const LOCAL_EPOCH_DAY_SQL = `
 
 const LEXICAL_DAILY_ROLLUP_VERSION = '2';
 const LEXICAL_DAILY_ROLLUP_VERSION_KEY = 'lexical_daily_rollups_version';
+const VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE = 5_000;
 
 export function localEpochDaySql(value: string): string {
   return LOCAL_EPOCH_DAY_SQL.replaceAll('%VALUE%', value);
@@ -157,19 +158,30 @@ export function rebuildLexicalDailyRollups(db: DatabaseSync): void {
   try {
     db.exec('BEGIN IMMEDIATE');
     transactionStarted = true;
-    const vocabularyRows = db
-      .prepare(
-        `SELECT id, word, headword, reading, part_of_speech AS partOfSpeech,
-           pos1, pos2, pos3, frequency_rank AS frequencyRank
-         FROM imm_words`,
-      )
-      .all() as Array<VocabularyVisibilityRow & { id: number }>;
+    const scanVocabulary = db.prepare(
+      `SELECT id, word, headword, reading, part_of_speech AS partOfSpeech,
+         pos1, pos2, pos3, frequency_rank AS frequencyRank
+       FROM imm_words
+       WHERE id > ?
+       ORDER BY id
+       LIMIT ?`,
+    );
     const updateVisibility = db.prepare(
       `UPDATE imm_words SET vocabulary_visible = ? WHERE id = ? AND vocabulary_visible IS NOT ?`,
     );
-    for (const row of vocabularyRows) {
-      const visible = isVocabularyStatsRowVisible(row) ? 1 : 0;
-      updateVisibility.run(visible, row.id, visible);
+    let lastId = Number.MIN_SAFE_INTEGER;
+    for (;;) {
+      const vocabularyRows = scanVocabulary.all(
+        lastId,
+        VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE,
+      ) as Array<VocabularyVisibilityRow & { id: number }>;
+      if (vocabularyRows.length === 0) break;
+      for (const row of vocabularyRows) {
+        const visible = isVocabularyStatsRowVisible(row) ? 1 : 0;
+        updateVisibility.run(visible, row.id, visible);
+      }
+      lastId = vocabularyRows[vocabularyRows.length - 1]!.id;
+      if (vocabularyRows.length < VOCABULARY_VISIBILITY_SCAN_BATCH_SIZE) break;
     }
     db.exec('DELETE FROM imm_lexical_daily_rollups');
     db.exec(`

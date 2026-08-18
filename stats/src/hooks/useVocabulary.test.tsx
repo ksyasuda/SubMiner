@@ -11,11 +11,13 @@ import type { StatsVocabularyCharts, StatsVocabularySummary } from '../types/sta
 type VocabularyState = ReturnType<typeof useVocabulary>;
 
 function installDom(): () => void {
-  const previousWindow = globalThis.window;
-  const previousDocument = globalThis.document;
-  const previousHTMLElement = globalThis.HTMLElement;
-  const globals = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
-  const previousIsReactActEnvironment = globals.IS_REACT_ACT_ENVIRONMENT;
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const previousHTMLElement = Object.getOwnPropertyDescriptor(globalThis, 'HTMLElement');
+  const previousIsReactActEnvironment = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'IS_REACT_ACT_ENVIRONMENT',
+  );
   const window = new Window();
 
   Object.defineProperty(globalThis, 'window', { value: window, configurable: true });
@@ -24,18 +26,39 @@ function installDom(): () => void {
     value: window.HTMLElement,
     configurable: true,
   });
-  globals.IS_REACT_ACT_ENVIRONMENT = true;
+  Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', {
+    value: true,
+    configurable: true,
+    writable: true,
+  });
 
   return () => {
-    Object.defineProperty(globalThis, 'window', { value: previousWindow, configurable: true });
-    Object.defineProperty(globalThis, 'document', { value: previousDocument, configurable: true });
-    Object.defineProperty(globalThis, 'HTMLElement', {
-      value: previousHTMLElement,
-      configurable: true,
-    });
-    globals.IS_REACT_ACT_ENVIRONMENT = previousIsReactActEnvironment;
+    const restoreProperty = (name: string, descriptor: PropertyDescriptor | undefined) => {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    };
+    restoreProperty('window', previousWindow);
+    restoreProperty('document', previousDocument);
+    restoreProperty('HTMLElement', previousHTMLElement);
+    restoreProperty('IS_REACT_ACT_ENVIRONMENT', previousIsReactActEnvironment);
   };
 }
+
+test('DOM harness restores the original global property descriptors', () => {
+  const propertyNames = [
+    'window',
+    'document',
+    'HTMLElement',
+    'IS_REACT_ACT_ENVIRONMENT',
+  ] as const;
+  const before = propertyNames.map((name) => Object.getOwnPropertyDescriptor(globalThis, name));
+
+  const restore = installDom();
+  restore();
+
+  const after = propertyNames.map((name) => Object.getOwnPropertyDescriptor(globalThis, name));
+  assert.deepEqual(after, before);
+});
 
 function installLocalStorage(): () => void {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
