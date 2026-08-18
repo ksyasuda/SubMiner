@@ -4,7 +4,8 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
-const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
+/** Jump size that marks a time-pos change as a seek rather than normal playback. */
+export const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
 
 function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): boolean {
   if (previousTime === null || !Number.isFinite(previousTime) || !Number.isFinite(nextTime)) {
@@ -14,6 +15,7 @@ function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): bo
 }
 
 export function createHandleMpvSubtitleChangeHandler(deps: {
+  resolveSubtitleText?: (text: string) => string;
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
@@ -22,7 +24,8 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   refreshDiscordPresence: () => void;
   logDebug?: (message: string) => void;
 }) {
-  return ({ text }: { text: string }): void => {
+  return ({ text: liveText }: { text: string }): void => {
+    const text = deps.resolveSubtitleText?.(liveText) ?? liveText;
     deps.setCurrentSubText(text);
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {

@@ -43,6 +43,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   logSubtitleTimingError: (message: string, error: unknown) => void;
 
   setCurrentSubText: (text: string) => void;
+  resolveSubtitleText?: (text: string) => string;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   broadcastSubtitle: (payload: SubtitleData) => void;
@@ -117,6 +118,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
+      resolveSubtitleText: deps.resolveSubtitleText,
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
       getImmediateSubtitlePayload: (text) => deps.getImmediateSubtitlePayload?.(text) ?? null,
       emitImmediateSubtitle: deps.emitImmediateSubtitle

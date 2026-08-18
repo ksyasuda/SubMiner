@@ -235,6 +235,7 @@ import {
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
 import { buildSubtitleTrackDiagnostics } from './main/runtime/mpv-track-diagnostics';
+import { resolveCanonicalPrimarySubtitle } from './main/runtime/primary-subtitle-text';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -1806,10 +1807,42 @@ async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
+  const canonical = resolveCanonicalPrimarySubtitle({
+    liveText: payload.text,
+    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    cues: appState.activeParsedSubtitleCues,
+  });
   return {
     ...payload,
-    startTime: appState.mpvClient?.currentSubStart ?? null,
-    endTime: appState.mpvClient?.currentSubEnd ?? null,
+    startTime: canonical?.startTime ?? appState.mpvClient?.currentSubStart ?? null,
+    endTime: canonical?.endTime ?? appState.mpvClient?.currentSubEnd ?? null,
+  };
+}
+
+function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | null {
+  const canonical = resolveCanonicalPrimarySubtitle({
+    liveText: appState.mpvClient?.currentSubText ?? '',
+    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    cues: appState.activeParsedSubtitleCues,
+  });
+  // Same validity bar as the live capture path: an unusable canonical span must fall
+  // back rather than hand mining an empty line or an inverted range.
+  const canonicalText = canonical?.text.trim();
+  if (
+    !canonical ||
+    !canonicalText ||
+    !Number.isFinite(canonical.startTime) ||
+    !Number.isFinite(canonical.endTime) ||
+    canonical.endTime <= canonical.startTime
+  ) {
+    return captureLiveSubtitleMiningContext(appState.mpvClient);
+  }
+  return {
+    source: 'overlay',
+    text: canonicalText,
+    startTime: canonical.startTime,
+    endTime: canonical.endTime,
+    capturedAtMs: Date.now(),
   };
 }
 function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?: boolean }): void {
@@ -5231,6 +5264,7 @@ const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
 const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
   recordCardsMined: (count, noteIds) => {
@@ -5544,9 +5578,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
       recordSubtitleMiningContext: (context) =>
-        recordSubtitleMiningContext(
-          context ?? captureLiveSubtitleMiningContext(appState.mpvClient),
-        ),
+        recordSubtitleMiningContext(context ?? captureCurrentPrimarySubtitleMiningContext()),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () => {

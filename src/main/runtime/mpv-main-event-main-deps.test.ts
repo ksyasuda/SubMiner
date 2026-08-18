@@ -387,3 +387,170 @@ test('subtitle-track transitions ignore stale parsed cues until replacement cues
   handlers.recordImmersionSubtitleLine('飛び上がる', 20.04, 20.08);
   assert.deepEqual(recordedStarts.slice(-1), [20]);
 });
+
+test('canonical ASS cues replace live glyph spam for display, history, and immersion', () => {
+  const immersion: Array<{ text: string; start: number; end: number }> = [];
+  const timing: Array<{ text: string; start: number; end: number }> = [];
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: { currentTimePos: 2 },
+      immersionTracker: {
+        recordSubtitleLine: (text: string, start: number, end: number) =>
+          immersion.push({ text, start, end }),
+      },
+      subtitleTimingTracker: {
+        recordSubtitle: (text: string, start: number, end: number) =>
+          timing.push({ text, start, end }),
+      },
+      activeParsedSubtitleCues: [
+        {
+          startTime: 1.2,
+          endTime: 3.8,
+          text: '今　手にある物差しでは',
+          source: 'canonical-ass',
+        },
+        {
+          startTime: 3,
+          endTime: 6,
+          text: '飛び越えてみたくて',
+          source: 'canonical-ass',
+        },
+      ],
+      currentMediaPath: '/video.mkv',
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  assert.equal(handlers.resolveSubtitleText?.('今\n今\n今\n手\n手\n手'), '今　手にある物差しでは');
+  handlers.recordImmersionSubtitleLine('今', 0.8, 1.5);
+  handlers.recordImmersionSubtitleLine('手', 0.86, 1.56);
+  handlers.recordSubtitleTiming('今', 0.8, 1.5);
+
+  assert.deepEqual(immersion, [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+  assert.deepEqual(timing, [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+
+  // Concurrent dialogue during the song is not part of the animation: it must be
+  // recorded as itself -- without the fragment lines beside it -- and must not cause
+  // the song line to be recorded again when the animation frames resume.
+  assert.equal(handlers.resolveSubtitleText?.('普通のセリフ\n今\n手'), '普通のセリフ\n今\n手');
+  handlers.recordImmersionSubtitleLine('普通のセリフ\n今\n手', 1.9, 3.2);
+  handlers.recordImmersionSubtitleLine('にある', 2.1, 2.9);
+  handlers.recordSubtitleTiming('次のセリフ', 3.9, 5.0);
+
+  assert.deepEqual(immersion.slice(1), [{ text: '普通のセリフ', start: 1.9, end: 3.2 }]);
+  assert.deepEqual(timing.slice(1), [{ text: '次のセリフ', start: 3.9, end: 5 }]);
+
+  // Overlapping canonical lines resolve as shifting subsets (A, then A+B, then A).
+  // Every recorded cue is remembered, so each authored line still records exactly once.
+  handlers.recordImmersionSubtitleLine('飛び越えて', 3.2, 3.4);
+  handlers.recordImmersionSubtitleLine('手にある', 3.5, 3.7);
+  handlers.recordSubtitleTiming('飛び越えて', 3.2, 3.4);
+  handlers.recordSubtitleTiming('手にある', 3.5, 3.7);
+
+  assert.deepEqual(immersion.slice(2), [{ text: '飛び越えてみたくて', start: 3, end: 6 }]);
+  assert.deepEqual(timing.slice(2), [{ text: '飛び越えてみたくて', start: 3, end: 6 }]);
+
+  // A backward seek means the user is rewatching: the timing history (a viewing log)
+  // records the revisited line again, while immersion stays once-per-media.
+  handlers.onTimePosUpdate?.(30);
+  handlers.onTimePosUpdate?.(2);
+  handlers.recordSubtitleTiming('今', 0.8, 1.5);
+  handlers.recordImmersionSubtitleLine('今', 0.8, 1.5);
+
+  assert.deepEqual(timing.slice(3), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+  assert.equal(immersion.length, 3);
+
+  // A jump of exactly the seek threshold counts as a seek, matching the time-pos
+  // handler's own `>=` boundary.
+  handlers.onTimePosUpdate?.(4.5);
+  handlers.onTimePosUpdate?.(2);
+  handlers.recordSubtitleTiming('今', 0.8, 1.5);
+
+  assert.deepEqual(timing.slice(4), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+});
+
+test('subtitle-track changes stop stale canonical cues from substituting immediately', () => {
+  const appState = {
+    initialArgs: null,
+    overlayRuntimeInitialized: true,
+    mpvClient: { currentTimePos: 2 },
+    immersionTracker: { recordSubtitleLine: () => {} },
+    subtitleTimingTracker: { recordSubtitle: () => {} },
+    activeParsedSubtitleCues: [
+      {
+        startTime: 1.2,
+        endTime: 3.8,
+        text: '今　手にある物差しでは',
+        source: 'canonical-ass' as const,
+      },
+    ] as Array<{ startTime: number; endTime: number; text: string; source?: 'canonical-ass' }>,
+    activeParsedSubtitleSource: 'track-a.ass' as string | null,
+    currentMediaPath: '/video.mkv',
+    currentSubText: '',
+    currentSubAssText: '',
+    playbackPaused: null,
+    previousSecondarySubVisibility: false,
+  };
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState,
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  assert.equal(handlers.resolveSubtitleText?.('今\n手にある'), '今　手にある物差しでは');
+
+  // The new track's cues arrive only after an async re-parse; until then, the old
+  // track's canonical lyric must not replace the new track's live text.
+  handlers.onSubtitleTrackChange?.(2);
+
+  assert.deepEqual(appState.activeParsedSubtitleCues, []);
+  assert.equal(appState.activeParsedSubtitleSource, null);
+  assert.equal(handlers.resolveSubtitleText?.('今\n手にある'), '今\n手にある');
+});

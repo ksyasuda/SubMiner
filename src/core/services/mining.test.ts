@@ -125,6 +125,49 @@ test('mineSentenceCard creates sentence card from mpv subtitle state', async () 
   ]);
 });
 
+test('mineSentenceCard prefers a canonical primary subtitle snapshot', async () => {
+  const created: Array<{
+    sentence: string;
+    startTime: number;
+    endTime: number;
+    secondarySub?: string;
+  }> = [];
+
+  await mineSentenceCard({
+    ankiIntegration: {
+      updateLastAddedFromClipboard: async () => {},
+      triggerFieldGroupingForLastAddedCard: async () => {},
+      markLastCardAsAudioCard: async () => {},
+      createSentenceCard: async (sentence, startTime, endTime, secondarySub) => {
+        created.push({ sentence, startTime, endTime, secondarySub });
+        return true;
+      },
+    },
+    mpvClient: {
+      connected: true,
+      currentSubText: '今今今手手手',
+      currentSubStart: 11.4,
+      currentSubEnd: 11.8,
+      currentSecondarySubText: 'English subtitle',
+    },
+    primarySubtitle: {
+      text: '今　手にある物差しでは',
+      startTime: 11.13,
+      endTime: 13.83,
+    },
+    showMpvOsd: () => {},
+  });
+
+  assert.deepEqual(created, [
+    {
+      sentence: '今　手にある物差しでは',
+      startTime: 11.13,
+      endTime: 13.83,
+      secondarySub: 'English subtitle',
+    },
+  ]);
+});
+
 test('mineSentenceCard refreshes secondary subtitle text before creating card', async () => {
   const created: Array<{ sentence: string; secondarySub?: string }> = [];
   const requestedProperties: string[] = [];

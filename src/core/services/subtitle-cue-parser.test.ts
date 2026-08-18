@@ -327,6 +327,122 @@ test('parseSubtitleCues collapses per-frame karaoke duplicates into one cue', ()
   assert.equal(cues[0]!.text, '過ぎ去ってしまう瞬間を');
 });
 
+test('parseSubtitleCues collapses long full-line color phases', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:03:49.75,0:03:51.21,OPJP,,0,0,0,,{\\blur0.6\\c&H312D38&\\4c&HFFFFFF&}ちゃんと目を{\\4c&HD590FF&}合わせてよ',
+    'Dialogue: 1,0:03:51.21,0:03:52.25,OPJP,,0,0,0,,{\\blur0.6\\4c&H312D38&\\c&HFFFFFF&}ちゃんと目を{\\4c&HD590FF&}合わせてよ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 229.75,
+      endTime: 232.25,
+      text: 'ちゃんと目を合わせてよ',
+    },
+  ]);
+});
+
+test('parseSubtitleCues keeps ordinary repeated dialogue separate', () => {
+  // A single restyle tag on a repeated line is how ordinary dialogue gets decorated;
+  // it is not phase evidence, whatever the line length.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:02.00,OPJP,,0,0,0,,{\\c&H111111&}歌詞',
+    'Dialogue: 1,0:00:02.00,0:00:03.00,OPJP,,0,0,0,,{\\c&H222222&}歌詞',
+    'Dialogue: 1,0:00:04.00,0:00:05.00,OPJP,,0,0,0,,{\\c&H333333&}別の歌詞',
+    'Dialogue: 1,0:00:05.00,0:00:06.00,OPJP,,0,0,0,,{\\c&H444444&}別の歌詞',
+    'Dialogue: 8,0:00:07.00,0:00:08.00,Text - JP,,0,0,0,,えっ？',
+    'Dialogue: 8,0:00:08.00,0:00:09.00,Text - JP,,0,0,0,,えっ？',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '歌詞' },
+    { startTime: 2, endTime: 3, text: '歌詞' },
+    { startTime: 4, endTime: 5, text: '別の歌詞' },
+    { startTime: 5, endTime: 6, text: '別の歌詞' },
+    { startTime: 7, endTime: 8, text: 'えっ？' },
+    { startTime: 8, endTime: 9, text: 'えっ？' },
+  ]);
+});
+
+test('parseSubtitleCues keeps separately positioned temporal signs separate', () => {
+  // Two flush signs with the same text but different \move paths are separate authored
+  // occurrences, not phases of one redraw: temporal evidence alone must not merge them.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Sign,,0,0,0,,{\\move(100,100,200,100)}立入禁止',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Sign,,0,0,0,,{\\move(500,400,600,400)}立入禁止',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '立入禁止' },
+    { startTime: 2, endTime: 3, text: '立入禁止' },
+  ]);
+});
+
+test('parseSubtitleCues keeps richly styled ordinary repeats separate', () => {
+  // Blur plus a changing color is still an ordinary restyle. Phase redraws are
+  // recognized by the color/highlight boundary moving *within* the line, which these
+  // leading-block-only events do not have.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Dial,,0,0,0,,{\\blur0.4\\c&H111111&}待ってよ',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Dial,,0,0,0,,{\\blur0.4\\c&H222222&}待ってよ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '待ってよ' },
+    { startTime: 2, endTime: 3, text: '待ってよ' },
+  ]);
+});
+
+test('parseSubtitleCues keeps canonical metadata when an identical plain cue exists', () => {
+  // A plain dialogue line can share exact timing and text with a recovered canonical
+  // cue from another style. The canonical copy must win the exact-duplicate collapse,
+  // or the live overlay loses the marker it substitutes on.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:05.00,0:00:08.00,Plain,,0,0,0,,ライン',
+    'Comment: 0,0:00:05.00,0:00:08.00,OP,,0,0,0,,ライン',
+    'Dialogue: 0,0:00:05.00,0:00:05.04,OP,,0,0,0,,{\\pos(1,1)\\clip(m 1 1)}ライン',
+    'Dialogue: 0,0:00:05.04,0:00:05.08,OP,,0,0,0,,{\\pos(1,1)\\clip(m 2 2)}ライン',
+    'Dialogue: 0,0:00:05.08,0:00:08.00,OP,,0,0,0,,{\\pos(1,1)\\clip(m 3 3)}ライン',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 5,
+      endTime: 8,
+      text: 'ライン',
+      source: 'canonical-ass',
+      animationStartTime: 5,
+      animationEndTime: 8,
+    },
+  ]);
+});
+
+test('parseSubtitleCues keeps short styled repeats separate even with richer styling', () => {
+  // Two ordinary えっ lines restyled with different colors are two utterances, not two
+  // phases of one lyric: short text never satisfies the changing-override evidence path.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Dial,,0,0,0,,{\\blur0.4\\c&H111111&}えっ',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Dial,,0,0,0,,{\\blur0.4\\c&H222222&}えっ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'えっ' },
+    { startTime: 2, endTime: 3, text: 'えっ' },
+  ]);
+});
+
 test('parseSubtitleCues keeps back-to-back plain dialogue repeats separate', () => {
   // Several characters greeting in turn: distinct utterances that happen to abut.
   const content = [
@@ -355,6 +471,194 @@ test('parseSubtitleCues collapses exact duplicate cues even without effect tags'
   const cues = parseSubtitleCues(content, 'test.ass');
 
   assert.equal(cues.length, 1);
+});
+
+test('parseSubtitleCues replaces generated glyph animation with its timed canonical comment', () => {
+  // Aegisub automation commonly keeps the authored lyric as a Comment and emits
+  // multiple moving Dialogue layers for every glyph. This mirrors the MyGO ED script:
+  // three entrance copies followed by three exit copies for each character.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.20,0:00:03.80,ED_JP,,0,0,0,,{\\fad(480,480)}今　手にある',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(10,20,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(30,40,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(50,60,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,20,30)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,40,50)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,60,70)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(10,20,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(30,40,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(50,60,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,20,30)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,40,50)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,60,70)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(10,20,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(30,40,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(50,60,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,20,30)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,40,50)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,60,70)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Dial_JP,,0,0,0,,普通の会話',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    {
+      startTime: 1.2,
+      endTime: 3.8,
+      text: '今　手にある',
+      source: 'canonical-ass',
+      // Entrance frames start before and exit frames end after the authored timing.
+      animationStartTime: 0.8,
+      animationEndTime: 4.32,
+    },
+    { startTime: 6, endTime: 8, text: '普通の会話' },
+  ]);
+});
+
+test('parseSubtitleCues recovers a full Dialogue line surrounding generated fragments', () => {
+  // Some scripts do not retain the authored line as a Comment. Instead, brief entrance
+  // and exit events contain the complete line around a long run of generated syllables.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:01.15,ED Romaji,,0,0,0,fx,{\\move(100,40,60,40)}toki yo ugokidase',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(0,300,\\c&HFFFFFF&)}to',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(300,500,\\c&HFFFFFF&)}ki',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(500,700,\\c&HFFFFFF&)}yo',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(700,900,\\c&HFFFFFF&)}u',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(900,1100,\\c&HFFFFFF&)}go',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1100,1300,\\c&HFFFFFF&)}ki',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1300,1500,\\c&HFFFFFF&)}da',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1500,1800,\\c&HFFFFFF&)}se',
+    'Dialogue: 1,0:00:03.00,0:00:03.15,ED Romaji,,0,0,0,fx,{\\move(60,40,20,40)}toki yo ugokidase',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Default,,0,0,0,,Ordinary dialogue',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3.15,
+      text: 'toki yo ugokidase',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3.15,
+    },
+    { startTime: 6, endTime: 8, text: 'Ordinary dialogue' },
+  ]);
+});
+
+test('parseSubtitleCues does not promote a short animated fragment as a complete line', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}my',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}my',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}m',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}m',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(120,100)\\t(20,120,\\fscx120)}y',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(120,100)\\t(20,120,\\fscx120)}y',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(
+    cues.some((cue) => cue.source === 'canonical-ass'),
+    false,
+  );
+});
+
+test('parseSubtitleCues ignores timed comments without a matching animated dialogue cluster', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,Dial_JP,,0,0,0,,編集メモ',
+    'Comment: 0,0:00:04.00,0:00:06.00,Dial_JP,,0,0,0,,別案の字幕',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Dial_JP,,0,0,0,,通常の字幕',
+    'Dialogue: 0,0:00:04.00,0:00:06.00,Dial_JP,,0,0,0,,別案の字幕',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    { startTime: 1, endTime: 3, text: '通常の字幕' },
+    { startTime: 4, endTime: 6, text: '別案の字幕' },
+  ]);
+});
+
+test('parseAssCues returns recovered canonical cues in chronological order', () => {
+  // Recovery appends recovered cues after surviving dialogue; the bare parseAssCues
+  // export must still come back time-ordered.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Dial,,0,0,0,,あとのセリフ',
+    'Comment: 0,0:00:01.20,0:00:03.80,OP,,0,0,0,,雨が上がっても',
+    'Dialogue: 0,0:00:01.20,0:00:01.24,OP,,0,0,0,,{\\pos(1,1)\\clip(m 1 1)}雨が上がっても',
+    'Dialogue: 0,0:00:01.24,0:00:01.28,OP,,0,0,0,,{\\pos(1,1)\\clip(m 2 2)}雨が上がっても',
+    'Dialogue: 0,0:00:01.28,0:00:03.80,OP,,0,0,0,,{\\pos(1,1)\\clip(m 3 3)}雨が上がっても',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseAssCues(content).map((cue) => cue.startTime),
+    [1.2, 6],
+  );
+});
+
+test('parseSubtitleCues withdraws a recovery whose owner is claimed by a later candidate', () => {
+  // The exit boundary event appears first in the file and recovers a canonical cue from
+  // its own small cluster. The entrance candidate then proves that exit event was a
+  // generated frame of the full animation; the earlier recovery is a duplicate of the
+  // same authored line and must not survive alongside it.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:14.00,0:00:14.20,ED,,0,0,0,,{\\move(100,200,20,30)}ABCDEFGH',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(0,300,\\c&HFFFFFF&)}ABC',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(300,600,\\c&HFFFFFF&)}DEF',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(600,900,\\c&HFFFFFF&)}GH',
+    'Dialogue: 0,0:00:10.00,0:00:10.20,ED,,0,0,0,,{\\move(10,20,100,200)}ABCDEFGH',
+    'Dialogue: 0,0:00:10.00,0:00:12.00,ED,,0,0,0,,{\\t(0,300,\\fscx100)}ABC',
+    'Dialogue: 0,0:00:10.00,0:00:12.00,ED,,0,0,0,,{\\t(300,600,\\fscx100)}DEF',
+    'Dialogue: 0,0:00:10.00,0:00:13.40,ED,,0,0,0,,{\\t(600,900,\\fscx100)}GH',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 10,
+      endTime: 14.2,
+      text: 'ABCDEFGH',
+      source: 'canonical-ass',
+      animationStartTime: 10,
+      animationEndTime: 14.2,
+    },
+  ]);
+});
+
+test('parseSubtitleCues recovers canonical comments from generated clip frames', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,OP_JP,,0,0,0,,雨が上がっても',
+    'Dialogue: 0,0:00:01.00,0:00:01.04,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 1 1)}雨が上がっても',
+    'Dialogue: 0,0:00:01.04,0:00:01.08,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 2 2)}雨が上がっても',
+    'Dialogue: 0,0:00:01.08,0:00:03.00,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 3 3)}雨が上がっても',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: '雨が上がっても',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+    },
+  ]);
 });
 
 test('parseSubtitleCues collapses tag-less animation frames in converted SRT', () => {

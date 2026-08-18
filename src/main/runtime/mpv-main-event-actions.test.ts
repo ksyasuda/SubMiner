@@ -26,6 +26,29 @@ test('subtitle change handler updates state and forwards uncached text without r
   assert.deepEqual(calls, ['set:line', 'process:line', 'presence']);
 });
 
+test('subtitle change handler consistently forwards resolved canonical text', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    resolveSubtitleText: () => '今　手にある物差しでは',
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: (text) => {
+      calls.push(`lookup:${text}`);
+      return null;
+    },
+    broadcastSubtitle: () => {},
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => {},
+  });
+
+  handler({ text: '今今今手手手ににに' });
+
+  assert.deepEqual(calls, [
+    'set:今　手にある物差しでは',
+    'lookup:今　手にある物差しでは',
+    'process:今　手にある物差しでは',
+  ]);
+});
+
 test('subtitle change handler clears immediately for empty subtitle text', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({

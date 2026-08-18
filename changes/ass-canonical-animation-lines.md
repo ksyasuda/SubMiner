@@ -1,0 +1,5 @@
+type: fixed
+area: subtitles
+
+- Typeset ASS karaoke and animated signs no longer flood the primary overlay, subtitle sidebar, immersion history, or sentence mining with repeated glyph fragments or full-line color phases. Matching timed comments and full-line boundary events recover the complete authored line without merging ordinary repeated dialogue or separately positioned signs, and dialogue spoken while a song's animation is on screen is kept intact instead of being replaced by the lyric. Entrance and exit frames that run past the authored line timing still resolve to the clean line during lyric transitions, and dialogue spoken while a song's animation is on screen enters immersion and subtitle history without the fragment lines beside it.
+- The secondary subtitle overlay drops layered duplicate lines from animated tracks, so a short stack of repeated words collapses to its distinct lines even when the full karaoke heuristic does not apply.

@@ -1,7 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import { Database } from '../sqlite.js';
 import type { DatabaseSync } from '../sqlite.js';
@@ -19,17 +16,6 @@ interface SeedLine {
   endMs: number;
   /** Recording wall-clock, i.e. what the lookback window filters on. */
   createdMs?: number;
-}
-
-function makeDbPath(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-duplicate-line-test-'));
-  return path.join(dir, 'immersion.sqlite');
-}
-
-function cleanupDbPath(dbPath: string): void {
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) return;
-  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 /** One episode, two sessions of it, and one word occurrence per seeded line. */
@@ -82,12 +68,16 @@ function seed(db: DatabaseSync, lines: SeedLine[]): void {
   `);
 }
 
-function createDb(lines: SeedLine[]): { db: DatabaseSync; dbPath: string } {
-  const dbPath = makeDbPath();
-  const db = new Database(dbPath);
+/**
+ * These tests exercise the cleanup SQL, not durability. A fresh on-disk database per
+ * test pays a schema-creation fsync that is cheap on a local NVMe but slow enough on CI
+ * runners to blow the 5s per-test timeout, so the database stays in memory.
+ */
+function createDb(lines: SeedLine[]): { db: DatabaseSync } {
+  const db = new Database(':memory:');
   ensureSchema(db);
   seed(db, lines);
-  return { db, dbPath };
+  return { db };
 }
 
 /** A typeset line mpv reported once per animation frame. */
@@ -119,7 +109,7 @@ function wordFrequency(db: DatabaseSync): number {
 }
 
 test('a karaoke burst collapses to one line and gives back its word counts', () => {
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 40, 40),
     { session: 1, text: 'おはよう', startMs: 20_000, endMs: 22_000 },
   ]);
@@ -148,7 +138,6 @@ test('a karaoke burst collapses to one line and gives back its word counts', () 
     assert.equal(summary.samples[0]!.videoTitle, 'Ep 1');
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
@@ -160,7 +149,7 @@ test('ordinary repeated dialogue survives', () => {
     startMs: 5_000 + index * 800,
     endMs: 5_000 + (index + 1) * 800,
   }));
-  const { db, dbPath } = createDb(lines);
+  const { db } = createDb(lines);
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -171,14 +160,13 @@ test('ordinary repeated dialogue survives', () => {
     assert.equal(wordFrequency(db), 6);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a long run of quarter-second frames is still a burst', () => {
   // Between the timing-only bound (0.1s) and the animation-frame bound (0.3s): heavier
   // typesetting lands here, and the run length is what makes it conclusive.
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -189,12 +177,11 @@ test('a long run of quarter-second frames is still a burst', () => {
     assert.equal(wordFrequency(db), 1);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a qualifying short-frame burst may end with one long hold frame', () => {
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 8, 40),
     { session: 1, text: '飛び上がる', startMs: 10_320, endMs: 12_320 },
   ]);
@@ -208,12 +195,11 @@ test('a qualifying short-frame burst may end with one long hold frame', () => {
     assert.equal(wordFrequency(db), 1);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a long event before the final frame prevents burst cleanup', () => {
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 5, 40),
     { session: 1, text: '飛び上がる', startMs: 10_200, endMs: 12_200 },
     { session: 1, text: '飛び上がる', startMs: 12_200, endMs: 12_240 },
@@ -226,12 +212,11 @@ test('a long event before the final frame prevents burst cleanup', () => {
     assert.equal(countLines(db), 7);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a run of frames longer than the animation bound survives', () => {
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 400));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 400));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -240,7 +225,6 @@ test('a run of frames longer than the animation bound survives', () => {
     assert.equal(countLines(db), 6);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
@@ -248,7 +232,7 @@ test('the four-frame residue the live gate stores is cleaned up', () => {
   // The streaming gate records the first four frames of a burst before the run is long
   // enough to recognise. Four contiguous identical events under the strict timing-only
   // bound are that residue, and no real dialogue.
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 40));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 40));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -259,14 +243,13 @@ test('the four-frame residue the live gate stores is cleaned up', () => {
     assert.equal(wordFrequency(db), 1);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a four-frame run above the strict frame bound survives', () => {
   // Long enough per event to be plausible dialogue; only a five-event run may use the
   // looser animation-frame bound.
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 250));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 4, 250));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -275,14 +258,13 @@ test('a four-frame run above the strict frame bound survives', () => {
     assert.equal(countLines(db), 4);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('an explicit minRunLength raises the bar', () => {
   // Five quarter-second frames qualify under the defaults; a cautious run asking for six
   // leaves them alone. Above the strict bound, so the residue rule stays out of it.
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 5, 250));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 5, 250));
 
   try {
     const preview = cleanupDuplicateSubtitleLines(db, { dryRun: true });
@@ -293,12 +275,11 @@ test('an explicit minRunLength raises the bar', () => {
     assert.equal(countLines(db), 5);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('an explicit maxFrameSeconds tightens the frame bound', () => {
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 250));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db, { maxFrameSeconds: 0.2 });
@@ -307,13 +288,12 @@ test('an explicit maxFrameSeconds tightens the frame bound', () => {
     assert.equal(countLines(db), 6);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a non-finite maxFrameSeconds falls back to the default bound', () => {
   // Six normal-beat lines: Infinity must not turn every event into a "short frame".
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 800));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 6, 800));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db, { maxFrameSeconds: Infinity });
@@ -322,12 +302,11 @@ test('a non-finite maxFrameSeconds falls back to the default bound', () => {
     assert.equal(countLines(db), 6);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('sampleLimit zero removes bursts but reports no samples', () => {
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 40, 40));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 40, 40));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db, { sampleLimit: 0 });
@@ -337,12 +316,11 @@ test('sampleLimit zero removes bursts but reports no samples', () => {
     assert.equal(countLines(db), 1);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a short run below every threshold survives', () => {
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 3, 40));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 1_000, 3, 40));
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -351,7 +329,6 @@ test('a short run below every threshold survives', () => {
     assert.equal(countLines(db), 3);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
@@ -361,7 +338,7 @@ test('interleaved dual-line karaoke collapses each line to one row', () => {
   const kanji = karaokeFrames(1, '飛び上がる', 10_000, 20, 60);
   const romaji = karaokeFrames(1, 'tobiagaru', 10_001, 20, 60);
   const interleaved = [...kanji, ...romaji].sort((a, b) => a.startMs - b.startMs);
-  const { db, dbPath } = createDb(interleaved);
+  const { db } = createDb(interleaved);
 
   try {
     const summary = cleanupDuplicateSubtitleLines(db);
@@ -372,12 +349,11 @@ test('interleaved dual-line karaoke collapses each line to one row', () => {
     assert.equal(wordFrequency(db), 2);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('the same line in a rewatch session is never merged into the first watch', () => {
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 6, 40),
     ...karaokeFrames(2, '飛び上がる', 10_000, 6, 40),
   ]);
@@ -392,12 +368,11 @@ test('the same line in a rewatch session is never merged into the first watch', 
     assert.equal(wordFrequency(db), 2);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a gap between runs splits them', () => {
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 6, 40),
     ...karaokeFrames(1, '飛び上がる', 60_000, 6, 40),
   ]);
@@ -409,12 +384,11 @@ test('a gap between runs splits them', () => {
     assert.equal(countLines(db), 2);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('a dry run reports what an apply would do and writes nothing', () => {
-  const { db, dbPath } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 40, 40));
+  const { db } = createDb(karaokeFrames(1, '飛び上がる', 10_000, 40, 40));
 
   try {
     const preview = cleanupDuplicateSubtitleLines(db, { dryRun: true });
@@ -430,14 +404,13 @@ test('a dry run reports what an apply would do and writes nothing', () => {
     assert.equal(countLines(db), 1);
   } finally {
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
 
 test('the lookback window leaves older bursts alone', () => {
   const recentMs = BASE_MS;
   const oldMs = BASE_MS - 40 * DAY_MS;
-  const { db, dbPath } = createDb([
+  const { db } = createDb([
     ...karaokeFrames(1, '飛び上がる', 10_000, 6, 40).map((line) => ({
       ...line,
       createdMs: oldMs,
@@ -462,6 +435,5 @@ test('the lookback window leaves older bursts alone', () => {
   } finally {
     globalThis.__subminerTestNowMs = undefined;
     db.close();
-    cleanupDbPath(dbPath);
   }
 });
