@@ -45,12 +45,7 @@ function installDom(): () => void {
 }
 
 test('DOM harness restores the original global property descriptors', () => {
-  const propertyNames = [
-    'window',
-    'document',
-    'HTMLElement',
-    'IS_REACT_ACT_ENVIRONMENT',
-  ] as const;
+  const propertyNames = ['window', 'document', 'HTMLElement', 'IS_REACT_ACT_ENVIRONMENT'] as const;
   const before = propertyNames.map((name) => Object.getOwnPropertyDescriptor(globalThis, name));
 
   const restore = installDom();
