@@ -677,12 +677,10 @@ export function prepareSecondarySubtitleLines(text: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+  if (!isKaraokeLikeLineSet(lines)) {
+    return lines;
+  }
 
-  // Identical lines in one render are layered copies of the same event (animation
-  // scripts stack several per glyph), never distinct content -- always drop them, so a
-  // short stack like "Your ×4 / mosaic" collapses without needing the karaoke
-  // heuristic. Karaoke-likeness is still judged on the raw stack, where the layered
-  // repetition is the signal.
   const seen = new Set<string>();
   const unique: string[] = [];
   for (const line of lines) {
@@ -690,10 +688,6 @@ export function prepareSecondarySubtitleLines(text: string): string[] {
     seen.add(line);
     unique.push(line);
   }
-  if (!isKaraokeLikeLineSet(lines)) {
-    return unique;
-  }
-
   return [unique.join(' ')];
 }
 

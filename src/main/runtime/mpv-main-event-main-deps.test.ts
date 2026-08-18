@@ -47,6 +47,9 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
     logSubtitleTimingError: (message) => calls.push(`subtitle-error:${message}`),
     broadcastToOverlayWindows: (channel, payload) =>
       calls.push(`broadcast:${channel}:${String(payload)}`),
+    onSecondarySubtitleChange: (text) => calls.push(`secondary:${text}`),
+    onSecondarySubtitleTrackChange: (sid) => calls.push(`secondary-track:${String(sid)}`),
+    onSecondarySubtitleDelayChange: (delay) => calls.push(`secondary-delay:${delay}`),
     onSubtitleChange: (text) => calls.push(`subtitle-change:${text}`),
     ensureImmersionTrackerInitialized: () => calls.push('ensure-immersion'),
     updateCurrentMediaPath: (path) => calls.push(`path:${path}`),
@@ -86,6 +89,8 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   deps.setCurrentSubAssText('ass');
   deps.broadcastSubtitleAss('ass');
   deps.broadcastSecondarySubtitle('sec');
+  deps.onSecondarySubtitleTrackChange?.(4);
+  deps.onSecondarySubtitleDelayChange?.(0.5);
   deps.updateCurrentMediaPath('/tmp/video');
   deps.restoreMpvSubVisibility();
   deps.resetSubtitleSidebarEmbeddedLayout();
@@ -116,6 +121,10 @@ test('mpv main event main deps map app state updates and delegate callbacks', as
   assert.ok(calls.includes('sync-overlay-mpv-sub'));
   assert.ok(calls.includes('anilist-post-watch'));
   assert.ok(calls.includes('timing:y:secondary'));
+  assert.ok(calls.includes('secondary:sec'));
+  assert.ok(calls.includes('secondary-track:4'));
+  assert.ok(calls.includes('secondary-delay:0.5'));
+  assert.ok(!calls.includes('broadcast:secondary-subtitle:set:sec'));
   assert.ok(calls.includes('ensure-immersion'));
   assert.ok(calls.includes('sync-immersion'));
   assert.ok(calls.includes('autoplay:/tmp/video'));

@@ -528,6 +528,7 @@ import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
   createResolveActiveSubtitleSidebarSourceHandler,
 } from './main/runtime/subtitle-prefetch-runtime';
+import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
 import {
   createCreateAnilistSetupWindowHandler,
   createCreateConfigSettingsWindowHandler,
@@ -1976,7 +1977,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   getLastObservedTimePos: () => lastObservedTimePos,
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   emitSecondarySubtitle: (text) => {
-    overlayManager.broadcastToOverlayWindows('secondary-subtitle:set', text);
+    secondarySubtitleTrackController.handleLiveText(text);
   },
   initSubtitlePrefetch: (sourcePath, currentTimePos, sourceKey) =>
     subtitlePrefetchInitController.initSubtitlePrefetch(sourcePath, currentTimePos, sourceKey),
@@ -2032,6 +2033,24 @@ const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSid
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
     extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
   logDebug: (message) => logger.debug(message),
+});
+
+const secondarySubtitleTrackController = createSecondarySubtitleTrackController({
+  getMpvClient: () => appState.mpvClient,
+  getCurrentTimePos: () => appState.mpvClient?.currentTimePos ?? lastObservedTimePos,
+  resolveSubtitleSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
+  loadSubtitleSourceText,
+  parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+  setCurrentSecondaryText: (text) => {
+    if (appState.mpvClient) {
+      appState.mpvClient.currentSecondarySubText = text;
+    }
+  },
+  broadcastSecondaryText: (text) => {
+    overlayManager.broadcastToOverlayWindows('secondary-subtitle:set', text);
+  },
+  logDebug: (message) => logger.debug(message),
+  logWarn: (message, error) => logger.warn(message, error),
 });
 
 const refreshSubtitlePrefetchFromActiveTrackHandler =
@@ -4416,6 +4435,7 @@ const {
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
       flushQueuedMpvOsdNotifications();
+      secondarySubtitleTrackController.scheduleRefresh(0);
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -4433,6 +4453,9 @@ const {
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       overlayManager.broadcastToOverlayWindows(channel, payload);
+    },
+    onSecondarySubtitleChange: (text) => {
+      secondarySubtitleTrackController.handleLiveText(text);
     },
     getImmediateSubtitlePayload: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
     emitImmediateSubtitle: (payload) => {
@@ -4467,6 +4490,7 @@ const {
         appState.activeParsedSubtitleMediaPath,
       );
       if ((normalizedPath || null) !== previousPath) {
+        secondarySubtitleTrackController.reset();
         const resetSubtitlePayload = { text: '', tokens: null };
         const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
         const frequencyOptions = {
@@ -4501,6 +4525,7 @@ const {
       void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
+        secondarySubtitleTrackController.scheduleRefresh();
         void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
         // Retry after a short delay because MPV can populate track-list after path.
         subtitlePrefetchRuntime.scheduleSubtitlePrefetchRefresh(500);
@@ -4555,6 +4580,7 @@ const {
         subtitlePrefetchService.onSeek(time);
       }
       lastObservedTimePos = time;
+      secondarySubtitleTrackController.handleTimePos(time);
     },
     onFullscreenChange: (fullscreen) => {
       cancelLinuxMpvFullscreenOverlayRefreshBurst = updateLinuxMpvFullscreenOverlayRefreshBurst(
@@ -4582,6 +4608,13 @@ const {
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
+    onSecondarySubtitleTrackChange: () => {
+      secondarySubtitleTrackController.handleTrackChange();
+      secondarySubtitleTrackController.scheduleRefresh(0);
+    },
+    onSecondarySubtitleDelayChange: (delay) => {
+      secondarySubtitleTrackController.handleDelayChange(delay);
+    },
     onSubtitleTrackListChange: (trackList) => {
       const diagnostics = buildSubtitleTrackDiagnostics(
         lastObservedPrimarySubtitleTrackId,
@@ -4595,6 +4628,7 @@ const {
         logger.info('[mpv-subtitles] subtitle track list updated', diagnostics);
       }
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
+      secondarySubtitleTrackController.scheduleRefresh(0);
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },

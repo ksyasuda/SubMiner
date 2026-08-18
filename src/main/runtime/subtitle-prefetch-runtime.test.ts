@@ -248,3 +248,31 @@ test('subtitle source resolver logs debug when no active subtitle track is selec
   assert.equal(debugs.length, 1);
   assert.match(debugs[0]!, /\[subtitle-prefetch\].*no active subtitle track/);
 });
+
+test('subtitle source resolver does not fall back to the primary selected track for secondary', async () => {
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg',
+    extractInternalSubtitleTrack: async () => {
+      throw new Error('should not extract the primary track');
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: null,
+    trackListRaw: [
+      {
+        type: 'sub',
+        id: 1,
+        selected: true,
+        external: true,
+        'external-filename': '/subs/primary.ass',
+      },
+    ],
+    sidRaw: null,
+    videoPath: '/media/video.mkv',
+    allowSelectedFallback: false,
+  });
+
+  assert.equal(resolved, null);
+});

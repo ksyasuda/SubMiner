@@ -1424,10 +1424,11 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
 });
 
-test('prepareSecondarySubtitleLines drops layered duplicate lines in short stacks', () => {
-  // A word-level animation stacks one event per layer copy; the stack is too short for
-  // the karaoke heuristic but the duplicates are still never distinct content.
+test('prepareSecondarySubtitleLines preserves short stacks without layer metadata', () => {
   assert.deepEqual(prepareSecondarySubtitleLines('Your\\NYour\\NYour\\NYour\\Nmosaic'), [
+    'Your',
+    'Your',
+    'Your',
     'Your',
     'mosaic',
   ]);
@@ -1445,6 +1446,18 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
   );
 
   assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
+});
+
+test('prepareSecondarySubtitleLines preserves repeated short dialogue without layer metadata', () => {
+  const dialogue = ['Wait', 'Wait', 'Wait'];
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
+});
+
+test('prepareSecondarySubtitleLines preserves short simultaneous dialogue without repeats', () => {
+  const dialogue = ['Wait', 'Go!', 'No!', 'Run!'];
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
 });
 
 test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {

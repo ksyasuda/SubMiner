@@ -63,6 +63,8 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitSubtitleTiming: (payload) => state.events.push(payload),
       emitSecondarySubtitleChange: (payload) => state.events.push(payload),
       emitSubtitleTrackChange: (payload) => state.events.push(payload),
+      emitSecondarySubtitleTrackChange: (payload) => state.events.push(payload),
+      emitSecondarySubtitleDelayChange: (payload) => state.events.push(payload),
       emitSubtitleTrackListChange: (payload) => state.events.push(payload),
       getCurrentSubText: () => state.subText,
       setCurrentSubText: (text) => {
@@ -159,11 +161,41 @@ test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
 
   await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '3' }, deps);
   await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-delay', data: '0.5' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
     { event: 'property-change', name: 'track-list', data: [{ type: 'sub', id: 3 }] },
     deps,
   );
 
-  assert.deepEqual(state.events, [{ sid: 3 }, { trackList: [{ type: 'sub', id: 3 }] }]);
+  assert.deepEqual(state.events, [
+    { sid: 3 },
+    { sid: 4 },
+    { delay: 0.5 },
+    { trackList: [{ type: 'sub', id: 3 }] },
+  ]);
+});
+
+test('dispatchMpvProtocolMessage rejects decimal subtitle track IDs', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '4.5' }, deps);
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4.5' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: 4.5 }, deps);
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: 4.5 },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ sid: null }, { sid: null }, { sid: null }, { sid: null }]);
 });
 
 test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
