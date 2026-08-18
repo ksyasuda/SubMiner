@@ -129,18 +129,10 @@ function normalizeSecondarySubText(text: unknown, primaryText: string): string |
   return trimmed;
 }
 
-async function getCurrentSecondarySubTextForSentenceCard(
+function getCurrentSecondarySubTextForSentenceCard(
   mpvClient: MpvClientLike,
   primaryText: string,
-): Promise<string | undefined> {
-  if (mpvClient.requestProperty) {
-    try {
-      const latestSecondaryText = await mpvClient.requestProperty('secondary-sub-text');
-      return normalizeSecondarySubText(latestSecondaryText, primaryText);
-    } catch {
-      // Fall back to the cached secondary subtitle below.
-    }
-  }
+): string | undefined {
   return normalizeSecondarySubText(mpvClient.currentSecondarySubText, primaryText);
 }
 
@@ -192,7 +184,7 @@ export async function mineSentenceCard(deps: {
     return false;
   }
 
-  const secondarySubText = await getCurrentSecondarySubTextForSentenceCard(mpvClient, primaryText);
+  const secondarySubText = getCurrentSecondarySubTextForSentenceCard(mpvClient, primaryText);
   return await anki.createSentenceCard(
     primaryText,
     deps.primarySubtitle?.startTime ?? mpvClient.currentSubStart,

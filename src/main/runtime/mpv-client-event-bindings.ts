@@ -4,6 +4,8 @@ type MpvBindingEventName =
   | 'subtitle-ass-change'
   | 'secondary-subtitle-change'
   | 'subtitle-track-change'
+  | 'secondary-subtitle-track-change'
+  | 'secondary-subtitle-delay-change'
   | 'subtitle-track-list-change'
   | 'subtitle-timing'
   | 'media-path-change'
@@ -90,6 +92,8 @@ export function createBindMpvClientEventHandlers(deps: {
   onSubtitleAssChange: (payload: { text: string }) => void;
   onSecondarySubtitleChange: (payload: { text: string }) => void;
   onSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  onSecondarySubtitleTrackChange: (payload: { sid: number | null }) => void;
+  onSecondarySubtitleDelayChange: (payload: { delay: number }) => void;
   onSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   onSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   onMediaPathChange: (payload: { path: string | null }) => void;
@@ -107,6 +111,8 @@ export function createBindMpvClientEventHandlers(deps: {
     mpvClient.on('subtitle-ass-change', deps.onSubtitleAssChange);
     mpvClient.on('secondary-subtitle-change', deps.onSecondarySubtitleChange);
     mpvClient.on('subtitle-track-change', deps.onSubtitleTrackChange);
+    mpvClient.on('secondary-subtitle-track-change', deps.onSecondarySubtitleTrackChange);
+    mpvClient.on('secondary-subtitle-delay-change', deps.onSecondarySubtitleDelayChange);
     mpvClient.on('subtitle-track-list-change', deps.onSubtitleTrackListChange);
     mpvClient.on('subtitle-timing', deps.onSubtitleTiming);
     mpvClient.on('media-path-change', deps.onMediaPathChange);

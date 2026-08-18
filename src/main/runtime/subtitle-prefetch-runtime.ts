@@ -41,6 +41,7 @@ function getActiveSubtitleTrack(
   currentTrackRaw: unknown,
   trackListRaw: unknown,
   sidRaw: unknown,
+  allowSelectedFallback: boolean,
 ): MpvSubtitleTrackLike | null {
   if (currentTrackRaw && typeof currentTrackRaw === 'object') {
     const track = currentTrackRaw as MpvSubtitleTrackLike;
@@ -66,6 +67,10 @@ function getActiveSubtitleTrack(
         }) as MpvSubtitleTrackLike | undefined) ?? null);
   if (bySid) {
     return bySid;
+  }
+
+  if (!allowSelectedFallback) {
+    return null;
   }
 
   return (
@@ -94,6 +99,7 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
     trackListRaw: unknown;
     sidRaw: unknown;
     videoPath: string;
+    allowSelectedFallback?: boolean;
   }): Promise<ActiveSubtitleSidebarSource | null> => {
     const currentExternalFilename =
       typeof input.currentExternalFilenameRaw === 'string'
@@ -103,7 +109,12 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       return { path: currentExternalFilename, sourceKey: currentExternalFilename };
     }
 
-    const track = getActiveSubtitleTrack(input.currentTrackRaw, input.trackListRaw, input.sidRaw);
+    const track = getActiveSubtitleTrack(
+      input.currentTrackRaw,
+      input.trackListRaw,
+      input.sidRaw,
+      input.allowSelectedFallback !== false,
+    );
     if (!track) {
       deps.logDebug?.('[subtitle-prefetch] no active subtitle track selected yet');
       return null;

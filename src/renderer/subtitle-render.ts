@@ -657,12 +657,24 @@ function renderPlainTextPreserveLineBreaks(root: ParentNode, text: string): void
 // hover-pause band into a full-screen trap.
 const KARAOKE_MIN_LINE_COUNT = 8;
 const KARAOKE_MAX_MEDIAN_LINE_LENGTH = 4;
+const LAYERED_REPEAT_MIN_LINE_COUNT = 4;
+const LAYERED_REPEAT_MIN_COUNT = 3;
 
 function isKaraokeLikeLineSet(lines: string[]): boolean {
-  if (lines.length < KARAOKE_MIN_LINE_COUNT) return false;
   const lengths = lines.map((line) => line.length).sort((a, b) => a - b);
   const median = lengths[Math.floor(lengths.length / 2)] ?? 0;
-  return median <= KARAOKE_MAX_MEDIAN_LINE_LENGTH;
+  if (median > KARAOKE_MAX_MEDIAN_LINE_LENGTH) return false;
+
+  if (lines.length >= KARAOKE_MIN_LINE_COUNT) return true;
+  if (lines.length < LAYERED_REPEAT_MIN_LINE_COUNT) return false;
+
+  const repeatCounts = new Map<string, number>();
+  for (const line of lines) {
+    const count = (repeatCounts.get(line) ?? 0) + 1;
+    if (count >= LAYERED_REPEAT_MIN_COUNT) return true;
+    repeatCounts.set(line, count);
+  }
+  return false;
 }
 
 export function prepareSecondarySubtitleLines(text: string): string[] {

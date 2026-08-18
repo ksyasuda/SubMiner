@@ -37,6 +37,9 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
     broadcastSubtitleAss: (text) => calls.push(`broadcast-ass:${text}`),
     broadcastSecondarySubtitle: (text) => calls.push(`broadcast-secondary:${text}`),
     onSubtitleTrackChange: () => calls.push('subtitle-track-change'),
+    onSecondarySubtitleTrackChange: () => calls.push('secondary-subtitle-track-change'),
+    onSecondarySubtitleDelayChange: (delay) =>
+      calls.push(`secondary-subtitle-delay-change:${delay}`),
     onSubtitleTrackListChange: () => calls.push('subtitle-track-list-change'),
 
     updateCurrentMediaPath: (path) => calls.push(`media-path:${path}`),
@@ -73,6 +76,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   handlers.get('connection-change')?.({ connected: true });
   handlers.get('subtitle-change')?.({ text: 'line' });
   handlers.get('subtitle-track-change')?.({ sid: 3 });
+  handlers.get('secondary-subtitle-track-change')?.({ sid: 4 });
+  handlers.get('secondary-subtitle-delay-change')?.({ delay: 0.5 });
   handlers.get('subtitle-track-list-change')?.({ trackList: [] });
   handlers.get('media-path-change')?.({ path: '/tmp/video.mkv' });
   handlers.get('media-path-change')?.({ path: '' });
@@ -86,6 +91,8 @@ test('main mpv event binder wires callbacks through to runtime deps', () => {
   assert.equal(calls.includes('broadcast-sub:line'), true);
   assert.ok(calls.includes('subtitle-change:line'));
   assert.ok(calls.includes('subtitle-track-change'));
+  assert.ok(calls.includes('secondary-subtitle-track-change'));
+  assert.ok(calls.includes('secondary-subtitle-delay-change:0.5'));
   assert.ok(calls.includes('subtitle-track-list-change'));
   assert.ok(calls.includes('media-title:Episode 1'));
   assert.ok(calls.includes('media-path:/tmp/video.mkv'));

@@ -131,6 +131,8 @@ export interface MpvIpcClientEventMap {
   'fullscreen-change': { fullscreen: boolean };
   'secondary-subtitle-change': { text: string };
   'subtitle-track-change': { sid: number | null };
+  'secondary-subtitle-track-change': { sid: number | null };
+  'secondary-subtitle-delay-change': { delay: number };
   'subtitle-track-list-change': { trackList: unknown[] | null };
   'media-path-change': { path: string };
   'media-title-change': { title: string | null };
@@ -437,6 +439,12 @@ export class MpvIpcClient implements MpvClient {
       },
       emitSubtitleTrackChange: (payload) => {
         this.emit('subtitle-track-change', payload);
+      },
+      emitSecondarySubtitleTrackChange: (payload) => {
+        this.emit('secondary-subtitle-track-change', payload);
+      },
+      emitSecondarySubtitleDelayChange: (payload) => {
+        this.emit('secondary-subtitle-delay-change', payload);
       },
       emitSubtitleTrackListChange: (payload) => {
         this.emit('subtitle-track-list-change', payload);

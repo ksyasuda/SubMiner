@@ -61,11 +61,14 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   recordAnilistMediaDuration?: (durationSec: number) => void;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
+  onSecondarySubtitleChange?: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   logSubtitleProcessingDebug?: (message: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleDelayChange?: (delay: number) => void;
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
@@ -274,6 +277,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.appState.activeParsedSubtitleSource = null;
       deps.onSubtitleTrackChange?.(sid);
     },
+    onSecondarySubtitleTrackChange: deps.onSecondarySubtitleTrackChange
+      ? (sid: number | null) => deps.onSecondarySubtitleTrackChange!(sid)
+      : undefined,
+    onSecondarySubtitleDelayChange: deps.onSecondarySubtitleDelayChange
+      ? (delay: number) => deps.onSecondarySubtitleDelayChange!(delay)
+      : undefined,
     onSubtitleTrackListChange: deps.onSubtitleTrackListChange
       ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
       : undefined,
@@ -283,8 +292,13 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     broadcastSubtitleAss: (text: string) =>
       deps.broadcastToOverlayWindows('subtitle-ass:set', text),
-    broadcastSecondarySubtitle: (text: string) =>
-      deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
+    broadcastSecondarySubtitle: (text: string) => {
+      if (deps.onSecondarySubtitleChange) {
+        deps.onSecondarySubtitleChange(text);
+        return;
+      }
+      deps.broadcastToOverlayWindows('secondary-subtitle:set', text);
+    },
     updateCurrentMediaPath: (path: string) => {
       resetSubtitleDeduplication();
       deps.updateCurrentMediaPath(path);

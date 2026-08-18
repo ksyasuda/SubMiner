@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-08-04
+Last verified: 2026-08-17
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -77,6 +77,25 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The current cue upgrades in place when its tokens and annotations are ready. This can reflow text
   or character images, but cue visibility does not wait for that work.
 
+## Secondary Subtitle Flow
+
+- `secondary-sub-text` remains the immediate fallback, so unreadable and remote subtitle sources
+  still appear without waiting for file resolution.
+- `secondary-subtitle-track.ts` resolves `secondary-sid` against mpv's track list. External tracks
+  are read directly; supported embedded text tracks are extracted through the same ffmpeg-backed
+  source resolver used by primary subtitle prefetching.
+- The selected source is parsed with `parseSubtitleCues()`, including metadata-aware ASS duplicate
+  and animation collapse. Playback `time-pos` selects the active parsed cue after applying
+  `secondary-sub-delay`.
+- The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
+  overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
+  text when a readable source is available.
+- Media and `secondary-sid` changes clear the previous parsed state before refreshing the source;
+  track-list changes refresh without discarding an unchanged source. Observed
+  `secondary-sub-delay` changes retime the active parsed cue without rereading the file. If loading,
+  extraction, or parsing fails, the controller returns to live mpv text and the renderer's
+  conservative short stack heuristic remains the final display fallback.
+
 ## Emitted State
 
 - `emitSubtitle(payload)` maps to `emitSubtitlePayload(payload)`. Overlay windows and annotation
@@ -84,8 +103,8 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The basic subtitle websocket receives the immediate plain cue only. Because its serialized
   payload discards annotations, the later upgrade would be an identical duplicate and is skipped
   when text and cue timing match.
-- Secondary priming reads mpv `secondary-sub-text`, stores it in
-  `mpvClient.currentSecondarySubText`, and broadcasts `secondary-subtitle:set` to overlay windows.
+- Secondary priming reads mpv `secondary-sub-text` and routes it through the secondary track
+  controller. A parsed active cue replaces the live text when the selected source is readable.
 - If secondary `requestProperty` fails, the primary flow stays complete and only a debug line is
   written.
 

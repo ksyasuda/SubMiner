@@ -54,6 +54,8 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
   emitSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSecondarySubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSecondarySubtitleDelayChange: (payload: { delay: number }) => void;
   emitSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
@@ -282,6 +284,24 @@ export async function dispatchMpvProtocolMessage(
             ? Number(msg.data)
             : null;
       deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isFinite(sid) ? sid : null });
+    } else if (msg.name === 'secondary-sid') {
+      const sid =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : null;
+      deps.emitSecondarySubtitleTrackChange({
+        sid: sid !== null && Number.isFinite(sid) ? sid : null,
+      });
+    } else if (msg.name === 'secondary-sub-delay') {
+      const delay =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : 0;
+      deps.emitSecondarySubtitleDelayChange({ delay: Number.isFinite(delay) ? delay : 0 });
     } else if (msg.name === 'track-list') {
       deps.emitSubtitleTrackListChange({
         trackList: Array.isArray(msg.data) ? (msg.data as unknown[]) : null,

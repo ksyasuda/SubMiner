@@ -1447,6 +1447,18 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
   assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
 });
 
+test('prepareSecondarySubtitleLines collapses a short stack of repeated ASS layers', () => {
+  const layeredSign = ['Your', 'Your', 'Your', 'Your', 'mosaic'].join('\\N');
+
+  assert.deepEqual(prepareSecondarySubtitleLines(layeredSign), ['Your mosaic']);
+});
+
+test('prepareSecondarySubtitleLines preserves short simultaneous dialogue without repeats', () => {
+  const dialogue = ['Wait', 'Go!', 'No!', 'Run!'];
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
+});
+
 test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {
   const dialogue = ' I never expected this. \\N\\N But here we are. ';
 
