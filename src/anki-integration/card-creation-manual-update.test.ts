@@ -567,6 +567,7 @@ test('discarding an audio-card timing review deletes the note before evicting it
 test('keeping an audio card without media skips generation and preserves the note', async () => {
   let generatedAudio = false;
   let deleted = false;
+  const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
   const { service, storedMedia } = createManualUpdateService({
     getMpvClient: () =>
       ({
@@ -585,7 +586,9 @@ test('keeping an audio card without media skips generation and preserves the not
           fields: { Expression: { value: '単語' }, Sentence: { value: '' } },
         },
       ],
-      updateNoteFields: async () => undefined,
+      updateNoteFields: async (noteId, fields) => {
+        updates.push({ noteId, fields });
+      },
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
@@ -609,4 +612,5 @@ test('keeping an audio card without media skips generation and preserves the not
   assert.equal(generatedAudio, false);
   assert.equal(deleted, false);
   assert.deepEqual(storedMedia, []);
+  assert.deepEqual(updates, [{ noteId: 42, fields: { Sentence: '字幕' } }]);
 });
