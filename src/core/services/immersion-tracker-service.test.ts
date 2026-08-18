@@ -617,6 +617,82 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
   }
 });
 
+test('tracker runs startup session-rollup maintenance before lexical backfill locks writes', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let releaseBackfill = (): void => {};
+  const heldBackfill = new Promise<void>((resolve) => {
+    releaseBackfill = resolve;
+  });
+
+  try {
+    const startedAtMs = trackerNowMs() - 60_000;
+    const endedAtMs = trackerNowMs();
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb.exec(`
+      INSERT INTO imm_videos (
+        video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (1, 'local:/tmp/rollup-recovery.mkv', 'Rollup Recovery', 1, 0, '1', '1');
+      INSERT INTO imm_sessions (
+        session_id, session_uuid, video_id, started_at_ms, ended_at_ms, status,
+        active_watched_ms, lines_seen, tokens_seen, cards_mined, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, 'rollup-recovery', 1, '${startedAtMs}', '${endedAtMs}', 2,
+        60000, 10, 20, 2, '${startedAtMs}', '${endedAtMs}'
+      );
+      INSERT INTO imm_session_telemetry (
+        session_id, sample_ms, total_watched_ms, active_watched_ms, lines_seen,
+        tokens_seen, cards_mined, lookup_count, lookup_hits, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (
+        1, '${endedAtMs}', 60000, 60000, 10, 20, 2, 0, 0,
+        '${endedAtMs}', '${endedAtMs}'
+      );
+      DELETE FROM imm_daily_rollups;
+      DELETE FROM imm_monthly_rollups;
+      UPDATE imm_rollup_state SET state_value = '0';
+    `);
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath }, {
+      runLexicalRollupBackfillTask: async () => heldBackfill,
+    } as never);
+
+    const privateApi = tracker as unknown as {
+      db: DatabaseSync;
+      writeLock: { locked: boolean };
+    };
+    assert.equal(privateApi.writeLock.locked, true);
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_daily_rollups').get() as {
+          total: number;
+        }
+      ).total,
+      1,
+    );
+    assert.equal(
+      (
+        privateApi.db.prepare('SELECT COUNT(*) AS total FROM imm_monthly_rollups').get() as {
+          total: number;
+        }
+      ).total,
+      1,
+    );
+  } finally {
+    releaseBackfill();
+    if (tracker) {
+      await waitForCondition(
+        () => !(tracker as unknown as { writeLock: { locked: boolean } }).writeLock.locked,
+      );
+    }
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('tracker queues playback writes until lexical rollup backfill settles', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

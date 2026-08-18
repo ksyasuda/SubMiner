@@ -591,8 +591,8 @@ export class ImmersionTrackerService {
       }
     }
     this.preparedStatements = createTrackerPreparedStatements(this.db);
-    if (!areLexicalDailyRollupsReady(this.db)) this.startLexicalRollupBackfill();
     this.scheduleMaintenance();
+    if (!areLexicalDailyRollupsReady(this.db)) this.startLexicalRollupBackfill();
     this.scheduleFlush();
   }
 

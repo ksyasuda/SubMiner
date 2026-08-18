@@ -184,6 +184,51 @@ test('ensureSchema adds manual assignment locks when upgrading the previous sche
   }
 });
 
+test('ensureSchema preserves durable session rollups across unrelated schema upgrades', () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+
+  try {
+    ensureSchema(db);
+    db.exec(`
+      INSERT INTO imm_videos (
+        video_id, video_key, canonical_title, source_type, duration_ms, CREATED_DATE, LAST_UPDATE_DATE
+      ) VALUES (1, 'local:/tmp/preserved.mkv', 'Preserved', 1, 0, '1', '1');
+      INSERT INTO imm_daily_rollups (
+        rollup_day, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards
+      ) VALUES (20000, 1, 2, 30, 40, 50, 3);
+      INSERT INTO imm_monthly_rollups (
+        rollup_month, video_id, total_sessions, total_active_min, total_lines_seen,
+        total_tokens_seen, total_cards
+      ) VALUES (202410, 1, 2, 30, 40, 50, 3);
+      UPDATE imm_rollup_state
+      SET state_value = '123'
+      WHERE state_key = 'last_rollup_sample_ms';
+      UPDATE imm_schema_version SET schema_version = 21;
+    `);
+
+    ensureSchema(db);
+
+    const daily = db
+      .prepare('SELECT total_sessions AS totalSessions FROM imm_daily_rollups')
+      .get() as { totalSessions: number } | null;
+    const monthly = db
+      .prepare('SELECT total_sessions AS totalSessions FROM imm_monthly_rollups')
+      .get() as { totalSessions: number } | null;
+    const rollupState = db
+      .prepare(`SELECT state_value AS value FROM imm_rollup_state WHERE state_key = ?`)
+      .get('last_rollup_sample_ms') as { value: string } | null;
+
+    assert.equal(daily?.totalSessions, 2);
+    assert.equal(monthly?.totalSessions, 2);
+    assert.equal(rollupState?.value, '123');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('stats excluded words are replaced and read from sqlite storage', () => {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);

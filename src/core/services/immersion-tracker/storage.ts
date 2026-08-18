@@ -1584,13 +1584,9 @@ export function ensureSchema(db: DatabaseSync): void {
     ON imm_youtube_videos(youtube_video_id)
   `);
 
-  if (currentVersion?.schema_version && currentVersion.schema_version < SCHEMA_VERSION) {
-    db.exec('DELETE FROM imm_daily_rollups');
-    db.exec('DELETE FROM imm_monthly_rollups');
-    db.exec(
-      `UPDATE imm_rollup_state SET state_value = 0 WHERE state_key = 'last_rollup_sample_ms'`,
-    );
-  }
+  // Session rollups intentionally outlive raw session and telemetry retention.
+  // Preserve them across unrelated schema upgrades because deleted historical
+  // buckets cannot be rebuilt after their source rows have been pruned.
 
   db.exec(`
     INSERT INTO imm_schema_version(schema_version, applied_at_ms)
