@@ -34,7 +34,7 @@ function createSnapshotWithoutImages(): CharacterDictionarySnapshot {
 test('generateForCurrentMedia refreshes same-version snapshots missing images when inline images are enabled', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
-  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  await writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
   const originalFetch = globalThis.fetch;
   const fetchUrls: string[] = [];
 
@@ -124,7 +124,7 @@ test('generateForCurrentMedia refreshes same-version snapshots missing images wh
 test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
-  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+  await writeSnapshot(getSnapshotPath(outputDir, 130298), {
     ...createSnapshotWithoutImages(),
     nameSplitSource: 'heuristic',
   });
@@ -213,7 +213,7 @@ test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable'
 test('generateForCurrentMedia keeps mecab-split snapshots when MeCab is available', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
-  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+  await writeSnapshot(getSnapshotPath(outputDir, 130298), {
     ...createSnapshotWithoutImages(),
     nameSplitSource: 'mecab',
   });
@@ -253,7 +253,7 @@ test('generateForCurrentMedia keeps mecab-split snapshots when MeCab is availabl
 test('generateForCurrentMedia keeps heuristic-split snapshots while MeCab is unavailable', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
-  writeSnapshot(getSnapshotPath(outputDir, 130298), {
+  await writeSnapshot(getSnapshotPath(outputDir, 130298), {
     ...createSnapshotWithoutImages(),
     nameSplitSource: 'heuristic',
   });
@@ -293,7 +293,7 @@ test('generateForCurrentMedia keeps heuristic-split snapshots while MeCab is una
 test('generateForCurrentMedia keeps same-version snapshots without images when inline images are disabled', async () => {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
-  writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
+  await writeSnapshot(getSnapshotPath(outputDir, 130298), createSnapshotWithoutImages());
   const originalFetch = globalThis.fetch;
 
   globalThis.fetch = (async (input: string | URL | Request) => {
