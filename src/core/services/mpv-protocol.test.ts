@@ -181,6 +181,18 @@ test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
   ]);
 });
 
+test('dispatchMpvProtocolMessage rejects decimal subtitle track IDs', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '4.5' }, deps);
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4.5' },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ sid: null }, { sid: null }]);
+});
+
 test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
   const { deps, state } = createDeps({
     isVisibleOverlayVisible: () => true,

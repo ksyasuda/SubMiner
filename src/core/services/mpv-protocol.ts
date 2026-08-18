@@ -283,7 +283,7 @@ export async function dispatchMpvProtocolMessage(
           : typeof msg.data === 'string'
             ? Number(msg.data)
             : null;
-      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isFinite(sid) ? sid : null });
+      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isInteger(sid) ? sid : null });
     } else if (msg.name === 'secondary-sid') {
       const sid =
         typeof msg.data === 'number'
@@ -292,7 +292,7 @@ export async function dispatchMpvProtocolMessage(
             ? Number(msg.data)
             : null;
       deps.emitSecondarySubtitleTrackChange({
-        sid: sid !== null && Number.isFinite(sid) ? sid : null,
+        sid: sid !== null && Number.isInteger(sid) ? sid : null,
       });
     } else if (msg.name === 'secondary-sub-delay') {
       const delay =

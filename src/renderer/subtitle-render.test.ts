@@ -1447,10 +1447,10 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
   assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
 });
 
-test('prepareSecondarySubtitleLines collapses a short stack of repeated ASS layers', () => {
-  const layeredSign = ['Your', 'Your', 'Your', 'Your', 'mosaic'].join('\\N');
+test('prepareSecondarySubtitleLines preserves repeated short dialogue without layer metadata', () => {
+  const dialogue = ['Wait', 'Wait', 'Wait'];
 
-  assert.deepEqual(prepareSecondarySubtitleLines(layeredSign), ['Your mosaic']);
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
 });
 
 test('prepareSecondarySubtitleLines preserves short simultaneous dialogue without repeats', () => {
