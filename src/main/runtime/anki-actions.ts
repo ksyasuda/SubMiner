@@ -2,6 +2,12 @@ type AnkiIntegrationLike = {
   refreshKnownWordCache: () => Promise<void>;
 };
 
+type PrimarySubtitle = {
+  text: string;
+  startTime: number;
+  endTime: number;
+};
+
 export function createUpdateLastCardFromClipboardHandler<TAnki>(deps: {
   getAnkiIntegration: () => TAnki;
   readClipboardText: () => string;
@@ -69,18 +75,22 @@ export function createMarkLastCardAsAudioCardHandler<TAnki>(deps: {
 export function createMineSentenceCardHandler<TAnki, TMpv>(deps: {
   getAnkiIntegration: () => TAnki;
   getMpvClient: () => TMpv;
+  getPrimarySubtitle?: () => PrimarySubtitle | null;
   showMpvOsd: (text: string) => void;
   mineSentenceCardCore: (options: {
     ankiIntegration: TAnki;
     mpvClient: TMpv;
+    primarySubtitle?: PrimarySubtitle;
     showMpvOsd: (text: string) => void;
   }) => Promise<boolean>;
   recordCardsMined: (count: number, noteIds?: number[]) => void;
 }) {
   return async (): Promise<void> => {
+    const primarySubtitle = deps.getPrimarySubtitle?.();
     const created = await deps.mineSentenceCardCore({
       ankiIntegration: deps.getAnkiIntegration(),
       mpvClient: deps.getMpvClient(),
+      ...(primarySubtitle ? { primarySubtitle } : {}),
       showMpvOsd: deps.showMpvOsd,
     });
     if (created) {

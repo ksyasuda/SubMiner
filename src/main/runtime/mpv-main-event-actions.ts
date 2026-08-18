@@ -14,6 +14,7 @@ function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): bo
 }
 
 export function createHandleMpvSubtitleChangeHandler(deps: {
+  resolveSubtitleText?: (text: string) => string;
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
@@ -22,7 +23,8 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   refreshDiscordPresence: () => void;
   logDebug?: (message: string) => void;
 }) {
-  return ({ text }: { text: string }): void => {
+  return ({ text: liveText }: { text: string }): void => {
+    const text = deps.resolveSubtitleText?.(liveText) ?? liveText;
     deps.setCurrentSubText(text);
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {

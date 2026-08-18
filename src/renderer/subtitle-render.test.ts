@@ -1424,6 +1424,19 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
 });
 
+test('prepareSecondarySubtitleLines drops layered duplicate lines in short stacks', () => {
+  // A word-level animation stacks one event per layer copy; the stack is too short for
+  // the karaoke heuristic but the duplicates are still never distinct content.
+  assert.deepEqual(prepareSecondarySubtitleLines('Your\\NYour\\NYour\\NYour\\Nmosaic'), [
+    'Your',
+    'mosaic',
+  ]);
+  assert.deepEqual(prepareSecondarySubtitleLines('One line\\NAnother line'), [
+    'One line',
+    'Another line',
+  ]);
+});
+
 test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one deduped line', () => {
   // Karaoke-typeset OP/ED: one ASS event per syllable, duplicated across layers,
   // joined with \N by mpv's secondary-sub-text.

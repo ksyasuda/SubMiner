@@ -27,17 +27,188 @@ function cueKey(cue: SubtitleCue): string {
 
 /**
  * Identical text over an identical span is redundant however it was authored -- most
- * often a layered ASS event stacking a shadow copy under the visible one.
+ * often a layered ASS event stacking a shadow copy under the visible one. When one of
+ * the duplicates is a recovered canonical cue, that copy survives: dropping it would
+ * strip the `source` marker and animation envelope the live overlay substitutes on.
  */
 function collapseExactDuplicates(cues: AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
-  const seen = new Set<string>();
-  return cues.filter((cue) => {
+  const survivorByKey = new Map<string, AnnotatedSubtitleCue>();
+  const keysInOrder: string[] = [];
+  for (const cue of cues) {
     const key = cueKey(cue);
-    if (seen.has(key)) {
-      return false;
+    const existing = survivorByKey.get(key);
+    if (!existing) {
+      survivorByKey.set(key, cue);
+      keysInOrder.push(key);
+    } else if (!existing.source && cue.source) {
+      survivorByKey.set(key, cue);
     }
-    seen.add(key);
+  }
+  return keysInOrder.map((key) => survivorByKey.get(key)!);
+}
+
+const SPATIAL_ASS_OVERRIDE_COMMANDS = new Set([
+  'a',
+  'an',
+  'clip',
+  'iclip',
+  'move',
+  'org',
+  'pbo',
+  'pos',
+  'q',
+]);
+
+interface RepeatedPhaseRun {
+  cues: AnnotatedSubtitleCue[];
+  indices: number[];
+}
+
+// A changing override signature alone is weak: two ordinary repeats restyled with
+// different colors look identical to a phase pair. Real phase redraws carry a styling
+// stack over a full lyric line, and they exist to move a color/highlight boundary
+// *within* the line -- so every event also has an override block after visible text
+// began. An ordinary restyled repeat carries only a leading block and stays separate.
+const MIN_PHASE_EVIDENCE_OVERRIDES = 2;
+const MIN_PHASE_TEXT_LENGTH = 4;
+
+function hasMidLineOverrideBlock(rawText: string): boolean {
+  let sawVisibleText = false;
+  for (let i = 0; i < rawText.length; i += 1) {
+    if (rawText[i] === '{') {
+      const close = rawText.indexOf('}', i);
+      if (close === -1) {
+        // Unclosed brace renders as literal text; nothing after it is markup.
+        return false;
+      }
+      if (sawVisibleText) {
+        return true;
+      }
+      i = close;
+    } else if (!/\s/.test(rawText[i]!)) {
+      sawVisibleText = true;
+    }
+  }
+  return false;
+}
+
+function assStyleKey(cue: AnnotatedSubtitleCue): string {
+  return `${cue.style}\0${cue.name}\0${cue.layer}`;
+}
+
+function spatialOverrideSignature(cue: AnnotatedSubtitleCue): string {
+  return cue.overrides
+    .filter((command) => SPATIAL_ASS_OVERRIDE_COMMANDS.has(command.name.toLowerCase()))
+    .map((command) => `${command.name.toLowerCase()}(${command.args})`)
+    .join('|');
+}
+
+function hasStableSpatialOverrides(run: readonly AnnotatedSubtitleCue[]): boolean {
+  const firstSignature = spatialOverrideSignature(run[0]!);
+  return run.every((cue) => spatialOverrideSignature(cue) === firstSignature);
+}
+
+function hasDirectPhaseEvidence(run: readonly AnnotatedSubtitleCue[]): boolean {
+  // Phases redraw one authored line in place. Whatever the animation evidence, a run
+  // whose spatial placement changes is separate authored occurrences -- two flush
+  // same-text `\move` signs at different coordinates must never merge.
+  if (!hasStableSpatialOverrides(run)) {
+    return false;
+  }
+  if (run.every((cue) => hasAssTemporalOverride(cue.overrides))) {
     return true;
+  }
+  if (run.every((cue) => isAnimatedAssEffectKind(cue.effectKind))) {
+    return true;
+  }
+
+  const [first] = run;
+  return (
+    first!.text.replace(/\s+/gu, '').length >= MIN_PHASE_TEXT_LENGTH &&
+    run.every(
+      (cue) =>
+        cue.overrides.length >= MIN_PHASE_EVIDENCE_OVERRIDES &&
+        hasMidLineOverrideBlock(cue.rawText),
+    ) &&
+    run.some((cue) => cue.overrideSignature !== first!.overrideSignature)
+  );
+}
+
+function collectRepeatedPhaseRuns(cues: AnnotatedSubtitleCue[]): RepeatedPhaseRun[] {
+  const runs: RepeatedPhaseRun[] = [];
+  let start = 0;
+
+  while (start < cues.length) {
+    const first = cues[start]!;
+    const styleKey = assStyleKey(first);
+    let end = start;
+
+    while (end + 1 < cues.length) {
+      const current = cues[end]!;
+      const next = cues[end + 1]!;
+      const isFlush =
+        Math.abs(next.startTime - current.endTime) <= DUPLICATE_CUE_GAP_TOLERANCE_SECONDS;
+      if (
+        first.source === 'canonical-ass' ||
+        next.source === 'canonical-ass' ||
+        next.text !== first.text ||
+        assStyleKey(next) !== styleKey ||
+        !isFlush
+      ) {
+        break;
+      }
+      end += 1;
+    }
+
+    if (end > start) {
+      const indices = Array.from({ length: end - start + 1 }, (_, offset) => start + offset);
+      runs.push({
+        cues: indices.map((index) => cues[index]!),
+        indices,
+      });
+    }
+    start = end + 1;
+  }
+
+  return runs;
+}
+
+/**
+ * Some karaoke scripts redraw one complete lyric for each color/highlight phase. These
+ * events last far longer than animation frames, but are still one sidebar/history line.
+ * The events must prove themselves through direct animation metadata or changing
+ * non-spatial overrides. Plain repeated dialogue and separately positioned signs stay
+ * intact.
+ */
+function collapseAnimatedStylePhases(cues: AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
+  const runs = collectRepeatedPhaseRuns(cues);
+  if (runs.length === 0) {
+    return cues;
+  }
+
+  const dropped = new Set<number>();
+  const extendedEnd = new Map<number, number>();
+  for (const run of runs) {
+    if (!hasDirectPhaseEvidence(run.cues)) {
+      continue;
+    }
+
+    const [firstIndex, ...remainingIndices] = run.indices;
+    for (const index of remainingIndices) {
+      dropped.add(index);
+    }
+    extendedEnd.set(firstIndex!, Math.max(...run.cues.map((cue) => cue.endTime)));
+  }
+
+  if (dropped.size === 0) {
+    return cues;
+  }
+  return cues.flatMap((cue, index) => {
+    if (dropped.has(index)) {
+      return [];
+    }
+    const endTime = extendedEnd.get(index);
+    return endTime !== undefined ? [{ ...cue, endTime }] : [cue];
   });
 }
 
@@ -176,5 +347,8 @@ export function mergeDuplicateCues(
   cues: AnnotatedSubtitleCue[],
   format: SubtitleSourceFormat,
 ): AnnotatedSubtitleCue[] {
-  return collapseAnimationBursts(collapseExactDuplicates(cues), format);
+  const exactDeduplicated = collapseExactDuplicates(cues);
+  const phaseDeduplicated =
+    format === 'ass' ? collapseAnimatedStylePhases(exactDeduplicated) : exactDeduplicated;
+  return collapseAnimationBursts(phaseDeduplicated, format);
 }

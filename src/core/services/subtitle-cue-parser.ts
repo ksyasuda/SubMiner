@@ -6,12 +6,21 @@ import {
   type AssEffectKind,
   type AssOverrideCommand,
 } from './ass-text';
-import { mergeDuplicateCues } from './subtitle-cue-dedup';
+import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedup';
 
 export interface SubtitleCue {
   startTime: number;
   endTime: number;
   text: string;
+  /** A complete authored line recovered from matching generated ASS animation events. */
+  source?: 'canonical-ass';
+  /**
+   * Full span of the generated animation events a canonical cue replaced. Entrance and
+   * exit frames routinely run past the authored `startTime`/`endTime`, so live-text
+   * matching must use this envelope while display and history keep the authored timing.
+   */
+  animationStartTime?: number;
+  animationEndTime?: number;
 }
 
 /**
@@ -19,7 +28,8 @@ export interface SubtitleCue {
  * Deduplication needs the authoring context -- which style the line belongs to, which
  * override commands it carries, whether the `Effect` column was set -- to tell a karaoke
  * burst apart from two characters saying the same word in turn. None of it is meaningful
- * outside the parser, so the public API stays `{startTime, endTime, text}`.
+ * outside the parser, so the public API exposes only timing, text, and the optional
+ * canonical-source marker used by live subtitle consumers.
  */
 export interface AnnotatedSubtitleCue extends SubtitleCue {
   /** Text exactly as authored, override blocks and all. */
@@ -70,7 +80,11 @@ function sanitizeSubtitleCueText(text: string): string {
 }
 
 function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
-  return cues.map(({ startTime, endTime, text }) => ({ startTime, endTime, text }));
+  return cues.map(({ startTime, endTime, text, source, animationStartTime, animationEndTime }) =>
+    source
+      ? { startTime, endTime, text, source, animationStartTime, animationEndTime }
+      : { startTime, endTime, text },
+  );
 }
 
 function parseAnnotatedSrtCues(content: string): AnnotatedSubtitleCue[] {
@@ -138,7 +152,13 @@ export function parseSrtCues(content: string): SubtitleCue[] {
 const ASS_TIMING_PATTERN = /^(\d+):(\d{2}):(\d{2})\.(\d{1,2})$/;
 const ASS_FORMAT_PREFIX = 'Format:';
 const ASS_DIALOGUE_PREFIX = 'Dialogue:';
+const ASS_COMMENT_PREFIX = 'Comment:';
 const ASS_NAME_FIELD_ALIASES = ['name', 'actor'];
+const CANONICAL_MATCH_MARGIN_SECONDS = 1;
+const MIN_CANONICAL_ANIMATION_EVENTS = 3;
+// A tiny animated fragment can itself be composed from still smaller glyph events. It is
+// not enough evidence that the fragment represents an authored line boundary.
+const MIN_CANONICAL_DIALOGUE_TEXT_LENGTH = 4;
 
 function parseAssTimestamp(raw: string): number | null {
   const match = ASS_TIMING_PATTERN.exec(raw.trim());
@@ -166,10 +186,328 @@ function findFieldIndex(formatFields: string[], aliases: string[]): number {
   return -1;
 }
 
-function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
+interface ParsedAssEvents {
+  dialogue: AnnotatedSubtitleCue[];
+  comments: AnnotatedSubtitleCue[];
+}
+
+// Every candidate line re-reads the compacted text of each event in its window, so on
+// fragment-heavy scripts the same event compacts thousands of times without this cache.
+const compactMatchTextCache = new WeakMap<AnnotatedSubtitleCue, string>();
+
+function compactAssMatchText(text: string): string {
+  return text.replace(/\s+/gu, '');
+}
+
+function compactCueMatchText(cue: AnnotatedSubtitleCue): string {
+  let compact = compactMatchTextCache.get(cue);
+  if (compact === undefined) {
+    compact = compactAssMatchText(cue.text);
+    compactMatchTextCache.set(cue, compact);
+  }
+  return compact;
+}
+
+function assEventGroupKey(cue: AnnotatedSubtitleCue): string {
+  return `${cue.style}\0${cue.name}`;
+}
+
+/**
+ * Windowed lookup over one style/name group. Every candidate line queries its time
+ * neighborhood, and fragment-heavy scripts put thousands of candidates in one group, so
+ * a linear rescan per candidate is quadratic in practice. Events are sorted by start
+ * once; `prefixMaxEnd` lets the backward walk stop as soon as no earlier event can still
+ * reach the window.
+ */
+interface AssEventGroupIndex {
+  byStart: AnnotatedSubtitleCue[];
+  prefixMaxEnd: number[];
+}
+
+function buildAssEventGroupIndex(events: readonly AnnotatedSubtitleCue[]): AssEventGroupIndex {
+  const byStart = [...events].sort((a, b) => a.startTime - b.startTime || a.order - b.order);
+  const prefixMaxEnd: number[] = [];
+  let maxEnd = -Infinity;
+  for (const event of byStart) {
+    maxEnd = Math.max(maxEnd, event.endTime);
+    prefixMaxEnd.push(maxEnd);
+  }
+  return { byStart, prefixMaxEnd };
+}
+
+/** Group events overlapping `[startTime, endTime]`, returned in source order. */
+function eventsOverlappingWindow(
+  index: AssEventGroupIndex,
+  startTime: number,
+  endTime: number,
+): AnnotatedSubtitleCue[] {
+  const { byStart, prefixMaxEnd } = index;
+  let low = 0;
+  let high = byStart.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (byStart[mid]!.startTime <= endTime) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  const matches: AnnotatedSubtitleCue[] = [];
+  for (let i = low - 1; i >= 0 && prefixMaxEnd[i]! >= startTime; i -= 1) {
+    if (byStart[i]!.endTime >= startTime) {
+      matches.push(byStart[i]!);
+    }
+  }
+  return matches.sort((a, b) => a.order - b.order);
+}
+
+interface FragmentGroup {
+  text: string;
+  events: AnnotatedSubtitleCue[];
+}
+
+function fragmentPlacementAnchors(event: AnnotatedSubtitleCue): Set<string> {
+  const anchors = new Set<string>();
+  for (const command of event.overrides) {
+    const name = command.name.toLowerCase();
+    const args = command.args.split(',').map((value) => value.trim());
+    if (name === 'pos' && args.length >= 2) {
+      anchors.add(`pos:${args[0]},${args[1]}`);
+    } else if (name === 'move' && args.length >= 4) {
+      anchors.add(`move:${args[0]},${args[1]}`);
+      anchors.add(`move:${args[2]},${args[3]}`);
+    }
+  }
+  return anchors;
+}
+
+function isRepeatedFragmentCopy(
+  previous: AnnotatedSubtitleCue,
+  current: AnnotatedSubtitleCue,
+): boolean {
+  const previousAnchors = fragmentPlacementAnchors(previous);
+  if ([...fragmentPlacementAnchors(current)].some((anchor) => previousAnchors.has(anchor))) {
+    return true;
+  }
+  return (
+    previous.startTime === current.startTime &&
+    previous.endTime === current.endTime &&
+    previous.overrideSignature === current.overrideSignature
+  );
+}
+
+function groupConsecutiveAssFragments(events: readonly AnnotatedSubtitleCue[]): FragmentGroup[] {
+  const groups: FragmentGroup[] = [];
+  for (const event of events) {
+    const text = compactCueMatchText(event);
+    if (!text) {
+      continue;
+    }
+    const previous = groups.at(-1);
+    if (
+      previous?.text === text &&
+      previous.events.some((previousEvent) => isRepeatedFragmentCopy(previousEvent, event))
+    ) {
+      previous.events.push(event);
+    } else {
+      groups.push({ text, events: [event] });
+    }
+  }
+  return groups;
+}
+
+function findCanonicalFragmentEvents(
+  events: readonly AnnotatedSubtitleCue[],
+  canonicalText: string,
+): AnnotatedSubtitleCue[] {
+  const groups = groupConsecutiveAssFragments(events);
+  const matches = new Set<AnnotatedSubtitleCue>();
+
+  for (let start = 0; start < groups.length; start += 1) {
+    let combined = '';
+    for (let end = start; end < groups.length; end += 1) {
+      const group = groups[end]!;
+      // A complete rendered copy cannot prove that the neighboring events are its
+      // fragments. Exact full-line animation is handled separately for comments.
+      if (group.text.length >= canonicalText.length) {
+        break;
+      }
+      const next = combined + group.text;
+      if (!canonicalText.startsWith(next)) {
+        break;
+      }
+      combined = next;
+      if (combined !== canonicalText) {
+        continue;
+      }
+      for (let index = start; index <= end; index += 1) {
+        for (const event of groups[index]!.events) {
+          matches.add(event);
+        }
+      }
+      start = end;
+      break;
+    }
+  }
+
+  return [...matches];
+}
+
+function matchingAssAnimationEvents(options: {
+  candidate: AnnotatedSubtitleCue;
+  group: AssEventGroupIndex;
+  allowFullLineFrames: boolean;
+}): AnnotatedSubtitleCue[] {
+  const canonicalText = compactCueMatchText(options.candidate);
+  // The group index already restricts to the candidate's style and name.
+  const nearby = eventsOverlappingWindow(
+    options.group,
+    options.candidate.startTime - CANONICAL_MATCH_MARGIN_SECONDS,
+    options.candidate.endTime + CANONICAL_MATCH_MARGIN_SECONDS,
+  );
+  const fragments = findCanonicalFragmentEvents(nearby, canonicalText);
+  if (fragments.length >= MIN_CANONICAL_ANIMATION_EVENTS && hasAssAnimationEvidence(fragments)) {
+    return fragments;
+  }
+
+  if (!options.allowFullLineFrames) {
+    return [];
+  }
+  const fullLineFrames = nearby.filter((cue) => compactCueMatchText(cue) === canonicalText);
+  return fullLineFrames.length >= MIN_CANONICAL_ANIMATION_EVENTS &&
+    hasAssAnimationEvidence(fullLineFrames)
+    ? fullLineFrames
+    : [];
+}
+
+function includeCanonicalBoundaryEvents(options: {
+  candidate: AnnotatedSubtitleCue;
+  group: AssEventGroupIndex;
+  animationEvents: readonly AnnotatedSubtitleCue[];
+}): AnnotatedSubtitleCue[] {
+  const canonicalText = compactCueMatchText(options.candidate);
+  const startTime = Math.min(...options.animationEvents.map((event) => event.startTime));
+  const endTime = Math.max(...options.animationEvents.map((event) => event.endTime));
+  return eventsOverlappingWindow(
+    options.group,
+    startTime - CANONICAL_MATCH_MARGIN_SECONDS,
+    endTime + CANONICAL_MATCH_MARGIN_SECONDS,
+  ).filter((cue) => compactCueMatchText(cue) === canonicalText);
+}
+
+function recoverCanonicalAssEvents({
+  dialogue,
+  comments,
+}: ParsedAssEvents): AnnotatedSubtitleCue[] {
+  const recovered: AnnotatedSubtitleCue[] = [];
+  const suppressed = new Set<AnnotatedSubtitleCue>();
+  // A recovery is only as good as its owning event. When a later candidate proves that
+  // an earlier candidate was itself a generated frame of its animation, the earlier
+  // recovery is a duplicate of the same authored line and must be withdrawn.
+  const recoveredByOwner = new Map<AnnotatedSubtitleCue, AnnotatedSubtitleCue>();
+  const withdrawn = new Set<AnnotatedSubtitleCue>();
+  const eventsByGroup = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const cue of dialogue) {
+    const key = assEventGroupKey(cue);
+    const group = eventsByGroup.get(key);
+    if (group) {
+      group.push(cue);
+    } else {
+      eventsByGroup.set(key, [cue]);
+    }
+  }
+  const indexByGroup = new Map<string, AssEventGroupIndex>();
+  for (const [key, events] of eventsByGroup) {
+    indexByGroup.set(key, buildAssEventGroupIndex(events));
+  }
+  const emptyGroupIndex: AssEventGroupIndex = { byStart: [], prefixMaxEnd: [] };
+  const candidates = [
+    ...comments.map((cue) => ({ cue, kind: 'comment' as const })),
+    ...dialogue
+      .filter(
+        (cue) =>
+          compactCueMatchText(cue).length >= MIN_CANONICAL_DIALOGUE_TEXT_LENGTH &&
+          hasAssAnimationEvidence([cue]),
+      )
+      .sort((left, right) => right.text.length - left.text.length || left.order - right.order)
+      .map((cue) => ({ cue, kind: 'dialogue' as const })),
+  ];
+
+  for (const { cue: candidate, kind } of candidates) {
+    if (candidate.endTime <= candidate.startTime || suppressed.has(candidate)) {
+      continue;
+    }
+    const canonicalText = compactCueMatchText(candidate);
+    if (!canonicalText) {
+      continue;
+    }
+
+    const group = indexByGroup.get(assEventGroupKey(candidate)) ?? emptyGroupIndex;
+    const animationEvents = matchingAssAnimationEvents({
+      candidate,
+      group,
+      allowFullLineFrames: kind === 'comment',
+    });
+    if (animationEvents.length === 0) {
+      continue;
+    }
+
+    const boundaryEvents = includeCanonicalBoundaryEvents({
+      candidate,
+      group,
+      animationEvents,
+    });
+    const generatedEvents = [...new Set([...animationEvents, ...boundaryEvents])];
+    const animationStartTime = Math.min(
+      candidate.startTime,
+      ...generatedEvents.map((event) => event.startTime),
+    );
+    const animationEndTime = Math.max(
+      candidate.endTime,
+      ...generatedEvents.map((event) => event.endTime),
+    );
+    const startTime = kind === 'comment' ? candidate.startTime : animationStartTime;
+    const endTime = kind === 'comment' ? candidate.endTime : animationEndTime;
+    const recoveredCue: AnnotatedSubtitleCue = {
+      ...candidate,
+      startTime,
+      endTime,
+      animationStartTime,
+      animationEndTime,
+      source: 'canonical-ass',
+    };
+    recovered.push(recoveredCue);
+    recoveredByOwner.set(candidate, recoveredCue);
+    for (const event of generatedEvents) {
+      suppressed.add(event);
+      if (event === candidate) {
+        continue;
+      }
+      const priorRecovery = recoveredByOwner.get(event);
+      if (priorRecovery) {
+        // No text is lost by withdrawing: a fragment claim means the withdrawn line is
+        // a contiguous piece of this candidate's text, and a boundary claim means the
+        // texts are equal, so the surviving canonical cue always contains it.
+        withdrawn.add(priorRecovery);
+      }
+    }
+  }
+
+  const survivingRecovered = recovered.filter((cue) => !withdrawn.has(cue));
+  if (survivingRecovered.length === 0) {
+    return dialogue;
+  }
+  return [...dialogue.filter((cue) => !suppressed.has(cue)), ...survivingRecovered].sort(
+    (a, b) => a.startTime - b.startTime || a.endTime - b.endTime || a.order - b.order,
+  );
+}
+
+function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
   const cues: AnnotatedSubtitleCue[] = [];
+  const comments: AnnotatedSubtitleCue[] = [];
   const lines = content.split(/\r?\n/);
   let inEventsSection = false;
+  let eventOrder = 0;
   const fieldIndex = {
     start: -1,
     end: -1,
@@ -222,7 +560,12 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
       continue;
     }
 
-    if (!trimmed.startsWith(ASS_DIALOGUE_PREFIX)) {
+    const eventPrefix = trimmed.startsWith(ASS_DIALOGUE_PREFIX)
+      ? ASS_DIALOGUE_PREFIX
+      : trimmed.startsWith(ASS_COMMENT_PREFIX)
+        ? ASS_COMMENT_PREFIX
+        : null;
+    if (!eventPrefix) {
       continue;
     }
 
@@ -230,7 +573,7 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
       continue;
     }
 
-    const fields = trimmed.slice(ASS_DIALOGUE_PREFIX.length).split(',');
+    const fields = trimmed.slice(eventPrefix.length).split(',');
     if (
       fieldIndex.start >= fields.length ||
       fieldIndex.end >= fields.length ||
@@ -254,7 +597,7 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
     const effect = readField(fields, fieldIndex.effect);
     const layer = Number(readField(fields, fieldIndex.layer));
     const overrides = collectAssOverrideCommands(rawText);
-    cues.push({
+    const cue: AnnotatedSubtitleCue = {
       startTime,
       endTime,
       text,
@@ -266,11 +609,21 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
       effectKind: parseAssEffectField(effect),
       overrides,
       overrideSignature: assOverrideSignature(overrides),
-      order: cues.length,
-    });
+      order: eventOrder,
+    };
+    eventOrder += 1;
+    if (eventPrefix === ASS_COMMENT_PREFIX) {
+      comments.push(cue);
+    } else {
+      cues.push(cue);
+    }
   }
 
-  return cues;
+  return { dialogue: cues, comments };
+}
+
+function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
+  return recoverCanonicalAssEvents(parseAnnotatedAssEvents(content));
 }
 
 export function parseAssCues(content: string): SubtitleCue[] {

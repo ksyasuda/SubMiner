@@ -70,17 +70,24 @@ interface SubtitleCue {
   startTime: number; // seconds
   endTime: number; // seconds
   text: string; // plain text, decoded from the source format
+  source?: 'canonical-ass'; // recovered authored text for generated ASS animation
+  animationStartTime?: number; // full generated-frame envelope; entrance/exit frames
+  animationEndTime?: number; //   run past the authored timing, live matching uses this
 }
 ```
 
 **Supported formats:**
 
 - SRT/VTT: Regex-based parsing of timing lines + text content between timing blocks.
-- ASS: Parse `[Events]` section, extract `Dialogue:` lines, read the field order from the `Format:` row, and take everything after the Text field index as the text (Text can itself contain commas).
+- ASS: Parse the `[Events]` section, read the field order from the `Format:` row, and extract timed `Dialogue:` lines. Timed `Comment:` lines are normally ignored, but can supply canonical authored text when they match a nearby generated animation from the same style and actor. Text can itself contain commas.
 
 **ASS decoding.** The parser is where ASS text is decoded, once, via `assToPlainText()` in `src/core/services/ass-text.ts`. That decoder mirrors mpv's `ass_to_plaintext` so a cue read from a file reads identically to the same line arriving live on `sub-text`: `{...}` override blocks are markup, `\pN … \p0` vector drawing runs are dropped rather than shown as text, `\N`/`\n`/`\h` are the only escapes (`\{`, `\}` and `\\` are not), and an unclosed `{` is rendered verbatim. Every layer downstream — renderer, timing tracker, tokenizer, tokenization cache keys — receives plain text and uses `normalizePlainSubtitleText()` for whitespace only, so nothing decodes the same string twice and one authored line always maps to one cache key.
 
 **Duplicate collapsing.** Typeset scripts emit one `Dialogue:` event per animation frame, plus layered copies of the same line. The parser collapses identical text over an identical span unconditionally, and collapses contiguous same-text runs of at least three events when the run looks like an animation. For ASS that means shared style and actor plus authoring evidence: a temporal tag (`\t`, `\move`, `\k`/`\kf`/`\ko`/`\K`, or anything wrapped in `\t(...)`), an animated `Effect` column (`Karaoke`, `Banner`, `Scroll`), or override values that change across the run. Static tags shared by every event (`\pos`, an identical `\clip`) are not evidence. SRT/VTT carry no such metadata, so there collapsing needs at least five contiguous events all under 0.1s — the frame timing left behind by ASS-to-SRT conversion. The parser keeps this authoring metadata (style, actor, layer, `Effect`, parsed override commands, source order) private; `parseSubtitleCues()` returns only `SubtitleCue`.
+
+ASS scripts can also redraw one complete lyric for two or more long color/highlight phases. Those flush-timed phases collapse separately from short animation frames when they share text, style, actor, and layer and carry direct animation evidence, such as temporal tags or changing non-spatial overrides. Spatial command changes do not prove a phase, so separately positioned signs remain distinct.
+
+**Canonical animation recovery.** Some ASS producers keep the readable lyric or sign as a timed `Comment:` and generate hundreds of `Dialogue:` frames containing repeated glyphs or changing clip regions. Others retain the complete line as brief `Dialogue:` events around the generated fragments. A complete event is promoted only when nearby dialogue from the same style and actor forms a proven animation cluster and reconstructs its entire text in source order. The generated frames are then replaced by one cue marked `source: 'canonical-ass'`. This source marker lets the live primary-subtitle path prefer the clean authored text and timing for display, sidebar history, immersion recording, and mining, while unmatched editor notes and alternative translations remain ignored.
 
 #### Prefetch Service Lifecycle
 

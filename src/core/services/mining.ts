@@ -131,8 +131,8 @@ function normalizeSecondarySubText(text: unknown, primaryText: string): string |
 
 async function getCurrentSecondarySubTextForSentenceCard(
   mpvClient: MpvClientLike,
+  primaryText: string,
 ): Promise<string | undefined> {
-  const primaryText = mpvClient.currentSubText;
   if (mpvClient.requestProperty) {
     try {
       const latestSecondaryText = await mpvClient.requestProperty('secondary-sub-text');
@@ -175,6 +175,7 @@ export async function markLastCardAsAudioCard(deps: {
 export async function mineSentenceCard(deps: {
   ankiIntegration: AnkiIntegrationLike | null;
   mpvClient: MpvClientLike | null;
+  primarySubtitle?: Pick<SubtitleMiningContext, 'text' | 'startTime' | 'endTime'>;
   showMpvOsd: (text: string) => void;
 }): Promise<boolean> {
   const anki = requireAnkiIntegration(deps.ankiIntegration, deps.showMpvOsd);
@@ -185,16 +186,17 @@ export async function mineSentenceCard(deps: {
     deps.showMpvOsd('MPV not connected');
     return false;
   }
-  if (!mpvClient.currentSubText) {
+  const primaryText = deps.primarySubtitle?.text ?? mpvClient.currentSubText;
+  if (!primaryText) {
     deps.showMpvOsd('No current subtitle');
     return false;
   }
 
-  const secondarySubText = await getCurrentSecondarySubTextForSentenceCard(mpvClient);
+  const secondarySubText = await getCurrentSecondarySubTextForSentenceCard(mpvClient, primaryText);
   return await anki.createSentenceCard(
-    mpvClient.currentSubText,
-    mpvClient.currentSubStart,
-    mpvClient.currentSubEnd,
+    primaryText,
+    deps.primarySubtitle?.startTime ?? mpvClient.currentSubStart,
+    deps.primarySubtitle?.endTime ?? mpvClient.currentSubEnd,
     secondarySubText,
   );
 }

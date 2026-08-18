@@ -2,6 +2,12 @@ import type { createRefreshKnownWordCacheHandler } from './anki-actions';
 
 type RefreshKnownWordCacheMainDeps = Parameters<typeof createRefreshKnownWordCacheHandler>[0];
 
+type PrimarySubtitle = {
+  text: string;
+  startTime: number;
+  endTime: number;
+};
+
 export function createBuildUpdateLastCardFromClipboardMainDepsHandler<TAnki>(deps: {
   getAnkiIntegration: () => TAnki;
   readClipboardText: () => string;
@@ -72,10 +78,12 @@ export function createBuildMarkLastCardAsAudioCardMainDepsHandler<TAnki>(deps: {
 export function createBuildMineSentenceCardMainDepsHandler<TAnki, TMpv>(deps: {
   getAnkiIntegration: () => TAnki;
   getMpvClient: () => TMpv;
+  getPrimarySubtitle?: () => PrimarySubtitle | null;
   showMpvOsd: (text: string) => void;
   mineSentenceCardCore: (options: {
     ankiIntegration: TAnki;
     mpvClient: TMpv;
+    primarySubtitle?: PrimarySubtitle;
     showMpvOsd: (text: string) => void;
   }) => Promise<boolean>;
   recordCardsMined: (count: number, noteIds?: number[]) => void;
@@ -83,10 +91,14 @@ export function createBuildMineSentenceCardMainDepsHandler<TAnki, TMpv>(deps: {
   return () => ({
     getAnkiIntegration: () => deps.getAnkiIntegration(),
     getMpvClient: () => deps.getMpvClient(),
+    ...(deps.getPrimarySubtitle
+      ? { getPrimarySubtitle: () => deps.getPrimarySubtitle?.() ?? null }
+      : {}),
     showMpvOsd: (text: string) => deps.showMpvOsd(text),
     mineSentenceCardCore: (options: {
       ankiIntegration: TAnki;
       mpvClient: TMpv;
+      primarySubtitle?: PrimarySubtitle;
       showMpvOsd: (text: string) => void;
     }) => deps.mineSentenceCardCore(options),
     recordCardsMined: (count: number, noteIds?: number[]) => deps.recordCardsMined(count, noteIds),
