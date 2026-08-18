@@ -1825,12 +1825,21 @@ function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | n
     currentTimeSec: Number(appState.mpvClient?.currentTimePos),
     cues: appState.activeParsedSubtitleCues,
   });
-  if (!canonical) {
+  // Same validity bar as the live capture path: an unusable canonical span must fall
+  // back rather than hand mining an empty line or an inverted range.
+  const canonicalText = canonical?.text.trim();
+  if (
+    !canonical ||
+    !canonicalText ||
+    !Number.isFinite(canonical.startTime) ||
+    !Number.isFinite(canonical.endTime) ||
+    canonical.endTime <= canonical.startTime
+  ) {
     return captureLiveSubtitleMiningContext(appState.mpvClient);
   }
   return {
     source: 'overlay',
-    text: canonical.text,
+    text: canonicalText,
     startTime: canonical.startTime,
     endTime: canonical.endTime,
     capturedAtMs: Date.now(),

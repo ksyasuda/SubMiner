@@ -2,7 +2,7 @@ type AnkiIntegrationLike = {
   refreshKnownWordCache: () => Promise<void>;
 };
 
-type PrimarySubtitle = {
+export type PrimarySubtitle = {
   text: string;
   startTime: number;
   endTime: number;

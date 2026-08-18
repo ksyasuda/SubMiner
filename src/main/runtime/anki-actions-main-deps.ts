@@ -1,12 +1,6 @@
-import type { createRefreshKnownWordCacheHandler } from './anki-actions';
+import type { createRefreshKnownWordCacheHandler, PrimarySubtitle } from './anki-actions';
 
 type RefreshKnownWordCacheMainDeps = Parameters<typeof createRefreshKnownWordCacheHandler>[0];
-
-type PrimarySubtitle = {
-  text: string;
-  startTime: number;
-  endTime: number;
-};
 
 export function createBuildUpdateLastCardFromClipboardMainDepsHandler<TAnki>(deps: {
   getAnkiIntegration: () => TAnki;

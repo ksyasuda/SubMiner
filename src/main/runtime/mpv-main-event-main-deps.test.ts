@@ -486,6 +486,14 @@ test('canonical ASS cues replace live glyph spam for display, history, and immer
 
   assert.deepEqual(timing.slice(3), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
   assert.equal(immersion.length, 3);
+
+  // A jump of exactly the seek threshold counts as a seek, matching the time-pos
+  // handler's own `>=` boundary.
+  handlers.onTimePosUpdate?.(4.5);
+  handlers.onTimePosUpdate?.(2);
+  handlers.recordSubtitleTiming('今', 0.8, 1.5);
+
+  assert.deepEqual(timing.slice(4), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
 });
 
 test('subtitle-track changes stop stale canonical cues from substituting immediately', () => {

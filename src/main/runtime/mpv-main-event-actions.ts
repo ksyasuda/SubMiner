@@ -4,7 +4,8 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
-const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
+/** Jump size that marks a time-pos change as a seek rather than normal playback. */
+export const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
 
 function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): boolean {
   if (previousTime === null || !Number.isFinite(previousTime) || !Number.isFinite(nextTime)) {

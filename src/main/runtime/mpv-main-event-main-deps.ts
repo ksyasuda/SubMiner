@@ -1,5 +1,6 @@
 import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
 import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
+import { SEEK_LIKE_TIME_DELTA_SECONDS } from './mpv-main-event-actions';
 import {
   resolveCanonicalPrimarySubtitle,
   resolvePrimarySubtitleText,
@@ -108,8 +109,6 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   // Bumped on track/media changes so an immersion record whose tokenization resolves
   // after the change is dropped instead of landing in the next session.
   let subtitleSessionEpoch = 0;
-  // Matches the seek threshold used by the time-pos handler in mpv-main-event-actions.
-  const BACKWARD_SEEK_TIMING_RESET_SECONDS = 2.5;
   let lastTimePosForTimingReset: number | null = null;
   const canonicalCueKey = (cue: SubtitleCue): string =>
     `${cue.startTime}|${cue.endTime}|${cue.text}`;
@@ -326,7 +325,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       if (
         Number.isFinite(time) &&
         lastTimePosForTimingReset !== null &&
-        time < lastTimePosForTimingReset - BACKWARD_SEEK_TIMING_RESET_SECONDS
+        time <= lastTimePosForTimingReset - SEEK_LIKE_TIME_DELTA_SECONDS
       ) {
         recordedTimingCanonicalKeys.clear();
       }

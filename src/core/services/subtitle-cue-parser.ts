@@ -380,14 +380,25 @@ function matchingAssAnimationEvents(options: {
     : [];
 }
 
+// Reductions rather than `Math.min(...events)`: one generated line can carry an
+// unbounded number of events, and spreading them all as arguments risks the engine's
+// argument-count limit.
+function earliestStartTime(events: readonly AnnotatedSubtitleCue[], seed = Infinity): number {
+  return events.reduce((earliest, event) => Math.min(earliest, event.startTime), seed);
+}
+
+function latestEndTime(events: readonly AnnotatedSubtitleCue[], seed = -Infinity): number {
+  return events.reduce((latest, event) => Math.max(latest, event.endTime), seed);
+}
+
 function includeCanonicalBoundaryEvents(options: {
   candidate: AnnotatedSubtitleCue;
   group: AssEventGroupIndex;
   animationEvents: readonly AnnotatedSubtitleCue[];
 }): AnnotatedSubtitleCue[] {
   const canonicalText = compactCueMatchText(options.candidate);
-  const startTime = Math.min(...options.animationEvents.map((event) => event.startTime));
-  const endTime = Math.max(...options.animationEvents.map((event) => event.endTime));
+  const startTime = earliestStartTime(options.animationEvents);
+  const endTime = latestEndTime(options.animationEvents);
   return eventsOverlappingWindow(
     options.group,
     startTime - CANONICAL_MATCH_MARGIN_SECONDS,
@@ -458,14 +469,8 @@ function recoverCanonicalAssEvents({
       animationEvents,
     });
     const generatedEvents = [...new Set([...animationEvents, ...boundaryEvents])];
-    const animationStartTime = Math.min(
-      candidate.startTime,
-      ...generatedEvents.map((event) => event.startTime),
-    );
-    const animationEndTime = Math.max(
-      candidate.endTime,
-      ...generatedEvents.map((event) => event.endTime),
-    );
+    const animationStartTime = earliestStartTime(generatedEvents, candidate.startTime);
+    const animationEndTime = latestEndTime(generatedEvents, candidate.endTime);
     const startTime = kind === 'comment' ? candidate.startTime : animationStartTime;
     const endTime = kind === 'comment' ? candidate.endTime : animationEndTime;
     const recoveredCue: AnnotatedSubtitleCue = {
