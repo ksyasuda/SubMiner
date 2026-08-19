@@ -249,7 +249,8 @@ test('createCharacterDictionaryImageLookup reports and retries a failed index-re
   });
 
   assert.equal(lookup.get('ダイアナ', snapshot.mediaId), null);
-  await waitForRefresh(() => lookup.get('ダイアナ', snapshot.mediaId));
+  await waitForRefresh(() => (reportedErrors.length === 1 ? true : null));
+  assert.ok(lookup.get('ダイアナ', snapshot.mediaId));
 
   assert.equal(readyCount, 2);
   assert.deepEqual(reportedErrors, [callbackError]);
