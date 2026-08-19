@@ -2624,6 +2624,11 @@ const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
   userDataPath: USER_DATA_PATH,
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
   onIndexReady: () => refreshCurrentSubtitleAnnotations(),
+  onIndexReadyError: (error) =>
+    logger.warn(
+      'Failed to refresh subtitle annotations after character portrait index became ready.',
+      error,
+    ),
 });
 
 // Lets the Yomitan scan runtime skip name lookups at positions where no

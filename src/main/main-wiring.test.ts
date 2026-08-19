@@ -511,6 +511,10 @@ test('character portrait index readiness refreshes cached subtitle annotations',
 
   assert.ok(lookupDeps);
   assert.match(lookupDeps, /onIndexReady: \(\) => refreshCurrentSubtitleAnnotations\(\),/);
+  assert.match(
+    lookupDeps,
+    /onIndexReadyError: \(error\) =>[\s\S]*?logger\.warn\([\s\S]*?character portrait index became ready\.[\s\S]*?error,/,
+  );
 });
 
 test('subtitle processing controller resumes prefetch on settle, not on its emits', () => {

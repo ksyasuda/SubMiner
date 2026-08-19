@@ -198,7 +198,7 @@ test('createCharacterDictionaryImageLookup can scope duplicate names to the curr
   assert.equal(scoped.alt, 'Kazuma');
 });
 
-test('createCharacterDictionaryImageLookup signals when its background index becomes ready', async () => {
+test('createCharacterDictionaryImageLookup reports and retries a failed index-ready callback', async () => {
   const outputDir = makeTempDir();
   const snapshot: CharacterDictionarySnapshot = {
     formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
@@ -230,20 +230,27 @@ test('createCharacterDictionaryImageLookup signals when its background index bec
     images: [{ path: 'img/m21858-c81709.png', dataBase64: PNG_1X1_BASE64 }],
   };
   await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  const callbackError = new Error('annotation refresh failed');
   let readyCount = 0;
+  const reportedErrors: unknown[] = [];
   const lookup = createCharacterDictionaryImageLookup({
     outputDir,
     onIndexReady: () => {
       readyCount += 1;
+      if (readyCount === 1) {
+        throw callbackError;
+      }
     },
+    onIndexReadyError: (error) => reportedErrors.push(error),
   });
 
   assert.equal(lookup.get('ダイアナ', snapshot.mediaId), null);
   await waitForRefresh(() => lookup.get('ダイアナ', snapshot.mediaId));
 
-  assert.equal(readyCount, 1);
+  assert.equal(readyCount, 2);
+  assert.deepEqual(reportedErrors, [callbackError]);
   lookup.get('ダイアナ', snapshot.mediaId);
-  assert.equal(readyCount, 1);
+  assert.equal(readyCount, 2);
 });
 
 test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', async () => {
