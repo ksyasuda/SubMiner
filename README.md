@@ -15,7 +15,7 @@ Integrates Yomitan and mpv - on-screen lookups, mine to Anki, and track immersio
 [![License](https://img.shields.io/github/license/ksyasuda/SubMiner?style=flat-square&color=1a1a2e)](https://www.gnu.org/licenses/gpl-3.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-1a1a2e?style=flat-square&logo=typescript&logoColor=3178c6)](https://www.typescriptlang.org)
 
-[![SubMiner demo](./assets/minecard.webp)](./assets/minecard.mp4)
+[![SubMiner demo](./assets/minecard.webp)](https://github.com/user-attachments/assets/7abab8a9-4e4e-4f06-9f3c-9783e15a3807)
 
 </div>
 
