@@ -5,7 +5,7 @@ Short recordings of SubMiner's key features and integrations from real playback 
 <script setup>
 import { withBase } from 'vitepress';
 
-const v = '20260301-1';
+const v = '20260819-1';
 </script>
 
 ## Anki Card Mining & Enrichment
