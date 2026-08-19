@@ -70,7 +70,7 @@ export function observeYomitanDictionaryCount(
     return {
       safe: false,
       previousCount: null,
-      message: `SubMiner could not verify Yomitan dictionary storage: ${(error as Error).message}`,
+      message: `SubMiner could not verify Yomitan dictionary storage at ${statePath}: ${(error as Error).message}`,
     };
   }
 
@@ -86,7 +86,7 @@ export function observeYomitanDictionaryCount(
     };
   }
 
-  if (normalizedCount > 0) {
+  if (normalizedCount > 0 && normalizedCount !== state?.lastKnownNonEmptyCount) {
     try {
       writeState(statePath, { lastKnownNonEmptyCount: normalizedCount });
     } catch (error) {

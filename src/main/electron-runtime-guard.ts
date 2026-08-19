@@ -137,6 +137,7 @@ export function enforceElectronRuntimeGuard(options: {
       details: [
         `This profile was previously opened with Electron ${previousState.state.lastElectronVersion}.`,
         `The current runtime is Electron ${options.electronVersion}.`,
+        `Runtime safety record: ${statePath}.`,
         '',
         'Opening Chromium storage with an older Electron version can destroy Yomitan dictionaries. Upgrade SubMiner before using this profile.',
       ].join('\n'),

@@ -629,6 +629,31 @@ test('configureEarlyAppPaths isolates development runs from the production profi
   assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner-dev']);
 });
 
+test('configureEarlyAppPaths ignores development flags forwarded to mpv', () => {
+  for (const forwardedFlag of ['--dev', '--debug']) {
+    let selectedPath = '';
+    const userDataPath = configureEarlyAppPaths(
+      {
+        setName: () => {},
+        setPath: (_key, value) => {
+          selectedPath = value;
+        },
+      },
+      {
+        platform: 'linux',
+        homeDir: '/home/tester',
+        xdgConfigHome: '/tmp/xdg',
+        existsSync: () => false,
+        argv: ['electron', '.', '--launch-mpv', forwardedFlag],
+        env: {},
+      },
+    );
+
+    assert.equal(userDataPath, '/tmp/xdg/SubMiner');
+    assert.equal(selectedPath, '/tmp/xdg/SubMiner');
+  }
+});
+
 test('configureEarlyAppPaths uses the supplied environment for config discovery', () => {
   const paths: string[] = [];
 

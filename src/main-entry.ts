@@ -22,7 +22,10 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
   spawnDetachedApp,
 } from './main-entry-runtime';
-import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import {
+  requestSingleInstanceLockEarly,
+  shouldBypassSingleInstanceLockForArgv,
+} from './main/early-single-instance';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import { isAppControlServerAvailable, sendAppControlCommand } from './shared/app-control-client';
 import {
@@ -193,8 +196,10 @@ registerFatalErrorHandlers({
 });
 
 function startMainProcess(): void {
-  // This profile-scoped lock serializes the runtime guard's read-check-write sequence.
-  const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
+  // Normal launches serialize the runtime guard with the profile-scoped lock. Stats daemon
+  // commands keep their existing lock bypass when Electron runs in Node mode.
+  const gotSingleInstanceLock =
+    shouldBypassSingleInstanceLockForArgv(process.argv) || requestSingleInstanceLockEarly(app);
   if (!gotSingleInstanceLock) {
     app.exit(0);
     return;

@@ -27,12 +27,15 @@ test('dictionary integrity observation establishes and updates a non-empty basel
       safe: true,
       previousCount: 5,
     });
-    assert.deepEqual(
-      JSON.parse(
-        fs.readFileSync(path.join(userDataPath, 'yomitan-dictionary-integrity.json'), 'utf8'),
-      ),
-      { lastKnownNonEmptyCount: 3 },
-    );
+    const statePath = path.join(userDataPath, 'yomitan-dictionary-integrity.json');
+    const unchangedTimestamp = new Date('2000-01-01T00:00:00.000Z');
+    fs.utimesSync(statePath, unchangedTimestamp, unchangedTimestamp);
+    assert.deepEqual(observeYomitanDictionaryCount(userDataPath, 3), {
+      safe: true,
+      previousCount: 3,
+    });
+    assert.equal(fs.statSync(statePath).mtimeMs, unchangedTimestamp.getTime());
+    assert.deepEqual(JSON.parse(fs.readFileSync(statePath, 'utf8')), { lastKnownNonEmptyCount: 3 });
     assert.deepEqual(fs.readdirSync(userDataPath), ['yomitan-dictionary-integrity.json']);
   });
 });
@@ -114,11 +117,17 @@ test('dictionary integrity blocks automatic mutation after a non-empty profile b
 
 test('dictionary integrity fails closed when its state is malformed', () => {
   withTempDir((userDataPath) => {
-    fs.writeFileSync(path.join(userDataPath, 'yomitan-dictionary-integrity.json'), '{}', 'utf8');
+    const statePath = path.join(userDataPath, 'yomitan-dictionary-integrity.json');
+    fs.writeFileSync(statePath, '{}', 'utf8');
 
     assert.throws(
       () => assertYomitanDictionaryMutationSafe(userDataPath, 2),
-      /could not verify Yomitan dictionary storage/,
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /could not verify Yomitan dictionary storage/);
+        assert.equal(error.message.includes(statePath), true);
+        return true;
+      },
     );
   });
 });

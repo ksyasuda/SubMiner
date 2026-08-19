@@ -267,8 +267,11 @@ export function configureEarlyAppPaths(app: EarlyAppLike, options?: EarlyAppPath
     existsSync: options?.existsSync ?? fs.existsSync,
   });
   const argv = options?.argv ?? process.argv;
+  const launchMpvIndex = argv.indexOf('--launch-mpv');
+  const appArgv = launchMpvIndex === -1 ? argv : argv.slice(0, launchMpvIndex);
   const useDevelopmentProfile =
-    (argv.includes('--dev') || argv.includes('--debug')) && env[USE_PRODUCTION_PROFILE_ENV] !== '1';
+    (appArgv.includes('--dev') || appArgv.includes('--debug')) &&
+    env[USE_PRODUCTION_PROFILE_ENV] !== '1';
   const platformPath = platform === 'win32' ? path.win32 : path.posix;
   const userDataPath = useDevelopmentProfile
     ? platformPath.join(platformPath.dirname(configDir), DEVELOPMENT_APP_NAME)

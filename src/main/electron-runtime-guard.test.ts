@@ -89,6 +89,7 @@ test('runtime guard blocks a profile downgrade before rewriting its safety recor
     if (result.ok) return;
     assert.equal(result.title, 'Electron downgrade blocked');
     assert.match(result.details, /destroy Yomitan dictionaries/);
+    assert.equal(result.details.includes(statePath), true);
     assert.deepEqual(JSON.parse(fs.readFileSync(statePath, 'utf8')), {
       highestElectronMajor: 44,
       lastElectronVersion: '44.1.0',
@@ -114,6 +115,7 @@ test('runtime guard blocks a downgrade within the supported Electron major', () 
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.title, 'Electron downgrade blocked');
+    assert.equal(result.details.includes(statePath), true);
     assert.deepEqual(JSON.parse(fs.readFileSync(statePath, 'utf8')), {
       highestElectronMajor: 43,
       lastElectronVersion: '43.4.1',

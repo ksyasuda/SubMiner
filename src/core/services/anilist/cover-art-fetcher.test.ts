@@ -47,7 +47,7 @@ test('stripFilenameTags normalizes common media-title formats', () => {
   );
 });
 
-test('fetchIfMissing backfills a missing blob from an existing cover URL', async () => {
+async function backfillMissingCoverBlob(): Promise<void> {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
   ensureSchema(db);
@@ -103,9 +103,15 @@ test('fetchIfMissing backfills a missing blob from an existing cover URL', async
     db.close();
     cleanupDbPath(dbPath);
   }
-});
+}
 
-test('fetchIfMissing reuses cached cover art from another video in the same anime', async () => {
+test(
+  'fetchIfMissing backfills a missing blob from an existing cover URL',
+  { timeout: 15_000 },
+  backfillMissingCoverBlob,
+);
+
+async function reuseCachedAnimeCoverArt(): Promise<void> {
   const dbPath = makeDbPath();
   const db = new Database(dbPath);
   ensureSchema(db);
@@ -179,7 +185,13 @@ test('fetchIfMissing reuses cached cover art from another video in the same anim
     db.close();
     cleanupDbPath(dbPath);
   }
-});
+}
+
+test(
+  'fetchIfMissing reuses cached cover art from another video in the same anime',
+  { timeout: 15_000 },
+  reuseCachedAnimeCoverArt,
+);
 
 function createJsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
