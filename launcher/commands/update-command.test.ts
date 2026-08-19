@@ -36,6 +36,11 @@ test('runUpdateCommand updates directly on Linux without launching Electron', as
         launcher: { status: 'updated' },
         supportAssets: [
           { status: 'updated', component: 'theme', message: 'Installed theme.' },
+          {
+            status: 'updated',
+            component: 'thumbnailer',
+            message: 'Installed rofi thumbnailer.',
+          },
           { status: 'skipped', component: 'plugin', message: 'Plugin already up to date.' },
         ],
       };
@@ -52,6 +57,7 @@ test('runUpdateCommand updates directly on Linux without launching Electron', as
     'info:AppImage update: updated',
     'info:Launcher update: updated',
     'info:Support assets (theme) update: updated - Installed theme.',
+    'info:Support assets (thumbnailer) update: updated - Installed rofi thumbnailer.',
     'info:Support assets (plugin) update: skipped - Plugin already up to date.',
   ]);
 });

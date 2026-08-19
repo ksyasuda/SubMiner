@@ -82,6 +82,7 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
       pkgbuild,
       /^\s*install -Dm755 "\$\{srcdir\}\/subminer-\$\{pkgver\}" "\$\{pkgdir\}\/usr\/bin\/subminer"$/m,
     );
+    assert.match(pkgbuild, /assets\/thumbnailers\/subminer-ffmpegthumbnailer\.thumbnailer/);
     assert.match(srcinfo, /^\tpkgver = 0\.6\.3$/m);
     assert.match(srcinfo, /^\tprovides = subminer=0\.6\.3$/m);
     assert.match(

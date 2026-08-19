@@ -21,7 +21,10 @@ import {
   parseSha256Sums,
   type FetchLike,
 } from '../../src/main/runtime/update/release-assets.js';
-import { updateSupportAssetsFromRelease } from '../../src/main/runtime/update/support-assets.js';
+import {
+  updateSupportAssetsFromRelease,
+  type SupportAssetsUpdateResult,
+} from '../../src/main/runtime/update/support-assets.js';
 
 type UpdateCommandResponse = {
   ok: boolean;
@@ -36,15 +39,14 @@ type DirectReleaseUpdateRequest = {
   channel: UpdateChannel;
 };
 
+type DirectSupportAssetsUpdateResult = Omit<SupportAssetsUpdateResult, 'status'> & {
+  status: string;
+};
+
 type DirectReleaseUpdateResult = {
   appImage: { status: string; command?: string; message?: string };
   launcher: { status: string; command?: string; message?: string };
-  supportAssets: Array<{
-    status: string;
-    component?: 'theme' | 'plugin';
-    command?: string;
-    message?: string;
-  }>;
+  supportAssets: DirectSupportAssetsUpdateResult[];
 };
 
 type UpdateCommandDeps = {
@@ -129,12 +131,7 @@ function readUpdateChannel(root: Record<string, unknown> | null): UpdateChannel 
 
 function logUpdateResult(
   label: string,
-  result: {
-    status: string;
-    component?: 'theme' | 'plugin';
-    command?: string;
-    message?: string;
-  },
+  result: DirectSupportAssetsUpdateResult,
   configuredLogLevel: NonNullable<LauncherCommandContext['args']['logLevel']>,
   deps: Pick<UpdateCommandDeps, 'log'>,
 ): void {

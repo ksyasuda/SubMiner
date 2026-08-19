@@ -273,7 +273,8 @@ jobs:
             config.example.jsonc \
             plugin/subminer \
             plugin/subminer.conf \
-            assets/themes/subminer.rasi
+            assets/themes/subminer.rasi \
+            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
 
       - name: Generate checksums
         run: |

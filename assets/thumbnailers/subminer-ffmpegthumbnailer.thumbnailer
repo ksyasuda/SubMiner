@@ -1,0 +1,4 @@
+[Thumbnailer Entry]
+TryExec=ffmpegthumbnailer
+Exec=ffmpegthumbnailer -i %i -o %o -s %s -f
+MimeType=video/matroska;video/matroska-3d;video/x-matroska;video/x-matroska-3d;
