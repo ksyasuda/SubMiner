@@ -242,7 +242,11 @@ export function createCharacterDictionaryImageLookup(deps: {
       deps.onIndexReady();
     } catch (error) {
       indexReadyDeliveryPending = true;
-      deps.onIndexReadyError?.(error);
+      try {
+        deps.onIndexReadyError?.(error);
+      } catch {
+        // Error reporting must not reject the detached index refresh task.
+      }
     }
   }
 

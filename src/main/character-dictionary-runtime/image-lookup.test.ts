@@ -231,6 +231,7 @@ test('createCharacterDictionaryImageLookup reports and retries a failed index-re
   };
   await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
   const callbackError = new Error('annotation refresh failed');
+  const reportingError = new Error('error reporter failed');
   let readyCount = 0;
   const reportedErrors: unknown[] = [];
   const lookup = createCharacterDictionaryImageLookup({
@@ -241,7 +242,10 @@ test('createCharacterDictionaryImageLookup reports and retries a failed index-re
         throw callbackError;
       }
     },
-    onIndexReadyError: (error) => reportedErrors.push(error),
+    onIndexReadyError: (error) => {
+      reportedErrors.push(error);
+      throw reportingError;
+    },
   });
 
   assert.equal(lookup.get('ダイアナ', snapshot.mediaId), null);
