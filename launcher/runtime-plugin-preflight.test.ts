@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   ensureLinuxRuntimePluginAvailable,
   installManagedPluginAssetsViaApp,
@@ -281,6 +283,39 @@ test('ensureLinuxRuntimePluginAvailable fails when thumbnailer remains missing a
       }),
     /thumbnailer=.*subminer-ffmpegthumbnailer\.thumbnailer/i,
   );
+});
+
+test('ensureLinuxRuntimePluginAvailable rejects a thumbnailer directory before and after install', async () => {
+  const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-thumbnailer-directory-'));
+  const thumbnailerPath = path.join(
+    xdgDataHome,
+    'SubMiner',
+    'thumbnailers',
+    'subminer-ffmpegthumbnailer.thumbnailer',
+  );
+  fs.mkdirSync(thumbnailerPath, { recursive: true });
+  const calls: string[] = [];
+
+  try {
+    await assert.rejects(
+      () =>
+        ensureLinuxRuntimePluginAvailable({
+          platform: 'linux',
+          xdgDataHome,
+          detectInstalledPlugin: () => true,
+          isManagedThemeAvailable: () => true,
+          installManagedPluginAssets: async () => {
+            calls.push('install');
+            return { ok: true, status: 'installed', path: '/tmp/plugin/main.lua' };
+          },
+          log: () => {},
+        }),
+      /thumbnailer=.*subminer-ffmpegthumbnailer\.thumbnailer/i,
+    );
+    assert.deepEqual(calls, ['install']);
+  } finally {
+    fs.rmSync(xdgDataHome, { recursive: true, force: true });
+  }
 });
 
 test('installManagedPluginAssetsViaApp returns launch errors without waiting for a response file', async () => {

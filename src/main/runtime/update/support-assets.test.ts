@@ -122,6 +122,19 @@ test('buildProtectedSupportAssetsCommand installs theme, thumbnailer, and plugin
     command,
     /printf '%s  %s\\n' 'abcdef1234' "\$tmp\/subminer-assets\.tar\.gz" \| sha256sum -c -/,
   );
+  const requiredAssetChecks = [
+    'test -f "$tmp/assets/themes/subminer.rasi"',
+    'test -f "$tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer"',
+    'test -f "$tmp/plugin/subminer/main.lua"',
+    'test -f "$tmp/plugin/subminer/version.lua"',
+  ];
+  const firstSudoIndex = command.indexOf('sudo ');
+  assert.notEqual(firstSudoIndex, -1);
+  for (const check of requiredAssetChecks) {
+    const checkIndex = command.indexOf(check);
+    assert.notEqual(checkIndex, -1);
+    assert.ok(checkIndex < firstSudoIndex);
+  }
   assert.match(command, /sudo mkdir -p '\/usr\/local\/share\/SubMiner'\\''s data'\/themes/);
   assert.match(
     command,

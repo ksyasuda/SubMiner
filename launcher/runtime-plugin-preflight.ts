@@ -49,6 +49,14 @@ function resolveConfiguredLogLevel(
   return logLevel ?? 'warn';
 }
 
+function isRegularFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 async function waitForInstallResponse(
   responsePath: string,
 ): Promise<RuntimePluginPreflightResponse | null> {
@@ -172,7 +180,7 @@ export async function ensureLinuxRuntimePluginAvailable(
   const isManagedThemeAvailable =
     options.isManagedThemeAvailable ?? (() => fs.existsSync(managedPaths.themePath));
   const isManagedThumbnailerAvailable =
-    options.isManagedThumbnailerAvailable ?? (() => fs.existsSync(managedPaths.thumbnailerPath));
+    options.isManagedThumbnailerAvailable ?? (() => isRegularFile(managedPaths.thumbnailerPath));
   const runtimePluginAvailable = installedPluginAvailable || Boolean(resolveRuntimePluginPath());
   if (runtimePluginAvailable && isManagedThemeAvailable() && isManagedThumbnailerAvailable()) {
     return;
