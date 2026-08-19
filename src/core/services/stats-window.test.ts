@@ -57,6 +57,7 @@ test('buildStatsWindowOptions remains a regular window off macOS', () => {
   });
 
   assert.equal(options.type, undefined);
+  assert.equal(options.roundedCorners, false);
 });
 
 test('stats panels present after document load on macOS', () => {

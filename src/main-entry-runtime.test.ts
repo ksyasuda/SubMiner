@@ -606,3 +606,68 @@ test('configureEarlyAppPaths pins userData to canonical SubMiner config dir', ()
   assert.equal(userDataPath, '/tmp/xdg/SubMiner');
   assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner']);
 });
+
+test('configureEarlyAppPaths isolates development runs from the production profile', () => {
+  const calls: string[] = [];
+
+  const userDataPath = configureEarlyAppPaths(
+    {
+      setName: (name) => calls.push(`name:${name}`),
+      setPath: (key, value) => calls.push(`path:${key}:${value}`),
+    },
+    {
+      platform: 'linux',
+      homeDir: '/home/tester',
+      xdgConfigHome: '/tmp/xdg',
+      existsSync: () => false,
+      argv: ['electron', '.', '--start', '--dev'],
+      env: {},
+    },
+  );
+
+  assert.equal(userDataPath, '/tmp/xdg/SubMiner-dev');
+  assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner-dev']);
+});
+
+test('configureEarlyAppPaths uses the supplied environment for config discovery', () => {
+  const paths: string[] = [];
+
+  const userDataPath = configureEarlyAppPaths(
+    {
+      setName: () => {},
+      setPath: (_key, value) => paths.push(value),
+    },
+    {
+      platform: 'linux',
+      homeDir: '/home/tester',
+      existsSync: () => false,
+      argv: ['electron', '.', '--start'],
+      env: { XDG_CONFIG_HOME: '/tmp/injected-xdg' },
+    },
+  );
+
+  assert.equal(userDataPath, '/tmp/injected-xdg/SubMiner');
+  assert.deepEqual(paths, ['/tmp/injected-xdg/SubMiner']);
+});
+
+test('configureEarlyAppPaths allows an explicit production-profile development run', () => {
+  const paths: string[] = [];
+
+  const userDataPath = configureEarlyAppPaths(
+    {
+      setName: () => {},
+      setPath: (_key, value) => paths.push(value),
+    },
+    {
+      platform: 'win32',
+      appDataDir: 'C:\\Users\\tester\\AppData\\Roaming',
+      homeDir: 'C:\\Users\\tester',
+      existsSync: () => false,
+      argv: ['electron.exe', '.', '--debug'],
+      env: { SUBMINER_USE_PRODUCTION_PROFILE: '1' },
+    },
+  );
+
+  assert.equal(userDataPath, 'C:\\Users\\tester\\AppData\\Roaming\\SubMiner');
+  assert.deepEqual(paths, ['C:\\Users\\tester\\AppData\\Roaming\\SubMiner']);
+});

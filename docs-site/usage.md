@@ -155,6 +155,7 @@ The tray menu also includes `View Changelog`, which opens the in-app changelog m
 
 - `--log-level` controls logger verbosity.
 - `--dev` and `--debug` are app/dev-mode switches; they are not log-level aliases.
+- `--dev` and `--debug` use a separate `SubMiner-dev` profile. They do not read or modify dictionaries and configuration from the installed app unless `SUBMINER_USE_PRODUCTION_PROFILE=1` is explicitly set.
 - `--background` starts at the default quieter logging level (`warn`), then follows `logging.level` after config loads. An explicit `--log-level` remains the override.
 - `--background` launched from a terminal detaches and returns the prompt; stop it with tray Quit or `SubMiner.AppImage --stop` (`SubMiner.exe --stop` on Windows).
 - Linux desktop launcher starts SubMiner with `--background` by default (via electron-builder `linux.executableArgs`).

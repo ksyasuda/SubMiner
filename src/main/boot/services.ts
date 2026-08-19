@@ -31,6 +31,7 @@ export interface MainBootServicesParams<
 > {
   platform: NodeJS.Platform;
   argv: string[];
+  configDir?: string;
   appDataDir: string | undefined;
   xdgConfigHome: string | undefined;
   homeDir: string;
@@ -174,13 +175,15 @@ export function createMainBootServices<
   TAppState,
   TAppLifecycleApp
 > {
-  const configDir = params.resolveConfigDir({
-    platform: params.platform,
-    appDataDir: params.appDataDir,
-    xdgConfigHome: params.xdgConfigHome,
-    homeDir: params.homeDir,
-    existsSync: params.existsSync,
-  });
+  const configDir =
+    params.configDir ??
+    params.resolveConfigDir({
+      platform: params.platform,
+      appDataDir: params.appDataDir,
+      xdgConfigHome: params.xdgConfigHome,
+      homeDir: params.homeDir,
+      existsSync: params.existsSync,
+    });
   const userDataPath = configDir;
   const defaultMpvLogPath = params.envMpvLog?.trim() || params.defaultMpvLogFile;
   const defaultImmersionDbPath = params.joinPath(userDataPath, 'immersion.sqlite');

@@ -36,6 +36,10 @@ import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtim
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
+import {
+  assertYomitanDictionaryMutationSafe,
+  observeYomitanDictionaryCount,
+} from './main/runtime/yomitan-dictionary-integrity';
 import { startAppControlServer } from './main/runtime/app-control-server';
 import { createEnsureBackgroundStatsServerHandler } from './main/runtime/background-stats-startup';
 import {
@@ -764,6 +768,7 @@ type BootServices = MainBootServicesResult<
 const bootServices = createMainBootServices({
   platform: process.platform,
   argv: process.argv,
+  configDir: app.getPath('userData'),
   appDataDir: process.env.APPDATA,
   xdgConfigHome: process.env.XDG_CONFIG_HOME,
   homeDir: os.homedir(),
@@ -1432,6 +1437,10 @@ const firstRunSetupService = createFirstRunSetupService({
       error: (message, ...args) => logger.error(message, ...args),
       info: (message, ...args) => logger.info(message, ...args),
     });
+    const integrity = observeYomitanDictionaryCount(USER_DATA_PATH, dictionaries.length);
+    if (!integrity.safe) {
+      logger.error(`[dictionary:integrity] ${integrity.message}`);
+    }
     return dictionaries.length;
   },
   isExternalYomitanConfigured: () =>
@@ -2523,10 +2532,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
     ),
   getYomitanDictionaryInfo: async () => {
     await ensureYomitanExtensionLoaded();
-    return await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
+    const dictionaries = await getYomitanDictionaryInfo(getYomitanParserRuntimeDeps(), {
       error: (message, ...args) => logger.error(message, ...args),
       info: (message, ...args) => logger.info(message, ...args),
     });
+    assertYomitanDictionaryMutationSafe(USER_DATA_PATH, dictionaries.length);
+    return dictionaries;
   },
   importYomitanDictionary: async (zipPath) => {
     if (yomitanProfilePolicy.isExternalReadOnlyMode()) {

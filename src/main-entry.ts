@@ -35,6 +35,7 @@ import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/win
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 import { handleSyncCliAtEntry } from './main/sync-cli';
 import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
+import { enforceElectronRuntimeGuard } from './main/electron-runtime-guard';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
 import {
   applyLogFileTogglesToEnv,
@@ -192,9 +193,21 @@ registerFatalErrorHandlers({
 });
 
 function startMainProcess(): void {
+  // This profile-scoped lock serializes the runtime guard's read-check-write sequence.
   const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
   if (!gotSingleInstanceLock) {
     app.exit(0);
+    return;
+  }
+
+  const runtimeGuard = enforceElectronRuntimeGuard({
+    electronVersion: process.versions.electron ?? '',
+    userDataPath,
+  });
+  if (!runtimeGuard.ok) {
+    console.error(runtimeGuard.details);
+    dialog.showErrorBox(runtimeGuard.title, runtimeGuard.details);
+    app.exit(1);
     return;
   }
   try {

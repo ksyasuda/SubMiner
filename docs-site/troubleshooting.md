@@ -109,6 +109,14 @@ If the overlay position is slightly off, right-click and drag on subtitle text t
 
 If you haven't set up dictionaries yet, see [Yomitan setup](/usage#yomitan-setup) first.
 
+**"Electron downgrade blocked" or "Unsupported Electron runtime"**
+
+SubMiner refuses to load Yomitan storage when the current Electron major does not match the app build, or when the profile was previously opened by a newer Electron version. Launch the packaged app or use the repository's `bun run dev` command. Do not delete the runtime safety record merely to force an older Electron version to open the profile.
+
+**"Yomitan reported zero dictionaries after previously reporting ..."**
+
+SubMiner detected that a previously non-empty Yomitan profile suddenly appears empty. Automatic character-dictionary changes are blocked so they cannot normalize or overwrite the suspicious state. Close SubMiner, preserve the profile directory, and restore a known-good backup before importing or deleting dictionaries.
+
 **"Yomitan extension not found in any search path"**
 
 SubMiner bundles Yomitan and searches for it in these locations (in order):

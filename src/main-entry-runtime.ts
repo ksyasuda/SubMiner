@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { CliArgs, hasExplicitCommand, parseArgs, shouldStartApp } from './cli/args';
 import { resolveConfigDir } from './config/path-resolution';
@@ -14,6 +15,8 @@ const TRANSPORTED_APP_ARGC_ENV = 'SUBMINER_APP_ARGC';
 const TRANSPORTED_APP_ARG_PREFIX = 'SUBMINER_APP_ARG_';
 const MAX_TRANSPORTED_APP_ARGS = 256;
 const APP_NAME = 'SubMiner';
+const DEVELOPMENT_APP_NAME = 'SubMiner-dev';
+export const USE_PRODUCTION_PROFILE_ENV = 'SUBMINER_USE_PRODUCTION_PROFILE';
 const DEFAULT_APP_CONTROL_HANDOFF_TIMEOUT_MS = 500;
 const MACOS_APP_CONTROL_HANDOFF_TIMEOUT_MS = 3000;
 const MPV_LONG_OPTIONS_WITH_SEPARATE_VALUES = new Set([
@@ -53,6 +56,8 @@ type EarlyAppPathOptions = {
   xdgConfigHome?: string;
   homeDir?: string;
   existsSync?: (candidate: string) => boolean;
+  argv?: string[];
+  env?: NodeJS.ProcessEnv;
 };
 
 function removeLsfgLayer(env: NodeJS.ProcessEnv): void {
@@ -252,13 +257,22 @@ export function normalizeStartupArgv(argv: string[], env: NodeJS.ProcessEnv): st
 }
 
 export function configureEarlyAppPaths(app: EarlyAppLike, options?: EarlyAppPathOptions): string {
-  const userDataPath = resolveConfigDir({
-    platform: options?.platform ?? process.platform,
-    appDataDir: options?.appDataDir ?? process.env.APPDATA,
-    xdgConfigHome: options?.xdgConfigHome ?? process.env.XDG_CONFIG_HOME,
+  const platform = options?.platform ?? process.platform;
+  const env = options?.env ?? process.env;
+  const configDir = resolveConfigDir({
+    platform,
+    appDataDir: options?.appDataDir ?? env.APPDATA,
+    xdgConfigHome: options?.xdgConfigHome ?? env.XDG_CONFIG_HOME,
     homeDir: options?.homeDir ?? os.homedir(),
     existsSync: options?.existsSync ?? fs.existsSync,
   });
+  const argv = options?.argv ?? process.argv;
+  const useDevelopmentProfile =
+    (argv.includes('--dev') || argv.includes('--debug')) && env[USE_PRODUCTION_PROFILE_ENV] !== '1';
+  const platformPath = platform === 'win32' ? path.win32 : path.posix;
+  const userDataPath = useDevelopmentProfile
+    ? platformPath.join(platformPath.dirname(configDir), DEVELOPMENT_APP_NAME)
+    : configDir;
 
   app.setName(APP_NAME);
   app.setPath('userData', userDataPath);
