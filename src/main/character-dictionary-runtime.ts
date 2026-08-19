@@ -450,7 +450,7 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
     }
 
     const nameSplitTokenizerAvailable = isNameSplitTokenizerAvailable();
-    const resolvedNameSplits = nameSplitTokenizerAvailable
+    const nameSplitResolution = nameSplitTokenizerAvailable
       ? await resolveJapaneseNameSplits(
           characters,
           deps.tokenizeJapaneseName!,
@@ -466,8 +466,8 @@ export function createCharacterDictionaryRuntimeService(deps: CharacterDictionar
           },
         )
       : undefined;
-    const nameSplitSource =
-      resolvedNameSplits && resolvedNameSplits.size > 0 ? 'mecab' : 'heuristic';
+    const resolvedNameSplits = nameSplitResolution?.splits;
+    const nameSplitSource = nameSplitResolution?.kind === 'complete' ? 'mecab' : 'heuristic';
 
     progress?.onGenerateProgress?.({
       mediaId,
