@@ -198,6 +198,54 @@ test('createCharacterDictionaryImageLookup can scope duplicate names to the curr
   assert.equal(scoped.alt, 'Kazuma');
 });
 
+test('createCharacterDictionaryImageLookup signals when its background index becomes ready', async () => {
+  const outputDir = makeTempDir();
+  const snapshot: CharacterDictionarySnapshot = {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 21858,
+    mediaTitle: 'Little Witch Academia',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [
+      [
+        'ダイアナ',
+        'だいあな',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: {
+              tag: 'img',
+              path: 'img/m21858-c81709.png',
+              alt: 'ダイアナ・キャベンディッシュ',
+            },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m21858-c81709.png', dataBase64: PNG_1X1_BASE64 }],
+  };
+  await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  let readyCount = 0;
+  const lookup = createCharacterDictionaryImageLookup({
+    outputDir,
+    onIndexReady: () => {
+      readyCount += 1;
+    },
+  });
+
+  assert.equal(lookup.get('ダイアナ', snapshot.mediaId), null);
+  await waitForRefresh(() => lookup.get('ダイアナ', snapshot.mediaId));
+
+  assert.equal(readyCount, 1);
+  lookup.get('ダイアナ', snapshot.mediaId);
+  assert.equal(readyCount, 1);
+});
+
 test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', async () => {
   const outputDir = makeTempDir();
   const snapshot: CharacterDictionarySnapshot = {

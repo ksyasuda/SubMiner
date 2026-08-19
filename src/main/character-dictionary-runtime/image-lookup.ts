@@ -218,6 +218,7 @@ export function createCharacterDictionaryImageLookup(deps: {
   userDataPath?: string;
   outputDir?: string;
   getCurrentMediaId?: () => number | null | undefined;
+  onIndexReady?: () => void;
 }): {
   get: (term: string, mediaId?: number | null) => CharacterNameImage | null;
   invalidate: () => void;
@@ -262,6 +263,7 @@ export function createCharacterDictionaryImageLookup(deps: {
         index = nextIndex;
         indexByMediaId = nextIndexByMediaId;
         signature = nextSignature;
+        deps.onIndexReady?.();
       } finally {
         refreshInFlight = false;
       }
