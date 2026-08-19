@@ -482,10 +482,10 @@ test('Linux visible overlay recreation avoids display fallback before tracked ge
   assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
 });
 
-test('known-word updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
+test('subtitle annotation updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /const refreshCurrentSubtitleAfterKnownWordUpdate = \(\): void => \{(?<body>[\s\S]*?)\n\};/,
+    /function refreshCurrentSubtitleAnnotations\(\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -500,6 +500,20 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
       actionBlock.indexOf(
         'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
       ),
+  );
+});
+
+test('character portrait index readiness refreshes cached subtitle annotations', () => {
+  const source = readMainSource();
+  const lookupDeps = source.match(
+    /const characterDictionaryImageLookup = createCharacterDictionaryImageLookup\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(lookupDeps);
+  assert.match(lookupDeps, /onIndexReady: \(\) => refreshCurrentSubtitleAnnotations\(\),/);
+  assert.match(
+    lookupDeps,
+    /onIndexReadyError: \(error\) =>[\s\S]*?logger\.warn\([\s\S]*?character portrait index became ready\.[\s\S]*?error,/,
   );
 });
 

@@ -2623,6 +2623,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
   userDataPath: USER_DATA_PATH,
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+  onIndexReady: () => refreshCurrentSubtitleAnnotations(),
+  onIndexReadyError: (error) =>
+    logger.warn(
+      'Failed to refresh subtitle annotations after character portrait index became ready.',
+      error,
+    ),
 });
 
 // Lets the Yomitan scan runtime skip name lookups at positions where no
@@ -4047,7 +4053,7 @@ const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
   ensureImmersionTrackerStarted();
   appState.immersionTracker?.recordCardsMined(count, noteIds);
 };
-const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
+function refreshCurrentSubtitleAnnotations(): void {
   const hasCurrentSubtitle = appState.currentSubText.trim().length > 0;
   if (hasCurrentSubtitle) {
     subtitlePrefetchService?.pause();
@@ -4058,7 +4064,7 @@ const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
     // Idle controller: no settle is coming to release the pause above.
     subtitlePrefetchService?.resume();
   }
-};
+}
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
   if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
@@ -5081,9 +5087,7 @@ function initializeOverlayRuntime(): void {
     overlayModalRuntime.primeModalWindow();
   }
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
-  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
-    refreshCurrentSubtitleAfterKnownWordUpdate,
-  );
+  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
   syncOverlayMpvSubtitleSuppression();
 }
@@ -5876,7 +5880,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         appState.ankiIntegration = integration;
         appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
         appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
-          refreshCurrentSubtitleAfterKnownWordUpdate,
+          refreshCurrentSubtitleAnnotations,
         );
         appState.ankiIntegration?.setSubtitleMiningContextConsumer(
           consumePendingSubtitleMiningContext,
