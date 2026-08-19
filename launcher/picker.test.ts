@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { findRofiTheme, formatRofiPrompt } from './picker';
+import {
+  findRofiTheme,
+  findRofiThumbnailerDataRoot,
+  formatRofiPrompt,
+  prependXdgDataDir,
+} from './picker';
 
 // ── formatRofiPrompt: spacing between prompt and input field ──────────────────
 
@@ -23,6 +28,7 @@ test('formatRofiPrompt leaves an empty prompt empty', () => {
 // ── findRofiTheme: Linux packaged path discovery ──────────────────────────────
 
 const ROFI_THEME_FILE = 'subminer.rasi';
+const ROFI_THUMBNAILER_FILE = 'subminer-ffmpegthumbnailer.thumbnailer';
 
 function makeFile(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -120,4 +126,43 @@ test('findRofiTheme resolves ~/.local/share/SubMiner/themes/subminer.rasi when X
     }
     fs.rmSync(baseDir, { recursive: true, force: true });
   }
+});
+
+test('findRofiThumbnailerDataRoot resolves the managed XDG data root', () => {
+  const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-test-xdg-'));
+  const originalXdgDataHome = process.env.XDG_DATA_HOME;
+  try {
+    process.env.XDG_DATA_HOME = xdgDataHome;
+    const dataRoot = path.join(xdgDataHome, 'SubMiner');
+    makeFile(path.join(dataRoot, 'thumbnailers', ROFI_THUMBNAILER_FILE));
+
+    const result = withPlatform('linux', () => findRofiThumbnailerDataRoot('/usr/bin/subminer'));
+    assert.equal(result, dataRoot);
+  } finally {
+    if (originalXdgDataHome === undefined) {
+      delete process.env.XDG_DATA_HOME;
+    } else {
+      process.env.XDG_DATA_HOME = originalXdgDataHome;
+    }
+    fs.rmSync(xdgDataHome, { recursive: true, force: true });
+  }
+});
+
+test('findRofiThumbnailerDataRoot is Linux-only', () => {
+  assert.equal(
+    withPlatform('darwin', () => findRofiThumbnailerDataRoot('/usr/bin/subminer')),
+    null,
+  );
+});
+
+test('prependXdgDataDir preserves existing roots and avoids duplicates', () => {
+  const root = '/tmp/subminer-data';
+  assert.equal(
+    prependXdgDataDir(root, `/opt/share${path.delimiter}${root}${path.delimiter}/usr/share`),
+    `${root}${path.delimiter}/opt/share${path.delimiter}/usr/share`,
+  );
+  assert.equal(
+    prependXdgDataDir(root),
+    `${root}${path.delimiter}/usr/local/share${path.delimiter}/usr/share`,
+  );
 });

@@ -157,6 +157,7 @@ export async function runPlaybackCommand(context: LauncherCommandContext): Promi
       });
     },
     chooseTarget,
+    checkPickerDependencies,
     checkDependencies,
     registerCleanup,
     startMpv,
@@ -177,6 +178,7 @@ type PlaybackCommandDeps = {
     args: Args,
     scriptPath: string,
   ) => Promise<{ target: string; kind: 'file' | 'url' } | null>;
+  checkPickerDependencies?: (args: Args) => void;
   checkDependencies: (args: Args) => void;
   registerCleanup: (context: LauncherCommandContext) => void;
   startMpv: typeof startMpv;
@@ -201,7 +203,18 @@ export async function runPlaybackCommandWithDeps(
   await deps.ensurePlaybackSetupReady(context);
 
   if (!args.target) {
-    checkPickerDependencies(args);
+    (deps.checkPickerDependencies ?? checkPickerDependencies)(args);
+  }
+
+  let runtimeAssetsReady = false;
+  const ensureRuntimeAssetsReady = async (): Promise<void> => {
+    if (runtimeAssetsReady) return;
+    await deps.ensureRuntimePluginReady(context);
+    runtimeAssetsReady = true;
+  };
+
+  if (!args.target && args.useRofi) {
+    await ensureRuntimeAssetsReady();
   }
 
   const targetChoice = await deps.chooseTarget(args, scriptPath);
@@ -266,7 +279,7 @@ export async function runPlaybackCommandWithDeps(
     );
   }
 
-  await deps.ensureRuntimePluginReady(context);
+  await ensureRuntimeAssetsReady();
 
   await deps.startMpv(
     selectedTarget.target,
