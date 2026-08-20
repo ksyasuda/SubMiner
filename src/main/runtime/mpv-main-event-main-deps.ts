@@ -86,6 +86,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  consumeExplicitSeek?: () => boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
@@ -334,6 +335,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),
+    consumeExplicitSeek: deps.consumeExplicitSeek,
     onTimePosUpdate: (time: number) => {
       // Timing history is a viewing log: after a real backward seek, a rewatched
       // canonical line should enter it again. Immersion stats keep their

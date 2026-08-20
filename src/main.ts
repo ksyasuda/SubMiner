@@ -312,6 +312,7 @@ import {
   promoteSettingsWindowAboveOverlay,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
+  resolveSanitizedSubtitleSeekCommand,
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
   saveJellyfinSubtitleDelay,
@@ -1958,6 +1959,31 @@ let linuxVisibleOverlayOwnerBindingKey: string | null = null;
 let linuxVisibleOverlayWindowModeSwitchToken = 0;
 let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
+const EXPLICIT_SEEK_INTENT_TTL_MS = 2000;
+let explicitSeekIntentExpiresAtMs = 0;
+
+function isExplicitMpvSeekCommand(command: readonly (string | number)[]): boolean {
+  return command[0] === 'seek' || command[0] === 'sub-seek';
+}
+
+function sendRendererMpvCommand(rawCommand: (string | number)[]): void {
+  const command =
+    resolveSanitizedSubtitleSeekCommand(
+      rawCommand,
+      appState.activeParsedSubtitleCues,
+      appState.mpvClient?.currentTimePos ?? Number.NaN,
+    ) ?? rawCommand;
+  if (isExplicitMpvSeekCommand(command)) {
+    explicitSeekIntentExpiresAtMs = Date.now() + EXPLICIT_SEEK_INTENT_TTL_MS;
+  }
+  sendMpvCommandRuntime(appState.mpvClient, command);
+}
+
+function consumeExplicitSeekIntent(): boolean {
+  const pending = explicitSeekIntentExpiresAtMs >= Date.now();
+  explicitSeekIntentExpiresAtMs = 0;
+  return pending;
+}
 
 const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
@@ -4580,6 +4606,7 @@ const {
     reportJellyfinRemoteProgress: (forceImmediate) => {
       void reportJellyfinRemoteProgress(forceImmediate);
     },
+    consumeExplicitSeek: () => consumeExplicitSeekIntent(),
     onTimePosUpdate: (time) => {
       const delta = time - lastObservedTimePos;
       if (subtitlePrefetchService && (delta > SEEK_THRESHOLD_SECONDS || delta < 0)) {
@@ -5485,8 +5512,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
-    sendMpvCommand: (rawCommand: (string | number)[]) =>
-      sendMpvCommandRuntime(appState.mpvClient, rawCommand),
+    sendMpvCommand: (rawCommand: (string | number)[]) => sendRendererMpvCommand(rawCommand),
     getMpvClient: () => appState.mpvClient,
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,

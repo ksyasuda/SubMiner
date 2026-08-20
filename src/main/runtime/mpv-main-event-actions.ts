@@ -141,14 +141,16 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   maybeRunAnilistPostWatchUpdate?: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logError?: (message: string, error: unknown) => void;
   onTimePosUpdate?: (time: number, kind: TimePosUpdateKind) => void;
+  consumeExplicitSeek?: () => boolean;
 }) {
   let lastObservedTime: number | null = null;
 
   return ({ time }: { time: number }): void => {
+    const explicitSeek = deps.consumeExplicitSeek?.() ?? false;
     const updateKind: TimePosUpdateKind =
       lastObservedTime === null
         ? 'initial'
-        : isSeekLikeTimeChange(lastObservedTime, time)
+        : explicitSeek || isSeekLikeTimeChange(lastObservedTime, time)
           ? 'seek'
           : 'playback';
     const forceImmediate = updateKind === 'seek';

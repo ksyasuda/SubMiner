@@ -79,6 +79,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  consumeExplicitSeek?: () => boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
   recordPauseState: (paused: boolean) => void;
 
@@ -172,6 +173,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       maybeRunAnilistPostWatchUpdate: (options) => deps.maybeRunAnilistPostWatchUpdate(options),
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
+      consumeExplicitSeek: deps.consumeExplicitSeek,
       onTimePosUpdate: (time, updateKind) => {
         deps.onTimePosUpdate?.(time);
         if (updateKind === 'playback') return;

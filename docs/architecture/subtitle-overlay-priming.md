@@ -76,9 +76,14 @@ coming and prefetching would otherwise idle for the rest of the cue.
   stack, preserving dialogue or signs that overlap a lyric.
 - A tokenization cache miss emits the plain cue synchronously. Tokenization remains serialized so
   live work does not contend for Yomitan state.
-- The initial `time-pos` and later seek-like jumps reprocess mpv's current raw `sub-text` after the
-  new playback time is stored. This corrects ASS cleanup when mpv delivered the destination
-  subtitle before the destination timestamp.
+- The initial `time-pos`, explicit renderer seeks, and later seek-like jumps reprocess mpv's
+  current raw `sub-text` after the new playback time is stored. Explicit intent matters because
+  adjacent subtitle jumps can be shorter than the general seek-distance threshold. This corrects
+  ASS cleanup when mpv delivered the destination subtitle before the destination timestamp.
+- Renderer `sub-seek` commands use the active parsed cue list when available. Simultaneous cues
+  share one boundary, overlapping lyrics advance from the latest active boundary, and mpv's native
+  command remains the fallback when no parsed destination exists. This prevents generated karaoke
+  frames from consuming next/previous subtitle presses.
 - If startup paints raw text before embedded ASS parsing finishes, parsed cue arrival may replace
   that provisional line. The one-prime-per-media guard still suppresses identical repeats.
 - If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty
