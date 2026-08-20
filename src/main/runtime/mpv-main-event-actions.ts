@@ -4,6 +4,8 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
+type TimePosUpdateKind = 'initial' | 'playback' | 'seek';
+
 /** Jump size that marks a time-pos change as a seek rather than normal playback. */
 export const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
 
@@ -138,12 +140,18 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   refreshDiscordPresence: () => void;
   maybeRunAnilistPostWatchUpdate?: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logError?: (message: string, error: unknown) => void;
-  onTimePosUpdate?: (time: number) => void;
+  onTimePosUpdate?: (time: number, kind: TimePosUpdateKind) => void;
 }) {
   let lastObservedTime: number | null = null;
 
   return ({ time }: { time: number }): void => {
-    const forceImmediate = isSeekLikeTimeChange(lastObservedTime, time);
+    const updateKind: TimePosUpdateKind =
+      lastObservedTime === null
+        ? 'initial'
+        : isSeekLikeTimeChange(lastObservedTime, time)
+          ? 'seek'
+          : 'playback';
+    const forceImmediate = updateKind === 'seek';
     if (Number.isFinite(time)) {
       lastObservedTime = time;
     }
@@ -153,7 +161,7 @@ export function createHandleMpvTimePosChangeHandler(deps: {
     void deps.maybeRunAnilistPostWatchUpdate?.({ watchedSeconds: time }).catch((error) => {
       deps.logError?.('AniList post-watch update failed unexpectedly', error);
     });
-    deps.onTimePosUpdate?.(time);
+    deps.onTimePosUpdate?.(time, updateKind);
   };
 }
 

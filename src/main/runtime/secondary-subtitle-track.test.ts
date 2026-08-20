@@ -20,6 +20,156 @@ test('findActiveSubtitleText combines unique simultaneous parsed cues', () => {
   );
 });
 
+test('findActiveSubtitleText collapses whitespace variants of one ASS lyric', () => {
+  assert.equal(
+    findActiveSubtitleText(
+      [
+        { startTime: 1, endTime: 3, text: '少しだけ好きになる' },
+        { startTime: 1, endTime: 3, text: '少しだけ 好きになる' },
+        { startTime: 1, endTime: 3, text: '少しだけ　好きになる' },
+      ],
+      2,
+    ),
+    '少しだけ好きになる',
+  );
+});
+
+test('parsed secondary lyrics keep explicit ASS vertical order when durations alternate', () => {
+  const lyric = (options: { start: string; end: string; style: string; y: number; text: string }) =>
+    `Dialogue: 0,0:00:${options.start},0:00:${options.end},${options.style},,0,0,0,fx,{\\move(100,${options.y},120,${options.y})\\t(0,200,\\fscx110)}${options.text}\\N{\\p1}m 0 0 l 0 5`;
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    lyric({
+      start: '01.00',
+      end: '02.20',
+      style: 'ed_romaji',
+      y: 66,
+      text: 'ima wo kakusarechau mae ni',
+    }),
+    lyric({
+      start: '01.00',
+      end: '02.00',
+      style: 'ed_english',
+      y: 1020,
+      text: 'Before the present moment gets hidden away.',
+    }),
+    lyric({
+      start: '03.00',
+      end: '04.00',
+      style: 'ed_romaji',
+      y: 66,
+      text: 'ame mitai ni hikatteru',
+    }),
+    lyric({
+      start: '03.00',
+      end: '04.20',
+      style: 'ed_english',
+      y: 1020,
+      text: 'Is shining like rain.',
+    }),
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s01e08.ass');
+
+  assert.equal(
+    findActiveSubtitleText(cues, 1.5),
+    'ima wo kakusarechau mae ni\nBefore the present moment gets hidden away.',
+  );
+  assert.equal(findActiveSubtitleText(cues, 3.5), 'ame mitai ni hikatteru\nIs shining like rain.');
+});
+
+test('unpositioned secondary lyrics fall back to ASS source order', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.20,ED Romaji,,0,0,0,,ima wo kakusarechau mae ni',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,ED English,,0,0,0,,Before the present moment gets hidden away.',
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'ending.ass'), 1.5),
+    'ima wo kakusarechau mae ni\nBefore the present moment gets hidden away.',
+  );
+});
+
+test('findActiveSubtitleText keeps a canonical ASS cue for its generated animation span', () => {
+  const poof = {
+    startTime: 1110.67,
+    endTime: 1110.71,
+    text: 'POOF',
+    source: 'canonical-ass' as const,
+    animationStartTime: 1110.67,
+    animationEndTime: 1111.59,
+  };
+
+  assert.equal(findActiveSubtitleText([poof], 1111.58), 'POOF');
+  assert.equal(findActiveSubtitleText([poof], 1111.59), '');
+});
+
+test('ASS fragment karaoke stays separated by style with authored word spacing', () => {
+  const lineEvents = (
+    style: string,
+    fragments: readonly string[],
+    y: number,
+    baseTime = 1,
+  ): string[] => {
+    const events: string[] = [];
+    for (const layer of [0, 1]) {
+      fragments.forEach((fragment, index) => {
+        const x = 100 + index * 40;
+        const start = (baseTime + index * 0.25).toFixed(2).padStart(5, '0');
+        const end = (baseTime + 3 + index * 0.2).toFixed(2).padStart(5, '0');
+        events.push(
+          `Dialogue: ${layer},0:00:${start},0:00:${end},${style},,0,0,0,,{\\pos(${x},${y})\\t(0,200,\\fscx110)}${fragment}\\N{\\p1}m 0 0 l 0 10`,
+        );
+      });
+    }
+    return events;
+  };
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...lineEvents('ed_romaji', ['ji', 'gu', 'za', 'gu ', 'na', 'mi'], 70),
+    ...lineEvents('ed_english', ['Pas', 'si', 'ng ', 'thro', 'u', 'gh '], 110),
+    ...lineEvents('op_english', ['I', 'want', 'to', 'go'], 110, 7),
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'ending.ass'), 2.5),
+    'jiguzagu nami\nPassing through',
+  );
+  // Some generated scripts discard spaces and retain only positioned chunks. Joining
+  // without invented separators avoids turning one word into spaced syllables.
+  assert.equal(findActiveSubtitleText(parseSubtitleCues(ass, 'ending.ass'), 8.5), 'Iwanttogo');
+});
+
+test('findActiveSubtitleText keeps a complete reconstructed line over entrance fragments', () => {
+  const current = {
+    startTime: 1,
+    endTime: 4,
+    text: 'Complete current line',
+    source: 'reconstructed-ass' as const,
+    assStyle: 'op_english',
+  };
+  const nextEntrance = {
+    startTime: 3.8,
+    endTime: 4.2,
+    text: 'Ne',
+    source: 'reconstructed-ass' as const,
+    assStyle: 'op_english',
+  };
+  const nextLine = {
+    startTime: 4,
+    endTime: 7,
+    text: 'Next complete line',
+    source: 'reconstructed-ass' as const,
+    assStyle: 'op_english',
+  };
+
+  assert.equal(findActiveSubtitleText([current, nextEntrance], 3.9), current.text);
+  assert.equal(findActiveSubtitleText([current, nextEntrance, nextLine], 4.1), nextLine.text);
+});
+
 test('secondary track controller parses the selected ASS file before publishing', async () => {
   const broadcasts: string[] = [];
   let currentText = '';

@@ -64,6 +64,30 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
   );
 });
 
+test('resolvePrimarySubtitleText collapses whitespace variants of one ASS lyric', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,EDJP,,0,0,0,,少しだけ好きになる',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,EDJP,,0,0,0,,少しだけ\\h好きになる',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,EDJP,,0,0,0,,少しだけ　好きになる',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s01e10.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['少しだけ好きになる', '少しだけ 好きになる', '少しだけ　好きになる'],
+  );
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: ['少しだけ好きになる', '少しだけ 好きになる', '少しだけ　好きになる'].join('\n'),
+      currentTimeSec: 2,
+      cues,
+    }),
+    '少しだけ好きになる',
+  );
+});
+
 test('resolvePrimarySubtitleText tolerates stale time-pos at a parsed cue edge', () => {
   assert.equal(
     resolvePrimarySubtitleText({
@@ -182,6 +206,20 @@ test('resolvePrimarySubtitleText combines simultaneous canonical cues in source 
   });
 
   assert.equal(text, 'first\nsecond');
+});
+
+test('resolvePrimarySubtitleText collapses whitespace variants of a canonical lyric', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '少しだけ好きになる\n少しだけ　好きになる',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: '少しだけ好きになる', source: 'canonical-ass' },
+        { startTime: 1, endTime: 3, text: '少しだけ　好きになる', source: 'canonical-ass' },
+      ],
+    }),
+    '少しだけ好きになる',
+  );
 });
 
 test('resolveCanonicalPrimarySubtitle covers a nearby generated animation edge', () => {

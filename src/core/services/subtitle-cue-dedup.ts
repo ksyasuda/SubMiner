@@ -149,8 +149,8 @@ function collectRepeatedPhaseRuns(cues: AnnotatedSubtitleCue[]): RepeatedPhaseRu
       const isFlush =
         Math.abs(next.startTime - current.endTime) <= DUPLICATE_CUE_GAP_TOLERANCE_SECONDS;
       if (
-        first.source === 'canonical-ass' ||
-        next.source === 'canonical-ass' ||
+        first.source !== undefined ||
+        next.source !== undefined ||
         next.text !== first.text ||
         assStyleKey(next) !== styleKey ||
         !isFlush
@@ -223,7 +223,7 @@ function countFramesShorterThan(run: AnnotatedSubtitleCue[], maxSeconds: number)
  * anything wrapped in `\t(...)`), an animated `Effect` column, or a value that actually
  * changes from event to event, which is how per-frame typesetting is authored.
  */
-export function hasAssAnimationEvidence(run: AnnotatedSubtitleCue[]): boolean {
+export function hasAssAnimationEvidence(run: readonly AnnotatedSubtitleCue[]): boolean {
   if (run.every((cue) => hasAssTemporalOverride(cue.overrides))) {
     return true;
   }

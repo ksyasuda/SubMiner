@@ -25,7 +25,7 @@ function nearbyCanonicalCues(
   currentTimeSec: number,
 ): SubtitleCue[] {
   return (cues ?? []).filter((cue) => {
-    if (cue.source !== 'canonical-ass') {
+    if (cue.source !== 'canonical-ass' && cue.source !== 'reconstructed-ass') {
       return false;
     }
     const span = animationSpan(cue);
@@ -38,6 +38,21 @@ function nearbyCanonicalCues(
 
 function compactWhitespace(text: string): string {
   return text.replace(/\s+/gu, '');
+}
+
+// ASS layers can encode the same visible spacing with ordinary, hard, or
+// ideographic spaces. Matching and emission must use the same identity or each
+// layer reappears as a copy.
+function uniqueCueTexts(cues: readonly SubtitleCue[]): string[] {
+  const texts: string[] = [];
+  const seen = new Set<string>();
+  for (const cue of cues) {
+    const compactText = compactWhitespace(cue.text);
+    if (seen.has(compactText)) continue;
+    seen.add(compactText);
+    texts.push(cue.text);
+  }
+  return texts;
 }
 
 function compactLineSegments(text: string): string[] {
@@ -83,14 +98,7 @@ function resolveActiveParsedPrimarySubtitle(options: {
     return null;
   }
 
-  const texts: string[] = [];
-  const seen = new Set<string>();
-  for (const cue of selected) {
-    if (!seen.has(cue.text)) {
-      seen.add(cue.text);
-      texts.push(cue.text);
-    }
-  }
+  const texts = uniqueCueTexts(selected);
   return {
     text: texts.join('\n'),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),
@@ -159,14 +167,7 @@ export function resolveCanonicalPrimarySubtitle(options: {
     return null;
   }
 
-  const texts: string[] = [];
-  const seen = new Set<string>();
-  for (const cue of selected) {
-    if (!seen.has(cue.text)) {
-      seen.add(cue.text);
-      texts.push(cue.text);
-    }
-  }
+  const texts = uniqueCueTexts(selected);
   return {
     text: texts.join('\n'),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),

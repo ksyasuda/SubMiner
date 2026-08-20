@@ -44,6 +44,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
 
   setCurrentSubText: (text: string) => void;
   resolveSubtitleText?: (text: string) => string;
+  getCurrentLiveSubtitleText?: () => string;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   broadcastSubtitle: (payload: SubtitleData) => void;
@@ -171,7 +172,14 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       maybeRunAnilistPostWatchUpdate: (options) => deps.maybeRunAnilistPostWatchUpdate(options),
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
-      onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
+      onTimePosUpdate: (time, updateKind) => {
+        deps.onTimePosUpdate?.(time);
+        if (updateKind === 'playback') return;
+        const liveText = deps.getCurrentLiveSubtitleText?.();
+        if (liveText !== undefined) {
+          handleMpvSubtitleChange({ text: liveText });
+        }
+      },
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),

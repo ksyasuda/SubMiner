@@ -1,4 +1,4 @@
 type: fixed
 area: subtitles
 
-- Primary ASS subtitles now use the active parsed cue when it fully accounts for mpv's live text, preventing fill, border, blur, and shadow copies of the same full-span lyric from appearing repeatedly while preserving unmatched overlapping dialogue and signs.
+- Primary and secondary ASS subtitles now collapse layered and whitespace variants of full-span lyrics, including when playback starts or seeks into a line, reconstruct fragment-only karaoke per style, preserve authored stack order, and keep canonical signs visible for their complete generated animation while preserving unmatched dialogue and signs.

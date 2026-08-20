@@ -58,16 +58,102 @@ function buildSelectedTrackIdentity(
   ]);
 }
 
+type IndexedSubtitleCue = { cue: SubtitleCue; index: number };
+
+function compareAuthoredSubtitleOrder(left: IndexedSubtitleCue, right: IndexedSubtitleCue): number {
+  const leftLayout = left.cue.assLayout;
+  const rightLayout = right.cue.assLayout;
+  if (leftLayout?.kind === 'positioned' && rightLayout?.kind === 'positioned') {
+    const verticalOrder = leftLayout.y - rightLayout.y;
+    if (verticalOrder !== 0) return verticalOrder;
+  }
+  if (leftLayout && rightLayout) {
+    const sourceOrder = leftLayout.sourceOrder - rightLayout.sourceOrder;
+    if (sourceOrder !== 0) return sourceOrder;
+  }
+  return left.index - right.index;
+}
+
 export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds: number): string {
   if (!Number.isFinite(timeSeconds)) return '';
 
+  const authoredCanonical = cues.filter(
+    (cue) =>
+      cue.source === 'canonical-ass' && cue.startTime <= timeSeconds && cue.endTime > timeSeconds,
+  );
+  const selectedCanonical = new Set<SubtitleCue>(authoredCanonical);
+  if (selectedCanonical.size === 0) {
+    const animatedCanonical = cues.filter(
+      (cue) =>
+        cue.source === 'canonical-ass' &&
+        (cue.animationStartTime ?? cue.startTime) <= timeSeconds &&
+        (cue.animationEndTime ?? cue.endTime) > timeSeconds,
+    );
+    const nearestDistance = animatedCanonical.reduce((nearest, cue) => {
+      const distance =
+        timeSeconds < cue.startTime
+          ? cue.startTime - timeSeconds
+          : Math.max(0, timeSeconds - cue.endTime);
+      return Math.min(nearest, distance);
+    }, Infinity);
+    for (const cue of animatedCanonical) {
+      const distance =
+        timeSeconds < cue.startTime
+          ? cue.startTime - timeSeconds
+          : Math.max(0, timeSeconds - cue.endTime);
+      if (distance === nearestDistance) {
+        selectedCanonical.add(cue);
+      }
+    }
+  }
+
+  const activeReconstructed = cues.filter(
+    (cue) =>
+      cue.source === 'reconstructed-ass' &&
+      cue.startTime <= timeSeconds &&
+      cue.endTime > timeSeconds,
+  );
+  const reconstructedByStyle = new Map<string, SubtitleCue>();
+  for (const cue of activeReconstructed) {
+    const style = cue.assStyle ?? '';
+    const existing = reconstructedByStyle.get(style);
+    if (!existing) {
+      reconstructedByStyle.set(style, cue);
+      continue;
+    }
+    const duration = cue.endTime - cue.startTime;
+    const existingDuration = existing.endTime - existing.startTime;
+    if (
+      duration > existingDuration ||
+      (duration === existingDuration && cue.text.length > existing.text.length) ||
+      (duration === existingDuration &&
+        cue.text.length === existing.text.length &&
+        cue.startTime > existing.startTime)
+    ) {
+      reconstructedByStyle.set(style, cue);
+    }
+  }
+  const selectedReconstructed = new Set(reconstructedByStyle.values());
+
   const seen = new Set<string>();
   const activeText: string[] = [];
-  for (const cue of cues) {
-    if (cue.startTime > timeSeconds || cue.endTime <= timeSeconds) continue;
+  const activeCues: IndexedSubtitleCue[] = [];
+  cues.forEach((cue, index) => {
+    const active =
+      cue.source === 'canonical-ass'
+        ? selectedCanonical.has(cue)
+        : cue.source === 'reconstructed-ass'
+          ? selectedReconstructed.has(cue)
+          : cue.startTime <= timeSeconds && cue.endTime > timeSeconds;
+    if (active) activeCues.push({ cue, index });
+  });
+  activeCues.sort(compareAuthoredSubtitleOrder);
+
+  for (const { cue } of activeCues) {
     const text = cue.text.trim();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
+    const compactText = text.replace(/\s+/gu, '');
+    if (!compactText || seen.has(compactText)) continue;
+    seen.add(compactText);
     activeText.push(text);
   }
   return activeText.join('\n');

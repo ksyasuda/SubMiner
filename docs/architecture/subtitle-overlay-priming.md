@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-08-18
+Last verified: 2026-08-19
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -71,11 +71,16 @@ coming and prefetching would otherwise idle for the rest of the cue.
 
 - Primary live text first resolves recovered canonical ASS animations. Otherwise, when
   every live mpv line matches an active parsed cue, it uses the parsed cue text so exact
-  full-span style layers appear once instead of repeating for fill, border, blur, and
-  shadow events. Any unmatched live line keeps the complete live stack, preserving
-  dialogue or signs that overlap a lyric.
+  full-span style layers appear once instead of repeating for fill, border, blur, shadow,
+  or equivalent whitespace variants. Any unmatched live line keeps the complete live
+  stack, preserving dialogue or signs that overlap a lyric.
 - A tokenization cache miss emits the plain cue synchronously. Tokenization remains serialized so
   live work does not contend for Yomitan state.
+- The initial `time-pos` and later seek-like jumps reprocess mpv's current raw `sub-text` after the
+  new playback time is stored. This corrects ASS cleanup when mpv delivered the destination
+  subtitle before the destination timestamp.
+- If startup paints raw text before embedded ASS parsing finishes, parsed cue arrival may replace
+  that provisional line. The one-prime-per-media guard still suppresses identical repeats.
 - If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty
   clear payload is emitted immediately. The older tokenization result is dropped before it can
   replace the current cue.
@@ -95,6 +100,18 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
   overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
   text when a readable source is available.
+- Simultaneous parsed cues use whitespace-insensitive identity, so ASS layers that vary only
+  between ordinary, hard, or ideographic spaces appear once.
+- Simultaneous ASS lines are flattened in top-to-bottom positioned order, falling back to their
+  authored source order when no usable position exists.
+- Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
+  survive concatenation, while scripts that discarded their word boundaries remain compact
+  instead of gaining false spaces between syllables. Short runs qualify only when overlapping
+  positioned events also show changing overrides or repeated layer copies; an English or romaji
+  style name alone never turns ordinary dialogue into a lyric.
+- Recovered canonical ASS text remains active for the generated animation envelope. For
+  reconstructed lyric styles, the longest-lived active line wins over brief entrance and exit
+  fragments from the same style.
 - Media and `secondary-sid` changes clear the previous parsed state before refreshing the source;
   track-list changes refresh without discarding an unchanged source. Observed
   `secondary-sub-delay` changes retime the active parsed cue without rereading the file. If loading,

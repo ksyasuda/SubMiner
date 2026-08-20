@@ -570,6 +570,63 @@ test('parseSubtitleCues does not promote a short animated fragment as a complete
   );
 });
 
+test('parseSubtitleCues keeps short animated English dialogue as separate cues', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,English Dialogue,,0,0,0,,{\\t(0,100,\\fscx110)}Hi',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,English Dialogue,,0,0,0,,{\\t(0,100,\\fscx110)}No',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Hi' },
+    { startTime: 2, endTime: 3, text: 'No' },
+  ]);
+});
+
+test('parseSubtitleCues does not reconstruct an already canonical English cue', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\move(100,100,120,100)}POOF',
+    'Dialogue: 0,0:00:01.00,0:00:01.04,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 1 1)}POOF',
+    'Dialogue: 0,0:00:01.04,0:00:01.08,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 2 2)}POOF',
+    'Dialogue: 0,0:00:01.08,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 3 3)}POOF',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: 'POOF',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+    },
+  ]);
+});
+
+test('parseSubtitleCues reconstructs a short positioned fragment without a lyric style name', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Karaoke,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx110)}Oh',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,Karaoke,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx110)}Oh',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: 'Oh',
+      source: 'reconstructed-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+      assStyle: 'Karaoke',
+    },
+  ]);
+});
+
 test('parseSubtitleCues ignores timed comments without a matching animated dialogue cluster', () => {
   const content = [
     '[Events]',

@@ -8,19 +8,26 @@ import {
 } from './ass-text';
 import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedup';
 
+export type AssCueLayout =
+  | { kind: 'positioned'; sourceOrder: number; y: number }
+  | { kind: 'source-order'; sourceOrder: number };
+
 export interface SubtitleCue {
   startTime: number;
   endTime: number;
   text: string;
-  /** A complete authored line recovered from matching generated ASS animation events. */
-  source?: 'canonical-ass';
+  /** How a complete line was recovered from generated ASS animation events. */
+  source?: 'canonical-ass' | 'reconstructed-ass';
   /**
-   * Full span of the generated animation events a canonical cue replaced. Entrance and
-   * exit frames routinely run past the authored `startTime`/`endTime`, so live-text
-   * matching must use this envelope while display and history keep the authored timing.
+   * Full span of the generated animation events a recovered cue replaced. Entrance and
+   * exit frames can run past canonical authored timing.
    */
   animationStartTime?: number;
   animationEndTime?: number;
+  /** ASS style retained only for fragment-reconstructed lines. */
+  assStyle?: string;
+  /** Authored ASS ordering metadata used when flattening simultaneous positioned cues. */
+  assLayout?: AssCueLayout;
 }
 
 /**
@@ -29,7 +36,7 @@ export interface SubtitleCue {
  * override commands it carries, whether the `Effect` column was set -- to tell a karaoke
  * burst apart from two characters saying the same word in turn. None of it is meaningful
  * outside the parser, so the public API exposes only timing, text, and the optional
- * canonical-source marker used by live subtitle consumers.
+ * recovery marker used by live subtitle consumers.
  */
 export interface AnnotatedSubtitleCue extends SubtitleCue {
   /** Text exactly as authored, override blocks and all. */
@@ -75,15 +82,55 @@ function parseTimestamp(
  * line breaks, matching what mpv hands over for the same line played live. No layer
  * downstream decodes ASS again.
  */
+function decodeSubtitleCueText(text: string): string {
+  return assToPlainText(text, '\n').replace(HTML_SUBTITLE_TAG_PATTERN, '');
+}
+
 function sanitizeSubtitleCueText(text: string): string {
-  return assToPlainText(text, '\n').replace(HTML_SUBTITLE_TAG_PATTERN, '').trim();
+  return decodeSubtitleCueText(text).trim();
+}
+
+function attachAssLayout<T extends SubtitleCue>(cue: T, assLayout: AssCueLayout | undefined): T {
+  if (assLayout) {
+    Object.defineProperty(cue, 'assLayout', { value: assLayout, enumerable: false });
+  }
+  return cue;
 }
 
 function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
-  return cues.map(({ startTime, endTime, text, source, animationStartTime, animationEndTime }) =>
-    source
-      ? { startTime, endTime, text, source, animationStartTime, animationEndTime }
-      : { startTime, endTime, text },
+  return cues.map(
+    ({
+      startTime,
+      endTime,
+      text,
+      source,
+      animationStartTime,
+      animationEndTime,
+      style,
+      assLayout,
+    }) => {
+      const common = {
+        startTime,
+        endTime,
+        text,
+      };
+      if (source === 'reconstructed-ass') {
+        return attachAssLayout(
+          {
+            ...common,
+            source,
+            animationStartTime,
+            animationEndTime,
+            assStyle: style,
+          },
+          assLayout,
+        );
+      }
+      return attachAssLayout(
+        source ? { ...common, source, animationStartTime, animationEndTime } : common,
+        assLayout,
+      );
+    },
   );
 }
 
@@ -159,6 +206,10 @@ const MIN_CANONICAL_ANIMATION_EVENTS = 3;
 // A tiny animated fragment can itself be composed from still smaller glyph events. It is
 // not enough evidence that the fragment represents an authored line boundary.
 const MIN_CANONICAL_DIALOGUE_TEXT_LENGTH = 4;
+const MIN_FRAGMENT_LINE_EVENTS = 8;
+const MIN_FRAGMENT_LINE_PARTS = 4;
+const MAX_FRAGMENT_MEDIAN_LENGTH = 4;
+const MAX_FRAGMENT_LINE_TIMING_VARIANCE_SECONDS = 2;
 
 function parseAssTimestamp(raw: string): number | null {
   const match = ASS_TIMING_PATTERN.exec(raw.trim());
@@ -293,6 +344,215 @@ function isRepeatedFragmentCopy(
     previous.startTime === current.startTime &&
     previous.endTime === current.endTime &&
     previous.overrideSignature === current.overrideSignature
+  );
+}
+
+function hasRelaxedAssFragmentEvidence(events: readonly AnnotatedSubtitleCue[]): boolean {
+  if (events.length < 2 || !events.every((event) => fragmentPlacementAnchors(event).size > 0)) {
+    return false;
+  }
+
+  const latestStart = events.reduce(
+    (latest, event) => Math.max(latest, event.startTime),
+    -Infinity,
+  );
+  const earliestEnd = events.reduce(
+    (earliest, event) => Math.min(earliest, event.endTime),
+    Infinity,
+  );
+  if (latestStart >= earliestEnd) {
+    return false;
+  }
+
+  const first = events[0]!;
+  const hasChangingOverrides = events.some(
+    (event) => event.overrideSignature !== first.overrideSignature,
+  );
+  const hasPositionedLayerCopy = events.some((event, index) =>
+    events
+      .slice(0, index)
+      .some(
+        (previous) =>
+          compactCueMatchText(previous) === compactCueMatchText(event) &&
+          isRepeatedFragmentCopy(previous, event),
+      ),
+  );
+  return hasChangingOverrides || hasPositionedLayerCopy;
+}
+
+interface AssFragmentPart {
+  cue: AnnotatedSubtitleCue;
+  text: string;
+}
+
+interface AssFragmentTimingCluster {
+  events: AnnotatedSubtitleCue[];
+  minStartTime: number;
+  maxStartTime: number;
+  minEndTime: number;
+  maxEndTime: number;
+}
+
+function addToFragmentTimingCluster(
+  cluster: AssFragmentTimingCluster,
+  cue: AnnotatedSubtitleCue,
+): void {
+  cluster.events.push(cue);
+  cluster.minStartTime = Math.min(cluster.minStartTime, cue.startTime);
+  cluster.maxStartTime = Math.max(cluster.maxStartTime, cue.startTime);
+  cluster.minEndTime = Math.min(cluster.minEndTime, cue.endTime);
+  cluster.maxEndTime = Math.max(cluster.maxEndTime, cue.endTime);
+}
+
+function fragmentTimingDistance(
+  cluster: AssFragmentTimingCluster,
+  cue: AnnotatedSubtitleCue,
+): number {
+  const nextMinStart = Math.min(cluster.minStartTime, cue.startTime);
+  const nextMaxStart = Math.max(cluster.maxStartTime, cue.startTime);
+  const nextMinEnd = Math.min(cluster.minEndTime, cue.endTime);
+  const nextMaxEnd = Math.max(cluster.maxEndTime, cue.endTime);
+  if (
+    nextMaxStart - nextMinStart > MAX_FRAGMENT_LINE_TIMING_VARIANCE_SECONDS ||
+    nextMaxEnd - nextMinEnd > MAX_FRAGMENT_LINE_TIMING_VARIANCE_SECONDS
+  ) {
+    return Infinity;
+  }
+  return (
+    Math.abs(cue.startTime - (cluster.minStartTime + cluster.maxStartTime) / 2) +
+    Math.abs(cue.endTime - (cluster.minEndTime + cluster.maxEndTime) / 2)
+  );
+}
+
+function clusterAssFragmentEvents(
+  events: readonly AnnotatedSubtitleCue[],
+): AssFragmentTimingCluster[] {
+  const clusters: AssFragmentTimingCluster[] = [];
+  for (const cue of events) {
+    let nearest: AssFragmentTimingCluster | null = null;
+    let nearestDistance = Infinity;
+    for (const cluster of clusters) {
+      const distance = fragmentTimingDistance(cluster, cue);
+      if (distance < nearestDistance) {
+        nearest = cluster;
+        nearestDistance = distance;
+      }
+    }
+    if (nearest) {
+      addToFragmentTimingCluster(nearest, cue);
+    } else {
+      clusters.push({
+        events: [cue],
+        minStartTime: cue.startTime,
+        maxStartTime: cue.startTime,
+        minEndTime: cue.endTime,
+        maxEndTime: cue.endTime,
+      });
+    }
+  }
+  return clusters;
+}
+
+function decodeSingleAssFragment(cue: AnnotatedSubtitleCue): string | null {
+  const visibleLines = decodeSubtitleCueText(cue.rawText)
+    .split('\n')
+    .filter((line) => line.trim().length > 0);
+  return visibleLines.length === 1 ? visibleLines[0]! : null;
+}
+
+function reconstructAssFragmentLine(
+  events: readonly AnnotatedSubtitleCue[],
+): AnnotatedSubtitleCue | null {
+  const hasRelaxedEvidence = hasRelaxedAssFragmentEvidence(events);
+  const minimumEvents = hasRelaxedEvidence ? 2 : MIN_FRAGMENT_LINE_EVENTS;
+  if (events.length < minimumEvents || !hasAssAnimationEvidence(events)) {
+    return null;
+  }
+
+  const parts: AssFragmentPart[] = [];
+  for (const cue of events) {
+    const text = decodeSingleAssFragment(cue);
+    if (text === null) {
+      return null;
+    }
+    const compactText = compactAssMatchText(text);
+    const isLayerCopy = parts.some(
+      (part) =>
+        compactAssMatchText(part.text) === compactText && isRepeatedFragmentCopy(part.cue, cue),
+    );
+    if (!isLayerCopy) {
+      parts.push({ cue, text });
+    }
+  }
+
+  const minimumParts = hasRelaxedEvidence ? 1 : MIN_FRAGMENT_LINE_PARTS;
+  if (parts.length < minimumParts || (!hasRelaxedEvidence && parts.length === events.length)) {
+    return null;
+  }
+  const lengths = parts
+    .map((part) => compactAssMatchText(part.text).length)
+    .sort((left, right) => left - right);
+  if ((lengths[Math.floor(lengths.length / 2)] ?? Infinity) > MAX_FRAGMENT_MEDIAN_LENGTH) {
+    return null;
+  }
+
+  const text = parts
+    .map((part) => part.text)
+    .join('')
+    .trim();
+  if (!text) {
+    return null;
+  }
+  const owner = parts[0]!.cue;
+  const animationStartTime = earliestStartTime(events);
+  const animationEndTime = latestEndTime(events);
+  return {
+    ...owner,
+    startTime: animationStartTime,
+    endTime: animationEndTime,
+    text,
+    rawText: text,
+    source: 'reconstructed-ass',
+    animationStartTime,
+    animationEndTime,
+    overrides: [],
+    overrideSignature: '',
+  };
+}
+
+function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
+  const groups = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const cue of dialogue) {
+    if (cue.source !== undefined) {
+      continue;
+    }
+    const key = assEventGroupKey(cue);
+    const group = groups.get(key);
+    if (group) {
+      group.push(cue);
+    } else {
+      groups.set(key, [cue]);
+    }
+  }
+
+  const recovered: AnnotatedSubtitleCue[] = [];
+  const suppressed = new Set<AnnotatedSubtitleCue>();
+  for (const events of groups.values()) {
+    for (const cluster of clusterAssFragmentEvents(events)) {
+      const line = reconstructAssFragmentLine(cluster.events);
+      if (!line) {
+        continue;
+      }
+      recovered.push(line);
+      cluster.events.forEach((event) => suppressed.add(event));
+    }
+  }
+  if (recovered.length === 0) {
+    return dialogue;
+  }
+  return [...dialogue.filter((cue) => !suppressed.has(cue)), ...recovered].sort(
+    (left, right) =>
+      left.startTime - right.startTime || left.endTime - right.endTime || left.order - right.order,
   );
 }
 
@@ -507,6 +767,37 @@ function recoverCanonicalAssEvents({
   );
 }
 
+function parseAssCoordinate(value: string | undefined): number | null {
+  if (!value?.trim()) return null;
+  const coordinate = Number(value.trim());
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
+function buildAssCueLayout(
+  overrides: readonly AssOverrideCommand[],
+  sourceOrder: number,
+): AssCueLayout {
+  let y: number | null = null;
+  for (const command of overrides) {
+    if (command.animated) continue;
+    const name = command.name.toLowerCase();
+    const args = command.args.split(',');
+    if (name === 'pos') {
+      y = parseAssCoordinate(args[1]) ?? y;
+      continue;
+    }
+    if (name !== 'move') continue;
+    const startY = parseAssCoordinate(args[1]);
+    const endY = parseAssCoordinate(args[3]);
+    if (startY !== null && endY !== null) {
+      y = (startY + endY) / 2;
+    }
+  }
+  return y === null
+    ? { kind: 'source-order', sourceOrder }
+    : { kind: 'positioned', sourceOrder, y };
+}
+
 function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
   const cues: AnnotatedSubtitleCue[] = [];
   const comments: AnnotatedSubtitleCue[] = [];
@@ -615,6 +906,7 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
       overrides,
       overrideSignature: assOverrideSignature(overrides),
       order: eventOrder,
+      assLayout: buildAssCueLayout(overrides, eventOrder),
     };
     eventOrder += 1;
     if (eventPrefix === ASS_COMMENT_PREFIX) {
@@ -628,7 +920,7 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
 }
 
 function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
-  return recoverCanonicalAssEvents(parseAnnotatedAssEvents(content));
+  return recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(parseAnnotatedAssEvents(content)));
 }
 
 export function parseAssCues(content: string): SubtitleCue[] {

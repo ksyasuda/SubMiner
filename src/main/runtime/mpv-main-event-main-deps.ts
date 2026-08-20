@@ -21,6 +21,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     overlayRuntimeInitialized: boolean;
     mpvClient: {
       connected?: boolean;
+      currentSubText?: string;
       currentSecondarySubText?: string;
       currentTimePos?: number;
       requestProperty?: (name: string) => Promise<unknown>;
@@ -160,6 +161,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         currentTimeSec: Number(deps.appState.mpvClient?.currentTimePos),
         cues: deps.appState.activeParsedSubtitleCues,
       }),
+    getCurrentLiveSubtitleText: () => deps.appState.mpvClient?.currentSubText ?? '',
     recordImmersionSubtitleLine: (text: string, start: number, end: number) => {
       deps.ensureImmersionTrackerInitialized();
       const tracker = deps.appState.immersionTracker;
