@@ -34,6 +34,44 @@ test('findActiveSubtitleText collapses whitespace variants of one ASS lyric', ()
   );
 });
 
+test('parsed secondary text collapses a positioned sign that repeats dialogue without punctuation', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 10,0:03:58.49,0:04:00.34,GJM_Main_1080p,Nar,0,0,0,,{\\i1}A question veiled as an insult!',
+    'Dialogue: 1,0:03:58.59,0:04:00.34,iFanzSigns,,0,0,0,,{\\pos(960,75)}A question veiled as an insult',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'kaguya-s02e10.ass');
+
+  assert.equal(findActiveSubtitleText(cues, 238.48), '');
+  assert.equal(findActiveSubtitleText(cues, 238.5), 'A question veiled as an insult!');
+  assert.equal(findActiveSubtitleText(cues, 239), 'A question veiled as an insult!');
+  assert.equal(findActiveSubtitleText(cues, 240.34), '');
+});
+
+test('parsed secondary text drops a reconstructed grid of positioned sign fragments', () => {
+  const signFragment = (text: string, x: number, y: number) =>
+    `Dialogue: 1,0:00:01.00,0:00:03.00,Signs,,0,0,0,,{\\pos(${x},${y})\\t(0,100,\\fscx101)}${text}`;
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 10,0:00:01.00,0:00:03.00,Default,Speaker,0,0,0,,Come on, wake up!',
+    signFragment('Timetable', 1700, 150),
+    signFragment('Mon', 1750, 230),
+    signFragment('Tue', 1850, 230),
+    signFragment('1', 1650, 320),
+    signFragment('2', 1650, 390),
+    signFragment('Civics', 1750, 320),
+    signFragment('Math', 1850, 390),
+    signFragment('PE', 1850, 460),
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'kaguya-s02e11.ass'), 2),
+    'Come on, wake up!',
+  );
+});
+
 test('parsed secondary lyrics keep explicit ASS vertical order when durations alternate', () => {
   const lyric = (options: { start: string; end: string; style: string; y: number; text: string }) =>
     `Dialogue: 0,0:00:${options.start},0:00:${options.end},${options.style},,0,0,0,fx,{\\move(100,${options.y},120,${options.y})\\t(0,200,\\fscx110)}${options.text}\\N{\\p1}m 0 0 l 0 5`;

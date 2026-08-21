@@ -84,6 +84,9 @@ coming and prefetching would otherwise idle for the rest of the cue.
   share one boundary, overlapping lyrics advance from the latest active boundary, and mpv's native
   command remains the fallback when no parsed destination exists. This prevents generated karaoke
   frames from consuming next/previous subtitle presses.
+- Subtitle sidebar selections seek past the preceding sanitized cue's overlapping exit span when
+  the selected cue has enough time remaining. This keeps direct row selection on the requested
+  karaoke line while clamping the seek inside that cue.
 - If startup paints raw text before embedded ASS parsing finishes, parsed cue arrival may replace
   that provisional line. The one-prime-per-media guard still suppresses identical repeats.
 - If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty
@@ -96,12 +99,18 @@ coming and prefetching would otherwise idle for the rest of the cue.
 
 - `secondary-sub-text` remains the immediate fallback, so unreadable and remote subtitle sources
   still appear without waiting for file resolution.
+- Parsed secondary text and the live fallback share a flattened-line identity for long lines. This
+  removes dialogue/sign repetitions that differ only in whitespace or terminal punctuation while
+  retaining short repeated lines that can represent authored dialogue without source metadata.
 - `secondary-subtitle-track.ts` resolves `secondary-sid` against mpv's track list. External tracks
   are read directly; supported embedded text tracks are extracted through the same ffmpeg-backed
   source resolver used by primary subtitle prefetching.
 - The selected source is parsed with `parseSubtitleCues()`, including metadata-aware ASS duplicate
   and animation collapse. Playback `time-pos` selects the active parsed cue after applying
   `secondary-sub-delay`.
+- Fragment reconstruction marks positioned parts that span multiple vertical rows as a grid.
+  Secondary text omits those grids instead of flattening a translated table or schedule into one
+  synthetic line. Reconstructed single-line karaoke remains eligible for display.
 - The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
   overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
   text when a readable source is available.

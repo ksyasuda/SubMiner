@@ -6,6 +6,7 @@ import type {
   SubtitleRendererStyleConfig,
 } from '../types';
 import { assToPlainText, normalizePlainSubtitleText } from '../core/services/ass-text.js';
+import { flattenedSecondarySubtitleLineIdentity } from '../core/services/secondary-subtitle-line-identity.js';
 import type { RendererContext } from './context';
 import { PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS } from './yomitan-popup.js';
 
@@ -665,6 +666,17 @@ function isKaraokeLikeLineSet(lines: string[]): boolean {
   return median <= KARAOKE_MAX_MEDIAN_LINE_LENGTH;
 }
 
+function collapseFullLineFallbackCopies(lines: string[]): string[] {
+  const seen = new Set<string>();
+  return lines.filter((line) => {
+    const identity = flattenedSecondarySubtitleLineIdentity(line);
+    if (!identity) return true;
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
 export function prepareSecondarySubtitleLines(text: string): string[] {
   // The one display-side ASS decode: secondary text also reaches the overlay from
   // websocket clients that forward their source line untouched, so unlike the primary
@@ -678,7 +690,7 @@ export function prepareSecondarySubtitleLines(text: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   if (!isKaraokeLikeLineSet(lines)) {
-    return lines;
+    return collapseFullLineFallbackCopies(lines);
   }
 
   const seen = new Set<string>();

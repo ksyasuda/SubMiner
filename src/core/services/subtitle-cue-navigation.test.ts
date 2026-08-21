@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   resolveSanitizedSubtitleSeekCommand,
+  subtitleCueListSeekTime,
   subtitleCueSeekTime,
 } from './subtitle-cue-navigation';
 
@@ -84,4 +85,24 @@ test('subtitle navigation falls back when no sanitized destination exists', () =
 test('sidebar cue seeks share the boundary-safe sanitized cue timestamp', () => {
   assert.equal(subtitleCueSeekTime({ startTime: 1, endTime: 2, text: 'line' }), 1.08);
   assert.equal(subtitleCueSeekTime({ startTime: 1, endTime: 1.04, text: 'short' }), 1.03);
+});
+
+test('sidebar cue selection clears an overlapping previous lyric', () => {
+  const cues = [
+    { startTime: 1, endTime: 3.4, text: 'previous lyric' },
+    { startTime: 3, endTime: 5, text: 'selected lyric' },
+  ];
+
+  assert.equal(subtitleCueListSeekTime(cues, cues[1]!), 3.48);
+});
+
+test('sidebar cue selection remains inside a short cue when overlap cannot be cleared', () => {
+  const cues = [
+    { startTime: 1, endTime: 3.4, text: 'previous lyric' },
+    { startTime: 3, endTime: 3.2, text: 'selected lyric' },
+  ];
+
+  const seekTime = subtitleCueListSeekTime(cues, cues[1]!);
+  assert.ok(seekTime >= 3.19);
+  assert.ok(seekTime < cues[1]!.endTime);
 });

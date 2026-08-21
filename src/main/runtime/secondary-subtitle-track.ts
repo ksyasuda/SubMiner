@@ -1,4 +1,5 @@
 import type { SubtitleCue } from '../../types/subtitle';
+import { flattenedSecondarySubtitleLineIdentity } from '../../core/services/secondary-subtitle-line-identity';
 
 type SecondarySubtitleMpvClient = {
   connected?: boolean;
@@ -110,6 +111,7 @@ export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds
   const activeReconstructed = cues.filter(
     (cue) =>
       cue.source === 'reconstructed-ass' &&
+      cue.assLayout?.kind !== 'fragment-grid' &&
       cue.startTime <= timeSeconds &&
       cue.endTime > timeSeconds,
   );
@@ -135,7 +137,8 @@ export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds
   }
   const selectedReconstructed = new Set(reconstructedByStyle.values());
 
-  const seen = new Set<string>();
+  const seenExact = new Set<string>();
+  const seenFlattened = new Set<string>();
   const activeText: string[] = [];
   const activeCues: IndexedSubtitleCue[] = [];
   cues.forEach((cue, index) => {
@@ -152,8 +155,12 @@ export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds
   for (const { cue } of activeCues) {
     const text = cue.text.trim();
     const compactText = text.replace(/\s+/gu, '');
-    if (!compactText || seen.has(compactText)) continue;
-    seen.add(compactText);
+    if (!compactText || seenExact.has(compactText)) continue;
+    seenExact.add(compactText);
+
+    const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(text);
+    if (flattenedIdentity && seenFlattened.has(flattenedIdentity)) continue;
+    if (flattenedIdentity) seenFlattened.add(flattenedIdentity);
     activeText.push(text);
   }
   return activeText.join('\n');

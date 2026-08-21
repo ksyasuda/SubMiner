@@ -10,6 +10,7 @@ import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedu
 
 export type AssCueLayout =
   | { kind: 'positioned'; sourceOrder: number; y: number }
+  | { kind: 'fragment-grid'; sourceOrder: number }
   | { kind: 'source-order'; sourceOrder: number };
 
 export interface SubtitleCue {
@@ -210,6 +211,7 @@ const MIN_FRAGMENT_LINE_EVENTS = 8;
 const MIN_FRAGMENT_LINE_PARTS = 4;
 const MAX_FRAGMENT_MEDIAN_LENGTH = 4;
 const MAX_FRAGMENT_LINE_TIMING_VARIANCE_SECONDS = 2;
+const MAX_FRAGMENT_LINE_VERTICAL_SPAN = 48;
 
 function parseAssTimestamp(raw: string): number | null {
   const match = ASS_TIMING_PATTERN.exec(raw.trim());
@@ -385,6 +387,30 @@ interface AssFragmentPart {
   text: string;
 }
 
+function reconstructedAssFragmentLayout(
+  parts: readonly AssFragmentPart[],
+  owner: AnnotatedSubtitleCue,
+): AssCueLayout | undefined {
+  let positionedPartCount = 0;
+  let minimumY = Infinity;
+  let maximumY = -Infinity;
+  for (const part of parts) {
+    const layout = part.cue.assLayout;
+    if (layout?.kind !== 'positioned') continue;
+    positionedPartCount += 1;
+    minimumY = Math.min(minimumY, layout.y);
+    maximumY = Math.max(maximumY, layout.y);
+  }
+
+  if (
+    positionedPartCount >= MIN_FRAGMENT_LINE_PARTS &&
+    maximumY - minimumY > MAX_FRAGMENT_LINE_VERTICAL_SPAN
+  ) {
+    return { kind: 'fragment-grid', sourceOrder: owner.order };
+  }
+  return owner.assLayout;
+}
+
 interface AssFragmentTimingCluster {
   events: AnnotatedSubtitleCue[];
   minStartTime: number;
@@ -515,6 +541,7 @@ function reconstructAssFragmentLine(
     source: 'reconstructed-ass',
     animationStartTime,
     animationEndTime,
+    assLayout: reconstructedAssFragmentLayout(parts, owner),
     overrides: [],
     overrideSignature: '',
   };

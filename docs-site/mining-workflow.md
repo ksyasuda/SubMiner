@@ -110,6 +110,8 @@ The secondary bar is a compact top-strip region in the same overlay window. It s
 
 It is controlled by `secondarySub` configuration and shares its lifecycle with the main overlay window. Cycle which track feeds it with `Shift+J`.
 
+SubMiner collapses duplicate ASS layers in parsed secondary tracks. Long lines repeated as dialogue and positioned signs are treated as the same line when they differ only in whitespace or terminal punctuation. Dense multi-row sign layouts, such as translated timetables, are excluded instead of being concatenated into the secondary bar. When SubMiner must use mpv's live text as a fallback, it still filters full-line duplicates while preserving short repeated dialogue.
+
 ### Display Modes
 
 Both the primary and secondary subtitle bars share the same three visibility modes, and each can be changed independently at runtime:

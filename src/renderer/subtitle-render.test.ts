@@ -1454,6 +1454,15 @@ test('prepareSecondarySubtitleLines preserves repeated short dialogue without la
   assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
 });
 
+test('prepareSecondarySubtitleLines collapses punctuation variants of a full-sentence fallback', () => {
+  const dialogue = 'A question veiled as an insult!';
+  const positionedSign = 'A question veiled as an insult';
+
+  assert.deepEqual(prepareSecondarySubtitleLines([dialogue, positionedSign].join('\\N')), [
+    dialogue,
+  ]);
+});
+
 test('prepareSecondarySubtitleLines preserves short simultaneous dialogue without repeats', () => {
   const dialogue = ['Wait', 'Go!', 'No!', 'Run!'];
 

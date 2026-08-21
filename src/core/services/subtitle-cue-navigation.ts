@@ -43,6 +43,36 @@ export function subtitleCueSeekTime(cue: SubtitleCue): number {
 }
 
 /**
+ * Choose a stable point inside a selected cue. Karaoke lines can overlap while the
+ * previous line animates out, so a sidebar selection should clear that overlap when
+ * the selected cue has enough time remaining.
+ */
+export function subtitleCueListSeekTime(
+  cues: readonly SubtitleCue[],
+  selectedCue: SubtitleCue,
+): number {
+  const groups = groupCueBoundaries(cues);
+  const selectedGroupIndex = groups.findIndex(
+    (group) =>
+      selectedCue.startTime >= group.startTime &&
+      selectedCue.startTime - group.startTime <= CUE_START_GROUP_TOLERANCE_SECONDS,
+  );
+  const previousGroupEndTime =
+    selectedGroupIndex > 0 ? groups[selectedGroupIndex - 1]?.endTime : undefined;
+  if (previousGroupEndTime === undefined || previousGroupEndTime <= selectedCue.startTime) {
+    return subtitleCueSeekTime(selectedCue);
+  }
+
+  return Math.max(
+    selectedCue.startTime,
+    Math.min(
+      selectedCue.endTime - CUE_END_GUARD_SECONDS,
+      previousGroupEndTime + CUE_BOUNDARY_SEEK_OFFSET_SECONDS,
+    ),
+  );
+}
+
+/**
  * Translate mpv subtitle-line navigation onto parsed cues. Generated ASS karaoke can
  * contain hundreds of subtitle events for one visible line, while the parsed list has
  * already collapsed those events into the authored lines the user expects to navigate.

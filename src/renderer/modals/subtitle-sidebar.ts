@@ -4,7 +4,7 @@ import type {
   SubtitleMiningContext,
   SubtitleSidebarSnapshot,
 } from '../../types';
-import { subtitleCueSeekTime } from '../../core/services/subtitle-cue-navigation.js';
+import { subtitleCueListSeekTime } from '../../core/services/subtitle-cue-navigation.js';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
@@ -392,7 +392,11 @@ export function createSubtitleSidebarModal(
   }
 
   function seekToCue(cue: SubtitleCue): void {
-    window.electronAPI.sendMpvCommand(['seek', subtitleCueSeekTime(cue), 'absolute+exact']);
+    window.electronAPI.sendMpvCommand([
+      'seek',
+      subtitleCueListSeekTime(ctx.state.subtitleSidebarCues, cue),
+      'absolute+exact',
+    ]);
   }
 
   function getCueRowLabel(cue: SubtitleCue): string {

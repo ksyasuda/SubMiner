@@ -52,6 +52,7 @@ export { syncYomitanDefaultAnkiServer } from './tokenizer/yomitan-parser-runtime
 export { createSubtitleProcessingController } from './subtitle-processing-controller';
 export {
   resolveSanitizedSubtitleSeekCommand,
+  subtitleCueListSeekTime,
   subtitleCueSeekTime,
 } from './subtitle-cue-navigation';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
