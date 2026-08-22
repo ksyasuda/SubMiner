@@ -1490,13 +1490,13 @@ test('prepareSecondarySubtitleLines strips ASS override tags and handles empty i
   assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}'), []);
 });
 
-test('secondary subtitle root CSS caps height so hover-pause band stays a top strip', () => {
+test('secondary subtitle root CSS does not clip long subtitle stacks', () => {
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
   const cssText = fs.readFileSync(srcCssPath, 'utf-8');
 
   const secondaryRootBlock = extractClassBlock(cssText, '#secondarySubRoot');
-  assert.match(secondaryRootBlock, /max-height:\s*6em;/);
-  assert.match(secondaryRootBlock, /overflow:\s*hidden;/);
+  assert.doesNotMatch(secondaryRootBlock, /max-height\s*:/);
+  assert.doesNotMatch(secondaryRootBlock, /overflow\s*:\s*hidden/);
 });
 
 test('applySubtitleStyle sets known-word maturity color variables', () => {
