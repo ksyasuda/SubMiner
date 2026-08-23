@@ -24,6 +24,11 @@ type SecondarySubtitleSourceInput = {
 
 const DEFAULT_REFRESH_DELAY_MS = 500;
 
+function sourceUsesAssSyntax(source: string): boolean {
+  const sourceWithoutQuery = source.split(/[?#]/u, 1)[0] ?? '';
+  return /\.(?:ass|ssa)$/iu.test(sourceWithoutQuery);
+}
+
 function finiteNumber(value: unknown, fallback = 0): number {
   const number = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -185,6 +190,7 @@ export function createSecondarySubtitleTrackController(deps: {
   let parsedCues: SubtitleCue[] | null = null;
   let parsedSourceKey: string | null = null;
   let parsedTrackIdentity: string | null = null;
+  let activeSourceUsesAssSyntax = false;
   let secondaryDelaySeconds = 0;
   let lastLiveText = '';
   let lastBroadcastText: string | null = null;
@@ -230,6 +236,7 @@ export function createSecondarySubtitleTrackController(deps: {
 
       const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw.trim() : '';
       if (!videoPath || secondarySid === null || secondarySid === 'no') {
+        activeSourceUsesAssSyntax = false;
         useLiveFallback();
         return;
       }
@@ -251,10 +258,13 @@ export function createSecondarySubtitleTrackController(deps: {
       });
       if (generation !== refreshGeneration) return;
       if (!resolvedSource) {
+        activeSourceUsesAssSyntax = false;
         deps.logDebug?.('[secondary-subtitle-track] selected source is not readable');
         useLiveFallback();
         return;
       }
+
+      activeSourceUsesAssSyntax = sourceUsesAssSyntax(resolvedSource.path);
 
       if (resolvedSource.sourceKey === parsedSourceKey && parsedCues) {
         parsedTrackIdentity = selectedTrackIdentity;
@@ -299,6 +309,7 @@ export function createSecondarySubtitleTrackController(deps: {
     parsedCues = null;
     parsedSourceKey = null;
     parsedTrackIdentity = null;
+    activeSourceUsesAssSyntax = false;
     secondaryDelaySeconds = 0;
     lastLiveText = '';
     publish('');
@@ -308,7 +319,7 @@ export function createSecondarySubtitleTrackController(deps: {
     refresh,
     scheduleRefresh,
     handleLiveText(text: string): void {
-      lastLiveText = removeAssControlDebrisLines(text);
+      lastLiveText = activeSourceUsesAssSyntax ? removeAssControlDebrisLines(text) : text;
       publish(resolveAtTime(deps.getCurrentTimePos()));
     },
     handleTimePos(timeSeconds: number): void {

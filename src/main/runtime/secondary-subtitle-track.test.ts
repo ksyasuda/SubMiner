@@ -406,21 +406,58 @@ test('secondary track controller falls back to live mpv text without a readable 
   assert.deepEqual(broadcasts, ['live fallback']);
 });
 
-test('secondary live fallback drops malformed ASS control debris', () => {
+test('secondary ASS live fallback drops malformed control debris', async () => {
   const broadcasts: string[] = [];
   const controller = createSecondarySubtitleTrackController({
-    getMpvClient: () => null,
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
     getCurrentTimePos: () => 2,
-    resolveSubtitleSource: async () => null,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.ass', sourceKey: 'english' }),
     loadSubtitleSourceText: async () => '',
     parseSubtitleCues: () => [],
     setCurrentSecondaryText: () => {},
     broadcastSecondaryText: (text) => broadcasts.push(text),
   });
 
+  await controller.refresh();
+  broadcasts.length = 0;
   controller.handleLiveText('Visible line\n\\\n{\\fr0');
 
   assert.deepEqual(broadcasts, ['Visible line']);
+});
+
+test('secondary SRT live fallback preserves text that resembles ASS control debris', async () => {
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.srt', sourceKey: 'english' }),
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
 });
 
 test('secondary track controller reuses parsed cues for an unchanged embedded track', async () => {

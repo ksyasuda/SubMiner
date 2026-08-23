@@ -218,14 +218,33 @@ test('resolvePrimarySubtitleText uses fragment grids only to account for live si
 });
 
 test('resolvePrimarySubtitleText drops malformed ASS control debris from live text', () => {
+  const cues = parseSubtitleCues(
+    [
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Visible line',
+    ].join('\n'),
+    'test.ass',
+  );
+
   assert.equal(
     resolvePrimarySubtitleText({
       liveText: 'Visible line\n\\\n{\\fr0',
       currentTimeSec: 2,
-      cues: null,
+      cues,
     }),
     'Visible line',
   );
+});
+
+test('resolvePrimarySubtitleText preserves SRT text that resembles ASS control debris', () => {
+  const liveText = 'Visible line\n\\\n{\\fr0';
+  const cues = parseSubtitleCues(
+    ['1', '00:00:01,000 --> 00:00:03,000', liveText].join('\n'),
+    'test.srt',
+  );
+
+  assert.equal(resolvePrimarySubtitleText({ liveText, currentTimeSec: 2, cues }), liveText);
 });
 
 test('resolvePrimarySubtitleText keeps a fresh line starting just after the animation ended', () => {

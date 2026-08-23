@@ -14,6 +14,15 @@ export interface ResolvedPrimarySubtitle {
   cues: SubtitleCue[];
 }
 
+function cuesUseAssSyntax(cues: readonly SubtitleCue[] | null | undefined): boolean {
+  return (cues ?? []).some(
+    (cue) =>
+      cue.source === 'canonical-ass' ||
+      cue.source === 'reconstructed-ass' ||
+      cue.assLayout !== undefined,
+  );
+}
+
 function animationSpan(cue: SubtitleCue): { start: number; end: number } {
   return {
     start: cue.animationStartTime ?? cue.startTime,
@@ -235,7 +244,9 @@ export function resolvePrimarySubtitleText(options: {
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
-  const liveText = removeAssControlDebrisLines(options.liveText);
+  const liveText = cuesUseAssSyntax(options.cues)
+    ? removeAssControlDebrisLines(options.liveText)
+    : options.liveText;
   if (!liveText.trim()) {
     return liveText;
   }
