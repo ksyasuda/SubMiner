@@ -75,6 +75,14 @@ function splitCommandSeparators(line: string): string[] {
       continue;
     }
 
+    // An unquoted backslash escapes the next character, so `\;` is literal text
+    // rather than a separator. Checked before comments and separators.
+    if (char === '\\' && index + 1 < line.length) {
+      current += char + line[index + 1]!;
+      index += 1;
+      continue;
+    }
+
     if (char === "'" || char === '"') {
       quote = char;
       current += char;

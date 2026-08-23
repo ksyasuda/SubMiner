@@ -38,6 +38,14 @@ test('stepRunsCommand ignores separators inside quotes and inline comments', () 
   assert.equal(stepRunsCommand({ run: 'gh release view "$V" 2>&1 | tee log' }, /^tee\b/), true);
 });
 
+test('stepRunsCommand treats backslash-escaped separators as literal text', () => {
+  assert.equal(runs(String.raw`echo foo \; bun run verify --flag "$VALUE"`), false);
+  assert.equal(runs(String.raw`echo foo \| bun run verify --flag "$VALUE"`), false);
+  assert.equal(runs(String.raw`find . -exec bun run verify --flag "$VALUE" \;`), false);
+  // An escape does not swallow a following real separator.
+  assert.equal(runs(String.raw`echo a\b; bun run verify --flag "$VALUE"`), true);
+});
+
 test('commandPositions splits on separators and strips control-flow prefixes', () => {
   assert.deepEqual(
     commandPositions({ run: 'if gh release view "$V"; then\ngh release edit "$V"\nfi' }),
