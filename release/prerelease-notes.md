@@ -6,39 +6,41 @@
 ### Added
 
 - Library Merge & Reassignment
-  - Duplicate library entries for the same show can now be merged: pick entries in "Select" mode and use "Merge Selected" to combine their sessions, mined cards, and watch time onto one card.
-  - Episodes can be moved to a different library entry with a per-episode "→" button, fixing cases where a stray filename split off its own entry; manual assignments now survive later filename parsing, Jellyfin refreshes, and season repair, and other episodes in the same folder pick up the same fix automatically unless they already belong elsewhere.
-  - Exact AniList matches with compatible seasons now merge automatically, and likely (fuzzy) matches surface as a dismissible "Possible duplicate" suggestion instead of merging silently; entries with conflicting seasons are left alone either way.
+  - Duplicate library cards for the same show can be combined: select entries in "Select" mode and use "Merge Selected" to combine their sessions, mined cards, and watch time onto one card.
+  - Episodes can be moved to a different entry with a per-episode "→" button, fixing stray files that split off their own entry; manual assignments now survive later filename parsing, Jellyfin refreshes, and season repair.
+  - Exact AniList matches with compatible seasons merge automatically, while likely (fuzzy) matches surface as a dismissible "Possible duplicate" suggestion instead of merging silently.
 
 - Duplicate Line Cleanup
-  - The Vocabulary tab's new **Duplicates** button scans a chosen time window for the repeated-line bursts described under Fixed below and collapses each burst to a single line once you confirm it; a matching `subminer stats cleanup --duplicate-lines` command (with `--dry-run` and `--lookback-days <n>`) is available from the terminal.
+  - The Vocabulary tab's new **Duplicates** button scans a chosen time window for the repeated-line bursts described under Fixed below and collapses each burst to a single line once confirmed.
+  - A matching `subminer stats cleanup --duplicate-lines` command (with `--dry-run` and `--lookback-days <n>`) is available from the terminal.
   - Only the affected subtitle lines and the vocabulary counts they inflated are touched; watch time and lines-seen totals are left as recorded.
 
 ### Fixed
 
 - Subtitle Duplication from Karaoke & Animated Signs
-  - Typeset ASS karaoke and animated signs no longer flood the overlay, subtitle sidebar, immersion history, mined cards, or stats with repeated glyph fragments or per-frame duplicates; the complete authored line is recovered instead, without merging genuinely repeated dialogue or separately positioned signs. Dialogue spoken while a song's animation is on screen is kept intact instead of being replaced by the lyric, and lyric transitions (including seeking into the middle of a line) resolve to the clean line instead of a stray entrance or exit frame.
-  - The secondary overlay now shares the same deduplication logic as the primary overlay, including collapsing lines that only differ by whitespace or trailing punctuation, so layered animation text and dense multi-row sign layouts no longer appear duplicated or garbled there or in what gets mined.
-  - Sidebar navigation now moves between the clean, sanitized lyric lines instead of the raw generated animation events, and selecting an overlapping lyric keeps the right line selected.
-  - Vocabulary stats no longer count every animation frame of a karaoke opening as a separate line, which previously could push an OP lyric to the top of "Top Repeated Words."
+  - Typeset ASS karaoke and animated signs no longer flood the overlay, subtitle sidebar, immersion history, mined cards, or stats with repeated glyph fragments or per-frame duplicates; the complete authored line is recovered instead, without merging genuinely repeated dialogue or separately positioned signs.
+  - Fragmented karaoke now preserves the spaces the author placed between words instead of joining them together, and lyric transitions (including seeking into the middle of a line) resolve to the clean line instead of a stray entrance or exit frame.
+  - The secondary overlay shares the same deduplication logic as the primary overlay, including collapsing lines that differ only by whitespace or trailing punctuation, and sidebar navigation moves between clean lyric lines while keeping the right line selected.
 
 - Anki Media Generation
-  - Sentence-audio generation no longer times out on slow network-mounted video files with many subtitle and font streams (bounded probing plus a two-minute extraction budget), and a failed extraction now reports a clear error instead of a raw `ENOENT`.
+  - Sentence-audio generation no longer times out on slow network-mounted video files with many subtitle and font streams, and a failed extraction now reports a clear error instead of a raw `ENOENT`.
   - Mined audio and animated AVIF clips now capture the subtitle line you actually mined, instead of whatever line happened to be on screen once slow audio extraction finished.
 
 - Character Dictionary Performance & Notifications
-  - Character dictionary generation, merged rebuilds, and imports no longer freeze the app on large dictionaries, and cached results (including character portraits) are reused across launches instead of regenerating everything every time. Portraits also now display correctly if their cache finishes loading after subtitles have already started showing.
+  - Character dictionary generation, merged rebuilds, and imports no longer freeze the app on large dictionaries, and cached results (including character portraits) are reused across launches instead of regenerating everything every time.
+  - Portraits also now display correctly if their cache finishes loading after subtitles have already started showing.
   - Desktop progress notifications, including on Linux AppImage installs, now update in place instead of flickering closed and reopening.
 
 - Overlay Reliability
   - Overlay modals (settings, stats, etc.) now open promptly on the first shortcut press, including on repeated sessions on Windows, and appear above fullscreen mpv on macOS instead of switching Spaces or opening off-screen.
+  - The macOS window-tracking helper is now built for macOS 12.0+, so the overlay attaches to mpv on older systems like Ventura instead of crashing and getting stuck on "Overlay loading."
   - The overlay no longer gets stuck on "Overlay loading" indefinitely if mpv's connection stalls; it now retries and shows an actionable error after 30 seconds.
-  - Fixed native Wayland drag-and-drop from file managers like Thunar, so subtitle and video files dropped on the overlay reach mpv.
-  - Fixed system-wide mouse lag on Windows caused by the overlay's click-through handling and repeated mpv window lookups.
+  - Fixed native Wayland drag-and-drop from file managers like Thunar, and fixed system-wide mouse lag on Windows caused by the overlay's click-through handling.
 
 - Stats Dashboard
   - Deletes, library merges, video moves, and AniList reassignments no longer freeze the stats dashboard or rebuild lifetime totals from scratch; large deletes that used to take minutes now finish in milliseconds.
-  - Vocabulary totals and charts now count all tracked vocabulary instead of just the first page, new-word history uses corrected daily rollups, calendar labels respect time zones west of UTC, and vocabulary cards refresh automatically after editing the word exclusion list (with a Retry option if a load fails).
+  - Vocabulary totals and charts now count all tracked vocabulary instead of just the first page, and new-word history uses corrected daily rollups.
+  - Calendar labels respect time zones west of UTC, and vocabulary cards refresh automatically after editing the word exclusion list (with a Retry option if a load fails).
 
 - Linux Launcher Thumbnails
   - Fixed missing MKV thumbnails in the Linux rofi picker when the system thumbnailer only registers legacy Matroska MIME aliases.
