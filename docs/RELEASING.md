@@ -58,12 +58,15 @@
    `latest*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
    `release/prerelease-notes.md`). CI does not regenerate notes — it uses the
-   committed file — so review it before committing. If you add more
-   `changes/*.md` fragments for a later beta/RC, rerun
-   `bun run changelog:prerelease-notes --version <version>`; the generator uses
-   the existing prerelease notes as the baseline only when their hidden
-   `prerelease-base-version` marker matches the current base version, and asks
-   Claude to merge only the new fragment material. Do not run
+   committed file — so review it before committing. Rerun
+   `bun run changelog:prerelease-notes --version <version>` for every later
+   beta/RC, even if no fragments changed: the notes carry a hidden
+   `prerelease-version` marker and CI rejects the tag when the marker does not
+   match it (verify locally with
+   `bun run changelog:check-prerelease-notes --version <version>`). The
+   generator reuses the existing notes as the cumulative baseline when their
+   marker (or legacy `prerelease-base-version` marker) matches the current base
+   version, and asks Claude to merge only the new fragment material. Do not run
    `bun run changelog:build`.
 6. Tag the commit: `git tag v<version>`.
 7. Push commit + tag.
@@ -78,6 +81,8 @@ Notes:
 - Pass `--date` explicitly when you want the release stamped with the local cut date; otherwise the generator uses the current ISO date, which can roll over to the next UTC day late at night.
 - `changelog:check` now rejects tag/package version mismatches.
 - `changelog:prerelease-notes` also rejects tag/package version mismatches and writes `release/prerelease-notes.md` without mutating tracked changelog files. When that file already exists, the generator includes it in the Claude prompt so later beta/RC notes reuse the reviewed text instead of starting over.
+- From the second prerelease of a base version onward, the notes open with a `## Changes since <previous tag>` section above the cumulative `## Highlights`. The generator locates the newest preceding beta/RC tag for the same base version (semver order: all betas before all RCs), diffs `changes/*.md` between that tag and the working tree, and asks Claude to describe only the behavioral beta-to-beta differences — added fragments as new changes, modified fragments by their before/after difference (editorial-only edits are dropped), deleted fragments as removed/reverted changes. If no fragments changed (for example a packaging-only rebuild), the section states that explicitly without a Claude call. The delta section carries no separate contributor attribution; `## What's Changed` stays cumulative like `## Highlights`.
+- `changelog:check-prerelease-notes --version <version>` verifies the committed notes' `prerelease-version` marker matches the version being tagged; the prerelease workflow runs it and fails the release on stale notes.
 - `changelog:build` generates `CHANGELOG.md` + `release/release-notes.md` (both polished by `claude -p`) and removes the released `changes/*.md` fragments. The CHANGELOG keeps internal notes inside a `<details><summary>Internal changes</summary>` collapse; the release notes drop them entirely.
 - `release/release-notes.md` (and `release/prerelease-notes.md`) include GitHub-style attribution after `## Highlights`: a `## What's Changed` list crediting each released fragment as `by @<author> in #<pr>`, plus a `## New Contributors` section for first-time authors. Attribution is resolved per fragment via `git log` (the commit that added the fragment) + `gh api .../commits/<sha>/pulls`, with one `gh` search per author for the first-contribution check. It needs `gh` installed and authenticated; if `gh` is unavailable or a lookup fails, the generator warns and emits notes without the attribution sections rather than failing. The CHANGELOG itself stays attribution-free.
 - The release workflow no longer auto-runs `changelog:build`. If pending `changes/*.md` fragments are present on a tag-based run, CI exits with a clear `::error::` pointing at the local fix. Run `bun run changelog:build --version <version>` locally, commit the polished output, then tag.

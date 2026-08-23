@@ -2,9 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  jobSteps,
+  readWorkflow,
+  stepRunsCommand,
+  stepsMissingEnvDeclaration,
+  templateExpressionsInRunBodies,
+} from './workflow-test-helpers';
 
 const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
 const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8').replace(/\r\n/g, '\n');
+const parsedPrereleaseWorkflow = readWorkflow(prereleaseWorkflowPath);
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
@@ -121,4 +129,34 @@ test('prerelease workflow does not publish to AUR', () => {
   assert.doesNotMatch(prereleaseWorkflow, /aur-publish:/);
   assert.doesNotMatch(prereleaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
   assert.doesNotMatch(prereleaseWorkflow, /scripts\/update-aur-package\.sh/);
+});
+
+test('prerelease workflow rejects committed notes generated for a different beta or rc', () => {
+  assert.equal(
+    packageJson.scripts['changelog:check-prerelease-notes'],
+    'bun run scripts/build-changelog.ts check-prerelease-notes',
+  );
+
+  // Matched at command positions only, so commenting the check out or quoting it
+  // inside an echo fails the test rather than silently satisfying it.
+  const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
+  const checkIndex = steps.findIndex((step) =>
+    stepRunsCommand(
+      step,
+      /^bun run changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
+    ),
+  );
+  const publishIndex = steps.findIndex((step) =>
+    stepRunsCommand(step, /^gh release (create|edit)\b/),
+  );
+
+  assert.notEqual(checkIndex, -1);
+  assert.notEqual(publishIndex, -1);
+  // Stale notes are already published if the check runs after the release.
+  assert.ok(checkIndex < publishIndex);
+});
+
+test('prerelease workflow keeps tag-derived values out of shell bodies', () => {
+  assert.deepEqual(templateExpressionsInRunBodies(parsedPrereleaseWorkflow), []);
+  assert.deepEqual(stepsMissingEnvDeclaration(parsedPrereleaseWorkflow, 'RELEASE_VERSION'), []);
 });

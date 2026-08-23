@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -583,7 +584,7 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
     const outputPath = writePrereleaseNotesForVersion({
       cwd: projectRoot,
       version: '0.11.3-beta.1',
-      deps: { runClaude: stub.runClaude },
+      deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
     });
 
     assert.equal(outputPath, path.join(projectRoot, 'release', 'prerelease-notes.md'));
@@ -605,7 +606,8 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
 
     const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
     assert.match(prereleaseNotes, /^> This is a prerelease build for testing\./m);
-    assert.match(prereleaseNotes, /<!-- prerelease-base-version: 0\.11\.3 -->/);
+    assert.match(prereleaseNotes, /<!-- prerelease-version: 0\.11\.3-beta\.1 -->/);
+    assert.doesNotMatch(prereleaseNotes, /## Changes since /);
     assert.match(prereleaseNotes, /## Highlights\n### Added\n- Polished: added entry\./);
     assert.match(prereleaseNotes, /### Fixed\n- Polished: fixed entry\./);
     assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
@@ -668,7 +670,7 @@ test('writePrereleaseNotesForVersion reuses existing prerelease notes when addin
     const outputPath = writePrereleaseNotesForVersion({
       cwd: projectRoot,
       version: '0.11.3-beta.2',
-      deps: { runClaude: stub.runClaude },
+      deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
     });
 
     assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
@@ -723,7 +725,7 @@ test('writePrereleaseNotesForVersion ignores unmarked prerelease notes from an o
     const outputPath = writePrereleaseNotesForVersion({
       cwd: projectRoot,
       version: '0.17.0-beta.1',
-      deps: { runClaude: stub.runClaude },
+      deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
     });
 
     assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
@@ -790,7 +792,7 @@ test('writePrereleaseNotesForVersion prompts Claude to revise stale prerelease b
     writePrereleaseNotesForVersion({
       cwd: projectRoot,
       version: '0.12.0-beta.2',
-      deps: { runClaude: stub.runClaude },
+      deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
     });
 
     assert.equal(stub.calls.length, 1, 'prerelease should issue exactly one Claude call');
@@ -830,7 +832,7 @@ test('writePrereleaseNotesForVersion supports rc prereleases', async () => {
     const outputPath = writePrereleaseNotesForVersion({
       cwd: projectRoot,
       version: '0.11.3-rc.1',
-      deps: { runClaude: stub.runClaude },
+      deps: { runClaude: stub.runClaude, listPrereleaseTags: () => [] },
     });
 
     const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
@@ -1443,6 +1445,376 @@ test('writeChangelogArtifacts strips <details> blocks from release notes when re
     assert.match(releaseNotes, /## Highlights\n### Added\n- Polished: previously committed\./);
     assert.doesNotMatch(releaseNotes, /<details>/);
     assert.doesNotMatch(releaseNotes, /### Internal/);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('selectPreviousPrereleaseTag orders betas before rcs and filters other base versions', async () => {
+  const { selectPreviousPrereleaseTag } = await loadModule();
+
+  const tags = [
+    'v0.19.4-beta.1',
+    'v0.19.4-beta.3',
+    'v0.19.4-beta.2',
+    'v0.19.3-beta.9',
+    'v0.19.4-rc.1',
+    'not-a-tag',
+  ];
+
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-beta.1'), null);
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-beta.2'), 'v0.19.4-beta.1');
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-beta.4'), 'v0.19.4-beta.3');
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-rc.1'), 'v0.19.4-beta.3');
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-rc.2'), 'v0.19.4-rc.1');
+  // Regenerating notes for an already-tagged version must not pick itself.
+  assert.equal(selectPreviousPrereleaseTag(tags, '0.19.4-beta.3'), 'v0.19.4-beta.2');
+  assert.equal(selectPreviousPrereleaseTag(['v0.19.3-beta.1'], '0.19.4-beta.2'), null);
+});
+
+test('writePrereleaseNotesForVersion adds a delta section generated from fragment diffs', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-delta-section');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.2' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: fixed', 'area: overlay', '', '- Fixed overlay focus and macOS helper.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = recordingRunClaude((input) =>
+      input.includes('MODIFIED FRAGMENT')
+        ? '- Fixed the macOS helper deployment target for older systems.'
+        : '### Fixed\n- Overlay: cumulative fixed entry.',
+    );
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.12.0-beta.2',
+      deps: {
+        runClaude: stub.runClaude,
+        listPrereleaseTags: () => ['v0.12.0-beta.1'],
+        resolveFragmentDelta: (_cwd, previousTag) => {
+          assert.equal(previousTag, 'v0.12.0-beta.1');
+          return [
+            {
+              path: 'changes/002.md',
+              status: 'added',
+              after: 'type: fixed\narea: macos\n\n- Fixed helper deployment target.',
+            },
+            {
+              path: 'changes/001.md',
+              status: 'modified',
+              before: '- Fixed overlay focus.',
+              after: '- Fixed overlay focus and macOS helper.',
+            },
+            {
+              path: 'changes/003.md',
+              status: 'deleted',
+              before: 'type: added\narea: stats\n\n- Reverted experimental stats view.',
+            },
+          ];
+        },
+      },
+    });
+
+    assert.equal(stub.calls.length, 2, 'delta and cumulative polish are separate Claude calls');
+    const deltaPrompt = stub.calls[0]!.input;
+    assert.match(deltaPrompt, /ADDED FRAGMENT changes\/002\.md/);
+    assert.match(deltaPrompt, /MODIFIED FRAGMENT changes\/001\.md/);
+    assert.match(deltaPrompt, /BEFORE:\n- Fixed overlay focus\./);
+    assert.match(deltaPrompt, /AFTER:\n- Fixed overlay focus and macOS helper\./);
+    assert.match(deltaPrompt, /DELETED FRAGMENT changes\/003\.md/);
+    assert.match(deltaPrompt, /If the edit is editorial/);
+    assert.match(deltaPrompt, /removed or reverted/);
+    assert.match(deltaPrompt, /No user-facing changes since v0\.12\.0-beta\.1\./);
+    assert.equal(modeFromPrompt(stub.calls[1]!.input), 'release-notes');
+
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(
+      prereleaseNotes,
+      /<!-- prerelease-version: 0\.12\.0-beta\.2; since: v0\.12\.0-beta\.1 -->/,
+    );
+    const deltaIndex = prereleaseNotes.indexOf('## Changes since v0.12.0-beta.1');
+    const highlightsIndex = prereleaseNotes.indexOf('## Highlights');
+    assert.ok(deltaIndex !== -1, 'delta section heading should be present');
+    assert.ok(deltaIndex < highlightsIndex, 'delta section should precede Highlights');
+    assert.match(prereleaseNotes, /- Fixed the macOS helper deployment target for older systems\./);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion renders a fallback delta line when no fragments changed', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-empty-delta');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.3' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: fixed', 'area: overlay', '', '- Fixed overlay focus.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = defaultStubClaude();
+    const outputPath = writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.12.0-beta.3',
+      deps: {
+        runClaude: stub.runClaude,
+        listPrereleaseTags: () => ['v0.12.0-beta.1', 'v0.12.0-beta.2'],
+        resolveFragmentDelta: () => [],
+      },
+    });
+
+    assert.equal(stub.calls.length, 1, 'empty delta must not spend a Claude call');
+    const prereleaseNotes = fs.readFileSync(outputPath, 'utf8');
+    assert.match(
+      prereleaseNotes,
+      /## Changes since v0\.12\.0-beta\.2\n\n- No changelog fragment changes since v0\.12\.0-beta\.2; this build contains packaging or internal-only updates\./,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion rejects non-bullet delta output from Claude', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-delta-invalid-output');
+  const projectRoot = path.join(workspace, 'SubMiner');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.2' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: fixed', 'area: overlay', '', '- Fixed overlay focus.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = recordingRunClaude(() => 'Here are the changes:\n- One change.');
+    assert.throws(
+      () =>
+        writePrereleaseNotesForVersion({
+          cwd: projectRoot,
+          version: '0.12.0-beta.2',
+          deps: {
+            runClaude: stub.runClaude,
+            listPrereleaseTags: () => ['v0.12.0-beta.1'],
+            resolveFragmentDelta: () => [
+              { path: 'changes/001.md', status: 'added', after: '- Fixed overlay focus.' },
+            ],
+          },
+        }),
+      /delta output must contain only Markdown bullets/,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('writePrereleaseNotesForVersion strips the stale delta section from the reused baseline', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-reuse-strips-delta');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const existingNotes = [
+    '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
+    '',
+    '<!-- prerelease-version: 0.12.0-beta.2; since: v0.12.0-beta.1 -->',
+    '',
+    '## Changes since v0.12.0-beta.1',
+    '',
+    '- Stale beta-to-beta delta bullet.',
+    '',
+    '## Highlights',
+    '### Added',
+    '- Overlay: Previous beta entry.',
+    '',
+    '## Installation',
+    '',
+    'See the README and docs/installation guide for full setup steps.',
+    '',
+  ].join('\n');
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.3' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(path.join(projectRoot, 'release', 'prerelease-notes.md'), existingNotes, 'utf8');
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', '001.md'),
+    ['type: added', 'area: overlay', '', '- Added overlay coverage.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    const stub = defaultStubClaude();
+    writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.12.0-beta.3',
+      deps: {
+        runClaude: stub.runClaude,
+        listPrereleaseTags: () => [],
+        resolveFragmentDelta: () => [],
+      },
+    });
+
+    assert.equal(stub.calls.length, 1);
+    const prompt = stub.calls[0]!.input;
+    assert.match(prompt, /EXISTING PRERELEASE NOTES/);
+    assert.match(prompt, /Overlay: Previous beta entry\./);
+    assert.doesNotMatch(prompt, /Stale beta-to-beta delta bullet\./);
+    assert.doesNotMatch(prompt, /## Changes since /);
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('verifyPrereleaseNotesMatchVersion accepts matching notes and rejects stale or legacy markers', async () => {
+  const { verifyPrereleaseNotesMatchVersion } = await loadModule();
+  const workspace = createWorkspace('verify-prerelease-notes');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const notesPath = path.join(projectRoot, 'release', 'prerelease-notes.md');
+
+  fs.mkdirSync(path.join(projectRoot, 'release'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.12.0-beta.2' }, null, 2),
+    'utf8',
+  );
+
+  try {
+    assert.throws(
+      () => verifyPrereleaseNotesMatchVersion({ cwd: projectRoot, version: '0.12.0-beta.2' }),
+      /Missing .*prerelease-notes\.md/,
+    );
+
+    fs.writeFileSync(
+      notesPath,
+      '<!-- prerelease-version: 0.12.0-beta.2; since: v0.12.0-beta.1 -->\n\n## Highlights\n',
+      'utf8',
+    );
+    verifyPrereleaseNotesMatchVersion({ cwd: projectRoot, version: '0.12.0-beta.2' });
+    verifyPrereleaseNotesMatchVersion({ cwd: projectRoot, version: 'v0.12.0-beta.2' });
+
+    fs.writeFileSync(
+      notesPath,
+      '<!-- prerelease-version: 0.12.0-beta.1 -->\n\n## Highlights\n',
+      'utf8',
+    );
+    assert.throws(
+      () => verifyPrereleaseNotesMatchVersion({ cwd: projectRoot, version: '0.12.0-beta.2' }),
+      /generated for 0\.12\.0-beta\.1 but this release is 0\.12\.0-beta\.2/,
+    );
+
+    fs.writeFileSync(
+      notesPath,
+      '<!-- prerelease-base-version: 0.12.0 -->\n\n## Highlights\n',
+      'utf8',
+    );
+    assert.throws(
+      () => verifyPrereleaseNotesMatchVersion({ cwd: projectRoot, version: '0.12.0-beta.2' }),
+      /missing or legacy prerelease-version marker/,
+    );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('default git tag listing and fragment delta resolution work against a real repository', async () => {
+  const { writePrereleaseNotesForVersion } = await loadModule();
+  const workspace = createWorkspace('prerelease-git-defaults');
+  const projectRoot = path.join(workspace, 'SubMiner');
+  const git = (...args: string[]): void => {
+    execFileSync('git', args, { cwd: projectRoot, stdio: 'ignore' });
+  };
+
+  fs.mkdirSync(path.join(projectRoot, 'changes'), { recursive: true });
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify({ name: 'subminer', version: '0.11.3-beta.1' }, null, 2),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', 'kept.md'),
+    ['type: added', 'area: overlay', '', '- Kept change.'].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', 'edited.md'),
+    ['type: fixed', 'area: launcher', '', '- Original launcher fix.'].join('\n'),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'changes', 'removed.md'),
+    ['type: added', 'area: stats', '', '- Reverted stats change.'].join('\n'),
+    'utf8',
+  );
+
+  try {
+    git('init', '--quiet');
+    git('-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'add', '.');
+    git('-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '-m', 'beta.1');
+    git('tag', 'v0.11.3-beta.1');
+
+    fs.writeFileSync(
+      path.join(projectRoot, 'changes', 'edited.md'),
+      ['type: fixed', 'area: launcher', '', '- Broader launcher fix.'].join('\n'),
+      'utf8',
+    );
+    fs.rmSync(path.join(projectRoot, 'changes', 'removed.md'));
+    fs.writeFileSync(
+      path.join(projectRoot, 'changes', 'new.md'),
+      ['type: added', 'area: anki', '', '- New anki change.'].join('\n'),
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(projectRoot, 'package.json'),
+      JSON.stringify({ name: 'subminer', version: '0.11.3-beta.2' }, null, 2),
+      'utf8',
+    );
+
+    const stub = recordingRunClaude((input) =>
+      input.includes('PREVIOUS_TAG:') ? '- Delta bullet.' : defaultPolishedBody(input),
+    );
+    writePrereleaseNotesForVersion({
+      cwd: projectRoot,
+      version: '0.11.3-beta.2',
+      deps: { runClaude: stub.runClaude },
+    });
+
+    assert.equal(stub.calls.length, 2);
+    const deltaPrompt = stub.calls[0]!.input;
+    assert.match(deltaPrompt, /PREVIOUS_TAG: v0\.11\.3-beta\.1/);
+    assert.match(deltaPrompt, /ADDED FRAGMENT changes\/new\.md/);
+    assert.match(deltaPrompt, /- New anki change\./);
+    assert.match(deltaPrompt, /MODIFIED FRAGMENT changes\/edited\.md/);
+    assert.match(deltaPrompt, /- Original launcher fix\./);
+    assert.match(deltaPrompt, /- Broader launcher fix\./);
+    assert.match(deltaPrompt, /DELETED FRAGMENT changes\/removed\.md/);
+    assert.match(deltaPrompt, /- Reverted stats change\./);
+    assert.doesNotMatch(deltaPrompt, /kept\.md/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

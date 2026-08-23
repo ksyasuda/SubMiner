@@ -18,6 +18,15 @@ type Contribution = {
 // and the GitHub API.
 type ResolveContributions = (fragmentPaths: string[], cwd: string) => Contribution[];
 
+// One changelog fragment's change between the previous prerelease tag and the
+// working tree. `before` is the content at the tag, `after` the current content.
+export type FragmentDeltaEntry = {
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+  before?: string;
+  after?: string;
+};
+
 type ChangelogFsDeps = {
   existsSync?: (candidate: string) => boolean;
   mkdirSync?: (candidate: string, options: { recursive: true }) => void;
@@ -28,6 +37,8 @@ type ChangelogFsDeps = {
   log?: (message: string) => void;
   runClaude?: RunClaude;
   resolveContributions?: ResolveContributions;
+  listPrereleaseTags?: (cwd: string, baseVersion: string) => string[];
+  resolveFragmentDelta?: (cwd: string, previousTag: string) => FragmentDeltaEntry[];
 };
 
 type PolishMode = 'changelog' | 'release-notes';
@@ -103,16 +114,57 @@ function resolvePrereleaseBaseVersion(version: string): string {
   return match[1]!;
 }
 
-function renderPrereleaseBaseVersionMarker(version: string): string {
-  return `<!-- prerelease-base-version: ${resolvePrereleaseBaseVersion(version)} -->`;
+// The marker records which exact prerelease the committed notes were generated
+// for (and which prior tag the delta section compares against), so CI can
+// reject notes that were prepared for a different beta/RC.
+function renderPrereleaseVersionMarker(version: string, previousTag: string | null): string {
+  const since = previousTag ? `; since: ${previousTag}` : '';
+  return `<!-- prerelease-version: ${normalizeVersion(version)}${since} -->`;
 }
 
+export function extractPrereleaseVersionMarker(notes: string): string | null {
+  return (
+    /<!--\s*prerelease-version:\s*(\d+\.\d+\.\d+-(?:beta|rc)\.\d+)(?:;\s*since:\s*\S+)?\s*-->/u.exec(
+      notes,
+    )?.[1] ?? null
+  );
+}
+
+// Legacy marker written before the per-version marker existed. Still accepted
+// when deciding whether existing notes can seed the cumulative baseline.
 function extractPrereleaseBaseVersionMarker(notes: string): string | null {
+  const fullVersion = extractPrereleaseVersionMarker(notes);
+  if (fullVersion) {
+    return resolvePrereleaseBaseVersion(fullVersion);
+  }
   return /<!--\s*prerelease-base-version:\s*(\d+\.\d+\.\d+)\s*-->/u.exec(notes)?.[1] ?? null;
 }
 
+const DELTA_SECTION_HEADING_PREFIX = '## Changes since ';
+
+// Removes the previous run's "Changes since" section so the cumulative baseline
+// fed back to Claude never carries a stale beta-to-beta delta.
+function stripDeltaSection(notes: string): string {
+  const lines = notes.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith(DELTA_SECTION_HEADING_PREFIX));
+  if (start === -1) {
+    return notes;
+  }
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (lines[index]!.startsWith('## ')) {
+      end = index;
+      break;
+    }
+  }
+  return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
+}
+
 function stripPrereleaseMetadata(notes: string): string {
-  return notes.replace(/<!--\s*prerelease-base-version:\s*\d+\.\d+\.\d+\s*-->\s*/u, '').trim();
+  return notes
+    .replace(/<!--\s*prerelease-version:[^>]*-->\s*/u, '')
+    .replace(/<!--\s*prerelease-base-version:\s*\d+\.\d+\.\d+\s*-->\s*/u, '')
+    .trim();
 }
 
 function resolveReusablePrereleaseNotes(notes: string, version: string): string | undefined {
@@ -120,7 +172,124 @@ function resolveReusablePrereleaseNotes(notes: string, version: string): string 
   if (existingBaseVersion !== resolvePrereleaseBaseVersion(version)) {
     return undefined;
   }
-  return stripPrereleaseMetadata(notes);
+  return stripPrereleaseMetadata(stripDeltaSection(notes));
+}
+
+type ParsedPrereleaseTag = {
+  tag: string;
+  base: string;
+  channel: 'beta' | 'rc';
+  iteration: number;
+};
+
+function parsePrereleaseTag(tag: string): ParsedPrereleaseTag | null {
+  const match = /^v?(\d+\.\d+\.\d+)-(beta|rc)\.(\d+)$/u.exec(tag.trim());
+  if (!match) {
+    return null;
+  }
+  return {
+    tag: tag.trim(),
+    base: match[1]!,
+    channel: match[2] as 'beta' | 'rc',
+    iteration: Number.parseInt(match[3]!, 10),
+  };
+}
+
+// Semver prerelease order: every beta sorts before every rc, then numerically.
+function comparePrereleaseTags(a: ParsedPrereleaseTag, b: ParsedPrereleaseTag): number {
+  if (a.channel !== b.channel) {
+    return a.channel === 'beta' ? -1 : 1;
+  }
+  return a.iteration - b.iteration;
+}
+
+// Picks the newest prerelease tag for the same base version that strictly
+// precedes the version being released. Returns null for the first prerelease.
+export function selectPreviousPrereleaseTag(tags: string[], version: string): string | null {
+  const current = parsePrereleaseTag(normalizeVersion(version));
+  if (!current) {
+    return null;
+  }
+
+  const candidates = tags
+    .map(parsePrereleaseTag)
+    .filter((parsed): parsed is ParsedPrereleaseTag => parsed !== null)
+    .filter((parsed) => parsed.base === current.base)
+    .filter((parsed) => comparePrereleaseTags(parsed, current) < 0)
+    .sort(comparePrereleaseTags);
+
+  return candidates[candidates.length - 1]?.tag ?? null;
+}
+
+function defaultListPrereleaseTags(cwd: string, baseVersion: string): string[] {
+  return execFileSync('git', ['tag', '--list', `v${baseVersion}-beta.*`, `v${baseVersion}-rc.*`], {
+    cwd,
+    encoding: 'utf8',
+  })
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+// Diffs changes/*.md between the previous prerelease tag and the working tree.
+// Renamed fragments are treated as modifications of the new path.
+//
+// Like every other path in this script, git paths are resolved against `cwd`,
+// which is the project root and also the repository root. Callers that point
+// `cwd` elsewhere already fail earlier and loudly, when package.json and
+// changes/ come back missing.
+function defaultResolveFragmentDelta(cwd: string, previousTag: string): FragmentDeltaEntry[] {
+  const output = execFileSync(
+    'git',
+    ['diff', '--name-status', '--find-renames', previousTag, '--', 'changes'],
+    { cwd, encoding: 'utf8' },
+  );
+  const showAtTag = (fragmentPath: string): string =>
+    execFileSync('git', ['show', `${previousTag}:${fragmentPath}`], { cwd, encoding: 'utf8' });
+  const readCurrent = (fragmentPath: string): string =>
+    fs.readFileSync(path.join(cwd, fragmentPath), 'utf8');
+
+  const entries: FragmentDeltaEntry[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue;
+    }
+    const [status = '', ...paths] = line.split('\t');
+    const oldPath = paths[0] ?? '';
+    const newPath = paths[paths.length - 1] ?? '';
+    if (!isFragmentPath(newPath) && !isFragmentPath(oldPath)) {
+      continue;
+    }
+
+    if (status.startsWith('A')) {
+      entries.push({ path: newPath, status: 'added', after: readCurrent(newPath) });
+    } else if (status.startsWith('D')) {
+      entries.push({ path: oldPath, status: 'deleted', before: showAtTag(oldPath) });
+    } else if (status.startsWith('M') || status.startsWith('R')) {
+      entries.push({
+        path: newPath,
+        status: 'modified',
+        before: showAtTag(oldPath),
+        after: readCurrent(newPath),
+      });
+    }
+  }
+
+  // git diff misses fragments that exist only in the working tree; treat
+  // untracked fragments as additions so a pre-commit run still sees them.
+  const untracked = execFileSync(
+    'git',
+    ['ls-files', '--others', '--exclude-standard', '--', 'changes'],
+    { cwd, encoding: 'utf8' },
+  )
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((candidate) => candidate && isFragmentPath(candidate));
+  for (const fragmentPath of untracked) {
+    entries.push({ path: fragmentPath, status: 'added', after: readCurrent(fragmentPath) });
+  }
+
+  return entries;
 }
 
 function verifyRequestedVersionMatchesPackageVersion(
@@ -615,7 +784,7 @@ function polishFragmentsWithClaude(
     ? [
         '## Existing Prerelease Notes',
         '',
-        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Existing prerelease notes are a baseline, not an immutable changelog. Reuse reviewed highlight bullets when they still describe the current outcome, but replace stale beta or RC wording when new fragments supersede it. Merge in only new or changed fragment material, and deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, Installation, or Assets sections.',
+        'The input includes EXISTING PRERELEASE NOTES before the fragment list. Existing prerelease notes are a baseline, not an immutable changelog. Reuse reviewed highlight bullets when they still describe the current outcome, but replace stale beta or RC wording when new fragments supersede it. Merge in only new or changed fragment material, and deduplicate instead of restating existing bullets. Output only the final highlights body using the section headings above; do not include the prerelease disclaimer, any "Changes since" section, or the Installation or Assets sections.',
         '',
       ].join('\n')
     : '';
@@ -625,6 +794,75 @@ function polishFragmentsWithClaude(
     serializeFragmentsForPrompt(filtered, mode, version, date, existingReleaseNotes);
   const output = runClaude(prompt, CLAUDE_CLI_ARGS);
   return validatePolishedOutput(output, mode, hasInternalFragments);
+}
+
+const DELTA_PROMPT_INSTRUCTIONS = `You are writing the "changes since the previous prerelease" section of a prerelease notes file for SubMiner, an Electron app for Japanese sentence mining.
+
+You will receive changelog fragment diffs between the previous prerelease tag and the current build. Fragments are engineer-written release-note sources; a fragment diff is a proxy for what changed, not proof of a behavior change.
+
+Rules:
+
+1. Output Markdown bullets ONLY. No headings, no preamble, no commentary. Every line must be a top-level "- " bullet or an indented nested bullet.
+2. Describe only what changed for users between the two prerelease builds, in user-facing language. Drop implementation jargon, file paths, and PR numbers.
+3. ADDED fragments describe changes that are new in this build; summarize them.
+4. MODIFIED fragments include BEFORE and AFTER content. Describe only the behavioral difference between them. If the edit is editorial (rewording, deduplication, reformatting, reconciling stale phrasing) with no user-visible behavior change, omit it entirely.
+5. DELETED fragments mean the described change was removed or reverted before this build; say so explicitly.
+6. Keep bullets short and concrete. Use nested bullets sparingly.
+7. Do not invent changes. Every bullet must be grounded in the diffs.
+8. If no bullet survives rules 2-5, output exactly this single line:
+   - No user-facing changes since PREVIOUS_TAG.
+
+The input begins below.
+
+`;
+
+function serializeFragmentDeltaForPrompt(
+  delta: FragmentDeltaEntry[],
+  version: string,
+  previousTag: string,
+): string {
+  const header = [`VERSION: ${version}`, `PREVIOUS_TAG: ${previousTag}`];
+  const blocks = delta.map((entry) => {
+    if (entry.status === 'added') {
+      return [`ADDED FRAGMENT ${entry.path}`, entry.after ?? ''].join('\n');
+    }
+    if (entry.status === 'deleted') {
+      return [`DELETED FRAGMENT ${entry.path}`, entry.before ?? ''].join('\n');
+    }
+    return [
+      `MODIFIED FRAGMENT ${entry.path}`,
+      'BEFORE:',
+      entry.before ?? '',
+      'AFTER:',
+      entry.after ?? '',
+    ].join('\n');
+  });
+  return [...header, '', ...blocks].join('\n\n');
+}
+
+function validateDeltaOutput(output: string): string {
+  const trimmed = output.trim();
+  if (!trimmed) {
+    throw new Error('claude returned empty output for the prerelease delta section.');
+  }
+  const invalidLine = trimmed.split(/\r?\n/).find((line) => line.trim() && !/^\s*- /.test(line));
+  if (invalidLine !== undefined) {
+    throw new Error(
+      `claude delta output must contain only Markdown bullets. Offending line:\n${invalidLine}`,
+    );
+  }
+  return trimmed;
+}
+
+function buildDeltaSectionWithClaude(
+  delta: FragmentDeltaEntry[],
+  options: { version: string; previousTag: string; deps?: ChangelogFsDeps },
+): string {
+  const runClaude = options.deps?.runClaude ?? defaultRunClaude;
+  const prompt =
+    DELTA_PROMPT_INSTRUCTIONS.replace('PREVIOUS_TAG', options.previousTag) +
+    serializeFragmentDeltaForPrompt(delta, options.version, options.previousTag);
+  return validateDeltaOutput(runClaude(prompt, CLAUDE_CLI_ARGS));
 }
 
 function stripDetailsBlocks(body: string): string {
@@ -709,15 +947,18 @@ function renderReleaseNotes(
     contributions?: Contribution[];
     contributorSections?: string[];
     metadata?: string[];
+    deltaSection?: string[];
   },
 ): string {
   const prefix = options?.disclaimer ? [options.disclaimer, ''] : [];
   const metadata = options?.metadata?.length ? [...options.metadata, ''] : [];
+  const deltaSection = options?.deltaSection?.length ? [...options.deltaSection, ''] : [];
   const contributorSections =
     options?.contributorSections ?? renderContributorsSections(options?.contributions ?? []);
   return [
     ...prefix,
     ...metadata,
+    ...deltaSection,
     '## Highlights',
     changes,
     '',
@@ -748,6 +989,7 @@ function writeReleaseNotesFile(
     contributions?: Contribution[];
     contributorSections?: string[];
     metadata?: string[];
+    deltaSection?: string[];
   },
 ): string {
   const mkdirSync = deps?.mkdirSync ?? fs.mkdirSync;
@@ -1079,6 +1321,26 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
     throw new Error('No changelog fragments found in changes/.');
   }
 
+  const listPrereleaseTags = options?.deps?.listPrereleaseTags ?? defaultListPrereleaseTags;
+  const previousTag = selectPreviousPrereleaseTag(
+    listPrereleaseTags(cwd, resolvePrereleaseBaseVersion(version)),
+    version,
+  );
+
+  // Later betas/RCs get a "Changes since <previous tag>" section on top of the
+  // cumulative Highlights, generated from the fragment diff between the
+  // previous prerelease tag and the working tree.
+  let deltaSection: string[] = [];
+  if (previousTag) {
+    const resolveFragmentDelta = options?.deps?.resolveFragmentDelta ?? defaultResolveFragmentDelta;
+    const delta = resolveFragmentDelta(cwd, previousTag);
+    const deltaBody =
+      delta.length === 0
+        ? `- No changelog fragment changes since ${previousTag}; this build contains packaging or internal-only updates.`
+        : buildDeltaSectionWithClaude(delta, { version, previousTag, deps: options?.deps });
+    deltaSection = [`${DELTA_SECTION_HEADING_PREFIX}${previousTag}`, '', deltaBody];
+  }
+
   const prereleaseNotesPath = path.join(cwd, PRERELEASE_NOTES_PATH);
   const existingReleaseNotes = existsSync(prereleaseNotesPath)
     ? resolveReusablePrereleaseNotes(readFileSync(prereleaseNotesPath, 'utf8'), version)
@@ -1095,8 +1357,39 @@ export function writePrereleaseNotesForVersion(options?: ChangelogOptions): stri
       '> This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.',
     outputPath: PRERELEASE_NOTES_PATH,
     contributions,
-    metadata: [renderPrereleaseBaseVersionMarker(version)],
+    metadata: [renderPrereleaseVersionMarker(version, previousTag)],
+    deltaSection,
   });
+}
+
+// CI gate: the committed prerelease notes must carry a marker generated for
+// exactly the version being tagged, so stale beta.N-1 notes can't ship.
+export function verifyPrereleaseNotesMatchVersion(options?: ChangelogOptions): void {
+  verifyRequestedVersionMatchesPackageVersion(options ?? {});
+
+  const cwd = options?.cwd ?? process.cwd();
+  const existsSync = options?.deps?.existsSync ?? fs.existsSync;
+  const readFileSync = options?.deps?.readFileSync ?? fs.readFileSync;
+  const version = resolveVersion(options ?? {});
+  if (!isSupportedPrereleaseVersion(version)) {
+    throw new Error(
+      `Unsupported prerelease version (${version}). Expected x.y.z-beta.N or x.y.z-rc.N.`,
+    );
+  }
+
+  const prereleaseNotesPath = path.join(cwd, PRERELEASE_NOTES_PATH);
+  if (!existsSync(prereleaseNotesPath)) {
+    throw new Error(
+      `Missing ${prereleaseNotesPath}. Run 'bun run changelog:prerelease-notes --version ${version}' and commit the file before tagging.`,
+    );
+  }
+
+  const markerVersion = extractPrereleaseVersionMarker(readFileSync(prereleaseNotesPath, 'utf8'));
+  if (markerVersion !== version) {
+    throw new Error(
+      `release/prerelease-notes.md was generated for ${markerVersion ?? 'an unknown version (missing or legacy prerelease-version marker)'} but this release is ${version}. Rerun 'bun run changelog:prerelease-notes --version ${version}' and commit the result.`,
+    );
+  }
 }
 
 function parseCliArgs(argv: string[]): {
@@ -1203,6 +1496,11 @@ function main(): void {
 
   if (command === 'prerelease-notes') {
     writePrereleaseNotesForVersion(options);
+    return;
+  }
+
+  if (command === 'check-prerelease-notes') {
+    verifyPrereleaseNotesMatchVersion(options);
     return;
   }
 

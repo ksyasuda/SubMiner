@@ -296,33 +296,40 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Guard against pending changelog fragments
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           if find changes -maxdepth 1 -name '*.md' -not -name README.md -print -quit | grep -q .; then
-            echo "::error::Pending changelog fragments detected. Run 'bun run changelog:build --version ${{ steps.version.outputs.VERSION }}' locally and commit the polished CHANGELOG.md before tagging. CI no longer auto-builds the changelog because the polish step requires the local 'claude' CLI."
+            echo "::error::Pending changelog fragments detected. Run 'bun run changelog:build --version $RELEASE_VERSION' locally and commit the polished CHANGELOG.md before tagging. CI no longer auto-builds the changelog because the polish step requires the local 'claude' CLI."
             exit 1
           fi
 
       - name: Verify changelog is ready for tagged release
-        run: bun run changelog:check --version "${{ steps.version.outputs.VERSION }}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: bun run changelog:check --version "$RELEASE_VERSION"
 
       - name: Generate release notes from changelog
-        run: bun run changelog:release-notes --version "${{ steps.version.outputs.VERSION }}"
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
+        run: bun run changelog:release-notes --version "$RELEASE_VERSION"
 
       - name: Publish Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
 
-          if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
             # Do not pass the prerelease flag here; gh defaults to a normal release.
-            gh release edit "${{ steps.version.outputs.VERSION }}" \
+            gh release edit "$RELEASE_VERSION" \
               --draft=false \
-              --title "${{ steps.version.outputs.VERSION }}" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/release-notes.md
           else
-            gh release create "${{ steps.version.outputs.VERSION }}" \
-              --title "${{ steps.version.outputs.VERSION }}" \
+            gh release create "$RELEASE_VERSION" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/release-notes.md
           fi
 
@@ -345,7 +352,7 @@ jobs:
           fi
 
           for asset in "${artifacts[@]}"; do
-            gh release upload "${{ steps.version.outputs.VERSION }}" "$asset" --clobber
+            gh release upload "$RELEASE_VERSION" "$asset" --clobber
           done
 
   aur-publish:
@@ -421,9 +428,10 @@ jobs:
         if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.VERSION }}"
+          version="$RELEASE_VERSION"
           install -dm755 .tmp/aur-release-assets
           gh release download "$version" \
             --dir .tmp/aur-release-assets \
@@ -433,15 +441,17 @@ jobs:
 
       - name: Update AUR packaging metadata
         if: steps.aur_prereqs.outputs.skip != 'true' && steps.aur_ssh.outputs.skip != 'true' && steps.aur_clone.outputs.skip != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
-          version_no_v="${{ steps.version.outputs.VERSION }}"
+          version_no_v="$RELEASE_VERSION"
           version_no_v="${version_no_v#v}"
           cp packaging/aur/subminer-bin/PKGBUILD aur-subminer-bin/PKGBUILD
           cp packaging/aur/subminer-bin/.SRCINFO aur-subminer-bin/.SRCINFO
           bash scripts/update-aur-package.sh \
             --pkg-dir aur-subminer-bin \
-            --version "${{ steps.version.outputs.VERSION }}" \
+            --version "$RELEASE_VERSION" \
             --appimage ".tmp/aur-release-assets/SubMiner-${version_no_v}.AppImage" \
             --wrapper ".tmp/aur-release-assets/subminer" \
             --assets ".tmp/aur-release-assets/subminer-assets.tar.gz"
@@ -451,6 +461,7 @@ jobs:
         working-directory: aur-subminer-bin
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/aur -o IdentitiesOnly=yes
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
           if git diff --quiet -- PKGBUILD .SRCINFO; then
@@ -460,7 +471,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PKGBUILD .SRCINFO
-          git commit -m "Update to ${{ steps.version.outputs.VERSION }}"
+          git commit -m "Update to $RELEASE_VERSION"
 
           attempts=3
           for attempt in $(seq 1 "$attempts"); do
