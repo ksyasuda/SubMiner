@@ -183,7 +183,10 @@ test('remote media keeps parsed cues when the active subtitle source cannot be r
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /isYoutubeMediaPath\(videoPath\) \|\| isRemoteMediaPath\(videoPath\)/);
+  assert.match(
+    actionBlock,
+    /isYoutubeMediaPath\(videoPath\) \|\| \(await detectRemoteMediaPath\(videoPath\)\)/,
+  );
 });
 
 test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
