@@ -233,6 +233,11 @@ function defaultListPrereleaseTags(cwd: string, baseVersion: string): string[] {
 
 // Diffs changes/*.md between the previous prerelease tag and the working tree.
 // Renamed fragments are treated as modifications of the new path.
+//
+// Like every other path in this script, git paths are resolved against `cwd`,
+// which is the project root and also the repository root. Callers that point
+// `cwd` elsewhere already fail earlier and loudly, when package.json and
+// changes/ come back missing.
 function defaultResolveFragmentDelta(cwd: string, previousTag: string): FragmentDeltaEntry[] {
   const output = execFileSync(
     'git',

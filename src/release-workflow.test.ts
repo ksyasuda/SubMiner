@@ -249,7 +249,7 @@ test('release workflow publishes subminer-bin to AUR from tagged release artifac
     releaseWorkflow,
     /cp packaging\/aur\/subminer-bin\/\.SRCINFO aur-subminer-bin\/\.SRCINFO/,
   );
-  assert.match(releaseWorkflow, /version_no_v="\$\{\{ steps\.version\.outputs\.VERSION \}\}"/);
+  assert.match(releaseWorkflow, /version_no_v="\$RELEASE_VERSION"/);
   assert.match(releaseWorkflow, /SubMiner-\$\{version_no_v\}\.AppImage/);
   assert.doesNotMatch(
     releaseWorkflow,
@@ -277,4 +277,28 @@ test('Makefile uninstall targets remove bundled runtime plugin app-data copies',
   assert.match(makefile, /uninstall-macos:[\s\S]*@rm -rf "\$\(MACOS_DATA_DIR\)\/plugin\/subminer"/);
   assert.match(makefile, /Removed:[\s\S]*\$\(LINUX_DATA_DIR\)\/plugin\/subminer/);
   assert.match(makefile, /Removed:[\s\S]*\$\(MACOS_DATA_DIR\)\/plugin\/subminer/);
+});
+
+// GitHub substitutes ${{ }} into the run script before the shell parses it, so a
+// tag-derived value used that way is executed as script rather than read as data.
+// The release and docs workflows must route tag values through env and
+// reference them as shell variables.
+test('tag-derived values reach shell bodies through env, not template interpolation', () => {
+  const rawVersionUses = releaseWorkflow
+    .split('\n')
+    .filter((line) => line.includes('steps.version.outputs.VERSION'))
+    .filter(
+      (line) => !/^\s*RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.VERSION \}\}$/.test(line),
+    );
+  assert.deepEqual(rawVersionUses, []);
+
+  const rawRefNameUses = docsPagesWorkflow
+    .split('\n')
+    .filter((line) => line.includes('github.ref_name'))
+    .filter((line) => !/^\s*TAG_NAME: \$\{\{ github\.ref_name \}\}$/.test(line))
+    // `if:` conditions are evaluated by Actions itself, never handed to a shell.
+    .filter((line) => !/^\s*if:/.test(line));
+  assert.deepEqual(rawRefNameUses, []);
+
+  assert.match(docsPagesWorkflow, /if \[\[ ! "\$TAG_NAME" =~/);
 });

@@ -122,3 +122,35 @@ test('prerelease workflow does not publish to AUR', () => {
   assert.doesNotMatch(prereleaseWorkflow, /AUR_SSH_PRIVATE_KEY/);
   assert.doesNotMatch(prereleaseWorkflow, /scripts\/update-aur-package\.sh/);
 });
+
+test('prerelease workflow rejects committed notes generated for a different beta or rc', () => {
+  assert.equal(
+    packageJson.scripts['changelog:check-prerelease-notes'],
+    'bun run scripts/build-changelog.ts check-prerelease-notes',
+  );
+  assert.match(
+    prereleaseWorkflow,
+    /bun run changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
+  );
+
+  // The staleness check has to run before the release is created or edited,
+  // otherwise stale notes are already published by the time it fails.
+  const checkIndex = prereleaseWorkflow.indexOf('changelog:check-prerelease-notes');
+  const createIndex = prereleaseWorkflow.indexOf('gh release create');
+  const editIndex = prereleaseWorkflow.indexOf('gh release edit');
+  assert.notEqual(checkIndex, -1);
+  assert.ok(checkIndex < createIndex);
+  assert.ok(checkIndex < editIndex);
+});
+
+// GitHub substitutes ${{ }} into the run script before the shell parses it, so a
+// tag-derived value used that way is executed as script rather than read as data.
+test('tag-derived values reach shell bodies through env, not template interpolation', () => {
+  const rawVersionUses = prereleaseWorkflow
+    .split('\n')
+    .filter((line) => line.includes('steps.version.outputs.VERSION'))
+    .filter(
+      (line) => !/^\s*RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.VERSION \}\}$/.test(line),
+    );
+  assert.deepEqual(rawVersionUses, []);
+});
