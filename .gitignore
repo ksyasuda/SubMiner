@@ -49,6 +49,7 @@ tests/*
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/subminer-change-verification/
+!.agents/skills/subminer-release/
 !.agents/skills/subminer-scrum-master/
 .agents/skills/subminer-change-verification/*
 !.agents/skills/subminer-change-verification/SKILL.md
@@ -56,6 +57,8 @@ tests/*
 .agents/skills/subminer-change-verification/scripts/*
 !.agents/skills/subminer-change-verification/scripts/classify_subminer_diff.sh
 !.agents/skills/subminer-change-verification/scripts/verify_subminer_change.sh
+.agents/skills/subminer-release/*
+!.agents/skills/subminer-release/SKILL.md
 .agents/skills/subminer-scrum-master/*
 !.agents/skills/subminer-scrum-master/SKILL.md
 favicon.png
