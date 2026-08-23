@@ -181,6 +181,41 @@ test('ASS fragment karaoke stays separated by style with authored word spacing',
   assert.equal(findActiveSubtitleText(parseSubtitleCues(ass, 'ending.ass'), 8.5), 'Iwanttogo');
 });
 
+test('ASS fragment karaoke preserves word spaces authored at event boundaries', () => {
+  const fragments = [
+    'The ',
+    'shoot',
+    'ing ',
+    'stars ',
+    'arc',
+    'ing ',
+    'across ',
+    'the ',
+    'sky ',
+    'I ',
+    'wish ',
+    'upon,',
+  ];
+  const events: string[] = [];
+  for (const layer of [0, 1]) {
+    fragments.forEach((fragment, index) => {
+      events.push(
+        `Dialogue: ${layer},0:00:01.00,0:00:04.00,op_english,,0,0,0,,{\\pos(${100 + index * 40},110)\\t(0,200,\\fscx110)}${fragment}`,
+      );
+    });
+  }
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...events,
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'bravern-s01e10.ass'), 2),
+    'The shooting stars arcing across the sky I wish upon,',
+  );
+});
+
 test('findActiveSubtitleText keeps a complete reconstructed line over entrance fragments', () => {
   const current = {
     startTime: 1,

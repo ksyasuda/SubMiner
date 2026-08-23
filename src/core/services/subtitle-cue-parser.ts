@@ -853,6 +853,10 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
 
   for (const line of lines) {
     const trimmed = line.trim();
+    // Event text can end in an authored space. Fragmented karaoke commonly uses that
+    // space to retain word boundaries when its separately positioned events are joined
+    // back into a line, so only remove indentation before slicing the event fields.
+    const eventLine = line.trimStart();
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
       inEventsSection = trimmed.toLowerCase() === '[events]';
@@ -883,9 +887,9 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
       continue;
     }
 
-    const eventPrefix = trimmed.startsWith(ASS_DIALOGUE_PREFIX)
+    const eventPrefix = eventLine.startsWith(ASS_DIALOGUE_PREFIX)
       ? ASS_DIALOGUE_PREFIX
-      : trimmed.startsWith(ASS_COMMENT_PREFIX)
+      : eventLine.startsWith(ASS_COMMENT_PREFIX)
         ? ASS_COMMENT_PREFIX
         : null;
     if (!eventPrefix) {
@@ -896,7 +900,7 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
       continue;
     }
 
-    const fields = trimmed.slice(eventPrefix.length).split(',');
+    const fields = eventLine.slice(eventPrefix.length).split(',');
     if (
       fieldIndex.start >= fields.length ||
       fieldIndex.end >= fields.length ||
