@@ -2090,8 +2090,8 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     // Remote media has no extractable on-disk track to fall back to, so a transient
     // resolve miss (sid briefly 'no', a cycle onto an embedded stream track) would
     // otherwise drop a working cue list for the rest of the episode.
-    shouldKeepExistingCuesOnMissingSource: (videoPath) =>
-      isYoutubeMediaPath(videoPath) || isRemoteMediaPath(videoPath),
+    shouldKeepExistingCuesOnMissingSource: async (videoPath) =>
+      isYoutubeMediaPath(videoPath) || (await detectRemoteMediaPath(videoPath)),
     subtitlePrefetchInitController,
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
     logDebug: (message) => logger.debug(message),

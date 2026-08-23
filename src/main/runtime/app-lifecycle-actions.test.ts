@@ -107,7 +107,11 @@ test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping 
   });
 
   assert.throws(() => cleanup(), /stop failed/);
-  assert.deepEqual(calls, ['stop-jellyfin-remote', 'cleanup-jellyfin-subtitles']);
+  assert.deepEqual(calls, [
+    'stop-jellyfin-remote',
+    'cleanup-jellyfin-subtitles',
+    'cleanup-internal-subtitles',
+  ]);
 });
 
 test('should restore windows on activate requires initialized runtime and no windows', () => {

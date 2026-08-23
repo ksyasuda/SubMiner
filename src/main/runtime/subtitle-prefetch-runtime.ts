@@ -160,7 +160,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
     requestProperty: (name: string) => Promise<unknown>;
   } | null;
   getLastObservedTimePos: () => number;
-  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean;
+  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean | Promise<boolean>;
   subtitlePrefetchInitController: SubtitlePrefetchInitController;
   resolveActiveSubtitleSidebarSource: (
     input: Parameters<ReturnType<typeof createResolveActiveSubtitleSidebarSourceHandler>>[0],
@@ -199,7 +199,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
         videoPath,
       });
       if (!resolvedSource) {
-        if (deps.shouldKeepExistingCuesOnMissingSource?.(videoPath) === true) {
+        if ((await deps.shouldKeepExistingCuesOnMissingSource?.(videoPath)) === true) {
           deps.logDebug?.(
             '[subtitle-prefetch] no active subtitle source resolved; keeping existing cues',
           );

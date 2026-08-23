@@ -68,9 +68,12 @@ export function createOnWillQuitCleanupHandler(deps: {
     try {
       deps.stopJellyfinRemoteSession();
     } finally {
-      deps.cleanupJellyfinSubtitleCache();
+      try {
+        deps.cleanupJellyfinSubtitleCache();
+      } finally {
+        deps.cleanupInternalSubtitleTrackCache();
+      }
     }
-    deps.cleanupInternalSubtitleTrackCache();
     deps.cleanupYoutubeSubtitleTempDirs();
     deps.cleanupYoutubeMediaCache();
     deps.stopDiscordPresenceService();
