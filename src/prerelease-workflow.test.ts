@@ -137,13 +137,18 @@ test('prerelease workflow rejects committed notes generated for a different beta
     'bun run scripts/build-changelog.ts check-prerelease-notes',
   );
 
-  // Matched against executable lines only, so commenting the check out fails the
-  // test rather than silently satisfying it.
+  // Matched at command positions only, so commenting the check out or quoting it
+  // inside an echo fails the test rather than silently satisfying it.
   const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
   const checkIndex = steps.findIndex((step) =>
-    stepRunsCommand(step, /changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/),
+    stepRunsCommand(
+      step,
+      /^bun run changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
+    ),
   );
-  const publishIndex = steps.findIndex((step) => stepRunsCommand(step, /gh release (create|edit)/));
+  const publishIndex = steps.findIndex((step) =>
+    stepRunsCommand(step, /^gh release (create|edit)\b/),
+  );
 
   assert.notEqual(checkIndex, -1);
   assert.notEqual(publishIndex, -1);

@@ -50,9 +50,34 @@ export function executableRunLines(step: WorkflowStep): string[] {
     .filter((line) => line.length > 0 && !line.startsWith('#'));
 }
 
-// Whether a step actually executes a command matching the pattern.
+// Leading shell keywords and operators that can precede a real command.
+const COMMAND_PREFIX = /^(?:if|elif|while|until|then|else|do|!|&&|\|\||\(|\{)\s+/;
+
+// Command positions within a step's shell body: each line split on separators,
+// with control-flow prefixes stripped. A pattern anchored with ^ therefore
+// matches only where a command actually starts, so text quoted inside an
+// `echo`/`printf` argument is not mistaken for the command running.
+export function commandPositions(step: WorkflowStep): string[] {
+  return executableRunLines(step).flatMap((line) =>
+    line
+      .split(/;|&&|\|\||(?<![0-9<>])\|(?!\|)/)
+      .map((segment) => {
+        let candidate = segment.trim();
+        let stripped = candidate.replace(COMMAND_PREFIX, '');
+        while (stripped !== candidate) {
+          candidate = stripped;
+          stripped = candidate.replace(COMMAND_PREFIX, '');
+        }
+        return candidate;
+      })
+      .filter(Boolean),
+  );
+}
+
+// Whether a step actually executes a command matching the pattern. Anchor the
+// pattern with ^ so it has to match at a command position.
 export function stepRunsCommand(step: WorkflowStep, pattern: RegExp): boolean {
-  return executableRunLines(step).some((line) => pattern.test(line));
+  return commandPositions(step).some((position) => pattern.test(position));
 }
 
 // GitHub substitutes ${{ }} into a run script before the shell parses it, so any
