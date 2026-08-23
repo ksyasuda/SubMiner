@@ -2,9 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  jobSteps,
+  readWorkflow,
+  stepsMissingEnvDeclaration,
+  templateExpressionsInRunBodies,
+} from './workflow-test-helpers';
 
 const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
 const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8').replace(/\r\n/g, '\n');
+const parsedPrereleaseWorkflow = readWorkflow(prereleaseWorkflowPath);
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
@@ -128,29 +135,24 @@ test('prerelease workflow rejects committed notes generated for a different beta
     packageJson.scripts['changelog:check-prerelease-notes'],
     'bun run scripts/build-changelog.ts check-prerelease-notes',
   );
-  assert.match(
-    prereleaseWorkflow,
-    /bun run changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
-  );
 
-  // The staleness check has to run before the release is created or edited,
-  // otherwise stale notes are already published by the time it fails.
-  const checkIndex = prereleaseWorkflow.indexOf('changelog:check-prerelease-notes');
-  const createIndex = prereleaseWorkflow.indexOf('gh release create');
-  const editIndex = prereleaseWorkflow.indexOf('gh release edit');
+  const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
+  const checkIndex = steps.findIndex((step) =>
+    step.run?.includes('changelog:check-prerelease-notes'),
+  );
+  const publishIndex = steps.findIndex((step) => /gh release (create|edit)/.test(step.run ?? ''));
+
   assert.notEqual(checkIndex, -1);
-  assert.ok(checkIndex < createIndex);
-  assert.ok(checkIndex < editIndex);
+  assert.notEqual(publishIndex, -1);
+  // Stale notes are already published if the check runs after the release.
+  assert.ok(checkIndex < publishIndex);
+  assert.match(
+    steps[checkIndex]!.run!,
+    /changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
+  );
 });
 
-// GitHub substitutes ${{ }} into the run script before the shell parses it, so a
-// tag-derived value used that way is executed as script rather than read as data.
-test('tag-derived values reach shell bodies through env, not template interpolation', () => {
-  const rawVersionUses = prereleaseWorkflow
-    .split('\n')
-    .filter((line) => line.includes('steps.version.outputs.VERSION'))
-    .filter(
-      (line) => !/^\s*RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.VERSION \}\}$/.test(line),
-    );
-  assert.deepEqual(rawVersionUses, []);
+test('prerelease workflow keeps tag-derived values out of shell bodies', () => {
+  assert.deepEqual(templateExpressionsInRunBodies(parsedPrereleaseWorkflow), []);
+  assert.deepEqual(stepsMissingEnvDeclaration(parsedPrereleaseWorkflow, 'RELEASE_VERSION'), []);
 });

@@ -2,11 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  readWorkflow,
+  stepsMissingEnvDeclaration,
+  templateExpressionsInRunBodies,
+} from './workflow-test-helpers';
 
 const releaseWorkflowPath = resolve(__dirname, '../.github/workflows/release.yml');
 const releaseWorkflow = readFileSync(releaseWorkflowPath, 'utf8');
 const docsPagesWorkflowPath = resolve(__dirname, '../.github/workflows/docs-pages.yml');
 const docsPagesWorkflow = readFileSync(docsPagesWorkflowPath, 'utf8');
+const parsedReleaseWorkflow = readWorkflow(releaseWorkflowPath);
+const parsedDocsPagesWorkflow = readWorkflow(docsPagesWorkflowPath);
 const makefilePath = resolve(__dirname, '../Makefile');
 const makefile = readFileSync(makefilePath, 'utf8');
 const packageJsonPath = resolve(__dirname, '../package.json');
@@ -279,26 +286,13 @@ test('Makefile uninstall targets remove bundled runtime plugin app-data copies',
   assert.match(makefile, /Removed:[\s\S]*\$\(MACOS_DATA_DIR\)\/plugin\/subminer/);
 });
 
-// GitHub substitutes ${{ }} into the run script before the shell parses it, so a
-// tag-derived value used that way is executed as script rather than read as data.
-// The release and docs workflows must route tag values through env and
-// reference them as shell variables.
-test('tag-derived values reach shell bodies through env, not template interpolation', () => {
-  const rawVersionUses = releaseWorkflow
-    .split('\n')
-    .filter((line) => line.includes('steps.version.outputs.VERSION'))
-    .filter(
-      (line) => !/^\s*RELEASE_VERSION: \$\{\{ steps\.version\.outputs\.VERSION \}\}$/.test(line),
-    );
-  assert.deepEqual(rawVersionUses, []);
+test('release and docs workflows keep tag-derived values out of shell bodies', () => {
+  assert.deepEqual(templateExpressionsInRunBodies(parsedReleaseWorkflow), []);
+  assert.deepEqual(templateExpressionsInRunBodies(parsedDocsPagesWorkflow), []);
+  assert.deepEqual(stepsMissingEnvDeclaration(parsedReleaseWorkflow, 'RELEASE_VERSION'), []);
+  assert.deepEqual(stepsMissingEnvDeclaration(parsedDocsPagesWorkflow, 'TAG_NAME'), []);
 
-  const rawRefNameUses = docsPagesWorkflow
-    .split('\n')
-    .filter((line) => line.includes('github.ref_name'))
-    .filter((line) => !/^\s*TAG_NAME: \$\{\{ github\.ref_name \}\}$/.test(line))
-    // `if:` conditions are evaluated by Actions itself, never handed to a shell.
-    .filter((line) => !/^\s*if:/.test(line));
-  assert.deepEqual(rawRefNameUses, []);
-
+  // The docs tag guard must test the shell variable, not an interpolated value
+  // that would be substituted into the condition before the shell reads it.
   assert.match(docsPagesWorkflow, /if \[\[ ! "\$TAG_NAME" =~/);
 });
