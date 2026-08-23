@@ -1424,17 +1424,23 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
 });
 
-test('prepareSecondarySubtitleLines preserves short stacks without layer metadata', () => {
+test('prepareSecondarySubtitleLines collapses exact short copies in stacks', () => {
   assert.deepEqual(prepareSecondarySubtitleLines('Your\\NYour\\NYour\\NYour\\Nmosaic'), [
-    'Your',
-    'Your',
-    'Your',
     'Your',
     'mosaic',
   ]);
   assert.deepEqual(prepareSecondarySubtitleLines('One line\\NAnother line'), [
     'One line',
     'Another line',
+  ]);
+});
+
+test('prepareSecondarySubtitleLines collapses exact short sign copies beside dialogue', () => {
+  const liveText = "And for today's sports festival...\nEntrance\nEntrance";
+
+  assert.deepEqual(prepareSecondarySubtitleLines(liveText), [
+    "And for today's sports festival...",
+    'Entrance',
   ]);
 });
 
@@ -1448,10 +1454,10 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
   assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
 });
 
-test('prepareSecondarySubtitleLines preserves repeated short dialogue without layer metadata', () => {
+test('prepareSecondarySubtitleLines collapses exact repeated short lines', () => {
   const dialogue = ['Wait', 'Wait', 'Wait'];
 
-  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), ['Wait']);
 });
 
 test('prepareSecondarySubtitleLines collapses punctuation variants of a full-sentence fallback', () => {
@@ -1467,6 +1473,10 @@ test('prepareSecondarySubtitleLines preserves short simultaneous dialogue withou
   const dialogue = ['Wait', 'Go!', 'No!', 'Run!'];
 
   assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
+});
+
+test('prepareSecondarySubtitleLines preserves distinct short lines with internal whitespace', () => {
+  assert.deepEqual(prepareSecondarySubtitleLines('AB\\NA B'), ['AB', 'A B']);
 });
 
 test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {
@@ -1490,13 +1500,13 @@ test('prepareSecondarySubtitleLines strips ASS override tags and handles empty i
   assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}'), []);
 });
 
-test('secondary subtitle root CSS caps height so hover-pause band stays a top strip', () => {
+test('secondary subtitle root CSS does not clip long subtitle stacks', () => {
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
   const cssText = fs.readFileSync(srcCssPath, 'utf-8');
 
   const secondaryRootBlock = extractClassBlock(cssText, '#secondarySubRoot');
-  assert.match(secondaryRootBlock, /max-height:\s*6em;/);
-  assert.match(secondaryRootBlock, /overflow:\s*hidden;/);
+  assert.doesNotMatch(secondaryRootBlock, /max-height\s*:/);
+  assert.doesNotMatch(secondaryRootBlock, /overflow\s*:\s*hidden/);
 });
 
 test('applySubtitleStyle sets known-word maturity color variables', () => {

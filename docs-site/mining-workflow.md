@@ -108,9 +108,11 @@ The secondary bar is a compact top-strip region in the same overlay window. It s
 - Quick comprehension checks without leaving the mining flow.
 - Auto-populating the translation field on mined cards - when a card is created, SubMiner uses the secondary subtitle text as the translation field value (unless AI translation is configured to override it).
 
+For local media, SubMiner can parse supported embedded secondary tracks into timed cues. For remote URLs and files on network mounts, it uses mpv's live secondary subtitle text instead of scanning the media with ffmpeg.
+
 It is controlled by `secondarySub` configuration and shares its lifecycle with the main overlay window. Cycle which track feeds it with `Shift+J`.
 
-SubMiner collapses duplicate ASS layers in parsed secondary tracks. Long lines repeated as dialogue and positioned signs are treated as the same line when they differ only in whitespace or terminal punctuation. Dense multi-row sign layouts, such as translated timetables, are excluded instead of being concatenated into the secondary bar. When SubMiner must use mpv's live text as a fallback, it still filters full-line duplicates while preserving short repeated dialogue.
+SubMiner collapses duplicate ASS layers in parsed secondary tracks. Exact repeated lines collapse at any length, while distinct simultaneous short lines remain separate. Long dialogue and positioned-sign copies also collapse when they differ only in whitespace or terminal punctuation. Dense multi-row sign layouts, such as translated timetables, are excluded instead of being concatenated into the secondary bar.
 
 ### Display Modes
 

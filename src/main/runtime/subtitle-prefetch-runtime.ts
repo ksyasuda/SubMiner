@@ -17,6 +17,8 @@ type ActiveSubtitleSidebarSource = {
   cleanup?: () => Promise<void>;
 };
 
+type RemoteMediaPathDetector = (mediaPath: string) => boolean | Promise<boolean>;
+
 function parseTrackId(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
@@ -28,7 +30,7 @@ function parseTrackId(value: unknown): number | null {
   return null;
 }
 
-function isRemoteMediaPath(value: string): boolean {
+function isRemoteMediaUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === 'http:' || url.protocol === 'https:';
@@ -86,6 +88,7 @@ function getActiveSubtitleTrack(
 
 export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
   getFfmpegPath: () => string;
+  isRemoteMediaPath?: RemoteMediaPathDetector;
   extractInternalSubtitleTrack: (
     ffmpegPath: string,
     videoPath: string,
@@ -126,7 +129,8 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       return { path: externalFilename, sourceKey: externalFilename };
     }
 
-    if (isRemoteMediaPath(input.videoPath)) {
+    const isRemoteMediaPath = deps.isRemoteMediaPath ?? isRemoteMediaUrl;
+    if (await isRemoteMediaPath(input.videoPath)) {
       deps.logDebug?.('[subtitle-prefetch] skipping internal subtitle extraction for remote media');
       return null;
     }
@@ -156,7 +160,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
     requestProperty: (name: string) => Promise<unknown>;
   } | null;
   getLastObservedTimePos: () => number;
-  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean;
+  shouldKeepExistingCuesOnMissingSource?: (videoPath: string) => boolean | Promise<boolean>;
   subtitlePrefetchInitController: SubtitlePrefetchInitController;
   resolveActiveSubtitleSidebarSource: (
     input: Parameters<ReturnType<typeof createResolveActiveSubtitleSidebarSourceHandler>>[0],
@@ -195,7 +199,7 @@ export function createRefreshSubtitlePrefetchFromActiveTrackHandler(deps: {
         videoPath,
       });
       if (!resolvedSource) {
-        if (deps.shouldKeepExistingCuesOnMissingSource?.(videoPath) === true) {
+        if ((await deps.shouldKeepExistingCuesOnMissingSource?.(videoPath)) === true) {
           deps.logDebug?.(
             '[subtitle-prefetch] no active subtitle source resolved; keeping existing cues',
           );

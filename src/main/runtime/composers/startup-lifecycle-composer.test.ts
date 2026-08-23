@@ -49,6 +49,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       getYomitanSettingsWindow: () => null,
       clearYomitanSettingsWindow: () => {},
       stopJellyfinRemoteSession: async () => {},
+      cleanupInternalSubtitleTrackCache: () => {},
       cleanupYoutubeSubtitleTempDirs: () => {},
       cleanupYoutubeMediaCache: () => {},
       cleanupJellyfinSubtitleCache: () => {},

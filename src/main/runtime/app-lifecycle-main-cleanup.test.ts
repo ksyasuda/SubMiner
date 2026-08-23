@@ -72,6 +72,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
 
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
+    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
     cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
@@ -95,6 +96,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('destroy-first-run-window'));
   assert.ok(calls.includes('destroy-yomitan-settings-window'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
+  assert.ok(calls.includes('cleanup-internal-subtitles'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));
   assert.ok(calls.includes('cleanup-youtube-media'));
   assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
@@ -152,6 +154,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     getYomitanSettingsWindow: () => null,
     clearYomitanSettingsWindow: () => {},
     stopJellyfinRemoteSession: () => {},
+    cleanupInternalSubtitleTrackCache: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
     cleanupYoutubeMediaCache: () => {},
     cleanupJellyfinSubtitleCache: () => {},
@@ -204,6 +207,7 @@ test('cleanup deps builder skips global shortcut cleanup before app ready', () =
     getYomitanSettingsWindow: () => null,
     clearYomitanSettingsWindow: () => {},
     stopJellyfinRemoteSession: () => {},
+    cleanupInternalSubtitleTrackCache: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
     cleanupYoutubeMediaCache: () => {},
     cleanupJellyfinSubtitleCache: () => {},

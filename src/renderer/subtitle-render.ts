@@ -667,12 +667,17 @@ function isKaraokeLikeLineSet(lines: string[]): boolean {
 }
 
 function collapseFullLineFallbackCopies(lines: string[]): string[] {
-  const seen = new Set<string>();
+  const seenExact = new Set<string>();
+  const seenFlattened = new Set<string>();
   return lines.filter((line) => {
-    const identity = flattenedSecondarySubtitleLineIdentity(line);
-    if (!identity) return true;
-    if (seen.has(identity)) return false;
-    seen.add(identity);
+    const exactIdentity = line.normalize('NFKC');
+    if (seenExact.has(exactIdentity)) return false;
+    seenExact.add(exactIdentity);
+
+    const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(line);
+    if (!flattenedIdentity) return true;
+    if (seenFlattened.has(flattenedIdentity)) return false;
+    seenFlattened.add(flattenedIdentity);
     return true;
   });
 }

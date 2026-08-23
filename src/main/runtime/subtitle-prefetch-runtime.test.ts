@@ -101,6 +101,32 @@ test('subtitle prefetch runtime preserves parsed cues when YouTube active track 
   assert.deepEqual(calls, []);
 });
 
+test('subtitle prefetch runtime preserves parsed cues when a network mount source is unresolved', async () => {
+  const calls: string[] = [];
+  const refresh = createRefreshSubtitlePrefetchFromActiveTrackHandler({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => (name === 'path' ? '/Volumes/jellyfin/movie.mkv' : null),
+    }),
+    getLastObservedTimePos: () => 12,
+    subtitlePrefetchInitController: {
+      cancelPendingInit: () => {
+        calls.push('cancel');
+      },
+      initSubtitlePrefetch: async () => {
+        calls.push('init');
+      },
+    },
+    resolveActiveSubtitleSidebarSource: async () => null,
+    shouldKeepExistingCuesOnMissingSource: async (videoPath) =>
+      videoPath.startsWith('/Volumes/jellyfin/'),
+  });
+
+  await refresh();
+
+  assert.deepEqual(calls, []);
+});
+
 test('subtitle prefetch runtime does not extract internal subtitle tracks from remote media urls', async () => {
   let extracted = false;
   const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
@@ -125,6 +151,34 @@ test('subtitle prefetch runtime does not extract internal subtitle tracks from r
     trackListRaw: [],
     sidRaw: 3,
     videoPath: 'http://jellyfin.local/Videos/movie/stream?static=true',
+  });
+
+  assert.equal(resolved, null);
+  assert.equal(extracted, false);
+});
+
+test('subtitle prefetch runtime does not extract internal subtitle tracks from network mounts', async () => {
+  let extracted = false;
+  const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
+    getFfmpegPath: () => 'ffmpeg-custom',
+    isRemoteMediaPath: async (videoPath) => videoPath.startsWith('/Volumes/jellyfin/'),
+    extractInternalSubtitleTrack: async () => {
+      extracted = true;
+      return null;
+    },
+  });
+
+  const resolved = await resolveSource({
+    currentExternalFilenameRaw: null,
+    currentTrackRaw: {
+      type: 'sub',
+      id: 3,
+      'ff-index': 7,
+      codec: 'ass',
+    },
+    trackListRaw: [],
+    sidRaw: 3,
+    videoPath: '/Volumes/jellyfin/movie.mkv',
   });
 
   assert.equal(resolved, null);

@@ -183,7 +183,10 @@ test('remote media keeps parsed cues when the active subtitle source cannot be r
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /isYoutubeMediaPath\(videoPath\) \|\| isRemoteMediaPath\(videoPath\)/);
+  assert.match(
+    actionBlock,
+    /isYoutubeMediaPath\(videoPath\) \|\| \(await detectRemoteMediaPath\(videoPath\)\)/,
+  );
 });
 
 test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
@@ -858,5 +861,20 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
   assert.ok(
     snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
       snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
+  );
+});
+
+test('main process guards internal subtitle extraction with the remote media detector', () => {
+  const source = readMainSource();
+  const resolverWiring = source.match(
+    /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(resolverWiring);
+  assert.match(source, /const detectRemoteMediaPath = createRemoteMediaPathDetector\(\);/);
+  assert.match(resolverWiring, /isRemoteMediaPath:\s*detectRemoteMediaPath/);
+  assert.match(
+    resolverWiring,
+    /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,
   );
 });
