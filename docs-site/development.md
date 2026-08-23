@@ -6,7 +6,7 @@ For internal architecture/workflow guidance, use `docs/README.md` at the repo ro
 
 - [Bun](https://bun.sh)
 - A system `lua` interpreter for `bun run test:launcher` / `bun run test:plugin:src`
-- macOS builds compile a Swift helper via `scripts/build-macos-helper.sh` (skip with `SUBMINER_SKIP_MACOS_HELPER_BUILD=1`)
+- macOS builds compile a Swift helper via `scripts/prepare-build-assets.mjs` (skip with `SUBMINER_SKIP_MACOS_HELPER_BUILD=1`)
 
 ## Setup
 

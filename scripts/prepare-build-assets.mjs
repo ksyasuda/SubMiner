@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -52,6 +53,16 @@ function fallbackToMacosSource() {
   process.stdout.write(`Staged macOS helper source fallback: ${macosHelperSourceCopyPath}\n`);
 }
 
+// Pin the minimum macOS to the app's own floor (Electron's `minos`). Without an
+// explicit target, swiftc stamps the build machine's OS version as the binary's
+// minimum and the helper fails to load on older systems (#213). The arch stays
+// the host's, matching the single-arch app electron-builder packages here.
+const MACOS_HELPER_DEPLOYMENT_TARGET = '12.0';
+
+function macosHelperTarget() {
+  return `${os.arch() === 'x64' ? 'x86_64' : 'arm64'}-apple-macos${MACOS_HELPER_DEPLOYMENT_TARGET}`;
+}
+
 function shouldSkipMacosHelperBuild() {
   return process.env.SUBMINER_SKIP_MACOS_HELPER_BUILD === '1';
 }
@@ -72,9 +83,13 @@ function buildMacosHelper() {
   ensureDir(scriptsOutputDir);
 
   try {
-    execFileSync('swiftc', ['-O', macosHelperSourcePath, '-o', macosHelperBinaryPath], {
-      stdio: 'inherit',
-    });
+    execFileSync(
+      'swiftc',
+      ['-O', '-target', macosHelperTarget(), macosHelperSourcePath, '-o', macosHelperBinaryPath],
+      {
+        stdio: 'inherit',
+      },
+    );
     fs.chmodSync(macosHelperBinaryPath, 0o755);
     process.stdout.write(`Built macOS helper: ${macosHelperBinaryPath}\n`);
   } catch (error) {
