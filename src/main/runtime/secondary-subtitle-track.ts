@@ -1,5 +1,6 @@
 import type { SubtitleCue } from '../../types/subtitle';
 import { flattenedSecondarySubtitleLineIdentity } from '../../core/services/secondary-subtitle-line-identity';
+import { removeAssControlDebrisLines } from '../../core/services/ass-text';
 
 type SecondarySubtitleMpvClient = {
   connected?: boolean;
@@ -153,15 +154,17 @@ export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds
   activeCues.sort(compareAuthoredSubtitleOrder);
 
   for (const { cue } of activeCues) {
-    const text = cue.text.trim();
-    const compactText = text.replace(/\s+/gu, '');
-    if (!compactText || seenExact.has(compactText)) continue;
-    seenExact.add(compactText);
+    for (const line of cue.text.split('\n')) {
+      const text = line.trim();
+      const compactText = text.normalize('NFKC').replace(/\s+/gu, '');
+      if (!compactText || seenExact.has(compactText)) continue;
+      seenExact.add(compactText);
 
-    const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(text);
-    if (flattenedIdentity && seenFlattened.has(flattenedIdentity)) continue;
-    if (flattenedIdentity) seenFlattened.add(flattenedIdentity);
-    activeText.push(text);
+      const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(text);
+      if (flattenedIdentity && seenFlattened.has(flattenedIdentity)) continue;
+      if (flattenedIdentity) seenFlattened.add(flattenedIdentity);
+      activeText.push(text);
+    }
   }
   return activeText.join('\n');
 }
@@ -305,7 +308,7 @@ export function createSecondarySubtitleTrackController(deps: {
     refresh,
     scheduleRefresh,
     handleLiveText(text: string): void {
-      lastLiveText = text;
+      lastLiveText = removeAssControlDebrisLines(text);
       publish(resolveAtTime(deps.getCurrentTimePos()));
     },
     handleTimePos(timeSeconds: number): void {

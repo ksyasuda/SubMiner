@@ -20,6 +20,32 @@ test('findActiveSubtitleText combines unique simultaneous parsed cues', () => {
   );
 });
 
+test('findActiveSubtitleText removes duplicate lines across multiline cues', () => {
+  assert.equal(
+    findActiveSubtitleText(
+      [
+        { startTime: 1, endTime: 3, text: 'First line\nSecond line' },
+        { startTime: 1, endTime: 3, text: 'First line' },
+      ],
+      2,
+    ),
+    'First line\nSecond line',
+  );
+});
+
+test('findActiveSubtitleText removes equivalent full-width duplicate lines', () => {
+  assert.equal(
+    findActiveSubtitleText(
+      [
+        { startTime: 1, endTime: 3, text: '真白～' },
+        { startTime: 1, endTime: 3, text: '真白~' },
+      ],
+      2,
+    ),
+    '真白～',
+  );
+});
+
 test('findActiveSubtitleText collapses whitespace variants of one ASS lyric', () => {
   assert.equal(
     findActiveSubtitleText(
@@ -378,6 +404,23 @@ test('secondary track controller falls back to live mpv text without a readable 
 
   assert.equal(currentText, 'live fallback');
   assert.deepEqual(broadcasts, ['live fallback']);
+});
+
+test('secondary live fallback drops malformed ASS control debris', () => {
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => null,
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => null,
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line']);
 });
 
 test('secondary track controller reuses parsed cues for an unchanged embedded track', async () => {

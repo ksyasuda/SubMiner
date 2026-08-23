@@ -120,10 +120,12 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - Simultaneous ASS lines are flattened in top-to-bottom positioned order, falling back to their
   authored source order when no usable position exists.
 - Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
-  survive concatenation, while scripts that discarded their word boundaries remain compact
-  instead of gaining false spaces between syllables. Short runs qualify only when overlapping
-  positioned events also show changing overrides or repeated layer copies; an English or romaji
-  style name alone never turns ordinary dialogue into a lyric.
+  survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
+  boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that
+  line. Unpositioned fragments stay compact instead of gaining guessed spaces between syllables.
+  Short runs qualify only when overlapping positioned events also show changing overrides or
+  repeated layer copies; an English or romaji style name alone never turns ordinary dialogue into
+  a lyric.
 - Recovered canonical ASS text remains active for the generated animation envelope. For
   reconstructed lyric styles, the longest-lived active line wins over brief entrance and exit
   fragments from the same style.

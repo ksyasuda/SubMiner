@@ -1,4 +1,5 @@
 import type { SubtitleCue } from '../../types';
+import { removeAssControlDebrisLines } from '../../core/services/ass-text';
 
 // Slack on top of each cue's recorded animation envelope, for time-pos observation
 // staleness and small user sub-delay offsets. The envelope itself covers how far
@@ -23,9 +24,13 @@ function animationSpan(cue: SubtitleCue): { start: number; end: number } {
 function nearbyCanonicalCues(
   cues: readonly SubtitleCue[] | null | undefined,
   currentTimeSec: number,
+  includeFragmentGrids = false,
 ): SubtitleCue[] {
   return (cues ?? []).filter((cue) => {
-    if (cue.source !== 'canonical-ass' && cue.source !== 'reconstructed-ass') {
+    if (
+      (cue.source !== 'canonical-ass' && cue.source !== 'reconstructed-ass') ||
+      (!includeFragmentGrids && cue.assLayout?.kind === 'fragment-grid')
+    ) {
       return false;
     }
     const span = animationSpan(cue);
@@ -37,7 +42,7 @@ function nearbyCanonicalCues(
 }
 
 function compactWhitespace(text: string): string {
-  return text.replace(/\s+/gu, '');
+  return text.normalize('NFKC').replace(/\s+/gu, '');
 }
 
 // ASS layers can encode the same visible spacing with ordinary, hard, or
@@ -47,10 +52,12 @@ function uniqueCueTexts(cues: readonly SubtitleCue[]): string[] {
   const texts: string[] = [];
   const seen = new Set<string>();
   for (const cue of cues) {
-    const compactText = compactWhitespace(cue.text);
-    if (seen.has(compactText)) continue;
-    seen.add(compactText);
-    texts.push(cue.text);
+    for (const line of cue.text.split('\n')) {
+      const compactText = compactWhitespace(line);
+      if (!compactText || seen.has(compactText)) continue;
+      seen.add(compactText);
+      texts.push(line);
+    }
   }
   return texts;
 }
@@ -87,18 +94,37 @@ function resolveActiveParsedPrimarySubtitle(options: {
       return false;
     }
     const cueSegments = compactLineSegments(cue.text);
-    return cueSegments.length > 0 && cueSegments.every((segment) => liveSegmentSet.has(segment));
+    if (cueSegments.length === 0) return false;
+    if (cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass') {
+      return liveSegments.some((segment) =>
+        cueSegments.some((cueSegment) => cueSegment.includes(segment)),
+      );
+    }
+    return cueSegments.every((segment) => liveSegmentSet.has(segment));
   });
   if (selected.length === 0) {
     return null;
   }
 
-  const parsedSegmentSet = new Set(selected.flatMap((cue) => compactLineSegments(cue.text)));
-  if (!liveSegments.every((segment) => parsedSegmentSet.has(segment))) {
+  const parsedSegments = selected.flatMap((cue) =>
+    compactLineSegments(cue.text).map((segment) => ({
+      segment,
+      recovered: cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass',
+    })),
+  );
+  if (
+    !liveSegments.every((liveSegment) =>
+      parsedSegments.some(({ segment, recovered }) =>
+        recovered ? segment.includes(liveSegment) : segment === liveSegment,
+      ),
+    )
+  ) {
     return null;
   }
 
-  const texts = uniqueCueTexts(selected);
+  // Dense sign grids still explain their raw mpv fragments, but are visual
+  // typesetting rather than a publishable subtitle line.
+  const texts = uniqueCueTexts(selected.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'));
   return {
     text: texts.join('\n'),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),
@@ -179,8 +205,9 @@ export function resolveCanonicalPrimarySubtitle(options: {
 /**
  * Live text with generated-animation fragment lines removed. Recording paths use this
  * when full canonical substitution declined -- concurrent dialogue during an insert
- * song: the dialogue is worth recording, the glyph fragments beside it are not. Returns
- * the input unchanged when no canonical cue is near or nothing non-fragment remains.
+ * song: the dialogue is worth recording, the glyph fragments beside it are not. An
+ * all-fragment visual grid becomes empty; other all-matched input remains unchanged as a
+ * defensive fallback.
  */
 export function stripCanonicalFragmentLines(options: {
   liveText: string;
@@ -190,7 +217,7 @@ export function stripCanonicalFragmentLines(options: {
   if (!Number.isFinite(options.currentTimeSec)) {
     return options.liveText;
   }
-  const nearby = nearbyCanonicalCues(options.cues, options.currentTimeSec);
+  const nearby = nearbyCanonicalCues(options.cues, options.currentTimeSec, true);
   if (nearby.length === 0) {
     return options.liveText;
   }
@@ -199,7 +226,8 @@ export function stripCanonicalFragmentLines(options: {
     const compact = compactWhitespace(line);
     return compact && !compactCues.some((cueText) => cueText.includes(compact));
   });
-  return kept.length > 0 ? kept.join('\n') : options.liveText;
+  if (kept.length > 0) return kept.join('\n');
+  return nearby.some((cue) => cue.assLayout?.kind === 'fragment-grid') ? '' : options.liveText;
 }
 
 export function resolvePrimarySubtitleText(options: {
@@ -207,16 +235,17 @@ export function resolvePrimarySubtitleText(options: {
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
-  if (!options.liveText.trim()) {
-    return options.liveText;
+  const liveText = removeAssControlDebrisLines(options.liveText);
+  if (!liveText.trim()) {
+    return liveText;
   }
   return (
     resolveCanonicalPrimarySubtitle({
-      liveText: options.liveText,
+      liveText,
       currentTimeSec: options.currentTimeSec,
       cues: options.cues,
     })?.text ??
-    resolveActiveParsedPrimarySubtitle(options)?.text ??
-    options.liveText
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
+    liveText
   );
 }

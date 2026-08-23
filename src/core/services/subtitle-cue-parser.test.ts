@@ -35,6 +35,12 @@ test('parseSrtCues handles multi-line subtitle text', () => {
   assert.equal(cues[0]!.text, 'これは\nテストです');
 });
 
+test('parseSrtCues preserves lines that only resemble malformed ASS controls', () => {
+  const content = ['1', '00:01:00,000 --> 00:01:05,000', '\\', '{\\fr0', ''].join('\n');
+
+  assert.equal(parseSrtCues(content)[0]?.text, '\\\n{\\fr0');
+});
+
 test('parseSrtCues strips HTML-like markup while preserving line breaks', () => {
   const content = [
     '1',
@@ -1020,4 +1026,216 @@ test('parseSubtitleCues detects subtitle formats from remote URLs', () => {
 
   assert.equal(cues.length, 1);
   assert.equal(cues[0]!.text, 'URLテスト');
+});
+
+test('parseSubtitleCues skips zero-duration ASS metadata events', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:00.00,0:00:00.00,Default,,0,0,0,,[Script Info]',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Real subtitle',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Real subtitle' },
+  ]);
+});
+
+test('parseSubtitleCues drops malformed ASS spacer reset debris', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Background,,0,0,0,,{\\pos(10,10)}\\h\\h\\h\\{\\fr0',
+    'Dialogue: 1,0:00:01.00,0:00:02.00,Default,,0,0,0,,Visible line',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Visible line' },
+  ]);
+});
+
+test('parseSubtitleCues recovers spaces encoded only by positioned Latin glyph gaps', () => {
+  const glyphs = [
+    ['T', 100],
+    ['h', 118],
+    ['e', 136],
+    ['s', 164],
+    ['t', 178],
+    ['a', 194],
+    ['r', 210],
+    ['s', 227],
+    ['I', 255],
+    ['s', 275],
+    ['e', 293],
+    ['e', 311],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      glyphs.map(
+        ([glyph, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'The stars I see');
+});
+
+test('parseSubtitleCues adds a missing word space after positioned punctuation', () => {
+  const fragments = [
+    ['H', 100],
+    ['i,', 119],
+    ['t', 153],
+    ['h', 168],
+    ['e', 186],
+    ['r', 202],
+    ['e', 216],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Hi, there');
+});
+
+test('parseSubtitleCues does not split a positioned thousands separator', () => {
+  const fragments = [
+    ['1,', 100],
+    ['000', 145],
+    ['0', 185],
+    ['0', 205],
+    ['0', 225],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, '1,000000');
+});
+
+test('parseSubtitleCues does not split a wide glyph from its punctuated suffix', () => {
+  const fragments = [
+    ['v', 904],
+    ['o', 924],
+    ['i', 939],
+    ['c', 955],
+    ['e', 976],
+    ['r', 1004],
+    ['e', 1021],
+    ['a', 1042],
+    ['c', 1063],
+    ['h', 1083],
+    ['e', 1104],
+    ['d', 1125],
+    ['m', 1161],
+    ['e,', 1193],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'voice reached me,');
+});
+
+test('parseSubtitleCues spaces positioned lyric fragments across authored rows', () => {
+  const fragments = [
+    ['My', 472, 39],
+    ['song!', 543, 39],
+    ['My', 507, 78],
+    ['song!', 578, 78],
+    ['ku', 643, 39],
+    ['chi', 683, 39],
+    ['zu', 722, 39],
+    ['sa', 757, 39],
+    ['n', 783, 39],
+    ['de', 811, 39],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x, y], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'My song! My song! kuchizusande');
+});
+
+test('parseSubtitleCues recovers positioned word gaps between romaji fragments', () => {
+  const fragments = [
+    ['sa', 380],
+    ['ga', 421],
+    ['shi', 467],
+    ['te', 510],
+    ['ta', 545],
+    ['ha', 593],
+    ['ji', 624],
+    ['ke', 655],
+    ['ta', 693],
+    ['i', 726],
+    ['ro', 749],
+    ['no', 798],
+    ['yu', 849],
+    ['me', 895],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'sagashiteta hajiketa iro no yume');
+});
+
+test('parseSubtitleCues recovers clear word gaps in a short romaji line', () => {
+  const fragments = [
+    ['bo', 542],
+    ['ku', 584],
+    ['wo', 640],
+    ['yo', 697],
+    ['bu', 738],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'boku wo yobu');
 });

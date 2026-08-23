@@ -91,6 +91,23 @@ export function assToPlainText(text: string, lineBreak: AssLineBreak = '\n'): st
   return resolveWhitespaceEscapes(stripAssMarkup(text.replace(/\r\n/g, '\n')), lineBreak);
 }
 
+const MALFORMED_ASS_ROTATION_RESET = /^\\?\{\\(?:fr|frx|fry|frz|fax|fay)[-+.0-9]*$/u;
+
+/**
+ * Drop non-rendering spacer events left as literal text by a malformed, unclosed ASS
+ * rotation reset. These events otherwise become repeated `\\` or `{\\fr0` subtitle
+ * lines after mpv-compatible decoding.
+ */
+export function removeAssControlDebrisLines(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => {
+      const compact = line.replace(/\s+/gu, '');
+      return compact !== '\\' && !MALFORMED_ASS_ROTATION_RESET.test(compact);
+    })
+    .join('\n');
+}
+
 export interface NormalizePlainSubtitleTextOptions {
   /** Fold every line break into a single space. */
   collapseLineBreaks?: boolean;

@@ -3,6 +3,7 @@ import {
   assToPlainText,
   collectAssOverrideCommands,
   parseAssEffectField,
+  removeAssControlDebrisLines,
   type AssEffectKind,
   type AssOverrideCommand,
 } from './ass-text';
@@ -89,6 +90,10 @@ function decodeSubtitleCueText(text: string): string {
 
 function sanitizeSubtitleCueText(text: string): string {
   return decodeSubtitleCueText(text).trim();
+}
+
+function sanitizeAssCueText(text: string): string {
+  return removeAssControlDebrisLines(decodeSubtitleCueText(text)).trim();
 }
 
 function attachAssLayout<T extends SubtitleCue>(cue: T, assLayout: AssCueLayout | undefined): T {
@@ -387,6 +392,124 @@ interface AssFragmentPart {
   text: string;
 }
 
+interface AssFragmentPosition {
+  x: number;
+  y: number;
+}
+
+const MIN_LATIN_POSITION_GAP_SAMPLES = 4;
+const LATIN_WORD_GAP_RATIO = 1.2;
+
+function fragmentPosition(cue: AnnotatedSubtitleCue): AssFragmentPosition | null {
+  for (const command of cue.overrides) {
+    if (command.animated) continue;
+    const name = command.name.toLowerCase();
+    const args = command.args.split(',').map((value) => Number(value.trim()));
+    if (
+      name === 'pos' &&
+      args.length >= 2 &&
+      Number.isFinite(args[0]) &&
+      Number.isFinite(args[1])
+    ) {
+      return { x: args[0]!, y: args[1]! };
+    }
+    if (
+      name === 'move' &&
+      args.length >= 4 &&
+      args.slice(0, 4).every((value) => Number.isFinite(value))
+    ) {
+      return { x: (args[0]! + args[2]!) / 2, y: (args[1]! + args[3]!) / 2 };
+    }
+  }
+  return null;
+}
+
+function latinGlyphWidthWeight(glyph: string): number {
+  if (/[ilIjtfr]/u.test(glyph)) return 0.6;
+  if (/[mwMW]/u.test(glyph)) return 1.4;
+  if (/[A-Z]/u.test(glyph)) return 1.1;
+  return 1;
+}
+
+function latinFragmentWidthWeight(text: string): number | null {
+  if (!/^[A-Za-z0-9'’.,!?;:-]+$/u.test(text)) return null;
+  const punctuationWeight = /^[A-Za-z0-9]['’.,!?;:-]$/u.test(text) ? 0.5 : 0.25;
+  return [...text].reduce(
+    (width, glyph) =>
+      width + (/['’.,!?;:-]/u.test(glyph) ? punctuationWeight : latinGlyphWidthWeight(glyph)),
+    0,
+  );
+}
+
+function normalizedLatinFragmentGap(
+  previous: AssFragmentPart,
+  current: AssFragmentPart,
+): number | null {
+  const previousWeight = latinFragmentWidthWeight(previous.text);
+  const currentWeight = latinFragmentWidthWeight(current.text);
+  const previousPosition = fragmentPosition(previous.cue);
+  const currentPosition = fragmentPosition(current.cue);
+  if (previousWeight === null || currentWeight === null || !previousPosition || !currentPosition) {
+    return null;
+  }
+  const xDistance = currentPosition.x - previousPosition.x;
+  const yDistance = Math.abs(currentPosition.y - previousPosition.y);
+  if (yDistance <= 2 && xDistance <= 0) return null;
+
+  // A wrapped authored line can return to the left on its next visual row. Preserve
+  // that measured row transition as a separator without treating backwards movement
+  // on the same row as a word gap.
+  const positionDistance = yDistance <= 2 ? xDistance : Math.abs(xDistance) + yDistance;
+  return positionDistance / ((previousWeight + currentWeight) / 2);
+}
+
+function commonLatinFragmentGap(values: readonly number[]): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  // Romaji lines contain many short particles, so real word gaps can outnumber
+  // within-word transitions. A lower quantile still represents ordinary glyph advance
+  // while ignoring the narrowest character pair as an outlier.
+  return sorted[Math.floor((sorted.length - 1) * 0.35)]!;
+}
+
+/**
+ * Character-by-character typesetting often omits literal spaces because the authored
+ * word gap exists only in each glyph's `\pos`. Estimate the normal adjacent-glyph
+ * advance within that one line, then preserve only materially larger horizontal gaps.
+ * Normalizing each gap by the neighboring fragment widths supports both single glyphs
+ * and multi-character karaoke syllables without guessing from the text itself.
+ */
+function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
+  if (parts.some((part) => /\s/u.test(part.text))) {
+    return parts
+      .map((part) => part.text)
+      .join('')
+      .trim();
+  }
+  const normalizedGaps: number[] = [];
+  for (let index = 1; index < parts.length; index += 1) {
+    const gap = normalizedLatinFragmentGap(parts[index - 1]!, parts[index]!);
+    if (gap !== null) normalizedGaps.push(gap);
+  }
+  const wordGapThreshold =
+    normalizedGaps.length >= MIN_LATIN_POSITION_GAP_SAMPLES
+      ? commonLatinFragmentGap(normalizedGaps) * LATIN_WORD_GAP_RATIO
+      : Infinity;
+
+  let text = parts[0]?.text ?? '';
+  for (let index = 1; index < parts.length; index += 1) {
+    const previous = parts[index - 1]!;
+    const current = parts[index]!;
+    const hasAuthoredSpace = /\s$/u.test(previous.text) || /^\s/u.test(current.text);
+    const normalizedGap = normalizedLatinFragmentGap(previous, current);
+    const hasPositionedWordGap = normalizedGap !== null && normalizedGap > wordGapThreshold;
+    if (!hasAuthoredSpace && hasPositionedWordGap) {
+      text += ' ';
+    }
+    text += current.text;
+  }
+  return text.trim();
+}
+
 function reconstructedAssFragmentLayout(
   parts: readonly AssFragmentPart[],
   owner: AnnotatedSubtitleCue,
@@ -522,10 +645,7 @@ function reconstructAssFragmentLine(
     return null;
   }
 
-  const text = parts
-    .map((part) => part.text)
-    .join('')
-    .trim();
+  const text = joinAssFragmentParts(parts);
   if (!text) {
     return null;
   }
@@ -911,12 +1031,12 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
 
     const startTime = parseAssTimestamp(fields[fieldIndex.start]!);
     const endTime = parseAssTimestamp(fields[fieldIndex.end]!);
-    if (startTime === null || endTime === null) {
+    if (startTime === null || endTime === null || endTime <= startTime) {
       continue;
     }
 
     const rawText = fields.slice(fieldIndex.text).join(',');
-    const text = sanitizeSubtitleCueText(rawText);
+    const text = sanitizeAssCueText(rawText);
     if (!text) {
       continue;
     }

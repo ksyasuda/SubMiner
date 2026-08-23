@@ -10,6 +10,7 @@ import {
   isAssTemporalCommand,
   normalizePlainSubtitleText,
   parseAssEffectField,
+  removeAssControlDebrisLines,
 } from './ass-text';
 
 test('assToPlainText drops vector drawing runs', () => {
@@ -72,6 +73,14 @@ test('assToPlainText is idempotent', () => {
 
 test('assToPlainText normalizes CRLF before converting', () => {
   assert.equal(assToPlainText('一行目\r\n二行目'), '一行目\n二行目');
+});
+
+test('removeAssControlDebrisLines drops malformed spacer resets without eating dialogue', () => {
+  assert.equal(
+    removeAssControlDebrisLines('Visible line\n\\\n{\\fr0\n\\{\\frz287.5'),
+    'Visible line',
+  );
+  assert.equal(removeAssControlDebrisLines('本文{\\pos(1,2)'), '本文{\\pos(1,2)');
 });
 
 test('normalizePlainSubtitleText settles whitespace without decoding ASS', () => {

@@ -64,6 +64,34 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
   );
 });
 
+test('resolvePrimarySubtitleText removes duplicate lines across multiline parsed cues', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'First line\nSecond line\nFirst line',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: 'First line\nSecond line' },
+        { startTime: 1, endTime: 3, text: 'First line' },
+      ],
+    }),
+    'First line\nSecond line',
+  );
+});
+
+test('resolvePrimarySubtitleText removes equivalent full-width duplicate lines', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '２０分５３秒\n20分53秒',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: '２０分５３秒' },
+        { startTime: 1, endTime: 3, text: '20分53秒' },
+      ],
+    }),
+    '２０分５３秒',
+  );
+});
+
 test('resolvePrimarySubtitleText collapses whitespace variants of one ASS lyric', () => {
   const ass = [
     '[Events]',
@@ -150,6 +178,54 @@ test('resolvePrimarySubtitleText keeps concurrent dialogue that is not part of t
   });
 
   assert.equal(text, '普通のセリフ\n今\n手にある');
+});
+
+test('resolvePrimarySubtitleText combines parsed dialogue with a reconstructed lyric', () => {
+  const text = resolvePrimarySubtitleText({
+    liveText: '普通のセリフ\n今\n今\n手\n手\nにある\nにある',
+    currentTimeSec: 2,
+    cues: [
+      { startTime: 1, endTime: 3, text: '普通のセリフ' },
+      {
+        startTime: 1.2,
+        endTime: 3.8,
+        text: '今　手にある',
+        source: 'reconstructed-ass',
+      },
+    ],
+  });
+
+  assert.equal(text, '普通のセリフ\n今　手にある');
+});
+
+test('resolvePrimarySubtitleText uses fragment grids only to account for live sign pieces', () => {
+  const text = resolvePrimarySubtitleText({
+    liveText: 'Ordinary dialogue\nMaid\nCafe',
+    currentTimeSec: 2,
+    cues: [
+      { startTime: 1, endTime: 3, text: 'Ordinary dialogue' },
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'MaidCafeMaidCafe',
+        source: 'reconstructed-ass',
+        assLayout: { kind: 'fragment-grid', sourceOrder: 2 },
+      },
+    ],
+  });
+
+  assert.equal(text, 'Ordinary dialogue');
+});
+
+test('resolvePrimarySubtitleText drops malformed ASS control debris from live text', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'Visible line\n\\\n{\\fr0',
+      currentTimeSec: 2,
+      cues: null,
+    }),
+    'Visible line',
+  );
 });
 
 test('resolvePrimarySubtitleText keeps a fresh line starting just after the animation ended', () => {

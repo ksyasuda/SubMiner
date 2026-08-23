@@ -218,6 +218,9 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         return;
       }
       text = stripFragmentsForRecording(text, start);
+      if (!text.trim()) {
+        return;
+      }
       if (!immersionLineDedupGate.shouldRecord({ text, startSec: start, endSec: end })) {
         return;
       }
@@ -228,8 +231,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
       const canonical = resolveCanonicalSample(text, start);
       if (!canonical) {
+        const recordableText = stripFragmentsForRecording(text, start);
+        if (!recordableText.trim()) {
+          return;
+        }
         deps.appState.subtitleTimingTracker?.recordSubtitle?.(
-          stripFragmentsForRecording(text, start),
+          recordableText,
           start,
           end,
           secondaryText,
