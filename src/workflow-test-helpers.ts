@@ -42,6 +42,19 @@ function allSteps(workflow: ParsedWorkflow): Array<{ job: string; step: Workflow
   );
 }
 
+// Lines of a step's shell body that actually execute. Comments are dropped so a
+// commented-out command cannot satisfy a "this step runs X" assertion.
+export function executableRunLines(step: WorkflowStep): string[] {
+  return (typeof step.run === 'string' ? step.run.split('\n') : [])
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
+
+// Whether a step actually executes a command matching the pattern.
+export function stepRunsCommand(step: WorkflowStep, pattern: RegExp): boolean {
+  return executableRunLines(step).some((line) => pattern.test(line));
+}
+
 // GitHub substitutes ${{ }} into a run script before the shell parses it, so any
 // value used that way is executed as script rather than read as data. Reporting
 // every expression (rather than allow-listing known-safe ones) also covers

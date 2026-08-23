@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import {
   jobSteps,
   readWorkflow,
+  stepRunsCommand,
   stepsMissingEnvDeclaration,
   templateExpressionsInRunBodies,
 } from './workflow-test-helpers';
@@ -136,20 +137,18 @@ test('prerelease workflow rejects committed notes generated for a different beta
     'bun run scripts/build-changelog.ts check-prerelease-notes',
   );
 
+  // Matched against executable lines only, so commenting the check out fails the
+  // test rather than silently satisfying it.
   const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
   const checkIndex = steps.findIndex((step) =>
-    step.run?.includes('changelog:check-prerelease-notes'),
+    stepRunsCommand(step, /changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/),
   );
-  const publishIndex = steps.findIndex((step) => /gh release (create|edit)/.test(step.run ?? ''));
+  const publishIndex = steps.findIndex((step) => stepRunsCommand(step, /gh release (create|edit)/));
 
   assert.notEqual(checkIndex, -1);
   assert.notEqual(publishIndex, -1);
   // Stale notes are already published if the check runs after the release.
   assert.ok(checkIndex < publishIndex);
-  assert.match(
-    steps[checkIndex]!.run!,
-    /changelog:check-prerelease-notes --version "\$RELEASE_VERSION"/,
-  );
 });
 
 test('prerelease workflow keeps tag-derived values out of shell bodies', () => {
