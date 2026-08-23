@@ -35,6 +35,17 @@ export type MpvSubtitleTrackLike = {
   'external-filename'?: unknown;
 };
 
+export type ExtractedInternalSubtitleTrack = {
+  path: string;
+  cleanup: () => Promise<void>;
+};
+
+export type InternalSubtitleTrackExtractor = (
+  ffmpegPath: string,
+  videoPath: string,
+  track: MpvSubtitleTrackLike,
+) => Promise<ExtractedInternalSubtitleTrack | null>;
+
 const DEFAULT_EXTRACTION_TIMEOUT_MS = 30_000;
 
 export function parseTrackId(value: unknown): number | null {
@@ -80,7 +91,7 @@ export async function extractInternalSubtitleTrackToTempFile(
   videoPath: string,
   track: MpvSubtitleTrackLike,
   options: { extractionTimeoutMs?: number; spawnArgsOverride?: string[] } = {},
-): Promise<{ path: string; cleanup: () => Promise<void> } | null> {
+): Promise<ExtractedInternalSubtitleTrack | null> {
   const ffIndex = parseTrackId(track['ff-index']);
   const codec = typeof track.codec === 'string' ? track.codec : null;
   const extension = codecToExtension(codec ?? undefined);
@@ -144,4 +155,70 @@ export async function extractInternalSubtitleTrackToTempFile(
       await fs.promises.rm(tempDir, { recursive: true, force: true });
     },
   };
+}
+
+type CachedExtraction = {
+  promise: Promise<ExtractedInternalSubtitleTrack | null>;
+};
+
+function buildCachedExtractionKey(
+  ffmpegPath: string,
+  videoPath: string,
+  track: MpvSubtitleTrackLike,
+): string {
+  const codec = typeof track.codec === 'string' ? track.codec : null;
+  return JSON.stringify([ffmpegPath, videoPath, parseTrackId(track['ff-index']), codec]);
+}
+
+const releaseCachedExtraction = async (): Promise<void> => {};
+
+/**
+ * Owns extracted subtitle files for the active media and shares one extraction between callers.
+ * Caller cleanup releases only its view; clear removes the owned files on media changes or quit.
+ */
+export function createCachedInternalSubtitleTrackExtractor(
+  deps: { extract?: InternalSubtitleTrackExtractor } = {},
+): {
+  extract: InternalSubtitleTrackExtractor;
+  clear: () => void;
+} {
+  const extractTrack = deps.extract ?? extractInternalSubtitleTrackToTempFile;
+  const extractions = new Map<string, CachedExtraction>();
+
+  const extract: InternalSubtitleTrackExtractor = async (ffmpegPath, videoPath, track) => {
+    const key = buildCachedExtractionKey(ffmpegPath, videoPath, track);
+    let cached = extractions.get(key);
+    if (!cached) {
+      const next: CachedExtraction = {
+        promise: extractTrack(ffmpegPath, videoPath, track),
+      };
+      cached = next;
+      extractions.set(key, next);
+      void next.promise.catch(() => {
+        if (extractions.get(key) === next) {
+          extractions.delete(key);
+        }
+      });
+    }
+
+    const result = await cached.promise;
+    if (extractions.get(key) !== cached || !result) {
+      return null;
+    }
+
+    return {
+      path: result.path,
+      cleanup: releaseCachedExtraction,
+    };
+  };
+
+  const clear = (): void => {
+    const staleExtractions = [...extractions.values()];
+    extractions.clear();
+    for (const extraction of staleExtractions) {
+      void extraction.promise.then((result) => result?.cleanup()).catch(() => undefined);
+    }
+  };
+
+  return { extract, clear };
 }

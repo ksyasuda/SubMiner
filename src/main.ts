@@ -588,9 +588,10 @@ import {
 import { buildSubtitleSidebarSourceKey } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 import {
+  createCachedInternalSubtitleTrackExtractor,
   loadSubtitleSourceText,
-  extractInternalSubtitleTrackToTempFile,
 } from './main/runtime/internal-subtitle-extraction';
+import { createRemoteMediaPathDetector } from './main/runtime/network-media-path';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
 import { getSubsyncConfig } from './subsync/utils';
 
@@ -2054,10 +2055,13 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     }
   },
 });
+const cachedInternalSubtitleTrackExtractor = createCachedInternalSubtitleTrackExtractor();
+const detectRemoteMediaPath = createRemoteMediaPathDetector();
 const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
   getFfmpegPath: () => configService.getConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
+  isRemoteMediaPath: detectRemoteMediaPath,
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
-    extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
+    cachedInternalSubtitleTrackExtractor.extract(ffmpegPath, videoPath, track),
   logDebug: (message) => logger.debug(message),
 });
 
@@ -3962,6 +3966,7 @@ const {
       appState.yomitanSettingsWindow = null;
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
@@ -4522,6 +4527,7 @@ const {
         appState.activeParsedSubtitleMediaPath,
       );
       if ((normalizedPath || null) !== previousPath) {
+        cachedInternalSubtitleTrackExtractor.clear();
         secondarySubtitleTrackController.reset();
         const resetSubtitlePayload = { text: '', tokens: null };
         const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;

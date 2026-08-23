@@ -43,6 +43,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyYomitanSettingsWindow: () => calls.push('destroy-yomitan-settings-window'),
     clearYomitanSettingsWindow: () => calls.push('clear-yomitan-settings-window'),
     stopJellyfinRemoteSession: () => calls.push('stop-jellyfin-remote'),
+    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
     cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
@@ -50,10 +51,11 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   });
 
   cleanup();
-  assert.equal(calls.length, 34);
+  assert.equal(calls.length, 35);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
   assert.ok(calls.includes('cleanup-jellyfin-subtitles'));
+  assert.ok(calls.includes('cleanup-internal-subtitles'));
   assert.ok(calls.includes('clear-windows-visible-overlay-poll'));
   assert.ok(calls.includes('clear-linux-mpv-fullscreen-overlay-refresh-timeouts'));
   assert.ok(calls.includes('cleanup-youtube-subtitles'));
@@ -97,6 +99,7 @@ test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping 
       calls.push('stop-jellyfin-remote');
       throw new Error('stop failed');
     },
+    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
     cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),

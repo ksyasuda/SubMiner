@@ -860,3 +860,18 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
       snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
   );
 });
+
+test('main process guards internal subtitle extraction with the remote media detector', () => {
+  const source = readMainSource();
+  const resolverWiring = source.match(
+    /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(resolverWiring);
+  assert.match(source, /const detectRemoteMediaPath = createRemoteMediaPathDetector\(\);/);
+  assert.match(resolverWiring, /isRemoteMediaPath:\s*detectRemoteMediaPath/);
+  assert.match(
+    resolverWiring,
+    /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,
+  );
+});

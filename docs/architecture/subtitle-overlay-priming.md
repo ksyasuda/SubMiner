@@ -97,11 +97,12 @@ coming and prefetching would otherwise idle for the rest of the cue.
 
 ## Secondary Subtitle Flow
 
-- `secondary-sub-text` remains the immediate fallback, so unreadable and remote subtitle sources
-  still appear without waiting for file resolution.
-- Parsed secondary text and the live fallback share a flattened-line identity for long lines. This
-  removes dialogue/sign repetitions that differ only in whitespace or terminal punctuation while
-  retaining short repeated lines that can represent authored dialogue without source metadata.
+- `secondary-sub-text` remains the immediate fallback, so unreadable subtitle sources, remote URLs,
+  and files on network mounts still appear without waiting for file resolution. Embedded-track
+  extraction is skipped for those sources to avoid competing with playback for network bandwidth.
+- Parsed secondary text and the live fallback remove exact repeated lines at any length. A
+  flattened-line identity also removes long dialogue/sign repetitions that differ only in
+  whitespace or terminal punctuation, while distinct simultaneous short lines remain separate.
 - `secondary-subtitle-track.ts` resolves `secondary-sid` against mpv's track list. External tracks
   are read directly; supported embedded text tracks are extracted through the same ffmpeg-backed
   source resolver used by primary subtitle prefetching.
