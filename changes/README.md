@@ -49,6 +49,7 @@ How fragments turn into a release:
 Prerelease notes:
 
 - prerelease tags like `v0.11.3-beta.1` and `v0.11.3-rc.1` reuse the current pending fragments to generate `release/prerelease-notes.md`
+- from the second prerelease of a base version onward, the notes also open with a `## Changes since <previous tag>` section generated from the fragment diff against the previous beta/RC tag; keep fragment edits meaningful — editorial-only rewording is filtered out of that section, while genuinely changed behavior and deleted fragments (reverted changes) are reported
 - existing prerelease notes are a reviewed baseline; later prerelease runs should replace stale beta/RC wording with the current outcome instead of appending fix churn
 - prerelease note generation does not consume fragments and does not update `CHANGELOG.md` or `docs-site/changelog.md`
 - the final stable release is the point where `bun run changelog:build` consumes fragments into the stable changelog and release notes

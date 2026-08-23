@@ -32,6 +32,7 @@
     "changelog:pr-check": "bun run scripts/build-changelog.ts pr-check",
     "changelog:release-notes": "bun run scripts/build-changelog.ts release-notes",
     "changelog:prerelease-notes": "bun run scripts/build-changelog.ts prerelease-notes",
+    "changelog:check-prerelease-notes": "bun run scripts/build-changelog.ts check-prerelease-notes",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "format:src": "bash scripts/prettier-scope.sh --write",
