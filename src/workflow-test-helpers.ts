@@ -53,14 +53,72 @@ export function executableRunLines(step: WorkflowStep): string[] {
 // Leading shell keywords and operators that can precede a real command.
 const COMMAND_PREFIX = /^(?:if|elif|while|until|then|else|do|!|&&|\|\||\(|\{)\s+/;
 
+// Splits one shell line on command separators, tracking quotes so a separator
+// inside a string is not treated as a command break, and stopping at an
+// unquoted inline comment.
+function splitCommandSeparators(line: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | null = null;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]!;
+
+    if (quote) {
+      current += char;
+      if (char === '\\' && quote === '"' && index + 1 < line.length) {
+        current += line[index + 1]!;
+        index += 1;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === '"') {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    // An unquoted # starts a comment when it opens a word; the rest is inert.
+    if (char === '#' && (current === '' || /\s$/.test(current))) {
+      break;
+    }
+
+    const next = line[index + 1];
+    if (char === ';') {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+    if ((char === '&' || char === '|') && next === char) {
+      segments.push(current);
+      current = '';
+      index += 1;
+      continue;
+    }
+    // A lone pipe separates commands; a redirect such as 2>&1 does not.
+    if (char === '|' && !/[0-9<>&]$/.test(current)) {
+      segments.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  segments.push(current);
+  return segments;
+}
+
 // Command positions within a step's shell body: each line split on separators,
 // with control-flow prefixes stripped. A pattern anchored with ^ therefore
 // matches only where a command actually starts, so text quoted inside an
 // `echo`/`printf` argument is not mistaken for the command running.
 export function commandPositions(step: WorkflowStep): string[] {
   return executableRunLines(step).flatMap((line) =>
-    line
-      .split(/;|&&|\|\||(?<![0-9<>])\|(?!\|)/)
+    splitCommandSeparators(line)
       .map((segment) => {
         let candidate = segment.trim();
         let stripped = candidate.replace(COMMAND_PREFIX, '');

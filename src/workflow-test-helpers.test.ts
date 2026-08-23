@@ -26,6 +26,18 @@ test('stepRunsCommand rejects commands that are only mentioned, not run', () => 
   assert.equal(runs('bun run verify'), false);
 });
 
+test('stepRunsCommand ignores separators inside quotes and inline comments', () => {
+  assert.equal(runs('echo \'note; bun run verify --flag "$VALUE"\''), false);
+  assert.equal(runs('echo "note && bun run verify --flag \\"$VALUE\\""'), false);
+  assert.equal(runs("printf '%s\\n' 'a | bun run verify --flag \"$VALUE\"'"), false);
+  assert.equal(runs('if false; then # bun run verify --flag "$VALUE"'), false);
+  // A trailing comment does not hide the command in front of it.
+  assert.equal(runs('bun run verify --flag "$VALUE" # keep this'), true);
+  // A pipe is a real separator; a redirect is not.
+  assert.equal(runs('cat notes | bun run verify --flag "$VALUE"'), true);
+  assert.equal(stepRunsCommand({ run: 'gh release view "$V" 2>&1 | tee log' }, /^tee\b/), true);
+});
+
 test('commandPositions splits on separators and strips control-flow prefixes', () => {
   assert.deepEqual(
     commandPositions({ run: 'if gh release view "$V"; then\ngh release edit "$V"\nfi' }),
