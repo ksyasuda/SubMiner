@@ -864,15 +864,16 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
   );
 });
 
-test('main process guards internal subtitle extraction with the remote media detector', () => {
+test('main process extracts internal subtitle tracks without a network-mount guard', () => {
   const source = readMainSource();
   const resolverWiring = source.match(
     /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
   )?.groups?.body;
 
   assert.ok(resolverWiring);
-  assert.match(source, /const detectRemoteMediaPath = createRemoteMediaPathDetector\(\);/);
-  assert.match(resolverWiring, /isRemoteMediaPath:\s*detectRemoteMediaPath/);
+  // Network-mounted files are extracted like local ones; only remote URLs skip
+  // extraction, handled inside the resolver itself.
+  assert.doesNotMatch(resolverWiring, /isRemoteMediaPath/);
   assert.match(
     resolverWiring,
     /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,

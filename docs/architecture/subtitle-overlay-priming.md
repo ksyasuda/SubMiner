@@ -98,13 +98,15 @@ coming and prefetching would otherwise idle for the rest of the cue.
 ## Secondary Subtitle Flow
 
 - `secondary-sub-text` remains the immediate fallback, so unreadable subtitle sources, remote URLs,
-  and files on network mounts still appear without waiting for file resolution. Embedded-track
-  extraction is skipped for those sources to avoid competing with playback for network bandwidth.
+  and still-extracting embedded tracks appear without waiting for file resolution. Embedded-track
+  extraction runs for local and network-mounted files alike (demuxing reads the whole container,
+  about 10 seconds per GB on gigabit, under a generous timeout); only true remote URLs skip it,
+  having no on-disk container to demux.
 - The live fallback also suppresses per-glyph typesetting walls: when many simultaneous
   one-glyph lines are present (generated karaoke lettering flattened into live text), those
   lines and their short syllable companions are dropped while concurrent dialogue lines stay.
-  This covers network-mounted media, where embedded-track extraction is skipped and no parsed
-  cues exist to substitute.
+  This keeps the overlay clean while extraction is still in flight and for sources that never
+  produce parsed cues.
 - Parsed secondary text and the live fallback remove exact repeated lines at any length. A
   flattened-line identity also removes long dialogue/sign repetitions that differ only in
   whitespace or terminal punctuation, while distinct simultaneous short lines remain separate.

@@ -157,14 +157,16 @@ test('subtitle prefetch runtime does not extract internal subtitle tracks from r
   assert.equal(extracted, false);
 });
 
-test('subtitle prefetch runtime does not extract internal subtitle tracks from network mounts', async () => {
+test('subtitle prefetch runtime extracts internal subtitle tracks from network-mounted media', async () => {
   let extracted = false;
   const resolveSource = createResolveActiveSubtitleSidebarSourceHandler({
     getFfmpegPath: () => 'ffmpeg-custom',
-    isRemoteMediaPath: async (videoPath) => videoPath.startsWith('/Volumes/jellyfin/'),
     extractInternalSubtitleTrack: async () => {
       extracted = true;
-      return null;
+      return {
+        path: '/tmp/subminer-sidebar-123/track_7.ass',
+        cleanup: async () => {},
+      };
     },
   });
 
@@ -181,8 +183,8 @@ test('subtitle prefetch runtime does not extract internal subtitle tracks from n
     videoPath: '/Volumes/jellyfin/movie.mkv',
   });
 
-  assert.equal(resolved, null);
-  assert.equal(extracted, false);
+  assert.equal(resolved?.path, '/tmp/subminer-sidebar-123/track_7.ass');
+  assert.equal(extracted, true);
 });
 
 test('subtitle prefetch refresh logs a warning when source resolution throws', async () => {
