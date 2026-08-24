@@ -91,7 +91,26 @@ export function findActiveSubtitleText(cues: readonly SubtitleCue[], timeSeconds
     (cue) =>
       cue.source === 'canonical-ass' && cue.startTime <= timeSeconds && cue.endTime > timeSeconds,
   );
-  const selectedCanonical = new Set<SubtitleCue>(authoredCanonical);
+  const enteringCanonical = cues.filter(
+    (cue) =>
+      cue.source === 'canonical-ass' &&
+      (cue.animationStartTime ?? cue.startTime) <= timeSeconds &&
+      cue.startTime > timeSeconds &&
+      (cue.animationEndTime ?? cue.endTime) > timeSeconds,
+  );
+  const nextAuthoredStart = enteringCanonical.reduce(
+    (earliest, cue) => Math.min(earliest, cue.startTime),
+    Infinity,
+  );
+  // Generated lyrics can begin drawing before their canonical Comment timing. Once that
+  // entrance starts, replace a preceding lyric that ends before the new authored span;
+  // genuinely concurrent subtitles that continue through the new span stay selected.
+  const selectedCanonical = new Set<SubtitleCue>([
+    ...authoredCanonical.filter(
+      (cue) => enteringCanonical.length === 0 || cue.endTime > nextAuthoredStart,
+    ),
+    ...enteringCanonical,
+  ]);
   if (selectedCanonical.size === 0) {
     const animatedCanonical = cues.filter(
       (cue) =>

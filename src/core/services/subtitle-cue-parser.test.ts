@@ -1265,6 +1265,21 @@ test('parseSubtitleCues drops clipped repeated-glyph texture text', () => {
   );
 });
 
+test('parseSubtitleCues drops clipped repeated-glyph texture text without a font override', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\an7\\pos(736.49,152.99)\\fscy150\\fs10\\bord3\\c&H657BC8&\\3c&H657BC8&\\blur3\\clip}lllllllllllll',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\an7\\pos(769.9,106.18)\\fscy150\\fs12\\bord3\\c&H66729F&\\3c&H66729F&\\blur5\\clip}llll',
+    'Dialogue: 5,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(893,311)}Read',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Read'],
+  );
+});
+
 test('parseSubtitleCues drops per-character alpha texture text', () => {
   const content = [
     '[Events]',
@@ -1282,6 +1297,53 @@ test('parseSubtitleCues drops per-character alpha texture text', () => {
       "So Doloris was actually Uika-chan from sumimi! That's amazing!",
       "Hanasakigawa Girl's School",
     ],
+  );
+});
+
+test('parseSubtitleCues drops transparent texture payloads across an animated sign', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 90,0:00:01.00,0:00:04.00,Alt,,0,0,0,,Even if you want to see her, she doesn't want to see you!",
+    'Dialogue: 0,0:00:01.00,0:00:01.08,FrogSigns,,0,0,0,,{\\pos(699,803)\\fnSerangkaian Pattern Regular\\clip(300,380,1130,1050)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a0}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\\\\\\\\\\\\\\\\\\\\\',
+    'Dialogue: 3,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnGrain\\alpha&HE0&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 5,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnRoboto Medium\\alpha&H00&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 6,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnGrain\\alpha&HE0&}H1.4igcAhGYHVWD"kHcVlG2W9eKEWj"!X\\N\'uNVaEVpTXMd9rk7dnRX\'P!RhsS"Wn90k6',
+    'Dialogue: 6,0:00:01.00,0:00:01.08,FrogSigns,18K,0,0,0,,{\\pos(284,821)\\fnGrain\\alpha&HE0&}ou:QepiiPqQ.4n.IYbFaGHtPzWyKI9CUSq:',
+    'Dialogue: 1,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(581,921)\\fnSerangkaian Pattern Regular\\clip(195,495,986,1120)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{',
+    'Dialogue: 3,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HE0&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 5,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnRoboto Medium\\alpha&H00&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 3,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HF0&}9LF\'GpPCTlOkLxBLV:QN,8R8NUVM"ha.s\\NNUUPNTBdJih4jUthK34i,yYe;9EBgLXbET',
+    "Dialogue: 6,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(150,936)\\fnGrain\\alpha&HE0&}JS7vl:lD;'PzkCb!bGT;.7TbA.KCkEH0LOk",
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    [
+      'Street performance by Mortis from\nMujica - Acting prodigy in action!',
+      "Even if you want to see her, she doesn't want to see you!",
+      'Street performance by Mortis from\nMujica - Acting prodigy in action!',
+    ],
+  );
+});
+
+test('parseSubtitleCues does not reconstruct short texture pieces under another actor', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,bubble,0,0,0,,{\\pos(245,-102)\\fnSerangkaian Pattern Regular\\clip(224,-1,831,106)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(917,293)\\alpha&H20&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(911,293)\\alpha&H58&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(845,300)\\alpha&H00&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(907,293)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,289,1010,338)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(911,293)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,289,1010,338)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(922,130)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,120,1010,173)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 5,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(893,311)\\fnSFProDisplay-Regular-STR}Read 3',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Read 3'],
   );
 });
 
@@ -1382,25 +1444,25 @@ test('parseSubtitleCues marks a repeated-token sign wall as a fragment grid', ()
   assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
 });
 
-test('parseSubtitleCues keeps a wrapped lyric with repeated syllables publishable', () => {
+test('parseSubtitleCues keeps a wrapped lyric with a staggered repeated token publishable', () => {
   const fragments = [
-    ['dreams', 300, 115],
-    ['ju', 250, 39],
-    ['n', 280, 39],
-    ['jo', 300, 39],
-    ['u', 330, 39],
-    ['to', 360, 39],
-    ['jo', 395, 39],
-    ['u', 425, 39],
-    ['ne', 455, 39],
-    ['tsu!', 485, 39],
+    ['dreams', 300, 115, '0:00:01.00'],
+    ['ju', 250, 39, '0:00:01.00'],
+    ['n', 280, 39, '0:00:01.00'],
+    ['jo', 300, 39, '0:00:01.00'],
+    ['u', 330, 39, '0:00:01.00'],
+    ['to', 360, 39, '0:00:01.00'],
+    ['jo', 395, 39, '0:00:01.02'],
+    ['u', 425, 39, '0:00:01.00'],
+    ['ne', 455, 39, '0:00:01.00'],
+    ['tsu!', 485, 39, '0:00:01.00'],
   ] as const;
   const content = [
     ...eventsHeader,
     ...[0, 1].flatMap((layer) =>
       fragments.map(
-        ([text, x, y], index) =>
-          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
+        ([text, x, y, start], index) =>
+          `Dialogue: ${layer},${start},0:00:04.00,ED Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
       ),
     ),
   ].join('\n');

@@ -679,8 +679,8 @@ function looksLikeFragmentGridParts(parts: readonly AssFragmentPart[]): boolean 
 
   const seenPlacements = new Map<string, number>();
   for (const part of positioned) {
-    if (part.layout?.kind !== 'positioned') continue;
-    const placement = `${part.text}@${Math.round(part.layout.y)}`;
+    if (part.layout?.kind !== 'positioned' || !part.position) continue;
+    const placement = `${part.text}@${Math.round(part.position.x)},${Math.round(part.position.y)}`;
     const earlierStart = seenPlacements.get(placement);
     if (earlierStart !== undefined && Math.abs(part.startTime - earlierStart) > 0.01) {
       return true;
@@ -966,6 +966,8 @@ function staticFontOverride(cue: AnnotatedSubtitleCue): string | null {
 
 const MIN_TEXTURE_GLYPH_RUN = 8;
 const MIN_TEXTURE_ALPHA_OVERRIDES = 6;
+const MIN_TEXTURE_LAYER_ALPHA = 0xe0;
+const ASS_ALPHA_VALUE_PATTERN = /^&?H([0-9a-f]{1,2})&?$/iu;
 
 function hasStaticOverride(cue: AnnotatedSubtitleCue, expectedName: string): boolean {
   return cue.overrides.some(
@@ -973,23 +975,34 @@ function hasStaticOverride(cue: AnnotatedSubtitleCue, expectedName: string): boo
   );
 }
 
+function isClippedRepeatedGlyphFragment(cue: AnnotatedSubtitleCue): boolean {
+  const glyphs = [...compactCueMatchText(cue)];
+  return (
+    glyphs.length > 0 &&
+    glyphs.every((glyph) => glyph === glyphs[0]) &&
+    (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'))
+  );
+}
+
 /**
- * Some ASS signs feed placeholder glyphs through a texture font instead of drawing the
- * texture as a vector. A long clipped single-glyph run or frequent changing secondary
- * alpha tags identifies the effect without guessing from its visible text or font name.
+ * Some ASS signs build image textures from clipped placeholder glyphs, optionally through
+ * a texture font. A long clipped single-glyph run or frequent changing secondary alpha
+ * tags identifies the effect without guessing from its visible text or font name.
  */
-function isAssFontTextureSeed(cue: AnnotatedSubtitleCue): boolean {
-  if (staticFontOverride(cue) === null || fragmentPosition(cue) === null) {
+function isAssTextureSeed(cue: AnnotatedSubtitleCue): boolean {
+  if (fragmentPosition(cue) === null) {
     return false;
   }
 
   const glyphs = [...compactCueMatchText(cue)];
   const isClippedRepeatedGlyphRun =
-    glyphs.length >= MIN_TEXTURE_GLYPH_RUN &&
-    glyphs.every((glyph) => glyph === glyphs[0]) &&
-    (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'));
+    glyphs.length >= MIN_TEXTURE_GLYPH_RUN && isClippedRepeatedGlyphFragment(cue);
   if (isClippedRepeatedGlyphRun) {
     return true;
+  }
+
+  if (staticFontOverride(cue) === null) {
+    return false;
   }
 
   const secondaryAlpha = cue.overrides.filter(
@@ -999,29 +1012,95 @@ function isAssFontTextureSeed(cue: AnnotatedSubtitleCue): boolean {
     return false;
   }
   const alphaValues = secondaryAlpha.map((command) => command.args.toLowerCase());
-  return alphaValues.every((value, index) => index === 0 || value !== alphaValues[index - 1]);
+  return new Set(alphaValues).size >= 2;
+}
+
+function staticGlobalAlpha(cue: AnnotatedSubtitleCue): number | null {
+  let alpha: number | null = null;
+  for (const command of cue.overrides) {
+    if (command.animated || command.name.toLowerCase() !== 'alpha') continue;
+    const match = ASS_ALPHA_VALUE_PATTERN.exec(command.args.trim());
+    const alphaValue = match?.[1];
+    if (alphaValue !== undefined) {
+      alpha = Number.parseInt(alphaValue, 16);
+    }
+  }
+  return alpha;
+}
+
+function isNearlyTransparentPositionedText(cue: AnnotatedSubtitleCue): boolean {
+  const alpha = staticGlobalAlpha(cue);
+  return (
+    alpha !== null &&
+    alpha >= MIN_TEXTURE_LAYER_ALPHA &&
+    staticFontOverride(cue) !== null &&
+    fragmentPosition(cue) !== null
+  );
 }
 
 function assFontTextureGroupKey(cue: AnnotatedSubtitleCue): string | null {
   const font = staticFontOverride(cue);
-  return font === null
-    ? null
-    : `${assEventGroupKey(cue)}\0${cue.startTime}\0${cue.endTime}\0${font}`;
+  return font === null ? null : `${cue.style}\0${cue.startTime}\0${cue.endTime}\0${font}`;
+}
+
+function assTextureTimingGroupKey(cue: AnnotatedSubtitleCue): string {
+  return `${cue.style}\0${cue.startTime}\0${cue.endTime}`;
 }
 
 function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
-  // Short pieces can share the seeded font effect without carrying enough tags to identify
-  // themselves. Limit propagation to the exact style, actor, time span, and font group.
+  const seeds = events.dialogue.filter(isAssTextureSeed);
+  const seedSet = new Set(seeds);
+  // Short pieces can share the seeded font effect under another actor without carrying
+  // enough tags to identify themselves. The exact style, time, and font group catches
+  // those pieces without inspecting their content.
   const textureGroups = new Set(
-    events.dialogue
-      .filter(isAssFontTextureSeed)
-      .map(assFontTextureGroupKey)
-      .filter((key): key is string => key !== null),
+    seeds.map(assFontTextureGroupKey).filter((key): key is string => key !== null),
   );
+  const noFontTextureTimings = new Set(
+    seeds
+      .filter((seed) => staticFontOverride(seed) === null)
+      .map((seed) => assTextureTimingGroupKey(seed)),
+  );
+  // Some signs switch actor and font between the texture mask and its payload. A nearly
+  // transparent text event that overlaps a proven seed in the same style is another input
+  // to that visual effect. Opaque authored text in the same sign remains publishable.
+  const seedsByStyle = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const seed of seeds) {
+    const styleSeeds = seedsByStyle.get(seed.style);
+    if (styleSeeds) {
+      styleSeeds.push(seed);
+    } else {
+      seedsByStyle.set(seed.style, [seed]);
+    }
+  }
+  const seedIndexesByStyle = new Map(
+    [...seedsByStyle].map(([style, styleSeeds]) => [style, buildAssEventGroupIndex(styleSeeds)]),
+  );
+
   return {
     dialogue: events.dialogue.filter((cue) => {
+      if (seedSet.has(cue)) {
+        return false;
+      }
+      if (
+        staticFontOverride(cue) === null &&
+        noFontTextureTimings.has(assTextureTimingGroupKey(cue)) &&
+        isClippedRepeatedGlyphFragment(cue)
+      ) {
+        return false;
+      }
       const key = assFontTextureGroupKey(cue);
-      return key === null || !textureGroups.has(key);
+      if (key !== null && textureGroups.has(key)) {
+        return false;
+      }
+      if (!isNearlyTransparentPositionedText(cue)) {
+        return true;
+      }
+      const styleSeedIndex = seedIndexesByStyle.get(cue.style);
+      return (
+        styleSeedIndex === undefined ||
+        eventsOverlappingWindow(styleSeedIndex, cue.startTime, cue.endTime).length === 0
+      );
     }),
     comments: events.comments,
   };

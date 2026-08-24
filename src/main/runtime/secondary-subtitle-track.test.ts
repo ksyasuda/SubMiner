@@ -170,6 +170,30 @@ test('findActiveSubtitleText keeps a canonical ASS cue for its generated animati
   assert.equal(findActiveSubtitleText([poof], 1111.59), '');
 });
 
+test('findActiveSubtitleText advances when the next canonical lyric animation starts', () => {
+  const cues = [
+    {
+      startTime: 121.73,
+      endTime: 124.1,
+      text: 'Torn at the seams, a sound pours out',
+      source: 'canonical-ass' as const,
+      animationStartTime: 121.4,
+      animationEndTime: 124.1,
+    },
+    {
+      startTime: 124.13,
+      endTime: 126.38,
+      text: 'It’s silent, yet spreads all around',
+      source: 'canonical-ass' as const,
+      animationStartTime: 123.8,
+      animationEndTime: 126.38,
+    },
+  ];
+
+  assert.equal(findActiveSubtitleText(cues, 123.79), cues[0]!.text);
+  assert.equal(findActiveSubtitleText(cues, 123.8), cues[1]!.text);
+});
+
 test('ASS fragment karaoke stays separated by style with authored word spacing', () => {
   const lineEvents = (
     style: string,
