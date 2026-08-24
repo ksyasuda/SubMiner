@@ -1143,6 +1143,113 @@ test('parseSubtitleCues keeps a short capitalized word when the following gap is
   assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'If I grow');
 });
 
+// Geometry taken from a real per-glyph ED line. The `waves within` gap crosses a wide
+// `w`, so the width-normalized ratio reads it as a common advance; only the constant
+// extra distance of the authored word space gives it away.
+test('parseSubtitleCues recovers a word gap measured across a wide glyph', () => {
+  const text = 'youcanhearthesoundofthewaveswithinmyheart';
+  const positions = [
+    202, 223, 244, 274, 296, 317, 346, 367, 389, 408, 433, 450, 470, 499, 517, 538, 557, 578, 609,
+    627, 651, 668, 688, 723, 748, 770, 792, 811, 843, 863, 875, 892, 907, 922, 957, 983, 1013,
+    1034, 1055, 1075, 1090,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},687)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'you can hear the sound of the waves within my heart',
+  );
+});
+
+// A single short word gives too few gap samples to trust the excess rule: its narrow
+// glyphs skew the common advance low and `w e` would read as a word gap.
+test('parseSubtitleCues does not split a short single positioned word', () => {
+  const text = 'Swelling';
+  const positions = [592, 613, 635, 647, 655, 662, 673, 689];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},682)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Swelling');
+});
+
+// A capitalized word whose first letter sits before a wide glyph (`S|miles`) overruns
+// the width table; the excess rule must not split a capital from its lowercase run.
+test('parseSubtitleCues keeps a capitalized word intact under the excess rule', () => {
+  const text = 'Smilesarebudding';
+  const positions = [37, 63, 80, 88, 99, 113, 142, 157, 171, 201, 217, 235, 255, 269, 280, 295];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},682)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Smiles are budding');
+});
+
+// Mirrors a real ED: per-syllable romaji at y=34 overlaid with animated single letters
+// at y=29 rendered through `\fn` in a symbol font, where `a` draws as a sparkle. The
+// letters must neither join the reconstructed line nor survive as their own cues.
+test('parseSubtitleCues drops symbol-font glyph decoration from a reconstructed line', () => {
+  const syllables = [
+    ['so', 479],
+    ['t', 505],
+    ['to', 529],
+    ['mi', 577],
+    ['mi', 618],
+    ['ni', 663],
+    ['a', 699],
+    ['te', 728],
+    ['ru', 764],
+    ['to', 810],
+  ] as const;
+  const decoration = [
+    ['a', 479, '0:00:01.25'],
+    ['z', 577, '0:00:02.51'],
+    ['x', 618, '0:00:02.78'],
+    ['q', 505, '0:00:04.20'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      syllables.map(
+        ([syllable, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:05.37,ED Romaji,,0,0,0,fx,{\\an5\\pos(${x},34)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${syllable}`,
+      ),
+    ),
+    ...decoration.map(
+      ([glyph, x, start]) =>
+        `Dialogue: 0,${start},0:00:05.37,ED Romaji,,0,0,0,fx,{\\pos(${x},29)\\fnSplit splat splodge\\fs28\\t(3870,3970,\\fscx105)}${glyph}`,
+    ),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'sotto mimi ni ateru to');
+});
+
 test('parseSubtitleCues separates overlapping positioned English lyric sequences', () => {
   const fragments = [
     ['my', 642, '0:00:01.00', '0:00:04.05'],

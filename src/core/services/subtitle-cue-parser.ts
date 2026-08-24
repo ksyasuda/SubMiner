@@ -2,6 +2,7 @@ import {
   assOverrideSignature,
   assToPlainText,
   collectAssOverrideCommands,
+  hasAssTemporalOverride,
   parseAssEffectField,
   removeAssControlDebrisLines,
   type AssEffectKind,
@@ -400,6 +401,13 @@ interface AssFragmentPosition {
 const MIN_LATIN_POSITION_GAP_SAMPLES = 4;
 const LATIN_FRAGMENT_WORD_GAP_RATIO = 1.16;
 const LATIN_GLYPH_WORD_GAP_RATIO = 1.4;
+// Word-space advance beyond the width-predicted glyph advance, as a fraction of the
+// line's common unit. Measured corpus extremes: widest within-word excess 0.32 (`pp`
+// with tracking), narrowest word gap 0.40 (`s w` across a wide glyph). That margin only
+// holds when the common unit is estimated from enough glyph pairs; a short single-word
+// line (`Swelling`) skews the unit low and its ordinary advances read as word gaps.
+const LATIN_GLYPH_WORD_EXCESS_RATIO = 0.36;
+const MIN_LATIN_GLYPH_EXCESS_GAP_SAMPLES = 10;
 const LATIN_TWO_GLYPH_WORD_NEXT_GAP_RATIO = 1.2;
 
 function fragmentPosition(cue: AnnotatedSubtitleCue): AssFragmentPosition | null {
@@ -448,10 +456,15 @@ function isSingleLatinGlyphFragment(text: string): boolean {
   return [...text].filter((glyph) => /[A-Za-z0-9]/u.test(glyph)).length <= 1;
 }
 
-function normalizedLatinFragmentGap(
+interface LatinFragmentGapMeasure {
+  distance: number;
+  meanWeight: number;
+}
+
+function latinFragmentGapMeasure(
   previous: AssFragmentPart,
   current: AssFragmentPart,
-): number | null {
+): LatinFragmentGapMeasure | null {
   const previousWeight = latinFragmentWidthWeight(previous.text);
   const currentWeight = latinFragmentWidthWeight(current.text);
   const previousPosition = fragmentPosition(previous.cue);
@@ -466,8 +479,16 @@ function normalizedLatinFragmentGap(
   // A wrapped authored line can return to the left on its next visual row. Preserve
   // that measured row transition as a separator without treating backwards movement
   // on the same row as a word gap.
-  const positionDistance = yDistance <= 2 ? xDistance : Math.abs(xDistance) + yDistance;
-  return positionDistance / ((previousWeight + currentWeight) / 2);
+  const distance = yDistance <= 2 ? xDistance : Math.abs(xDistance) + yDistance;
+  return { distance, meanWeight: (previousWeight + currentWeight) / 2 };
+}
+
+function normalizedLatinFragmentGap(
+  previous: AssFragmentPart,
+  current: AssFragmentPart,
+): number | null {
+  const measure = latinFragmentGapMeasure(previous, current);
+  return measure === null ? null : measure.distance / measure.meanWeight;
 }
 
 function startsNewPositionedFragmentSequence(
@@ -527,6 +548,12 @@ function isLikelyTwoGlyphCapitalizedWord(options: {
  * Normalizing each gap by the neighboring fragment widths supports both single glyphs
  * and multi-character karaoke syllables without guessing from the text itself. Per-glyph
  * runs use a wider safety margin because proportional fonts vary more than syllable chunks.
+ *
+ * The ratio test alone under-detects a word gap next to a wide glyph (`waves within`
+ * measured across `s`/`w` normalizes to nearly a common advance), so per-glyph runs also
+ * treat a gap as a word boundary when its advance exceeds the width-predicted advance by
+ * a material fraction of the line's common unit -- a word space adds a roughly constant
+ * extra distance no matter how wide its neighbors are.
  */
 function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
   if (parts.some((part) => /\s/u.test(part.text))) {
@@ -540,24 +567,38 @@ function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
     const gap = normalizedLatinFragmentGap(parts[index - 1]!, parts[index]!);
     if (gap !== null) normalizedGaps.push(gap);
   }
-  const wordGapThreshold =
+  const isGlyphRun = parts.every((part) => isSingleLatinGlyphFragment(part.text));
+  const commonGap =
     normalizedGaps.length >= MIN_LATIN_POSITION_GAP_SAMPLES
-      ? commonLatinFragmentGap(normalizedGaps) *
-        (parts.every((part) => isSingleLatinGlyphFragment(part.text))
-          ? LATIN_GLYPH_WORD_GAP_RATIO
-          : LATIN_FRAGMENT_WORD_GAP_RATIO)
-      : Infinity;
+      ? commonLatinFragmentGap(normalizedGaps)
+      : null;
+  const wordGapThreshold =
+    commonGap === null
+      ? Infinity
+      : commonGap * (isGlyphRun ? LATIN_GLYPH_WORD_GAP_RATIO : LATIN_FRAGMENT_WORD_GAP_RATIO);
 
   let text = parts[0]?.text ?? '';
   for (let index = 1; index < parts.length; index += 1) {
     const previous = parts[index - 1]!;
     const current = parts[index]!;
     const hasAuthoredSpace = /\s$/u.test(previous.text) || /^\s/u.test(current.text);
-    const normalizedGap = normalizedLatinFragmentGap(previous, current);
+    const measure = latinFragmentGapMeasure(previous, current);
+    const normalizedGap = measure === null ? null : measure.distance / measure.meanWeight;
+    // A capital into lowercase is almost always a capitalized word's own first letters
+    // (`S|miles`), and capitals overrun the width table too easily, so the excess rule
+    // never fires there. A lone capital word like `I` is narrow enough for the ratio
+    // test to catch its word gap on its own.
+    const hasAdvanceExcess =
+      isGlyphRun &&
+      commonGap !== null &&
+      normalizedGaps.length >= MIN_LATIN_GLYPH_EXCESS_GAP_SAMPLES &&
+      measure !== null &&
+      !(/^[A-Z]$/u.test(previous.text) && /^[a-z]$/u.test(current.text)) &&
+      measure.distance - measure.meanWeight * commonGap > LATIN_GLYPH_WORD_EXCESS_RATIO * commonGap;
     const hasPositionedWordGap =
       startsNewPositionedFragmentSequence(previous, current) ||
       (normalizedGap !== null &&
-        normalizedGap > wordGapThreshold &&
+        (normalizedGap > wordGapThreshold || hasAdvanceExcess) &&
         !isLikelyTwoGlyphCapitalizedWord({
           parts,
           index,
@@ -786,6 +827,55 @@ function reconstructAssFragmentLine(
   };
 }
 
+// `\fnSplit splat splodge` tokenizes as name `fnSplit` + args `splat splodge`, while
+// `\fnArial` is all name and `\fn04b` is all args, so the font is both pieces rejoined.
+function staticFontOverride(cue: AnnotatedSubtitleCue): string | null {
+  let font: string | null = null;
+  for (const command of cue.overrides) {
+    if (command.animated || !command.name.toLowerCase().startsWith('fn')) continue;
+    font = [command.name.slice(2), command.args].filter(Boolean).join(' ').trim().toLowerCase();
+  }
+  return font;
+}
+
+/**
+ * Generated lyric effects often layer decoration over the real syllables: single letters
+ * positioned above each glyph, animated in, and rendered through a `\fn` override to a
+ * symbol font where `a` draws as a sparkle rather than a letter. Reading them as text
+ * corrupts the reconstructed line (`sotto mimi ni ateru to` gains a trailing `a z x`).
+ * Within one style/name group, a font used only for scattered animated single glyphs --
+ * while the group's actual text renders in another font -- marks those events as
+ * decoration rather than dialogue.
+ */
+function decorativeGlyphEvents(events: readonly AnnotatedSubtitleCue[]): Set<AnnotatedSubtitleCue> {
+  const byFont = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const cue of events) {
+    const font = staticFontOverride(cue);
+    if (font === null) continue;
+    const group = byFont.get(font);
+    if (group) {
+      group.push(cue);
+    } else {
+      byFont.set(font, [cue]);
+    }
+  }
+
+  const decorative = new Set<AnnotatedSubtitleCue>();
+  for (const fontEvents of byFont.values()) {
+    if (fontEvents.length * 2 >= events.length) continue;
+    const allScatteredGlyphs = fontEvents.every(
+      (cue) =>
+        [...compactCueMatchText(cue)].length === 1 &&
+        fragmentPosition(cue) !== null &&
+        hasAssTemporalOverride(cue.overrides),
+    );
+    if (allScatteredGlyphs) {
+      fontEvents.forEach((cue) => decorative.add(cue));
+    }
+  }
+  return decorative;
+}
+
 function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
   const groups = new Map<string, AnnotatedSubtitleCue[]>();
   for (const cue of dialogue) {
@@ -804,13 +894,26 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
   const recovered: AnnotatedSubtitleCue[] = [];
   const suppressed = new Set<AnnotatedSubtitleCue>();
   for (const events of groups.values()) {
-    for (const cluster of clusterAssFragmentEvents(events)) {
+    const decorative = decorativeGlyphEvents(events);
+    const lineEvents = decorative.size
+      ? events.filter((event) => !decorative.has(event))
+      : events;
+    for (const cluster of clusterAssFragmentEvents(lineEvents)) {
       const line = reconstructAssFragmentLine(cluster.events);
       if (!line) {
         continue;
       }
       recovered.push(line);
       cluster.events.forEach((event) => suppressed.add(event));
+      // Decoration is timed to the line it overlays, so it disappears with the line's
+      // full animation span. Decoration outside any recovered span stays published.
+      const spanStart = line.animationStartTime ?? line.startTime;
+      const spanEnd = line.animationEndTime ?? line.endTime;
+      for (const overlay of decorative) {
+        if (overlay.startTime < spanEnd && overlay.endTime > spanStart) {
+          suppressed.add(overlay);
+        }
+      }
     }
   }
   if (recovered.length === 0) {
