@@ -291,6 +291,7 @@ export function createSecondarySubtitleTrackController(deps: {
       publish(resolveAtTime(deps.getCurrentTimePos()));
     } catch (error) {
       if (generation !== refreshGeneration) return;
+      activeSourceUsesAssSyntax = false;
       deps.logWarn?.('[secondary-subtitle-track] failed to parse selected source', error);
       useLiveFallback();
     } finally {

@@ -1558,17 +1558,23 @@ test('parseSubtitleCues suppresses a karaoke highlight sweep without publishing 
           `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED Romaji,,0,0,0,fx,{\\pos(${x},60)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
       ),
     ),
-    ...[40, 41].flatMap((layer) =>
-      sweepFragments.map(
-        ([fragment, x, start, end]) =>
-          `Dialogue: ${layer},${start},${end},ED Romaji2,,0,0,0,fx,{\\an5\\pos(${x},60)\\t(150,290,\\1a&HFF&)}${fragment}`,
+    ...sweepFragments.flatMap(([fragment, x, start, end]) =>
+      [
+        [40, x, 60],
+        [41, x + 4, 64],
+      ].map(
+        ([layer, copyX, copyY]) =>
+          `Dialogue: ${layer},${start},${end},ED Romaji2,,0,0,0,fx,{\\an5\\pos(${copyX},${copyY})\\t(150,290,\\1a&HFF&)}${fragment}`,
       ),
     ),
+    'Dialogue: 42,0:00:01.20,0:00:01.30,ED Romaji2,,0,0,0,fx,{\\fnWebdings\\pos(900,50)\\t(0,100,\\fscx120)}a',
+    'Dialogue: 42,0:00:04.00,0:00:04.20,ED Romaji2,,0,0,0,fx,{\\fnWebdings\\pos(900,50)\\t(0,100,\\fscx120)}z',
   ].join('\n');
 
   const cues = parseSubtitleCues(content, 'test.ass');
-  assert.equal(cues.length, 1);
+  assert.equal(cues.length, 2);
   assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'tosouomo');
+  assert.equal(cues[1]?.text, 'z');
 });
 
 test('parseSubtitleCues collapses drop-shadow layer copies offset by a few pixels', () => {

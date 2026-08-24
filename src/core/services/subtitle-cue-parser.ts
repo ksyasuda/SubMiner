@@ -809,15 +809,21 @@ interface FragmentInterval {
   endTime: number;
 }
 
-/** Event time ranges with layer copies (same text, placement, and timing) collapsed. */
+/** Event time ranges with repeated same-text, same-time layer copies collapsed. */
 function distinctFragmentIntervals(events: readonly AnnotatedSubtitleCue[]): FragmentInterval[] {
   const intervals: FragmentInterval[] = [];
-  const seen = new Set<string>();
+  const previousEvents: AnnotatedSubtitleCue[] = [];
   for (const event of events) {
-    const anchors = [...fragmentPlacementAnchors(event)].sort().join('|');
-    const key = `${compactCueMatchText(event)}\0${anchors}\0${event.startTime}\0${event.endTime}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const compactText = compactCueMatchText(event);
+    const isLayerCopy = previousEvents.some(
+      (previous) =>
+        compactCueMatchText(previous) === compactText &&
+        previous.startTime === event.startTime &&
+        previous.endTime === event.endTime &&
+        isRepeatedFragmentCopy(previous, event),
+    );
+    previousEvents.push(event);
+    if (isLayerCopy) continue;
     intervals.push({ startTime: event.startTime, endTime: event.endTime });
   }
   return intervals.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
@@ -1018,6 +1024,13 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
     const lineEvents = decorative.size ? events.filter((event) => !decorative.has(event)) : events;
     if (isProgressiveHighlightSweepGroup(lineEvents)) {
       lineEvents.forEach((event) => suppressed.add(event));
+      const spanStart = Math.min(...lineEvents.map((event) => event.startTime));
+      const spanEnd = Math.max(...lineEvents.map((event) => event.endTime));
+      for (const overlay of decorative) {
+        if (overlay.startTime < spanEnd && overlay.endTime > spanStart) {
+          suppressed.add(overlay);
+        }
+      }
       continue;
     }
     for (const cluster of clusterAssFragmentEvents(lineEvents)) {

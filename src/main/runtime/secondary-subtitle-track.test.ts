@@ -490,6 +490,41 @@ test('secondary disconnect clears stale ASS fallback sanitization state', async 
   assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
 });
 
+test('secondary source refresh failure clears stale ASS fallback sanitization state', async () => {
+  let resolveCalls = 0;
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => {
+      resolveCalls += 1;
+      if (resolveCalls === 1) {
+        return { path: '/subs/english.ass', sourceKey: 'english' };
+      }
+      throw new Error('source refresh failed');
+    },
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
+});
+
 test('secondary track controller reuses parsed cues for an unchanged embedded track', async () => {
   let resolveCalls = 0;
   let parseCalls = 0;
