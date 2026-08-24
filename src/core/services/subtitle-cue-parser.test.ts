@@ -1150,8 +1150,8 @@ test('parseSubtitleCues recovers a word gap measured across a wide glyph', () =>
   const text = 'youcanhearthesoundofthewaveswithinmyheart';
   const positions = [
     202, 223, 244, 274, 296, 317, 346, 367, 389, 408, 433, 450, 470, 499, 517, 538, 557, 578, 609,
-    627, 651, 668, 688, 723, 748, 770, 792, 811, 843, 863, 875, 892, 907, 922, 957, 983, 1013,
-    1034, 1055, 1075, 1090,
+    627, 651, 668, 688, 723, 748, 770, 792, 811, 843, 863, 875, 892, 907, 922, 957, 983, 1013, 1034,
+    1055, 1075, 1090,
   ];
   const content = [
     '[Events]',
@@ -1595,4 +1595,81 @@ test('parseSubtitleCues collapses drop-shadow layer copies offset by a few pixel
   const cues = parseSubtitleCues(content, 'test.ass');
   assert.equal(cues.length, 1);
   assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'menomaeninobiru');
+});
+
+test('parseSubtitleCues recovers positional word gaps beside an authored space', () => {
+  // Real ED line: every glyph is placed by `\move`, but the `star` fragment alone carries
+  // a literal leading space. The authored space must not disable positional recovery for
+  // the rest of the line.
+  const fragments = [
+    ['s', 633],
+    ['e', 665],
+    ['a', 697],
+    ['r', 723],
+    ['c', 747],
+    ['h', 774],
+    ['i', 793],
+    ['n', 813],
+    ['g', 838],
+    ['f', 884],
+    ['o', 911],
+    ['r', 937],
+    ['a', 986],
+    ['s', 1041],
+    ['h', 1070],
+    ['o', 1098],
+    ['o', 1128],
+    ['t', 1153],
+    ['i', 1169],
+    ['n', 1188],
+    ['g', 1214],
+    [' s', 1264],
+    ['t', 1290],
+    ['a', 1316],
+    ['r', 1342],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:22:44.83,0:22:47.70,ED English,,0,0,0,fx,{\\move(${x},1020,${x},1020,0,300)\\t(${index * 2},${index * 2 + 300},\\fs90)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'searching for a shooting star');
+});
+
+test('parseSubtitleCues splits chunked words whose gap only the excess rule catches', () => {
+  // `Choices|presumably` normalizes to just under the ratio threshold because both
+  // neighbors are wide three-letter chunks; its constant word-space excess still shows.
+  const fragments = [
+    ['Ch', 526],
+    ['oi', 584],
+    ['ces', 648],
+    ['pre', 747],
+    ['su', 819],
+    ['mab', 904],
+    ['ly', 981],
+    ['ma', 1059],
+    ['de', 1128],
+    ['by', 1203],
+    ['cha', 1295],
+    ['nce', 1385],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:01:53.01,0:01:55.52,OP English,,0,0,0,fx,{\\pos(${x},1055)\\t(${index * 2},${index * 2 + 120},\\blur0.5)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'Choices presumably made by chance',
+  );
 });

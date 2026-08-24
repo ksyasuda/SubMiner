@@ -440,6 +440,12 @@ const LATIN_GLYPH_WORD_GAP_RATIO = 1.4;
 // line (`Swelling`) skews the unit low and its ordinary advances read as word gaps.
 const LATIN_GLYPH_WORD_EXCESS_RATIO = 0.36;
 const MIN_LATIN_GLYPH_EXCESS_GAP_SAMPLES = 10;
+// Multi-character syllable chunks average out proportional-font variation, so their
+// advances track the width model far more closely than single glyphs do. Measured on a
+// chunked lyric line, within-word excess stayed under 0.07 of the common unit while every
+// word gap cleared 0.31, so a tighter margin separates them without splitting words.
+const LATIN_CHUNK_WORD_EXCESS_RATIO = 0.2;
+const MIN_LATIN_CHUNK_EXCESS_GAP_SAMPLES = 6;
 const LATIN_TWO_GLYPH_WORD_NEXT_GAP_RATIO = 1.2;
 
 function fragmentPosition(cue: AnnotatedSubtitleCue): AssFragmentPosition | null {
@@ -581,19 +587,20 @@ function isLikelyTwoGlyphCapitalizedWord(options: {
  * and multi-character karaoke syllables without guessing from the text itself. Per-glyph
  * runs use a wider safety margin because proportional fonts vary more than syllable chunks.
  *
- * The ratio test alone under-detects a word gap next to a wide glyph (`waves within`
- * measured across `s`/`w` normalizes to nearly a common advance), so per-glyph runs also
- * treat a gap as a word boundary when its advance exceeds the width-predicted advance by
- * a material fraction of the line's common unit -- a word space adds a roughly constant
- * extra distance no matter how wide its neighbors are.
+ * The ratio test alone under-detects a word gap next to a wide fragment (`waves within`
+ * measured across `s`/`w`, or `Choices presumably` across two three-letter chunks, both
+ * normalize to nearly a common advance), so a gap also counts as a word boundary when its
+ * advance exceeds the width-predicted advance by a material fraction of the line's common
+ * unit -- a word space adds a roughly constant extra distance no matter how wide its
+ * neighbors are. Chunk runs use a tighter margin than per-glyph runs because their
+ * advances deviate less from the width model.
+ *
+ * A line may mix both conventions: one fragment carrying a literal space while its
+ * neighbors rely on position alone. Whitespace-bearing fragments have no width weight, so
+ * they drop out of the estimate and their own boundary comes from the authored space,
+ * leaving the surrounding positional gaps to be recovered normally.
  */
 function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
-  if (parts.some((part) => /\s/u.test(part.text))) {
-    return parts
-      .map((part) => part.text)
-      .join('')
-      .trim();
-  }
   const normalizedGaps: number[] = [];
   for (let index = 1; index < parts.length; index += 1) {
     const gap = normalizedLatinFragmentGap(parts[index - 1]!, parts[index]!);
@@ -620,13 +627,16 @@ function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
     // (`S|miles`), and capitals overrun the width table too easily, so the excess rule
     // never fires there. A lone capital word like `I` is narrow enough for the ratio
     // test to catch its word gap on its own.
+    const excessRatio = isGlyphRun ? LATIN_GLYPH_WORD_EXCESS_RATIO : LATIN_CHUNK_WORD_EXCESS_RATIO;
+    const minimumExcessSamples = isGlyphRun
+      ? MIN_LATIN_GLYPH_EXCESS_GAP_SAMPLES
+      : MIN_LATIN_CHUNK_EXCESS_GAP_SAMPLES;
     const hasAdvanceExcess =
-      isGlyphRun &&
       commonGap !== null &&
-      normalizedGaps.length >= MIN_LATIN_GLYPH_EXCESS_GAP_SAMPLES &&
+      normalizedGaps.length >= minimumExcessSamples &&
       measure !== null &&
       !(/^[A-Z]$/u.test(previous.text) && /^[a-z]$/u.test(current.text)) &&
-      measure.distance - measure.meanWeight * commonGap > LATIN_GLYPH_WORD_EXCESS_RATIO * commonGap;
+      measure.distance - measure.meanWeight * commonGap > excessRatio * commonGap;
     const hasPositionedWordGap =
       startsNewPositionedFragmentSequence(previous, current) ||
       (normalizedGap !== null &&
@@ -1005,9 +1015,7 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
   const suppressed = new Set<AnnotatedSubtitleCue>();
   for (const events of groups.values()) {
     const decorative = decorativeGlyphEvents(events);
-    const lineEvents = decorative.size
-      ? events.filter((event) => !decorative.has(event))
-      : events;
+    const lineEvents = decorative.size ? events.filter((event) => !decorative.has(event)) : events;
     if (isProgressiveHighlightSweepGroup(lineEvents)) {
       lineEvents.forEach((event) => suppressed.add(event));
       continue;
