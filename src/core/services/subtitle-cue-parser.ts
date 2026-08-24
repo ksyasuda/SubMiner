@@ -398,7 +398,9 @@ interface AssFragmentPosition {
 }
 
 const MIN_LATIN_POSITION_GAP_SAMPLES = 4;
-const LATIN_WORD_GAP_RATIO = 1.2;
+const LATIN_FRAGMENT_WORD_GAP_RATIO = 1.16;
+const LATIN_GLYPH_WORD_GAP_RATIO = 1.4;
+const LATIN_TWO_GLYPH_WORD_NEXT_GAP_RATIO = 1.2;
 
 function fragmentPosition(cue: AnnotatedSubtitleCue): AssFragmentPosition | null {
   for (const command of cue.overrides) {
@@ -425,7 +427,8 @@ function fragmentPosition(cue: AnnotatedSubtitleCue): AssFragmentPosition | null
 }
 
 function latinGlyphWidthWeight(glyph: string): number {
-  if (/[ilIjtfr]/u.test(glyph)) return 0.6;
+  if (/[ilIj]/u.test(glyph)) return 0.6;
+  if (/[tfr]/u.test(glyph)) return 0.8;
   if (/[mwMW]/u.test(glyph)) return 1.4;
   if (/[A-Z]/u.test(glyph)) return 1.1;
   return 1;
@@ -439,6 +442,10 @@ function latinFragmentWidthWeight(text: string): number | null {
       width + (/['’.,!?;:-]/u.test(glyph) ? punctuationWeight : latinGlyphWidthWeight(glyph)),
     0,
   );
+}
+
+function isSingleLatinGlyphFragment(text: string): boolean {
+  return [...text].filter((glyph) => /[A-Za-z0-9]/u.test(glyph)).length <= 1;
 }
 
 function normalizedLatinFragmentGap(
@@ -463,6 +470,21 @@ function normalizedLatinFragmentGap(
   return positionDistance / ((previousWeight + currentWeight) / 2);
 }
 
+function startsNewPositionedFragmentSequence(
+  previous: AssFragmentPart,
+  current: AssFragmentPart,
+): boolean {
+  const previousPosition = fragmentPosition(previous.cue);
+  const currentPosition = fragmentPosition(current.cue);
+  return Boolean(
+    previousPosition &&
+    currentPosition &&
+    Math.abs(currentPosition.y - previousPosition.y) <= 2 &&
+    currentPosition.x <= previousPosition.x &&
+    current.cue.startTime > previous.cue.startTime,
+  );
+}
+
 function commonLatinFragmentGap(values: readonly number[]): number {
   const sorted = [...values].sort((left, right) => left - right);
   // Romaji lines contain many short particles, so real word gaps can outnumber
@@ -471,12 +493,40 @@ function commonLatinFragmentGap(values: readonly number[]): number {
   return sorted[Math.floor((sorted.length - 1) * 0.35)]!;
 }
 
+function isLikelyTwoGlyphCapitalizedWord(options: {
+  parts: readonly AssFragmentPart[];
+  index: number;
+  gap: number;
+  wordGapThreshold: number;
+}): boolean {
+  const first = options.parts[options.index - 1]!;
+  const second = options.parts[options.index]!;
+  if (!/^[A-Z]$/u.test(first.text) || !/^[a-z]$/u.test(second.text)) {
+    return false;
+  }
+
+  const precedingGap =
+    options.index > 1 ? normalizedLatinFragmentGap(options.parts[options.index - 2]!, first) : null;
+  const following = options.parts[options.index + 1];
+  const followingGap = following ? normalizedLatinFragmentGap(second, following) : null;
+  const startsAtWordBoundary =
+    options.index === 1 || (precedingGap !== null && precedingGap > options.wordGapThreshold);
+
+  return (
+    startsAtWordBoundary &&
+    followingGap !== null &&
+    followingGap > options.wordGapThreshold &&
+    followingGap > options.gap * LATIN_TWO_GLYPH_WORD_NEXT_GAP_RATIO
+  );
+}
+
 /**
  * Character-by-character typesetting often omits literal spaces because the authored
  * word gap exists only in each glyph's `\pos`. Estimate the normal adjacent-glyph
  * advance within that one line, then preserve only materially larger horizontal gaps.
  * Normalizing each gap by the neighboring fragment widths supports both single glyphs
- * and multi-character karaoke syllables without guessing from the text itself.
+ * and multi-character karaoke syllables without guessing from the text itself. Per-glyph
+ * runs use a wider safety margin because proportional fonts vary more than syllable chunks.
  */
 function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
   if (parts.some((part) => /\s/u.test(part.text))) {
@@ -492,7 +542,10 @@ function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
   }
   const wordGapThreshold =
     normalizedGaps.length >= MIN_LATIN_POSITION_GAP_SAMPLES
-      ? commonLatinFragmentGap(normalizedGaps) * LATIN_WORD_GAP_RATIO
+      ? commonLatinFragmentGap(normalizedGaps) *
+        (parts.every((part) => isSingleLatinGlyphFragment(part.text))
+          ? LATIN_GLYPH_WORD_GAP_RATIO
+          : LATIN_FRAGMENT_WORD_GAP_RATIO)
       : Infinity;
 
   let text = parts[0]?.text ?? '';
@@ -501,13 +554,78 @@ function joinAssFragmentParts(parts: readonly AssFragmentPart[]): string {
     const current = parts[index]!;
     const hasAuthoredSpace = /\s$/u.test(previous.text) || /^\s/u.test(current.text);
     const normalizedGap = normalizedLatinFragmentGap(previous, current);
-    const hasPositionedWordGap = normalizedGap !== null && normalizedGap > wordGapThreshold;
+    const hasPositionedWordGap =
+      startsNewPositionedFragmentSequence(previous, current) ||
+      (normalizedGap !== null &&
+        normalizedGap > wordGapThreshold &&
+        !isLikelyTwoGlyphCapitalizedWord({
+          parts,
+          index,
+          gap: normalizedGap,
+          wordGapThreshold,
+        }));
     if (!hasAuthoredSpace && hasPositionedWordGap) {
       text += ' ';
     }
     text += current.text;
   }
   return text.trim();
+}
+
+// A tall multi-part layout is only a visual grid when its parts read like tiling
+// rather than prose: a couple of texts repeated across many fragments (sign walls),
+// the same text re-shown at the same spot over time (countdown/animation frames),
+// nothing but scattered single glyphs, or cells aligned into table columns. Wrapped
+// lyric rows with repeated karaoke syllables and CC-style dialogue blocks (speaker
+// labels plus a sentence) share the same tall geometry but stay publishable.
+function looksLikeFragmentGridParts(parts: readonly AssFragmentPart[]): boolean {
+  const positioned = parts
+    .map((part) => ({
+      text: part.text.trim(),
+      layout: part.cue.assLayout,
+      position: fragmentPosition(part.cue),
+      startTime: part.cue.startTime,
+    }))
+    .filter((part) => part.text && part.layout?.kind === 'positioned');
+  if (positioned.length === 0) return true;
+
+  const uniqueTexts = new Set(positioned.map((part) => part.text));
+  if (uniqueTexts.size * 3 <= positioned.length) return true;
+
+  if (positioned.every((part) => [...part.text].length <= 1)) return true;
+
+  const seenPlacements = new Map<string, number>();
+  for (const part of positioned) {
+    if (part.layout?.kind !== 'positioned') continue;
+    const placement = `${part.text}@${Math.round(part.layout.y)}`;
+    const earlierStart = seenPlacements.get(placement);
+    if (earlierStart !== undefined && Math.abs(part.startTime - earlierStart) > 0.01) {
+      return true;
+    }
+    seenPlacements.set(placement, part.startTime);
+  }
+
+  // Table cells align into columns: several x values each reused on multiple rows.
+  // Requiring two such columns holding at least half the parts keeps a wrapped lyric
+  // whose rows accidentally share one x coordinate out of the grid bucket.
+  const columnRows = new Map<number, Set<number>>();
+  for (const part of positioned) {
+    if (!part.position) continue;
+    const x = Math.round(part.position.x);
+    const rows = columnRows.get(x) ?? new Set<number>();
+    rows.add(Math.round(part.position.y));
+    columnRows.set(x, rows);
+  }
+  let alignedColumns = 0;
+  let alignedParts = 0;
+  for (const part of positioned) {
+    if (!part.position) continue;
+    if ((columnRows.get(Math.round(part.position.x))?.size ?? 0) >= 2) alignedParts += 1;
+  }
+  for (const rows of columnRows.values()) {
+    if (rows.size >= 2) alignedColumns += 1;
+  }
+  return alignedColumns >= 2 && alignedParts * 2 >= positioned.length;
 }
 
 function reconstructedAssFragmentLayout(
@@ -527,7 +645,8 @@ function reconstructedAssFragmentLayout(
 
   if (
     positionedPartCount >= MIN_FRAGMENT_LINE_PARTS &&
-    maximumY - minimumY > MAX_FRAGMENT_LINE_VERTICAL_SPAN
+    maximumY - minimumY > MAX_FRAGMENT_LINE_VERTICAL_SPAN &&
+    looksLikeFragmentGridParts(parts)
   ) {
     return { kind: 'fragment-grid', sourceOrder: owner.order };
   }

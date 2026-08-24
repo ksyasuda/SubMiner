@@ -109,9 +109,12 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The selected source is parsed with `parseSubtitleCues()`, including metadata-aware ASS duplicate
   and animation collapse. Playback `time-pos` selects the active parsed cue after applying
   `secondary-sub-delay`.
-- Fragment reconstruction marks positioned parts that span multiple vertical rows as a grid.
-  Secondary text omits those grids instead of flattening a translated table or schedule into one
-  synthetic line. Reconstructed single-line karaoke remains eligible for display.
+- Fragment reconstruction marks tall multi-row positioned parts as a grid only when they read
+  like tiling: a couple of texts repeated across many fragments, the same text re-shown at one
+  spot over time (countdown/animation frames), or scattered single glyphs. Secondary text omits
+  those grids instead of flattening a translated table or schedule into one synthetic line.
+  Wrapped lyric rows, CC-style dialogue blocks, and reconstructed single-line karaoke remain
+  eligible for display.
 - The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
   overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
   text when a readable source is available.

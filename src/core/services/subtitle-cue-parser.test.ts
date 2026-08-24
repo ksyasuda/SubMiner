@@ -1083,6 +1083,190 @@ test('parseSubtitleCues recovers spaces encoded only by positioned Latin glyph g
   assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'The stars I see');
 });
 
+test('parseSubtitleCues does not split narrow letters inside positioned English words', () => {
+  const text = 'carryinghappiness';
+  const positions = [
+    323, 341, 356, 369, 383, 396, 410, 428, 456, 474, 493, 512, 526, 540, 558, 575, 590,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'carrying happiness');
+});
+
+test('parseSubtitleCues keeps proportional-font variation inside positioned English words', () => {
+  const text = 'sendsripplesacrossthestillnessofyourheart';
+  const positions = [
+    32, 46, 60, 78, 95, 121, 131, 144, 163, 177, 189, 203, 232, 248, 261, 274, 288, 302, 329, 346,
+    363, 390, 405, 416, 423, 432, 443, 457, 471, 485, 512, 525, 551, 564, 579, 593, 622, 639, 655,
+    670, 684,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,Insert English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'sends ripples across the stillness of your heart',
+  );
+});
+
+test('parseSubtitleCues keeps a short capitalized word when the following gap is larger', () => {
+  const text = 'IfIgrow';
+  const positions = [347, 365, 397, 430, 446, 463, 485];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,Insert English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'If I grow');
+});
+
+test('parseSubtitleCues separates overlapping positioned English lyric sequences', () => {
+  const fragments = [
+    ['my', 642, '0:00:01.00', '0:00:04.05'],
+    ['song!', 713, '0:00:01.00', '0:00:04.05'],
+    ['I', 533, '0:00:01.67', '0:00:04.09'],
+    ['h', 557, '0:00:01.67', '0:00:04.09'],
+    ['u', 575, '0:00:01.67', '0:00:04.09'],
+    ['m', 597, '0:00:01.67', '0:00:04.09'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([text, x, start, end], index) =>
+          `Dialogue: ${layer},${start},${end},OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'my song! I hum');
+});
+
+const eventsHeader = [
+  '[Events]',
+  'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+];
+
+test('parseSubtitleCues keeps a tall CC-style dialogue block publishable, not a fragment grid', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(212,383)\\fscx50\\fscy50}たき',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(172,437)\\fscx50}（{\\fscx100}立希{\\fscx50}）',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(332,443)\\fscx50\\fscy50}ともり',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(192,497)}お前…{\\fscx50}　{\\fscx100}燈をバンドに誘ったの？',
+  ].join('\n');
+
+  const cue = parseSubtitleCues(content, 'test.ass')[0];
+  assert.equal(cue?.text, 'たき（立希）ともりお前…　燈をバンドに誘ったの？');
+  assert.equal(cue?.assLayout?.kind, 'positioned');
+});
+
+test('parseSubtitleCues marks re-shown countdown frames as a fragment grid', () => {
+  const rows = [
+    ['juu', '10'],
+    ['juu', '10'],
+    ['kyuu', '9'],
+    ['kyuu', '9'],
+    ['hachi', '8'],
+    ['hachi', '8'],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...rows.flatMap(([word, num], index) => {
+      const timestamp = (seconds: number) => `0:00:${seconds.toFixed(2).padStart(5, '0')}`;
+      const start = timestamp(6 + index * 0.4);
+      const end = timestamp(6 + index * 0.4 + 0.4);
+      return [0, 1].flatMap((layer) => [
+        `Dialogue: ${layer},${start},${end},ED Romaji,,0,0,0,,{\\pos(${300 + index * 8},40)\\t(0,100,\\fscx120)}${word}`,
+        `Dialogue: ${layer},${start},${end},ED Romaji,,0,0,0,,{\\pos(${300 + index * 8},93)\\t(0,100,\\fscx120)}${num}`,
+      ]);
+    }),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues marks scattered single-glyph typesetting as a fragment grid', () => {
+  const glyphs = ['の', 'こ', '部', 'そ', '屋'];
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      glyphs.map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:06.00,0:00:09.00,OP-JP,,0,0,0,,{\\pos(${500 + index * 30},${-30 + index * 35})\\t(0,100,\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues marks a repeated-token sign wall as a fragment grid', () => {
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      Array.from(
+        { length: 6 },
+        (_, index) =>
+          `Dialogue: ${layer},0:00:06.00,0:00:09.00,Sign,,0,0,0,,{\\pos(${200 + index * 60},${100 + index * 30})\\t(0,100,\\fscx120)}${index % 2 === 0 ? 'Maid' : 'Cafe'}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues keeps a wrapped lyric with repeated syllables publishable', () => {
+  const fragments = [
+    ['dreams', 300, 115],
+    ['ju', 250, 39],
+    ['n', 280, 39],
+    ['jo', 300, 39],
+    ['u', 330, 39],
+    ['to', 360, 39],
+    ['jo', 395, 39],
+    ['u', 425, 39],
+    ['ne', 455, 39],
+    ['tsu!', 485, 39],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([text, x, y], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
+      ),
+    ),
+  ].join('\n');
+
+  const cue = parseSubtitleCues(content, 'test.ass')[0];
+  assert.notEqual(cue?.assLayout?.kind, 'fragment-grid');
+});
+
 test('parseSubtitleCues adds a missing word space after positioned punctuation', () => {
   const fragments = [
     ['H', 100],
