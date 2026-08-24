@@ -460,6 +460,36 @@ test('secondary SRT live fallback preserves text that resembles ASS control debr
   assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
 });
 
+test('secondary disconnect clears stale ASS fallback sanitization state', async () => {
+  let connected = true;
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.ass', sourceKey: 'english' }),
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  connected = false;
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
+});
+
 test('secondary track controller reuses parsed cues for an unchanged embedded track', async () => {
   let resolveCalls = 0;
   let parseCalls = 0;

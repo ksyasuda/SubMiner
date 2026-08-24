@@ -220,6 +220,7 @@ export function createSecondarySubtitleTrackController(deps: {
     const generation = ++refreshGeneration;
     const client = deps.getMpvClient();
     if (!client?.connected) {
+      activeSourceUsesAssSyntax = false;
       useLiveFallback();
       return;
     }
