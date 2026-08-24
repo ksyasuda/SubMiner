@@ -1530,3 +1530,43 @@ test('parseSubtitleCues recovers clear word gaps in a short romaji line', () => 
 
   assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'boku wo yobu');
 });
+
+test('parseSubtitleCues suppresses a karaoke highlight sweep without publishing it', () => {
+  // Main lyric: per-glyph fragments alive together for the whole line.
+  const lineFragments = [
+    ['to', 972],
+    ['so', 1051],
+    ['u', 1113],
+    ['o', 1166],
+    ['mo', 1204],
+  ] as const;
+  // Highlight sweep: one syllable at a time over the same lyric, each event ending
+  // exactly as the next begins, so no two syllables are ever on screen together.
+  const sweepFragments = [
+    ['to', 972, '0:00:01.00', '0:00:01.40'],
+    ['so', 1051, '0:00:01.40', '0:00:01.80'],
+    ['u', 1113, '0:00:01.80', '0:00:02.20'],
+    ['o', 1166, '0:00:02.20', '0:00:02.60'],
+    ['mo', 1204, '0:00:02.60', '0:00:03.00'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      lineFragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED Romaji,,0,0,0,fx,{\\pos(${x},60)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+    ...[40, 41].flatMap((layer) =>
+      sweepFragments.map(
+        ([fragment, x, start, end]) =>
+          `Dialogue: ${layer},${start},${end},ED Romaji2,,0,0,0,fx,{\\an5\\pos(${x},60)\\t(150,290,\\1a&HFF&)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'tosouomo');
+});

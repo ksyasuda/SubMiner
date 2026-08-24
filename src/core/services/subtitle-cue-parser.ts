@@ -762,6 +762,37 @@ function clusterAssFragmentEvents(
   return clusters;
 }
 
+/**
+ * A karaoke highlight sweep repaints one syllable at a time over an already-visible
+ * lyric line: each event ends as the next begins, so the cluster's concatenated text is
+ * never on screen as a whole. Publishing it would emit rolling partial copies of the
+ * lyric ("to sou omo" beside "akenakute ii to sou omotteta"). Layer copies share one
+ * placement and timing, so the test is whether any two distinct placements coexist.
+ */
+function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): boolean {
+  const intervals: { startTime: number; endTime: number }[] = [];
+  const seen = new Set<string>();
+  for (const event of events) {
+    const anchors = [...fragmentPlacementAnchors(event)].sort().join('|');
+    const key = `${compactCueMatchText(event)}\0${anchors}\0${event.startTime}\0${event.endTime}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    intervals.push({ startTime: event.startTime, endTime: event.endTime });
+  }
+  if (intervals.length < 2) {
+    return false;
+  }
+  intervals.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
+  let latestEnd = intervals[0]!.endTime;
+  for (let index = 1; index < intervals.length; index += 1) {
+    if (intervals[index]!.startTime < latestEnd - 0.001) {
+      return false;
+    }
+    latestEnd = Math.max(latestEnd, intervals[index]!.endTime);
+  }
+  return true;
+}
+
 function decodeSingleAssFragment(cue: AnnotatedSubtitleCue): string | null {
   const visibleLines = decodeSubtitleCueText(cue.rawText)
     .split('\n')
@@ -903,6 +934,12 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
       if (!line) {
         continue;
       }
+      // A sweep only re-highlights the lyric it decorates: hide its events without
+      // publishing the reconstruction.
+      if (isProgressiveHighlightSweep(cluster.events)) {
+        cluster.events.forEach((event) => suppressed.add(event));
+        continue;
+      }
       recovered.push(line);
       cluster.events.forEach((event) => suppressed.add(event));
       // Decoration is timed to the line it overlays, so it disappears with the line's
@@ -916,7 +953,7 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
       }
     }
   }
-  if (recovered.length === 0) {
+  if (recovered.length === 0 && suppressed.size === 0) {
     return dialogue;
   }
   return [...dialogue.filter((cue) => !suppressed.has(cue)), ...recovered].sort(
