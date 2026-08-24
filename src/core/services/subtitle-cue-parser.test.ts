@@ -1250,6 +1250,41 @@ test('parseSubtitleCues drops symbol-font glyph decoration from a reconstructed 
   assert.equal(cues[0]?.text, 'sotto mimi ni ateru to');
 });
 
+test('parseSubtitleCues drops clipped repeated-glyph texture text', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 10,0:00:01.00,0:00:04.00,Default,,0,0,0,,I'm blocking them.",
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,80)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLLLLLLLLLLLLLLLLLLLLLL',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,150)\\fnSF Pro Display}Enter a message',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ["I'm blocking them.", 'Enter a message'],
+  );
+});
+
+test('parseSubtitleCues drops per-character alpha texture text', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 10,0:00:01.00,0:00:04.00,Default,Girl,0,0,0,,So Doloris was actually Uika-chan from sumimi! That's amazing!",
+    "Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,240)\\fnCinzel}Hanasakigawa Girl's School",
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,300)\\fnSplit splat splodge\\clip(800,200,1120,400)}d{\\2a1}s{\\2a0}h{\\2a1}f{\\2a0}k{\\2a1}h{\\2a0}f{\\2a1}s{\\2a0}d{\\2a1}f{\\2a0}e',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(980,340)\\fnSplit splat splodge}f {\\2a1}a',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,360)\\fnGrain SemiBold}5{\\2a1}X{\\2a0}N{\\2a1}T{\\2a0}f{\\2a1}I{\\2a0}g{\\2a1}F{\\2a0}B{\\2a1}?{\\2a0}k{\\2a1}u{\\2a0}C{\\2a1}m',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    [
+      "So Doloris was actually Uika-chan from sumimi! That's amazing!",
+      "Hanasakigawa Girl's School",
+    ],
+  );
+});
+
 test('parseSubtitleCues separates overlapping positioned English lyric sequences', () => {
   const fragments = [
     ['my', 642, '0:00:01.00', '0:00:04.05'],

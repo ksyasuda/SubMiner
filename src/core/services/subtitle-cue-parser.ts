@@ -964,6 +964,69 @@ function staticFontOverride(cue: AnnotatedSubtitleCue): string | null {
   return font;
 }
 
+const MIN_TEXTURE_GLYPH_RUN = 8;
+const MIN_TEXTURE_ALPHA_OVERRIDES = 6;
+
+function hasStaticOverride(cue: AnnotatedSubtitleCue, expectedName: string): boolean {
+  return cue.overrides.some(
+    (command) => !command.animated && command.name.toLowerCase() === expectedName,
+  );
+}
+
+/**
+ * Some ASS signs feed placeholder glyphs through a texture font instead of drawing the
+ * texture as a vector. A long clipped single-glyph run or frequent changing secondary
+ * alpha tags identifies the effect without guessing from its visible text or font name.
+ */
+function isAssFontTextureSeed(cue: AnnotatedSubtitleCue): boolean {
+  if (staticFontOverride(cue) === null || fragmentPosition(cue) === null) {
+    return false;
+  }
+
+  const glyphs = [...compactCueMatchText(cue)];
+  const isClippedRepeatedGlyphRun =
+    glyphs.length >= MIN_TEXTURE_GLYPH_RUN &&
+    glyphs.every((glyph) => glyph === glyphs[0]) &&
+    (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'));
+  if (isClippedRepeatedGlyphRun) {
+    return true;
+  }
+
+  const secondaryAlpha = cue.overrides.filter(
+    (command) => !command.animated && command.name.toLowerCase() === '2a',
+  );
+  if (secondaryAlpha.length < MIN_TEXTURE_ALPHA_OVERRIDES) {
+    return false;
+  }
+  const alphaValues = secondaryAlpha.map((command) => command.args.toLowerCase());
+  return alphaValues.every((value, index) => index === 0 || value !== alphaValues[index - 1]);
+}
+
+function assFontTextureGroupKey(cue: AnnotatedSubtitleCue): string | null {
+  const font = staticFontOverride(cue);
+  return font === null
+    ? null
+    : `${assEventGroupKey(cue)}\0${cue.startTime}\0${cue.endTime}\0${font}`;
+}
+
+function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
+  // Short pieces can share the seeded font effect without carrying enough tags to identify
+  // themselves. Limit propagation to the exact style, actor, time span, and font group.
+  const textureGroups = new Set(
+    events.dialogue
+      .filter(isAssFontTextureSeed)
+      .map(assFontTextureGroupKey)
+      .filter((key): key is string => key !== null),
+  );
+  return {
+    dialogue: events.dialogue.filter((cue) => {
+      const key = assFontTextureGroupKey(cue);
+      return key === null || !textureGroups.has(key);
+    }),
+    comments: events.comments,
+  };
+}
+
 /**
  * Generated lyric effects often layer decoration over the real syllables: single letters
  * positioned above each glyph, animated in, and rendered through a `\fn` override to a
@@ -1434,7 +1497,8 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
 }
 
 function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
-  return recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(parseAnnotatedAssEvents(content)));
+  const events = removeAssFontTextureEvents(parseAnnotatedAssEvents(content));
+  return recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(events));
 }
 
 export function parseAssCues(content: string): SubtitleCue[] {
