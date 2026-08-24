@@ -1570,3 +1570,29 @@ test('parseSubtitleCues suppresses a karaoke highlight sweep without publishing 
   assert.equal(cues.length, 1);
   assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'tosouomo');
 });
+
+test('parseSubtitleCues collapses drop-shadow layer copies offset by a few pixels', () => {
+  const fragments = [
+    ['me', 580],
+    ['no', 668],
+    ['mae', 770],
+    ['ni', 864],
+    ['no', 939],
+    ['bi', 996],
+    ['ru', 1049],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...fragments.flatMap(([fragment, x], index) => [
+      `Dialogue: 30,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x},25)\\bord0\\t(${index * 2},${index * 2 + 120},\\blur0.5)}${fragment}`,
+      // Shadow copy sits 4px off the base glyph and must not read as a second syllable.
+      `Dialogue: 29,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x + 4},29)\\c&HFFFFFF&\\t(${index * 2},${index * 2 + 120},\\blur9)}${fragment}`,
+      `Dialogue: 28,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x},25)\\c&HFFFFFF&\\t(${index * 2},${index * 2 + 120},\\blur9)}${fragment}`,
+    ]),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'menomaeninobiru');
+});

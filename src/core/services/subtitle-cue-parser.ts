@@ -340,12 +340,44 @@ function fragmentPlacementAnchors(event: AnnotatedSubtitleCue): Set<string> {
   return anchors;
 }
 
+// Drop-shadow layer copies sit a few pixels off their base glyph, while even tightly
+// kerned repeated glyphs in one line ("ii") measure 10px apart or more.
+const LAYER_COPY_OFFSET_TOLERANCE_PX = 6;
+
+// One representative point per placement command: the `\pos` point or the `\move`
+// midpoint. Comparing raw `\move` endpoints cross-wise misreads a travel distance that
+// matches the glyph advance as a layer copy of a neighboring same-letter glyph.
+function fragmentAnchorPoints(event: AnnotatedSubtitleCue): AssFragmentPosition[] {
+  const points: AssFragmentPosition[] = [];
+  for (const command of event.overrides) {
+    const name = command.name.toLowerCase();
+    const args = command.args.split(',').map((value) => Number(value.trim()));
+    if (name === 'pos' && args.length >= 2 && args.slice(0, 2).every(Number.isFinite)) {
+      points.push({ x: args[0]!, y: args[1]! });
+    } else if (name === 'move' && args.length >= 4 && args.slice(0, 4).every(Number.isFinite)) {
+      points.push({ x: (args[0]! + args[2]!) / 2, y: (args[1]! + args[3]!) / 2 });
+    }
+  }
+  return points;
+}
+
 function isRepeatedFragmentCopy(
   previous: AnnotatedSubtitleCue,
   current: AnnotatedSubtitleCue,
 ): boolean {
   const previousAnchors = fragmentPlacementAnchors(previous);
   if ([...fragmentPlacementAnchors(current)].some((anchor) => previousAnchors.has(anchor))) {
+    return true;
+  }
+  const previousPoints = fragmentAnchorPoints(previous);
+  const nearbyAnchor = fragmentAnchorPoints(current).some((point) =>
+    previousPoints.some(
+      (previousPoint) =>
+        Math.abs(point.x - previousPoint.x) <= LAYER_COPY_OFFSET_TOLERANCE_PX &&
+        Math.abs(point.y - previousPoint.y) <= LAYER_COPY_OFFSET_TOLERANCE_PX,
+    ),
+  );
+  if (nearbyAnchor) {
     return true;
   }
   return (
@@ -762,15 +794,14 @@ function clusterAssFragmentEvents(
   return clusters;
 }
 
-/**
- * A karaoke highlight sweep repaints one syllable at a time over an already-visible
- * lyric line: each event ends as the next begins, so the cluster's concatenated text is
- * never on screen as a whole. Publishing it would emit rolling partial copies of the
- * lyric ("to sou omo" beside "akenakute ii to sou omotteta"). Layer copies share one
- * placement and timing, so the test is whether any two distinct placements coexist.
- */
-function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): boolean {
-  const intervals: { startTime: number; endTime: number }[] = [];
+interface FragmentInterval {
+  startTime: number;
+  endTime: number;
+}
+
+/** Event time ranges with layer copies (same text, placement, and timing) collapsed. */
+function distinctFragmentIntervals(events: readonly AnnotatedSubtitleCue[]): FragmentInterval[] {
+  const intervals: FragmentInterval[] = [];
   const seen = new Set<string>();
   for (const event of events) {
     const anchors = [...fragmentPlacementAnchors(event)].sort().join('|');
@@ -779,18 +810,66 @@ function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): b
     seen.add(key);
     intervals.push({ startTime: event.startTime, endTime: event.endTime });
   }
-  if (intervals.length < 2) {
-    return false;
-  }
-  intervals.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
-  let latestEnd = intervals[0]!.endTime;
-  for (let index = 1; index < intervals.length; index += 1) {
-    if (intervals[index]!.startTime < latestEnd - 0.001) {
+  return intervals.sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
+}
+
+function intervalsNeverCoexist(intervals: readonly FragmentInterval[]): boolean {
+  let latestEnd = -Infinity;
+  for (const interval of intervals) {
+    if (interval.startTime < latestEnd - 0.001) {
       return false;
     }
-    latestEnd = Math.max(latestEnd, intervals[index]!.endTime);
+    latestEnd = Math.max(latestEnd, interval.endTime);
   }
   return true;
+}
+
+/**
+ * A karaoke highlight sweep repaints one syllable at a time over an already-visible
+ * lyric line: each event ends as the next begins, so the cluster's concatenated text is
+ * never on screen as a whole. Publishing it would emit rolling partial copies of the
+ * lyric ("to sou omo" beside "akenakute ii to sou omotteta"). Layer copies share one
+ * placement and timing, so the test is whether any two distinct placements coexist.
+ */
+function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): boolean {
+  const intervals = distinctFragmentIntervals(events);
+  return intervals.length >= 2 && intervalsNeverCoexist(intervals);
+}
+
+/**
+ * Timing clusters split a long sweep unevenly, leaving stragglers the per-cluster check
+ * cannot judge: a two-event tail reconstructs on relaxed evidence, and a lone held
+ * syllable stays raw and publishes as its own flickering cue. When an entire style group
+ * reads as one chained repaint -- many short positioned animated fragments, no two ever
+ * on screen together, transitions mostly back-to-back -- the whole group is highlight
+ * decoration and none of it is publishable text. Independent one-off signs sharing a
+ * style stay published: they are few, longer, or separated by real gaps.
+ */
+function isProgressiveHighlightSweepGroup(events: readonly AnnotatedSubtitleCue[]): boolean {
+  if (
+    events.length < MIN_FRAGMENT_LINE_EVENTS ||
+    !events.every((event) => fragmentPlacementAnchors(event).size > 0) ||
+    !hasAssAnimationEvidence(events)
+  ) {
+    return false;
+  }
+  const lengths = events
+    .map((event) => compactCueMatchText(event).length)
+    .sort((left, right) => left - right);
+  if ((lengths[Math.floor(lengths.length / 2)] ?? Infinity) > MAX_FRAGMENT_MEDIAN_LENGTH) {
+    return false;
+  }
+  const intervals = distinctFragmentIntervals(events);
+  if (intervals.length < 2 || !intervalsNeverCoexist(intervals)) {
+    return false;
+  }
+  let abutting = 0;
+  for (let index = 1; index < intervals.length; index += 1) {
+    if (Math.abs(intervals[index]!.startTime - intervals[index - 1]!.endTime) <= 0.1) {
+      abutting += 1;
+    }
+  }
+  return abutting * 2 >= intervals.length - 1;
 }
 
 function decodeSingleAssFragment(cue: AnnotatedSubtitleCue): string | null {
@@ -929,6 +1008,10 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
     const lineEvents = decorative.size
       ? events.filter((event) => !decorative.has(event))
       : events;
+    if (isProgressiveHighlightSweepGroup(lineEvents)) {
+      lineEvents.forEach((event) => suppressed.add(event));
+      continue;
+    }
     for (const cluster of clusterAssFragmentEvents(lineEvents)) {
       const line = reconstructAssFragmentLine(cluster.events);
       if (!line) {
