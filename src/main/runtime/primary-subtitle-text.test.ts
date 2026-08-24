@@ -477,3 +477,23 @@ test('resolveCanonicalPrimarySubtitle picks the cue its fragments spell, not the
     '今　手にある',
   );
 });
+
+test('resolvePrimarySubtitleText suppresses a live glyph wall when no cues are available', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(
+    resolvePrimarySubtitleText({ liveText: `${wall}\ntai`, currentTimeSec: 1355, cues: null }),
+    '',
+  );
+});
+
+test('stripCanonicalFragmentLines drops a live glyph wall with no nearby canonical cues', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(
+    stripCanonicalFragmentLines({
+      liveText: `${wall}\nそれよりも　ノート…`,
+      currentTimeSec: 1355,
+      cues: [],
+    }),
+    'それよりも　ノート…',
+  );
+});

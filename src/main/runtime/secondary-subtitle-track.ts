@@ -1,6 +1,9 @@
 import type { SubtitleCue } from '../../types/subtitle';
 import { flattenedSecondarySubtitleLineIdentity } from '../../core/services/secondary-subtitle-line-identity';
-import { removeAssControlDebrisLines } from '../../core/services/ass-text';
+import {
+  removeAssControlDebrisLines,
+  removeLiveGlyphFragmentLines,
+} from '../../core/services/ass-text';
 
 type SecondarySubtitleMpvClient = {
   connected?: boolean;
@@ -320,7 +323,9 @@ export function createSecondarySubtitleTrackController(deps: {
     refresh,
     scheduleRefresh,
     handleLiveText(text: string): void {
-      lastLiveText = activeSourceUsesAssSyntax ? removeAssControlDebrisLines(text) : text;
+      lastLiveText = removeLiveGlyphFragmentLines(
+        activeSourceUsesAssSyntax ? removeAssControlDebrisLines(text) : text,
+      );
       publish(resolveAtTime(deps.getCurrentTimePos()));
     },
     handleTimePos(timeSeconds: number): void {

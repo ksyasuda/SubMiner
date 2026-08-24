@@ -581,3 +581,36 @@ test('secondary track controller ignores and cleans up a refresh invalidated by 
   assert.equal(parseCalls, 0);
   assert.equal(cleanupCalls, 1);
 });
+
+test('secondary live fallback suppresses a per-glyph typesetting wall', async () => {
+  let currentText = '';
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/mnt/nas/video.mkv';
+        if (name === 'secondary-sub-delay') return 0;
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 1355,
+    // Network-mounted media: embedded extraction is skipped, so no parsed cues exist.
+    resolveSubtitleSource: async () => null,
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues,
+    setCurrentSecondaryText: (text) => {
+      currentText = text;
+    },
+    broadcastSecondaryText: () => {},
+  });
+
+  await controller.refresh();
+  const wall = [...'wansdumretoikhI'].join('\n');
+  controller.handleLiveText(`${wall}\ntai`);
+  assert.equal(currentText, '');
+
+  controller.handleLiveText(`${wall}\nそれよりも　ノート…`);
+  assert.equal(currentText, 'それよりも　ノート…');
+});

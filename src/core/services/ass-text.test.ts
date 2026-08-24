@@ -10,6 +10,7 @@ import {
   isAssTemporalCommand,
   normalizePlainSubtitleText,
   parseAssEffectField,
+  removeLiveGlyphFragmentLines,
   removeAssControlDebrisLines,
 } from './ass-text';
 
@@ -201,4 +202,19 @@ test('isAnimatedAssEffectKind covers the stock animated effects only', () => {
   // Typesetting groups put static template names in this column too.
   assert.equal(isAnimatedAssEffectKind('other'), false);
   assert.equal(isAnimatedAssEffectKind('none'), false);
+});
+
+test('removeLiveGlyphFragmentLines drops a per-glyph typesetting wall and its syllable', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(removeLiveGlyphFragmentLines(`${wall}\ntai`), '');
+});
+
+test('removeLiveGlyphFragmentLines keeps concurrent dialogue beside a glyph wall', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(removeLiveGlyphFragmentLines(`${wall}\nそれよりも　ノート…`), 'それよりも　ノート…');
+});
+
+test('removeLiveGlyphFragmentLines leaves ordinary short lines alone', () => {
+  const text = 'え\nはい。\nそうだな';
+  assert.equal(removeLiveGlyphFragmentLines(text), text);
 });

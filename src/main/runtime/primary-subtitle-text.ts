@@ -1,5 +1,8 @@
 import type { SubtitleCue } from '../../types';
-import { removeAssControlDebrisLines } from '../../core/services/ass-text';
+import {
+  removeAssControlDebrisLines,
+  removeLiveGlyphFragmentLines,
+} from '../../core/services/ass-text';
 
 // Slack on top of each cue's recorded animation envelope, for time-pos observation
 // staleness and small user sub-delay offsets. The envelope itself covers how far
@@ -224,19 +227,20 @@ export function stripCanonicalFragmentLines(options: {
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
   if (!Number.isFinite(options.currentTimeSec)) {
-    return options.liveText;
+    return removeLiveGlyphFragmentLines(options.liveText);
   }
   const nearby = nearbyCanonicalCues(options.cues, options.currentTimeSec, true);
   if (nearby.length === 0) {
-    return options.liveText;
+    return removeLiveGlyphFragmentLines(options.liveText);
   }
   const compactCues = nearby.map((cue) => compactWhitespace(cue.text));
   const kept = options.liveText.split('\n').filter((line) => {
     const compact = compactWhitespace(line);
     return compact && !compactCues.some((cueText) => cueText.includes(compact));
   });
-  if (kept.length > 0) return kept.join('\n');
-  return nearby.some((cue) => cue.assLayout?.kind === 'fragment-grid') ? '' : options.liveText;
+  if (kept.length > 0) return removeLiveGlyphFragmentLines(kept.join('\n'));
+  if (nearby.some((cue) => cue.assLayout?.kind === 'fragment-grid')) return '';
+  return removeLiveGlyphFragmentLines(options.liveText);
 }
 
 export function resolvePrimarySubtitleText(options: {
@@ -257,6 +261,6 @@ export function resolvePrimarySubtitleText(options: {
       cues: options.cues,
     })?.text ??
     resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
-    liveText
+    removeLiveGlyphFragmentLines(liveText)
   );
 }

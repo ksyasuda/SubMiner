@@ -108,6 +108,24 @@ export function removeAssControlDebrisLines(text: string): string {
     .join('\n');
 }
 
+const MIN_GLYPH_BURST_LINES = 6;
+const MAX_GLYPH_BURST_COMPANION_GLYPHS = 3;
+
+/**
+ * Per-glyph karaoke typesetting flattened into live text becomes a wall of
+ * single-character lines plus the short syllable currently being typed. No authored
+ * subtitle stacks this many one-glyph lines at once, so when the wall is present drop
+ * it and its short companion fragments while keeping any concurrent dialogue line.
+ */
+export function removeLiveGlyphFragmentLines(text: string): string {
+  const lines = text.split('\n');
+  const singleGlyphLines = lines.filter((line) => [...line.trim()].length === 1).length;
+  if (singleGlyphLines < MIN_GLYPH_BURST_LINES) return text;
+  return lines
+    .filter((line) => [...line.trim()].length > MAX_GLYPH_BURST_COMPANION_GLYPHS)
+    .join('\n');
+}
+
 export interface NormalizePlainSubtitleTextOptions {
   /** Fold every line break into a single space. */
   collapseLineBreaks?: boolean;
