@@ -1529,7 +1529,10 @@ function textureWallGroupKey(cue: AnnotatedSubtitleCue): string {
 }
 
 /** Static zero scale or a degenerate static clip renders nothing, unless animation can
- * still bring the event into view (an entrance growing from `\fscx0`, a clip wipe). */
+ * still bring the event into view (an entrance growing from `\fscx0`, a clip wipe).
+ * Only an animated scale or clip reveals; `\t(...)` wrapping some other property leaves
+ * the event invisible. Nested `\t(...)` needs no special case because the tags it
+ * animates are recorded as animated in their own right. */
 function isInvisiblyRenderedEvent(cue: AnnotatedSubtitleCue): boolean {
   let staticZeroScale = false;
   let staticZeroClip = false;
@@ -1537,7 +1540,7 @@ function isInvisiblyRenderedEvent(cue: AnnotatedSubtitleCue): boolean {
   for (const command of cue.overrides) {
     const name = command.name.toLowerCase();
     if (command.animated) {
-      if (name === 'fscx' || name === 'fscy' || name === 'clip' || name === 't') {
+      if (name === 'fscx' || name === 'fscy' || name === 'clip') {
         animatedReveal = true;
       }
       continue;

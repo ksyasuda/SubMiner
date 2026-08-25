@@ -1979,3 +1979,21 @@ test('parseSubtitleCues drops zero-scaled zero-clipped hidden warning text', () 
     ['見えるセリフ'],
   );
 });
+
+test('parseSubtitleCues keeps hidden events hidden when a transform animates an unrelated tag', () => {
+  // `\t(...)` only reveals a zero-scaled or fully clipped event when it animates the
+  // scale or the clip itself. Animating an unrelated property -- at any nesting depth --
+  // leaves the event invisible, so its text must not reach the subtitles.
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\fscx0\\fscy0\\clip(0,0,0,0)\\t(0,300,\\bord5)}hidden warning',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\clip(0,0,0,0)\\t(0,600,\\t(0,300,\\blur4))}nested hidden warning',
+    'Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,{\\fscx0\\t(0,300,\\fscx100)}grows into view',
+    'Dialogue: 0,0:00:09.00,0:00:12.00,Default,,0,0,0,,{\\clip(0,0,0,0)\\t(0,300,\\clip(0,0,500,500))}wipes into view',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['grows into view', 'wipes into view'],
+  );
+});
