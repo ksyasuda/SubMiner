@@ -44,12 +44,20 @@ function fragmentTypesInPrompt(input: string): string[] {
     .map((line) => line.slice('type: '.length).trim());
 }
 
-function assertReleaseNotesPromptRequestsNestedBullets(input: string): void {
-  assert.match(input, /In MODE: release-notes, use short top-level change bullets/);
-  assert.match(input, /Nested bullets should cover the change, user benefit, and any user action/);
-  assert.match(input, /Do not require the exact nested labels/);
+function assertPromptRequestsNestedBullets(input: string): void {
+  assert.match(input, /In both modes, split every item into one nested bullet per distinct change/);
+  assert.match(input, /Never stack several distinct changes into one long paragraph-shaped bullet/);
   assert.match(input, /Keep nested bullets short, concrete, and readable by non-technical users/);
   assert.match(input, /Avoid paragraph-style release-note bullets/);
+}
+
+function assertReleaseNotesPromptRequestsNestedBullets(input: string): void {
+  assertPromptRequestsNestedBullets(input);
+  assert.match(
+    input,
+    /In MODE: release-notes, nested bullets should also cover user benefit and any user action/,
+  );
+  assert.match(input, /Do not require the exact nested labels/);
 }
 
 function defaultPolishedBody(input: string): string {
@@ -446,6 +454,7 @@ test('writeChangelogArtifacts prompts Claude to summarize the final stable outco
         prompt,
         /Multiple fixes within the same prerelease cycle should collapse into one current-state bullet/,
       );
+      assertPromptRequestsNestedBullets(prompt);
     }
 
     const releaseNotesPrompt = stub.calls.find(

@@ -480,10 +480,15 @@ You will receive a list of FRAGMENT entries below. Each fragment has metadata (t
    - Be merged with related bullets when possible. If five fragments all touch Windows overlay z-order/focus/restore, write one or two bullets that summarize the overall improvement instead of five.
    - Drop bullets that only describe PR housekeeping, CodeRabbit follow-ups, or test-only changes that don't affect users.
    - Preserve the substance of breaking changes that remain breaking after applying the Release Outcome Rules. Do not soften or omit them.
-5. In MODE: changelog, each item may be a conventional single-level bullet, e.g. "- Playlist Browser: Adds faster saved-show browsing."
-6. In MODE: release-notes, use short top-level change bullets with two or three nested bullets when an item needs explanation.
-   Nested bullets should cover the change, user benefit, and any user action or compatibility note when useful. Do not require the exact nested labels; natural phrasing is fine. Omit the action bullet when no action is needed.
+5. In both modes, split every item into one nested bullet per distinct change. Write a short bold name on the top-level bullet, then indent the details two spaces:
+   - **Playlist Browser**:
+     - Saved shows now open without rescanning the library.
+     - The picker remembers the last folder you browsed between launches.
+   Each nested bullet covers exactly one change, behavior, or user-visible outcome. Never stack several distinct changes into one long paragraph-shaped bullet.
+   Aim for two to five nested bullets per item. When an item genuinely has only one thing to say, put it inline on the top-level bullet ("- **Playlist Browser**: Saved shows now open without rescanning the library.") instead of emitting a single nested bullet.
    Keep nested bullets short, concrete, and readable by non-technical users. Avoid paragraph-style release-note bullets.
+   Bullets inside the Internal section may stay single-level.
+6. In MODE: release-notes, nested bullets should also cover user benefit and any user action or compatibility note when useful. Do not require the exact nested labels; natural phrasing is fine. Omit the action bullet when no action is needed.
 7. Do not invent features. Every bullet must be grounded in the input fragments.
 8. Do not include the version heading (## v...) — that wrapper is added by the caller.
 
