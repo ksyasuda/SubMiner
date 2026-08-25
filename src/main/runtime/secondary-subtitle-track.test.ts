@@ -98,6 +98,22 @@ test('parsed secondary text drops a reconstructed grid of positioned sign fragme
   );
 });
 
+test('parsed secondary text keeps phone translations while dropping texture payloads', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 2,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\fs100\\alpha&HFC&}texture seed',
+    'Dialogue: 90,0:00:01.00,0:00:03.00,Default,,0,0,0,,Why did you choose Hanajo instead?',
+    "Dialogue: 1,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
+    "Dialogue: 3,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(582,180)\\fnSF Pro Display\\fs66}We're {\\2a0}running {\\2a1}out {\\2a0}of {\\2a1}time!\\N{\\2a0}Where {\\2a1}are {\\2a0}you {\\2a1}right {\\2a0}now?!",
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'phone.ass'), 2),
+    "Why did you choose Hanajo instead?\nWe're running out of time!\nWhere are you right now?!",
+  );
+});
+
 test('parsed secondary lyrics keep explicit ASS vertical order when durations alternate', () => {
   const lyric = (options: { start: string; end: string; style: string; y: number; text: string }) =>
     `Dialogue: 0,0:00:${options.start},0:00:${options.end},${options.style},,0,0,0,fx,{\\move(100,${options.y},120,${options.y})\\t(0,200,\\fscx110)}${options.text}\\N{\\p1}m 0 0 l 0 5`;

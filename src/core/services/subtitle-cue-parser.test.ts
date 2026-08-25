@@ -556,6 +556,29 @@ test('parseSubtitleCues recovers a full Dialogue line surrounding generated frag
   ]);
 });
 
+test('parseSubtitleCues replaces animated glyph copies of a static canonical Dialogue line', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:04.00,OP - JP,,0,0,0,,重複字幕',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,OP - JP,,0,0,0,,{\\pos(400,50)\\t(0,100,\\fry0)}重',
+    'Dialogue: 2,0:00:01.10,0:00:04.00,OP - JP,,0,0,0,,{\\pos(440,50)\\t(0,100,\\fry0)}複',
+    'Dialogue: 2,0:00:01.20,0:00:04.00,OP - JP,,0,0,0,,{\\pos(480,50)\\t(0,100,\\fry0)}字',
+    'Dialogue: 2,0:00:01.30,0:00:04.00,OP - JP,,0,0,0,,{\\pos(520,50)\\t(0,100,\\fry0)}幕',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 4,
+      text: '重複字幕',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 4,
+    },
+  ]);
+});
+
 test('parseSubtitleCues does not promote a short animated fragment as a complete line', () => {
   const content = [
     '[Events]',
@@ -1277,6 +1300,21 @@ test('parseSubtitleCues preserves opaque same-font text beside texture fragments
   assert.deepEqual(
     parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
     ['Keep this label'],
+  );
+});
+
+test('parseSubtitleCues drops tiny alpha payloads from a proven texture font', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 2,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\fs100\\alpha&HFC&}texture seed',
+    "Dialogue: 1,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
+    'Dialogue: 3,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(1040,620)\\fnSF Pro Display\\fs66}Waiting!',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Waiting!'],
   );
 });
 

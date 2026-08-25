@@ -966,8 +966,13 @@ function staticFontOverride(cue: AnnotatedSubtitleCue): string | null {
 
 const MIN_TEXTURE_GLYPH_RUN = 8;
 const MIN_TEXTURE_ALPHA_OVERRIDES = 6;
+const MAX_TEXTURE_GLYPHS_PER_ALPHA_OVERRIDE = 2;
 const MIN_TEXTURE_LAYER_ALPHA = 0xe0;
+const MAX_TEXTURE_PAYLOAD_FONT_SIZE = 12;
+const MIN_TEXTURE_PAYLOAD_LINES = 3;
 const ASS_ALPHA_VALUE_PATTERN = /^&?H([0-9a-f]{1,2})&?$/iu;
+const ASS_FONT_WEIGHT_SUFFIX_PATTERN =
+  /\s+(?:black|bold|heavy|light|medium|regular|semibold|thin)$/u;
 
 function hasStaticOverride(cue: AnnotatedSubtitleCue, expectedName: string): boolean {
   return cue.overrides.some(
@@ -1011,6 +1016,11 @@ function isAssTextureSeed(cue: AnnotatedSubtitleCue): boolean {
   if (secondaryAlpha.length < MIN_TEXTURE_ALPHA_OVERRIDES) {
     return false;
   }
+  // Real signs can alternate secondary alpha between words. Texture payloads switch it
+  // per glyph, so sparse word-level styling must not seed a texture-font group.
+  if (glyphs.length > secondaryAlpha.length * MAX_TEXTURE_GLYPHS_PER_ALPHA_OVERRIDE) {
+    return false;
+  }
   const alphaValues = secondaryAlpha.map((command) => command.args.toLowerCase());
   return new Set(alphaValues).size >= 2;
 }
@@ -1026,6 +1036,18 @@ function staticGlobalAlpha(cue: AnnotatedSubtitleCue): number | null {
     }
   }
   return alpha;
+}
+
+function staticFontSize(cue: AnnotatedSubtitleCue): number | null {
+  let fontSize: number | null = null;
+  for (const command of cue.overrides) {
+    if (command.animated || command.name.toLowerCase() !== 'fs') continue;
+    const value = Number(command.args.trim());
+    if (Number.isFinite(value) && value > 0) {
+      fontSize = value;
+    }
+  }
+  return fontSize;
 }
 
 function isNearlyTransparentPositionedText(cue: AnnotatedSubtitleCue): boolean {
@@ -1046,6 +1068,28 @@ function hasAssTextureCandidateEvidence(cue: AnnotatedSubtitleCue): boolean {
   );
 }
 
+function textureFontFamilyKey(font: string): string {
+  return font.replace(ASS_FONT_WEIGHT_SUFFIX_PATTERN, '');
+}
+
+function isTextureFontPayload(
+  cue: AnnotatedSubtitleCue,
+  textureFontFamilies: ReadonlySet<string>,
+): boolean {
+  const font = staticFontOverride(cue);
+  const fontSize = staticFontSize(cue);
+  const visibleLines = cue.text.split('\n').filter((line) => line.trim().length > 0);
+  return (
+    font !== null &&
+    textureFontFamilies.has(textureFontFamilyKey(font)) &&
+    fontSize !== null &&
+    fontSize <= MAX_TEXTURE_PAYLOAD_FONT_SIZE &&
+    staticGlobalAlpha(cue) !== null &&
+    fragmentPosition(cue) !== null &&
+    visibleLines.length >= MIN_TEXTURE_PAYLOAD_LINES
+  );
+}
+
 function assFontTextureGroupKey(cue: AnnotatedSubtitleCue): string | null {
   const font = staticFontOverride(cue);
   return font === null ? null : `${cue.style}\0${cue.startTime}\0${cue.endTime}\0${font}`;
@@ -1058,6 +1102,16 @@ function assTextureTimingGroupKey(cue: AnnotatedSubtitleCue): string {
 function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
   const seeds = events.dialogue.filter(isAssTextureSeed);
   const seedSet = new Set(seeds);
+  const textureFontFamilies = new Set(
+    [
+      ...seeds,
+      ...events.dialogue.filter(isNearlyTransparentPositionedText),
+      ...events.comments.filter(isNearlyTransparentPositionedText),
+    ]
+      .map(staticFontOverride)
+      .filter((font): font is string => font !== null)
+      .map(textureFontFamilyKey),
+  );
   // Short pieces can share the seeded font effect under another actor. Matching the
   // seed's style, timing, and font only narrows the candidates; each piece must still
   // carry structural texture evidence.
@@ -1099,6 +1153,9 @@ function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
       }
       const key = assFontTextureGroupKey(cue);
       if (key !== null && textureGroups.has(key) && hasAssTextureCandidateEvidence(cue)) {
+        return false;
+      }
+      if (isTextureFontPayload(cue, textureFontFamilies)) {
         return false;
       }
       if (!isNearlyTransparentPositionedText(cue)) {
@@ -1358,7 +1415,7 @@ function recoverCanonicalAssEvents({
       .filter(
         (cue) =>
           compactCueMatchText(cue).length >= MIN_CANONICAL_DIALOGUE_TEXT_LENGTH &&
-          hasAssAnimationEvidence([cue]),
+          (cue.assLayout?.kind === 'source-order' || hasAssAnimationEvidence([cue])),
       )
       .sort((left, right) => right.text.length - left.text.length || left.order - right.order)
       .map((cue) => ({ cue, kind: 'dialogue' as const })),
