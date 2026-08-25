@@ -1945,3 +1945,37 @@ test('parseSubtitleCues does not double a line rendered whole beside its glyph s
   assert.equal(cues.length, 1);
   assert.equal(cues[0]?.text, '可笑しいわね');
 });
+
+test('parseSubtitleCues drops a wall of near-invisible positioned texture strings', () => {
+  // An image drawn by \p1 vector events carries no texture seed, but its glyph payload
+  // is still dozens of near-transparent positioned strings sharing one window. A real
+  // faint translation is one or two events and stays published.
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 90,0:00:12.66,0:00:14.91,Default,,0,0,0,,We\'ll play as a band, and then...',
+    ...Array.from(
+      { length: 12 },
+      (_, index) =>
+        `Dialogue: 9,0:00:12.66,0:00:14.91,MarySigns,,0,0,0,,{\\an7\\pos(${640 + index * 13},${4 + index * 40})\\fnGrain SemiBold\\c&H000000&\\alpha&HFD&}gtO${index}x!`,
+    ),
+    'Dialogue: 9,0:00:12.66,0:00:14.91,OtherSign,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HE0&}A faint but real translation',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ["We'll play as a band, and then...", 'A faint but real translation'],
+  );
+});
+
+test('parseSubtitleCues drops zero-scaled zero-clipped hidden warning text', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 99,0:00:00.00,0:00:15.16,Default,,0,0,0,,{\\org(0,0)\\fscx0\\fscy0\\clip(0,0,0,0)}Your media player does not support the subtitle format.',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\fscx0\\t(0,300,\\fscx100)}見えるセリフ',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['見えるセリフ'],
+  );
+});

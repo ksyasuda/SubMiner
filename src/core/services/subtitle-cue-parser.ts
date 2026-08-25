@@ -370,6 +370,9 @@ const DECORATION_SPAN_TOLERANCE_SECONDS = 0.1;
 // particle field, and the quadratic passes over it would stall the main process.
 const MAX_COALESCE_BUCKET_EVENTS = 1500;
 const MAX_SWEEP_GROUP_EVENTS = 4000;
+// Fragment-layer collapsing repeatedly rescans the remaining parts after each match.
+// Genuine authored lines stay far below this limit; larger groups are particle fields.
+const MAX_FRAGMENT_COLLAPSE_PARTS = 1500;
 
 /**
  * Sources behind a coalesced copy chain. Synthetic cues stand in for their sources
@@ -1186,6 +1189,9 @@ function isWholePartOverItsRun(whole: AssFragmentPart, run: readonly AssFragment
 }
 
 function dropFragmentRunsCoveredByWholeParts(parts: AssFragmentPart[]): AssFragmentPart[] {
+  if (parts.length > MAX_FRAGMENT_COLLAPSE_PARTS) {
+    return parts;
+  }
   const kept = [...parts];
   let changed = true;
   while (changed) {
@@ -1332,7 +1338,10 @@ function staticFontOverride(cue: AnnotatedSubtitleCue): string | null {
 
 const MIN_TEXTURE_GLYPH_RUN = 8;
 const MIN_TEXTURE_ALPHA_OVERRIDES = 6;
-const MAX_TEXTURE_GLYPHS_PER_ALPHA_OVERRIDE = 2;
+// Texture payloads switch secondary alpha at nearly every glyph. Authored text that a
+// typesetter styles in syllable or word chunks measures two or more glyphs per
+// override, so the seed test demands per-glyph density.
+const MAX_TEXTURE_GLYPHS_PER_ALPHA_OVERRIDE = 1.5;
 const MIN_TEXTURE_LAYER_ALPHA = 0xe0;
 const MAX_TEXTURE_PAYLOAD_FONT_SIZE = 12;
 const MIN_TEXTURE_PAYLOAD_LINES = 3;
@@ -1346,11 +1355,14 @@ function hasStaticOverride(cue: AnnotatedSubtitleCue, expectedName: string): boo
   );
 }
 
-function isClippedRepeatedGlyphFragment(cue: AnnotatedSubtitleCue): boolean {
+function isRepeatedGlyphText(cue: AnnotatedSubtitleCue): boolean {
   const glyphs = [...compactCueMatchText(cue)];
+  return glyphs.length > 0 && glyphs.every((glyph) => glyph === glyphs[0]);
+}
+
+function isClippedRepeatedGlyphFragment(cue: AnnotatedSubtitleCue): boolean {
   return (
-    glyphs.length > 0 &&
-    glyphs.every((glyph) => glyph === glyphs[0]) &&
+    isRepeatedGlyphText(cue) &&
     (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'))
   );
 }
@@ -1365,11 +1377,22 @@ function isAssTextureSeed(cue: AnnotatedSubtitleCue): boolean {
     return false;
   }
 
+  // A truncated capture can leave tag debris after the placeholder run, so the seed
+  // test looks for a long same-glyph run inside the clipped text rather than requiring
+  // the whole event to be uniform.
   const glyphs = [...compactCueMatchText(cue)];
-  const isClippedRepeatedGlyphRun =
-    glyphs.length >= MIN_TEXTURE_GLYPH_RUN && isClippedRepeatedGlyphFragment(cue);
-  if (isClippedRepeatedGlyphRun) {
-    return true;
+  if (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip')) {
+    let longestRun = 0;
+    let run = 0;
+    let previous = '';
+    for (const glyph of glyphs) {
+      run = glyph === previous ? run + 1 : 1;
+      previous = glyph;
+      longestRun = Math.max(longestRun, run);
+    }
+    if (longestRun >= MIN_TEXTURE_GLYPH_RUN) {
+      return true;
+    }
   }
 
   if (staticFontOverride(cue) === null) {
@@ -1496,6 +1519,47 @@ function isTextureFontPayload(
   );
 }
 
+// A sign translation can legitimately render faint text through one or two positioned
+// events. Dozens of them sharing one window is a texture: near-invisible glyph strings
+// laid out as pixels of an image, with no visible-text sibling to anchor them.
+const MIN_TEXTURE_WALL_EVENTS = 6;
+
+function textureWallGroupKey(cue: AnnotatedSubtitleCue): string {
+  return `${cue.style}\0${cue.startTime}\0${cue.endTime}`;
+}
+
+/** Static zero scale or a degenerate static clip renders nothing, unless animation can
+ * still bring the event into view (an entrance growing from `\fscx0`, a clip wipe). */
+function isInvisiblyRenderedEvent(cue: AnnotatedSubtitleCue): boolean {
+  let staticZeroScale = false;
+  let staticZeroClip = false;
+  let animatedReveal = false;
+  for (const command of cue.overrides) {
+    const name = command.name.toLowerCase();
+    if (command.animated) {
+      if (name === 'fscx' || name === 'fscy' || name === 'clip' || name === 't') {
+        animatedReveal = true;
+      }
+      continue;
+    }
+    if (name === 'fscx' || name === 'fscy') {
+      if (Number(command.args.trim()) === 0) {
+        staticZeroScale = true;
+      }
+    } else if (name === 'clip') {
+      const args = command.args.split(',').map((value) => Number(value.trim()));
+      if (
+        args.length >= 4 &&
+        args.slice(0, 4).every(Number.isFinite) &&
+        (args[0]! >= args[2]! || args[1]! >= args[3]!)
+      ) {
+        staticZeroClip = true;
+      }
+    }
+  }
+  return (staticZeroScale || staticZeroClip) && !animatedReveal;
+}
+
 function assFontTextureGroupKey(cue: AnnotatedSubtitleCue): string | null {
   const font = staticFontOverride(cue);
   return font === null ? null : `${cue.style}\0${cue.startTime}\0${cue.endTime}\0${font}`;
@@ -1556,9 +1620,31 @@ function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
       .map(textureFontFamilyKey),
   );
 
+  // Wall membership additionally requires that no component alpha turns a layer back
+  // on: `\alpha&HFF&` plus a visible `\4a` renders real text through its shadow, and a
+  // sign typeset entirely from such layers must not read as a texture.
+  const isTextureWallCandidate = (cue: AnnotatedSubtitleCue): boolean =>
+    isNearlyTransparentPositionedText(cue) && !hasVisibleComponentAlpha(cue);
+  const transparentWallCounts = new Map<string, number>();
+  for (const cue of events.dialogue) {
+    if (isTextureWallCandidate(cue)) {
+      const key = textureWallGroupKey(cue);
+      transparentWallCounts.set(key, (transparentWallCounts.get(key) ?? 0) + 1);
+    }
+  }
+
   return {
     dialogue: events.dialogue.filter((cue) => {
+      if (isInvisiblyRenderedEvent(cue)) {
+        return false;
+      }
       if (seedSet.has(cue)) {
+        return false;
+      }
+      if (
+        isTextureWallCandidate(cue) &&
+        (transparentWallCounts.get(textureWallGroupKey(cue)) ?? 0) >= MIN_TEXTURE_WALL_EVENTS
+      ) {
         return false;
       }
       if (
