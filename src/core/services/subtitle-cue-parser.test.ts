@@ -1307,7 +1307,7 @@ test('parseSubtitleCues drops tiny alpha payloads from a proven texture font', (
   const content = [
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-    'Comment: 2,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\fs100\\alpha&HFC&}texture seed',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\clip(500,40,660,150)}LLLLLLLLLLLL',
     "Dialogue: 1,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
     'Dialogue: 3,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(1040,620)\\fnSF Pro Display\\fs66}Waiting!',
   ].join('\n');
@@ -1315,6 +1315,20 @@ test('parseSubtitleCues drops tiny alpha payloads from a proven texture font', (
   assert.deepEqual(
     parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
     ['Waiting!'],
+  );
+});
+
+test('parseSubtitleCues preserves a small multiline translation using an unverified transparent font', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,Transition,,0,0,0,,{\\pos(580,95)\\fnPhone UI\\fs60\\alpha&HF0&}Faded transition',
+    'Dialogue: 3,0:00:06.00,0:00:09.00,Phone,,0,0,0,,{\\pos(1040,620)\\fnPhone UI\\fs10\\alpha&H70&}Call me when you arrive.\\NI will still be awake.\\NDo not rush.',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Faded transition', 'Call me when you arrive.\nI will still be awake.\nDo not rush.'],
   );
 });
 
@@ -1828,4 +1842,106 @@ test('parseSubtitleCues splits chunked words whose gap only the excess rule catc
     parseSubtitleCues(content, 'test.ass')[0]?.text,
     'Choices presumably made by chance',
   );
+});
+
+test('parseSubtitleCues rebuilds a line from per-glyph phase stacks with staggered timing', () => {
+  // Each glyph lives as four events anchored at one point: a transparent pre-echo until
+  // its syllable is sung, a short highlight, a rising exit ghost, and a steady hold.
+  // No timing window is shared across the phases, only the anchor ties them together.
+  const glyphs = [
+    ['エ', 559],
+    ['ネ', 601],
+    ['ル', 643],
+    ['ギ', 686],
+    ['ー', 728],
+  ] as const;
+  const timestamp = (seconds: number) => `0:00:${seconds.toFixed(2).padStart(5, '0')}`;
+  const content = [
+    ...eventsHeader,
+    ...glyphs.flatMap(([glyph, x], index) => {
+      const highlightStart = 20.9 + index * 0.4;
+      return [
+        `Dialogue: 3,${timestamp(20 + index * 0.03)},${timestamp(highlightStart)},OP - JP,,0,0,0,,{\\blur1.5\\bord2\\c&H404040&\\3c&HFFFFFF&\\an5\\pos(${x},50)\\fad(300,0)\\1a&HFF&}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart)},${timestamp(highlightStart + 0.4)},OP - JP,,0,0,0,,{\\an5\\pos(${x},50)\\bord2\\c&H404040&\\3c&HFFFFFF&\\t(120,240,\\3c&H007A7A7A&\\blur0)\\fad(0,300)}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart)},${timestamp(highlightStart + 2.4)},OP - JP,,0,0,0,,{\\an5\\move(${x},50,${x},0)\\bord0\\shad0\\t(\\c&HFFFFFF&\\blur5\\alpha&HFF&)}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart + 0.4)},${timestamp(26.1 + index * 0.05)},OP - JP,,0,0,0,,{\\an5\\pos(${x},50)\\bord2\\c&H404040&\\3c&HFFFFFF&\\fad(0,300)}${glyph}`,
+      ];
+    }),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'エネルギー');
+  assert.equal(cues[0]?.source, 'reconstructed-ass');
+  // Published from the first sung syllable to the end of the hold, so the transparent
+  // lead-in and the exit ghosts' fade tail never overlap the neighboring lines. The
+  // full generated span stays available as the animation window.
+  assert.equal(cues[0]?.startTime, 20.9);
+  assert.equal(cues[0]?.endTime, 26.3);
+  assert.equal(cues[0]?.animationStartTime, 20);
+  assert.equal(cues[0]?.animationEndTime, 26.3);
+});
+
+test('parseSubtitleCues drops transparent glow echoes and merges an exit replay', () => {
+  // The visible line sits at one row while transparent-fill glow copies duplicate every
+  // glyph on another row, and the exit shatters each glyph into copies launched from a
+  // shared anchor. Only the authored line may publish, as a single unbroken cue.
+  const glyphs = [
+    ['さ', 686],
+    ['あ', 728],
+    ['預', 770],
+    ['け', 812],
+    ['て', 854],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...glyphs.flatMap(([glyph, x]) => [
+      `Dialogue: 3,0:00:16.28,0:00:18.71,OP - JP,,0,0,0,,{\\an2\\pos(${x},85)\\fad(200,0)\\fry-90\\c&H404040&\\3c&HF4F4F4&\\bord2\\t(0,300,\\fry0)}${glyph}`,
+      ...[0, 1].map(
+        () =>
+          `Dialogue: 3,0:00:16.28,0:00:20.01,OP - JP,,0,0,0,,{\\pos(${x},15)\\blur5.8\\fry-90\\1a&HFF&\\fad(200,0)\\3c&H3F26AA&\\t(0,300,\\fry0)\\t(2596,3222,\\bord0\\3a&HFF&)}${glyph}`,
+      ),
+      ...[0, 1].map(
+        (copy) =>
+          `Dialogue: 3,0:00:18.71,0:00:20.89,OP - JP,,0,0,0,,{\\an5\\bord2\\fad(0,200)\\move(${x},50,${x + 25 + copy * 3},${17 - copy * 39},1605,2055)\\t(450,792,\\c&H3500DE&\\bord0)\\t(1605,2055,\\blur15\\fscx20\\fscy20\\1a&H50&\\3a&H50&)}${glyph}`,
+      ),
+    ]),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'さあ預けて');
+  assert.equal(cues[0]?.startTime, 16.28);
+  assert.equal(cues[0]?.endTime, 20.89);
+});
+
+test('parseSubtitleCues does not double a line rendered whole beside its glyph swarm', () => {
+  // An assembly effect shows the authored line as one positioned event while dozens of
+  // per-glyph particle copies converge onto each glyph's anchor. The whole event and
+  // the swarm spell the same text and must publish as one line, once.
+  const glyphs = [
+    ['可', 854],
+    ['笑', 896],
+    ['し', 938],
+    ['い', 980],
+    ['わ', 1022],
+    ['ね', 1064],
+  ] as const;
+  const wholeLine = glyphs
+    .map(([glyph]) => `{\\an5\\fad(300,500)\\pos(960,50)}${glyph}`)
+    .join('');
+  const content = [
+    ...eventsHeader,
+    `Dialogue: 1,0:00:17.29,0:00:18.99,OP - JP,,0,0,0,,${wholeLine}`,
+    ...glyphs.flatMap(([glyph, x], index) =>
+      [0, 1, 2].map(
+        (copy) =>
+          `Dialogue: 2,0:00:17.${30 + index * 5 + copy},0:00:19.10,OP - JP,,0,0,0,,{\\bord4\\blur4\\an5\\fad(500,0)\\move(${x - 60 - copy * 17},${120 + copy * 6},${x},50,20,900)\\clip(${x - 70},80,${x - 66},84)\\t(20,900,\\clip(${x - 4},7,${x},11))}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, '可笑しいわね');
 });

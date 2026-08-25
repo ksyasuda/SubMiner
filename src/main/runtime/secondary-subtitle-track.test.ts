@@ -102,7 +102,7 @@ test('parsed secondary text keeps phone translations while dropping texture payl
   const ass = [
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-    'Comment: 2,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\fs100\\alpha&HFC&}texture seed',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\clip(500,40,660,150)}LLLLLLLLLLLL',
     'Dialogue: 90,0:00:01.00,0:00:03.00,Default,,0,0,0,,Why did you choose Hanajo instead?',
     "Dialogue: 1,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
     "Dialogue: 3,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(582,180)\\fnSF Pro Display\\fs66}We're {\\2a0}running {\\2a1}out {\\2a0}of {\\2a1}time!\\N{\\2a0}Where {\\2a1}are {\\2a0}you {\\2a1}right {\\2a0}now?!",

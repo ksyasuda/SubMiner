@@ -134,14 +134,26 @@ function resolveActiveParsedPrimarySubtitle(options: {
     return null;
   }
 
+  // A cue selected only through the edge tolerance has already ended (or not yet
+  // started) by its published timing: a finished lyric whose exit ghosts linger into
+  // the next line. It still explains those live fragments above, but while any cue is
+  // strictly active, only the active cues supply the displayed text. With no strictly
+  // active cue, the edge cues remain the display fallback for stale time-pos readings.
+  const strictlyActive = selected.filter(
+    (cue) => cue.startTime <= options.currentTimeSec && cue.endTime > options.currentTimeSec,
+  );
+  const displayCues = strictlyActive.length > 0 ? strictlyActive : selected;
+
   // Dense sign grids still explain their raw mpv fragments, but are visual
   // typesetting rather than a publishable subtitle line.
-  const texts = uniqueCueTexts(selected.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'));
+  const texts = uniqueCueTexts(
+    displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'),
+  );
   return {
     text: texts.join('\n'),
-    startTime: Math.min(...selected.map((cue) => cue.startTime)),
-    endTime: Math.max(...selected.map((cue) => cue.endTime)),
-    cues: selected,
+    startTime: Math.min(...displayCues.map((cue) => cue.startTime)),
+    endTime: Math.max(...displayCues.map((cue) => cue.endTime)),
+    cues: displayCues,
   };
 }
 

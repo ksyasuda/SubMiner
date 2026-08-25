@@ -497,3 +497,30 @@ test('stripCanonicalFragmentLines drops a live glyph wall with no nearby canonic
     'それよりも　ノート…',
   );
 });
+
+test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outlive it beside a raw line', () => {
+  // The reconstructed lyric ended at 6.0 but its exit ghost glyphs stay in the live
+  // text until 7.0, while the next authored line is a plain raw event. The retired cue
+  // must explain the ghost fragments without re-surfacing next to the active line.
+  const cues = [
+    {
+      startTime: 1.0,
+      endTime: 6.0,
+      text: 'エネルギーはサイクル',
+      source: 'reconstructed-ass' as const,
+      animationStartTime: 0.5,
+      animationEndTime: 7.0,
+      assStyle: 'OP - JP',
+    },
+    { startTime: 6.0, endTime: 12.0, text: '象徴的なパレード' },
+  ];
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'エ\nネ\nル\nギ\nー\n象徴的なパレード',
+      currentTimeSec: 6.5,
+      cues,
+    }),
+    '象徴的なパレード',
+  );
+});

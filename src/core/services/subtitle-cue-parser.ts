@@ -325,8 +325,17 @@ interface FragmentGroup {
   events: AnnotatedSubtitleCue[];
 }
 
+// Anchor extraction walks every override command, and the canonical/fragment passes
+// consult the same events once per candidate neighborhood, so heavy KFX tags make the
+// uncached form quadratic in practice.
+const placementAnchorCache = new WeakMap<AnnotatedSubtitleCue, Set<string>>();
+
 function fragmentPlacementAnchors(event: AnnotatedSubtitleCue): Set<string> {
-  const anchors = new Set<string>();
+  let anchors = placementAnchorCache.get(event);
+  if (anchors) {
+    return anchors;
+  }
+  anchors = new Set<string>();
   for (const command of event.overrides) {
     const name = command.name.toLowerCase();
     const args = command.args.split(',').map((value) => value.trim());
@@ -337,6 +346,7 @@ function fragmentPlacementAnchors(event: AnnotatedSubtitleCue): Set<string> {
       anchors.add(`move:${args[2]},${args[3]}`);
     }
   }
+  placementAnchorCache.set(event, anchors);
   return anchors;
 }
 
@@ -344,11 +354,49 @@ function fragmentPlacementAnchors(event: AnnotatedSubtitleCue): Set<string> {
 // kerned repeated glyphs in one line ("ii") measure 10px apart or more.
 const LAYER_COPY_OFFSET_TOLERANCE_PX = 6;
 
+// Copies chain only through genuine time overlap. Consecutive re-runs of one visual
+// (chant bursts, countdown frames, jitter animation frames) abut or micro-overlap at
+// frame seams, so the different-structure threshold sits above a frame seam while the
+// phases of one effect (a highlight and the exit ghost it launches) overlap far longer.
+const MIN_PHASE_OVERLAP_SECONDS = 0.04;
+
+// Decoration is timed to the line it accompanies, but a lead-in echo can end exactly
+// where the recovered line's first sung copy begins; a small tolerance keeps such
+// flush decoration attached to its line.
+const DECORATION_SPAN_TOLERANCE_SECONDS = 0.1;
+
+// Guards for pathological event volumes. Real copy stacks and repaint chains stay in
+// the hundreds; a same-text bucket or candidate sweep group in the thousands is a
+// particle field, and the quadratic passes over it would stall the main process.
+const MAX_COALESCE_BUCKET_EVENTS = 1500;
+const MAX_SWEEP_GROUP_EVENTS = 4000;
+
+/**
+ * Sources behind a coalesced copy chain. Synthetic cues stand in for their sources
+ * during fragment recovery, but suppression and copy-count evidence must reach the
+ * original events, which are what the published dialogue list still holds.
+ */
+const coalescedSourceEvents = new WeakMap<AnnotatedSubtitleCue, AnnotatedSubtitleCue[]>();
+
+function sourceEventsOf(cue: AnnotatedSubtitleCue): readonly AnnotatedSubtitleCue[] {
+  return coalescedSourceEvents.get(cue) ?? [cue];
+}
+
+function sourceEventCount(events: readonly AnnotatedSubtitleCue[]): number {
+  return events.reduce((count, event) => count + sourceEventsOf(event).length, 0);
+}
+
 // One representative point per placement command: the `\pos` point or the `\move`
 // midpoint. Comparing raw `\move` endpoints cross-wise misreads a travel distance that
 // matches the glyph advance as a layer copy of a neighboring same-letter glyph.
+const anchorPointCache = new WeakMap<AnnotatedSubtitleCue, AssFragmentPosition[]>();
+
 function fragmentAnchorPoints(event: AnnotatedSubtitleCue): AssFragmentPosition[] {
-  const points: AssFragmentPosition[] = [];
+  let points = anchorPointCache.get(event);
+  if (points) {
+    return points;
+  }
+  points = [];
   for (const command of event.overrides) {
     const name = command.name.toLowerCase();
     const args = command.args.split(',').map((value) => Number(value.trim()));
@@ -358,6 +406,7 @@ function fragmentAnchorPoints(event: AnnotatedSubtitleCue): AssFragmentPosition[
       points.push({ x: (args[0]! + args[2]!) / 2, y: (args[1]! + args[3]!) / 2 });
     }
   }
+  anchorPointCache.set(event, points);
   return points;
 }
 
@@ -387,8 +436,207 @@ function isRepeatedFragmentCopy(
   );
 }
 
+// Coalescing keys on where a copy is anchored: the `\pos` point and both `\move`
+// endpoints, since exit ghosts launch from the glyph anchor and entrance copies
+// converge onto it.
+function coalesceAnchorPoints(event: AnnotatedSubtitleCue): AssFragmentPosition[] {
+  const points: AssFragmentPosition[] = [];
+  for (const command of event.overrides) {
+    const name = command.name.toLowerCase();
+    const args = command.args.split(',').map((value) => Number(value.trim()));
+    if (name === 'pos' && args.length >= 2 && args.slice(0, 2).every(Number.isFinite)) {
+      points.push({ x: args[0]!, y: args[1]! });
+    } else if (name === 'move' && args.length >= 4 && args.slice(0, 4).every(Number.isFinite)) {
+      points.push({ x: args[0]!, y: args[1]! });
+      points.push({ x: args[2]!, y: args[3]! });
+    }
+  }
+  return points;
+}
+
+function shareCoalesceAnchor(
+  left: readonly AssFragmentPosition[],
+  right: readonly AssFragmentPosition[],
+): boolean {
+  return right.some((point) =>
+    left.some(
+      (other) =>
+        Math.abs(point.x - other.x) <= LAYER_COPY_OFFSET_TOLERANCE_PX &&
+        Math.abs(point.y - other.y) <= LAYER_COPY_OFFSET_TOLERANCE_PX,
+    ),
+  );
+}
+
+// The set of distinct command names, ignoring arguments and repetition. Two phases of
+// one effect (pre-echo, highlight, hold) carry different command vocabularies; a re-run
+// of the same visual (chant burst, countdown frame) repeats the same vocabulary with new
+// argument values -- including a different number of animation keyframes, which is why
+// repetition must not count.
+const structuralSignatureCache = new WeakMap<AnnotatedSubtitleCue, string>();
+
+function structuralOverrideSignature(cue: AnnotatedSubtitleCue): string {
+  let signature = structuralSignatureCache.get(cue);
+  if (signature === undefined) {
+    const names = new Set(
+      cue.overrides.map(
+        (command) => `${command.animated ? '~' : ''}${command.name.toLowerCase()}`,
+      ),
+    );
+    signature = [...names].sort().join(',');
+    structuralSignatureCache.set(cue, signature);
+  }
+  return signature;
+}
+
+// A transparent lead-in ends exactly where its glyph's first sung copy begins, so the
+// echo-to-visible handoff must chain across a small seam.
+const COALESCE_SEAM_TOLERANCE_SECONDS = 0.05;
+
+/**
+ * Two same-text copies chain when their windows genuinely overlap. Structurally
+ * identical events are layers of one visual exactly when their windows substantially
+ * coincide; a frame seam or few-millisecond overlap between identical structures is a
+ * re-run (the next chant burst, the next countdown frame). Structurally different
+ * events are phases of one effect and chain across any above-seam overlap. A bare seam
+ * only joins a transparent echo to its visible phase: the lead-in before a highlight
+ * belongs to its glyph, while two visible events that merely abut (the next burst of a
+ * chant, an exit flash after a hold) are separate showings.
+ */
+function areTimeConnectedCopies(a: AnnotatedSubtitleCue, b: AnnotatedSubtitleCue): boolean {
+  const overlap = Math.min(a.endTime, b.endTime) - Math.max(a.startTime, b.startTime);
+  if (structuralOverrideSignature(a) === structuralOverrideSignature(b)) {
+    const shorterDuration = Math.min(a.endTime - a.startTime, b.endTime - b.startTime);
+    return overlap >= Math.max(MIN_PHASE_OVERLAP_SECONDS, shorterDuration / 2);
+  }
+  if (overlap >= MIN_PHASE_OVERLAP_SECONDS) {
+    return true;
+  }
+  return (
+    overlap >= -COALESCE_SEAM_TOLERANCE_SECONDS &&
+    isTransparentFillEcho(a) !== isTransparentFillEcho(b)
+  );
+}
+
+function buildCoalescedCopy(members: readonly AnnotatedSubtitleCue[]): AnnotatedSubtitleCue {
+  const ordered = [...members].sort((left, right) => left.order - right.order);
+  const representative =
+    ordered.find((member) =>
+      member.overrides.some((command) => !command.animated && command.name.toLowerCase() === 'pos'),
+    ) ?? ordered[0]!;
+  const synthetic: AnnotatedSubtitleCue = {
+    ...representative,
+    startTime: earliestStartTime(ordered),
+    endTime: latestEndTime(ordered),
+    order: ordered[0]!.order,
+  };
+  coalescedSourceEvents.set(synthetic, ordered);
+  return synthetic;
+}
+
+/**
+ * Generated glyph effects render one authored glyph as a stack of copies anchored at the
+ * same point: a transparent pre-echo until the syllable is sung, a short highlight, an
+ * exit ghost launched from the anchor, and a steady hold to the end of the line. Their
+ * windows abut rather than coincide, so per-event timing says four unrelated fragments
+ * while the anchor says one glyph. Merging each stack into a single presence spanning
+ * the union window lets timing clusters see the authored line instead of its phases.
+ */
+function coalesceAssAnchorCopies(
+  events: readonly AnnotatedSubtitleCue[],
+): AnnotatedSubtitleCue[] {
+  const buckets = new Map<string, number[]>();
+  const anchorPoints: (AssFragmentPosition[] | null)[] = events.map(() => null);
+  events.forEach((event, index) => {
+    const text = compactCueMatchText(event);
+    if (!text) {
+      return;
+    }
+    const points = coalesceAnchorPoints(event);
+    if (points.length === 0) {
+      return;
+    }
+    anchorPoints[index] = points;
+    const bucket = buckets.get(text);
+    if (bucket) {
+      bucket.push(index);
+    } else {
+      buckets.set(text, [index]);
+    }
+  });
+  for (const [text, bucket] of buckets) {
+    if (bucket.length > MAX_COALESCE_BUCKET_EVENTS) {
+      // Pathological same-text volume (a whole-episode particle field). Pairing would
+      // stall the main process; uncoalesced events fall back to the burst/grid paths.
+      buckets.delete(text);
+    } else {
+      bucket.sort((left, right) => events[left]!.startTime - events[right]!.startTime);
+    }
+  }
+
+  const parent = events.map((_, index) => index);
+  const findRoot = (index: number): number => {
+    let root = index;
+    while (parent[root] !== root) {
+      root = parent[root]!;
+    }
+    while (parent[index] !== root) {
+      const next = parent[index]!;
+      parent[index] = root;
+      index = next;
+    }
+    return root;
+  };
+  const union = (left: number, right: number): void => {
+    parent[findRoot(left)] = findRoot(right);
+  };
+
+  for (const bucket of buckets.values()) {
+    // Buckets are start-sorted; copies can only connect through time proximity, so the
+    // backward scan stops once no earlier copy's window can still reach this one.
+    const prefixMaxEnd: number[] = [];
+    let maxEnd = -Infinity;
+    for (const index of bucket) {
+      maxEnd = Math.max(maxEnd, events[index]!.endTime);
+      prefixMaxEnd.push(maxEnd);
+    }
+    for (let i = 1; i < bucket.length; i += 1) {
+      const right = bucket[i]!;
+      const reachableStart = events[right]!.startTime - COALESCE_SEAM_TOLERANCE_SECONDS;
+      for (let j = i - 1; j >= 0 && prefixMaxEnd[j]! >= reachableStart; j -= 1) {
+        const left = bucket[j]!;
+        if (
+          shareCoalesceAnchor(anchorPoints[left]!, anchorPoints[right]!) &&
+          areTimeConnectedCopies(events[left]!, events[right]!)
+        ) {
+          union(left, right);
+        }
+      }
+    }
+  }
+
+  const componentsByRoot = new Map<number, AnnotatedSubtitleCue[]>();
+  events.forEach((event, index) => {
+    const root = findRoot(index);
+    const members = componentsByRoot.get(root);
+    if (members) {
+      members.push(event);
+    } else {
+      componentsByRoot.set(root, [event]);
+    }
+  });
+  if (componentsByRoot.size === events.length) {
+    return [...events];
+  }
+  return [...componentsByRoot.values()]
+    .map((members) => (members.length === 1 ? members[0]! : buildCoalescedCopy(members)))
+    .sort((left, right) => left.order - right.order);
+}
+
 function hasRelaxedAssFragmentEvidence(events: readonly AnnotatedSubtitleCue[]): boolean {
-  if (events.length < 2 || !events.every((event) => fragmentPlacementAnchors(event).size > 0)) {
+  if (
+    sourceEventCount(events) < 2 ||
+    !events.every((event) => fragmentPlacementAnchors(event).size > 0)
+  ) {
     return false;
   }
 
@@ -408,15 +656,17 @@ function hasRelaxedAssFragmentEvidence(events: readonly AnnotatedSubtitleCue[]):
   const hasChangingOverrides = events.some(
     (event) => event.overrideSignature !== first.overrideSignature,
   );
-  const hasPositionedLayerCopy = events.some((event, index) =>
-    events
-      .slice(0, index)
-      .some(
-        (previous) =>
-          compactCueMatchText(previous) === compactCueMatchText(event) &&
-          isRepeatedFragmentCopy(previous, event),
-      ),
-  );
+  const hasPositionedLayerCopy =
+    events.some((event) => sourceEventsOf(event).length > 1) ||
+    events.some((event, index) =>
+      events
+        .slice(0, index)
+        .some(
+          (previous) =>
+            compactCueMatchText(previous) === compactCueMatchText(event) &&
+            isRepeatedFragmentCopy(previous, event),
+        ),
+    );
   return hasChangingOverrides || hasPositionedLayerCopy;
 }
 
@@ -840,6 +1090,14 @@ function intervalsNeverCoexist(intervals: readonly FragmentInterval[]): boolean 
   return true;
 }
 
+// A sweep progresses through the syllables of a lyric, so its events carry different
+// texts. Sequential same-text repaints are one shaking line being redrawn, and its text
+// must survive to the raw/burst path rather than be suppressed as decoration.
+function hasMultipleFragmentTexts(events: readonly AnnotatedSubtitleCue[]): boolean {
+  const first = events[0] ? compactCueMatchText(events[0]) : '';
+  return events.some((event) => compactCueMatchText(event) !== first);
+}
+
 /**
  * A karaoke highlight sweep repaints one syllable at a time over an already-visible
  * lyric line: each event ends as the next begins, so the cluster's concatenated text is
@@ -848,6 +1106,9 @@ function intervalsNeverCoexist(intervals: readonly FragmentInterval[]): boolean 
  * placement and timing, so the test is whether any two distinct placements coexist.
  */
 function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): boolean {
+  if (!hasMultipleFragmentTexts(events)) {
+    return false;
+  }
   const intervals = distinctFragmentIntervals(events);
   return intervals.length >= 2 && intervalsNeverCoexist(intervals);
 }
@@ -863,7 +1124,9 @@ function isProgressiveHighlightSweep(events: readonly AnnotatedSubtitleCue[]): b
  */
 function isProgressiveHighlightSweepGroup(events: readonly AnnotatedSubtitleCue[]): boolean {
   if (
-    events.length < MIN_FRAGMENT_LINE_EVENTS ||
+    events.length > MAX_SWEEP_GROUP_EVENTS ||
+    sourceEventCount(events) < MIN_FRAGMENT_LINE_EVENTS ||
+    !hasMultipleFragmentTexts(events) ||
     !events.every((event) => fragmentPlacementAnchors(event).size > 0) ||
     !hasAssAnimationEvidence(events)
   ) {
@@ -895,41 +1158,133 @@ function decodeSingleAssFragment(cue: AnnotatedSubtitleCue): string | null {
   return visibleLines.length === 1 ? visibleLines[0]! : null;
 }
 
+/**
+ * One cluster can hold the same authored text at two granularities: a whole-line event
+ * and the per-glyph events that spell it (an assembly effect renders the line while its
+ * glyph particles converge). Joining both doubles the line. A consecutive run of two or
+ * more parts that concatenates to exactly another part's text is that part's fragment
+ * layer; the whole part keeps the authored spacing, so the run is dropped. Single equal
+ * parts are never dropped -- a repeated word in a lyric is real text, not a layer.
+ *
+ * Spelling alone is not proof: repeated digits after a thousands group also concatenate
+ * to the earlier fragment's text while being real continuation. A duplicate layer sits
+ * on top of its fragments, so the whole part's anchor must fall inside the run's
+ * positional span; text that merely continues the line sits beyond it.
+ */
+function isWholePartOverItsRun(whole: AssFragmentPart, run: readonly AssFragmentPart[]): boolean {
+  const wholePosition = fragmentPosition(whole.cue);
+  if (!wholePosition) {
+    return true;
+  }
+  const xs = run
+    .map((part) => fragmentPosition(part.cue)?.x)
+    .filter((x): x is number => Number.isFinite(x));
+  if (xs.length === 0) {
+    return true;
+  }
+  return wholePosition.x >= Math.min(...xs) && wholePosition.x <= Math.max(...xs);
+}
+
+function dropFragmentRunsCoveredByWholeParts(parts: AssFragmentPart[]): AssFragmentPart[] {
+  const kept = [...parts];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const wholes = [...kept].sort(
+      (left, right) =>
+        compactAssMatchText(right.text).length - compactAssMatchText(left.text).length,
+    );
+    for (const whole of wholes) {
+      const wholeText = compactAssMatchText(whole.text);
+      if ([...wholeText].length < 2) {
+        break;
+      }
+      for (let start = 0; start < kept.length && !changed; start += 1) {
+        if (kept[start] === whole) {
+          continue;
+        }
+        let combined = '';
+        for (let end = start; end < kept.length; end += 1) {
+          if (kept[end] === whole) {
+            break;
+          }
+          combined += compactAssMatchText(kept[end]!.text);
+          if (!wholeText.startsWith(combined)) {
+            break;
+          }
+          if (combined === wholeText) {
+            const run = kept.slice(start, end + 1);
+            if (end > start && isWholePartOverItsRun(whole, run)) {
+              kept.splice(start, end - start + 1);
+              changed = true;
+            }
+            break;
+          }
+        }
+      }
+      if (changed) {
+        break;
+      }
+    }
+  }
+  return kept;
+}
+
 function reconstructAssFragmentLine(
   events: readonly AnnotatedSubtitleCue[],
 ): AnnotatedSubtitleCue | null {
   const hasRelaxedEvidence = hasRelaxedAssFragmentEvidence(events);
   const minimumEvents = hasRelaxedEvidence ? 2 : MIN_FRAGMENT_LINE_EVENTS;
-  if (events.length < minimumEvents || !hasAssAnimationEvidence(events)) {
+  // Coalesced copies stand in for their source events, so animation-volume thresholds
+  // count sources: a merged four-phase glyph is still four generated events of evidence.
+  if (sourceEventCount(events) < minimumEvents || !hasAssAnimationEvidence(events)) {
     return null;
   }
 
-  const parts: AssFragmentPart[] = [];
+  const collected: AssFragmentPart[] = [];
   for (const cue of events) {
     const text = decodeSingleAssFragment(cue);
     if (text === null) {
       return null;
     }
     const compactText = compactAssMatchText(text);
-    const isLayerCopy = parts.some(
+    const isLayerCopy = collected.some(
       (part) =>
         compactAssMatchText(part.text) === compactText && isRepeatedFragmentCopy(part.cue, cue),
     );
     if (!isLayerCopy) {
-      parts.push({ cue, text });
+      collected.push({ cue, text });
     }
   }
-
   const minimumParts = hasRelaxedEvidence ? 1 : MIN_FRAGMENT_LINE_PARTS;
-  if (parts.length < minimumParts || (!hasRelaxedEvidence && parts.length === events.length)) {
+  if (
+    collected.length < minimumParts ||
+    (!hasRelaxedEvidence && collected.length === sourceEventCount(events))
+  ) {
     return null;
   }
-  const lengths = parts
+  // A cluster whose every part is one identical glyph is a particle field, not a line.
+  // Reconstructing it would also break the surviving particles' same-text chain that
+  // burst deduplication collapses downstream.
+  if (collected.length >= 2) {
+    const firstText = compactAssMatchText(collected[0]!.text);
+    if (
+      [...firstText].length === 1 &&
+      collected.every((part) => compactAssMatchText(part.text) === firstText)
+    ) {
+      return null;
+    }
+  }
+  // The granularity gate judges the cluster as authored, so it runs before redundant
+  // whole-vs-fragments layers collapse: a line plus its glyph swarm is fragment-sized
+  // work even though only the whole-line part survives into the join.
+  const lengths = collected
     .map((part) => compactAssMatchText(part.text).length)
     .sort((left, right) => left - right);
   if ((lengths[Math.floor(lengths.length / 2)] ?? Infinity) > MAX_FRAGMENT_MEDIAN_LENGTH) {
     return null;
   }
+  const parts = dropFragmentRunsCoveredByWholeParts(collected);
 
   const text = joinAssFragmentParts(parts);
   if (!text) {
@@ -938,10 +1293,21 @@ function reconstructAssFragmentLine(
   const owner = parts[0]!.cue;
   const animationStartTime = earliestStartTime(events);
   const animationEndTime = latestEndTime(events);
+  // Publish the window where the line reads as sung text. Transparent pre-echoes render
+  // the upcoming line before its first syllable, and exit ghosts fade past the hold, so
+  // the raw span makes consecutive lyrics overlap on screen. The line starts with its
+  // first opaque copy and holds until the last statically anchored one ends; a line
+  // placed entirely by `\move` has no hold phase and keeps its full visible span.
+  const sources = events.flatMap((event) => [...sourceEventsOf(event)]);
+  const visibleSources = sources.filter((source) => !isTransparentFillEcho(source));
+  const displaySources = visibleSources.length > 0 ? visibleSources : sources;
+  const heldSources = displaySources.filter((source) =>
+    source.overrides.some((command) => !command.animated && command.name.toLowerCase() === 'pos'),
+  );
   return {
     ...owner,
-    startTime: animationStartTime,
-    endTime: animationEndTime,
+    startTime: earliestStartTime(displaySources),
+    endTime: latestEndTime(heldSources.length > 0 ? heldSources : displaySources),
     text,
     rawText: text,
     source: 'reconstructed-ass',
@@ -1026,9 +1392,13 @@ function isAssTextureSeed(cue: AnnotatedSubtitleCue): boolean {
 }
 
 function staticGlobalAlpha(cue: AnnotatedSubtitleCue): number | null {
+  return staticAlphaOverride(cue, 'alpha');
+}
+
+function staticAlphaOverride(cue: AnnotatedSubtitleCue, expectedName: string): number | null {
   let alpha: number | null = null;
   for (const command of cue.overrides) {
-    if (command.animated || command.name.toLowerCase() !== 'alpha') continue;
+    if (command.animated || command.name.toLowerCase() !== expectedName) continue;
     const match = ASS_ALPHA_VALUE_PATTERN.exec(command.args.trim());
     const alphaValue = match?.[1];
     if (alphaValue !== undefined) {
@@ -1036,6 +1406,42 @@ function staticGlobalAlpha(cue: AnnotatedSubtitleCue): number | null {
     }
   }
   return alpha;
+}
+
+function hasAnimatedAlphaOverride(cue: AnnotatedSubtitleCue): boolean {
+  return cue.overrides.some((command) => {
+    if (!command.animated) return false;
+    const name = command.name.toLowerCase();
+    return name === '1a' || name === 'alpha';
+  });
+}
+
+// `\alpha&HFF&` blanks all four layers, but a later component override can turn one
+// back on: chant overlays render entirely through `\4a&H00&` shadows. Any re-enabled
+// layer means the event draws real text.
+const ASS_COMPONENT_ALPHA_NAMES = ['1a', '2a', '3a', '4a'] as const;
+
+function hasVisibleComponentAlpha(cue: AnnotatedSubtitleCue): boolean {
+  return ASS_COMPONENT_ALPHA_NAMES.some((name) => {
+    const value = staticAlphaOverride(cue, name);
+    return value !== null && value < 0xff;
+  });
+}
+
+/**
+ * A glyph copy whose fill is statically fully transparent and never animated back in is
+ * a glow or outline echo of the real glyph, not the text itself. A coalesced copy chain
+ * counts only when every phase in it is such an echo; one opaque phase means the chain
+ * carries the authored glyph.
+ */
+function isTransparentFillEcho(cue: AnnotatedSubtitleCue): boolean {
+  return sourceEventsOf(cue).every(
+    (source) =>
+      (staticAlphaOverride(source, '1a') === 0xff ||
+        staticAlphaOverride(source, 'alpha') === 0xff) &&
+      !hasAnimatedAlphaOverride(source) &&
+      !hasVisibleComponentAlpha(source),
+  );
 }
 
 function staticFontSize(cue: AnnotatedSubtitleCue): number | null {
@@ -1102,16 +1508,6 @@ function assTextureTimingGroupKey(cue: AnnotatedSubtitleCue): string {
 function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
   const seeds = events.dialogue.filter(isAssTextureSeed);
   const seedSet = new Set(seeds);
-  const textureFontFamilies = new Set(
-    [
-      ...seeds,
-      ...events.dialogue.filter(isNearlyTransparentPositionedText),
-      ...events.comments.filter(isNearlyTransparentPositionedText),
-    ]
-      .map(staticFontOverride)
-      .filter((font): font is string => font !== null)
-      .map(textureFontFamilyKey),
-  );
   // Short pieces can share the seeded font effect under another actor. Matching the
   // seed's style, timing, and font only narrows the candidates; each piece must still
   // carry structural texture evidence.
@@ -1138,6 +1534,27 @@ function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
   const seedIndexesByStyle = new Map(
     [...seedsByStyle].map(([style, styleSeeds]) => [style, buildAssEventGroupIndex(styleSeeds)]),
   );
+  const isAssociatedWithTextureSeed = (cue: AnnotatedSubtitleCue): boolean => {
+    const styleSeedIndex = seedIndexesByStyle.get(cue.style);
+    return (
+      styleSeedIndex !== undefined &&
+      eventsOverlappingWindow(styleSeedIndex, cue.startTime, cue.endTime).length > 0
+    );
+  };
+  const textureFontFamilies = new Set(
+    [
+      ...seeds,
+      ...events.dialogue.filter(
+        (cue) => isNearlyTransparentPositionedText(cue) && isAssociatedWithTextureSeed(cue),
+      ),
+      ...events.comments.filter(
+        (cue) => isNearlyTransparentPositionedText(cue) && isAssociatedWithTextureSeed(cue),
+      ),
+    ]
+      .map(staticFontOverride)
+      .filter((font): font is string => font !== null)
+      .map(textureFontFamilyKey),
+  );
 
   return {
     dialogue: events.dialogue.filter((cue) => {
@@ -1161,11 +1578,7 @@ function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
       if (!isNearlyTransparentPositionedText(cue)) {
         return true;
       }
-      const styleSeedIndex = seedIndexesByStyle.get(cue.style);
-      return (
-        styleSeedIndex === undefined ||
-        eventsOverlappingWindow(styleSeedIndex, cue.startTime, cue.endTime).length === 0
-      );
+      return !isAssociatedWithTextureSeed(cue);
     }),
     comments: events.comments,
   };
@@ -1226,16 +1639,36 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
 
   const recovered: AnnotatedSubtitleCue[] = [];
   const suppressed = new Set<AnnotatedSubtitleCue>();
+  // The published dialogue list holds source events, so a suppressed coalesced copy
+  // chain must suppress every event behind it.
+  const suppress = (event: AnnotatedSubtitleCue): void => {
+    for (const source of sourceEventsOf(event)) {
+      suppressed.add(source);
+    }
+  };
   for (const events of groups.values()) {
-    const decorative = decorativeGlyphEvents(events);
-    const lineEvents = decorative.size ? events.filter((event) => !decorative.has(event)) : events;
+    const units = coalesceAssAnchorCopies(events);
+    const decorative = decorativeGlyphEvents(units);
+    for (const unit of units) {
+      if (
+        !decorative.has(unit) &&
+        fragmentPlacementAnchors(unit).size > 0 &&
+        isTransparentFillEcho(unit)
+      ) {
+        decorative.add(unit);
+      }
+    }
+    const lineEvents = decorative.size ? units.filter((event) => !decorative.has(event)) : units;
     if (isProgressiveHighlightSweepGroup(lineEvents)) {
-      lineEvents.forEach((event) => suppressed.add(event));
+      lineEvents.forEach(suppress);
       const spanStart = Math.min(...lineEvents.map((event) => event.startTime));
       const spanEnd = Math.max(...lineEvents.map((event) => event.endTime));
       for (const overlay of decorative) {
-        if (overlay.startTime < spanEnd && overlay.endTime > spanStart) {
-          suppressed.add(overlay);
+        if (
+          overlay.startTime < spanEnd + DECORATION_SPAN_TOLERANCE_SECONDS &&
+          overlay.endTime > spanStart - DECORATION_SPAN_TOLERANCE_SECONDS
+        ) {
+          suppress(overlay);
         }
       }
       continue;
@@ -1248,18 +1681,21 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
       // A sweep only re-highlights the lyric it decorates: hide its events without
       // publishing the reconstruction.
       if (isProgressiveHighlightSweep(cluster.events)) {
-        cluster.events.forEach((event) => suppressed.add(event));
+        cluster.events.forEach(suppress);
         continue;
       }
       recovered.push(line);
-      cluster.events.forEach((event) => suppressed.add(event));
+      cluster.events.forEach(suppress);
       // Decoration is timed to the line it overlays, so it disappears with the line's
       // full animation span. Decoration outside any recovered span stays published.
       const spanStart = line.animationStartTime ?? line.startTime;
       const spanEnd = line.animationEndTime ?? line.endTime;
       for (const overlay of decorative) {
-        if (overlay.startTime < spanEnd && overlay.endTime > spanStart) {
-          suppressed.add(overlay);
+        if (
+          overlay.startTime < spanEnd + DECORATION_SPAN_TOLERANCE_SECONDS &&
+          overlay.endTime > spanStart - DECORATION_SPAN_TOLERANCE_SECONDS
+        ) {
+          suppress(overlay);
         }
       }
     }
@@ -1267,10 +1703,56 @@ function recoverFragmentOnlyAssLines(dialogue: AnnotatedSubtitleCue[]): Annotate
   if (recovered.length === 0 && suppressed.size === 0) {
     return dialogue;
   }
-  return [...dialogue.filter((cue) => !suppressed.has(cue)), ...recovered].sort(
+  return [
+    ...dialogue.filter((cue) => !suppressed.has(cue)),
+    ...mergeAbuttingRecoveredLines(recovered),
+  ].sort(
     (left, right) =>
       left.startTime - right.startTime || left.endTime - right.endTime || left.order - right.order,
   );
+}
+
+// One authored line can reconstruct twice from consecutive effect stages -- its steady
+// glyphs, then an exit animation replaying the same text. Publishing both would show the
+// line restarting, so identical recoveries that touch in time collapse into one span.
+const RECOVERED_LINE_MERGE_GAP_SECONDS = 0.1;
+
+function mergeAbuttingRecoveredLines(recovered: AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
+  const byText = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const line of recovered) {
+    const key = `${assEventGroupKey(line)}\0${compactAssMatchText(line.text)}`;
+    const bucket = byText.get(key);
+    if (bucket) {
+      bucket.push(line);
+    } else {
+      byText.set(key, [line]);
+    }
+  }
+
+  const merged: AnnotatedSubtitleCue[] = [];
+  for (const bucket of byText.values()) {
+    bucket.sort((left, right) => left.startTime - right.startTime || left.order - right.order);
+    let current = bucket[0]!;
+    for (let index = 1; index < bucket.length; index += 1) {
+      const next = bucket[index]!;
+      if (next.startTime <= current.endTime + RECOVERED_LINE_MERGE_GAP_SECONDS) {
+        const endTime = Math.max(current.endTime, next.endTime);
+        current = {
+          ...current,
+          endTime,
+          animationEndTime: Math.max(
+            current.animationEndTime ?? current.endTime,
+            next.animationEndTime ?? next.endTime,
+          ),
+        };
+      } else {
+        merged.push(current);
+        current = next;
+      }
+    }
+    merged.push(current);
+  }
+  return merged;
 }
 
 function groupConsecutiveAssFragments(events: readonly AnnotatedSubtitleCue[]): FragmentGroup[] {
