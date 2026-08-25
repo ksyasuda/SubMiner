@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.19.4 (2026-08-25)
+
+### Added
+- **Library Merge & Move**: Duplicate library cards for the same show can now be combined. Select cards in the library grid and use "Merge Selected" to pick which entry to keep and move every episode onto it, preserving sessions, mined cards, and watch time. Episodes can also be reassigned individually via the "→" button, useful when a file lands under a stray title; manual assignments survive later filename parsing, Jellyfin refreshes, and season repair. Exact AniList title matches with compatible seasons now merge automatically, while fuzzy matches surface as dismissible "Possible duplicate" reviews instead of merging silently.
+- **Duplicate Line Cleanup Tool**: The Vocabulary tab's new "Duplicates" button scans a chosen time window (7 days through all time) for old karaoke/typeset duplicate-line bursts, shows what it found, and collapses each run to one line once confirmed; `subminer stats cleanup --duplicate-lines` does the same from the terminal, with `--dry-run` and `--lookback-days <n>` options. Watch time and lines-seen totals are left unchanged.
+
+### Changed
+- **Prerelease Release Notes**: Prerelease notes now open with a "Changes since" section listing only what changed versus the previous beta/RC of the same version, above the cumulative highlights, and CI rejects prerelease tags whose committed notes were generated for a different beta/RC.
+
+### Fixed
+- **Subtitle & Karaoke Duplication**: Typeset ASS karaoke and animated signs no longer flood the overlay, subtitle sidebar, immersion history, mining, or stats with glyph fragments, per-frame color phases, or repeated animation events. Lines are reconstructed once from their authored text and shown only while actually sung, with original word spacing preserved. Decorative layers (highlight sweeps, glow/shadow copies, symbol-font decoration, particle swarms, hidden or zero-scaled text) stay out of published text, while ordinary repeated dialogue, positioned signs, wrapped lyric rows, and multi-row CC-style blocks still display correctly. Embedded subtitle tracks on network-mounted (SMB/NFS) media are extracted and parsed again instead of falling back to live-text-only, restoring karaoke reconstruction, sidebar cues, and mining for releases that only ship subtitles inside the container. Secondary subtitles now go through the same deduplication pipeline as primary subtitles and no longer clip display after about four lines. Event-heavy karaoke files that previously stalled subtitle loading for several seconds now parse in well under a second.
+- **Character Dictionary Reliability**: Character dictionary generation, merged rebuilds, and imports no longer freeze the app on large dictionaries. Snapshot I/O, archive building, and image/name lookup caches moved off the UI's critical path. Dictionaries are reused instead of regenerated when MeCab finds no name splits, and cached portraits now restore correctly after the portrait index finishes loading post-tokenization. Desktop progress notifications on Linux AppImage installs now update in place instead of flickering, fixing a bug where the AppImage's bundled libraries broke the system notification helper.
+- **Overlay Startup & Modals**: Fixed several causes of the overlay getting stuck on "Overlay loading": the macOS window-tracking helper now targets macOS 12.0+ instead of requiring the build machine's exact macOS version (previously crashed on older systems like Ventura), and mpv IPC connection attempts now time out and retry, showing an actionable error if content still isn't ready after 30 seconds. Dedicated overlay modals are also prewarmed on macOS and Windows so shortcuts open them promptly, and on macOS reused modals and the stats window now open above fullscreen mpv on its current Space instead of jumping to another desktop.
+- **Wayland File Drop**: Fixed native Wayland drag-and-drop from file managers such as Thunar, so subtitle and video files dropped on the visible overlay are resolved and forwarded to mpv.
+- **Windows Mouse Lag**: Fixed system-wide mouse lag on Windows while SubMiner is running, caused by the overlay's global mouse hook for click-through forwarding and by the mpv window tracker blocking the app on repeated PowerShell lookups.
+- **Sentence Mining Audio & Clips**: Sentence-audio generation no longer times out on slow network-mounted media with many subtitle/font streams (bounded FFmpeg probing, two-minute extraction budget, clearer error reporting), and mined audio/animated AVIF clips now capture the subtitle line that was actually mined by snapshotting the clip range at lookup time instead of reading live mpv state later.
+- **Stats Performance & Reliability**: Immersion stats storage now sets its SQLite busy timeout before WAL setup, avoiding transient lock errors under concurrent writes. Deletes in the stats dashboard no longer freeze the UI, run proportional to what's deleted instead of rebuilding full lifetime summaries, retry safely if the delete worker crashes, and no longer rescan the whole library when deleting very common words; a new index also makes large session deletes drop from minutes to milliseconds. Library merges, video moves, and AniList reassignments got the same lifetime-summary fix.
+- **Vocabulary Stats Accuracy**: Vocabulary totals and charts now count all tracked vocabulary instead of only the first page, new-word history uses corrected daily rollups (fixing legacy timestamp and time-zone issues), summary cards refresh automatically after edits to the exclusion list, and rapid exclusion edits no longer race each other.
+- **Rofi MKV Thumbnails**: Fixed missing MKV thumbnails in the Linux rofi picker when system thumbnailer registrations only advertise legacy Matroska MIME aliases.
+
+<details>
+<summary>Internal changes</summary>
+
+### Internal
+- Docs Site Indexing: Excluded the `/main/` and `/v/<version>/` docs trees from search indexing (self-referential canonical, `noindex,follow`, matching `X-Robots-Tag`) so crawlers focus on current docs instead of ~30 archived copies of every page, and restored `<lastmod>` dates in the docs sitemap that were silently dropped by production builds.
+
+</details>
+
 ## v0.19.3 (2026-08-13)
 
 ### Added
