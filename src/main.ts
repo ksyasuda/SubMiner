@@ -2059,7 +2059,6 @@ const cachedInternalSubtitleTrackExtractor = createCachedInternalSubtitleTrackEx
 const detectRemoteMediaPath = createRemoteMediaPathDetector();
 const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
   getFfmpegPath: () => configService.getConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
-  isRemoteMediaPath: detectRemoteMediaPath,
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
     cachedInternalSubtitleTrackExtractor.extract(ffmpegPath, videoPath, track),
   logDebug: (message) => logger.debug(message),

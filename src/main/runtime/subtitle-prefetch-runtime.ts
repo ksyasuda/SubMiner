@@ -17,8 +17,6 @@ type ActiveSubtitleSidebarSource = {
   cleanup?: () => Promise<void>;
 };
 
-type RemoteMediaPathDetector = (mediaPath: string) => boolean | Promise<boolean>;
-
 function parseTrackId(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return value;
@@ -88,7 +86,6 @@ function getActiveSubtitleTrack(
 
 export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
   getFfmpegPath: () => string;
-  isRemoteMediaPath?: RemoteMediaPathDetector;
   extractInternalSubtitleTrack: (
     ffmpegPath: string,
     videoPath: string,
@@ -129,8 +126,10 @@ export function createResolveActiveSubtitleSidebarSourceHandler(deps: {
       return { path: externalFilename, sourceKey: externalFilename };
     }
 
-    const isRemoteMediaPath = deps.isRemoteMediaPath ?? isRemoteMediaUrl;
-    if (await isRemoteMediaPath(input.videoPath)) {
+    // Network-mounted files extract like local ones: demuxing reads the whole
+    // container (~10s/GB on gigabit), which a LAN handles alongside playback.
+    // Only true remote URLs have no on-disk container to demux.
+    if (isRemoteMediaUrl(input.videoPath)) {
       deps.logDebug?.('[subtitle-prefetch] skipping internal subtitle extraction for remote media');
       return null;
     }

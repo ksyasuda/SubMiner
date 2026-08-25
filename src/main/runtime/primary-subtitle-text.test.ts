@@ -64,6 +64,34 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
   );
 });
 
+test('resolvePrimarySubtitleText removes duplicate lines across multiline parsed cues', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'First line\nSecond line\nFirst line',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: 'First line\nSecond line' },
+        { startTime: 1, endTime: 3, text: 'First line' },
+      ],
+    }),
+    'First line\nSecond line',
+  );
+});
+
+test('resolvePrimarySubtitleText removes equivalent full-width duplicate lines', () => {
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '２０分５３秒\n20分53秒',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: '２０分５３秒' },
+        { startTime: 1, endTime: 3, text: '20分53秒' },
+      ],
+    }),
+    '２０分５３秒',
+  );
+});
+
 test('resolvePrimarySubtitleText collapses whitespace variants of one ASS lyric', () => {
   const ass = [
     '[Events]',
@@ -150,6 +178,73 @@ test('resolvePrimarySubtitleText keeps concurrent dialogue that is not part of t
   });
 
   assert.equal(text, '普通のセリフ\n今\n手にある');
+});
+
+test('resolvePrimarySubtitleText combines parsed dialogue with a reconstructed lyric', () => {
+  const text = resolvePrimarySubtitleText({
+    liveText: '普通のセリフ\n今\n今\n手\n手\nにある\nにある',
+    currentTimeSec: 2,
+    cues: [
+      { startTime: 1, endTime: 3, text: '普通のセリフ' },
+      {
+        startTime: 1.2,
+        endTime: 3.8,
+        text: '今　手にある',
+        source: 'reconstructed-ass',
+      },
+    ],
+  });
+
+  assert.equal(text, '普通のセリフ\n今　手にある');
+});
+
+test('resolvePrimarySubtitleText uses fragment grids only to account for live sign pieces', () => {
+  const text = resolvePrimarySubtitleText({
+    liveText: 'Ordinary dialogue\nMaid\nCafe',
+    currentTimeSec: 2,
+    cues: [
+      { startTime: 1, endTime: 3, text: 'Ordinary dialogue' },
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'MaidCafeMaidCafe',
+        source: 'reconstructed-ass',
+        assLayout: { kind: 'fragment-grid', sourceOrder: 2 },
+      },
+    ],
+  });
+
+  assert.equal(text, 'Ordinary dialogue');
+});
+
+test('resolvePrimarySubtitleText drops malformed ASS control debris from live text', () => {
+  const cues = parseSubtitleCues(
+    [
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Visible line',
+    ].join('\n'),
+    'test.ass',
+  );
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'Visible line\n\\\n{\\fr0',
+      currentTimeSec: 2,
+      cues,
+    }),
+    'Visible line',
+  );
+});
+
+test('resolvePrimarySubtitleText preserves SRT text that resembles ASS control debris', () => {
+  const liveText = 'Visible line\n\\\n{\\fr0';
+  const cues = parseSubtitleCues(
+    ['1', '00:00:01,000 --> 00:00:03,000', liveText].join('\n'),
+    'test.srt',
+  );
+
+  assert.equal(resolvePrimarySubtitleText({ liveText, currentTimeSec: 2, cues }), liveText);
 });
 
 test('resolvePrimarySubtitleText keeps a fresh line starting just after the animation ended', () => {
@@ -380,5 +475,52 @@ test('resolveCanonicalPrimarySubtitle picks the cue its fragments spell, not the
     resolveCanonicalPrimarySubtitle({ liveText: '手にある\n物差し', currentTimeSec: 3.8, cues })
       ?.text,
     '今　手にある',
+  );
+});
+
+test('resolvePrimarySubtitleText suppresses a live glyph wall when no cues are available', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(
+    resolvePrimarySubtitleText({ liveText: `${wall}\ntai`, currentTimeSec: 1355, cues: null }),
+    '',
+  );
+});
+
+test('stripCanonicalFragmentLines drops a live glyph wall with no nearby canonical cues', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(
+    stripCanonicalFragmentLines({
+      liveText: `${wall}\nそれよりも　ノート…`,
+      currentTimeSec: 1355,
+      cues: [],
+    }),
+    'それよりも　ノート…',
+  );
+});
+
+test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outlive it beside a raw line', () => {
+  // The reconstructed lyric ended at 6.0 but its exit ghost glyphs stay in the live
+  // text until 7.0, while the next authored line is a plain raw event. The retired cue
+  // must explain the ghost fragments without re-surfacing next to the active line.
+  const cues = [
+    {
+      startTime: 1.0,
+      endTime: 6.0,
+      text: 'エネルギーはサイクル',
+      source: 'reconstructed-ass' as const,
+      animationStartTime: 0.5,
+      animationEndTime: 7.0,
+      assStyle: 'OP - JP',
+    },
+    { startTime: 6.0, endTime: 12.0, text: '象徴的なパレード' },
+  ];
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'エ\nネ\nル\nギ\nー\n象徴的なパレード',
+      currentTimeSec: 6.5,
+      cues,
+    }),
+    '象徴的なパレード',
   );
 });

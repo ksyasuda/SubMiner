@@ -20,6 +20,32 @@ test('findActiveSubtitleText combines unique simultaneous parsed cues', () => {
   );
 });
 
+test('findActiveSubtitleText removes duplicate lines across multiline cues', () => {
+  assert.equal(
+    findActiveSubtitleText(
+      [
+        { startTime: 1, endTime: 3, text: 'First line\nSecond line' },
+        { startTime: 1, endTime: 3, text: 'First line' },
+      ],
+      2,
+    ),
+    'First line\nSecond line',
+  );
+});
+
+test('findActiveSubtitleText removes equivalent full-width duplicate lines', () => {
+  assert.equal(
+    findActiveSubtitleText(
+      [
+        { startTime: 1, endTime: 3, text: '真白～' },
+        { startTime: 1, endTime: 3, text: '真白~' },
+      ],
+      2,
+    ),
+    '真白～',
+  );
+});
+
 test('findActiveSubtitleText collapses whitespace variants of one ASS lyric', () => {
   assert.equal(
     findActiveSubtitleText(
@@ -69,6 +95,22 @@ test('parsed secondary text drops a reconstructed grid of positioned sign fragme
   assert.equal(
     findActiveSubtitleText(parseSubtitleCues(ass, 'kaguya-s02e11.ass'), 2),
     'Come on, wake up!',
+  );
+});
+
+test('parsed secondary text keeps phone translations while dropping texture payloads', () => {
+  const ass = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\clip(500,40,660,150)}LLLLLLLLLLLL',
+    'Dialogue: 90,0:00:01.00,0:00:03.00,Default,,0,0,0,,Why did you choose Hanajo instead?',
+    "Dialogue: 1,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
+    "Dialogue: 3,0:00:01.00,0:00:03.00,FrogSigns,,0,0,0,,{\\pos(582,180)\\fnSF Pro Display\\fs66}We're {\\2a0}running {\\2a1}out {\\2a0}of {\\2a1}time!\\N{\\2a0}Where {\\2a1}are {\\2a0}you {\\2a1}right {\\2a0}now?!",
+  ].join('\n');
+
+  assert.equal(
+    findActiveSubtitleText(parseSubtitleCues(ass, 'phone.ass'), 2),
+    "Why did you choose Hanajo instead?\nWe're running out of time!\nWhere are you right now?!",
   );
 });
 
@@ -142,6 +184,30 @@ test('findActiveSubtitleText keeps a canonical ASS cue for its generated animati
 
   assert.equal(findActiveSubtitleText([poof], 1111.58), 'POOF');
   assert.equal(findActiveSubtitleText([poof], 1111.59), '');
+});
+
+test('findActiveSubtitleText advances when the next canonical lyric animation starts', () => {
+  const cues = [
+    {
+      startTime: 121.73,
+      endTime: 124.1,
+      text: 'Torn at the seams, a sound pours out',
+      source: 'canonical-ass' as const,
+      animationStartTime: 121.4,
+      animationEndTime: 124.1,
+    },
+    {
+      startTime: 124.13,
+      endTime: 126.38,
+      text: 'It’s silent, yet spreads all around',
+      source: 'canonical-ass' as const,
+      animationStartTime: 123.8,
+      animationEndTime: 126.38,
+    },
+  ];
+
+  assert.equal(findActiveSubtitleText(cues, 123.79), cues[0]!.text);
+  assert.equal(findActiveSubtitleText(cues, 123.8), cues[1]!.text);
 });
 
 test('ASS fragment karaoke stays separated by style with authored word spacing', () => {
@@ -380,6 +446,125 @@ test('secondary track controller falls back to live mpv text without a readable 
   assert.deepEqual(broadcasts, ['live fallback']);
 });
 
+test('secondary ASS live fallback drops malformed control debris', async () => {
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.ass', sourceKey: 'english' }),
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line']);
+});
+
+test('secondary SRT live fallback preserves text that resembles ASS control debris', async () => {
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.srt', sourceKey: 'english' }),
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
+});
+
+test('secondary disconnect clears stale ASS fallback sanitization state', async () => {
+  let connected = true;
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => ({ path: '/subs/english.ass', sourceKey: 'english' }),
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  connected = false;
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
+});
+
+test('secondary source refresh failure clears stale ASS fallback sanitization state', async () => {
+  let resolveCalls = 0;
+  const broadcasts: string[] = [];
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/media/video.mkv';
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 2,
+    resolveSubtitleSource: async () => {
+      resolveCalls += 1;
+      if (resolveCalls === 1) {
+        return { path: '/subs/english.ass', sourceKey: 'english' };
+      }
+      throw new Error('source refresh failed');
+    },
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues: () => [],
+    setCurrentSecondaryText: () => {},
+    broadcastSecondaryText: (text) => broadcasts.push(text),
+  });
+
+  await controller.refresh();
+  await controller.refresh();
+  broadcasts.length = 0;
+  controller.handleLiveText('Visible line\n\\\n{\\fr0');
+
+  assert.deepEqual(broadcasts, ['Visible line\n\\\n{\\fr0']);
+});
+
 test('secondary track controller reuses parsed cues for an unchanged embedded track', async () => {
   let resolveCalls = 0;
   let parseCalls = 0;
@@ -470,4 +655,37 @@ test('secondary track controller ignores and cleans up a refresh invalidated by 
   assert.deepEqual(broadcasts, ['']);
   assert.equal(parseCalls, 0);
   assert.equal(cleanupCalls, 1);
+});
+
+test('secondary live fallback suppresses a per-glyph typesetting wall', async () => {
+  let currentText = '';
+  const controller = createSecondarySubtitleTrackController({
+    getMpvClient: () => ({
+      connected: true,
+      requestProperty: async (name) => {
+        if (name === 'secondary-sid') return 2;
+        if (name === 'track-list') return [{ type: 'sub', id: 2 }];
+        if (name === 'path') return '/mnt/nas/video.mkv';
+        if (name === 'secondary-sub-delay') return 0;
+        return null;
+      },
+    }),
+    getCurrentTimePos: () => 1355,
+    // Network-mounted media: embedded extraction is skipped, so no parsed cues exist.
+    resolveSubtitleSource: async () => null,
+    loadSubtitleSourceText: async () => '',
+    parseSubtitleCues,
+    setCurrentSecondaryText: (text) => {
+      currentText = text;
+    },
+    broadcastSecondaryText: () => {},
+  });
+
+  await controller.refresh();
+  const wall = [...'wansdumretoikhI'].join('\n');
+  controller.handleLiveText(`${wall}\ntai`);
+  assert.equal(currentText, '');
+
+  controller.handleLiveText(`${wall}\nそれよりも　ノート…`);
+  assert.equal(currentText, 'それよりも　ノート…');
 });

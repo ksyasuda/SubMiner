@@ -46,7 +46,10 @@ export type InternalSubtitleTrackExtractor = (
   track: MpvSubtitleTrackLike,
 ) => Promise<ExtractedInternalSubtitleTrack | null>;
 
-const DEFAULT_EXTRACTION_TIMEOUT_MS = 30_000;
+// Subtitle packets are interleaved through the container, so extraction reads the
+// entire file. Network mounts move ~100 MB/s on gigabit, so large Bluray remuxes
+// need well over 30 seconds.
+const DEFAULT_EXTRACTION_TIMEOUT_MS = 120_000;
 
 export function parseTrackId(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {

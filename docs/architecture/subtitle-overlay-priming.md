@@ -98,8 +98,15 @@ coming and prefetching would otherwise idle for the rest of the cue.
 ## Secondary Subtitle Flow
 
 - `secondary-sub-text` remains the immediate fallback, so unreadable subtitle sources, remote URLs,
-  and files on network mounts still appear without waiting for file resolution. Embedded-track
-  extraction is skipped for those sources to avoid competing with playback for network bandwidth.
+  and still-extracting embedded tracks appear without waiting for file resolution. Embedded-track
+  extraction runs for local and network-mounted files alike (demuxing reads the whole container,
+  about 10 seconds per GB on gigabit, under a generous timeout); only true remote URLs skip it,
+  having no on-disk container to demux.
+- The live fallback also suppresses per-glyph typesetting walls: when many simultaneous
+  one-glyph lines are present (generated karaoke lettering flattened into live text), those
+  lines and their short syllable companions are dropped while concurrent dialogue lines stay.
+  This keeps the overlay clean while extraction is still in flight and for sources that never
+  produce parsed cues.
 - Parsed secondary text and the live fallback remove exact repeated lines at any length. A
   flattened-line identity also removes long dialogue/sign repetitions that differ only in
   whitespace or terminal punctuation, while distinct simultaneous short lines remain separate.
@@ -109,9 +116,12 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The selected source is parsed with `parseSubtitleCues()`, including metadata-aware ASS duplicate
   and animation collapse. Playback `time-pos` selects the active parsed cue after applying
   `secondary-sub-delay`.
-- Fragment reconstruction marks positioned parts that span multiple vertical rows as a grid.
-  Secondary text omits those grids instead of flattening a translated table or schedule into one
-  synthetic line. Reconstructed single-line karaoke remains eligible for display.
+- Fragment reconstruction marks tall multi-row positioned parts as a grid only when they read
+  like tiling: a couple of texts repeated across many fragments, the same text re-shown at one
+  spot over time (countdown/animation frames), or scattered single glyphs. Secondary text omits
+  those grids instead of flattening a translated table or schedule into one synthetic line.
+  Wrapped lyric rows, CC-style dialogue blocks, and reconstructed single-line karaoke remain
+  eligible for display.
 - The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
   overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
   text when a readable source is available.
@@ -120,10 +130,12 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - Simultaneous ASS lines are flattened in top-to-bottom positioned order, falling back to their
   authored source order when no usable position exists.
 - Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
-  survive concatenation, while scripts that discarded their word boundaries remain compact
-  instead of gaining false spaces between syllables. Short runs qualify only when overlapping
-  positioned events also show changing overrides or repeated layer copies; an English or romaji
-  style name alone never turns ordinary dialogue into a lyric.
+  survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
+  boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that
+  line. Unpositioned fragments stay compact instead of gaining guessed spaces between syllables.
+  Short runs qualify only when overlapping positioned events also show changing overrides or
+  repeated layer copies; an English or romaji style name alone never turns ordinary dialogue into
+  a lyric.
 - Recovered canonical ASS text remains active for the generated animation envelope. For
   reconstructed lyric styles, the longest-lived active line wins over brief entrance and exit
   fragments from the same style.

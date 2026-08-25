@@ -426,6 +426,13 @@ test('canonical ASS cues replace live glyph spam for display, history, and immer
           text: '飛び越えてみたくて',
           source: 'canonical-ass',
         },
+        {
+          startTime: 10,
+          endTime: 12,
+          text: 'MaidCafeMaidCafe',
+          source: 'reconstructed-ass',
+          assLayout: { kind: 'fragment-grid', sourceOrder: 2 },
+        },
       ],
       currentMediaPath: '/video.mkv',
       currentSubText: '',
@@ -503,6 +510,11 @@ test('canonical ASS cues replace live glyph spam for display, history, and immer
   handlers.recordSubtitleTiming('今', 0.8, 1.5);
 
   assert.deepEqual(timing.slice(4), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+
+  handlers.recordImmersionSubtitleLine('Maid\nCafe', 10, 12);
+  handlers.recordSubtitleTiming('Maid\nCafe', 10, 12);
+  assert.equal(immersion.length, 3);
+  assert.equal(timing.length, 5);
 });
 
 test('subtitle-track changes stop stale canonical cues from substituting immediately', () => {

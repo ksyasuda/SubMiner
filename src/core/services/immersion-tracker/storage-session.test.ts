@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { Database } from './sqlite';
+import { Database, type DatabaseSync } from './sqlite';
 import { getStatsExcludedWords, replaceStatsExcludedWords } from './query-lexical';
 import { finalizeSessionRecord, startSessionRecord } from './session';
 import {
@@ -85,6 +85,29 @@ test('applyPragmas sets the SQLite tuning defaults used by immersion tracking', 
     db.close();
     cleanupDbPath(dbPath);
   }
+});
+
+test('applyPragmas installs the busy timeout before WAL negotiation', () => {
+  const statements: string[] = [];
+  const db: DatabaseSync = {
+    exec(source) {
+      statements.push(source);
+      return db;
+    },
+    prepare() {
+      throw new Error('not used');
+    },
+    close() {
+      return db;
+    },
+  };
+
+  applyPragmas(db);
+
+  assert.deepEqual(statements.slice(0, 2), [
+    'PRAGMA busy_timeout = 2500',
+    'PRAGMA journal_mode = WAL',
+  ]);
 });
 
 test('ensureSchema creates immersion core tables', () => {

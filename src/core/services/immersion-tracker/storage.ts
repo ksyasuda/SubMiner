@@ -315,10 +315,12 @@ function migrateSessionEventTimestampsToText(db: DatabaseSync): void {
 }
 
 export function applyPragmas(db: DatabaseSync): void {
+  // Install the wait policy before WAL negotiation, which can briefly contend with
+  // another connection closing or checkpointing the same database.
+  db.exec('PRAGMA busy_timeout = 2500');
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA synchronous = NORMAL');
   db.exec('PRAGMA foreign_keys = ON');
-  db.exec('PRAGMA busy_timeout = 2500');
   db.exec(`PRAGMA journal_size_limit = ${WAL_JOURNAL_SIZE_LIMIT_BYTES}`);
 }
 
