@@ -1265,6 +1265,21 @@ test('parseSubtitleCues drops clipped repeated-glyph texture text', () => {
   );
 });
 
+test('parseSubtitleCues preserves opaque same-font text beside texture fragments', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,seed,0,0,0,,{\\pos(960,80)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLLLLLLLLLLLLLLLLLLLLLL',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,piece,0,0,0,,{\\pos(960,110)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLL',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,label,0,0,0,,{\\pos(960,150)\\fnSerangkaian Pattern Regular}Keep this label',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Keep this label'],
+  );
+});
+
 test('parseSubtitleCues drops clipped repeated-glyph texture text without a font override', () => {
   const content = [
     '[Events]',

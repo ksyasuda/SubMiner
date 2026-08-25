@@ -1038,6 +1038,14 @@ function isNearlyTransparentPositionedText(cue: AnnotatedSubtitleCue): boolean {
   );
 }
 
+function hasAssTextureCandidateEvidence(cue: AnnotatedSubtitleCue): boolean {
+  return (
+    isClippedRepeatedGlyphFragment(cue) ||
+    isNearlyTransparentPositionedText(cue) ||
+    hasStaticOverride(cue, '2a')
+  );
+}
+
 function assFontTextureGroupKey(cue: AnnotatedSubtitleCue): string | null {
   const font = staticFontOverride(cue);
   return font === null ? null : `${cue.style}\0${cue.startTime}\0${cue.endTime}\0${font}`;
@@ -1050,9 +1058,9 @@ function assTextureTimingGroupKey(cue: AnnotatedSubtitleCue): string {
 function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
   const seeds = events.dialogue.filter(isAssTextureSeed);
   const seedSet = new Set(seeds);
-  // Short pieces can share the seeded font effect under another actor without carrying
-  // enough tags to identify themselves. The exact style, time, and font group catches
-  // those pieces without inspecting their content.
+  // Short pieces can share the seeded font effect under another actor. Matching the
+  // seed's style, timing, and font only narrows the candidates; each piece must still
+  // carry structural texture evidence.
   const textureGroups = new Set(
     seeds.map(assFontTextureGroupKey).filter((key): key is string => key !== null),
   );
@@ -1090,7 +1098,7 @@ function removeAssFontTextureEvents(events: ParsedAssEvents): ParsedAssEvents {
         return false;
       }
       const key = assFontTextureGroupKey(cue);
-      if (key !== null && textureGroups.has(key)) {
+      if (key !== null && textureGroups.has(key) && hasAssTextureCandidateEvidence(cue)) {
         return false;
       }
       if (!isNearlyTransparentPositionedText(cue)) {
