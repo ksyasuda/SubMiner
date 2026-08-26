@@ -21,6 +21,7 @@ type CreateAnkiIntegrationArgs = {
   mpvClient: { send?: (payload: { command: string[] }) => void };
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -74,6 +75,7 @@ function createDefaultAnkiIntegration(args: CreateAnkiIntegrationArgs): AnkiInte
     args.getCachedMediaPath,
     args.shouldRequireRemoteMediaCache,
     args.getYoutubeMediaSourceUrl,
+    args.dismissOverlayNotification,
   );
 }
 
@@ -137,6 +139,7 @@ export function initializeOverlayRuntime(
     setAnkiIntegration: (integration: unknown | null) => void;
     showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
     showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+    dismissOverlayNotification?: (id: string) => void;
     createFieldGroupingCallback: () => (
       data: KikuFieldGroupingRequestData,
     ) => Promise<KikuFieldGroupingChoice>;
@@ -177,6 +180,7 @@ export function initializeOverlayAnkiIntegration(options: {
   setAnkiIntegration: (integration: unknown | null) => void;
   showDesktopNotification: (title: string, options: { body?: string; icon?: string }) => void;
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: () => (
     data: KikuFieldGroupingRequestData,
   ) => Promise<KikuFieldGroupingChoice>;
@@ -219,6 +223,7 @@ export function initializeOverlayAnkiIntegration(options: {
     mpvClient,
     showDesktopNotification: options.showDesktopNotification,
     showOverlayNotification: options.showOverlayNotification,
+    dismissOverlayNotification: options.dismissOverlayNotification,
     createFieldGroupingCallback: options.createFieldGroupingCallback,
     knownWordCacheStatePath: options.getKnownWordCacheStatePath(),
     ...(options.getCachedMediaPath ? { getCachedMediaPath: options.getCachedMediaPath } : {}),

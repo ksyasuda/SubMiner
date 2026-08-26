@@ -218,6 +218,8 @@ export class AnkiIntegration {
     null;
   private overlayNotificationCallback: ((payload: OverlayNotificationPayload) => void) | null =
     null;
+  private overlayNotificationDismissCallback: ((id: string) => void) | null = null;
+  private overlayUpdateProgressActive = false;
   private updateInProgress = false;
   private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
@@ -265,6 +267,7 @@ export class AnkiIntegration {
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
     shouldRequireRemoteMediaCache?: () => boolean,
     getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined,
+    overlayNotificationDismissCallback?: (id: string) => void,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -280,6 +283,7 @@ export class AnkiIntegration {
     this.getCachedMediaPath = getCachedMediaPath ?? null;
     this.shouldRequireRemoteMediaCache = shouldRequireRemoteMediaCache ?? null;
     this.getYoutubeMediaSourceUrl = getYoutubeMediaSourceUrl ?? null;
+    this.overlayNotificationDismissCallback = overlayNotificationDismissCallback ?? null;
     this.pendingYoutubeMediaQueue = this.createPendingYoutubeMediaQueue();
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
@@ -1203,12 +1207,13 @@ export class AnkiIntegration {
   private beginUpdateProgress(initialMessage: string): void {
     if (!this.shouldUseOsdNotifications()) {
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       return;
@@ -1220,6 +1225,10 @@ export class AnkiIntegration {
 
   private endUpdateProgress(): void {
     if (!this.shouldUseOsdNotifications()) {
+      if (this.overlayUpdateProgressActive) {
+        this.overlayUpdateProgressActive = false;
+        this.overlayNotificationDismissCallback?.('anki-update-progress');
+      }
       return;
     }
     endUpdateProgress(this.uiFeedbackState, (timer) => {
@@ -1243,18 +1252,20 @@ export class AnkiIntegration {
     if (!this.shouldUseOsdNotifications()) {
       this.updateInProgress = true;
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       try {
         return await action();
       } finally {
         this.updateInProgress = false;
+        this.endUpdateProgress();
       }
     }
     return withUpdateProgress(
@@ -1353,6 +1364,7 @@ export class AnkiIntegration {
         : undefined;
 
     if (shouldShowOverlayNotification && this.overlayNotificationCallback) {
+      this.overlayUpdateProgressActive = false;
       this.overlayNotificationCallback({
         id: 'anki-update-progress',
         title: 'Anki Card Updated',
