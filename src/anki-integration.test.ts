@@ -11,10 +11,12 @@ import type { MediaInput } from './media-input';
 import { AnkiConnectConfig } from './types';
 
 type TestOverlayNotificationPayload = {
+  id?: string;
   title: string;
   body?: string;
   image?: string;
   variant?: string;
+  persistent?: boolean;
   actions?: Array<{ id: string; label: string; noteId?: number }>;
 };
 
@@ -1180,6 +1182,82 @@ test('AnkiIntegration embeds generated notification image on overlay mined-card 
     },
   ]);
   assert.deepEqual(cleanupPaths, [notificationIconPath]);
+});
+
+test('AnkiIntegration keeps overlay card-update progress visible until the terminal notification', async () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    showNotification: (noteId: number, label: string | number) => Promise<void>;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  await updateNotifications.showNotification(42, '食べる');
+
+  assert.deepEqual(
+    overlayNotifications.map(({ id, variant, persistent }) => ({ id, variant, persistent })),
+    [
+      { id: 'anki-update-progress', variant: 'progress', persistent: true },
+      { id: 'anki-update-progress', variant: 'success', persistent: false },
+    ],
+  );
+});
+
+test('AnkiIntegration dismisses persistent overlay update progress when no terminal notification replaces it', () => {
+  const overlayNotifications: TestOverlayNotificationPayload[] = [];
+  const dismissedIds: string[] = [];
+  const integration = new AnkiIntegration(
+    {
+      behavior: {
+        notificationType: 'overlay',
+      },
+    },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    (payload) => {
+      overlayNotifications.push(payload);
+    },
+    undefined,
+    undefined,
+    undefined,
+    (id) => {
+      dismissedIds.push(id);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    endUpdateProgress: () => void;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  updateNotifications.endUpdateProgress();
+
+  assert.equal(overlayNotifications[0]?.persistent, true);
+  assert.deepEqual(dismissedIds, ['anki-update-progress']);
 });
 
 test('AnkiIntegration keeps overlay notification image when temp icon write fails', async () => {

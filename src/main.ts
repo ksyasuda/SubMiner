@@ -5925,6 +5925,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       showDesktopNotification,
       showOverlayNotification: (payload) =>
         overlayNotificationsRuntime.showOverlayNotification(payload),
+      dismissOverlayNotification: (id) =>
+        overlayNotificationsRuntime.dismissOverlayNotification(id),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       broadcastRuntimeOptionsChanged: () =>
         overlayVisibilityComposer.broadcastRuntimeOptionsChanged(),
@@ -6415,6 +6417,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showDesktopNotification,
       showOverlayNotification: (payload) =>
         overlayNotificationsRuntime.showOverlayNotification(payload),
+      dismissOverlayNotification: (id) =>
+        overlayNotificationsRuntime.dismissOverlayNotification(id),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>
