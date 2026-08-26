@@ -4,6 +4,16 @@ interface YoutubeTimedTextRow {
   text: string;
 }
 
+interface YoutubeTimedTextDocument {
+  rows: YoutubeTimedTextRow[];
+  // Start times of every <p> event, including empty window-append fillers.
+  // In the rolling auto-caption format YouTube displays each caption until the
+  // next window event and the row's own duration is often a 3000ms placeholder,
+  // so these timestamps are the only reliable source for cue end times.
+  eventStartsMs: number[];
+  hasRollingWindowEvents: boolean;
+}
+
 const YOUTUBE_TIMEDTEXT_EXTENSIONS = new Set(['srv1', 'srv2', 'srv3', 'ytsrv3']);
 
 function decodeNumericEntity(match: string, codePoint: number): string {
@@ -39,14 +49,24 @@ function parseAttributeMap(raw: string): Map<string, string> {
   return attrs;
 }
 
-function extractYoutubeTimedTextRows(xml: string): YoutubeTimedTextRow[] {
+function extractYoutubeTimedTextDocument(xml: string): YoutubeTimedTextDocument {
   const rows: YoutubeTimedTextRow[] = [];
+  const eventStartsMs: number[] = [];
+  let hasRollingWindowEvents = false;
 
   for (const match of xml.matchAll(/<p\b([^>]*)>([\s\S]*?)<\/p>/g)) {
     const attrs = parseAttributeMap(match[1] ?? '');
     const startMs = Number(attrs.get('t'));
+    if (!Number.isFinite(startMs)) {
+      continue;
+    }
+    eventStartsMs.push(startMs);
+    if (attrs.get('a') === '1') {
+      hasRollingWindowEvents = true;
+    }
+
     const durationMs = Number(attrs.get('d'));
-    if (!Number.isFinite(startMs) || !Number.isFinite(durationMs)) {
+    if (!Number.isFinite(durationMs)) {
       continue;
     }
 
@@ -59,7 +79,17 @@ function extractYoutubeTimedTextRows(xml: string): YoutubeTimedTextRow[] {
     rows.push({ startMs, durationMs, text });
   }
 
-  return rows;
+  eventStartsMs.sort((a, b) => a - b);
+  return { rows, eventStartsMs, hasRollingWindowEvents };
+}
+
+function findNextEventStartMs(eventStartsMs: number[], afterMs: number): number | undefined {
+  for (const startMs of eventStartsMs) {
+    if (startMs > afterMs) {
+      return startMs;
+    }
+  }
+  return undefined;
 }
 
 function formatVttTimestamp(ms: number): string {
@@ -79,7 +109,7 @@ export function isYoutubeTimedTextExtension(value: string | undefined): boolean 
 }
 
 export function convertYoutubeTimedTextToVtt(xml: string): string {
-  const rows = extractYoutubeTimedTextRows(xml);
+  const { rows, eventStartsMs, hasRollingWindowEvents } = extractYoutubeTimedTextDocument(xml);
   if (rows.length === 0) {
     return 'WEBVTT\n';
   }
@@ -90,10 +120,17 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
     const row = rows[index]!;
     const nextRow = rows[index + 1];
     const unclampedEnd = row.startMs + row.durationMs;
+    // Rolling auto captions display until the next window event; the row's own
+    // duration is frequently a 3000ms placeholder that cuts long lines short.
+    const nextEventStart = hasRollingWindowEvents
+      ? findNextEventStartMs(eventStartsMs, row.startMs)
+      : undefined;
     const clampedEnd =
-      nextRow && unclampedEnd > nextRow.startMs
-        ? Math.max(row.startMs, nextRow.startMs - 1)
-        : unclampedEnd;
+      nextEventStart !== undefined
+        ? nextEventStart
+        : nextRow && unclampedEnd > nextRow.startMs
+          ? Math.max(row.startMs, nextRow.startMs - 1)
+          : unclampedEnd;
     if (clampedEnd <= row.startMs) {
       continue;
     }

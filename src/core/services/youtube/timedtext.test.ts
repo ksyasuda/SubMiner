@@ -39,6 +39,36 @@ test('convertYoutubeTimedTextToVtt does not swallow text after zero-length overl
   );
 });
 
+test('convertYoutubeTimedTextToVtt extends rolling captions to the next window event', () => {
+  // Real-world shape of YouTube's sentence-level auto captions: window-append
+  // filler rows (a="1", sometimes without d) mark the display timeline, while
+  // long text rows carry a placeholder d="3000" far shorter than the speech.
+  const result = convertYoutubeTimedTextToVtt(
+    [
+      '<timedtext><body>',
+      '<p t="98550" d="3010" w="1" a="1">\n</p>',
+      '<p t="98560" d="3000" w="1"><s ac="0">ありがとうって言えないよね。こんなんじゃ。</s></p>',
+      '<p t="106950" w="1" a="1">\n</p>',
+      '<p t="106960" d="3799" w="1"><s ac="0">私だったら無理だよ。</s></p>',
+      '</body></timedtext>',
+    ].join('\n'),
+  );
+
+  assert.equal(
+    result,
+    [
+      'WEBVTT',
+      '',
+      '00:01:38.560 --> 00:01:46.950',
+      'ありがとうって言えないよね。こんなんじゃ。',
+      '',
+      '00:01:46.960 --> 00:01:50.759',
+      '私だったら無理だよ。',
+      '',
+    ].join('\n'),
+  );
+});
+
 test('normalizeYoutubeAutoVtt strips cumulative rolling-caption prefixes', () => {
   const result = normalizeYoutubeAutoVtt(
     [
