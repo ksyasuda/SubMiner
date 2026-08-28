@@ -134,15 +134,16 @@ function resolveActiveParsedPrimarySubtitle(options: {
     return null;
   }
 
-  // A cue selected only through the edge tolerance has already ended (or not yet
-  // started) by its published timing: a finished lyric whose exit ghosts linger into
-  // the next line. It still explains those live fragments above, but while any cue is
-  // strictly active, only the active cues supply the displayed text. With no strictly
-  // active cue, the edge cues remain the display fallback for stale time-pos readings.
-  const strictlyActive = selected.filter(
-    (cue) => cue.startTime <= options.currentTimeSec && cue.endTime > options.currentTimeSec,
-  );
-  const displayCues = strictlyActive.length > 0 ? strictlyActive : selected;
+  // A cue selected only through the edge tolerance on its end has already finished by
+  // its published timing: a lyric whose exit ghosts linger into the next line. It still
+  // explains those live fragments above, but must not re-surface beside cues that are
+  // still running. The start side keeps the tolerance: mpv publishes the combined
+  // sub-text the moment a joining line's first frame renders, while the observed
+  // time-pos still sits just before that line's start, and the selection above already
+  // required the cue's text to be on screen (#220). With every selected cue finished,
+  // the edge cues remain the display fallback for stale time-pos readings.
+  const unfinished = selected.filter((cue) => cue.endTime > options.currentTimeSec);
+  const displayCues = unfinished.length > 0 ? unfinished : selected;
 
   // Dense sign grids still explain their raw mpv fragments, but are visual
   // typesetting rather than a publishable subtitle line.

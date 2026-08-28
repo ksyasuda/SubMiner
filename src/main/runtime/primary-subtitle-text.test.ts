@@ -498,6 +498,23 @@ test('stripCanonicalFragmentLines drops a live glyph wall with no nearby canonic
   );
 });
 
+test('resolvePrimarySubtitleText keeps a line joining an active cue despite stale time-pos', () => {
+  // Issue #220: mpv publishes the combined sub-text the moment a joining line's first
+  // frame renders, while the observed time-pos still sits just before that line's
+  // start. The joining cue must not be filtered out as inactive.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'Балда! Балда, балда, балда!\nСестренка не может остановиться',
+      currentTimeSec: 767.78,
+      cues: [
+        { startTime: 767.19, endTime: 772.78, text: 'Балда! Балда, балда, балда!' },
+        { startTime: 767.79, endTime: 771.15, text: 'Сестренка не может остановиться' },
+      ],
+    }),
+    'Балда! Балда, балда, балда!\nСестренка не может остановиться',
+  );
+});
+
 test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outlive it beside a raw line', () => {
   // The reconstructed lyric ended at 6.0 but its exit ghost glyphs stay in the live
   // text until 7.0, while the next authored line is a plain raw event. The retired cue
