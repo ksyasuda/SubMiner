@@ -50,6 +50,20 @@ export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks 
   return normalizePlainSubtitleText(text, { trim, collapseLineBreaks });
 }
 
+/**
+ * Display form of a resolved subtitle. `preserveLineBreaks` governs wrapping inside one
+ * utterance, which is what a typesetter's `\N` means. The blank line the resolver puts
+ * between two simultaneous cues is a different thing and always breaks, so a sign or a
+ * second speaker never runs into the line beside it.
+ */
+export function normalizeSubtitleForDisplay(text: string, preserveLineBreaks: boolean): string {
+  return text
+    .split(/\n{2,}/)
+    .map((cueText) => normalizeSubtitle(cueText, true, !preserveLineBreaks))
+    .filter((cueText) => cueText.length > 0)
+    .join('\n');
+}
+
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const SAFE_CSS_COLOR_PATTERN =
   /^(?:#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgba?|hsla?)\([^)]*\)|var\([^)]*\)|[a-zA-Z]+)$/;
@@ -414,16 +428,13 @@ function renderWithTokens(
   const fragment = document.createDocumentFragment();
 
   if (sourceText) {
-    const normalizedSource = normalizeSubtitle(sourceText, true, !preserveLineBreaks);
+    const normalizedSource = normalizeSubtitleForDisplay(sourceText, preserveLineBreaks);
     const segments = alignTokensToSourceText(tokens, normalizedSource);
 
     for (const segment of segments) {
       if (segment.kind === 'text') {
-        if (preserveLineBreaks) {
-          renderPlainTextPreserveLineBreaks(fragment, segment.text);
-        } else {
-          fragment.appendChild(document.createTextNode(segment.text));
-        }
+        // Normalization already resolved which breaks survive; every one left is real.
+        renderPlainTextPreserveLineBreaks(fragment, segment.text);
         continue;
       }
 
@@ -748,7 +759,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       return;
     }
 
-    const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
+    const normalized = normalizeSubtitleForDisplay(text, ctx.state.preserveSubtitleLineBreaks);
     const hasRenderableTokens =
       shouldRenderTokenizedSubtitle(tokens?.length ?? 0) && Boolean(tokens);
     if (

@@ -57,21 +57,32 @@ function compactWhitespace(text: string): string {
   return text.normalize('NFKC').replace(/\s+/gu, '');
 }
 
+/**
+ * Distinct simultaneous cues are separated by a blank line so the display layer can tell
+ * a wrap inside one utterance from the boundary between two of them. Consumers that read
+ * the text rather than display it fold these back to single breaks.
+ */
+const CUE_BOUNDARY = '\n\n';
+
 // ASS layers can encode the same visible spacing with ordinary, hard, or
 // ideographic spaces. Matching and emission must use the same identity or each
 // layer reappears as a copy.
-function uniqueCueTexts(cues: readonly SubtitleCue[]): string[] {
-  const texts: string[] = [];
+function uniqueCueTextGroups(cues: readonly SubtitleCue[]): string[] {
+  const groups: string[] = [];
   const seen = new Set<string>();
   for (const cue of cues) {
+    const lines: string[] = [];
     for (const line of cue.text.split('\n')) {
       const compactText = compactWhitespace(line);
       if (!compactText || seen.has(compactText)) continue;
       seen.add(compactText);
-      texts.push(line);
+      lines.push(line);
+    }
+    if (lines.length > 0) {
+      groups.push(lines.join('\n'));
     }
   }
-  return texts;
+  return groups;
 }
 
 function compactLineSegments(text: string): string[] {
@@ -147,11 +158,11 @@ function resolveActiveParsedPrimarySubtitle(options: {
 
   // Dense sign grids still explain their raw mpv fragments, but are visual
   // typesetting rather than a publishable subtitle line.
-  const texts = uniqueCueTexts(
+  const groups = uniqueCueTextGroups(
     displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'),
   );
   return {
-    text: texts.join('\n'),
+    text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...displayCues.map((cue) => cue.startTime)),
     endTime: Math.max(...displayCues.map((cue) => cue.endTime)),
     cues: displayCues,
@@ -218,9 +229,9 @@ export function resolveCanonicalPrimarySubtitle(options: {
     return null;
   }
 
-  const texts = uniqueCueTexts(selected);
+  const groups = uniqueCueTextGroups(selected);
   return {
-    text: texts.join('\n'),
+    text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),
     endTime: Math.max(...selected.map((cue) => cue.endTime)),
     cues: selected,

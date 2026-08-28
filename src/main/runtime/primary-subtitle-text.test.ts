@@ -60,7 +60,7 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
         { startTime: 1, endTime: 3, text: '二行目' },
       ],
     }),
-    '一行目\n二行目',
+    '一行目\n\n二行目',
   );
 });
 
@@ -195,7 +195,7 @@ test('resolvePrimarySubtitleText combines parsed dialogue with a reconstructed l
     ],
   });
 
-  assert.equal(text, '普通のセリフ\n今　手にある');
+  assert.equal(text, '普通のセリフ\n\n今　手にある');
 });
 
 test('resolvePrimarySubtitleText uses fragment grids only to account for live sign pieces', () => {
@@ -300,7 +300,7 @@ test('resolvePrimarySubtitleText combines simultaneous canonical cues in source 
     ],
   });
 
-  assert.equal(text, 'first\nsecond');
+  assert.equal(text, 'first\n\nsecond');
 });
 
 test('resolvePrimarySubtitleText collapses whitespace variants of a canonical lyric', () => {
@@ -511,7 +511,7 @@ test('resolvePrimarySubtitleText keeps a line joining an active cue despite stal
         { startTime: 767.79, endTime: 771.15, text: 'Сестренка не может остановиться' },
       ],
     }),
-    'Балда! Балда, балда, балда!\nСестренка не может остановиться',
+    'Балда! Балда, балда, балда!\n\nСестренка не может остановиться',
   );
 });
 

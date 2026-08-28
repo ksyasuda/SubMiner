@@ -11,6 +11,7 @@ import {
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
   normalizeSubtitle,
+  normalizeSubtitleForDisplay,
   prepareSecondarySubtitleLines,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
@@ -1001,6 +1002,30 @@ test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks i
   assert.equal(
     normalizeSubtitle('常人が使えば\\Nその圧倒的な力に\\n体が耐えきれず死に至るが…', true, true),
     '常人が使えば その圧倒的な力に 体が耐えきれず死に至るが…',
+  );
+});
+
+test('normalizeSubtitleForDisplay always breaks between simultaneous cues', () => {
+  // The blank line marks two distinct cues on screen at once. Flattening it would run a
+  // sign or a second speaker into the line beside it as one sentence.
+  const twoCues =
+    '\u6b21\u306f\u9b3c\u5b50\u6bcd\u795e\u524d\u3000\u9b3c\u5b50\u6bcd\u795e\u524d\n\n\u611b\u97f3\u3061\u3083\u3093\u3000\u3082\u3046\u5199\u771f\u4e0a\u3052\u3066\u308b';
+
+  assert.equal(
+    normalizeSubtitleForDisplay(twoCues, false),
+    '\u6b21\u306f\u9b3c\u5b50\u6bcd\u795e\u524d \u9b3c\u5b50\u6bcd\u795e\u524d\n\u611b\u97f3\u3061\u3083\u3093 \u3082\u3046\u5199\u771f\u4e0a\u3052\u3066\u308b',
+  );
+  assert.equal(normalizeSubtitleForDisplay(twoCues, true), twoCues.replace('\n\n', '\n'));
+});
+
+test('normalizeSubtitleForDisplay still flattens a wrap inside one cue', () => {
+  // A typesetter's \\N inside a single utterance is what preserveLineBreaks governs.
+  assert.equal(
+    normalizeSubtitleForDisplay(
+      '\u5e38\u4eba\u304c\u4f7f\u3048\u3070\\N\u305d\u306e\u5727\u5012\u7684\u306a\u529b\u306b',
+      false,
+    ),
+    '\u5e38\u4eba\u304c\u4f7f\u3048\u3070 \u305d\u306e\u5727\u5012\u7684\u306a\u529b\u306b',
   );
 });
 
