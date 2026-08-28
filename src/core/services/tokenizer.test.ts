@@ -84,6 +84,17 @@ function createDeferred<T>() {
   };
 }
 
+test('tokenizeSubtitle keeps the blank line separating simultaneous cues', async () => {
+  // The tokenized payload's text drives display; folding the cue boundary would merge
+  // two speakers back onto one line the moment tokenization upgrades the plain emit.
+  const result = await tokenizeSubtitle(
+    '\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee',
+    makeDeps({ getYomitanExt: () => null }),
+  );
+
+  assert.equal(result.text, '\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee');
+});
+
 test('tokenizeSubtitle splits same-line grammar endings before applying annotations', async () => {
   const result = await tokenizeSubtitle(
     '猫です',

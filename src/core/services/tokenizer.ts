@@ -887,7 +887,14 @@ export async function tokenizeSubtitle(
   text: string,
   deps: TokenizerServiceDeps,
 ): Promise<SubtitleData> {
-  const displayText = normalizePlainSubtitleText(text);
+  // Normalize per cue group: the blank line separating simultaneous cues is display
+  // structure the payload text must keep, or the tokenized upgrade re-merges lines the
+  // provisional plain emit already showed apart.
+  const displayText = text
+    .split(/\n{2,}/)
+    .map((part) => normalizePlainSubtitleText(part))
+    .filter(Boolean)
+    .join('\n\n');
 
   // ASS decoding already happened upstream (cue parser for files, mpv for live text), so
   // all this drops is whitespace -- but a whitespace-only line still normalizes to empty.
