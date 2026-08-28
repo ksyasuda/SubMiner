@@ -1018,6 +1018,10 @@ test('normalizeSubtitleForDisplay always breaks between simultaneous cues', () =
   assert.equal(normalizeSubtitleForDisplay(twoCues, true), twoCues.replace('\n\n', '\n'));
 });
 
+test('normalizeSubtitleForDisplay preserves CRLF boundaries between simultaneous cues', () => {
+  assert.equal(normalizeSubtitleForDisplay('a\r\n\r\nb', false), 'a\nb');
+});
+
 test('normalizeSubtitleForDisplay still flattens a wrap inside one cue', () => {
   // A typesetter's \\N inside a single utterance is what preserveLineBreaks governs.
   assert.equal(

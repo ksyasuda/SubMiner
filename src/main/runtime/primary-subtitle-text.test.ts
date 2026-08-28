@@ -303,6 +303,31 @@ test('resolvePrimarySubtitleText combines simultaneous canonical cues in source 
   assert.equal(text, 'first\n\nsecond');
 });
 
+test('resolveCanonicalPrimarySubtitle orders active cues from top to bottom', () => {
+  const resolved = resolveCanonicalPrimarySubtitle({
+    liveText: 'bottom\ntop',
+    currentTimeSec: 2,
+    cues: [
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'bottom',
+        source: 'canonical-ass',
+        assLayout: { kind: 'source-order', sourceOrder: 1, verticalBand: 'bottom' },
+      },
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'top',
+        source: 'canonical-ass',
+        assLayout: { kind: 'source-order', sourceOrder: 0, verticalBand: 'top' },
+      },
+    ],
+  });
+
+  assert.equal(resolved?.text, 'top\n\nbottom');
+});
+
 test('resolvePrimarySubtitleText collapses whitespace variants of a canonical lyric', () => {
   assert.equal(
     resolvePrimarySubtitleText({

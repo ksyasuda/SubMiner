@@ -1693,6 +1693,12 @@ test('tokenizeSubtitle normalizes newlines before Yomitan parse request', async 
   assert.equal(result.tokens, null);
 });
 
+test('tokenizeSubtitle preserves CRLF boundaries between simultaneous cues', async () => {
+  const result = await tokenizeSubtitle('a\r\n\r\nb', makeDeps());
+
+  assert.deepEqual(result, { text: 'a\n\nb', tokens: null });
+});
+
 test('tokenizeSubtitle collapses zero-width separators before Yomitan parse request', async () => {
   let parseInput = '';
   const result = await tokenizeSubtitle(

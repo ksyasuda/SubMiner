@@ -249,7 +249,7 @@ export function resolveCanonicalPrimarySubtitle(options: {
     return null;
   }
 
-  const groups = uniqueCueTextGroups(selected);
+  const groups = uniqueCueTextGroups(orderCuesForDisplay(selected));
   return {
     text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),

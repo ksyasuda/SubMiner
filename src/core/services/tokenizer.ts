@@ -891,6 +891,7 @@ export async function tokenizeSubtitle(
   // structure the payload text must keep, or the tokenized upgrade re-merges lines the
   // provisional plain emit already showed apart.
   const displayText = text
+    .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
     .map((part) => normalizePlainSubtitleText(part))
     .filter(Boolean)

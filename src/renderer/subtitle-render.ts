@@ -58,6 +58,7 @@ export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks 
  */
 export function normalizeSubtitleForDisplay(text: string, preserveLineBreaks: boolean): string {
   return text
+    .replace(/\r\n/g, '\n')
     .split(/\n{2,}/)
     .map((cueText) => normalizeSubtitle(cueText, true, !preserveLineBreaks))
     .filter((cueText) => cueText.length > 0)
