@@ -1,4 +1,4 @@
 type: fixed
 area: youtube
 
-- YouTube auto-generated captions no longer disappear mid-speech: long caption rows carry a placeholder 3-second duration in YouTube's TimedText data, so converted cues now stay on screen until the next caption event, matching YouTube's own display timing.
+- YouTube auto-generated captions now follow their intended timing and two-row roll-up layout: long speech is paged instead of covering the video with a wall of text, while explicitly timed sound cues such as `[音楽]` no longer cover later dialogue.
