@@ -218,3 +218,18 @@ test('removeLiveGlyphFragmentLines leaves ordinary short lines alone', () => {
   const text = 'え\nはい。\nそうだな';
   assert.equal(removeLiveGlyphFragmentLines(text), text);
 });
+
+test('normalizePlainSubtitleText folds cue-boundary blank lines for text consumers', () => {
+  // The display layer splits on the blank line before normalizing; everyone else --
+  // tokenizer, cache key, dedup gate, mined sentence -- wants the plain line form.
+  assert.equal(
+    normalizePlainSubtitleText('\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee'),
+    '\u4e00\u884c\u76ee\n\u4e8c\u884c\u76ee',
+  );
+  assert.equal(
+    normalizePlainSubtitleText('\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee', {
+      collapseLineBreaks: true,
+    }),
+    '\u4e00\u884c\u76ee \u4e8c\u884c\u76ee',
+  );
+});

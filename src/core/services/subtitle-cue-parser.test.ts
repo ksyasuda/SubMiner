@@ -1927,9 +1927,7 @@ test('parseSubtitleCues does not double a line rendered whole beside its glyph s
     ['わ', 1022],
     ['ね', 1064],
   ] as const;
-  const wholeLine = glyphs
-    .map(([glyph]) => `{\\an5\\fad(300,500)\\pos(960,50)}${glyph}`)
-    .join('');
+  const wholeLine = glyphs.map(([glyph]) => `{\\an5\\fad(300,500)\\pos(960,50)}${glyph}`).join('');
   const content = [
     ...eventsHeader,
     `Dialogue: 1,0:00:17.29,0:00:18.99,OP - JP,,0,0,0,,${wholeLine}`,
@@ -1952,7 +1950,7 @@ test('parseSubtitleCues drops a wall of near-invisible positioned texture string
   // faint translation is one or two events and stays published.
   const content = [
     ...eventsHeader,
-    'Dialogue: 90,0:00:12.66,0:00:14.91,Default,,0,0,0,,We\'ll play as a band, and then...',
+    "Dialogue: 90,0:00:12.66,0:00:14.91,Default,,0,0,0,,We'll play as a band, and then...",
     ...Array.from(
       { length: 12 },
       (_, index) =>
@@ -1996,4 +1994,26 @@ test('parseSubtitleCues keeps hidden events hidden when a transform animates an 
     parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
     ['grows into view', 'wipes into view'],
   );
+});
+
+test('parseAssCues records the vertical band from style alignment, overrides, and \\pos', () => {
+  const ass = [
+    '[Script Info]',
+    'PlayResY: 720',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, Bold, Alignment, MarginV, Encoding',
+    'Style: Bottom,Arial,54,&H00FFFFFF,0,2,30,1',
+    'Style: TopSong,Arial,54,&H00FFFFFF,0,9,12,1',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,\u4e0b\u306e\u30bb\u30ea\u30d5',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,TopSong,,0,0,0,,\u6b4c\u8a5e\u306e\u884c',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,{\\an8}\u4e0a\u66f8\u304d\u306e\u884c',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,{\\pos(640,20)}\u770b\u677f\u306e\u884c',
+  ].join('\n');
+
+  const bands = parseAssCues(ass).map((cue) => cue.assLayout?.verticalBand);
+  assert.deepEqual(bands, ['bottom', 'top', 'top', 'top']);
 });

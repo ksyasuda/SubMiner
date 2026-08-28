@@ -60,7 +60,7 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
         { startTime: 1, endTime: 3, text: '二行目' },
       ],
     }),
-    '一行目\n二行目',
+    '一行目\n\n二行目',
   );
 });
 
@@ -195,7 +195,7 @@ test('resolvePrimarySubtitleText combines parsed dialogue with a reconstructed l
     ],
   });
 
-  assert.equal(text, '普通のセリフ\n今　手にある');
+  assert.equal(text, '普通のセリフ\n\n今　手にある');
 });
 
 test('resolvePrimarySubtitleText uses fragment grids only to account for live sign pieces', () => {
@@ -300,7 +300,32 @@ test('resolvePrimarySubtitleText combines simultaneous canonical cues in source 
     ],
   });
 
-  assert.equal(text, 'first\nsecond');
+  assert.equal(text, 'first\n\nsecond');
+});
+
+test('resolveCanonicalPrimarySubtitle orders active cues from top to bottom', () => {
+  const resolved = resolveCanonicalPrimarySubtitle({
+    liveText: 'bottom\ntop',
+    currentTimeSec: 2,
+    cues: [
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'bottom',
+        source: 'canonical-ass',
+        assLayout: { kind: 'source-order', sourceOrder: 1, verticalBand: 'bottom' },
+      },
+      {
+        startTime: 1,
+        endTime: 3,
+        text: 'top',
+        source: 'canonical-ass',
+        assLayout: { kind: 'source-order', sourceOrder: 0, verticalBand: 'top' },
+      },
+    ],
+  });
+
+  assert.equal(resolved?.text, 'top\n\nbottom');
 });
 
 test('resolvePrimarySubtitleText collapses whitespace variants of a canonical lyric', () => {
@@ -498,6 +523,23 @@ test('stripCanonicalFragmentLines drops a live glyph wall with no nearby canonic
   );
 });
 
+test('resolvePrimarySubtitleText keeps a line joining an active cue despite stale time-pos', () => {
+  // Issue #220: mpv publishes the combined sub-text the moment a joining line's first
+  // frame renders, while the observed time-pos still sits just before that line's
+  // start. The joining cue must not be filtered out as inactive.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'Балда! Балда, балда, балда!\nСестренка не может остановиться',
+      currentTimeSec: 767.78,
+      cues: [
+        { startTime: 767.19, endTime: 772.78, text: 'Балда! Балда, балда, балда!' },
+        { startTime: 767.79, endTime: 771.15, text: 'Сестренка не может остановиться' },
+      ],
+    }),
+    'Балда! Балда, балда, балда!\n\nСестренка не может остановиться',
+  );
+});
+
 test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outlive it beside a raw line', () => {
   // The reconstructed lyric ended at 6.0 but its exit ghost glyphs stay in the live
   // text until 7.0, while the next authored line is a plain raw event. The retired cue
@@ -522,5 +564,87 @@ test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outliv
       cues,
     }),
     '象徴的なパレード',
+  );
+});
+
+test('resolvePrimarySubtitleText stacks simultaneous cues by screen position, not start order', () => {
+  // A top-anchored lyric and bottom dialogue: mpv draws the lyric above the dialogue for
+  // the whole overlap. Whichever event started first must not decide the row, or the
+  // pair swaps every time one side is replaced mid-overlap.
+  const lyricLayout = { kind: 'source-order', sourceOrder: 0, verticalBand: 'top' } as const;
+  const dialogueLayout = { kind: 'source-order', sourceOrder: 1, verticalBand: 'bottom' } as const;
+  const dialogue = {
+    startTime: 632.2,
+    endTime: 634.8,
+    text: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+    assLayout: dialogueLayout,
+  };
+
+  // Lyric started before the dialogue...
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b\n\u6b4c\u8a5e\uff21',
+      currentTimeSec: 632.5,
+      cues: [
+        { startTime: 629.5, endTime: 633.5, text: '\u6b4c\u8a5e\uff21', assLayout: lyricLayout },
+        dialogue,
+      ],
+    }),
+    '\u6b4c\u8a5e\uff21\n\n\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+  );
+  // ...and the next lyric starts after it: the rows must not swap.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b\n\u6b4c\u8a5e\uff22',
+      currentTimeSec: 633.8,
+      cues: [
+        dialogue,
+        { startTime: 633.5, endTime: 637.0, text: '\u6b4c\u8a5e\uff22', assLayout: lyricLayout },
+      ],
+    }),
+    '\u6b4c\u8a5e\uff22\n\n\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+  );
+});
+
+test('resolvePrimarySubtitleText puts an unreadable placement above bottom dialogue', () => {
+  // Dialogue is the case that reliably declares a bottom alignment, so a cue whose
+  // placement could not be read is more often a sign or song line. Keeping dialogue on
+  // the bottom row means the line worth reading stays where the eye already is.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u4e0b\u306e\u30bb\u30ea\u30d5\n\u4e0d\u660e\u306a\u884c',
+      currentTimeSec: 2,
+      cues: [
+        {
+          startTime: 1,
+          endTime: 3,
+          text: '\u4e0b\u306e\u30bb\u30ea\u30d5',
+          assLayout: { kind: 'source-order', sourceOrder: 0, verticalBand: 'bottom' },
+        },
+        {
+          startTime: 1.5,
+          endTime: 3,
+          text: '\u4e0d\u660e\u306a\u884c',
+          assLayout: { kind: 'source-order', sourceOrder: 1 },
+        },
+      ],
+    }),
+    '\u4e0d\u660e\u306a\u884c\n\n\u4e0b\u306e\u30bb\u30ea\u30d5',
+  );
+});
+
+test('resolvePrimarySubtitleText keeps source order when no cue declares a placement', () => {
+  // SRT and websocket cues carry no layout at all: every cue ties, so the stable sort
+  // must leave them exactly as the cue list had them.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'First line\nSecond line',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: 'First line' },
+        { startTime: 1.5, endTime: 3, text: 'Second line' },
+      ],
+    }),
+    'First line\n\nSecond line',
   );
 });

@@ -134,7 +134,7 @@ export function createSubtitleProcessingController(
         try {
           const cachedTokenized = getCachedTokenization(text);
           if (cachedTokenized) {
-            output = cachedTokenized;
+            output = { ...cachedTokenized, text };
           } else {
             // Cache miss: show the plain line on time; the tokenized payload
             // upgrades it once ready. Skipped on refreshes of an already
@@ -266,7 +266,7 @@ export function createSubtitleProcessingController(
       lastEmittedText = text;
       lastEmittedGeneration = cacheGeneration;
       lastPlainEmittedText = null;
-      return cached;
+      return { ...cached, text };
     },
     hasCachedSubtitle: (text: string) => {
       const cacheKey = normalizeSubtitleCacheKey(text);

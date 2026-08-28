@@ -153,6 +153,10 @@ export function normalizePlainSubtitleText(
   );
   if (collapseLineBreaks) {
     normalized = normalized.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  } else {
+    // Simultaneous cues reach the display layer separated by a blank line; every other
+    // consumer wants the plain one-break-per-line form.
+    normalized = normalized.replace(/\n{2,}/g, '\n');
   }
 
   return trim ? normalized.trim() : normalized;

@@ -1,4 +1,4 @@
-import type { SubtitleCue } from '../../types';
+import type { AssVerticalBand, SubtitleCue } from '../../types';
 import {
   removeAssControlDebrisLines,
   removeLiveGlyphFragmentLines,
@@ -57,21 +57,52 @@ function compactWhitespace(text: string): string {
   return text.normalize('NFKC').replace(/\s+/gu, '');
 }
 
+/**
+ * Distinct simultaneous cues are separated by a blank line so the display layer can tell
+ * a wrap inside one utterance from the boundary between two of them. Consumers that read
+ * the text rather than display it fold these back to single breaks.
+ */
+const CUE_BOUNDARY = '\n\n';
+
+const VERTICAL_BAND_RANK: Record<AssVerticalBand, number> = { top: 0, middle: 1, bottom: 2 };
+
+/**
+ * Stack simultaneous cues the way they sit on screen: mpv keeps a top-anchored lyric or
+ * sign above bottom dialogue for its whole run, while cue-list order follows start time
+ * and would swap the pair whenever one side is replaced mid-overlap. The band is
+ * constant per event, so a line never changes rows while it is displayed.
+ *
+ * A cue whose placement could not be read -- an unknown style, a script with no styles
+ * section -- sorts to the top. Dialogue is the case that reliably declares a bottom
+ * alignment, so what is left unresolved is more often a sign or a song line, and keeping
+ * the dialogue on the bottom row means the line worth reading stays where the eye
+ * already is. Sort is stable, so cues sharing a rank keep their existing order.
+ */
+function orderCuesForDisplay(cues: readonly SubtitleCue[]): SubtitleCue[] {
+  const rank = (cue: SubtitleCue): number =>
+    VERTICAL_BAND_RANK[cue.assLayout?.verticalBand ?? 'top'];
+  return [...cues].sort((a, b) => rank(a) - rank(b));
+}
+
 // ASS layers can encode the same visible spacing with ordinary, hard, or
 // ideographic spaces. Matching and emission must use the same identity or each
 // layer reappears as a copy.
-function uniqueCueTexts(cues: readonly SubtitleCue[]): string[] {
-  const texts: string[] = [];
+function uniqueCueTextGroups(cues: readonly SubtitleCue[]): string[] {
+  const groups: string[] = [];
   const seen = new Set<string>();
   for (const cue of cues) {
+    const lines: string[] = [];
     for (const line of cue.text.split('\n')) {
       const compactText = compactWhitespace(line);
       if (!compactText || seen.has(compactText)) continue;
       seen.add(compactText);
-      texts.push(line);
+      lines.push(line);
+    }
+    if (lines.length > 0) {
+      groups.push(lines.join('\n'));
     }
   }
-  return texts;
+  return groups;
 }
 
 function compactLineSegments(text: string): string[] {
@@ -134,23 +165,24 @@ function resolveActiveParsedPrimarySubtitle(options: {
     return null;
   }
 
-  // A cue selected only through the edge tolerance has already ended (or not yet
-  // started) by its published timing: a finished lyric whose exit ghosts linger into
-  // the next line. It still explains those live fragments above, but while any cue is
-  // strictly active, only the active cues supply the displayed text. With no strictly
-  // active cue, the edge cues remain the display fallback for stale time-pos readings.
-  const strictlyActive = selected.filter(
-    (cue) => cue.startTime <= options.currentTimeSec && cue.endTime > options.currentTimeSec,
-  );
-  const displayCues = strictlyActive.length > 0 ? strictlyActive : selected;
+  // A cue selected only through the edge tolerance on its end has already finished by
+  // its published timing: a lyric whose exit ghosts linger into the next line. It still
+  // explains those live fragments above, but must not re-surface beside cues that are
+  // still running. The start side keeps the tolerance: mpv publishes the combined
+  // sub-text the moment a joining line's first frame renders, while the observed
+  // time-pos still sits just before that line's start, and the selection above already
+  // required the cue's text to be on screen (#220). With every selected cue finished,
+  // the edge cues remain the display fallback for stale time-pos readings.
+  const unfinished = selected.filter((cue) => cue.endTime > options.currentTimeSec);
+  const displayCues = unfinished.length > 0 ? unfinished : selected;
 
   // Dense sign grids still explain their raw mpv fragments, but are visual
   // typesetting rather than a publishable subtitle line.
-  const texts = uniqueCueTexts(
-    displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'),
+  const groups = uniqueCueTextGroups(
+    orderCuesForDisplay(displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid')),
   );
   return {
-    text: texts.join('\n'),
+    text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...displayCues.map((cue) => cue.startTime)),
     endTime: Math.max(...displayCues.map((cue) => cue.endTime)),
     cues: displayCues,
@@ -217,9 +249,9 @@ export function resolveCanonicalPrimarySubtitle(options: {
     return null;
   }
 
-  const texts = uniqueCueTexts(selected);
+  const groups = uniqueCueTextGroups(orderCuesForDisplay(selected));
   return {
-    text: texts.join('\n'),
+    text: groups.join(CUE_BOUNDARY),
     startTime: Math.min(...selected.map((cue) => cue.startTime)),
     endTime: Math.max(...selected.map((cue) => cue.endTime)),
     cues: selected,
