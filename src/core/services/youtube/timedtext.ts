@@ -2,6 +2,7 @@ interface YoutubeTimedTextRow {
   startMs: number;
   durationMs: number;
   text: string;
+  isGenerated: boolean;
   rollingWindow: YoutubeRollingWindow | null;
 }
 
@@ -152,7 +153,8 @@ function extractYoutubeTimedTextDocument(xml: string): YoutubeTimedTextDocument 
       continue;
     }
 
-    const inner = (match[2] ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
+    const rawInner = match[2] ?? '';
+    const inner = rawInner.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
     const text = decodeHtmlEntities(inner).trim();
     if (!text) {
       continue;
@@ -162,6 +164,7 @@ function extractYoutubeTimedTextDocument(xml: string): YoutubeTimedTextDocument 
       startMs,
       durationMs,
       text,
+      isGenerated: /<s\b/.test(rawInner),
       rollingWindow: resolveRollingWindow(attrs, windowDefinitions),
     });
   }
@@ -177,6 +180,10 @@ function findNextEventStartMs(eventStartsMs: number[], afterMs: number): number 
     }
   }
   return undefined;
+}
+
+function isGeneratedRollingCue(row: YoutubeTimedTextRow, hasRollingWindowEvents: boolean): boolean {
+  return row.isGenerated && (row.rollingWindow !== null || hasRollingWindowEvents);
 }
 
 function formatVttTimestamp(ms: number): string {
@@ -280,10 +287,11 @@ export function convertYoutubeTimedTextToVtt(xml: string): string {
     const row = rows[index]!;
     const nextRow = rows[index + 1];
     const unclampedEnd = row.startMs + row.durationMs;
-    // YouTube uses exactly 3000ms as a placeholder for rolling speech rows.
-    // Other durations are explicit, including short sound cues such as [音楽].
+    // YouTube uses exactly 3000ms as a placeholder for generated rolling speech.
+    // Plain-text cues can explicitly use the same duration and must keep it.
     const nextEventStart =
-      hasRollingWindowEvents && row.durationMs === YOUTUBE_ROLLING_PLACEHOLDER_DURATION_MS
+      isGeneratedRollingCue(row, hasRollingWindowEvents) &&
+      row.durationMs === YOUTUBE_ROLLING_PLACEHOLDER_DURATION_MS
         ? findNextEventStartMs(eventStartsMs, row.startMs)
         : undefined;
     const clampedEnd =

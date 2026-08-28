@@ -125,11 +125,11 @@ test('convertYoutubeTimedTextToVtt leaves pop-on captions intact', () => {
   );
 });
 
-test('convertYoutubeTimedTextToVtt keeps explicit sound-cue durations in rolling documents', () => {
+test('convertYoutubeTimedTextToVtt keeps explicit 3000ms sound-cue durations in rolling documents', () => {
   const result = convertYoutubeTimedTextToVtt(
     [
       '<timedtext><body>',
-      '<p t="20305" d="2020" w="1">[音楽]</p>',
+      '<p t="20305" d="3000" w="1">[音楽]</p>',
       '<p t="26269" w="1" a="1">\n</p>',
       '<p t="26279" d="3000" w="1"><s ac="0">じゃあ、君からお願いします。</s></p>',
       '</body></timedtext>',
@@ -141,7 +141,7 @@ test('convertYoutubeTimedTextToVtt keeps explicit sound-cue durations in rolling
     [
       'WEBVTT',
       '',
-      '00:00:20.305 --> 00:00:22.325',
+      '00:00:20.305 --> 00:00:23.305',
       '[音楽]',
       '',
       '00:00:26.279 --> 00:00:29.279',
