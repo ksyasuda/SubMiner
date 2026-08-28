@@ -541,3 +541,42 @@ test('resolvePrimarySubtitleText drops a finished lyric whose exit ghosts outliv
     '象徴的なパレード',
   );
 });
+
+test('resolvePrimarySubtitleText stacks simultaneous cues by screen position, not start order', () => {
+  // A top-anchored lyric and bottom dialogue: mpv draws the lyric above the dialogue for
+  // the whole overlap. Whichever event started first must not decide the row, or the
+  // pair swaps every time one side is replaced mid-overlap.
+  const lyricLayout = { kind: 'source-order', sourceOrder: 0, verticalBand: 'top' } as const;
+  const dialogueLayout = { kind: 'source-order', sourceOrder: 1, verticalBand: 'bottom' } as const;
+  const dialogue = {
+    startTime: 632.2,
+    endTime: 634.8,
+    text: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+    assLayout: dialogueLayout,
+  };
+
+  // Lyric started before the dialogue...
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b\n\u6b4c\u8a5e\uff21',
+      currentTimeSec: 632.5,
+      cues: [
+        { startTime: 629.5, endTime: 633.5, text: '\u6b4c\u8a5e\uff21', assLayout: lyricLayout },
+        dialogue,
+      ],
+    }),
+    '\u6b4c\u8a5e\uff21\n\n\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+  );
+  // ...and the next lyric starts after it: the rows must not swap.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b\n\u6b4c\u8a5e\uff22',
+      currentTimeSec: 633.8,
+      cues: [
+        dialogue,
+        { startTime: 633.5, endTime: 637.0, text: '\u6b4c\u8a5e\uff22', assLayout: lyricLayout },
+      ],
+    }),
+    '\u6b4c\u8a5e\uff22\n\n\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
+  );
+});

@@ -10,10 +10,13 @@ import {
 } from './ass-text';
 import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedup';
 
+/** Vertical third of the screen a cue is authored to occupy. */
+export type AssVerticalBand = 'top' | 'middle' | 'bottom';
+
 export type AssCueLayout =
-  | { kind: 'positioned'; sourceOrder: number; y: number }
-  | { kind: 'fragment-grid'; sourceOrder: number }
-  | { kind: 'source-order'; sourceOrder: number };
+  | { kind: 'positioned'; sourceOrder: number; y: number; verticalBand?: AssVerticalBand }
+  | { kind: 'fragment-grid'; sourceOrder: number; verticalBand?: AssVerticalBand }
+  | { kind: 'source-order'; sourceOrder: number; verticalBand?: AssVerticalBand };
 
 export interface SubtitleCue {
   startTime: number;
@@ -481,9 +484,7 @@ function structuralOverrideSignature(cue: AnnotatedSubtitleCue): string {
   let signature = structuralSignatureCache.get(cue);
   if (signature === undefined) {
     const names = new Set(
-      cue.overrides.map(
-        (command) => `${command.animated ? '~' : ''}${command.name.toLowerCase()}`,
-      ),
+      cue.overrides.map((command) => `${command.animated ? '~' : ''}${command.name.toLowerCase()}`),
     );
     signature = [...names].sort().join(',');
     structuralSignatureCache.set(cue, signature);
@@ -544,9 +545,7 @@ function buildCoalescedCopy(members: readonly AnnotatedSubtitleCue[]): Annotated
  * while the anchor says one glyph. Merging each stack into a single presence spanning
  * the union window lets timing clusters see the authored line instead of its phases.
  */
-function coalesceAssAnchorCopies(
-  events: readonly AnnotatedSubtitleCue[],
-): AnnotatedSubtitleCue[] {
+function coalesceAssAnchorCopies(events: readonly AnnotatedSubtitleCue[]): AnnotatedSubtitleCue[] {
   const buckets = new Map<string, number[]>();
   const anchorPoints: (AssFragmentPosition[] | null)[] = events.map(() => null);
   events.forEach((event, index) => {
@@ -1362,8 +1361,7 @@ function isRepeatedGlyphText(cue: AnnotatedSubtitleCue): boolean {
 
 function isClippedRepeatedGlyphFragment(cue: AnnotatedSubtitleCue): boolean {
   return (
-    isRepeatedGlyphText(cue) &&
-    (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'))
+    isRepeatedGlyphText(cue) && (hasStaticOverride(cue, 'clip') || hasStaticOverride(cue, 'iclip'))
   );
 }
 
@@ -2055,6 +2053,111 @@ function recoverCanonicalAssEvents({
   );
 }
 
+function bandFromNumpadAlignment(alignment: number): AssVerticalBand | null {
+  if (alignment >= 7 && alignment <= 9) return 'top';
+  if (alignment >= 4 && alignment <= 6) return 'middle';
+  if (alignment >= 1 && alignment <= 3) return 'bottom';
+  return null;
+}
+
+// SSA v4 alignment reuses the legacy `\a` codes: 1-3 bottom, +4 top, +8 middle.
+function bandFromLegacyAlignment(alignment: number): AssVerticalBand | null {
+  if (alignment >= 9 && alignment <= 11) return 'middle';
+  if (alignment >= 5 && alignment <= 7) return 'top';
+  if (alignment >= 1 && alignment <= 3) return 'bottom';
+  return null;
+}
+
+interface AssPlacementContext {
+  playResY: number | null;
+  /** Lowercased style name -> vertical band from the style's Alignment column. */
+  styleBands: Map<string, AssVerticalBand>;
+}
+
+const EMPTY_PLACEMENT_CONTEXT: AssPlacementContext = { playResY: null, styleBands: new Map() };
+
+function parseAssPlacementContext(content: string): AssPlacementContext {
+  const styleBands = new Map<string, AssVerticalBand>();
+  let playResY: number | null = null;
+  let section: 'info' | 'v4plus' | 'v4' | null = null;
+  let alignmentIndex = -1;
+  let nameIndex = -1;
+
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      const sectionName = trimmed.toLowerCase();
+      section =
+        sectionName === '[script info]'
+          ? 'info'
+          : sectionName === '[v4+ styles]'
+            ? 'v4plus'
+            : sectionName === '[v4 styles]'
+              ? 'v4'
+              : null;
+      alignmentIndex = -1;
+      nameIndex = -1;
+      continue;
+    }
+    if (section === 'info') {
+      const resMatch = trimmed.match(/^playresy\s*:\s*(\d+(?:\.\d+)?)\s*$/i);
+      if (resMatch) playResY = Number(resMatch[1]);
+      continue;
+    }
+    if (section !== 'v4plus' && section !== 'v4') continue;
+    const separator = trimmed.indexOf(':');
+    if (separator < 0) continue;
+    const key = trimmed.slice(0, separator).trim().toLowerCase();
+    const fields = trimmed.slice(separator + 1).split(',');
+    if (key === 'format') {
+      const names = fields.map((field) => field.trim().toLowerCase());
+      alignmentIndex = names.indexOf('alignment');
+      nameIndex = names.indexOf('name');
+      continue;
+    }
+    if (key !== 'style' || alignmentIndex < 0 || nameIndex < 0) continue;
+    const styleName = fields[nameIndex]?.trim().toLowerCase();
+    const alignment = Number(fields[alignmentIndex]?.trim());
+    if (!styleName || !Number.isFinite(alignment)) continue;
+    const band =
+      section === 'v4plus'
+        ? bandFromNumpadAlignment(alignment)
+        : bandFromLegacyAlignment(alignment);
+    if (band) styleBands.set(styleName, band);
+  }
+
+  return { playResY, styleBands };
+}
+
+/**
+ * Where on screen mpv will draw this event: an explicit `\pos`/`\move` coordinate when
+ * the script declares its coordinate space, else an `\an`/`\a` override, else the
+ * style's Alignment. Constant for the life of the event, which is what lets simultaneous
+ * lines keep a stable stacking order in the overlay.
+ */
+function resolveVerticalBand(
+  overrides: readonly AssOverrideCommand[],
+  y: number | null,
+  style: string,
+  context: AssPlacementContext,
+): AssVerticalBand | undefined {
+  if (y !== null && context.playResY && context.playResY > 0) {
+    const ratio = y / context.playResY;
+    return ratio < 1 / 3 ? 'top' : ratio < 2 / 3 ? 'middle' : 'bottom';
+  }
+  for (const command of overrides) {
+    if (command.animated) continue;
+    const name = command.name.toLowerCase();
+    if (name !== 'an' && name !== 'a') continue;
+    const band =
+      name === 'an'
+        ? bandFromNumpadAlignment(Number(command.args))
+        : bandFromLegacyAlignment(Number(command.args));
+    if (band) return band;
+  }
+  return context.styleBands.get(style.trim().toLowerCase());
+}
+
 function parseAssCoordinate(value: string | undefined): number | null {
   if (!value?.trim()) return null;
   const coordinate = Number(value.trim());
@@ -2064,6 +2167,8 @@ function parseAssCoordinate(value: string | undefined): number | null {
 function buildAssCueLayout(
   overrides: readonly AssOverrideCommand[],
   sourceOrder: number,
+  style: string,
+  placement: AssPlacementContext,
 ): AssCueLayout {
   let y: number | null = null;
   for (const command of overrides) {
@@ -2081,14 +2186,18 @@ function buildAssCueLayout(
       y = (startY + endY) / 2;
     }
   }
-  return y === null
-    ? { kind: 'source-order', sourceOrder }
-    : { kind: 'positioned', sourceOrder, y };
+  const verticalBand = resolveVerticalBand(overrides, y, style, placement);
+  const base: AssCueLayout =
+    y === null ? { kind: 'source-order', sourceOrder } : { kind: 'positioned', sourceOrder, y };
+  return verticalBand ? { ...base, verticalBand } : base;
 }
 
 function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
   const cues: AnnotatedSubtitleCue[] = [];
   const comments: AnnotatedSubtitleCue[] = [];
+  const placement = content.includes('[')
+    ? parseAssPlacementContext(content)
+    : EMPTY_PLACEMENT_CONTEXT;
   const lines = content.split(/\r?\n/);
   let inEventsSection = false;
   let eventOrder = 0;
@@ -2185,12 +2294,13 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
     const effect = readField(fields, fieldIndex.effect);
     const layer = Number(readField(fields, fieldIndex.layer));
     const overrides = collectAssOverrideCommands(rawText);
+    const style = readField(fields, fieldIndex.style);
     const cue: AnnotatedSubtitleCue = {
       startTime,
       endTime,
       text,
       rawText,
-      style: readField(fields, fieldIndex.style),
+      style,
       layer: Number.isFinite(layer) ? layer : 0,
       name: readField(fields, fieldIndex.name),
       effect,
@@ -2198,7 +2308,7 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
       overrides,
       overrideSignature: assOverrideSignature(overrides),
       order: eventOrder,
-      assLayout: buildAssCueLayout(overrides, eventOrder),
+      assLayout: buildAssCueLayout(overrides, eventOrder, style, placement),
     };
     eventOrder += 1;
     if (eventPrefix === ASS_COMMENT_PREFIX) {

@@ -1,4 +1,4 @@
-import type { SubtitleCue } from '../../types';
+import type { AssVerticalBand, SubtitleCue } from '../../types';
 import {
   removeAssControlDebrisLines,
   removeLiveGlyphFragmentLines,
@@ -63,6 +63,21 @@ function compactWhitespace(text: string): string {
  * the text rather than display it fold these back to single breaks.
  */
 const CUE_BOUNDARY = '\n\n';
+
+const VERTICAL_BAND_RANK: Record<AssVerticalBand, number> = { top: 0, middle: 1, bottom: 2 };
+
+/**
+ * Stack simultaneous cues the way they sit on screen: mpv keeps a top-anchored lyric or
+ * sign above bottom dialogue for its whole run, while cue-list order follows start time
+ * and would swap the pair whenever one side is replaced mid-overlap. The band is
+ * constant per event, so a line never changes rows while it is displayed. Sort is
+ * stable, so cues without placement metadata keep their existing order.
+ */
+function orderCuesForDisplay(cues: readonly SubtitleCue[]): SubtitleCue[] {
+  const rank = (cue: SubtitleCue): number =>
+    VERTICAL_BAND_RANK[cue.assLayout?.verticalBand ?? 'bottom'];
+  return [...cues].sort((a, b) => rank(a) - rank(b));
+}
 
 // ASS layers can encode the same visible spacing with ordinary, hard, or
 // ideographic spaces. Matching and emission must use the same identity or each
@@ -159,7 +174,7 @@ function resolveActiveParsedPrimarySubtitle(options: {
   // Dense sign grids still explain their raw mpv fragments, but are visual
   // typesetting rather than a publishable subtitle line.
   const groups = uniqueCueTextGroups(
-    displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid'),
+    orderCuesForDisplay(displayCues.filter((cue) => cue.assLayout?.kind !== 'fragment-grid')),
   );
   return {
     text: groups.join(CUE_BOUNDARY),
