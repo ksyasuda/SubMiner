@@ -70,12 +70,17 @@ const VERTICAL_BAND_RANK: Record<AssVerticalBand, number> = { top: 0, middle: 1,
  * Stack simultaneous cues the way they sit on screen: mpv keeps a top-anchored lyric or
  * sign above bottom dialogue for its whole run, while cue-list order follows start time
  * and would swap the pair whenever one side is replaced mid-overlap. The band is
- * constant per event, so a line never changes rows while it is displayed. Sort is
- * stable, so cues without placement metadata keep their existing order.
+ * constant per event, so a line never changes rows while it is displayed.
+ *
+ * A cue whose placement could not be read -- an unknown style, a script with no styles
+ * section -- sorts to the top. Dialogue is the case that reliably declares a bottom
+ * alignment, so what is left unresolved is more often a sign or a song line, and keeping
+ * the dialogue on the bottom row means the line worth reading stays where the eye
+ * already is. Sort is stable, so cues sharing a rank keep their existing order.
  */
 function orderCuesForDisplay(cues: readonly SubtitleCue[]): SubtitleCue[] {
   const rank = (cue: SubtitleCue): number =>
-    VERTICAL_BAND_RANK[cue.assLayout?.verticalBand ?? 'bottom'];
+    VERTICAL_BAND_RANK[cue.assLayout?.verticalBand ?? 'top'];
   return [...cues].sort((a, b) => rank(a) - rank(b));
 }
 

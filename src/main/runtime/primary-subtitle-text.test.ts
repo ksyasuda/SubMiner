@@ -580,3 +580,46 @@ test('resolvePrimarySubtitleText stacks simultaneous cues by screen position, no
     '\u6b4c\u8a5e\uff22\n\n\u30e9\u30a4\u30d6\u3000\u3084\u3081\u3088\u3063\u304b',
   );
 });
+
+test('resolvePrimarySubtitleText puts an unreadable placement above bottom dialogue', () => {
+  // Dialogue is the case that reliably declares a bottom alignment, so a cue whose
+  // placement could not be read is more often a sign or song line. Keeping dialogue on
+  // the bottom row means the line worth reading stays where the eye already is.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '\u4e0b\u306e\u30bb\u30ea\u30d5\n\u4e0d\u660e\u306a\u884c',
+      currentTimeSec: 2,
+      cues: [
+        {
+          startTime: 1,
+          endTime: 3,
+          text: '\u4e0b\u306e\u30bb\u30ea\u30d5',
+          assLayout: { kind: 'source-order', sourceOrder: 0, verticalBand: 'bottom' },
+        },
+        {
+          startTime: 1.5,
+          endTime: 3,
+          text: '\u4e0d\u660e\u306a\u884c',
+          assLayout: { kind: 'source-order', sourceOrder: 1 },
+        },
+      ],
+    }),
+    '\u4e0d\u660e\u306a\u884c\n\n\u4e0b\u306e\u30bb\u30ea\u30d5',
+  );
+});
+
+test('resolvePrimarySubtitleText keeps source order when no cue declares a placement', () => {
+  // SRT and websocket cues carry no layout at all: every cue ties, so the stable sort
+  // must leave them exactly as the cue list had them.
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'First line\nSecond line',
+      currentTimeSec: 2,
+      cues: [
+        { startTime: 1, endTime: 3, text: 'First line' },
+        { startTime: 1.5, endTime: 3, text: 'Second line' },
+      ],
+    }),
+    'First line\n\nSecond line',
+  );
+});
