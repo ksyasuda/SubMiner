@@ -608,6 +608,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
   const integration = new AnkiIntegration(
     {
       fields: {
+        audio: 'ExpressionAudio',
         image: 'Picture',
       },
       media: {
@@ -661,7 +662,7 @@ test('AnkiIntegration applies ready YouTube cache media to every queued note id'
       noteIds.map((noteId) => ({
         noteId,
         fields: {
-          SentenceAudio: { value: '' },
+          ExpressionAudio: { value: '' },
           Picture: { value: '' },
         },
       })),
@@ -946,7 +947,7 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
     noteInfo: {
       noteId: 404,
       fields: {
-        SentenceAudio: { value: '' },
+        ExpressionAudio: { value: '' },
         Picture: { value: '' },
       },
     },
@@ -958,7 +959,8 @@ test('AnkiIntegration queues YouTube media updates against recovered source URLs
   assert.equal(queued, true);
   assert.equal(updatedNotes.length, 1);
   assert.equal(updatedNotes[0]?.noteId, 404);
-  assert.match(updatedNotes[0]?.fields.SentenceAudio ?? '', /^\[sound:audio_/);
+  assert.match(updatedNotes[0]?.fields.ExpressionAudio ?? '', /^\[sound:audio_/);
+  assert.equal(updatedNotes[0]?.fields.SentenceAudio, undefined);
   assert.match(updatedNotes[0]?.fields.Picture ?? '', /^<img src="image_/);
   assert.equal(storedMedia.length, 2);
   assert.deepEqual(audioVolumeScales, [0.3 ** 3]);

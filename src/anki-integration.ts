@@ -383,8 +383,6 @@ export class AnkiIntegration {
       getCachedMediaPath: this.getCachedMediaPath,
       shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
       getSubtitleMediaRange: (context) => this.getSubtitleMediaRange(context),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       mergeFieldValue: (existing, newValue, overwrite) =>
@@ -661,8 +659,6 @@ export class AnkiIntegration {
         this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
@@ -1565,13 +1561,6 @@ export class AnkiIntegration {
   private getPreferredSentenceAudioFieldName(): string {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     return sentenceCardConfig.audioField || 'SentenceAudio';
-  }
-
-  private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
-    return (
-      this.resolveNoteFieldName(noteInfo, this.getPreferredSentenceAudioFieldName()) ||
-      this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
-    );
   }
 
   private getConfiguredWordFieldName(): string {
