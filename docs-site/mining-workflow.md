@@ -41,7 +41,7 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
    - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
 3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation - the same fields auto-update would fill.
 
-Manual clipboard updates always replace generated sentence audio, even when `ankiConnect.behavior.overwriteAudio` is disabled. The word audio field is left unchanged because the word itself does not change in this flow.
+Manual clipboard updates always replace generated sentence audio in `ankiConnect.fields.audio`, even when `ankiConnect.behavior.overwriteAudio` is disabled. Normal word-card updates use the configured sentence and audio fields even when Lapis or Kiku support is enabled.
 
 This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
