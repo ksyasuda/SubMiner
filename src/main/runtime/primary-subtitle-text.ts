@@ -149,12 +149,15 @@ function resolveActiveParsedPrimarySubtitle(options: {
     return null;
   }
 
-  const parsedSegments = selected.flatMap((cue) =>
-    compactLineSegments(cue.text).map((segment) => ({
-      segment,
-      recovered: cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass',
-    })),
-  );
+  const parsedSegments = selected.flatMap((cue) => {
+    const recovered = cue.source === 'canonical-ass' || cue.source === 'reconstructed-ass';
+    return [
+      ...compactLineSegments(cue.text).map((segment) => ({ segment, recovered })),
+      ...(cue.assFurigana ?? []).flatMap((text) =>
+        compactLineSegments(text).map((segment) => ({ segment, recovered: false })),
+      ),
+    ];
+  });
   if (
     !liveSegments.every((liveSegment) =>
       parsedSegments.some(({ segment, recovered }) =>

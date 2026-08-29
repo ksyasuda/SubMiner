@@ -14,7 +14,13 @@ import { hasAssAnimationEvidence, mergeDuplicateCues } from './subtitle-cue-dedu
 export type AssVerticalBand = 'top' | 'middle' | 'bottom';
 
 export type AssCueLayout =
-  | { kind: 'positioned'; sourceOrder: number; y: number; verticalBand?: AssVerticalBand }
+  | {
+      kind: 'positioned';
+      sourceOrder: number;
+      x?: number;
+      y: number;
+      verticalBand?: AssVerticalBand;
+    }
   | { kind: 'fragment-grid'; sourceOrder: number; verticalBand?: AssVerticalBand }
   | { kind: 'source-order'; sourceOrder: number; verticalBand?: AssVerticalBand };
 
@@ -22,6 +28,11 @@ export interface SubtitleCue {
   startTime: number;
   endTime: number;
   text: string;
+  /**
+   * ASS ruby text removed from the published cue. Kept only so live `sub-text` matching
+   * can account for the extra lines mpv still reports from the source track.
+   */
+  assFurigana?: readonly string[];
   /** How a complete line was recovered from generated ASS animation events. */
   source?: 'canonical-ass' | 'reconstructed-ass';
   /**
@@ -100,9 +111,16 @@ function sanitizeAssCueText(text: string): string {
   return removeAssControlDebrisLines(decodeSubtitleCueText(text)).trim();
 }
 
-function attachAssLayout<T extends SubtitleCue>(cue: T, assLayout: AssCueLayout | undefined): T {
+function attachAssMetadata<T extends SubtitleCue>(
+  cue: T,
+  assLayout: AssCueLayout | undefined,
+  assFurigana: readonly string[] | undefined,
+): T {
   if (assLayout) {
     Object.defineProperty(cue, 'assLayout', { value: assLayout, enumerable: false });
+  }
+  if (assFurigana?.length) {
+    Object.defineProperty(cue, 'assFurigana', { value: assFurigana, enumerable: false });
   }
   return cue;
 }
@@ -118,6 +136,7 @@ function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
       animationEndTime,
       style,
       assLayout,
+      assFurigana,
     }) => {
       const common = {
         startTime,
@@ -125,7 +144,7 @@ function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
         text,
       };
       if (source === 'reconstructed-ass') {
-        return attachAssLayout(
+        return attachAssMetadata(
           {
             ...common,
             source,
@@ -134,11 +153,13 @@ function toPublicCues(cues: AnnotatedSubtitleCue[]): SubtitleCue[] {
             assStyle: style,
           },
           assLayout,
+          assFurigana,
         );
       }
-      return attachAssLayout(
+      return attachAssMetadata(
         source ? { ...common, source, animationStartTime, animationEndTime } : common,
         assLayout,
+        assFurigana,
       );
     },
   );
@@ -2019,6 +2040,9 @@ function recoverCanonicalAssEvents({
     const animationEndTime = latestEndTime(generatedEvents, candidate.endTime);
     const startTime = kind === 'comment' ? candidate.startTime : animationStartTime;
     const endTime = kind === 'comment' ? candidate.endTime : animationEndTime;
+    const assFurigana = [
+      ...new Set([candidate, ...generatedEvents].flatMap((cue) => cue.assFurigana ?? [])),
+    ];
     const recoveredCue: AnnotatedSubtitleCue = {
       ...candidate,
       startTime,
@@ -2026,6 +2050,7 @@ function recoverCanonicalAssEvents({
       animationStartTime,
       animationEndTime,
       source: 'canonical-ass',
+      ...(assFurigana.length === 0 ? {} : { assFurigana }),
     };
     recovered.push(recoveredCue);
     recoveredByOwner.set(candidate, recoveredCue);
@@ -2170,34 +2195,156 @@ function buildAssCueLayout(
   style: string,
   placement: AssPlacementContext,
 ): AssCueLayout {
+  let x: number | null = null;
   let y: number | null = null;
   for (const command of overrides) {
     if (command.animated) continue;
     const name = command.name.toLowerCase();
     const args = command.args.split(',');
     if (name === 'pos') {
+      x = parseAssCoordinate(args[0]) ?? x;
       y = parseAssCoordinate(args[1]) ?? y;
       continue;
     }
     if (name !== 'move') continue;
+    const startX = parseAssCoordinate(args[0]);
     const startY = parseAssCoordinate(args[1]);
+    const endX = parseAssCoordinate(args[2]);
     const endY = parseAssCoordinate(args[3]);
+    if (startX !== null && endX !== null) {
+      x = (startX + endX) / 2;
+    }
     if (startY !== null && endY !== null) {
       y = (startY + endY) / 2;
     }
   }
   const verticalBand = resolveVerticalBand(overrides, y, style, placement);
   const base: AssCueLayout =
-    y === null ? { kind: 'source-order', sourceOrder } : { kind: 'positioned', sourceOrder, y };
+    y === null
+      ? { kind: 'source-order', sourceOrder }
+      : { kind: 'positioned', sourceOrder, ...(x === null ? {} : { x }), y };
   return verticalBand ? { ...base, verticalBand } : base;
 }
 
-function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
+const ASS_FURIGANA_TEXT_PATTERN = /^[\p{Script=Hiragana}\p{Script=Katakana}ー・ \t\u3000]+$/u;
+const ASS_KANJI_PATTERN = /\p{Script=Han}/u;
+const MAX_ASS_FURIGANA_SCALE_PERCENT = 60;
+// The pixel geometry below is authored in the 540-line coordinate space Caption2Ass-style
+// broadcast CC converters emit, and is multiplied by PlayResY/540 so the same on-screen
+// window applies to scripts declaring other resolutions. Without a declaration the tuned
+// space is assumed.
+const ASS_FURIGANA_REFERENCE_PLAY_RES_Y = 540;
+const MIN_ASS_FURIGANA_BASE_GAP = 40;
+const MAX_ASS_FURIGANA_BASE_GAP = 68;
+const MIN_ASS_FURIGANA_HORIZONTAL_TOLERANCE = 80;
+const ASS_BASE_CHARACTER_WIDTH_ESTIMATE = 40;
+
+function assFuriganaGeometryScale(playResY: number | null): number {
+  return playResY && playResY > 0 ? playResY / ASS_FURIGANA_REFERENCE_PLAY_RES_Y : 1;
+}
+
+function staticAssScalePercent(cue: AnnotatedSubtitleCue, axis: 'fscx' | 'fscy'): number | null {
+  let scale: number | null = null;
+  for (const command of cue.overrides) {
+    if (command.animated || command.name.toLowerCase() !== axis) continue;
+    const value = Number(command.args.trim());
+    if (Number.isFinite(value) && value > 0) {
+      scale = value;
+    }
+  }
+  return scale;
+}
+
+function isAssFuriganaCandidate(cue: AnnotatedSubtitleCue): boolean {
+  const scaleX = staticAssScalePercent(cue, 'fscx');
+  const scaleY = staticAssScalePercent(cue, 'fscy');
+  return (
+    cue.assLayout?.kind === 'positioned' &&
+    ASS_FURIGANA_TEXT_PATTERN.test(cue.text) &&
+    scaleX !== null &&
+    scaleX <= MAX_ASS_FURIGANA_SCALE_PERCENT &&
+    scaleY !== null &&
+    scaleY <= MAX_ASS_FURIGANA_SCALE_PERCENT
+  );
+}
+
+function findAssFuriganaBase(
+  furigana: AnnotatedSubtitleCue,
+  cues: readonly AnnotatedSubtitleCue[],
+  geometryScale: number,
+): AnnotatedSubtitleCue | null {
+  if (furigana.assLayout?.kind !== 'positioned' || furigana.assLayout.x === undefined) {
+    return null;
+  }
+
+  let nearest: { cue: AnnotatedSubtitleCue; gap: number } | null = null;
+  for (const cue of cues) {
+    if (
+      cue === furigana ||
+      cue.startTime !== furigana.startTime ||
+      cue.endTime !== furigana.endTime ||
+      cue.style !== furigana.style ||
+      cue.layer !== furigana.layer ||
+      cue.name !== furigana.name ||
+      cue.assLayout?.kind !== 'positioned' ||
+      !ASS_KANJI_PATTERN.test(cue.text)
+    ) {
+      continue;
+    }
+    const scaleY = staticAssScalePercent(cue, 'fscy');
+    if (scaleY !== null && scaleY <= MAX_ASS_FURIGANA_SCALE_PERCENT) continue;
+
+    const gap = cue.assLayout.y - furigana.assLayout.y;
+    if (
+      gap < MIN_ASS_FURIGANA_BASE_GAP * geometryScale ||
+      gap > MAX_ASS_FURIGANA_BASE_GAP * geometryScale
+    ) {
+      continue;
+    }
+    if (cue.assLayout.x === undefined) continue;
+    const baseCharacterCount = [...cue.text.replace(/[ \t\u3000]/g, '')].length;
+    const horizontalTolerance =
+      Math.max(
+        MIN_ASS_FURIGANA_HORIZONTAL_TOLERANCE,
+        baseCharacterCount * ASS_BASE_CHARACTER_WIDTH_ESTIMATE,
+      ) * geometryScale;
+    if (Math.abs(cue.assLayout.x - furigana.assLayout.x) > horizontalTolerance) continue;
+    if (!nearest || gap < nearest.gap || (gap === nearest.gap && cue.order < nearest.cue.order)) {
+      nearest = { cue, gap };
+    }
+  }
+  return nearest?.cue ?? null;
+}
+
+function removeAssFuriganaFromCueList(
+  cues: AnnotatedSubtitleCue[],
+  geometryScale: number,
+): AnnotatedSubtitleCue[] {
+  const removed = new Set<AnnotatedSubtitleCue>();
+  for (const cue of cues) {
+    if (!isAssFuriganaCandidate(cue)) continue;
+    const base = findAssFuriganaBase(cue, cues, geometryScale);
+    if (!base) continue;
+    base.assFurigana = [...new Set([...(base.assFurigana ?? []), cue.text])];
+    removed.add(cue);
+  }
+  return removed.size === 0 ? cues : cues.filter((cue) => !removed.has(cue));
+}
+
+function removeAssFuriganaEvents(
+  events: ParsedAssEvents,
+  playResY: number | null,
+): ParsedAssEvents {
+  const geometryScale = assFuriganaGeometryScale(playResY);
+  return {
+    dialogue: removeAssFuriganaFromCueList(events.dialogue, geometryScale),
+    comments: removeAssFuriganaFromCueList(events.comments, geometryScale),
+  };
+}
+
+function parseAnnotatedAssEvents(content: string, placement: AssPlacementContext): ParsedAssEvents {
   const cues: AnnotatedSubtitleCue[] = [];
   const comments: AnnotatedSubtitleCue[] = [];
-  const placement = content.includes('[')
-    ? parseAssPlacementContext(content)
-    : EMPTY_PLACEMENT_CONTEXT;
   const lines = content.split(/\r?\n/);
   let inEventsSection = false;
   let eventOrder = 0;
@@ -2322,7 +2469,13 @@ function parseAnnotatedAssEvents(content: string): ParsedAssEvents {
 }
 
 function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
-  const events = removeAssFontTextureEvents(parseAnnotatedAssEvents(content));
+  const placement = content.includes('[')
+    ? parseAssPlacementContext(content)
+    : EMPTY_PLACEMENT_CONTEXT;
+  const events = removeAssFuriganaEvents(
+    removeAssFontTextureEvents(parseAnnotatedAssEvents(content, placement)),
+    placement.playResY,
+  );
   return recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(events));
 }
 

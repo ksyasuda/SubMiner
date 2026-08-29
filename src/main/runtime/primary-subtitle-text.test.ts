@@ -64,6 +64,32 @@ test('resolvePrimarySubtitleText combines unique simultaneous parsed cues', () =
   );
 });
 
+test('resolvePrimarySubtitleText accounts for live ASS furigana after canonical recovery', () => {
+  const ass = [
+    '[Script Info]',
+    'PlayResY: 540',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(192,77)}ごめん　結局　ぬれたな。',
+    'Comment: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,大丈夫。',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,113)\\fscx50\\fscy50}だいじょうぶ',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,167)\\clip(m 1 1)}大丈夫。',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,167)\\clip(m 2 2)}大丈夫。',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,167)\\clip(m 3 3)}大丈夫。',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s02e08.ass');
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: 'ごめん　結局　ぬれたな。\nだいじょうぶ\n大丈夫。',
+      currentTimeSec: 159,
+      cues,
+    }),
+    'ごめん　結局　ぬれたな。\n\n大丈夫。',
+  );
+});
+
 test('resolvePrimarySubtitleText removes duplicate lines across multiline parsed cues', () => {
   assert.equal(
     resolvePrimarySubtitleText({
