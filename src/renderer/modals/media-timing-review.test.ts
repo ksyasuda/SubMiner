@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildMediaTimingLineSelection,
   buildMediaTimingWaveformPath,
   constrainMediaTimingSelection,
   createMediaTimingPreviewRequestGuard,
@@ -71,6 +72,35 @@ test('sliding keeps the clip length and stops at the timeline and media bounds',
     start: 8,
     end: 10,
   });
+});
+
+test('line selection combines adjacent lines around the mined one and tracks their range', () => {
+  const base = {
+    previousLines: [
+      { text: '一行目', startTime: 0, endTime: 2 },
+      { text: '二行目', startTime: 2.5, endTime: 4 },
+    ],
+    nextLines: [
+      { text: '四行目', startTime: 7.5, endTime: 9 },
+      { text: '五行目', startTime: 9.5, endTime: 11 },
+    ],
+    text: '採掘行',
+    originalStartTime: 5,
+    originalEndTime: 7,
+  };
+
+  const none = buildMediaTimingLineSelection({ ...base, previousCount: 0, nextCount: 0 });
+  assert.deepEqual(none.lineTexts, ['採掘行']);
+  assert.equal(none.currentLineIndex, 0);
+  assert.equal(none.rangeStart, 5);
+  assert.equal(none.rangeEnd, 7);
+
+  const expanded = buildMediaTimingLineSelection({ ...base, previousCount: 1, nextCount: 2 });
+  assert.deepEqual(expanded.lineTexts, ['二行目', '採掘行', '四行目', '五行目']);
+  assert.equal(expanded.currentLineIndex, 1);
+  assert.equal(expanded.sentence, '二行目 採掘行 四行目 五行目');
+  assert.equal(expanded.rangeStart, 2.5);
+  assert.equal(expanded.rangeEnd, 11);
 });
 
 test('preview request guard blocks overlap and invalidates stale responses', () => {

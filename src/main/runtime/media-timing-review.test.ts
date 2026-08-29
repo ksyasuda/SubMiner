@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 import type { MediaTimingReviewOpenPayload } from '../../types/anki';
 import {
   buildMediaTimingReviewPayload,
+  collectMediaTimingContextLines,
   createMediaTimingReviewRuntime,
 } from './media-timing-review';
 
@@ -269,11 +270,55 @@ test('media timing review rejects stale and out-of-range actions before allowing
     { ok: false, message: 'The selected timing range is invalid.' },
   );
   assert.deepEqual(
+    runtime.resolveReview({
+      reviewId: payload.reviewId,
+      decision: { action: 'confirm', startTime: 10, endTime: 12, text: '   ' },
+    }),
+    { ok: false, message: 'The combined sentence text is invalid.' },
+  );
+  assert.deepEqual(
     runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'discard' } }),
     { ok: true },
   );
   assert.deepEqual(await pendingDecision, { action: 'discard' });
   assert.deepEqual(previewCalls, []);
+});
+
+test('collectMediaTimingContextLines splits cues around the mined range', () => {
+  const cues = [
+    { text: '一行目', startTime: 0, endTime: 2 },
+    { text: '二行目', startTime: 2.5, endTime: 4 },
+    { text: '', startTime: 4.2, endTime: 4.4 },
+    { text: '採掘行', startTime: 5, endTime: 7 },
+    { text: '四行目', startTime: 7.5, endTime: 9 },
+    { text: '五行目', startTime: 9.5, endTime: 11 },
+  ];
+
+  const context = collectMediaTimingContextLines({ cues, startTime: 5, endTime: 7 });
+
+  assert.deepEqual(context.previous, [
+    { text: '一行目', startTime: 0, endTime: 2 },
+    { text: '二行目', startTime: 2.5, endTime: 4 },
+  ]);
+  assert.deepEqual(context.next, [
+    { text: '四行目', startTime: 7.5, endTime: 9 },
+    { text: '五行目', startTime: 9.5, endTime: 11 },
+  ]);
+});
+
+test('collectMediaTimingContextLines falls back to played history when no cues are loaded', () => {
+  const context = collectMediaTimingContextLines({
+    cues: [],
+    fallbackPrevious: [
+      { displayText: '前の行', startTime: 1, endTime: 2 },
+      { displayText: '採掘行', startTime: 5, endTime: 7 },
+    ],
+    startTime: 5,
+    endTime: 7,
+  });
+
+  assert.deepEqual(context.previous, [{ text: '前の行', startTime: 1, endTime: 2 }]);
+  assert.deepEqual(context.next, []);
 });
 
 test('media timing review watchdog falls back when the renderer stops responding', async () => {

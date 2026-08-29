@@ -710,6 +710,43 @@ test('NoteUpdateWorkflow keeps the word card but skips media after timing review
   assert.deepEqual(harness.notifications, [{ noteId: 42, label: 'taberu' }]);
 });
 
+test('NoteUpdateWorkflow uses the combined review sentence for the card and media range', async () => {
+  const harness = createWorkflowHarness();
+  const audioContexts: Array<SubtitleMiningContext | undefined> = [];
+  harness.deps.captureSubtitleMediaContext = () => ({
+    source: 'overlay',
+    text: 'current-line',
+    startTime: 4,
+    endTime: 6,
+  });
+  harness.deps.getConfig = () => ({
+    fields: { sentence: 'Sentence' },
+    media: { generateAudio: true, generateImage: false },
+    behavior: {},
+  });
+  harness.deps.reviewMediaTiming = async () => ({
+    action: 'confirm',
+    startTime: 2,
+    endTime: 7,
+    text: 'previous-line current-line next-line',
+  });
+  harness.deps.generateAudio = async (context) => {
+    audioContexts.push(context);
+    return null;
+  };
+
+  await harness.workflow.execute(42);
+
+  assert.deepEqual(harness.updates, [
+    { noteId: 42, fields: { Sentence: 'previous-line current-line next-line' } },
+  ]);
+  assert.equal(audioContexts.length, 1);
+  assert.equal(audioContexts[0]?.text, 'previous-line current-line next-line');
+  assert.equal(audioContexts[0]?.startTime, 2);
+  assert.equal(audioContexts[0]?.endTime, 7);
+  assert.equal(audioContexts[0]?.mediaPaddingSeconds, 0);
+});
+
 test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails', async () => {
   const harness = createWorkflowHarness();
   const statusMessages: string[] = [];

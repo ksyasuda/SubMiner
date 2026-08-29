@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type {
   MediaTimingReviewActionResult,
+  MediaTimingReviewContextLine,
   MediaTimingReviewDecision,
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
@@ -13,6 +14,8 @@ import type { SpeechWaveformOptions } from '../../core/services/media-timing-wav
 
 const INITIAL_TIMELINE_MARGIN_SECONDS = 2;
 const REVIEW_DECISION_TIMEOUT_MS = 5 * 60_000;
+const CONTEXT_LINE_LIMIT = 12;
+const CONTEXT_LINE_EPSILON_SECONDS = 0.05;
 
 interface ReviewMpvClient {
   connected: boolean;
@@ -50,6 +53,10 @@ export interface MediaTimingReviewRuntimeDeps {
   getMpvExecutablePath: () => string;
   createPreviewSession: () => PreviewSession;
   generateWaveform: (options: SpeechWaveformOptions) => Promise<number[]>;
+  getSubtitleContextLines?: (range: { startTime: number; endTime: number }) => {
+    previous: MediaTimingReviewContextLine[];
+    next: MediaTimingReviewContextLine[];
+  };
   decisionTimeoutMs?: number;
   openModal: (payload: MediaTimingReviewOpenPayload) => Promise<boolean>;
   showStatus: (message: string) => void;
@@ -64,6 +71,57 @@ function booleanProperty(value: unknown): boolean | null {
   if (value === 'yes' || value === 1) return true;
   if (value === 'no' || value === 0) return false;
   return null;
+}
+
+/**
+ * Picks the subtitle lines adjacent to the mined range that the review modal can pull
+ * onto the card. Parsed cues cover both directions; when none are loaded (e.g. the
+ * active track was never parsed) the timing tracker's history still provides the
+ * lines that already played, so only "next" is unavailable.
+ */
+export function collectMediaTimingContextLines(options: {
+  cues: readonly { text: string; startTime: number; endTime: number }[];
+  fallbackPrevious?: readonly { displayText: string; startTime: number; endTime: number }[];
+  startTime: number;
+  endTime: number;
+}): { previous: MediaTimingReviewContextLine[]; next: MediaTimingReviewContextLine[] } {
+  const usable = options.cues
+    .filter(
+      (cue) =>
+        cue.text.trim().length > 0 &&
+        Number.isFinite(cue.startTime) &&
+        Number.isFinite(cue.endTime) &&
+        cue.endTime > cue.startTime,
+    )
+    .sort((a, b) => a.startTime - b.startTime || a.endTime - b.endTime);
+
+  let previous = usable
+    .filter((cue) => cue.endTime <= options.startTime + CONTEXT_LINE_EPSILON_SECONDS)
+    .slice(-CONTEXT_LINE_LIMIT)
+    .map(({ text, startTime, endTime }) => ({ text: text.trim(), startTime, endTime }));
+  const next = usable
+    .filter((cue) => cue.startTime >= options.endTime - CONTEXT_LINE_EPSILON_SECONDS)
+    .slice(0, CONTEXT_LINE_LIMIT)
+    .map(({ text, startTime, endTime }) => ({ text: text.trim(), startTime, endTime }));
+
+  if (previous.length === 0 && options.fallbackPrevious) {
+    previous = options.fallbackPrevious
+      .filter(
+        (entry) =>
+          entry.displayText.trim().length > 0 &&
+          Number.isFinite(entry.startTime) &&
+          Number.isFinite(entry.endTime) &&
+          entry.endTime > entry.startTime &&
+          entry.endTime <= options.startTime + CONTEXT_LINE_EPSILON_SECONDS,
+      )
+      .slice(-CONTEXT_LINE_LIMIT)
+      .map((entry) => ({
+        text: entry.displayText.trim(),
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+      }));
+  }
+  return { previous, next };
 }
 
 function isValidMediaTimingRange(
@@ -83,7 +141,14 @@ function isValidMediaTimingRange(
 
 export function buildMediaTimingReviewPayload(
   request: MediaTimingReviewRequest,
-  options: { reviewId: string; mediaDuration?: number },
+  options: {
+    reviewId: string;
+    mediaDuration?: number;
+    contextLines?: {
+      previous: MediaTimingReviewContextLine[];
+      next: MediaTimingReviewContextLine[];
+    };
+  },
 ): MediaTimingReviewOpenPayload {
   const duration = finiteNumber(options.mediaDuration);
   const maxTime = duration !== null && duration > 0 ? duration : Number.POSITIVE_INFINITY;
@@ -107,6 +172,8 @@ export function buildMediaTimingReviewPayload(
     reviewId: options.reviewId,
     kind: request.kind,
     text: request.text,
+    previousLines: options.contextLines?.previous ?? [],
+    nextLines: options.contextLines?.next ?? [],
     ...(request.noteId !== undefined ? { noteId: request.noteId } : {}),
     originalStartTime: request.startTime,
     originalEndTime: request.endTime,
@@ -151,9 +218,19 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
     pendingPauseRestore = pauseState === false ? mpvClient : null;
 
+    let contextLines: ReturnType<NonNullable<typeof deps.getSubtitleContextLines>> | undefined;
+    try {
+      contextLines = deps.getSubtitleContextLines?.({
+        startTime: request.startTime,
+        endTime: request.endTime,
+      });
+    } catch {
+      contextLines = undefined;
+    }
     const payload = buildMediaTimingReviewPayload(request, {
       reviewId: randomUUID(),
       mediaDuration: finiteNumber(durationRaw) ?? undefined,
+      ...(contextLines ? { contextLines } : {}),
     });
     const previewSession = deps.createPreviewSession();
     const preview = previewSession
@@ -310,9 +387,12 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { ok: false, message: 'This timing review is no longer active.' };
     }
     if (request.decision.action === 'confirm') {
-      const { startTime, endTime } = request.decision;
+      const { startTime, endTime, text } = request.decision;
       if (!isValidMediaTimingRange(current.payload, startTime, endTime)) {
         return { ok: false, message: 'The selected timing range is invalid.' };
+      }
+      if (text !== undefined && (typeof text !== 'string' || text.trim().length === 0)) {
+        return { ok: false, message: 'The combined sentence text is invalid.' };
       }
     }
     current.resolve(request.decision);

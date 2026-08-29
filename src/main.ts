@@ -467,7 +467,10 @@ import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { MediaTimingPreviewSession } from './core/services/media-timing-preview';
 import { generateSpeechWaveform } from './core/services/media-timing-waveform';
-import { createMediaTimingReviewRuntime } from './main/runtime/media-timing-review';
+import {
+  collectMediaTimingContextLines,
+  createMediaTimingReviewRuntime,
+} from './main/runtime/media-timing-review';
 import { openMediaTimingReviewModal } from './main/runtime/media-timing-review-open';
 import { openYoutubeTrackPicker } from './main/runtime/youtube-picker-open';
 import { openRuntimeOptionsModal as openRuntimeOptionsModalRuntime } from './main/runtime/runtime-options-open';
@@ -2897,6 +2900,13 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
     configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
   createPreviewSession: () => new MediaTimingPreviewSession(),
   generateWaveform: (options) => generateSpeechWaveform(options),
+  getSubtitleContextLines: (range) =>
+    collectMediaTimingContextLines({
+      cues: appState.activeParsedSubtitleCues,
+      fallbackPrevious: appState.subtitleTimingTracker?.getRecentEntries(40) ?? [],
+      startTime: range.startTime,
+      endTime: range.endTime,
+    }),
   openModal: (payload) => openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload),
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),

@@ -485,9 +485,11 @@ export class CardCreationService {
         }
         const skipMedia = timingDecision.action === 'skip-media';
         const exactReviewedRange = timingDecision.action === 'confirm';
+        let sentenceText = mpvClient.currentSubText;
         if (timingDecision.action === 'confirm') {
           startTime = timingDecision.startTime;
           endTime = timingDecision.endTime;
+          sentenceText = timingDecision.text?.trim() || sentenceText;
         }
 
         const updatedFields: Record<string, string> = {};
@@ -499,7 +501,7 @@ export class CardCreationService {
         const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
         const sentenceField = sentenceCardConfig.sentenceField;
         if (sentenceField) {
-          const processedSentence = this.deps.processSentence(mpvClient.currentSubText, fields);
+          const processedSentence = this.deps.processSentence(sentenceText, fields);
           updatedFields[sentenceField] = processedSentence;
         }
 
@@ -624,6 +626,7 @@ export class CardCreationService {
         if (timingDecision.action === 'confirm') {
           startTime = timingDecision.startTime;
           endTime = timingDecision.endTime;
+          sentence = timingDecision.text?.trim() || sentence;
         }
 
         const config = this.deps.getConfig();

@@ -23,8 +23,16 @@ export interface MediaTimingReviewRequest {
   maxMediaDuration: number;
 }
 
+/** A subtitle line adjacent to the mined one that the review can pull onto the card. */
+export interface MediaTimingReviewContextLine {
+  text: string;
+  startTime: number;
+  endTime: number;
+}
+
 export type MediaTimingReviewDecision =
-  | { action: 'confirm'; startTime: number; endTime: number }
+  /** `text` is set when the review combined adjacent lines into the card sentence. */
+  | { action: 'confirm'; startTime: number; endTime: number; text?: string }
   | { action: 'use-original' }
   | { action: 'skip-media' }
   | { action: 'discard' };
@@ -33,6 +41,9 @@ export interface MediaTimingReviewOpenPayload {
   reviewId: string;
   kind: MediaTimingReviewKind;
   text: string;
+  /** Lines before/after the mined one, both chronological: nearest previous line is last, nearest next line is first. */
+  previousLines: MediaTimingReviewContextLine[];
+  nextLines: MediaTimingReviewContextLine[];
   noteId?: number;
   originalStartTime: number;
   originalEndTime: number;

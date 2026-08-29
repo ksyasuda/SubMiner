@@ -1420,11 +1420,82 @@ body:focus-visible,
   padding: 14px 20px 18px;
 }
 
+.media-timing-review-sentence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.media-timing-review-sentence-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.media-timing-review-sentence-label {
+  color: var(--ctp-overlay1);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.media-timing-review-line-count {
+  padding: 2px 8px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 999px;
+  background: var(--ctp-mantle);
+  color: var(--ctp-subtext0);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.media-timing-review-line-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.media-timing-review-line-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.media-timing-review-line-stepper span {
+  margin-right: 2px;
+  color: var(--ctp-overlay1);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.media-timing-review-line-stepper button {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--ctp-surface2);
+  border-radius: 6px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .media-timing-review-text {
-  max-height: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 108px;
   overflow: auto;
   margin: 0 0 12px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   border-left: 3px solid var(--ctp-mauve);
   border-radius: 0 10px 10px 0;
   background: var(--ctp-mantle);
@@ -1433,6 +1504,19 @@ body:focus-visible,
   font-weight: 560;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.media-timing-review-line {
+  color: var(--ctp-overlay1);
+}
+
+.media-timing-review-line.is-current {
+  color: var(--ctp-text);
+}
+
+/* Only dim context lines when some are actually added. */
+.media-timing-review-text .media-timing-review-line:only-child {
+  color: var(--ctp-subtext1);
 }
 
 .media-timing-review-readout {
@@ -1521,7 +1605,7 @@ body:focus-visible,
   --playhead-duration: 1s;
 
   position: relative;
-  height: 76px;
+  height: 52px;
   margin: 8px 0 9px;
   overflow: hidden;
   border: 1px solid var(--ctp-surface2);
@@ -1544,9 +1628,9 @@ body:focus-visible,
 .media-timing-review-waveform {
   position: absolute;
   z-index: 1;
-  inset: 6px 0;
+  inset: 4px 0;
   width: 100%;
-  height: calc(100% - 12px);
+  height: calc(100% - 8px);
   pointer-events: none;
   transition: opacity 160ms ease;
 }

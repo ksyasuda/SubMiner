@@ -221,6 +221,7 @@ export class NoteUpdateWorkflow {
       let mediaTimingContext =
         subtitleMiningContext ?? this.deps.captureSubtitleMediaContext?.() ?? null;
       let skipMedia = false;
+      let reviewedSentenceText: string | undefined;
       const noteLabel = hasExpressionText ? expressionText : noteId;
 
       if (mediaTimingContext) {
@@ -247,8 +248,10 @@ export class NoteUpdateWorkflow {
           return;
         }
         if (timingDecision.action === 'confirm') {
+          reviewedSentenceText = timingDecision.text?.trim() || undefined;
           mediaTimingContext = {
             ...mediaTimingContext,
+            ...(reviewedSentenceText !== undefined ? { text: reviewedSentenceText } : {}),
             startTime: timingDecision.startTime,
             endTime: timingDecision.endTime,
             mediaPaddingSeconds: 0,
@@ -260,7 +263,8 @@ export class NoteUpdateWorkflow {
 
       this.deps.appendKnownWordsFromNoteInfo(noteInfo);
 
-      const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
+      const currentSubtitleText =
+        reviewedSentenceText ?? subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;

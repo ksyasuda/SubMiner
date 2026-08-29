@@ -1,4 +1,8 @@
-import type { MediaTimingReviewDecision, MediaTimingReviewOpenPayload } from '../../types/anki';
+import type {
+  MediaTimingReviewContextLine,
+  MediaTimingReviewDecision,
+  MediaTimingReviewOpenPayload,
+} from '../../types/anki';
 import type { ModalStateReader, RendererContext } from '../context';
 import { createModalFocusGuard } from './modal-focus-guard';
 
@@ -6,6 +10,7 @@ const MINIMUM_CLIP_SECONDS = 0.1;
 const FINE_ADJUST_SECONDS = 0.1;
 const COARSE_ADJUST_SECONDS = 0.5;
 const TIMELINE_EXPANSION_SECONDS = 2;
+const LINE_REVEAL_MARGIN_SECONDS = 1;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -21,6 +26,43 @@ export function formatMediaTimingTimestamp(seconds: number, includeMilliseconds 
     ? (remainingUnits / unitsPerSecond).toFixed(3)
     : String(remainingUnits);
   return `${String(minutes).padStart(2, '0')}:${remaining.padStart(includeMilliseconds ? 6 : 2, '0')}`;
+}
+
+/**
+ * Resolves which subtitle lines the card sentence currently includes. The counts say
+ * how many adjacent lines were pulled in on each side; the range covers those lines'
+ * subtitle timings so the clip edges can follow them.
+ */
+export function buildMediaTimingLineSelection(options: {
+  previousLines: MediaTimingReviewContextLine[];
+  nextLines: MediaTimingReviewContextLine[];
+  text: string;
+  originalStartTime: number;
+  originalEndTime: number;
+  previousCount: number;
+  nextCount: number;
+}): {
+  lineTexts: string[];
+  currentLineIndex: number;
+  sentence: string;
+  rangeStart: number;
+  rangeEnd: number;
+} {
+  const previous =
+    options.previousCount > 0 ? options.previousLines.slice(-options.previousCount) : [];
+  const next = options.nextCount > 0 ? options.nextLines.slice(0, options.nextCount) : [];
+  const lineTexts = [
+    ...previous.map((line) => line.text),
+    options.text,
+    ...next.map((line) => line.text),
+  ];
+  return {
+    lineTexts,
+    currentLineIndex: previous.length,
+    sentence: lineTexts.join(' '),
+    rangeStart: previous[0]?.startTime ?? options.originalStartTime,
+    rangeEnd: next[next.length - 1]?.endTime ?? options.originalEndTime,
+  };
 }
 
 export function createMediaTimingPreviewRequestGuard() {
@@ -128,6 +170,10 @@ export function createMediaTimingReviewModal(
   let selectionEnd = 0;
   let timelineStart = 0;
   let timelineEnd = 0;
+  let previousCount = 0;
+  let nextCount = 0;
+  let startPadSeconds = 0;
+  let endPadSeconds = 0;
   let resolveInFlight = false;
   let previewPlaying = false;
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
@@ -302,6 +348,86 @@ export function createMediaTimingReviewModal(
       waveformTimer = null;
       void loadWaveform();
     }, delayMs);
+  }
+
+  function currentLineSelection(): ReturnType<typeof buildMediaTimingLineSelection> {
+    return buildMediaTimingLineSelection({
+      previousLines: payload?.previousLines ?? [],
+      nextLines: payload?.nextLines ?? [],
+      text: payload?.text ?? '',
+      originalStartTime: payload?.originalStartTime ?? 0,
+      originalEndTime: payload?.originalEndTime ?? 0,
+      previousCount,
+      nextCount,
+    });
+  }
+
+  function renderSentence(): void {
+    if (!payload) return;
+    const selection = currentLineSelection();
+    ctx.dom.mediaTimingReviewText.replaceChildren(
+      ...selection.lineTexts.map((text, index) => {
+        const line = document.createElement('span');
+        line.className =
+          index === selection.currentLineIndex
+            ? 'media-timing-review-line is-current'
+            : 'media-timing-review-line';
+        line.textContent = text;
+        return line;
+      }),
+    );
+    const total = selection.lineTexts.length;
+    ctx.dom.mediaTimingReviewLineCount.textContent = total === 1 ? '1 line' : `${total} lines`;
+    const hasContext = payload.previousLines.length > 0 || payload.nextLines.length > 0;
+    ctx.dom.mediaTimingReviewLineControls.classList.toggle('hidden', !hasContext);
+    ctx.dom.mediaTimingReviewPrevAdd.disabled = previousCount >= payload.previousLines.length;
+    ctx.dom.mediaTimingReviewPrevRemove.disabled = previousCount <= 0;
+    ctx.dom.mediaTimingReviewNextAdd.disabled = nextCount >= payload.nextLines.length;
+    ctx.dom.mediaTimingReviewNextRemove.disabled = nextCount <= 0;
+  }
+
+  /**
+   * Adds or removes an adjacent subtitle line from the card sentence, then follows the
+   * affected clip edge to the new outermost line while keeping the user's other edge.
+   */
+  function adjustLines(direction: 'previous' | 'next', delta: number): void {
+    if (!payload || resolveInFlight) return;
+    const available =
+      direction === 'previous' ? payload.previousLines.length : payload.nextLines.length;
+    const current = direction === 'previous' ? previousCount : nextCount;
+    const updated = clamp(current + delta, 0, available);
+    if (updated === current) return;
+    if (direction === 'previous') previousCount = updated;
+    else nextCount = updated;
+
+    const selection = currentLineSelection();
+    const mediaEnd = payload.mediaDuration ?? Number.POSITIVE_INFINITY;
+    let timelineChanged = false;
+    let capped = false;
+    if (direction === 'previous') {
+      const target = Math.max(0, selection.rangeStart - startPadSeconds);
+      if (target < timelineStart) {
+        timelineStart = Math.max(0, target - LINE_REVEAL_MARGIN_SECONDS);
+        timelineChanged = true;
+      }
+      updateSelection(target, selectionEnd);
+      capped = selectionStart > target + 0.001;
+    } else {
+      const target = Math.min(mediaEnd, selection.rangeEnd + endPadSeconds);
+      if (target > timelineEnd) {
+        timelineEnd = Math.min(mediaEnd, target + LINE_REVEAL_MARGIN_SECONDS);
+        timelineChanged = true;
+      }
+      updateSelection(selectionStart, target);
+      capped = selectionEnd < target - 0.001;
+    }
+    renderSentence();
+    if (capped && payload.maxMediaDuration > 0) {
+      setStatus(
+        `Clip length is capped at ${payload.maxMediaDuration}s, so the audio cannot cover every added line.`,
+      );
+    }
+    if (timelineChanged) queueWaveformLoad(120);
   }
 
   function updateSelection(nextStart: number, nextEnd: number): void {
@@ -507,7 +633,19 @@ export function createMediaTimingReviewModal(
         button.disabled = false;
       });
       renderSelection();
+      renderSentence();
     }
+  }
+
+  function confirmSelection(): void {
+    if (!payload) return;
+    const includesAdjacentLines = previousCount > 0 || nextCount > 0;
+    void resolveReview({
+      action: 'confirm',
+      startTime: selectionStart,
+      endTime: selectionEnd,
+      ...(includesAdjacentLines ? { text: currentLineSelection().sentence } : {}),
+    });
   }
 
   async function togglePreview(): Promise<void> {
@@ -554,11 +692,19 @@ export function createMediaTimingReviewModal(
   function openMediaTimingReviewModal(nextPayload: MediaTimingReviewOpenPayload): void {
     previewRequest.invalidate();
     cancelDrag();
-    payload = nextPayload;
+    payload = {
+      ...nextPayload,
+      previousLines: nextPayload.previousLines ?? [],
+      nextLines: nextPayload.nextLines ?? [],
+    };
     selectionStart = nextPayload.selectionStartTime;
     selectionEnd = nextPayload.selectionEndTime;
     timelineStart = nextPayload.timelineStartTime;
     timelineEnd = nextPayload.timelineEndTime;
+    previousCount = 0;
+    nextCount = 0;
+    startPadSeconds = Math.max(0, nextPayload.originalStartTime - nextPayload.selectionStartTime);
+    endPadSeconds = Math.max(0, nextPayload.selectionEndTime - nextPayload.originalEndTime);
     resolveInFlight = false;
     setPreviewPlaying(false);
     ctx.dom.mediaTimingReviewKind.textContent =
@@ -568,12 +714,12 @@ export function createMediaTimingReviewModal(
           ? 'Audio card'
           : 'Sentence card';
     ctx.dom.mediaTimingReviewKind.dataset.kind = nextPayload.kind;
-    ctx.dom.mediaTimingReviewText.textContent = nextPayload.text;
     ctx.dom.mediaTimingReviewDiscard.textContent =
       nextPayload.noteId !== undefined ? 'Delete card' : "Don't create card";
     setStatus('');
     showEditor();
     renderSelection();
+    renderSentence();
     ctx.state.mediaTimingReviewModalOpen = true;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.overlay.classList.add('interactive');
@@ -625,7 +771,21 @@ export function createMediaTimingReviewModal(
       !(event.target instanceof Element && event.target.closest('button'))
     ) {
       event.preventDefault();
-      void resolveReview({ action: 'confirm', startTime: selectionStart, endTime: selectionEnd });
+      confirmSelection();
+      return true;
+    }
+    if (
+      (event.key === 'p' || event.key === 'P' || event.key === 'n' || event.key === 'N') &&
+      ctx.dom.mediaTimingReviewCancelStep.classList.contains('hidden') &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      event.preventDefault();
+      adjustLines(
+        event.key === 'p' || event.key === 'P' ? 'previous' : 'next',
+        event.shiftKey ? -1 : 1,
+      );
       return true;
     }
     return false;
@@ -662,8 +822,17 @@ export function createMediaTimingReviewModal(
     ctx.dom.mediaTimingReviewPlay.addEventListener('click', () => void togglePreview());
     ctx.dom.mediaTimingReviewReset.addEventListener('click', () => {
       if (!payload) return;
+      previousCount = 0;
+      nextCount = 0;
       updateSelection(payload.selectionStartTime, payload.selectionEndTime);
+      renderSentence();
     });
+    ctx.dom.mediaTimingReviewPrevAdd.addEventListener('click', () => adjustLines('previous', 1));
+    ctx.dom.mediaTimingReviewPrevRemove.addEventListener('click', () =>
+      adjustLines('previous', -1),
+    );
+    ctx.dom.mediaTimingReviewNextAdd.addEventListener('click', () => adjustLines('next', 1));
+    ctx.dom.mediaTimingReviewNextRemove.addEventListener('click', () => adjustLines('next', -1));
     ctx.dom.mediaTimingReviewCancel.addEventListener('click', requestCancel);
     ctx.dom.mediaTimingReviewCancelBack.addEventListener('click', showEditor);
     ctx.dom.mediaTimingReviewUseOriginal.addEventListener(
@@ -678,11 +847,7 @@ export function createMediaTimingReviewModal(
       'click',
       () => void resolveReview({ action: 'discard' }),
     );
-    ctx.dom.mediaTimingReviewConfirm.addEventListener(
-      'click',
-      () =>
-        void resolveReview({ action: 'confirm', startTime: selectionStart, endTime: selectionEnd }),
-    );
+    ctx.dom.mediaTimingReviewConfirm.addEventListener('click', () => confirmSelection());
   }
 
   return {

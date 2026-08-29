@@ -224,6 +224,57 @@
           </div>
 
           <div id="mediaTimingReviewEditor" class="media-timing-review-editor">
+            <div class="media-timing-review-sentence-header">
+              <div class="media-timing-review-sentence-heading">
+                <span class="media-timing-review-sentence-label">Sentence on card</span>
+                <span id="mediaTimingReviewLineCount" class="media-timing-review-line-count">
+                  1 line
+                </span>
+              </div>
+              <div
+                id="mediaTimingReviewLineControls"
+                class="media-timing-review-line-controls hidden"
+              >
+                <div class="media-timing-review-line-stepper">
+                  <span>Prev</span>
+                  <button
+                    id="mediaTimingReviewPrevRemove"
+                    type="button"
+                    aria-label="Remove the earliest added previous subtitle line from the card sentence"
+                    title="Remove the earliest previous line (Shift+P)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewPrevAdd"
+                    type="button"
+                    aria-label="Add the previous subtitle line to the card sentence"
+                    title="Add the previous line (P)"
+                  >
+                    +
+                  </button>
+                </div>
+                <div class="media-timing-review-line-stepper">
+                  <span>Next</span>
+                  <button
+                    id="mediaTimingReviewNextRemove"
+                    type="button"
+                    aria-label="Remove the latest added next subtitle line from the card sentence"
+                    title="Remove the latest next line (Shift+N)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewNextAdd"
+                    type="button"
+                    aria-label="Add the next subtitle line to the card sentence"
+                    title="Add the next line (N)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
             <blockquote id="mediaTimingReviewText" class="media-timing-review-text"></blockquote>
 
             <div class="media-timing-review-readout" aria-live="polite">
@@ -395,6 +446,7 @@
             <div class="media-timing-review-hints" aria-hidden="true">
               <span><kbd>Space</kbd> preview</span>
               <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> nudge focused edge</span>
+              <span><kbd>P</kbd>/<kbd>N</kbd> add prev/next line</span>
               <span><kbd>Enter</kbd> confirm</span>
               <span><kbd>Esc</kbd> cancel</span>
             </div>
