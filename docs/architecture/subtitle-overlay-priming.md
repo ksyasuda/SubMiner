@@ -129,6 +129,9 @@ coming and prefetching would otherwise idle for the rest of the cue.
   between ordinary, hard, or ideographic spaces appear once.
 - Simultaneous ASS lines are flattened in top-to-bottom positioned order, falling back to their
   authored source order when no usable position exists.
+- Half-size kana positioned directly above a same-timed kanji caption is treated as ASS
+  furigana. The parser omits it from published cues but retains hidden matching metadata so
+  mpv's raw live text can be reconciled without displaying or mining the reading.
 - Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
   survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
   boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that

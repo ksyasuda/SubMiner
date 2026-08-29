@@ -1442,7 +1442,7 @@ const eventsHeader = [
   'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
 ];
 
-test('parseSubtitleCues keeps a tall CC-style dialogue block publishable, not a fragment grid', () => {
+test('parseSubtitleCues keeps tall CC-style base dialogue publishable after removing furigana', () => {
   const content = [
     ...eventsHeader,
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(212,383)\\fscx50\\fscy50}たき',
@@ -1451,9 +1451,94 @@ test('parseSubtitleCues keeps a tall CC-style dialogue block publishable, not a 
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(192,497)}お前…{\\fscx50}　{\\fscx100}燈をバンドに誘ったの？',
   ].join('\n');
 
-  const cue = parseSubtitleCues(content, 'test.ass')[0];
-  assert.equal(cue?.text, 'たき（立希）ともりお前…　燈をバンドに誘ったの？');
-  assert.equal(cue?.assLayout?.kind, 'positioned');
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['（立希）', 'お前…　燈をバンドに誘ったの？'],
+  );
+  assert.deepEqual(cues[0]?.assFurigana, ['たき']);
+  assert.deepEqual(cues[1]?.assFurigana, ['ともり']);
+  assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
+});
+
+test('parseSubtitleCues removes half-size positioned furigana from broadcast captions', () => {
+  const content = [
+    '[Script Info]',
+    'PlayResY: 540',
+    '',
+    ...eventsHeader,
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(192,77)\\fscx50}（{\\fscx100}山田{\\fscx50}）{\\fscx100}ごめん{\\fscx50}　{\\fscx100}結局{\\fscx50}　{\\fscx100}ぬれたな{\\fscx50}。',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,113)\\fscx50\\fscy50}だいじょうぶ',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,167)}大丈夫{\\fscx50}。',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,407)\\fscx50}（{\\fscx100}山田の母{\\fscx50}）{\\fscx100}ほんなら',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,443)\\fscx50\\fscy50}かく',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(312,443)\\fscx50\\fscy50}ちょぞう',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,497)}隠し貯蔵のミルクまんじゅう➡',
+    'Dialogue: 0,0:04:00.00,0:04:03.00,Default,,0,0,0,,{\\pos(232,443)\\fscx50\\fscy50}ぜったい　ちが',
+    'Dialogue: 0,0:04:00.00,0:04:03.00,Default,,0,0,0,,{\\pos(232,497)}絶対違う',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e08.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      '（山田）ごめん　結局　ぬれたな。',
+      '大丈夫。',
+      '（山田の母）ほんなら',
+      '隠し貯蔵のミルクまんじゅう➡',
+      '絶対違う',
+    ],
+  );
+  assert.deepEqual(cues[1]?.assFurigana, ['だいじょうぶ']);
+  assert.deepEqual(cues[3]?.assFurigana, ['かく', 'ちょぞう']);
+  assert.deepEqual(cues[4]?.assFurigana, ['ぜったい　ちが']);
+});
+
+test('parseSubtitleCues scales furigana geometry by PlayResY', () => {
+  const content = [
+    '[Script Info]',
+    'PlayResY: 1080',
+    '',
+    ...eventsHeader,
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(1104,226)\\fscx50\\fscy50}だいじょうぶ',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(1104,334)}大丈夫{\\fscx50}。',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['大丈夫。'],
+  );
+  assert.deepEqual(cues[0]?.assFurigana, ['だいじょうぶ']);
+});
+
+test('parseSubtitleCues preserves small kana without a matching kanji base caption', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,200)\\fscx50\\fscy50}ひそひそ',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,254)}ordinary dialogue',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['ひそひそ', 'ordinary dialogue'],
+  );
+});
+
+test('parseSubtitleCues preserves small kana horizontally separated from a kanji caption', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(800,200)\\fscx50\\fscy50}ひそひそ',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,254)}漢字',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.match(cues.map((cue) => cue.text).join('\n'), /ひそひそ/);
+  assert.deepEqual(
+    cues.flatMap((cue) => cue.assFurigana ?? []),
+    [],
+  );
 });
 
 test('parseSubtitleCues marks re-shown countdown frames as a fragment grid', () => {
