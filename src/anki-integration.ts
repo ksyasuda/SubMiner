@@ -1237,11 +1237,11 @@ export class AnkiIntegration {
   }
 
   private endUpdateProgress(): void {
+    if (this.overlayUpdateProgressActive) {
+      this.overlayUpdateProgressActive = false;
+      this.overlayNotificationDismissCallback?.('anki-update-progress');
+    }
     if (!this.shouldUseOsdNotifications()) {
-      if (this.overlayUpdateProgressActive) {
-        this.overlayUpdateProgressActive = false;
-        this.overlayNotificationDismissCallback?.('anki-update-progress');
-      }
       return;
     }
     endUpdateProgress(this.uiFeedbackState, (timer) => {

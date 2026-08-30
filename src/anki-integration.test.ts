@@ -1262,6 +1262,41 @@ test('AnkiIntegration dismisses persistent overlay update progress when no termi
   assert.deepEqual(dismissedIds, ['anki-update-progress']);
 });
 
+test('AnkiIntegration dismisses overlay update progress after notifications switch to OSD', () => {
+  const behavior: NonNullable<AnkiConnectConfig['behavior']> = {
+    notificationType: 'overlay',
+  };
+  const dismissedIds: string[] = [];
+  const integration = new AnkiIntegration(
+    { behavior },
+    {} as never,
+    {} as never,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {},
+    undefined,
+    () => {},
+    undefined,
+    undefined,
+    undefined,
+    (id) => {
+      dismissedIds.push(id);
+    },
+  );
+  const updateNotifications = integration as unknown as {
+    beginUpdateProgress: (message: string) => void;
+    endUpdateProgress: () => void;
+  };
+
+  updateNotifications.beginUpdateProgress('Updating card');
+  behavior.notificationType = 'osd';
+  updateNotifications.endUpdateProgress();
+
+  assert.deepEqual(dismissedIds, ['anki-update-progress']);
+});
+
 test('AnkiIntegration keeps overlay notification image when temp icon write fails', async () => {
   const desktopNotifications: Array<{ title: string; body?: string; icon?: string }> = [];
   const overlayNotifications: TestOverlayNotificationPayload[] = [];

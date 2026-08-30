@@ -59,7 +59,11 @@ function createDefaultSocketPath(): string {
   const suffix = `${process.pid}-${randomUUID()}`;
   return process.platform === 'win32'
     ? `\\\\.\\pipe\\subminer-timing-preview-${suffix}`
-    : path.join(os.tmpdir(), `subminer-timing-preview-${suffix}.sock`);
+    : path.join(
+        // macOS limits Unix socket paths to 104 bytes, while its temp directory can be long.
+        process.platform === 'darwin' ? '/tmp' : os.tmpdir(),
+        `subminer-timing-preview-${suffix}.sock`,
+      );
 }
 
 function removePosixSocketFile(socketPath: string): void {

@@ -288,7 +288,9 @@ function parseMediaTimingReviewResolveRequest(
     typeof decisionRecord.startTime === 'number' &&
     Number.isFinite(decisionRecord.startTime) &&
     typeof decisionRecord.endTime === 'number' &&
-    Number.isFinite(decisionRecord.endTime)
+    Number.isFinite(decisionRecord.endTime) &&
+    (decisionRecord.text === undefined ||
+      (typeof decisionRecord.text === 'string' && decisionRecord.text.trim().length > 0))
   ) {
     return {
       reviewId: record.reviewId,
@@ -296,6 +298,7 @@ function parseMediaTimingReviewResolveRequest(
         action: 'confirm',
         startTime: decisionRecord.startTime,
         endTime: decisionRecord.endTime,
+        ...(decisionRecord.text === undefined ? {} : { text: decisionRecord.text }),
       },
     };
   }
