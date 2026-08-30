@@ -203,6 +203,7 @@ test('manual clipboard word-card update uses configured fields with Lapis and Ki
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     getEffectiveSentenceCardConfig: () => ({
       model: 'Sentence',
@@ -270,6 +271,7 @@ test('audio-card action keeps Lapis and Kiku sentence fields', async () => {
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     getEffectiveSentenceCardConfig: () => ({
       model: 'Sentence',
