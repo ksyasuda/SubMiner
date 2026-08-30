@@ -246,12 +246,11 @@ export function createMediaTimingReviewModal(
     const span = Math.max(MINIMUM_CLIP_SECONDS, timelineEnd - timelineStart);
     const startPercent = ((selectionStart - timelineStart) / span) * 100;
     const endPercent = ((selectionEnd - timelineStart) / span) * 100;
+    const lineRange = currentLineSelection();
     const originalStartPercent = payload
-      ? ((payload.originalStartTime - timelineStart) / span) * 100
+      ? ((lineRange.rangeStart - timelineStart) / span) * 100
       : 0;
-    const originalEndPercent = payload
-      ? ((payload.originalEndTime - timelineStart) / span) * 100
-      : 0;
+    const originalEndPercent = payload ? ((lineRange.rangeEnd - timelineStart) / span) * 100 : 0;
     ctx.dom.mediaTimingReviewSelectionTrack.style.setProperty(
       '--selection-start',
       `${clamp(startPercent, 0, 100)}%`,
