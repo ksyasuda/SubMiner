@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.19.5 (2026-08-30)
+
+### Fixed
+
+- **Anki Card Update Progress**: The card-update spinner now stays visible until audio and image updates finish, instead of disappearing early.
+- **Anki Word-Card Fields**: Word-card enrichment now writes sentence text and audio to the fields configured in AnkiConnect, while the dedicated sentence-card and audio-card actions keep their existing compatible field names.
+- **Overlapping Subtitles**:
+  - Subtitle lines that start while another line is still on screen now appear alongside it, instead of staying hidden until a track switch or seek.
+  - Subtitles shown at the same time now stack by their authored screen position, with top signs and song lines above bottom dialogue.
+  - Half-size ASS furigana is no longer shown as if it were a dialogue line.
+- **YouTube Auto Captions**:
+  - Auto-generated captions now follow their intended timing and two-row roll-up layout.
+  - Long speech is paged instead of covering the video with a wall of text.
+  - Explicitly timed sound cues like `[音楽]` no longer cover later dialogue.
+
 ## v0.19.4 (2026-08-25)
 
 ### Added
