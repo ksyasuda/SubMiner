@@ -54,7 +54,7 @@ From then on, pause / resume / seek / stop and audio or subtitle track changes y
 - **Resume works.** If Jellyfin has a saved position for the item, SubMiner seeks there on load.
 - **Direct play first.** When the source allows it and the container is in your direct-play allowlist, SubMiner streams the original file; otherwise it requests a transcoded stream from Jellyfin.
 - **Japanese subtitles are auto-selected,** preferring Jellyfin's default and embedded tracks over external sidecar files when several match.
-- **Subtitle timing is corrected when possible.** SubMiner removes Jellyfin's server-selected subtitle stream from the mpv load URL, suppresses the mpv plugin's one-shot subtitle auto-selection and overlay auto-start for managed Jellyfin loads, stages downloaded subtitle tracks without letting mpv auto-switch between tracks, then selects the Japanese track once after applying any saved or inferred timing delay. When Jellyfin provides both Japanese and English subtitle files, SubMiner compares their cue timelines and applies a global delay if one track is clearly offset. Manual delay shifts you make with SubMiner's adjacent-cue controls are saved per item and subtitle track, then restored the next time you select that track.
+- **Downloaded subtitles keep their original timing.** SubMiner removes Jellyfin's server-selected subtitle stream from the mpv load URL, suppresses the mpv plugin's one-shot subtitle auto-selection and overlay auto-start for managed Jellyfin loads, stages the subtitle files exposed by Jellyfin without letting mpv auto-switch between tracks, resets mpv's subtitle delay to zero, then selects the Japanese track. SubMiner does not compare Japanese and English cue timelines or save an inferred delay.
 
 ## Settings
 
