@@ -39,7 +39,7 @@ export interface NoteUpdateWorkflowDeps {
     sentenceField: string;
     lapisEnabled: boolean;
     kikuEnabled: boolean;
-    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
     wordCardKind?: WordCardKind;
   };
   appendKnownWordsFromNoteInfo: (noteInfo: NoteUpdateWorkflowNoteInfo) => void;
@@ -160,7 +160,7 @@ export class NoteUpdateWorkflow {
     return null;
   }
 
-  async execute(noteId: number, options?: { skipKikuFieldGrouping?: boolean }): Promise<void> {
+  async execute(noteId: number, options?: { skipFieldGrouping?: boolean }): Promise<void> {
     this.deps.beginUpdateProgress('Updating card');
     try {
       const notesInfoResult = await this.deps.client.notesInfo([noteId]);
@@ -187,9 +187,7 @@ export class NoteUpdateWorkflow {
 
       const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
       const shouldRunFieldGrouping =
-        !options?.skipKikuFieldGrouping &&
-        sentenceCardConfig.kikuEnabled &&
-        sentenceCardConfig.kikuFieldGrouping !== 'disabled';
+        !options?.skipFieldGrouping && sentenceCardConfig.fieldGroupingMode !== 'disabled';
       let duplicateNoteId: number | null = null;
       if (shouldRunFieldGrouping && hasExpressionText) {
         duplicateNoteId = await this.deps.findDuplicateNote(expressionText, noteId, noteInfo);
@@ -345,7 +343,7 @@ export class NoteUpdateWorkflow {
           noteInfoForGrouping = refreshedInfo[0]!;
         }
 
-        if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
+        if (sentenceCardConfig.fieldGroupingMode === 'auto') {
           await this.deps.handleFieldGroupingAuto(
             duplicateNoteId,
             noteId,
@@ -354,7 +352,7 @@ export class NoteUpdateWorkflow {
           );
           return;
         }
-        if (sentenceCardConfig.kikuFieldGrouping === 'manual') {
+        if (sentenceCardConfig.fieldGroupingMode === 'manual') {
           await this.deps.handleFieldGroupingManual(
             duplicateNoteId,
             noteId,

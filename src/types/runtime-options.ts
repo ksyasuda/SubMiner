@@ -6,6 +6,7 @@ export type RuntimeOptionId =
   | 'subtitle.annotation.jlpt'
   | 'subtitle.annotation.frequency'
   | 'anki.kikuFieldGrouping'
+  | 'anki.senrenFieldGrouping'
   | 'anki.nPlusOneMatchMode';
 
 export type RuntimeOptionScope = 'ankiConnect' | 'subtitle';

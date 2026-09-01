@@ -124,5 +124,22 @@ export function buildRuntimeOptionRegistry(
         },
       }),
     },
+    {
+      id: 'anki.senrenFieldGrouping',
+      path: 'ankiConnect.isSenren.fieldGrouping',
+      label: 'Senren Field Grouping',
+      scope: 'ankiConnect',
+      valueType: 'enum',
+      allowedValues: ['auto', 'manual', 'disabled'],
+      defaultValue: 'auto',
+      requiresRestart: false,
+      formatValueForOsd: (value) => String(value),
+      toAnkiPatch: (value) => ({
+        isSenren: {
+          fieldGrouping:
+            value === 'auto' || value === 'manual' || value === 'disabled' ? value : 'auto',
+        },
+      }),
+    },
   ];
 }

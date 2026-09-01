@@ -153,6 +153,7 @@ function createFieldGroupingMergeCollaborator(options?: {
     getEffectiveSentenceCardConfig: () => ({
       sentenceField: 'Sentence',
       audioField: 'SentenceAudio',
+      fieldGroupingProvider: 'kiku' as const,
     }),
     getCurrentSubtitleText: () => options?.currentSubtitleText,
     resolveFieldName,

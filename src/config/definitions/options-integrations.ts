@@ -364,6 +364,28 @@ export function buildIntegrationConfigOptionRegistry(
         'When Kiku field grouping is "auto", delete the duplicate source card after grouping completes.',
     },
     {
+      path: 'ankiConnect.isSenren.fieldGrouping',
+      kind: 'enum',
+      enumValues: ['auto', 'manual', 'disabled'],
+      defaultValue: defaultConfig.ankiConnect.isSenren.fieldGrouping,
+      description: 'Senren duplicate-card field grouping mode (scene switching).',
+      runtime: runtimeOptionById.get('anki.senrenFieldGrouping'),
+    },
+    {
+      path: 'ankiConnect.isSenren.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.isSenren.enabled,
+      description:
+        'Enable Senren-specific duplicate handling (scene-switching field grouping, including miscInfo grouping). Mutually exclusive with isKiku.enabled.',
+    },
+    {
+      path: 'ankiConnect.isSenren.deleteDuplicateInAuto',
+      kind: 'boolean',
+      defaultValue: defaultConfig.ankiConnect.isSenren.deleteDuplicateInAuto,
+      description:
+        'When Senren field grouping is "auto", delete the duplicate source card after grouping completes.',
+    },
+    {
       path: 'ankiConnect.isLapis.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.ankiConnect.isLapis.enabled,
