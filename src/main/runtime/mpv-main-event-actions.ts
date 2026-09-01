@@ -4,7 +4,10 @@ type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
 };
 
-const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
+type TimePosUpdateKind = 'initial' | 'playback' | 'seek';
+
+/** Jump size that marks a time-pos change as a seek rather than normal playback. */
+export const SEEK_LIKE_TIME_DELTA_SECONDS = 2.5;
 
 function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): boolean {
   if (previousTime === null || !Number.isFinite(previousTime) || !Number.isFinite(nextTime)) {
@@ -14,6 +17,7 @@ function isSeekLikeTimeChange(previousTime: number | null, nextTime: number): bo
 }
 
 export function createHandleMpvSubtitleChangeHandler(deps: {
+  resolveSubtitleText?: (text: string) => string;
   setCurrentSubText: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
@@ -22,7 +26,8 @@ export function createHandleMpvSubtitleChangeHandler(deps: {
   refreshDiscordPresence: () => void;
   logDebug?: (message: string) => void;
 }) {
-  return ({ text }: { text: string }): void => {
+  return ({ text: liveText }: { text: string }): void => {
+    const text = deps.resolveSubtitleText?.(liveText) ?? liveText;
     deps.setCurrentSubText(text);
     const immediatePayload = deps.getImmediateSubtitlePayload?.(text) ?? null;
     if (immediatePayload) {
@@ -135,12 +140,20 @@ export function createHandleMpvTimePosChangeHandler(deps: {
   refreshDiscordPresence: () => void;
   maybeRunAnilistPostWatchUpdate?: (options?: AnilistPostWatchRunOptions) => Promise<void>;
   logError?: (message: string, error: unknown) => void;
-  onTimePosUpdate?: (time: number) => void;
+  onTimePosUpdate?: (time: number, kind: TimePosUpdateKind) => void;
+  consumeExplicitSeek?: () => boolean;
 }) {
   let lastObservedTime: number | null = null;
 
   return ({ time }: { time: number }): void => {
-    const forceImmediate = isSeekLikeTimeChange(lastObservedTime, time);
+    const explicitSeek = deps.consumeExplicitSeek?.() ?? false;
+    const updateKind: TimePosUpdateKind =
+      lastObservedTime === null
+        ? 'initial'
+        : explicitSeek || isSeekLikeTimeChange(lastObservedTime, time)
+          ? 'seek'
+          : 'playback';
+    const forceImmediate = updateKind === 'seek';
     if (Number.isFinite(time)) {
       lastObservedTime = time;
     }
@@ -150,7 +163,7 @@ export function createHandleMpvTimePosChangeHandler(deps: {
     void deps.maybeRunAnilistPostWatchUpdate?.({ watchedSeconds: time }).catch((error) => {
       deps.logError?.('AniList post-watch update failed unexpectedly', error);
     });
-    deps.onTimePosUpdate?.(time);
+    deps.onTimePosUpdate?.(time, updateKind);
   };
 }
 

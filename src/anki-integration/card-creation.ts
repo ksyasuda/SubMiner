@@ -259,9 +259,16 @@ export class CardCreationService {
           fields,
           this.deps.getConfig(),
         );
-        const sentenceAudioField = this.getResolvedSentenceOnlyAudioFieldName(noteInfo);
+        const config = this.deps.getConfig();
+        const sentenceAudioField = this.deps.resolveConfiguredFieldName(
+          noteInfo,
+          config.fields?.audio ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.audio,
+        );
         const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
-        const sentenceField = sentenceCardConfig.sentenceField;
+        const sentenceField = this.deps.resolveConfiguredFieldName(
+          noteInfo,
+          config.fields?.sentence ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.sentence,
+        );
 
         const sentence = blocks.join(' ');
         const updatedFields: Record<string, string> = {};
@@ -283,7 +290,6 @@ export class CardCreationService {
           `Clipboard update: timing range ${rangeStart.toFixed(2)}s - ${rangeEnd.toFixed(2)}s`,
         );
 
-        const config = this.deps.getConfig();
         const generateAudio = shouldGenerateAudio(config);
         const generateImage = shouldGenerateImage(config);
         const mediaResolverOptions = this.getMediaResolverOptions();
@@ -456,13 +462,13 @@ export class CardCreationService {
 
         this.deps.setCardTypeFields(updatedFields, Object.keys(noteInfo.fields), 'audio');
 
-        const sentenceField = this.deps.getConfig().fields?.sentence;
+        const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
+        const sentenceField = sentenceCardConfig.sentenceField;
         if (sentenceField) {
           const processedSentence = this.deps.processSentence(mpvClient.currentSubText, fields);
           updatedFields[sentenceField] = processedSentence;
         }
 
-        const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
         const audioFieldName = sentenceCardConfig.audioField;
         try {
           const audioFilename = this.generateAudioFilename();
@@ -802,22 +808,6 @@ export class CardCreationService {
       this.deps.showUpdateResult(`Sentence card failed: ${(error as Error).message}`, false);
       return false;
     }
-  }
-
-  private getResolvedSentenceAudioFieldName(noteInfo: CardCreationNoteInfo): string | null {
-    return (
-      this.deps.resolveNoteFieldName(
-        noteInfo,
-        this.deps.getEffectiveSentenceCardConfig().audioField || 'SentenceAudio',
-      ) || this.deps.resolveConfiguredFieldName(noteInfo, this.deps.getConfig().fields?.audio)
-    );
-  }
-
-  private getResolvedSentenceOnlyAudioFieldName(noteInfo: CardCreationNoteInfo): string | null {
-    return this.deps.resolveNoteFieldName(
-      noteInfo,
-      this.deps.getEffectiveSentenceCardConfig().audioField || 'SentenceAudio',
-    );
   }
 
   private createPendingNoteInfo(fields: Record<string, string>): CardCreationNoteInfo {

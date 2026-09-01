@@ -10,6 +10,7 @@ import {
   parseExcludedWordsBody,
   parseIntQuery,
   parsePositiveIdList,
+  loadKnownWordsSet,
 } from './route-support.js';
 
 export function registerStatsLibraryRoutes(
@@ -29,6 +30,17 @@ export function registerStatsLibraryRoutes(
       .filter(Boolean);
     const vocab = await tracker.getVocabularyStats(limit, excludePos);
     return c.json(statsJson('vocabulary', vocab));
+  });
+
+  app.get('/api/stats/vocabulary/summary', async (c) => {
+    const summary = await tracker.getVocabularySummary(
+      loadKnownWordsSet(options?.knownWordCachePath),
+    );
+    return c.json(statsJson('vocabularySummary', summary));
+  });
+
+  app.get('/api/stats/vocabulary/charts', async (c) => {
+    return c.json(statsJson('vocabularyCharts', await tracker.getVocabularyChartData()));
   });
 
   app.get('/api/stats/excluded-words', async (c) => {

@@ -11,6 +11,7 @@ import {
   getFrequencyRankLabelForToken,
   getJlptLevelLabelForToken,
   normalizeSubtitle,
+  normalizeSubtitleForDisplay,
   prepareSecondarySubtitleLines,
   sanitizeSubtitleHoverTokenColor,
   shouldRenderTokenizedSubtitle,
@@ -1004,6 +1005,34 @@ test('normalizeSubtitle collapses explicit line breaks when collapseLineBreaks i
   );
 });
 
+test('normalizeSubtitleForDisplay always breaks between simultaneous cues', () => {
+  // The blank line marks two distinct cues on screen at once. Flattening it would run a
+  // sign or a second speaker into the line beside it as one sentence.
+  const twoCues =
+    '\u6b21\u306f\u9b3c\u5b50\u6bcd\u795e\u524d\u3000\u9b3c\u5b50\u6bcd\u795e\u524d\n\n\u611b\u97f3\u3061\u3083\u3093\u3000\u3082\u3046\u5199\u771f\u4e0a\u3052\u3066\u308b';
+
+  assert.equal(
+    normalizeSubtitleForDisplay(twoCues, false),
+    '\u6b21\u306f\u9b3c\u5b50\u6bcd\u795e\u524d \u9b3c\u5b50\u6bcd\u795e\u524d\n\u611b\u97f3\u3061\u3083\u3093 \u3082\u3046\u5199\u771f\u4e0a\u3052\u3066\u308b',
+  );
+  assert.equal(normalizeSubtitleForDisplay(twoCues, true), twoCues.replace('\n\n', '\n'));
+});
+
+test('normalizeSubtitleForDisplay preserves CRLF boundaries between simultaneous cues', () => {
+  assert.equal(normalizeSubtitleForDisplay('a\r\n\r\nb', false), 'a\nb');
+});
+
+test('normalizeSubtitleForDisplay still flattens a wrap inside one cue', () => {
+  // A typesetter's \\N inside a single utterance is what preserveLineBreaks governs.
+  assert.equal(
+    normalizeSubtitleForDisplay(
+      '\u5e38\u4eba\u304c\u4f7f\u3048\u3070\\N\u305d\u306e\u5727\u5012\u7684\u306a\u529b\u306b',
+      false,
+    ),
+    '\u5e38\u4eba\u304c\u4f7f\u3048\u3070 \u305d\u306e\u5727\u5012\u7684\u306a\u529b\u306b',
+  );
+});
+
 test('normalizeSubtitle leaves already-decoded text alone', () => {
   // Primary subtitle text is decoded from ASS once, upstream: by mpv for live lines and
   // by the cue parser for prefetched ones. A brace that survives that is literal text.
@@ -1424,6 +1453,26 @@ test('subtitle annotation CSS underlines JLPT tokens without changing token colo
   );
 });
 
+test('prepareSecondarySubtitleLines collapses exact short copies in stacks', () => {
+  assert.deepEqual(prepareSecondarySubtitleLines('Your\\NYour\\NYour\\NYour\\Nmosaic'), [
+    'Your',
+    'mosaic',
+  ]);
+  assert.deepEqual(prepareSecondarySubtitleLines('One line\\NAnother line'), [
+    'One line',
+    'Another line',
+  ]);
+});
+
+test('prepareSecondarySubtitleLines collapses exact short sign copies beside dialogue', () => {
+  const liveText = "And for today's sports festival...\nEntrance\nEntrance";
+
+  assert.deepEqual(prepareSecondarySubtitleLines(liveText), [
+    "And for today's sports festival...",
+    'Entrance',
+  ]);
+});
+
 test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one deduped line', () => {
   // Karaoke-typeset OP/ED: one ASS event per syllable, duplicated across layers,
   // joined with \N by mpv's secondary-sub-text.
@@ -1432,6 +1481,31 @@ test('prepareSecondarySubtitleLines collapses karaoke syllable spam into one ded
   );
 
   assert.deepEqual(prepareSecondarySubtitleLines(karaoke), ['ya This no ma ups']);
+});
+
+test('prepareSecondarySubtitleLines collapses exact repeated short lines', () => {
+  const dialogue = ['Wait', 'Wait', 'Wait'];
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), ['Wait']);
+});
+
+test('prepareSecondarySubtitleLines collapses punctuation variants of a full-sentence fallback', () => {
+  const dialogue = 'A question veiled as an insult!';
+  const positionedSign = 'A question veiled as an insult';
+
+  assert.deepEqual(prepareSecondarySubtitleLines([dialogue, positionedSign].join('\\N')), [
+    dialogue,
+  ]);
+});
+
+test('prepareSecondarySubtitleLines preserves short simultaneous dialogue without repeats', () => {
+  const dialogue = ['Wait', 'Go!', 'No!', 'Run!'];
+
+  assert.deepEqual(prepareSecondarySubtitleLines(dialogue.join('\\N')), dialogue);
+});
+
+test('prepareSecondarySubtitleLines preserves distinct short lines with internal whitespace', () => {
+  assert.deepEqual(prepareSecondarySubtitleLines('AB\\NA B'), ['AB', 'A B']);
 });
 
 test('prepareSecondarySubtitleLines keeps normal dialogue lines intact', () => {
@@ -1455,13 +1529,13 @@ test('prepareSecondarySubtitleLines strips ASS override tags and handles empty i
   assert.deepEqual(prepareSecondarySubtitleLines('{\\an8}'), []);
 });
 
-test('secondary subtitle root CSS caps height so hover-pause band stays a top strip', () => {
+test('secondary subtitle root CSS does not clip long subtitle stacks', () => {
   const srcCssPath = path.join(process.cwd(), 'src', 'renderer', 'style.css');
   const cssText = fs.readFileSync(srcCssPath, 'utf-8');
 
   const secondaryRootBlock = extractClassBlock(cssText, '#secondarySubRoot');
-  assert.match(secondaryRootBlock, /max-height:\s*6em;/);
-  assert.match(secondaryRootBlock, /overflow:\s*hidden;/);
+  assert.doesNotMatch(secondaryRootBlock, /max-height\s*:/);
+  assert.doesNotMatch(secondaryRootBlock, /overflow\s*:\s*hidden/);
 });
 
 test('applySubtitleStyle sets known-word maturity color variables', () => {

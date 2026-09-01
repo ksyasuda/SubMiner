@@ -87,3 +87,20 @@ test('mine sentence handler records mined cards only when core returns true', as
   await mineSentenceCard();
   assert.deepEqual(calls, ['osd:mine', 'osd:mine', 'cards:1']);
 });
+
+test('mine sentence handler forwards the canonical primary subtitle snapshot', async () => {
+  const primarySubtitle = { text: '正式な字幕', startTime: 1, endTime: 3 };
+  const mineSentenceCard = createMineSentenceCardHandler({
+    getAnkiIntegration: () => ({}),
+    getMpvClient: () => ({}),
+    getPrimarySubtitle: () => primarySubtitle,
+    showMpvOsd: () => {},
+    mineSentenceCardCore: async (options) => {
+      assert.equal(options.primarySubtitle, primarySubtitle);
+      return true;
+    },
+    recordCardsMined: () => {},
+  });
+
+  await mineSentenceCard();
+});

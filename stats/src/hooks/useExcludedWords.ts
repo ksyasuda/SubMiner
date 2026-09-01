@@ -44,6 +44,32 @@ let cachedKeys: Set<string> | null = null;
 let initialized: Promise<void> | null = null;
 let revision = 0;
 const listeners = new Set<() => void>();
+// Fires only after the stats server acknowledged an exclusion write, so
+// subscribers can refetch server-computed aggregates without racing the POST.
+const serverSyncListeners = new Set<() => void>();
+
+export function subscribeExcludedWordsServerSync(fn: () => void): () => void {
+  serverSyncListeners.add(fn);
+  return () => {
+    serverSyncListeners.delete(fn);
+  };
+}
+
+function notifyServerSync(): void {
+  // Listener failures are their own concern: one must not roll back a write
+  // that already succeeded, nor stop the remaining listeners from running.
+  for (const fn of serverSyncListeners) {
+    try {
+      fn();
+    } catch (error) {
+      console.error('Excluded words server-sync listener failed', error);
+    }
+  }
+}
+
+// Full-list writes are serialized so a slow earlier request cannot land after a
+// newer one and overwrite it with a stale list.
+let writeChain: Promise<void> = Promise.resolve();
 
 function readLocalStorage(): ExcludedWord[] {
   if (typeof localStorage === 'undefined') return [];
@@ -102,16 +128,27 @@ export async function setExcludedWords(words: ExcludedWord[]): Promise<void> {
   const normalized = dedupeExcludedWords(words);
   revision = writeRevision;
   applyWords(normalized);
-  try {
-    await apiClient.setExcludedWords(normalized);
-  } catch (error) {
-    if (revision === writeRevision) {
-      revision = previousRevision;
-      applyWords(previousWords);
+  const write = writeChain.then(async () => {
+    // A newer edit already superseded this list and carries the newest state,
+    // so sending this one would push a stale list to the server.
+    if (revision !== writeRevision) return;
+    try {
+      await apiClient.setExcludedWords(normalized);
+    } catch (error) {
+      if (revision === writeRevision) {
+        revision = previousRevision;
+        applyWords(previousWords);
+      }
+      console.error('Failed to persist excluded words to stats database', error);
+      throw error;
     }
-    console.error('Failed to persist excluded words to stats database', error);
-    throw error;
-  }
+    // A newer edit arrived while this write was in flight, so the server state
+    // this acknowledges is already obsolete. Its own acknowledgement notifies
+    // with the newest list; skipping here avoids a wasted aggregate scan.
+    if (revision === writeRevision) notifyServerSync();
+  });
+  writeChain = write.catch(() => {});
+  return write;
 }
 
 export function initializeExcludedWordsStore(): Promise<void> {
@@ -155,6 +192,8 @@ export function resetExcludedWordsStoreForTests(): void {
   initialized = null;
   revision = 0;
   listeners.clear();
+  serverSyncListeners.clear();
+  writeChain = Promise.resolve();
 }
 
 function subscribe(fn: () => void): () => void {

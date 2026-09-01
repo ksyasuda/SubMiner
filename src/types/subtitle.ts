@@ -1,4 +1,4 @@
-import type { SubtitleCue } from '../core/services/subtitle-cue-parser';
+import type { AssVerticalBand, SubtitleCue } from '../core/services/subtitle-cue-parser';
 
 export enum PartOfSpeech {
   noun = 'noun',
@@ -187,7 +187,7 @@ export interface ResolvedTokenPos2ExclusionConfig {
 
 export type FrequencyDictionaryMode = 'single' | 'banded';
 
-export type { SubtitleCue };
+export type { AssVerticalBand, SubtitleCue };
 
 export type SubtitleSidebarLayout = 'overlay' | 'embedded';
 

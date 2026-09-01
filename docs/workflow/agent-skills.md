@@ -3,7 +3,7 @@
 # Agent Skills
 
 Status: active
-Last verified: 2026-08-13
+Last verified: 2026-08-23
 Owner: Kyle Yasuda
 Read when: using, adding, or changing a repo-local agent workflow skill
 
@@ -12,6 +12,9 @@ Read when: using, adding, or changing a repo-local agent workflow skill
 - `.agents/skills/subminer-change-verification/`
   - Selects the cheapest sufficient repo-native verification lane.
   - Defers command ownership to `package.json` and `docs/workflow/verification.md`.
+- `.agents/skills/subminer-release/`
+  - Prepares, cuts, publishes, or repairs stable and prerelease releases.
+  - Defers release procedure and policy to `docs/RELEASING.md`.
 
 Repo-local workflows stay as standalone skills. Do not add plugin packaging, marketplace metadata, or compatibility shims unless the workflow is intentionally being distributed beyond this repository.
 

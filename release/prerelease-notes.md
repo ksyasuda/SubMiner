@@ -4,37 +4,46 @@
 
 ## Highlights
 ### Added
-- **Library Merge and Move**
-  - Duplicate library cards for the same show can now be combined: select cards in the library grid, choose "Merge Selected," and pick which entry to keep. Sessions, mined cards, and watch time move over, and future episodes stay matched to the merged card.
-  - Episodes can be reassigned to a different library entry with a "→" button on the episode row, fixing cases where a file lands under the wrong title. Manual assignments survive later filename parsing, Jellyfin refreshes, and season repair.
-  - Exact AniList matches with compatible seasons now merge automatically, while fuzzy matches show up as a dismissible "Possible duplicate" prompt instead of merging without confirmation.
+
+- Library Merge & Reassignment
+  - Duplicate library cards for the same show can be combined: select entries in "Select" mode and use "Merge Selected" to combine their sessions, mined cards, and watch time onto one card.
+  - Episodes can be moved to a different entry with a per-episode "→" button, fixing stray files that split off their own entry; manual assignments now survive later filename parsing, Jellyfin refreshes, and season repair.
+  - Exact AniList matches with compatible seasons merge automatically, while likely (fuzzy) matches surface as a dismissible "Possible duplicate" suggestion instead of merging silently.
+
+- Duplicate Line Cleanup
+  - The Vocabulary tab's new **Duplicates** button scans a chosen time window for the repeated-line bursts described under Fixed below and collapses each burst to a single line once confirmed.
+  - A matching `subminer stats cleanup --duplicate-lines` command (with `--dry-run` and `--lookback-days <n>`) is available from the terminal.
+  - Only the affected subtitle lines and the vocabulary counts they inflated are touched; watch time and lines-seen totals are left as recorded.
 
 ### Fixed
-- **Anki Audio Generation on Network Drives**
-  - Fixed sentence-audio generation timing out on slow network-mounted video files with many subtitle and font-attachment streams.
-  - Extraction now uses bounded probing and a two-minute budget, and failures show a clear error instead of a cryptic one.
-- **Duplicate Subtitle Line Stats**
-  - Fixed karaoke openings and animated signs (which record one subtitle event per animation frame) inflating word and kanji counts and skewing "Top Repeated Words." Ordinary repeated dialogue and rewatches are unaffected.
-  - Already-inflated stats can be cleaned up with the new "Duplicates" button in the Vocabulary tab, or `subminer stats cleanup --duplicate-lines` (supports `--dry-run` and `--lookback-days`). Only the affected subtitle lines and vocabulary counts are touched; watch time and lines-seen totals are untouched.
-- **Overlay Modals on macOS and Windows**
-  - Fixed overlay modals and the stats window opening on the wrong macOS Space, or forcing a Space switch, when mpv is fullscreen. They now open above fullscreen mpv on its current Space.
-  - Modals are now prewarmed on macOS and Windows so shortcuts open them promptly, and Windows keeps the hidden modal responsive between sessions.
-- **Wayland File Drag-and-Drop**
-  - Fixed dragging subtitle and video files from file managers like Thunar onto the overlay on native Wayland; dropped files are now resolved and sent to mpv.
-- **Windows Mouse Lag**
-  - Fixed system-wide mouse lag while SubMiner is running on Windows, caused by a global mouse hook and blocking window lookups during click-through tracking.
-- **Mining Clip Accuracy**
-  - Fixed mined audio and animated image clips sometimes capturing the wrong subtitle line when audio extraction was slow. The clip range is now locked in at the moment of lookup, so audio and image clips always match.
-- **Linux Notifications**
-  - Character dictionary progress notifications on Linux now update in place instead of flickering off and back on with every status change.
-- **Stats Delete Performance**
-  - Fixed stats deletes freezing the dashboard; deletes now reliably run off the main thread, with automatic retry if the delete worker crashes.
-  - Deletes, library merges/moves, and AniList reassignments are now much faster because totals are updated incrementally instead of rebuilt from scratch, and no longer erase lifetime totals older than the recent session history.
-  - Session deletes on large libraries dropped from minutes to milliseconds.
 
-### Docs
-- **Feature Demos Page**
-  - Hidden the unfinished feature demos page from the documentation sidebar; it's still reachable by direct URL.
+- Subtitle Duplication from Karaoke & Animated Signs
+  - Typeset ASS karaoke and animated signs no longer flood the overlay, subtitle sidebar, immersion history, mined cards, or stats with repeated glyph fragments or per-frame duplicates; the complete authored line is recovered instead, without merging genuinely repeated dialogue or separately positioned signs.
+  - Fragmented karaoke now preserves the spaces the author placed between words instead of joining them together, and lyric transitions (including seeking into the middle of a line) resolve to the clean line instead of a stray entrance or exit frame.
+  - The secondary overlay shares the same deduplication logic as the primary overlay, including collapsing lines that differ only by whitespace or trailing punctuation, and sidebar navigation moves between clean lyric lines while keeping the right line selected.
+
+- Anki Media Generation
+  - Sentence-audio generation no longer times out on slow network-mounted video files with many subtitle and font streams, and a failed extraction now reports a clear error instead of a raw `ENOENT`.
+  - Mined audio and animated AVIF clips now capture the subtitle line you actually mined, instead of whatever line happened to be on screen once slow audio extraction finished.
+
+- Character Dictionary Performance & Notifications
+  - Character dictionary generation, merged rebuilds, and imports no longer freeze the app on large dictionaries, and cached results (including character portraits) are reused across launches instead of regenerating everything every time.
+  - Portraits also now display correctly if their cache finishes loading after subtitles have already started showing.
+  - Desktop progress notifications, including on Linux AppImage installs, now update in place instead of flickering closed and reopening.
+
+- Overlay Reliability
+  - Overlay modals (settings, stats, etc.) now open promptly on the first shortcut press, including on repeated sessions on Windows, and appear above fullscreen mpv on macOS instead of switching Spaces or opening off-screen.
+  - The macOS window-tracking helper is now built for macOS 12.0+, so the overlay attaches to mpv on older systems like Ventura instead of crashing and getting stuck on "Overlay loading."
+  - The overlay no longer gets stuck on "Overlay loading" indefinitely if mpv's connection stalls; it now retries and shows an actionable error after 30 seconds.
+  - Fixed native Wayland drag-and-drop from file managers like Thunar, and fixed system-wide mouse lag on Windows caused by the overlay's click-through handling.
+
+- Stats Dashboard
+  - Deletes, library merges, video moves, and AniList reassignments no longer freeze the stats dashboard or rebuild lifetime totals from scratch; large deletes that used to take minutes now finish in milliseconds.
+  - Vocabulary totals and charts now count all tracked vocabulary instead of just the first page, and new-word history uses corrected daily rollups.
+  - Calendar labels respect time zones west of UTC, and vocabulary cards refresh automatically after editing the word exclusion list (with a Retry option if a load fails).
+
+- Linux Launcher Thumbnails
+  - Fixed missing MKV thumbnails in the Linux rofi picker when the system thumbnailer only registers legacy Matroska MIME aliases.
 
 ## What's Changed
 
@@ -47,6 +56,13 @@
 - fix(overlay): support native Wayland file drag-and-drop by @ksyasuda in #199
 - fix(overlay): keep macOS modal windows on fullscreen Spaces by @ksyasuda in #200
 - fix(overlay): prevent Windows mouse lag during click-through tracking by @ksyasuda in #201
+- fix(stats): report complete vocabulary totals and new-word history by @ksyasuda in #202
+- fix(mpv): recover from stalled IPC connects by @ksyasuda in #204
+- fix(dictionary): prevent freezes and restore AppImage notifications by @ksyasuda in #205
+- fix(subtitles): recover canonical lines from ASS animation by @ksyasuda in #207
+- fix(overlay): deduplicate secondary subtitle rendering by @ksyasuda in #208
+- fix(launcher): restore Matroska thumbnails in Linux rofi picker by @ksyasuda in #210
+- fix(character-dictionary): cache completed MeCab refreshes by @ksyasuda in #212
 
 ## Installation
 

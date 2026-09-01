@@ -7,6 +7,10 @@ import type {
   ResolvedNameSplit,
 } from './types';
 
+export type JapaneseNameSplitResolution =
+  | { kind: 'complete'; splits: Map<string, ResolvedNameSplit> }
+  | { kind: 'incomplete'; splits: Map<string, ResolvedNameSplit> };
+
 const NAME_SEPARATOR_PATTERN = /[\s　・･·•]/;
 
 function joinSurfaces(tokens: NameSplitToken[]): string {
@@ -87,8 +91,9 @@ export async function resolveJapaneseNameSplits(
   tokenize: NameSplitTokenizer,
   logWarn?: (message: string) => void,
   onCharacterResolved?: (completed: number, total: number) => void,
-): Promise<Map<string, ResolvedNameSplit>> {
+): Promise<JapaneseNameSplitResolution> {
   const splits = new Map<string, ResolvedNameSplit>();
+  let tokenizerFailed = false;
   let resolvedCharacters = 0;
   for (const character of characters) {
     const familyHintReading = buildReadingFromHint(character.lastNameHint?.trim() || '');
@@ -99,12 +104,17 @@ export async function resolveJapaneseNameSplits(
       try {
         tokens = await tokenize(name);
       } catch (err) {
+        tokenizerFailed = true;
         logWarn?.(
           `[dictionary] name split tokenization failed for "${name}": ${(err as Error).message}`,
         );
         continue;
       }
-      if (!tokens || tokens.length < 2 || joinSurfaces(tokens) !== name) continue;
+      if (!tokens) {
+        tokenizerFailed = true;
+        continue;
+      }
+      if (tokens.length < 2 || joinSurfaces(tokens) !== name) continue;
       const splitIndex =
         splitIndexFromPersonNamePos(tokens) ??
         splitIndexFromHintReadings(tokens, familyHintReading, givenHintReading);
@@ -118,5 +128,5 @@ export async function resolveJapaneseNameSplits(
     resolvedCharacters += 1;
     onCharacterResolved?.(resolvedCharacters, characters.length);
   }
-  return splits;
+  return tokenizerFailed ? { kind: 'incomplete', splits } : { kind: 'complete', splits };
 }

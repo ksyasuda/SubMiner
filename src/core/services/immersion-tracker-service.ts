@@ -58,6 +58,7 @@ import {
   getSessionEvents,
   getSimilarWords,
   getStatsExcludedWords,
+  getVocabularyChartData,
   getVocabularyStats,
   replaceStatsExcludedWords,
   searchSubtitleSentences,
@@ -96,6 +97,12 @@ import {
   DeleteMaintenanceWorkerRuntime,
   type RunDeleteMaintenanceTask,
 } from './immersion-tracker/delete-maintenance-worker-runtime';
+import {
+  VocabularySummaryWorkerRuntime,
+  type RunVocabularySummaryTask,
+} from './immersion-tracker/vocabulary-summary-worker-runtime';
+import { LexicalRollupWorkerRuntime } from './immersion-tracker/lexical-rollup-worker-runtime';
+import { areLexicalDailyRollupsReady } from './immersion-tracker/lexical-rollups';
 import { DeleteMaintenanceScheduler } from './immersion-tracker/delete-maintenance-scheduler';
 import {
   cleanupDuplicateSubtitleLines,
@@ -185,6 +192,7 @@ import {
   type StatsExcludedWordRow,
   type StreakCalendarRow,
   type VocabularyCleanupSummary,
+  type VocabularyStatsSummary,
   type WatchTimePerAnimeRow,
   type WordAnimeAppearanceRow,
   type WordDetailRow,
@@ -405,13 +413,24 @@ export class ImmersionTrackerService {
   private readonly monthlyRollupRetentionMs: number;
   private readonly vacuumIntervalMs: number;
   private readonly dbPath: string;
-  private readonly writeLock = { locked: false };
+  private readonly writeLock = {
+    locked: false,
+    reasons: new Set<'flush' | 'delete-maintenance' | 'lexical-rollup-backfill'>(),
+  };
   private readonly destroyDeleteMaintenanceRunner: () => void;
+  private readonly runVocabularySummaryTask: (
+    knownWords: ReadonlySet<string> | null,
+  ) => Promise<VocabularyStatsSummary>;
+  private readonly vocabularySummariesInFlight = new Map<string, Promise<VocabularyStatsSummary>>();
+  private readonly destroyVocabularySummaryRunner: () => void;
+  private readonly runLexicalRollupBackfillTask: () => Promise<void>;
+  private readonly destroyLexicalRollupBackfillRunner: () => void;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private flushScheduled = false;
   private droppedWriteCount = 0;
+  private preserveWriteQueueUntilDrained = false;
   private lastVacuumMs = 0;
   private isDestroyed = false;
   private sessionState: SessionState | null = null;
@@ -434,6 +453,10 @@ export class ImmersionTrackerService {
     dependencies: {
       runDeleteMaintenanceTask?: RunDeleteMaintenanceTask;
       destroyDeleteMaintenanceRunner?: () => void;
+      runVocabularySummaryTask?: RunVocabularySummaryTask;
+      destroyVocabularySummaryRunner?: () => void;
+      runLexicalRollupBackfillTask?: (dbPath: string) => Promise<void>;
+      destroyLexicalRollupBackfillRunner?: () => void;
     } = {},
   ) {
     this.dbPath = options.dbPath;
@@ -453,13 +476,34 @@ export class ImmersionTrackerService {
       runTask: (task) => runDeleteMaintenanceTask(this.dbPath, task),
       onBusy: () => {
         this.requireWriteQueueDrained('delete maintenance');
-        this.writeLock.locked = true;
+        this.setWriteLock('delete-maintenance', true);
       },
       onIdle: () => {
-        this.writeLock.locked = false;
+        this.setWriteLock('delete-maintenance', false);
         if (!this.isDestroyed && this.queue.length > 0) this.scheduleFlush(0);
       },
     });
+    if (dependencies.runVocabularySummaryTask) {
+      this.runVocabularySummaryTask = (knownWords) =>
+        dependencies.runVocabularySummaryTask!(this.dbPath, knownWords);
+      this.destroyVocabularySummaryRunner =
+        dependencies.destroyVocabularySummaryRunner ?? (() => {});
+    } else {
+      const vocabularySummaryRuntime = new VocabularySummaryWorkerRuntime();
+      this.runVocabularySummaryTask = (knownWords) =>
+        vocabularySummaryRuntime.run(this.dbPath, knownWords);
+      this.destroyVocabularySummaryRunner = () => vocabularySummaryRuntime.destroy();
+    }
+    if (dependencies.runLexicalRollupBackfillTask) {
+      this.runLexicalRollupBackfillTask = () =>
+        dependencies.runLexicalRollupBackfillTask!(this.dbPath);
+      this.destroyLexicalRollupBackfillRunner =
+        dependencies.destroyLexicalRollupBackfillRunner ?? (() => {});
+    } else {
+      const lexicalRollupRuntime = new LexicalRollupWorkerRuntime();
+      this.runLexicalRollupBackfillTask = () => lexicalRollupRuntime.run(this.dbPath);
+      this.destroyLexicalRollupBackfillRunner = () => lexicalRollupRuntime.destroy();
+    }
     const parentDir = path.dirname(this.dbPath);
     if (!fs.existsSync(parentDir)) {
       fs.mkdirSync(parentDir, { recursive: true });
@@ -548,6 +592,7 @@ export class ImmersionTrackerService {
     }
     this.preparedStatements = createTrackerPreparedStatements(this.db);
     this.scheduleMaintenance();
+    if (!areLexicalDailyRollupsReady(this.db)) this.startLexicalRollupBackfill();
     this.scheduleFlush();
   }
 
@@ -565,6 +610,8 @@ export class ImmersionTrackerService {
     this.isDestroyed = true;
     this.deleteMaintenanceScheduler.destroy();
     this.destroyDeleteMaintenanceRunner();
+    this.destroyVocabularySummaryRunner();
+    this.destroyLexicalRollupBackfillRunner();
     this.db.close();
   }
 
@@ -632,6 +679,25 @@ export class ImmersionTrackerService {
 
   async getVocabularyStats(limit = 100, excludePos?: string[]): Promise<VocabularyStatsRow[]> {
     return getVocabularyStats(this.db, limit, excludePos);
+  }
+
+  async getVocabularySummary(knownWords: ReadonlySet<string> | null) {
+    const key = knownWords ? JSON.stringify([...knownWords].sort()) : 'null';
+    const inFlight = this.vocabularySummariesInFlight.get(key);
+    if (inFlight) return inFlight;
+    const task = this.runVocabularySummaryTask(knownWords);
+    this.vocabularySummariesInFlight.set(key, task);
+    try {
+      return await task;
+    } finally {
+      if (this.vocabularySummariesInFlight.get(key) === task) {
+        this.vocabularySummariesInFlight.delete(key);
+      }
+    }
+  }
+
+  async getVocabularyChartData() {
+    return getVocabularyChartData(this.db);
   }
 
   async getStatsExcludedWords(): Promise<StatsExcludedWordRow[]> {
@@ -908,6 +974,33 @@ export class ImmersionTrackerService {
     if (!this.drainWriteQueue(context)) {
       throw new Error(`Immersion tracker queue did not drain before ${context}`);
     }
+  }
+
+  private setWriteLock(
+    reason: 'flush' | 'delete-maintenance' | 'lexical-rollup-backfill',
+    active: boolean,
+  ): void {
+    if (active) this.writeLock.reasons.add(reason);
+    else this.writeLock.reasons.delete(reason);
+    this.writeLock.locked = this.writeLock.reasons.size > 0;
+  }
+
+  private startLexicalRollupBackfill(): void {
+    this.requireWriteQueueDrained('lexical rollup backfill');
+    this.preserveWriteQueueUntilDrained = true;
+    this.setWriteLock('lexical-rollup-backfill', true);
+    void this.runLexicalRollupBackfillTask()
+      .catch((error: unknown) => {
+        this.logger.warn(
+          'Lexical daily rollup backfill failed; it will retry on next startup',
+          error,
+        );
+      })
+      .finally(() => {
+        this.setWriteLock('lexical-rollup-backfill', false);
+        if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
+        else if (!this.isDestroyed) this.scheduleFlush(0);
+      });
   }
 
   async reassignAnimeAnilist(
@@ -1906,7 +1999,12 @@ export class ImmersionTrackerService {
 
   private recordWrite(write: QueuedWrite): void {
     if (this.isDestroyed) return;
-    const { dropped } = enqueueWrite(this.queue, write, this.queueCap);
+    // A lexical migration owns the database write lock, so dropping the oldest
+    // entry cannot relieve pressure: nothing can flush until the worker exits.
+    // Preserve that finite startup burst and drain it as soon as the lock lifts.
+    const { dropped } = this.preserveWriteQueueUntilDrained
+      ? (this.queue.push(write), { dropped: 0 })
+      : enqueueWrite(this.queue, write, this.queueCap);
     if (dropped > 0) {
       this.droppedWriteCount += dropped;
       this.logger.warn(`Immersion tracker queue overflow; dropped ${dropped} oldest writes`);
@@ -1954,6 +2052,7 @@ export class ImmersionTrackerService {
   private flushNow(): void {
     if (this.writeLock.locked || this.isDestroyed) return;
     if (this.queue.length === 0) {
+      this.preserveWriteQueueUntilDrained = false;
       this.flushScheduled = false;
       return;
     }
@@ -1965,7 +2064,7 @@ export class ImmersionTrackerService {
     }
 
     const batch = this.queue.splice(0, Math.min(this.batchSize, this.queue.length));
-    this.writeLock.locked = true;
+    this.setWriteLock('flush', true);
     try {
       this.db.exec('BEGIN IMMEDIATE');
       for (const write of batch) {
@@ -1977,8 +2076,9 @@ export class ImmersionTrackerService {
       this.queue.unshift(...batch);
       this.logger.warn('Immersion tracker flush failed, retrying later', error as Error);
     } finally {
-      this.writeLock.locked = false;
+      this.setWriteLock('flush', false);
       this.flushScheduled = false;
+      if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
       if (this.queue.length > 0) {
         this.scheduleFlush(this.flushIntervalMs);
       }

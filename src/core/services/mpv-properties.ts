@@ -65,6 +65,8 @@ const MPV_SUBTITLE_PROPERTY_OBSERVATIONS: string[] = [
   'secondary-sub-visibility',
   'sub-visibility',
   'sid',
+  'secondary-sid',
+  'secondary-sub-delay',
   'track-list',
 ];
 

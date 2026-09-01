@@ -6,11 +6,10 @@ import { KanjiBreakdown } from './KanjiBreakdown';
 import { KanjiDetailPanel } from './KanjiDetailPanel';
 import { ExclusionManager } from './ExclusionManager';
 import { DuplicateLineCleanup } from './DuplicateLineCleanup';
-import { formatNumber } from '../../lib/formatters';
+import { epochDayToDate, formatNumber } from '../../lib/formatters';
 import { TrendChart } from '../trends/TrendChart';
 import { FrequencyRankTable } from './FrequencyRankTable';
 import { CrossAnimeWordsTable } from './CrossAnimeWordsTable';
-import { buildVocabularySummary } from '../../lib/dashboard-data';
 import type { ExcludedWord } from '../../hooks/useExcludedWords';
 import type { KanjiEntry, VocabularyEntry } from '../../types/stats';
 
@@ -35,7 +34,18 @@ export function VocabularyTab({
   onRemoveExclusion,
   onClearExclusions,
 }: VocabularyTabProps) {
-  const { words, kanji, knownWords, loading, error, reload } = useVocabulary();
+  const {
+    words,
+    kanji,
+    knownWords,
+    summary,
+    charts,
+    loading,
+    error,
+    aggregatesError,
+    refreshAggregates,
+    reload,
+  } = useVocabulary();
   const [selectedKanjiId, setSelectedKanjiId] = useState<number | null>(null);
   const [hideNames, setHideNames] = useState(false);
   const [showExclusionManager, setShowExclusionManager] = useState(false);
@@ -48,19 +58,26 @@ export function VocabularyTab({
     if (excluded.length > 0) result = result.filter((w) => !isExcluded(w));
     return result;
   }, [words, hideNames, excluded, isExcluded]);
-  const summary = useMemo(
-    () => buildVocabularySummary(filteredWords, kanji),
-    [filteredWords, kanji],
+  const chartData = useMemo(
+    () => ({
+      topWords: ((hideNames ? charts?.topWordsWithoutNames : charts?.topWords) ?? []).map(
+        (word) => ({
+          label: word.headword,
+          value: word.frequency,
+        }),
+      ),
+      newWordsTimeline: (
+        (hideNames ? charts?.newWordsTimelineWithoutNames : charts?.newWordsTimeline) ?? []
+      ).map((point) => ({
+        label: epochDayToDate(point.epochDay).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+        }),
+        value: point.wordCount,
+      })),
+    }),
+    [charts, hideNames],
   );
-  const knownWordCount = useMemo(() => {
-    if (knownWords.size === 0) return 0;
-
-    let count = 0;
-    for (const w of filteredWords) {
-      if (knownWords.has(w.headword)) count += 1;
-    }
-    return count;
-  }, [filteredWords, knownWords]);
 
   if (loading) {
     return (
@@ -82,7 +99,9 @@ export function VocabularyTab({
   };
 
   const handleBarClick = (headword: string): void => {
-    const match = filteredWords.find((w) => w.headword === headword);
+    const match = (hideNames ? charts?.topWordsWithoutNames : charts?.topWords)?.find(
+      (word) => word.headword === headword,
+    );
     if (match) onOpenWordDetail?.(match.wordId);
   };
 
@@ -90,32 +109,59 @@ export function VocabularyTab({
     setSelectedKanjiId(entry.kanjiId);
   };
 
+  const displayedSummary = hideNames
+    ? {
+        uniqueWords: summary?.uniqueWordsWithoutNames ?? 0,
+        newThisWeek: summary?.newThisWeekWithoutNames ?? 0,
+        knownWordCount: summary?.knownWordCountWithoutNames ?? null,
+      }
+    : {
+        uniqueWords: summary?.uniqueWords ?? 0,
+        newThisWeek: summary?.newThisWeek ?? 0,
+        knownWordCount: summary?.knownWordCount ?? null,
+      };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           label="Unique Words"
-          value={formatNumber(summary.uniqueWords)}
+          value={summary ? formatNumber(displayedSummary.uniqueWords) : '…'}
           color="text-ctp-blue"
         />
-        {knownWords.size > 0 && (
+        {displayedSummary.knownWordCount !== null ? (
           <StatCard
             label="Known Words"
-            value={`${formatNumber(knownWordCount)} (${summary.uniqueWords > 0 ? Math.round((knownWordCount / summary.uniqueWords) * 100) : 0}%)`}
+            value={`${formatNumber(displayedSummary.knownWordCount)} (${displayedSummary.uniqueWords > 0 ? Math.round((displayedSummary.knownWordCount / displayedSummary.uniqueWords) * 100) : 0}%)`}
             color="text-ctp-green"
           />
-        )}
+        ) : knownWords.size > 0 ? (
+          <StatCard label="Known Words" value="…" color="text-ctp-green" />
+        ) : null}
         <StatCard
           label="Unique Kanji"
-          value={formatNumber(summary.uniqueKanji)}
+          value={summary ? formatNumber(summary.uniqueKanji) : '…'}
           color="text-ctp-teal"
         />
         <StatCard
           label="New This Week"
-          value={`+${formatNumber(summary.newThisWeek)}`}
+          value={summary ? `+${formatNumber(displayedSummary.newThisWeek)}` : '…'}
           color="text-ctp-mauve"
         />
       </div>
+
+      {aggregatesError && (
+        <p className="text-xs text-ctp-red" role="alert">
+          {aggregatesError}{' '}
+          <button
+            type="button"
+            onClick={refreshAggregates}
+            className="underline hover:text-ctp-text"
+          >
+            Retry
+          </button>
+        </p>
+      )}
 
       <div className="flex items-center justify-end gap-3">
         {hasNames && (
@@ -154,18 +200,24 @@ export function VocabularyTab({
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <TrendChart
           title="Top Repeated Words"
-          data={summary.topWords}
+          data={chartData.topWords}
           color="#8aadf4"
           type="bar"
           onBarClick={handleBarClick}
         />
         <TrendChart
           title="New Words by Day"
-          data={summary.newWordsTimeline}
+          data={chartData.newWordsTimeline}
           color="#c6a0f6"
           type="line"
         />
       </div>
+
+      {charts && !charts.ready && (
+        <p className="text-xs text-ctp-overlay1" role="status">
+          Building vocabulary history in the background…
+        </p>
+      )}
 
       <FrequencyRankTable
         words={filteredWords}

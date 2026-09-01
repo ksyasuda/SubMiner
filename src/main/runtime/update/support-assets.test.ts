@@ -13,7 +13,7 @@ import {
 } from './support-assets';
 
 type SupportAssetsResultWithComponent = SupportAssetsUpdateResult & {
-  component?: 'theme' | 'plugin';
+  component?: 'theme' | 'thumbnailer' | 'plugin';
 };
 
 function sha256(data: Buffer): string {
@@ -22,18 +22,30 @@ function sha256(data: Buffer): string {
 
 function makeSupportAssetsArchive(options?: {
   themeContent?: string;
+  thumbnailerContent?: string;
+  includeThumbnailer?: boolean;
   pluginVersion?: string | null;
   pluginMainContent?: string;
   extraPluginFiles?: Array<{ relativePath: string; content: string }>;
 }): { archive: Buffer; tempDir: string } {
   const themeContent = options?.themeContent ?? 'new theme\n';
+  const thumbnailerContent = options?.thumbnailerContent ?? '[Thumbnailer Entry]\n';
   const pluginVersion = options && 'pluginVersion' in options ? options.pluginVersion : '0.12.0';
   const pluginMainContent = options?.pluginMainContent ?? 'new plugin\n';
   const extraPluginFiles = options?.extraPluginFiles ?? [];
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-support-assets-test-'));
   fs.mkdirSync(path.join(tempDir, 'assets/themes'), { recursive: true });
+  if (options?.includeThumbnailer !== false) {
+    fs.mkdirSync(path.join(tempDir, 'assets/thumbnailers'), { recursive: true });
+  }
   fs.mkdirSync(path.join(tempDir, 'plugin/subminer'), { recursive: true });
   fs.writeFileSync(path.join(tempDir, 'assets/themes/subminer.rasi'), themeContent);
+  if (options?.includeThumbnailer !== false) {
+    fs.writeFileSync(
+      path.join(tempDir, 'assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer'),
+      thumbnailerContent,
+    );
+  }
   fs.writeFileSync(path.join(tempDir, 'plugin/subminer/main.lua'), pluginMainContent);
   if (pluginVersion !== null) {
     fs.writeFileSync(
@@ -93,7 +105,7 @@ test('detectSupportAssetDataDirs only returns Linux support-asset locations', ()
   );
 });
 
-test('buildProtectedSupportAssetsCommand installs both theme and plugin assets', () => {
+test('buildProtectedSupportAssetsCommand installs theme, thumbnailer, and plugin assets', () => {
   const command = buildProtectedSupportAssetsCommand(
     "https://example.test/subminer assets.tar.gz?sig='abc'",
     'ABCDEF1234',
@@ -110,10 +122,27 @@ test('buildProtectedSupportAssetsCommand installs both theme and plugin assets',
     command,
     /printf '%s  %s\\n' 'abcdef1234' "\$tmp\/subminer-assets\.tar\.gz" \| sha256sum -c -/,
   );
+  const requiredAssetChecks = [
+    'test -f "$tmp/assets/themes/subminer.rasi"',
+    'test -f "$tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer"',
+    'test -f "$tmp/plugin/subminer/main.lua"',
+    'test -f "$tmp/plugin/subminer/version.lua"',
+  ];
+  const firstSudoIndex = command.indexOf('sudo ');
+  assert.notEqual(firstSudoIndex, -1);
+  for (const check of requiredAssetChecks) {
+    const checkIndex = command.indexOf(check);
+    assert.notEqual(checkIndex, -1);
+    assert.ok(checkIndex < firstSudoIndex);
+  }
   assert.match(command, /sudo mkdir -p '\/usr\/local\/share\/SubMiner'\\''s data'\/themes/);
   assert.match(
     command,
     /sudo cp "\$tmp\/assets\/themes\/subminer\.rasi" '\/usr\/local\/share\/SubMiner'\\''s data'\/themes\/subminer\.rasi/,
+  );
+  assert.match(
+    command,
+    /sudo cp "\$tmp\/assets\/thumbnailers\/subminer-ffmpegthumbnailer\.thumbnailer" .*thumbnailers\/subminer-ffmpegthumbnailer\.thumbnailer/,
   );
   assert.match(command, /sudo mkdir -p '\/usr\/local\/share\/SubMiner'\\''s data'\/plugin/);
   assert.match(command, /sudo rm -rf .*plugin\/subminer\.next/);
@@ -211,6 +240,12 @@ test('updateSupportAssetsFromRelease installs missing plugin into a root with a 
       },
       {
         status: 'updated',
+        component: 'thumbnailer',
+        path: dataDir,
+        message: 'Installed rofi thumbnailer.',
+      },
+      {
+        status: 'updated',
         component: 'plugin',
         path: dataDir,
         message: 'Installed plugin.',
@@ -219,6 +254,13 @@ test('updateSupportAssetsFromRelease installs missing plugin into a root with a 
     assert.equal(
       fs.readFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'utf8'),
       'new theme\n',
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(dataDir, 'thumbnailers/subminer-ffmpegthumbnailer.thumbnailer'),
+        'utf8',
+      ),
+      '[Thumbnailer Entry]\n',
     );
     assert.equal(
       fs.readFileSync(path.join(dataDir, 'plugin/subminer/main.lua'), 'utf8'),
@@ -345,8 +387,13 @@ test('updateSupportAssetsFromRelease skips identical theme and up-to-date plugin
   const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-xdg-data-'));
   const dataDir = path.posix.join(xdgDataHome, 'SubMiner');
   fs.mkdirSync(path.join(dataDir, 'themes'), { recursive: true });
+  fs.mkdirSync(path.join(dataDir, 'thumbnailers'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'plugin/subminer'), { recursive: true });
   fs.writeFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'same theme\n');
+  fs.writeFileSync(
+    path.join(dataDir, 'thumbnailers/subminer-ffmpegthumbnailer.thumbnailer'),
+    '[Thumbnailer Entry]\n',
+  );
   fs.writeFileSync(path.join(dataDir, 'plugin/subminer/main.lua'), 'same plugin\n');
   fs.writeFileSync(
     path.join(dataDir, 'plugin/subminer/version.lua'),
@@ -373,6 +420,12 @@ test('updateSupportAssetsFromRelease skips identical theme and up-to-date plugin
       },
       {
         status: 'skipped',
+        component: 'thumbnailer',
+        path: dataDir,
+        message: 'Rofi thumbnailer already up to date.',
+      },
+      {
+        status: 'skipped',
         component: 'plugin',
         path: dataDir,
         message: 'Plugin already up to date.',
@@ -396,8 +449,13 @@ test('updateSupportAssetsFromRelease updates changed theme and outdated plugin w
   const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-xdg-data-'));
   const dataDir = path.posix.join(xdgDataHome, 'SubMiner');
   fs.mkdirSync(path.join(dataDir, 'themes'), { recursive: true });
+  fs.mkdirSync(path.join(dataDir, 'thumbnailers'), { recursive: true });
   fs.mkdirSync(path.join(dataDir, 'plugin/subminer'), { recursive: true });
   fs.writeFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'old theme\n');
+  fs.writeFileSync(
+    path.join(dataDir, 'thumbnailers/subminer-ffmpegthumbnailer.thumbnailer'),
+    '[Old Thumbnailer]\n',
+  );
   fs.writeFileSync(path.join(dataDir, 'plugin/subminer/main.lua'), 'old plugin\n');
   fs.writeFileSync(
     path.join(dataDir, 'plugin/subminer/version.lua'),
@@ -406,6 +464,7 @@ test('updateSupportAssetsFromRelease updates changed theme and outdated plugin w
   fs.writeFileSync(path.join(dataDir, 'plugin/subminer/stale.lua'), 'stale\n');
   const { archive, tempDir } = makeSupportAssetsArchive({
     themeContent: 'new theme\n',
+    thumbnailerContent: '[Thumbnailer Entry]\n',
     pluginVersion: '0.12.0',
     pluginMainContent: 'new plugin main\n',
     extraPluginFiles: [{ relativePath: 'fresh.lua', content: 'fresh\n' }],
@@ -426,6 +485,12 @@ test('updateSupportAssetsFromRelease updates changed theme and outdated plugin w
       },
       {
         status: 'updated',
+        component: 'thumbnailer',
+        path: dataDir,
+        message: 'Updated rofi thumbnailer.',
+      },
+      {
+        status: 'updated',
         component: 'plugin',
         path: dataDir,
         message: 'Updated plugin.',
@@ -434,6 +499,13 @@ test('updateSupportAssetsFromRelease updates changed theme and outdated plugin w
     assert.equal(
       fs.readFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'utf8'),
       'new theme\n',
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(dataDir, 'thumbnailers/subminer-ffmpegthumbnailer.thumbnailer'),
+        'utf8',
+      ),
+      '[Thumbnailer Entry]\n',
     );
     assert.equal(
       fs.readFileSync(path.join(dataDir, 'plugin/subminer/main.lua'), 'utf8'),
@@ -481,6 +553,12 @@ test('updateSupportAssetsFromRelease returns protected commands for managed root
         },
         {
           status: 'protected',
+          component: 'thumbnailer',
+          path: dataDir,
+          command: true,
+        },
+        {
+          status: 'protected',
           component: 'plugin',
           path: dataDir,
           command: true,
@@ -488,6 +566,10 @@ test('updateSupportAssetsFromRelease returns protected commands for managed root
       ],
     );
     assert.match(results[0]?.command ?? '', /themes\/subminer\.rasi/);
+    assert.match(
+      results[0]?.command ?? '',
+      /thumbnailers\/subminer-ffmpegthumbnailer\.thumbnailer/,
+    );
     assert.match(results[0]?.command ?? '', /plugin\/subminer/);
   } finally {
     fs.chmodSync(dataDir, originalMode);
@@ -515,6 +597,28 @@ test('updateSupportAssetsFromRelease returns missing-asset when release plugin v
       {
         status: 'missing-asset',
         message: 'Support asset archive has no readable plugin version metadata.',
+      },
+    ]);
+  } finally {
+    fs.rmSync(xdgDataHome, { recursive: true, force: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('updateSupportAssetsFromRelease rejects archives without the rofi thumbnailer', async () => {
+  const xdgDataHome = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-xdg-data-'));
+  const dataDir = path.posix.join(xdgDataHome, 'SubMiner');
+  fs.mkdirSync(path.join(dataDir, 'themes'), { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'themes/subminer.rasi'), 'managed theme\n');
+  const { archive, tempDir } = makeSupportAssetsArchive({ includeThumbnailer: false });
+
+  try {
+    const results = await runLinuxSupportAssetUpdate({ archive, xdgDataHome });
+
+    assert.deepEqual(results, [
+      {
+        status: 'missing-asset',
+        message: 'Support asset archive is missing the rofi thumbnailer.',
       },
     ]);
   } finally {

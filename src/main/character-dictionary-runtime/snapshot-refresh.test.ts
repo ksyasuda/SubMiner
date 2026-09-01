@@ -7,7 +7,7 @@ import test from 'node:test';
 import { createCharacterDictionaryRuntimeService } from '../character-dictionary-runtime';
 import { getSnapshotPath, writeSnapshot } from './cache';
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
-import type { CharacterDictionarySnapshot } from './types';
+import type { CharacterDictionarySnapshot, NameSplitTokenizer } from './types';
 
 const GRAPHQL_URL = 'https://graphql.anilist.co';
 const PNG_1X1 = Buffer.from(
@@ -121,7 +121,12 @@ test('generateForCurrentMedia refreshes same-version snapshots missing images wh
   }
 });
 
-test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable', async () => {
+async function runNameSplitRefreshScenario(tokenizeJapaneseName: NameSplitTokenizer): Promise<{
+  characterPageRequests: number;
+  firstResultFromCache: boolean;
+  refreshedNameSplitSource: CharacterDictionarySnapshot['nameSplitSource'];
+  secondResultFromCache: boolean;
+}> {
   const userDataPath = makeTempDir();
   const outputDir = path.join(userDataPath, 'character-dictionaries');
   await writeSnapshot(getSnapshotPath(outputDir, 130298), {
@@ -172,7 +177,6 @@ test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable'
   }) as typeof globalThis.fetch;
 
   try {
-    let tokenizerCalls = 0;
     const runtime = createCharacterDictionaryRuntimeService({
       userDataPath,
       getCurrentMediaPath: () => '/tmp/eminence-s01e05.mkv',
@@ -185,29 +189,54 @@ test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable'
         source: 'fallback',
       }),
       getNameMatchImagesEnabled: () => false,
-      tokenizeJapaneseName: async () => {
-        tokenizerCalls += 1;
-        return null;
-      },
+      tokenizeJapaneseName,
       getJapaneseNameTokenizerAvailable: () => true,
       now: () => 1_700_000_000_500,
     });
 
-    const result = await runtime.generateForCurrentMedia();
+    const firstResult = await runtime.generateForCurrentMedia();
     const refreshedSnapshot = JSON.parse(
       fs.readFileSync(getSnapshotPath(outputDir, 130298), 'utf8'),
     ) as CharacterDictionarySnapshot;
+    const secondResult = await runtime.generateForCurrentMedia();
 
-    assert.equal(result.fromCache, false);
-    assert.equal(refreshedSnapshot.nameSplitSource, 'heuristic');
-
-    const retriedResult = await runtime.generateForCurrentMedia();
-    assert.equal(retriedResult.fromCache, false);
-    assert.equal(characterPageRequests, 2);
-    assert.equal(tokenizerCalls, 2);
+    return {
+      characterPageRequests,
+      firstResultFromCache: firstResult.fromCache,
+      refreshedNameSplitSource: refreshedSnapshot.nameSplitSource,
+      secondResultFromCache: secondResult.fromCache,
+    };
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+test('generateForCurrentMedia keeps failed MeCab name split refreshes retryable', async () => {
+  let tokenizerCalls = 0;
+  const result = await runNameSplitRefreshScenario(async () => {
+    tokenizerCalls += 1;
+    return null;
+  });
+
+  assert.equal(result.firstResultFromCache, false);
+  assert.equal(result.refreshedNameSplitSource, 'heuristic');
+  assert.equal(result.secondResultFromCache, false);
+  assert.equal(result.characterPageRequests, 2);
+  assert.equal(tokenizerCalls, 2);
+});
+
+test('generateForCurrentMedia caches completed MeCab refreshes with no resolved splits', async () => {
+  let tokenizerCalls = 0;
+  const result = await runNameSplitRefreshScenario(async () => {
+    tokenizerCalls += 1;
+    return [];
+  });
+
+  assert.equal(result.firstResultFromCache, false);
+  assert.equal(result.refreshedNameSplitSource, 'mecab');
+  assert.equal(result.secondResultFromCache, true);
+  assert.equal(result.characterPageRequests, 1);
+  assert.equal(tokenizerCalls, 1);
 });
 
 test('generateForCurrentMedia keeps mecab-split snapshots when MeCab is available', async () => {

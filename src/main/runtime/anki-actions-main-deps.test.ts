@@ -64,11 +64,17 @@ test('anki action main deps builders map callbacks', async () => {
   const mine = createBuildMineSentenceCardMainDepsHandler({
     getAnkiIntegration: () => ({ enabled: true }),
     getMpvClient: () => ({ connected: true }),
+    getPrimarySubtitle: () => ({ text: '正式な字幕', startTime: 1, endTime: 3 }),
     showMpvOsd: (text) => calls.push(`mine:${text}`),
     mineSentenceCardCore: async () => true,
     recordCardsMined: (count) => calls.push(`cards:${count}`),
   })();
   assert.deepEqual(mine.getMpvClient(), { connected: true });
+  assert.deepEqual(mine.getPrimarySubtitle?.(), {
+    text: '正式な字幕',
+    startTime: 1,
+    endTime: 3,
+  });
   mine.showMpvOsd('m');
   await mine.mineSentenceCardCore({
     ankiIntegration: { enabled: true },

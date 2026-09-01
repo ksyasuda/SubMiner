@@ -26,6 +26,29 @@ test('subtitle change handler updates state and forwards uncached text without r
   assert.deepEqual(calls, ['set:line', 'process:line', 'presence']);
 });
 
+test('subtitle change handler consistently forwards resolved canonical text', () => {
+  const calls: string[] = [];
+  const handler = createHandleMpvSubtitleChangeHandler({
+    resolveSubtitleText: () => '今　手にある物差しでは',
+    setCurrentSubText: (text) => calls.push(`set:${text}`),
+    getImmediateSubtitlePayload: (text) => {
+      calls.push(`lookup:${text}`);
+      return null;
+    },
+    broadcastSubtitle: () => {},
+    onSubtitleChange: (text) => calls.push(`process:${text}`),
+    refreshDiscordPresence: () => {},
+  });
+
+  handler({ text: '今今今手手手ににに' });
+
+  assert.deepEqual(calls, [
+    'set:今　手にある物差しでは',
+    'lookup:今　手にある物差しでは',
+    'process:今　手にある物差しでは',
+  ]);
+});
+
 test('subtitle change handler clears immediately for empty subtitle text', () => {
   const calls: string[] = [];
   const handler = createHandleMpvSubtitleChangeHandler({
@@ -333,6 +356,30 @@ test('time-pos handler forces Jellyfin progress when mpv position jumps', () => 
     'progress:force',
     'presence',
   ]);
+});
+
+test('time-pos handler treats an explicit short jump as a seek', () => {
+  const updateKinds: string[] = [];
+  let explicitSeekPending = false;
+  const timeHandler = createHandleMpvTimePosChangeHandler({
+    recordPlaybackPosition: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    refreshDiscordPresence: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    consumeExplicitSeek: () => {
+      const pending = explicitSeekPending;
+      explicitSeekPending = false;
+      return pending;
+    },
+    onTimePosUpdate: (_time, kind) => updateKinds.push(kind),
+  });
+
+  timeHandler({ time: 10 });
+  explicitSeekPending = true;
+  timeHandler({ time: 11.5 });
+  timeHandler({ time: 11.6 });
+
+  assert.deepEqual(updateKinds, ['initial', 'seek', 'playback']);
 });
 
 test('time-pos handler passes fresh playback time to AniList post-watch', async () => {

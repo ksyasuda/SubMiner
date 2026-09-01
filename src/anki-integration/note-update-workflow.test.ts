@@ -80,7 +80,6 @@ function createWorkflowHarness() {
       const names = Object.keys(noteInfo.fields);
       return names.find((name) => name.toLowerCase() === preferred.toLowerCase()) ?? null;
     },
-    getResolvedSentenceAudioFieldName: () => null,
     getAnimatedImageLeadInSeconds: async () => 0,
     mergeFieldValue: (_existing: string, next: string, _overwrite: boolean) => next,
     generateAudioFilename: () => 'audio_1.mp3',
@@ -118,6 +117,49 @@ test('NoteUpdateWorkflow updates sentence field and emits notification', async (
   assert.equal(harness.updates[0]?.noteId, 42);
   assert.equal(harness.updates[0]?.fields.Sentence, 'subtitle-text');
   assert.equal(harness.notifications.length, 1);
+});
+
+test('NoteUpdateWorkflow uses configured fields for word-card enrichment with Lapis and Kiku enabled', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.getConfig = () => ({
+    fields: {
+      sentence: 'Context',
+      audio: 'ContextAudio',
+    },
+    media: {
+      generateAudio: true,
+      generateImage: false,
+    },
+    behavior: {},
+  });
+  harness.deps.getEffectiveSentenceCardConfig = () => ({
+    sentenceField: 'Sentence',
+    lapisEnabled: true,
+    kikuEnabled: true,
+    fieldGroupingMode: 'disabled',
+  });
+  harness.deps.client.notesInfo = async () =>
+    [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: 'taberu' },
+          Sentence: { value: '' },
+          SentenceAudio: { value: '' },
+          Context: { value: '' },
+          ContextAudio: { value: '' },
+        },
+      },
+    ] satisfies NoteUpdateWorkflowNoteInfo[];
+  harness.deps.generateAudio = async () => Buffer.from('audio');
+
+  await harness.workflow.execute(42);
+
+  assert.equal(harness.updates.length, 1);
+  assert.deepEqual(harness.updates[0]?.fields, {
+    Context: 'subtitle-text',
+    ContextAudio: '[sound:audio_1.mp3]',
+  });
 });
 
 test('NoteUpdateWorkflow updates sentence furigana when highlight processor changes it', async () => {
@@ -432,6 +474,7 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   harness.deps.getConfig = () => ({
     fields: {
       sentence: 'Sentence',
+      audio: 'SentenceAudio',
       image: 'Picture',
       miscInfo: 'MiscInfo',
     },
@@ -444,7 +487,6 @@ test('NoteUpdateWorkflow uses subtitle sidebar context for sentence media timing
   });
   harness.deps.getCurrentSubtitleText = () => 'current primary line';
   harness.deps.getCurrentSubtitleStart = () => 20;
-  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
   harness.deps.generateAudio = async (context?: SubtitleMiningContext) => {
     audioContext = context ?? null;
     return Buffer.from('audio');
@@ -501,6 +543,7 @@ test('NoteUpdateWorkflow snapshots one media range for audio and image without a
   harness.deps.getConfig = () => ({
     fields: {
       sentence: 'Sentence',
+      audio: 'SentenceAudio',
       image: 'Picture',
       miscInfo: 'MiscInfo',
     },
@@ -511,7 +554,6 @@ test('NoteUpdateWorkflow snapshots one media range for audio and image without a
     },
     behavior: {},
   });
-  harness.deps.getResolvedSentenceAudioFieldName = () => 'SentenceAudio';
   harness.deps.captureSubtitleMediaContext = () => {
     captureCalls += 1;
     return capturedContext;

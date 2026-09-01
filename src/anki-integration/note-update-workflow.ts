@@ -19,6 +19,7 @@ export interface NoteUpdateWorkflowDeps {
     fields?: {
       word?: string;
       sentence?: string;
+      audio?: string;
       image?: string;
       miscInfo?: string;
     };
@@ -75,7 +76,6 @@ export interface NoteUpdateWorkflowDeps {
     noteInfo: NoteUpdateWorkflowNoteInfo,
     ...preferredNames: (string | undefined)[]
   ) => string | null;
-  getResolvedSentenceAudioFieldName: (noteInfo: NoteUpdateWorkflowNoteInfo) => string | null;
   getAnimatedImageLeadInSeconds: (noteInfo: NoteUpdateWorkflowNoteInfo) => Promise<number>;
   mergeFieldValue: (existing: string, newValue: string, overwrite: boolean) => string;
   generateAudioFilename: () => string;
@@ -196,11 +196,13 @@ export class NoteUpdateWorkflow {
       const updatedFields: Record<string, string> = {};
       let updatePerformed = false;
       let miscInfoFilename: string | null = null;
-      const sentenceField = sentenceCardConfig.sentenceField;
+      const configuredSentenceField =
+        config.fields?.sentence ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.sentence;
+      const sentenceField = this.deps.resolveConfiguredFieldName(noteInfo, configuredSentenceField);
       const subtitleMiningContext = this.consumeMatchingSubtitleMiningContext(
         fields,
-        sentenceField,
-        config.fields?.sentence,
+        sentenceField ?? configuredSentenceField,
+        configuredSentenceField,
       );
       // Audio and image generation run sequentially and audio extraction can take tens of
       // seconds, so resolve the clip range exactly once up front; reading live mpv sub
@@ -256,7 +258,10 @@ export class NoteUpdateWorkflow {
 
           if (audioBuffer) {
             await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
-            const sentenceAudioField = this.deps.getResolvedSentenceAudioFieldName(noteInfo);
+            const sentenceAudioField = this.deps.resolveConfiguredFieldName(
+              noteInfo,
+              config.fields?.audio ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.audio,
+            );
             if (sentenceAudioField) {
               const existingAudio = noteInfo.fields[sentenceAudioField]?.value || '';
               updatedFields[sentenceAudioField] = this.deps.mergeFieldValue(

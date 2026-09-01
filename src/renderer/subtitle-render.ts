@@ -6,6 +6,7 @@ import type {
   SubtitleRendererStyleConfig,
 } from '../types';
 import { assToPlainText, normalizePlainSubtitleText } from '../core/services/ass-text.js';
+import { flattenedSecondarySubtitleLineIdentity } from '../core/services/secondary-subtitle-line-identity.js';
 import type { RendererContext } from './context';
 import { PRIMARY_SUB_VISIBLE_ON_YOMITAN_POPUP_CLASS } from './yomitan-popup.js';
 
@@ -47,6 +48,21 @@ function isWhitespaceOnly(value: string): boolean {
 // by the cue parser for prefetched ones -- so this only settles line breaks.
 export function normalizeSubtitle(text: string, trim = true, collapseLineBreaks = false): string {
   return normalizePlainSubtitleText(text, { trim, collapseLineBreaks });
+}
+
+/**
+ * Display form of a resolved subtitle. `preserveLineBreaks` governs wrapping inside one
+ * utterance, which is what a typesetter's `\N` means. The blank line the resolver puts
+ * between two simultaneous cues is a different thing and always breaks, so a sign or a
+ * second speaker never runs into the line beside it.
+ */
+export function normalizeSubtitleForDisplay(text: string, preserveLineBreaks: boolean): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((cueText) => normalizeSubtitle(cueText, true, !preserveLineBreaks))
+    .filter((cueText) => cueText.length > 0)
+    .join('\n');
 }
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -413,16 +429,13 @@ function renderWithTokens(
   const fragment = document.createDocumentFragment();
 
   if (sourceText) {
-    const normalizedSource = normalizeSubtitle(sourceText, true, !preserveLineBreaks);
+    const normalizedSource = normalizeSubtitleForDisplay(sourceText, preserveLineBreaks);
     const segments = alignTokensToSourceText(tokens, normalizedSource);
 
     for (const segment of segments) {
       if (segment.kind === 'text') {
-        if (preserveLineBreaks) {
-          renderPlainTextPreserveLineBreaks(fragment, segment.text);
-        } else {
-          fragment.appendChild(document.createTextNode(segment.text));
-        }
+        // Normalization already resolved which breaks survive; every one left is real.
+        renderPlainTextPreserveLineBreaks(fragment, segment.text);
         continue;
       }
 
@@ -665,6 +678,22 @@ function isKaraokeLikeLineSet(lines: string[]): boolean {
   return median <= KARAOKE_MAX_MEDIAN_LINE_LENGTH;
 }
 
+function collapseFullLineFallbackCopies(lines: string[]): string[] {
+  const seenExact = new Set<string>();
+  const seenFlattened = new Set<string>();
+  return lines.filter((line) => {
+    const exactIdentity = line.normalize('NFKC');
+    if (seenExact.has(exactIdentity)) return false;
+    seenExact.add(exactIdentity);
+
+    const flattenedIdentity = flattenedSecondarySubtitleLineIdentity(line);
+    if (!flattenedIdentity) return true;
+    if (seenFlattened.has(flattenedIdentity)) return false;
+    seenFlattened.add(flattenedIdentity);
+    return true;
+  });
+}
+
 export function prepareSecondarySubtitleLines(text: string): string[] {
   // The one display-side ASS decode: secondary text also reaches the overlay from
   // websocket clients that forward their source line untouched, so unlike the primary
@@ -678,7 +707,7 @@ export function prepareSecondarySubtitleLines(text: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   if (!isKaraokeLikeLineSet(lines)) {
-    return lines;
+    return collapseFullLineFallbackCopies(lines);
   }
 
   const seen = new Set<string>();
@@ -731,7 +760,7 @@ export function createSubtitleRenderer(ctx: RendererContext) {
       return;
     }
 
-    const normalized = normalizeSubtitle(text, true, !ctx.state.preserveSubtitleLineBreaks);
+    const normalized = normalizeSubtitleForDisplay(text, ctx.state.preserveSubtitleLineBreaks);
     const hasRenderableTokens =
       shouldRenderTokenizedSubtitle(tokens?.length ?? 0) && Boolean(tokens);
     if (

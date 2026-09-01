@@ -23,7 +23,9 @@ Trend charts now consume one chart-oriented backend payload from `/api/stats/tre
   - lookup rate trends
   - watch-time by day-of-week/hour
 - vocabulary-backed:
-  - new-words trend
+  - new-words trend reads permanent daily lexical rollups
+  - rollup rows count only vocabulary-visible tokens and normalize mixed legacy timestamp units
+  - a persisted rollup version invalidates stale materializations and triggers an atomic background rebuild
 
 ## Metric Semantics
 

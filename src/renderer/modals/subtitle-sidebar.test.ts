@@ -240,14 +240,15 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
 
   const snapshot: SubtitleSidebarSnapshot = {
     cues: [
-      { startTime: 1, endTime: 2, text: 'first' },
+      { startTime: 1, endTime: 3.4, text: 'first' },
       { startTime: 3, endTime: 4, text: 'second' },
     ],
     currentSubtitle: {
       text: 'second',
-      startTime: 3,
+      startTime: 3.5,
       endTime: 4,
     },
+    currentTimeSec: 3.5,
     config: {
       enabled: true,
       autoOpen: false,
@@ -360,6 +361,9 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
 
     modal.seekToCue(snapshot.cues[0]!);
     assert.deepEqual(mpvCommands.at(-1), ['seek', 1.08, 'absolute+exact']);
+
+    modal.seekToCue(snapshot.cues[1]!);
+    assert.deepEqual(mpvCommands.at(-1), ['seek', 3.48, 'absolute+exact']);
 
     modal.closeSubtitleSidebarModal();
     assert.deepEqual(visibilityChanges, [true, false]);

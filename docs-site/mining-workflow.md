@@ -41,7 +41,7 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
    - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
 3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation - the same fields auto-update would fill.
 
-Manual clipboard updates always replace generated sentence audio, even when `ankiConnect.behavior.overwriteAudio` is disabled. The word audio field is left unchanged because the word itself does not change in this flow.
+Manual clipboard updates always replace generated sentence audio in `ankiConnect.fields.audio`, even when `ankiConnect.behavior.overwriteAudio` is disabled. Normal word-card updates use the configured sentence and audio fields even when Lapis or Kiku support is enabled.
 
 This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
@@ -108,7 +108,11 @@ The secondary bar is a compact top-strip region in the same overlay window. It s
 - Quick comprehension checks without leaving the mining flow.
 - Auto-populating the translation field on mined cards - when a card is created, SubMiner uses the secondary subtitle text as the translation field value (unless AI translation is configured to override it).
 
+For local media, SubMiner can parse supported embedded secondary tracks into timed cues. For remote URLs and files on network mounts, it uses mpv's live secondary subtitle text instead of scanning the media with ffmpeg.
+
 It is controlled by `secondarySub` configuration and shares its lifecycle with the main overlay window. Cycle which track feeds it with `Shift+J`.
+
+SubMiner collapses duplicate ASS layers in parsed secondary tracks. Exact repeated lines collapse at any length, while distinct simultaneous short lines remain separate. Long dialogue and positioned-sign copies also collapse when they differ only in whitespace or terminal punctuation. Dense multi-row sign layouts, such as translated timetables, are excluded instead of being concatenated into the secondary bar.
 
 ### Display Modes
 

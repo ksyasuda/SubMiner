@@ -3,7 +3,7 @@
 # Subtitle Overlay Priming
 
 Status: active
-Last verified: 2026-08-04
+Last verified: 2026-08-19
 Owner: Kyle Yasuda
 Read when: debugging subtitle state or blank Linux/X11 overlay windows when the visible overlay is shown or recreated
 
@@ -69,13 +69,84 @@ coming and prefetching would otherwise idle for the rest of the cue.
 
 ## Live Cue Delivery
 
+- Primary live text first resolves recovered canonical ASS animations. Otherwise, when
+  every live mpv line matches an active parsed cue, it uses the parsed cue text so exact
+  full-span style layers appear once instead of repeating for fill, border, blur, shadow,
+  or equivalent whitespace variants. Any unmatched live line keeps the complete live
+  stack, preserving dialogue or signs that overlap a lyric.
 - A tokenization cache miss emits the plain cue synchronously. Tokenization remains serialized so
   live work does not contend for Yomitan state.
+- The initial `time-pos`, explicit renderer seeks, and later seek-like jumps reprocess mpv's
+  current raw `sub-text` after the new playback time is stored. Explicit intent matters because
+  adjacent subtitle jumps can be shorter than the general seek-distance threshold. This corrects
+  ASS cleanup when mpv delivered the destination subtitle before the destination timestamp.
+- Renderer `sub-seek` commands use the active parsed cue list when available. Simultaneous cues
+  share one boundary, overlapping lyrics advance from the latest active boundary, and mpv's native
+  command remains the fallback when no parsed destination exists. This prevents generated karaoke
+  frames from consuming next/previous subtitle presses.
+- Subtitle sidebar selections seek past the preceding sanitized cue's overlapping exit span when
+  the selected cue has enough time remaining. This keeps direct row selection on the requested
+  karaoke line while clamping the seek inside that cue.
+- If startup paints raw text before embedded ASS parsing finishes, parsed cue arrival may replace
+  that provisional line. The one-prime-per-media guard still suppresses identical repeats.
 - If a newer cue arrives while an older line is still tokenizing, the newer plain cue or empty
   clear payload is emitted immediately. The older tokenization result is dropped before it can
   replace the current cue.
 - The current cue upgrades in place when its tokens and annotations are ready. This can reflow text
   or character images, but cue visibility does not wait for that work.
+
+## Secondary Subtitle Flow
+
+- `secondary-sub-text` remains the immediate fallback, so unreadable subtitle sources, remote URLs,
+  and still-extracting embedded tracks appear without waiting for file resolution. Embedded-track
+  extraction runs for local and network-mounted files alike (demuxing reads the whole container,
+  about 10 seconds per GB on gigabit, under a generous timeout); only true remote URLs skip it,
+  having no on-disk container to demux.
+- The live fallback also suppresses per-glyph typesetting walls: when many simultaneous
+  one-glyph lines are present (generated karaoke lettering flattened into live text), those
+  lines and their short syllable companions are dropped while concurrent dialogue lines stay.
+  This keeps the overlay clean while extraction is still in flight and for sources that never
+  produce parsed cues.
+- Parsed secondary text and the live fallback remove exact repeated lines at any length. A
+  flattened-line identity also removes long dialogue/sign repetitions that differ only in
+  whitespace or terminal punctuation, while distinct simultaneous short lines remain separate.
+- `secondary-subtitle-track.ts` resolves `secondary-sid` against mpv's track list. External tracks
+  are read directly; supported embedded text tracks are extracted through the same ffmpeg-backed
+  source resolver used by primary subtitle prefetching.
+- The selected source is parsed with `parseSubtitleCues()`, including metadata-aware ASS duplicate
+  and animation collapse. Playback `time-pos` selects the active parsed cue after applying
+  `secondary-sub-delay`.
+- Fragment reconstruction marks tall multi-row positioned parts as a grid only when they read
+  like tiling: a couple of texts repeated across many fragments, the same text re-shown at one
+  spot over time (countdown/animation frames), or scattered single glyphs. Secondary text omits
+  those grids instead of flattening a translated table or schedule into one synthetic line.
+  Wrapped lyric rows, CC-style dialogue blocks, and reconstructed single-line karaoke remain
+  eligible for display.
+- The resolved text is stored in `mpvClient.currentSecondarySubText` before it is broadcast. The
+  overlay, mining, timing tracker, and immersion statistics therefore consume the same secondary
+  text when a readable source is available.
+- Simultaneous parsed cues use whitespace-insensitive identity, so ASS layers that vary only
+  between ordinary, hard, or ideographic spaces appear once.
+- Simultaneous ASS lines are flattened in top-to-bottom positioned order, falling back to their
+  authored source order when no usable position exists.
+- Half-size kana positioned directly above a same-timed kanji caption is treated as ASS
+  furigana. The parser omits it from published cues but retains hidden matching metadata so
+  mpv's raw live text can be reconciled without displaying or mining the reading.
+- Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
+  survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
+  boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that
+  line. Unpositioned fragments stay compact instead of gaining guessed spaces between syllables.
+  Short runs qualify only when overlapping positioned events also show changing overrides or
+  repeated layer copies; an English or romaji style name alone never turns ordinary dialogue into
+  a lyric.
+- Recovered canonical ASS text remains active for the generated animation envelope. For
+  reconstructed lyric styles, the longest-lived active line wins over brief entrance and exit
+  fragments from the same style.
+- Media and `secondary-sid` changes clear the previous parsed state before refreshing the source;
+  track-list changes refresh without discarding an unchanged source. Observed
+  `secondary-sub-delay` changes retime the active parsed cue without rereading the file. If loading,
+  extraction, or parsing fails, the controller returns to live mpv text and the renderer's
+  conservative short stack heuristic remains the final display fallback.
 
 ## Emitted State
 
@@ -84,8 +155,8 @@ coming and prefetching would otherwise idle for the rest of the cue.
 - The basic subtitle websocket receives the immediate plain cue only. Because its serialized
   payload discards annotations, the later upgrade would be an identical duplicate and is skipped
   when text and cue timing match.
-- Secondary priming reads mpv `secondary-sub-text`, stores it in
-  `mpvClient.currentSecondarySubText`, and broadcasts `secondary-subtitle:set` to overlay windows.
+- Secondary priming reads mpv `secondary-sub-text` and routes it through the secondary track
+  controller. A parsed active cue replaces the live text when the selected source is readable.
 - If secondary `requestProperty` fails, the primary flow stays complete and only a debug line is
   written.
 
