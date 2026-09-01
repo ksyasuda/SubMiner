@@ -441,7 +441,7 @@ export class FieldGroupingMergeCollaborator {
       // markup) so the following scenes are siblings rather than nested inside it.
       entries.push(`${value.slice(entryStart)}${'</span>'.repeat(depth)}`);
     } else {
-      pushUngrouped(value.slice(cursor));
+      pushUngrouped(`${value.slice(cursor)}${'</span>'.repeat(depth)}`);
     }
     return entries;
   }

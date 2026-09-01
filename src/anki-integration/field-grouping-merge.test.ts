@@ -394,6 +394,24 @@ test('Senren merge closes unclosed group spans so later scenes stay siblings', a
   assert.equal(openTags, closeTags);
 });
 
+test('Senren merge closes unclosed trailing markup before appending later scenes', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, { miscInfo: 'leading<span class="highlight">tail' }),
+    makeNote(200, { miscInfo: '<span class="group">next</span>' }),
+    false,
+  );
+
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">leading<span class="highlight">tail</span></span>' +
+      '<span class="group">next</span>',
+  );
+});
+
 test('Kiku merge clears SentenceFurigana when either note lacks it', async () => {
   const { collaborator } = createCollaborator();
 
