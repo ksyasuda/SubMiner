@@ -652,7 +652,7 @@ test('MpvIpcClient captures and disables secondary subtitle visibility on reques
   ]);
 });
 
-test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value', async () => {
+test('MpvIpcClient restores secondary subtitle visibility and relinquishes suppression', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const previous: boolean[] = [];
@@ -671,6 +671,12 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
   });
   client.restorePreviousSecondarySubVisibility();
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+
   assert.equal(previous[0], true);
   assert.equal(previous.length, 1);
   assert.deepEqual(commands, [
@@ -682,8 +688,53 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
     },
   ]);
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.equal(commands.length, 2);
+
   client.restorePreviousSecondarySubVisibility();
   assert.equal(commands.length, 2);
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+  commands.length = 0;
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.deepEqual(commands, [{ command: ['set_property', 'secondary-sub-visibility', 'no'] }]);
+});
+
+test('MpvIpcClient keeps secondary subtitle suppression when restoration send fails', async () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return false;
+  };
+
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    data: 'yes',
+  });
+  client.restorePreviousSecondarySubVisibility();
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sid',
+    data: 4,
+  });
+
+  assert.deepEqual(commands, [
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'yes'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+  ]);
 });
 
 test('MpvIpcClient updates current audio stream index from track list', async () => {

@@ -72,6 +72,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
+  shouldEnforceSecondarySubVisibilityHidden: () => boolean;
   setSecondarySubVisibility: (visible: boolean) => void;
   syncCurrentAudioStreamIndex: () => void;
   setCurrentAudioTrackId: (value: number | null) => void;
@@ -285,6 +286,9 @@ export async function dispatchMpvProtocolMessage(
             : null;
       deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isInteger(sid) ? sid : null });
     } else if (msg.name === 'secondary-sid') {
+      if (deps.shouldEnforceSecondarySubVisibilityHidden()) {
+        deps.setSecondarySubVisibility(false);
+      }
       const sid =
         typeof msg.data === 'number'
           ? msg.data
@@ -374,6 +378,11 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.name === 'sub-visibility') {
       if (deps.isVisibleOverlayVisible() && asBoolean(msg.data, false)) {
         deps.sendCommand({ command: ['set_property', 'sub-visibility', false] });
+      }
+    } else if (msg.name === 'secondary-sub-visibility') {
+      const visible = parseVisibilityProperty(msg.data);
+      if (deps.shouldEnforceSecondarySubVisibilityHidden() && visible === true) {
+        deps.setSecondarySubVisibility(false);
       }
     } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({
