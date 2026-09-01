@@ -184,6 +184,7 @@ export class MpvIpcClient implements MpvClient {
     osdDimensions: null,
   };
   private previousSecondarySubVisibility: boolean | null = null;
+  private enforceSecondarySubVisibilityHidden = true;
   private playbackPaused: boolean | null = null;
   private pauseAtTime: number | null = null;
   private pendingPauseAtSubEnd = false;
@@ -199,6 +200,7 @@ export class MpvIpcClient implements MpvClient {
       socketFactory: deps.socketFactory,
       connectTimeoutMs: deps.connectTimeoutMs,
       onConnect: () => {
+        this.enforceSecondarySubVisibilityHidden = true;
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
@@ -476,6 +478,7 @@ export class MpvIpcClient implements MpvClient {
       },
       resolvePendingRequest: (requestId: number, message: MpvMessage) =>
         this.tryResolvePendingRequest(requestId, message),
+      shouldEnforceSecondarySubVisibilityHidden: () => this.enforceSecondarySubVisibilityHidden,
       setSecondarySubVisibility: (visible: boolean) => this.setSecondarySubVisibility(visible),
       syncCurrentAudioStreamIndex: () => {
         this.syncCurrentAudioStreamIndex();
@@ -647,9 +650,11 @@ export class MpvIpcClient implements MpvClient {
   restorePreviousSecondarySubVisibility(): void {
     const previous = this.previousSecondarySubVisibility;
     if (previous === null) return;
-    this.send({
+    const restored = this.send({
       command: ['set_property', 'secondary-sub-visibility', previous ? 'yes' : 'no'],
     });
+    if (!restored) return;
+    this.enforceSecondarySubVisibilityHidden = false;
     this.previousSecondarySubVisibility = null;
   }
 
