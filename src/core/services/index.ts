@@ -131,12 +131,6 @@ export {
   resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
   ticksToSeconds as jellyfinTicksToSecondsRuntime,
 } from './jellyfin';
-export { loadJellyfinSubtitleDelay, saveJellyfinSubtitleDelay } from './jellyfin-subtitle-delay';
-export {
-  estimateSubtitleTimingOffset,
-  type SubtitleTimingOffsetOptions,
-  type SubtitleTimingOffsetResult,
-} from './subtitle-timing-offset';
 export { buildJellyfinTimelinePayload, JellyfinRemoteSessionService } from './jellyfin-remote';
 export {
   broadcastRuntimeOptionsChangedRuntime,
