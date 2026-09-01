@@ -244,6 +244,35 @@ test('handleMultiCopyDigit copies available history and reports truncation', () 
   assert.equal(osd.at(-1), 'Only 2 lines available, copied 2');
 });
 
+test('handleMultiCopyDigit copies backward from the current subtitle after a backward seek', () => {
+  const copied: string[] = [];
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('A', 1, 2);
+    tracker.recordSubtitle('B', 3, 4);
+    tracker.recordSubtitle('C', 5, 6);
+    tracker.recordSubtitle('B', 3, 4);
+
+    const deps = {
+      subtitleTimingTracker: tracker,
+      writeClipboardText: (text: string) => copied.push(text),
+      showMpvOsd: () => {},
+    };
+
+    handleMultiCopyDigit(1, deps);
+    handleMultiCopyDigit(2, deps);
+
+    assert.deepEqual(copied, ['B', 'A\n\nB']);
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'A', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'B', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
 test('handleMineSentenceDigit reports async create failures', async () => {
   const osd: string[] = [];
   const logs: Array<{ message: string; err: unknown }> = [];
