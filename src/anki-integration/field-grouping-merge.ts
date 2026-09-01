@@ -162,8 +162,11 @@ export class FieldGroupingMergeCollaborator {
       if (!existingValue.trim() && !newValue.trim()) continue;
 
       if (keepFieldNormalized === 'sentencefurigana') {
+        const hasBothValues = existingValue.trim().length > 0 && newValue.trim().length > 0;
+        const usesSenrenGrouping =
+          this.deps.getEffectiveSentenceCardConfig().fieldGroupingProvider === 'senren';
         mergedFields[keepFieldName] =
-          existingValue.trim() && newValue.trim()
+          hasBothValues || usesSenrenGrouping
             ? this.applyFieldGrouping(
                 existingValue,
                 newValue,

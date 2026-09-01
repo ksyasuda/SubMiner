@@ -394,7 +394,7 @@ test('Senren merge closes unclosed group spans so later scenes stay siblings', a
   assert.equal(openTags, closeTags);
 });
 
-test('computeFieldGroupingMergedFields clears SentenceFurigana when either note lacks it', async () => {
+test('Kiku merge clears SentenceFurigana when either note lacks it', async () => {
   const { collaborator } = createCollaborator();
 
   const merged = await collaborator.computeFieldGroupingMergedFields(
@@ -410,4 +410,22 @@ test('computeFieldGroupingMergedFields clears SentenceFurigana when either note 
   );
 
   assert.equal(merged.SentenceFurigana, '');
+});
+
+test('Senren merge keeps duplicate SentenceFurigana when the kept field is empty', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      SentenceFurigana: '',
+    }),
+    makeNote(200, {
+      SentenceFurigana: 'duplicate furigana',
+    }),
+    false,
+  );
+
+  assert.equal(merged.SentenceFurigana, '<span class="group">duplicate furigana</span>');
 });
