@@ -373,6 +373,22 @@ test('handleMineSentenceDigit keeps per-entry timings when subtitle text repeats
   }
 });
 
+test('subtitle timing history preserves adjacent repeated text with distinct timings', () => {
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('same', 1, 2);
+    tracker.recordSubtitle('same', 3, 4);
+
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'same', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'same', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
 test('handleMineSentenceDigit joins per-entry secondary subtitles when available', async () => {
   const created: Array<{ sentence: string; secondarySub?: string }> = [];
   const tracker = new SubtitleTimingTracker();

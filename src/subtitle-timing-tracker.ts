@@ -67,8 +67,13 @@ export class SubtitleTimingTracker {
 
     // Check for duplicate of most recent entry (deduplicate adjacent repeats)
     const lastEntry = this.history[this.history.length - 1];
-    if (lastEntry && lastEntry.timingKey === timingKey) {
-      // Update timing to most recent occurrence
+    if (
+      lastEntry &&
+      lastEntry.timingKey === timingKey &&
+      lastEntry.startTime === startTime &&
+      lastEntry.endTime === endTime
+    ) {
+      // Refresh metadata for repeated notifications of the same subtitle event.
       lastEntry.startTime = startTime;
       lastEntry.endTime = endTime;
       lastEntry.secondaryText = displaySecondaryText;
