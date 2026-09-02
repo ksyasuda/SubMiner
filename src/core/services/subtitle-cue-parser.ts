@@ -2342,6 +2342,185 @@ function removeAssFuriganaEvents(
   };
 }
 
+// Broadcast-caption converters give every visual row of one utterance its own positioned
+// event, so a sentence that wraps arrives as two simultaneous cues with the same timing,
+// style, and vertical band. Captions punctuate every finished utterance, and each turn
+// opens with a speaker label or a ≪…≫ / ⸨…⸩ span, which is what tells a wrapped sentence
+// apart from two speakers sharing the screen.
+const CAPTION_SPEAKER_LABEL_ONLY_PATTERN = /^（[^（）]*）$/u;
+const CAPTION_SPEAKER_LABEL_PATTERN = /^（/u;
+const CAPTION_TURN_OPENER_PATTERN = /^[≪⸨（]/u;
+const CAPTION_TERMINAL_PATTERN = /[。？！?!…‥～〜➡⁉⁈≫⸩）」』]$/u;
+const CAPTION_SPANS: ReadonlyArray<readonly [open: string, close: string]> = [
+  ['≪', '≫'],
+  ['⸨', '⸩'],
+];
+// Rows of one utterance sit one text row apart (about 60 units in the 540-line space the
+// furigana geometry is tuned for), or two when a ruby row lies between them. Rows at the
+// same height sit side by side, and rows further apart are separate placements.
+const MAX_CAPTION_ROW_GAP = 120;
+// Only a broadcast-caption script gets rows joined. Typesetters position rows for signs,
+// chat bubbles, and lyric stacks too, and there the continuation rule below has no
+// convention to read: sign text rarely carries sentence punctuation, so unrelated rows
+// would run together. A caption script announces itself by labelling speakers （名） and
+// bracketing off-screen speech in ≪…≫ / ⸨…⸩; typeset scripts use those in a handful of
+// lines at most. Measured over local tracks, caption scripts sit near 25% and every typeset
+// script below 1%, so the threshold has room on both sides. It is deliberately strict: a
+// caption script wrongly held back just keeps one sentence on two rows, while a typeset
+// script wrongly let through concatenates unrelated signs.
+const MIN_CAPTION_EVIDENCE_EVENTS = 2;
+const MIN_CAPTION_EVIDENCE_RATIO = 0.05;
+const CAPTION_EVIDENCE_PATTERN = /^（[^（）]{1,14}）|[≪⸨]/u;
+// Rows that carry no Japanese are not the broadcast captions this pass targets.
+const JAPANESE_SCRIPT_PATTERN = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
+function hasBroadcastCaptionConventions(cues: readonly AnnotatedSubtitleCue[]): boolean {
+  let evidence = 0;
+  let published = 0;
+  for (const cue of cues) {
+    if (!cue.text.trim()) continue;
+    published += 1;
+    if (CAPTION_EVIDENCE_PATTERN.test(cue.text)) evidence += 1;
+  }
+  return (
+    evidence >= MIN_CAPTION_EVIDENCE_EVENTS && evidence >= published * MIN_CAPTION_EVIDENCE_RATIO
+  );
+}
+
+function captionSpanDepth(text: string, [open, close]: readonly [string, string]): number {
+  let depth = 0;
+  for (const char of text) {
+    if (char === open) depth += 1;
+    else if (char === close) depth -= 1;
+  }
+  return depth;
+}
+
+/**
+ * Whether `lower` continues the utterance `upper` started, both being simultaneous
+ * caption rows. A bare speaker label labels the row beneath it. Otherwise the upper row
+ * must not have finished: it ends without terminal punctuation, or a ≪…≫ / ⸨…⸩ span it
+ * opened is still open (closing 」 inside such a span is not an ending). A lower row that
+ * opens its own turn is always a different line.
+ */
+function isCaptionRowContinuation(upper: string, lower: string): boolean {
+  if (CAPTION_SPEAKER_LABEL_ONLY_PATTERN.test(upper)) {
+    return !CAPTION_SPEAKER_LABEL_PATTERN.test(lower);
+  }
+  if (CAPTION_TURN_OPENER_PATTERN.test(lower)) {
+    return false;
+  }
+  const spanContinues = CAPTION_SPANS.some(
+    (span) => captionSpanDepth(upper, span) > 0 || captionSpanDepth(lower, span) < 0,
+  );
+  return spanContinues || !CAPTION_TERMINAL_PATTERN.test(upper);
+}
+
+// A half-height row is ruby or a whispered aside, not a row of the utterance.
+function isCaptionRowCandidate(cue: AnnotatedSubtitleCue): boolean {
+  const scaleY = staticAssScalePercent(cue, 'fscy');
+  return (
+    cue.source === undefined &&
+    cue.assLayout?.kind === 'positioned' &&
+    cue.effect.trim() === '' &&
+    !cue.text.includes('\n') &&
+    !hasAssTemporalOverride(cue.overrides) &&
+    (scaleY === null || scaleY > MAX_ASS_FURIGANA_SCALE_PERCENT) &&
+    JAPANESE_SCRIPT_PATTERN.test(cue.text)
+  );
+}
+
+function captionRowGroupKey(cue: AnnotatedSubtitleCue): string {
+  return [
+    cue.startTime,
+    cue.endTime,
+    cue.style,
+    cue.layer,
+    cue.name,
+    cue.assLayout?.verticalBand ?? '',
+  ].join('\0');
+}
+
+function mergeCaptionRows(rows: readonly AnnotatedSubtitleCue[]): AnnotatedSubtitleCue {
+  const [first] = rows;
+  if (!first) throw new Error('mergeCaptionRows requires at least one row');
+  const overrides = rows.flatMap((row) => row.overrides);
+  const assFurigana = [...new Set(rows.flatMap((row) => row.assFurigana ?? []))];
+  return {
+    ...first,
+    text: rows.map((row) => row.text).join('\n'),
+    rawText: rows.map((row) => row.rawText).join('\\N'),
+    overrides,
+    overrideSignature: assOverrideSignature(overrides),
+    ...(assFurigana.length === 0 ? {} : { assFurigana }),
+  };
+}
+
+/**
+ * Join simultaneous caption rows that spell one utterance into a single cue, so the
+ * overlay can wrap or flatten it like an authored `\N` line and the sidebar and mining
+ * paths see the whole sentence. Rows stack top to bottom; each row joins the cue above it
+ * only while `isCaptionRowContinuation` holds, so a second speaker starts a new cue. The
+ * whole pass is skipped unless the script reads as broadcast captions.
+ */
+function mergeAssCaptionRows(
+  cues: AnnotatedSubtitleCue[],
+  playResY: number | null,
+): AnnotatedSubtitleCue[] {
+  if (!hasBroadcastCaptionConventions(cues)) return cues;
+
+  const groups = new Map<string, AnnotatedSubtitleCue[]>();
+  for (const cue of cues) {
+    if (!isCaptionRowCandidate(cue)) continue;
+    const key = captionRowGroupKey(cue);
+    const group = groups.get(key);
+    if (group) group.push(cue);
+    else groups.set(key, [cue]);
+  }
+
+  const maxRowGap = MAX_CAPTION_ROW_GAP * assFuriganaGeometryScale(playResY);
+  const rowY = (cue: AnnotatedSubtitleCue): number =>
+    cue.assLayout?.kind === 'positioned' ? cue.assLayout.y : 0;
+  const replacements = new Map<AnnotatedSubtitleCue, AnnotatedSubtitleCue>();
+  const removed = new Set<AnnotatedSubtitleCue>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const rows = [...group].sort((a, b) => rowY(a) - rowY(b) || a.order - b.order);
+    let run: AnnotatedSubtitleCue[] = [];
+    const flush = (): void => {
+      if (run.length < 2) return;
+      const anchor = run.reduce((lowest, row) => (row.order < lowest.order ? row : lowest));
+      replacements.set(anchor, mergeCaptionRows(run));
+      for (const row of run) {
+        if (row !== anchor) removed.add(row);
+      }
+    };
+    for (const row of rows) {
+      const previous = run.at(-1);
+      const gap = previous ? rowY(row) - rowY(previous) : 0;
+      if (
+        previous &&
+        gap > 0 &&
+        gap <= maxRowGap &&
+        previous.text !== row.text &&
+        isCaptionRowContinuation(previous.text, row.text)
+      ) {
+        run.push(row);
+        continue;
+      }
+      flush();
+      run = [row];
+    }
+    flush();
+  }
+
+  if (replacements.size === 0) return cues;
+  return cues.flatMap((cue) => {
+    if (removed.has(cue)) return [];
+    return [replacements.get(cue) ?? cue];
+  });
+}
+
 function parseAnnotatedAssEvents(content: string, placement: AssPlacementContext): ParsedAssEvents {
   const cues: AnnotatedSubtitleCue[] = [];
   const comments: AnnotatedSubtitleCue[] = [];
@@ -2476,7 +2655,10 @@ function parseAnnotatedAssCues(content: string): AnnotatedSubtitleCue[] {
     removeAssFontTextureEvents(parseAnnotatedAssEvents(content, placement)),
     placement.playResY,
   );
-  return recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(events));
+  return mergeAssCaptionRows(
+    recoverFragmentOnlyAssLines(recoverCanonicalAssEvents(events)),
+    placement.playResY,
+  );
 }
 
 export function parseAssCues(content: string): SubtitleCue[] {

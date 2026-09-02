@@ -1449,15 +1449,17 @@ test('parseSubtitleCues keeps tall CC-style base dialogue publishable after remo
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(172,437)\\fscx50}（{\\fscx100}立希{\\fscx50}）',
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(332,443)\\fscx50\\fscy50}ともり',
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(192,497)}お前…{\\fscx50}　{\\fscx100}燈をバンドに誘ったの？',
+    // A second labeled turn, so the script reads as broadcast captions.
+    'Dialogue: 0,0:00:10.11,0:00:12.00,Default,,0,0,0,,{\\pos(192,497)\\fscx50}（{\\fscx100}燈{\\fscx50}）{\\fscx100}うん。',
   ].join('\n');
 
   const cues = parseSubtitleCues(content, 'test.ass');
+  // The bare speaker label row joins the dialogue row beneath it as one cue.
   assert.deepEqual(
     cues.map((cue) => cue.text),
-    ['（立希）', 'お前…　燈をバンドに誘ったの？'],
+    ['（立希）\nお前…　燈をバンドに誘ったの？', '（燈）うん。'],
   );
-  assert.deepEqual(cues[0]?.assFurigana, ['たき']);
-  assert.deepEqual(cues[1]?.assFurigana, ['ともり']);
+  assert.deepEqual(cues[0]?.assFurigana, ['たき', 'ともり']);
   assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
 });
 
@@ -1485,14 +1487,184 @@ test('parseSubtitleCues removes half-size positioned furigana from broadcast cap
     [
       '（山田）ごめん　結局　ぬれたな。',
       '大丈夫。',
-      '（山田の母）ほんなら',
-      '隠し貯蔵のミルクまんじゅう➡',
+      '（山田の母）ほんなら\n隠し貯蔵のミルクまんじゅう➡',
       '絶対違う',
     ],
   );
   assert.deepEqual(cues[1]?.assFurigana, ['だいじょうぶ']);
-  assert.deepEqual(cues[3]?.assFurigana, ['かく', 'ちょぞう']);
-  assert.deepEqual(cues[4]?.assFurigana, ['ぜったい　ちが']);
+  assert.deepEqual(cues[2]?.assFurigana, ['かく', 'ちょぞう']);
+  assert.deepEqual(cues[3]?.assFurigana, ['ぜったい　ちが']);
+});
+
+// Broadcast-caption rows from You and I Are Polar Opposites S02E09. Every pair shares
+// timing, style, and the bottom band; only the text tells a wrap from a second speaker.
+const captionRowsHeader = ['[Script Info]', 'PlayResY: 540', '', ...eventsHeader];
+
+function captionRow(start: string, end: string, x: number, y: number, text: string): string {
+  return `Dialogue: 0,${start},${end},Default,,0,0,0,,{\\pos(${x},${y})}${text}`;
+}
+
+test('parseSubtitleCues joins caption rows that wrap one sentence across two events', () => {
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:19.08', '0:00:22.66', 172, 437, '⸨ぶっちゃけ'),
+    captionRow(
+      '0:00:19.08',
+      '0:00:22.66',
+      172,
+      497,
+      '早く{\\fscx50}　{\\fscx100}この勉強生活　終えたいし⸩',
+    ),
+    // No bracket at all: the upper row simply has not reached sentence punctuation.
+    captionRow('0:02:42.33', '0:02:44.43', 232, 437, '（東）≪好きだと'),
+    captionRow('0:02:42.33', '0:02:44.43', 232, 497, '自覚してしまったものの➡'),
+    // Rows are centred independently, so a wrap can change x between rows.
+    captionRow('0:00:42.21', '0:00:45.21', 252, 407, '≪ちょっとしたことで'),
+    captionRow('0:00:42.21', '0:00:45.21', 292, 497, '勝手に落ち込んだり➡'),
+    // A quote closed with 」 inside a still-open ≪…≫ span is not the end of the line.
+    captionRow('0:19:02.84', '0:19:05.00', 212, 437, '≪「つきあえる自信がない」'),
+    captionRow('0:19:02.84', '0:19:05.00', 452, 497, 'じゃない≫'),
+    // An in-sentence 「 quote on the lower row is not a new turn.
+    captionRow('0:18:35.55', '0:18:38.00', 232, 437, '今　「好きだ」と'),
+    captionRow('0:18:35.55', '0:18:38.00', 192, 497, '「心地いい」と感じてるのも➡'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e09.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      '⸨ぶっちゃけ\n早く　この勉強生活　終えたいし⸩',
+      '≪ちょっとしたことで\n勝手に落ち込んだり➡',
+      '（東）≪好きだと\n自覚してしまったものの➡',
+      '今　「好きだ」と\n「心地いい」と感じてるのも➡',
+      '≪「つきあえる自信がない」\nじゃない≫',
+    ],
+  );
+  assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
+});
+
+test('parseSubtitleCues keeps simultaneous caption rows from two speakers separate', () => {
+  const content = [
+    ...captionRowsHeader,
+    // Both unlabeled: the upper row finished its sentence.
+    captionRow('0:03:56.10', '0:04:00.04', 172, 437, 'なあ　車両　変えね？'),
+    captionRow('0:03:56.10', '0:04:00.04', 632, 497, 'えっ？➡'),
+    // Lower row opens a labeled turn.
+    captionRow('0:03:38.48', '0:03:42.05', 592, 437, 'おはよう！'),
+    captionRow('0:03:38.48', '0:03:42.05', 272, 497, '（平）あっ　声　でかっ。'),
+    // A closed monologue span above a sound effect.
+    captionRow('0:08:16.83', '0:08:19.50', 372, 437, '≪落ち着け　落ち着け≫'),
+    captionRow('0:08:16.83', '0:08:19.50', 272, 497, 'ドクン　ドクン　ドクン…'),
+    // Two labeled speakers.
+    captionRow('0:09:27.90', '0:09:31.07', 312, 437, '（平）ぐぅ…。'),
+    captionRow('0:09:27.90', '0:09:31.07', 352, 497, '（東）≪ちくしょう～！≫'),
+    // A bare label never swallows a differently labeled row.
+    captionRow('0:11:43.24', '0:11:45.00', 212, 437, '（長谷川）'),
+    captionRow('0:11:43.24', '0:11:45.00', 412, 497, '（早乙女）ん？'),
+    // A short sentence-final 。 closes the upper row like any other.
+    captionRow('0:12:31.55', '0:12:33.55', 172, 437, '⚞（東）平。'),
+    captionRow('0:12:31.55', '0:12:33.55', 532, 497, 'あっ。'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e09.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'おはよう！',
+      '（平）あっ　声　でかっ。',
+      'なあ　車両　変えね？',
+      'えっ？➡',
+      '≪落ち着け　落ち着け≫',
+      'ドクン　ドクン　ドクン…',
+      '（平）ぐぅ…。',
+      '（東）≪ちくしょう～！≫',
+      '（長谷川）',
+      '（早乙女）ん？',
+      '⚞（東）平。',
+      'あっ。',
+    ],
+  );
+});
+
+test('parseSubtitleCues keeps caption rows apart across styles, bands, and timing', () => {
+  const content = [
+    ...captionRowsHeader,
+    // Same wording as a wrap, but the rows sit in different vertical bands.
+    captionRow('0:01:00.00', '0:01:02.00', 172, 77, '≪ちょっとしたことで'),
+    captionRow('0:01:00.00', '0:01:02.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Same band, but a sign style beside dialogue.
+    'Dialogue: 0,0:01:05.00,0:01:07.00,Sign,,0,0,0,,{\\pos(172,437)}ちょっとしたことで',
+    captionRow('0:01:05.00', '0:01:07.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Same rows, but the lower one ends later.
+    captionRow('0:01:10.00', '0:01:12.00', 172, 437, '≪ちょっとしたことで'),
+    captionRow('0:01:10.00', '0:01:13.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Style-aligned rows without \pos are never caption rows.
+    'Dialogue: 0,0:01:15.00,0:01:17.00,Default,,0,0,0,,{\\an8}≪ちょっとしたことで',
+    'Dialogue: 0,0:01:15.00,0:01:17.00,Default,,0,0,0,,{\\an2}勝手に落ち込んだり➡',
+    // Same height: the events sit side by side, not one above the other.
+    captionRow('0:01:20.00', '0:01:22.00', 172, 497, '≪ちょっとしたことで'),
+    captionRow('0:01:20.00', '0:01:22.00', 612, 497, '勝手に落ち込んだり➡'),
+    // Same bottom band, but further apart than two text rows.
+    captionRow('0:01:25.00', '0:01:27.00', 172, 367, '≪ちょっとしたことで'),
+    captionRow('0:01:25.00', '0:01:27.00', 172, 497, '勝手に落ち込んだり➡'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 12);
+  assert.ok(cues.every((cue) => !cue.text.includes('\n')));
+});
+
+test('parseSubtitleCues leaves typeset rows alone in scripts that are not broadcast captions', () => {
+  // Fansub typesetting stacks positioned rows for signs, chat bubbles, and headlines. Such
+  // text carries no caption punctuation, so without the script-level gate every stacked
+  // pair here would read as an unfinished sentence and merge.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:14.00', 640, 200, 'Shocking Statement Leaves'),
+    captionRow('0:00:10.00', '0:00:14.00', 640, 260, 'Listeners Speechless!'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 300, 'shes here AGAIN'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 360, 'make sakiko-chan go home'),
+    // Japanese typesetting in the same script is held back by the same gate.
+    captionRow('0:02:00.00', '0:02:04.00', 300, 400, '定休日'),
+    captionRow('0:02:00.00', '0:02:04.00', 300, 460, '毎週水曜日'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'Shocking Statement Leaves',
+      'Listeners Speechless!',
+      'shes here AGAIN',
+      'make sakiko-chan go home',
+      '定休日',
+      '毎週水曜日',
+    ],
+  );
+});
+
+test('parseSubtitleCues never joins caption rows that carry no Japanese', () => {
+  // Even inside a caption script, romaji or English rows are not the wrapped Japanese
+  // sentences this pass targets.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:13.00', 172, 437, '（東）≪好きだと'),
+    captionRow('0:00:10.00', '0:00:13.00', 172, 497, '自覚してしまったものの➡'),
+    captionRow('0:00:20.00', '0:00:23.00', 172, 437, '（平）ん？'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 437, 'NOW LOADING'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 497, 'please wait'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['（東）≪好きだと\n自覚してしまったものの➡', '（平）ん？', 'NOW LOADING', 'please wait'],
+  );
 });
 
 test('parseSubtitleCues scales furigana geometry by PlayResY', () => {
