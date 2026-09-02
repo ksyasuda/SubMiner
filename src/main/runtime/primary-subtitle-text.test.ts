@@ -674,3 +674,29 @@ test('resolvePrimarySubtitleText keeps source order when no cue declares a place
     'First line\n\nSecond line',
   );
 });
+
+test('resolvePrimarySubtitleText publishes a wrapped caption sentence as one cue', () => {
+  // mpv still reports the two source rows (plus the ruby row) as separate live lines, so
+  // the merged cue must explain all of them and come back as a single-break line the
+  // display layer may flatten, not as a two-cue boundary.
+  const ass = [
+    '[Script Info]',
+    'PlayResY: 540',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(232,437)\\fscx50}（{\\fscx100}東{\\fscx50}）{\\fscx100}≪好きだと',
+    'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(292,443)\\fscx50\\fscy50}じかく',
+    'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(232,497)}自覚してしまったものの➡',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s02e09.ass');
+
+  assert.equal(
+    resolvePrimarySubtitleText({
+      liveText: '（東）≪好きだと\nじかく\n自覚してしまったものの➡',
+      currentTimeSec: 163,
+      cues,
+    }),
+    '（東）≪好きだと\n自覚してしまったものの➡',
+  );
+});
