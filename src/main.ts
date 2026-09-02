@@ -236,6 +236,7 @@ import {
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
 import { buildSubtitleTrackDiagnostics } from './main/runtime/mpv-track-diagnostics';
+import { resolveCanonicalPrimarySubtitle } from './main/runtime/primary-subtitle-text';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -302,7 +303,6 @@ import {
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
-  loadJellyfinSubtitleDelay,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -312,9 +312,9 @@ import {
   promoteSettingsWindowAboveOverlay,
   registerGlobalShortcuts as registerGlobalShortcutsCore,
   replayCurrentSubtitleRuntime,
+  resolveSanitizedSubtitleSeekCommand,
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
-  saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
   clearYomitanParserCachesForWindow,
   getYomitanCurrentAnkiDeckName as getYomitanCurrentAnkiDeckNameCore,
@@ -332,6 +332,7 @@ import {
   acquireYoutubeSubtitleTrack,
   acquireYoutubeSubtitleTracks,
 } from './core/services/youtube/generate';
+import { applyOverlayClickThrough } from './core/services/overlay-click-through';
 import { createYoutubeMediaCacheService } from './core/services/youtube/media-cache';
 import { resolveYoutubePlaybackUrl } from './core/services/youtube/playback-resolve';
 import { probeYoutubeTracks } from './core/services/youtube/track-probe';
@@ -534,6 +535,7 @@ import {
   createRefreshSubtitlePrefetchFromActiveTrackHandler,
   createResolveActiveSubtitleSidebarSourceHandler,
 } from './main/runtime/subtitle-prefetch-runtime';
+import { createSecondarySubtitleTrackController } from './main/runtime/secondary-subtitle-track';
 import {
   createCreateAnilistSetupWindowHandler,
   createCreateConfigSettingsWindowHandler,
@@ -599,9 +601,10 @@ import {
 import { buildSubtitleSidebarSourceKey } from './main/runtime/subtitle-prefetch-source';
 import { createSubtitlePrefetchInitController } from './main/runtime/subtitle-prefetch-init';
 import {
+  createCachedInternalSubtitleTrackExtractor,
   loadSubtitleSourceText,
-  extractInternalSubtitleTrackToTempFile,
 } from './main/runtime/internal-subtitle-extraction';
+import { createRemoteMediaPathDetector } from './main/runtime/network-media-path';
 import { applyCharacterDictionarySelection } from './main/character-dictionary-selection';
 import { getSubsyncConfig } from './subsync/utils';
 
@@ -687,7 +690,6 @@ function spawnManagedMpvProcess(args: string[]): ReturnType<typeof spawn> {
 }
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
-let activeJellyfinSubtitleDelayKey: { itemId: string; streamIndex: number } | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
@@ -1820,10 +1822,42 @@ async function openYoutubeTrackPickerFromPlayback(): Promise<void> {
 let appTray: Tray | null = null;
 let tokenizeSubtitleDeferred: ((text: string) => Promise<SubtitleData>) | null = null;
 function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
+  const canonical = resolveCanonicalPrimarySubtitle({
+    liveText: payload.text,
+    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    cues: appState.activeParsedSubtitleCues,
+  });
   return {
     ...payload,
-    startTime: appState.mpvClient?.currentSubStart ?? null,
-    endTime: appState.mpvClient?.currentSubEnd ?? null,
+    startTime: canonical?.startTime ?? appState.mpvClient?.currentSubStart ?? null,
+    endTime: canonical?.endTime ?? appState.mpvClient?.currentSubEnd ?? null,
+  };
+}
+
+function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | null {
+  const canonical = resolveCanonicalPrimarySubtitle({
+    liveText: appState.mpvClient?.currentSubText ?? '',
+    currentTimeSec: Number(appState.mpvClient?.currentTimePos),
+    cues: appState.activeParsedSubtitleCues,
+  });
+  // Same validity bar as the live capture path: an unusable canonical span must fall
+  // back rather than hand mining an empty line or an inverted range.
+  const canonicalText = canonical?.text.trim();
+  if (
+    !canonical ||
+    !canonicalText ||
+    !Number.isFinite(canonical.startTime) ||
+    !Number.isFinite(canonical.endTime) ||
+    canonical.endTime <= canonical.startTime
+  ) {
+    return captureLiveSubtitleMiningContext(appState.mpvClient);
+  }
+  return {
+    source: 'overlay',
+    text: canonicalText,
+    startTime: canonical.startTime,
+    endTime: canonical.endTime,
+    capturedAtMs: Date.now(),
   };
 }
 function emitSubtitlePayload(payload: SubtitleData, options?: { resumePrefetch?: boolean }): void {
@@ -1938,6 +1972,31 @@ let linuxVisibleOverlayOwnerBindingKey: string | null = null;
 let linuxVisibleOverlayWindowModeSwitchToken = 0;
 let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
+const EXPLICIT_SEEK_INTENT_TTL_MS = 2000;
+let explicitSeekIntentExpiresAtMs = 0;
+
+function isExplicitMpvSeekCommand(command: readonly (string | number)[]): boolean {
+  return command[0] === 'seek' || command[0] === 'sub-seek';
+}
+
+function sendRendererMpvCommand(rawCommand: (string | number)[]): void {
+  const command =
+    resolveSanitizedSubtitleSeekCommand(
+      rawCommand,
+      appState.activeParsedSubtitleCues,
+      appState.mpvClient?.currentTimePos ?? Number.NaN,
+    ) ?? rawCommand;
+  if (isExplicitMpvSeekCommand(command)) {
+    explicitSeekIntentExpiresAtMs = Date.now() + EXPLICIT_SEEK_INTENT_TTL_MS;
+  }
+  sendMpvCommandRuntime(appState.mpvClient, command);
+}
+
+function consumeExplicitSeekIntent(): boolean {
+  const pending = explicitSeekIntentExpiresAtMs >= Date.now();
+  explicitSeekIntentExpiresAtMs = 0;
+  return pending;
+}
 
 const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   getCurrentMediaPath: () => appState.currentMediaPath,
@@ -1957,7 +2016,7 @@ const autoplaySubtitlePrimingRuntime = createAutoplaySubtitlePrimingRuntime({
   getLastObservedTimePos: () => lastObservedTimePos,
   getVisibleOverlayVisible: () => overlayManager.getVisibleOverlayVisible(),
   emitSecondarySubtitle: (text) => {
-    overlayManager.broadcastToOverlayWindows('secondary-subtitle:set', text);
+    secondarySubtitleTrackController.handleLiveText(text);
   },
   initSubtitlePrefetch: (sourcePath, currentTimePos, sourceKey) =>
     subtitlePrefetchInitController.initSubtitlePrefetch(sourcePath, currentTimePos, sourceKey),
@@ -2008,11 +2067,31 @@ const subtitlePrefetchInitController = createSubtitlePrefetchInitController({
     }
   },
 });
+const cachedInternalSubtitleTrackExtractor = createCachedInternalSubtitleTrackExtractor();
+const detectRemoteMediaPath = createRemoteMediaPathDetector();
 const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler({
   getFfmpegPath: () => configService.getConfig().subsync.ffmpeg_path.trim() || 'ffmpeg',
   extractInternalSubtitleTrack: (ffmpegPath, videoPath, track) =>
-    extractInternalSubtitleTrackToTempFile(ffmpegPath, videoPath, track),
+    cachedInternalSubtitleTrackExtractor.extract(ffmpegPath, videoPath, track),
   logDebug: (message) => logger.debug(message),
+});
+
+const secondarySubtitleTrackController = createSecondarySubtitleTrackController({
+  getMpvClient: () => appState.mpvClient,
+  getCurrentTimePos: () => appState.mpvClient?.currentTimePos ?? lastObservedTimePos,
+  resolveSubtitleSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
+  loadSubtitleSourceText,
+  parseSubtitleCues: (content, filename) => parseSubtitleCues(content, filename),
+  setCurrentSecondaryText: (text) => {
+    if (appState.mpvClient) {
+      appState.mpvClient.currentSecondarySubText = text;
+    }
+  },
+  broadcastSecondaryText: (text) => {
+    overlayManager.broadcastToOverlayWindows('secondary-subtitle:set', text);
+  },
+  logDebug: (message) => logger.debug(message),
+  logWarn: (message, error) => logger.warn(message, error),
 });
 
 const refreshSubtitlePrefetchFromActiveTrackHandler =
@@ -2022,8 +2101,8 @@ const refreshSubtitlePrefetchFromActiveTrackHandler =
     // Remote media has no extractable on-disk track to fall back to, so a transient
     // resolve miss (sid briefly 'no', a cycle onto an embedded stream track) would
     // otherwise drop a working cue list for the rest of the episode.
-    shouldKeepExistingCuesOnMissingSource: (videoPath) =>
-      isYoutubeMediaPath(videoPath) || isRemoteMediaPath(videoPath),
+    shouldKeepExistingCuesOnMissingSource: async (videoPath) =>
+      isYoutubeMediaPath(videoPath) || (await detectRemoteMediaPath(videoPath)),
     subtitlePrefetchInitController,
     resolveActiveSubtitleSidebarSource: (input) => resolveActiveSubtitleSidebarSourceHandler(input),
     logDebug: (message) => logger.debug(message),
@@ -2426,7 +2505,6 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
-const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-delays.json');
 
 /**
  * What the anime browser resolved for the stream that is playing. Consulted by
@@ -2627,6 +2705,12 @@ const characterDictionaryAutoSyncRuntime = createCharacterDictionaryAutoSyncRunt
 const characterDictionaryImageLookup = createCharacterDictionaryImageLookup({
   userDataPath: USER_DATA_PATH,
   getCurrentMediaId: () => characterDictionaryAutoSyncRuntime.getCurrentMediaId(),
+  onIndexReady: () => refreshCurrentSubtitleAnnotations(),
+  onIndexReadyError: (error) =>
+    logger.warn(
+      'Failed to refresh subtitle annotations after character portrait index became ready.',
+      error,
+    ),
 });
 
 // Lets the Yomitan scan runtime skip name lookups at positions where no
@@ -3096,23 +3180,6 @@ const {
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
     cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
-    getSavedSubtitleDelay: (itemId, streamIndex) =>
-      loadJellyfinSubtitleDelay({
-        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-        itemId,
-        streamIndex,
-      }),
-    setActiveSubtitleDelayKey: (key) => {
-      activeJellyfinSubtitleDelayKey = key;
-    },
-    loadSubtitleSourceText,
-    saveSubtitleDelay: (itemId, streamIndex, delaySeconds) =>
-      saveJellyfinSubtitleDelay({
-        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-        itemId,
-        streamIndex,
-        delaySeconds,
-      }),
     initSubtitlePrefetch: (sourcePath) =>
       subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
     logDebug: (message, error) => {
@@ -3178,7 +3245,6 @@ const {
     getActivePlayback: () => activeJellyfinRemotePlayback,
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
-      activeJellyfinSubtitleDelayKey = null;
     },
     getSession: () => appState.jellyfinRemoteSession,
     getNow: () => Date.now(),
@@ -4051,6 +4117,7 @@ const {
       appState.yomitanSettingsWindow = null;
     },
     stopJellyfinRemoteSession: () => stopJellyfinRemoteSession(),
+    cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
@@ -4168,7 +4235,7 @@ const recordTrackedCardsMined = (count: number, noteIds?: number[]): void => {
   ensureImmersionTrackerStarted();
   appState.immersionTracker?.recordCardsMined(count, noteIds);
 };
-const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
+function refreshCurrentSubtitleAnnotations(): void {
   const hasCurrentSubtitle = appState.currentSubText.trim().length > 0;
   if (hasCurrentSubtitle) {
     subtitlePrefetchService?.pause();
@@ -4179,7 +4246,7 @@ const refreshCurrentSubtitleAfterKnownWordUpdate = (): void => {
     // Idle controller: no settle is coming to release the pause above.
     subtitlePrefetchService?.resume();
   }
-};
+}
 let hasAttemptedImmersionTrackerStartup = false;
 const ensureImmersionTrackerStarted = (): void => {
   if (hasAttemptedImmersionTrackerStartup || appState.immersionTracker) {
@@ -4556,6 +4623,7 @@ const {
     onMpvConnected: () => {
       maybeStartOverlayLoadingOsd();
       flushQueuedMpvOsdNotifications();
+      secondarySubtitleTrackController.scheduleRefresh(0);
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -4573,6 +4641,9 @@ const {
     logSubtitleTimingError: (message, error) => logger.error(message, error),
     broadcastToOverlayWindows: (channel, payload) => {
       overlayManager.broadcastToOverlayWindows(channel, payload);
+    },
+    onSecondarySubtitleChange: (text) => {
+      secondarySubtitleTrackController.handleLiveText(text);
     },
     getImmediateSubtitlePayload: (text) => subtitleProcessingController.consumeCachedSubtitle(text),
     emitImmediateSubtitle: (payload) => {
@@ -4607,6 +4678,8 @@ const {
         appState.activeParsedSubtitleMediaPath,
       );
       if ((normalizedPath || null) !== previousPath) {
+        cachedInternalSubtitleTrackExtractor.clear();
+        secondarySubtitleTrackController.reset();
         const resetSubtitlePayload = { text: '', tokens: null };
         const frequencyDictionary = configService.getConfig().subtitleStyle.frequencyDictionary;
         const frequencyOptions = {
@@ -4624,7 +4697,6 @@ const {
           appState.activeParsedSubtitleSource = null;
           appState.activeParsedSubtitleMediaPath = null;
         }
-        activeJellyfinSubtitleDelayKey = null;
         overlayManager.broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
@@ -4641,6 +4713,7 @@ const {
       void youtubeMediaCachePlaybackRuntime.handleMediaPathChange(path);
       if (path) {
         ensureImmersionTrackerStarted();
+        secondarySubtitleTrackController.scheduleRefresh();
         void subtitlePrefetchRuntime.refreshSubtitlePrefetchFromActiveTrack();
         // Retry after a short delay because MPV can populate track-list after path.
         subtitlePrefetchRuntime.scheduleSubtitlePrefetchRefresh(500);
@@ -4689,12 +4762,14 @@ const {
     reportJellyfinRemoteProgress: (forceImmediate) => {
       void reportJellyfinRemoteProgress(forceImmediate);
     },
+    consumeExplicitSeek: () => consumeExplicitSeekIntent(),
     onTimePosUpdate: (time) => {
       const delta = time - lastObservedTimePos;
       if (subtitlePrefetchService && (delta > SEEK_THRESHOLD_SECONDS || delta < 0)) {
         subtitlePrefetchService.onSeek(time);
       }
       lastObservedTimePos = time;
+      secondarySubtitleTrackController.handleTimePos(time);
     },
     onFullscreenChange: (fullscreen) => {
       cancelLinuxMpvFullscreenOverlayRefreshBurst = updateLinuxMpvFullscreenOverlayRefreshBurst(
@@ -4722,6 +4797,13 @@ const {
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackChange(sid);
     },
+    onSecondarySubtitleTrackChange: () => {
+      secondarySubtitleTrackController.handleTrackChange();
+      secondarySubtitleTrackController.scheduleRefresh(0);
+    },
+    onSecondarySubtitleDelayChange: (delay) => {
+      secondarySubtitleTrackController.handleDelayChange(delay);
+    },
     onSubtitleTrackListChange: (trackList) => {
       const diagnostics = buildSubtitleTrackDiagnostics(
         lastObservedPrimarySubtitleTrackId,
@@ -4735,6 +4817,7 @@ const {
         logger.info('[mpv-subtitles] subtitle track list updated', diagnostics);
       }
       managedLocalSubtitleSelectionRuntime.handleSubtitleTrackListChange(trackList);
+      secondarySubtitleTrackController.scheduleRefresh(0);
       autoplaySubtitlePrimingRuntime.scheduleSubtitlePrefetchRefresh();
       youtubePrimarySubtitleNotificationRuntime.handleSubtitleTrackListChange(trackList);
     },
@@ -5187,9 +5270,7 @@ function initializeOverlayRuntime(): void {
     overlayModalRuntime.primeModalWindow();
   }
   appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
-  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
-    refreshCurrentSubtitleAfterKnownWordUpdate,
-  );
+  appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(refreshCurrentSubtitleAnnotations);
   appState.ankiIntegration?.setSubtitleMiningContextConsumer(consumePendingSubtitleMiningContext);
   syncOverlayMpvSubtitleSuppression();
 }
@@ -5404,6 +5485,7 @@ const markLastCardAsAudioCardHandler = createMarkLastCardAsAudioCardHandler(
 const buildMineSentenceCardMainDepsHandler = createBuildMineSentenceCardMainDepsHandler({
   getAnkiIntegration: () => appState.ankiIntegration,
   getMpvClient: () => appState.mpvClient,
+  getPrimarySubtitle: () => captureCurrentPrimarySubtitleMiningContext(),
   showMpvOsd: (text) => overlayNotificationsRuntime.showConfiguredStatusNotification(text),
   mineSentenceCardCore,
   recordCardsMined: (count, noteIds) => {
@@ -5588,8 +5670,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     showPlaybackFeedback: (text: string) => showConfiguredPlaybackFeedback(text),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
-    sendMpvCommand: (rawCommand: (string | number)[]) =>
-      sendMpvCommandRuntime(appState.mpvClient, rawCommand),
+    sendMpvCommand: (rawCommand: (string | number)[]) => sendRendererMpvCommand(rawCommand),
     getMpvClient: () => appState.mpvClient,
     isMpvConnected: () => Boolean(appState.mpvClient && appState.mpvClient.connected),
     hasRuntimeOptionsManager: () => appState.runtimeOptionsManager !== null,
@@ -5645,7 +5726,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           senderWindow === modalWindow &&
           !senderWindow.isDestroyed()
         ) {
-          senderWindow.setIgnoreMouseEvents(true, { forward: true });
+          applyOverlayClickThrough(senderWindow);
           senderWindow.hide();
         }
         handleOverlayModalClosedHandler(modal);
@@ -5719,9 +5800,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       // live mpv sub timings at lookup time so media generation clips the mined line even
       // when extraction finishes long after playback has moved on.
       recordSubtitleMiningContext: (context) =>
-        recordSubtitleMiningContext(
-          context ?? captureLiveSubtitleMiningContext(appState.mpvClient),
-        ),
+        recordSubtitleMiningContext(context ?? captureCurrentPrimarySubtitleMiningContext()),
       quitApp: () => requestAppQuit(),
       toggleVisibleOverlay: () => toggleVisibleOverlay(),
       tokenizeCurrentSubtitle: async () => {
@@ -5985,7 +6064,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         appState.ankiIntegration = integration;
         appState.ankiIntegration?.setRecordCardsMinedCallback(recordTrackedCardsMined);
         appState.ankiIntegration?.setKnownWordCacheUpdatedCallback(
-          refreshCurrentSubtitleAfterKnownWordUpdate,
+          refreshCurrentSubtitleAnnotations,
         );
         appState.ankiIntegration?.setSubtitleMiningContextConsumer(
           consumePendingSubtitleMiningContext,
@@ -5999,6 +6078,8 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       showDesktopNotification,
       showOverlayNotification: (payload) =>
         overlayNotificationsRuntime.showOverlayNotification(payload),
+      dismissOverlayNotification: (id) =>
+        overlayNotificationsRuntime.dismissOverlayNotification(id),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       broadcastRuntimeOptionsChanged: () =>
         overlayVisibilityComposer.broadcastRuntimeOptionsChanged(),
@@ -6496,6 +6577,8 @@ const { initializeOverlayRuntime: initializeOverlayRuntimeHandler } =
       showDesktopNotification,
       showOverlayNotification: (payload) =>
         overlayNotificationsRuntime.showOverlayNotification(payload),
+      dismissOverlayNotification: (id) =>
+        overlayNotificationsRuntime.dismissOverlayNotification(id),
       createFieldGroupingCallback: () => createFieldGroupingCallback(),
       getKnownWordCacheStatePath: () => path.join(USER_DATA_PATH, 'known-words-cache.json'),
       getCachedMediaPath: (currentVideoPath, kind) =>

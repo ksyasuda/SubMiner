@@ -9,7 +9,11 @@ import {
   splitMpvMessagesFromBuffer,
 } from './mpv-protocol';
 import { requestMpvInitialState, subscribeToMpvProperties } from './mpv-properties';
-import { scheduleMpvReconnect, MpvSocketTransport } from './mpv-transport';
+import {
+  scheduleMpvReconnect,
+  MpvSocketTransport,
+  MpvSocketTransportOptions,
+} from './mpv-transport';
 import { createLogger } from '../../logger';
 
 const logger = createLogger('main:mpv');
@@ -110,6 +114,8 @@ export interface MpvIpcClientProtocolDeps {
   shouldAutoLoadSecondarySubTrack?: (path: string) => boolean;
   shouldQuitOnMpvShutdown?: () => boolean;
   requestAppQuit?: () => void;
+  socketFactory?: MpvSocketTransportOptions['socketFactory'];
+  connectTimeoutMs?: number;
 }
 
 export interface MpvIpcClientDeps extends MpvIpcClientProtocolDeps {}
@@ -125,6 +131,8 @@ export interface MpvIpcClientEventMap {
   'fullscreen-change': { fullscreen: boolean };
   'secondary-subtitle-change': { text: string };
   'subtitle-track-change': { sid: number | null };
+  'secondary-subtitle-track-change': { sid: number | null };
+  'secondary-subtitle-delay-change': { delay: number };
   'subtitle-track-list-change': { trackList: unknown[] | null };
   'media-path-change': { path: string };
   'media-title-change': { title: string | null };
@@ -177,6 +185,7 @@ export class MpvIpcClient implements MpvClient {
     osdDimensions: null,
   };
   private previousSecondarySubVisibility: boolean | null = null;
+  private enforceSecondarySubVisibilityHidden = true;
   private playbackPaused: boolean | null = null;
   private pauseAtTime: number | null = null;
   private pendingPauseAtSubEnd = false;
@@ -189,7 +198,10 @@ export class MpvIpcClient implements MpvClient {
 
     this.transport = new MpvSocketTransport({
       socketPath,
+      socketFactory: deps.socketFactory,
+      connectTimeoutMs: deps.connectTimeoutMs,
       onConnect: () => {
+        this.enforceSecondarySubVisibilityHidden = true;
         this.connected = true;
         this.connecting = false;
         this.socket = this.transport.getSocket();
@@ -290,6 +302,14 @@ export class MpvIpcClient implements MpvClient {
         previousSocketPath: this.socketPath,
         socketPath,
       });
+      if (this.connecting && !this.connected) {
+        // Abort the in-flight dial to the old path; otherwise the connecting
+        // latch turns every later connect() into a no-op while we hang on a
+        // stale socket.
+        logger.debug('Aborting in-flight MPV IPC connect for socket path change.');
+        this.transport.shutdown();
+        this.connecting = false;
+      }
     }
     this.socketPath = socketPath;
     this.transport.setSocketPath(socketPath);
@@ -423,6 +443,12 @@ export class MpvIpcClient implements MpvClient {
       emitSubtitleTrackChange: (payload) => {
         this.emit('subtitle-track-change', payload);
       },
+      emitSecondarySubtitleTrackChange: (payload) => {
+        this.emit('secondary-subtitle-track-change', payload);
+      },
+      emitSecondarySubtitleDelayChange: (payload) => {
+        this.emit('secondary-subtitle-delay-change', payload);
+      },
       emitSubtitleTrackListChange: (payload) => {
         this.emit('subtitle-track-list-change', payload);
       },
@@ -453,6 +479,7 @@ export class MpvIpcClient implements MpvClient {
       },
       resolvePendingRequest: (requestId: number, message: MpvMessage) =>
         this.tryResolvePendingRequest(requestId, message),
+      shouldEnforceSecondarySubVisibilityHidden: () => this.enforceSecondarySubVisibilityHidden,
       setSecondarySubVisibility: (visible: boolean) => this.setSecondarySubVisibility(visible),
       syncCurrentAudioStreamIndex: () => {
         this.syncCurrentAudioStreamIndex();
@@ -627,9 +654,11 @@ export class MpvIpcClient implements MpvClient {
   restorePreviousSecondarySubVisibility(): void {
     const previous = this.previousSecondarySubVisibility;
     if (previous === null) return;
-    this.send({
+    const restored = this.send({
       command: ['set_property', 'secondary-sub-visibility', previous ? 'yes' : 'no'],
     });
+    if (!restored) return;
+    this.enforceSecondarySubVisibilityHidden = false;
     this.previousSecondarySubVisibility = null;
   }
 

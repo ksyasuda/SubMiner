@@ -124,8 +124,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
       audioField: 'SentenceAudio',
       lapisEnabled: false,
       kikuEnabled: false,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
@@ -143,7 +142,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
   };
 }
 
-test('manual clipboard subtitle update replaces sentence audio without touching expression audio', async () => {
+test('manual clipboard subtitle update replaces audio in the configured field', async () => {
   const { service, updatedFields, mergeCalls, storedMedia } = createManualUpdateService();
 
   await service.updateLastAddedFromClipboard('字幕');
@@ -151,12 +150,140 @@ test('manual clipboard subtitle update replaces sentence audio without touching 
   assert.equal(updatedFields.length, 1);
   assert.equal(storedMedia.length, 1);
   const audioValue = `[sound:${storedMedia[0]}]`;
-  assert.equal(updatedFields[0]?.SentenceAudio, audioValue);
-  assert.equal('ExpressionAudio' in updatedFields[0]!, false);
+  assert.equal(updatedFields[0]?.ExpressionAudio, audioValue);
+  assert.equal('SentenceAudio' in updatedFields[0]!, false);
   assert.deepEqual(
     mergeCalls.map((call) => call.overwrite),
     [true],
   );
+});
+
+test('manual clipboard word-card update uses configured fields with Lapis and Kiku enabled', async () => {
+  const { service, updatedFields } = createManualUpdateService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Context',
+          audio: 'ContextAudio',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: false,
+          maxMediaDuration: 30,
+        },
+        behavior: {
+          overwriteAudio: false,
+          overwriteImage: false,
+        },
+        ai: false,
+      }) as AnkiConnectConfig,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '単語' },
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            Context: { value: '' },
+            ContextAudio: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+    },
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: true,
+      kikuEnabled: true,
+      fieldGroupingMode: 'disabled',
+    }),
+  });
+
+  await service.updateLastAddedFromClipboard('字幕');
+
+  assert.equal(updatedFields.length, 1);
+  assert.match(updatedFields[0]?.ContextAudio ?? '', /^\[sound:audio_\d+\.mp3\]$/);
+  assert.deepEqual(Object.keys(updatedFields[0] ?? {}).sort(), ['Context', 'ContextAudio']);
+  assert.equal(updatedFields[0]?.Context, '字幕');
+});
+
+test('audio-card action keeps Lapis and Kiku sentence fields', async () => {
+  const { service, updatedFields } = createManualUpdateService({
+    getConfig: () =>
+      ({
+        deck: 'Mining',
+        fields: {
+          word: 'Expression',
+          sentence: 'Context',
+          audio: 'ContextAudio',
+        },
+        media: {
+          generateAudio: true,
+          generateImage: false,
+          maxMediaDuration: 30,
+        },
+        behavior: {},
+        ai: false,
+      }) as AnkiConnectConfig,
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentAudioStreamIndex: 0,
+        currentSubText: '字幕',
+        currentSubStart: 12,
+        currentSubEnd: 14,
+      }) as never,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: '単語' },
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            Context: { value: '' },
+            ContextAudio: { value: '' },
+          },
+        },
+      ],
+      updateNoteFields: async (_noteId, fields) => {
+        updatedFields.push(fields);
+      },
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+    },
+    getEffectiveSentenceCardConfig: () => ({
+      model: 'Sentence',
+      sentenceField: 'Sentence',
+      audioField: 'SentenceAudio',
+      lapisEnabled: true,
+      kikuEnabled: true,
+      fieldGroupingMode: 'disabled',
+    }),
+  });
+
+  await service.markLastCardAsAudioCard();
+
+  assert.equal(updatedFields.length, 1);
+  assert.equal(updatedFields[0]?.Sentence, '字幕');
+  assert.match(updatedFields[0]?.SentenceAudio ?? '', /^\[sound:audio_\d+\.mp3\]$/);
+  assert.equal('Context' in (updatedFields[0] ?? {}), false);
+  assert.equal('ContextAudio' in (updatedFields[0] ?? {}), false);
 });
 
 test('manual clipboard subtitle update marks Kiku word cards as word-and-sentence cards when enabled', async () => {
@@ -208,8 +335,7 @@ test('manual clipboard subtitle update marks Kiku word cards as word-and-sentenc
       audioField: 'SentenceAudio',
       lapisEnabled: false,
       kikuEnabled: true,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
     setCardTypeFields,
   });
@@ -225,7 +351,7 @@ test('manual clipboard subtitle update marks Kiku word cards as word-and-sentenc
   });
 });
 
-test('manual clipboard subtitle update skips audio when sentence audio field is missing', async () => {
+test('manual clipboard subtitle update uses configured audio when SentenceAudio is missing', async () => {
   const { service, updatedFields, mergeCalls, storedMedia } = createManualUpdateService({
     client: {
       addNote: async () => 0,
@@ -255,8 +381,9 @@ test('manual clipboard subtitle update skips audio when sentence audio field is 
 
   assert.equal(storedMedia.length, 1);
   assert.equal(updatedFields.length, 1);
-  assert.deepEqual(updatedFields[0], { Sentence: '字幕' });
-  assert.equal(mergeCalls.length, 0);
+  assert.match(updatedFields[0]?.ExpressionAudio ?? '', /^\[sound:audio_\d+\.mp3\]$/);
+  assert.equal(updatedFields[0]?.Sentence, '字幕');
+  assert.equal(mergeCalls.length, 1);
 });
 
 test('manual clipboard subtitle update uses resolved mpv stream URLs for remote media', async () => {

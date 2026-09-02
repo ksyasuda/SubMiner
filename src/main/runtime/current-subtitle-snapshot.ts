@@ -46,6 +46,7 @@ export async function resolveCurrentSubtitleForRenderer(deps: {
 export async function primeVisibleOverlaySubtitleFromMpv(deps: {
   getMpvClient: () => CurrentSubtitleMpvClient | null;
   setCurrentSubText: (text: string) => void;
+  resolvePrimarySubtitleText?: (text: string) => string;
   getCurrentSubtitleData: () => SubtitleData | null;
   consumeCachedSubtitle: (text: string) => SubtitleData | null;
   onSubtitleChange: (text: string) => void;
@@ -73,7 +74,8 @@ export async function primeVisibleOverlaySubtitleFromMpv(deps: {
     return;
   }
 
-  const text = typeof subTextRaw === 'string' ? subTextRaw : '';
+  const liveText = typeof subTextRaw === 'string' ? subTextRaw : '';
+  const text = deps.resolvePrimarySubtitleText?.(liveText) ?? liveText;
   deps.setCurrentSubText(text);
 
   const primeSecondarySubtitle = async (): Promise<void> => {

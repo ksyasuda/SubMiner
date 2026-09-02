@@ -1,5 +1,10 @@
 import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
 import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
+import {
+  resolveCanonicalPrimarySubtitle,
+  resolvePrimarySubtitleText,
+  resolveRecordedPrimarySubtitleText,
+} from './primary-subtitle-text';
 
 type AnilistPostWatchRunOptions = {
   watchedSeconds?: number;
@@ -15,6 +20,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     overlayRuntimeInitialized: boolean;
     mpvClient: {
       connected?: boolean;
+      currentSubText?: string;
       currentSecondarySubText?: string;
       currentTimePos?: number;
       requestProperty?: (name: string) => Promise<unknown>;
@@ -36,6 +42,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       recordSubtitle?: (text: string, start: number, end: number, secondaryText?: string) => void;
     } | null;
     activeParsedSubtitleCues?: SubtitleCue[] | null;
+    /** Cache key of the source the cues were parsed from; cleared with the cues. */
+    activeParsedSubtitleSource?: string | null;
     currentMediaPath?: string | null;
     currentSubText: string;
     currentSubAssText: string;
@@ -53,11 +61,14 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   recordAnilistMediaDuration?: (durationSec: number) => void;
   logSubtitleTimingError: (message: string, error: unknown) => void;
   broadcastToOverlayWindows: (channel: string, payload: unknown) => void;
+  onSecondarySubtitleChange?: (text: string) => void;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   onSubtitleChange: (text: string) => void;
   logSubtitleProcessingDebug?: (message: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleDelayChange?: (delay: number) => void;
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
   updateCurrentMediaPath: (path: string) => void;
   restoreMpvSubVisibility: () => void;
@@ -74,6 +85,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   resetAnilistMediaGuessState: () => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  consumeExplicitSeek?: () => boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
   updateSubtitleRenderMetrics: (patch: Record<string, unknown>) => void;
   refreshDiscordPresence: () => void;
@@ -93,6 +105,42 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   const immersionLineDedupGate = createSubtitleLineDedupGate({
     getParsedCues: () => deps.appState.activeParsedSubtitleCues,
   });
+  // One seen-set per consumer: canonical cues overlap, so live samples resolve to
+  // shifting subsets (A, then A+B, then B). Remembering every recorded cue -- not just
+  // the previous sample -- keeps each authored line recorded exactly once per source.
+  const recordedImmersionCanonicalKeys = new Set<string>();
+  const recordedTimingCanonicalKeys = new Set<string>();
+  // Bumped on track/media changes so an immersion record whose tokenization resolves
+  // after the change is dropped instead of landing in the next session.
+  let subtitleSessionEpoch = 0;
+  let lastTimePosForTimingReset: number | null = null;
+  // Small margin so time-pos jitter is not mistaken for a backward seek.
+  const BACKWARD_SEEK_TIMING_RESET_SECONDS = 0.25;
+  const canonicalCueKey = (cue: SubtitleCue): string =>
+    `${cue.startTime}|${cue.endTime}|${cue.text}`;
+  const resetSubtitleDeduplication = (): void => {
+    immersionLineDedupGate.reset();
+    recordedImmersionCanonicalKeys.clear();
+    recordedTimingCanonicalKeys.clear();
+    subtitleSessionEpoch += 1;
+    lastTimePosForTimingReset = null;
+  };
+  const resolveCanonicalSample = (liveText: string, startSec: number) =>
+    resolveCanonicalPrimarySubtitle({
+      liveText,
+      currentTimeSec: startSec,
+      cues: deps.appState.activeParsedSubtitleCues,
+    });
+  // Recorders see the same text the overlay displays: mpv's live `sub-text` lists every
+  // simultaneously active ASS event, including furigana events the parser folded into
+  // their base line. Cues the caller already resolved canonically are recorded one by
+  // one above; everything else goes through the shared recording resolution.
+  const resolveTextForRecording = (liveText: string, startSec: number): string =>
+    resolveRecordedPrimarySubtitleText({
+      liveText,
+      currentTimeSec: startSec,
+      cues: deps.appState.activeParsedSubtitleCues,
+    });
   const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
     Boolean(
       deps.appState.initialArgs?.managedPlayback ||
@@ -111,45 +159,107 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     scheduleQuitCheck: (callback: () => void) => deps.scheduleQuitCheck(callback),
     isMpvConnected: () => Boolean(deps.appState.mpvClient?.connected),
     quitApp: () => deps.quitApp(),
+    resolveSubtitleText: (liveText: string) =>
+      resolvePrimarySubtitleText({
+        liveText,
+        currentTimeSec: Number(deps.appState.mpvClient?.currentTimePos),
+        cues: deps.appState.activeParsedSubtitleCues,
+      }),
+    getCurrentLiveSubtitleText: () => deps.appState.mpvClient?.currentSubText ?? '',
     recordImmersionSubtitleLine: (text: string, start: number, end: number) => {
       deps.ensureImmersionTrackerInitialized();
       const tracker = deps.appState.immersionTracker;
       if (!tracker?.recordSubtitleLine) {
         return;
       }
+      const recordLine = (lineText: string, startSec: number, endSec: number): void => {
+        const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || null;
+        const cachedTokens =
+          deps.appState.currentSubtitleData?.text === lineText
+            ? deps.appState.currentSubtitleData.tokens
+            : null;
+        if (cachedTokens) {
+          tracker.recordSubtitleLine?.(lineText, startSec, endSec, cachedTokens, secondaryText);
+          return;
+        }
+        if (!deps.tokenizeSubtitleForImmersion) {
+          tracker.recordSubtitleLine?.(lineText, startSec, endSec, null, secondaryText);
+          return;
+        }
+        const epochAtRecord = subtitleSessionEpoch;
+        void deps
+          .tokenizeSubtitleForImmersion(lineText)
+          .then((payload) => {
+            if (subtitleSessionEpoch !== epochAtRecord) {
+              return;
+            }
+            tracker.recordSubtitleLine?.(
+              lineText,
+              startSec,
+              endSec,
+              payload?.tokens ?? null,
+              secondaryText,
+            );
+          })
+          .catch(() => {
+            if (subtitleSessionEpoch !== epochAtRecord) {
+              return;
+            }
+            tracker.recordSubtitleLine?.(lineText, startSec, endSec, null, secondaryText);
+          });
+      };
+      const canonical = resolveCanonicalSample(text, start);
+      if (canonical) {
+        for (const cue of canonical.cues) {
+          const key = canonicalCueKey(cue);
+          if (recordedImmersionCanonicalKeys.has(key)) {
+            continue;
+          }
+          recordedImmersionCanonicalKeys.add(key);
+          recordLine(cue.text, cue.startTime, cue.endTime);
+        }
+        return;
+      }
+      text = resolveTextForRecording(text, start);
+      if (!text.trim()) {
+        return;
+      }
       if (!immersionLineDedupGate.shouldRecord({ text, startSec: start, endSec: end })) {
         return;
       }
-      const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || null;
-      const cachedTokens =
-        deps.appState.currentSubtitleData?.text === text
-          ? deps.appState.currentSubtitleData.tokens
-          : null;
-      if (cachedTokens) {
-        tracker.recordSubtitleLine(text, start, end, cachedTokens, secondaryText);
-        return;
-      }
-      if (!deps.tokenizeSubtitleForImmersion) {
-        tracker.recordSubtitleLine(text, start, end, null, secondaryText);
-        return;
-      }
-      void deps
-        .tokenizeSubtitleForImmersion(text)
-        .then((payload) => {
-          tracker.recordSubtitleLine?.(text, start, end, payload?.tokens ?? null, secondaryText);
-        })
-        .catch(() => {
-          tracker.recordSubtitleLine?.(text, start, end, null, secondaryText);
-        });
+      recordLine(text, start, end);
     },
     hasSubtitleTimingTracker: () => Boolean(deps.appState.subtitleTimingTracker),
-    recordSubtitleTiming: (text: string, start: number, end: number) =>
-      deps.appState.subtitleTimingTracker?.recordSubtitle?.(
-        text,
-        start,
-        end,
-        deps.appState.mpvClient?.currentSecondarySubText || undefined,
-      ),
+    recordSubtitleTiming: (text: string, start: number, end: number) => {
+      const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
+      const canonical = resolveCanonicalSample(text, start);
+      if (!canonical) {
+        const recordableText = resolveTextForRecording(text, start);
+        if (!recordableText.trim()) {
+          return;
+        }
+        deps.appState.subtitleTimingTracker?.recordSubtitle?.(
+          recordableText,
+          start,
+          end,
+          secondaryText,
+        );
+        return;
+      }
+      for (const cue of canonical.cues) {
+        const key = canonicalCueKey(cue);
+        if (recordedTimingCanonicalKeys.has(key)) {
+          continue;
+        }
+        recordedTimingCanonicalKeys.add(key);
+        deps.appState.subtitleTimingTracker?.recordSubtitle?.(
+          cue.text,
+          cue.startTime,
+          cue.endTime,
+          secondaryText,
+        );
+      }
+    },
     maybeRunAnilistPostWatchUpdate: (options?: AnilistPostWatchRunOptions) =>
       deps.maybeRunAnilistPostWatchUpdate(options),
     logSubtitleTimingError: (message: string, error: unknown) =>
@@ -170,9 +280,22 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       ? (message: string) => deps.logSubtitleProcessingDebug!(message)
       : undefined,
     onSubtitleTrackChange: (sid: number | null) => {
-      immersionLineDedupGate.reset();
+      resetSubtitleDeduplication();
+      // The replacement track's cues arrive only after an async re-read and re-parse.
+      // Clearing synchronously keeps the previous track's canonical cues from
+      // substituting into, or recording against, the new track's live text. The source
+      // key is cleared with the cues so cue-list consumers (the sidebar snapshot)
+      // re-parse on demand instead of trusting the stale pairing.
+      deps.appState.activeParsedSubtitleCues = [];
+      deps.appState.activeParsedSubtitleSource = null;
       deps.onSubtitleTrackChange?.(sid);
     },
+    onSecondarySubtitleTrackChange: deps.onSecondarySubtitleTrackChange
+      ? (sid: number | null) => deps.onSecondarySubtitleTrackChange!(sid)
+      : undefined,
+    onSecondarySubtitleDelayChange: deps.onSecondarySubtitleDelayChange
+      ? (delay: number) => deps.onSecondarySubtitleDelayChange!(delay)
+      : undefined,
     onSubtitleTrackListChange: deps.onSubtitleTrackListChange
       ? (trackList: unknown[] | null) => deps.onSubtitleTrackListChange!(trackList)
       : undefined,
@@ -182,10 +305,15 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     broadcastSubtitleAss: (text: string) =>
       deps.broadcastToOverlayWindows('subtitle-ass:set', text),
-    broadcastSecondarySubtitle: (text: string) =>
-      deps.broadcastToOverlayWindows('secondary-subtitle:set', text),
+    broadcastSecondarySubtitle: (text: string) => {
+      if (deps.onSecondarySubtitleChange) {
+        deps.onSecondarySubtitleChange(text);
+        return;
+      }
+      deps.broadcastToOverlayWindows('secondary-subtitle:set', text);
+    },
     updateCurrentMediaPath: (path: string) => {
-      immersionLineDedupGate.reset();
+      resetSubtitleDeduplication();
       deps.updateCurrentMediaPath(path);
     },
     restoreMpvSubVisibility: () => deps.restoreMpvSubVisibility(),
@@ -217,9 +345,25 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     },
     reportJellyfinRemoteProgress: (forceImmediate: boolean) =>
       deps.reportJellyfinRemoteProgress(forceImmediate),
-    onTimePosUpdate: deps.onTimePosUpdate
-      ? (time: number) => deps.onTimePosUpdate!(time)
-      : undefined,
+    consumeExplicitSeek: deps.consumeExplicitSeek,
+    onTimePosUpdate: (time: number) => {
+      // Timing history is a viewing log: after any backward seek, a rewatched canonical
+      // line should enter it again so multi-line copy treats it as the current line.
+      // Playback never moves time-pos backward on its own, so even a short jump to a
+      // brief previous line counts. Immersion stats keep their once-per-media
+      // deduplication and are not reset here.
+      if (
+        Number.isFinite(time) &&
+        lastTimePosForTimingReset !== null &&
+        time <= lastTimePosForTimingReset - BACKWARD_SEEK_TIMING_RESET_SECONDS
+      ) {
+        recordedTimingCanonicalKeys.clear();
+      }
+      if (Number.isFinite(time)) {
+        lastTimePosForTimingReset = time;
+      }
+      deps.onTimePosUpdate?.(time);
+    },
     onFullscreenChange: deps.onFullscreenChange
       ? (fullscreen: boolean) => deps.onFullscreenChange!(fullscreen)
       : undefined,

@@ -26,6 +26,7 @@ function M.new()
 		auto_play_ready_initial_pause_ownership_consumed = false,
 		overlay_loading_osd_active = false,
 		overlay_loading_osd_timer = nil,
+		overlay_loading_osd_deadline = nil,
 		overlay_loading_osd_frame = 1,
 		pending_visible_overlay_hide_timer = nil,
 		pending_visible_overlay_hide_generation = 0,

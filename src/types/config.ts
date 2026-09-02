@@ -287,6 +287,11 @@ export interface ResolvedConfig {
       fieldGrouping: 'auto' | 'manual' | 'disabled';
       deleteDuplicateInAuto: boolean;
     };
+    isSenren: {
+      enabled: boolean;
+      fieldGrouping: 'auto' | 'manual' | 'disabled';
+      deleteDuplicateInAuto: boolean;
+    };
     lapisKiku: {
       wordCardKind: WordCardKind;
     };

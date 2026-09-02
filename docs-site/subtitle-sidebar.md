@@ -9,8 +9,10 @@ The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if y
 When SubMiner parses the active subtitle source into a cue list, the sidebar becomes available. Toggle it with the `\` key (configurable via `subtitleSidebar.toggleKey`). While open:
 
 - The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
-- Clicking any cue seeks mpv to that timestamp.
+- Clicking any cue seeks mpv into that line. For overlapping ASS karaoke, SubMiner moves past the previous line's exit animation when the selected cue has enough time remaining.
 - The sidebar stays synchronized with the overlay - media transitions and subtitle source changes update both simultaneously.
+
+For typeset ASS karaoke and animated signs, SubMiner collapses generated animation frames and repeated full-line color phases before they reach the sidebar. It recovers a clean complete line from a matching timed authoring comment or from full-line events surrounding generated fragments. Ordinary ASS comments, editor notes, alternate lines, repeated dialogue, and separately positioned signs remain distinct.
 
 The sidebar only appears when a parsed cue list is available. External subtitle sources that SubMiner cannot parse (for example, embedded ASS tracks rendered directly by mpv) will not populate the sidebar.
 

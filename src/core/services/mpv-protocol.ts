@@ -56,6 +56,8 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleTiming: (payload: { text: string; start: number; end: number }) => void;
   emitSecondarySubtitleChange: (payload: { text: string }) => void;
   emitSubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSecondarySubtitleTrackChange: (payload: { sid: number | null }) => void;
+  emitSecondarySubtitleDelayChange: (payload: { delay: number }) => void;
   emitSubtitleTrackListChange: (payload: { trackList: unknown[] | null }) => void;
   getCurrentSubText: () => string;
   setCurrentSubText: (text: string) => void;
@@ -72,6 +74,7 @@ export interface MpvProtocolHandleMessageDeps {
   emitSubtitleMetricsChange: (payload: Partial<MpvSubtitleRenderMetrics>) => void;
   setCurrentSecondarySubText: (text: string) => void;
   resolvePendingRequest: (requestId: number, message: MpvMessage) => boolean;
+  shouldEnforceSecondarySubVisibilityHidden: () => boolean;
   setSecondarySubVisibility: (visible: boolean) => void;
   syncCurrentAudioStreamIndex: () => void;
   setCurrentAudioTrackId: (value: number | null) => void;
@@ -284,7 +287,28 @@ export async function dispatchMpvProtocolMessage(
           : typeof msg.data === 'string'
             ? Number(msg.data)
             : null;
-      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isFinite(sid) ? sid : null });
+      deps.emitSubtitleTrackChange({ sid: sid !== null && Number.isInteger(sid) ? sid : null });
+    } else if (msg.name === 'secondary-sid') {
+      if (deps.shouldEnforceSecondarySubVisibilityHidden()) {
+        deps.setSecondarySubVisibility(false);
+      }
+      const sid =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : null;
+      deps.emitSecondarySubtitleTrackChange({
+        sid: sid !== null && Number.isInteger(sid) ? sid : null,
+      });
+    } else if (msg.name === 'secondary-sub-delay') {
+      const delay =
+        typeof msg.data === 'number'
+          ? msg.data
+          : typeof msg.data === 'string'
+            ? Number(msg.data)
+            : 0;
+      deps.emitSecondarySubtitleDelayChange({ delay: Number.isFinite(delay) ? delay : 0 });
     } else if (msg.name === 'track-list') {
       deps.emitSubtitleTrackListChange({
         trackList: Array.isArray(msg.data) ? (msg.data as unknown[]) : null,
@@ -357,6 +381,11 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.name === 'sub-visibility') {
       if (deps.isVisibleOverlayVisible() && asBoolean(msg.data, false)) {
         deps.sendCommand({ command: ['set_property', 'sub-visibility', false] });
+      }
+    } else if (msg.name === 'secondary-sub-visibility') {
+      const visible = parseVisibilityProperty(msg.data);
+      if (deps.shouldEnforceSecondarySubVisibilityHidden() && visible === true) {
+        deps.setSecondarySubVisibility(false);
       }
     } else if (msg.name === 'sub-use-margins') {
       deps.emitSubtitleMetricsChange({

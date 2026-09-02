@@ -218,6 +218,8 @@ export class AnkiIntegration {
     null;
   private overlayNotificationCallback: ((payload: OverlayNotificationPayload) => void) | null =
     null;
+  private overlayNotificationDismissCallback: ((id: string) => void) | null = null;
+  private overlayUpdateProgressActive = false;
   private updateInProgress = false;
   private uiFeedbackState: UiFeedbackState = createUiFeedbackState();
   private parseWarningKeys = new Set<string>();
@@ -265,6 +267,7 @@ export class AnkiIntegration {
     getCachedMediaPath?: MediaGenerationInputResolverOptions['getCachedMediaPath'],
     shouldRequireRemoteMediaCache?: () => boolean,
     getYoutubeMediaSourceUrl?: () => Promise<string | null | undefined> | string | null | undefined,
+    overlayNotificationDismissCallback?: (id: string) => void,
   ) {
     this.config = normalizeAnkiIntegrationConfig(config);
     this.aiConfig = { ...aiConfig };
@@ -280,6 +283,7 @@ export class AnkiIntegration {
     this.getCachedMediaPath = getCachedMediaPath ?? null;
     this.shouldRequireRemoteMediaCache = shouldRequireRemoteMediaCache ?? null;
     this.getYoutubeMediaSourceUrl = getYoutubeMediaSourceUrl ?? null;
+    this.overlayNotificationDismissCallback = overlayNotificationDismissCallback ?? null;
     this.pendingYoutubeMediaQueue = this.createPendingYoutubeMediaQueue();
     this.knownWordCache = this.createKnownWordCache(knownWordCacheStatePath);
     this.pollingRunner = this.createPollingRunner();
@@ -379,8 +383,6 @@ export class AnkiIntegration {
       getCachedMediaPath: this.getCachedMediaPath,
       shouldRequireRemoteMediaCache: () => this.shouldRequireRemoteMediaCache?.() === true,
       getSubtitleMediaRange: (context) => this.getSubtitleMediaRange(context),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
       mergeFieldValue: (existing, newValue, overwrite) =>
@@ -657,8 +659,6 @@ export class AnkiIntegration {
         this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
         this.resolveConfiguredFieldName(noteInfo, ...preferredNames),
-      getResolvedSentenceAudioFieldName: (noteInfo) =>
-        this.getResolvedSentenceAudioFieldName(noteInfo),
       getAnimatedImageLeadInSeconds: (noteInfo) => this.getAnimatedImageLeadInSeconds(noteInfo),
       mergeFieldValue: (existing, newValue, overwrite) =>
         this.mergeFieldValue(existing, newValue, overwrite),
@@ -835,6 +835,19 @@ export class AnkiIntegration {
     };
   }
 
+  private getSenrenConfig(): {
+    enabled: boolean;
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
+    deleteDuplicateInAuto?: boolean;
+  } {
+    const senren = this.config.isSenren;
+    return {
+      enabled: senren?.enabled === true,
+      fieldGrouping: senren?.fieldGrouping,
+      deleteDuplicateInAuto: senren?.deleteDuplicateInAuto,
+    };
+  }
+
   private getEffectiveSentenceCardConfig(): {
     model?: string;
     sentenceField: string;
@@ -843,10 +856,27 @@ export class AnkiIntegration {
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
+    senrenEnabled: boolean;
+    fieldGroupingProvider: 'kiku' | 'senren' | null;
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
+    fieldGroupingDeleteDuplicateInAuto: boolean;
     wordCardKind: WordCardKind;
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
+    const senren = this.getSenrenConfig();
+
+    const kikuFieldGrouping = (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled';
+    const senrenFieldGrouping = (senren.fieldGrouping || 'auto') as 'auto' | 'manual' | 'disabled';
+    // Kiku and Senren are mutually exclusive; config resolution enforces it, and
+    // Kiku wins here too in case a runtime patch re-enables both.
+    const fieldGroupingProvider = kiku.enabled ? 'kiku' : senren.enabled ? 'senren' : null;
+    const fieldGroupingMode =
+      fieldGroupingProvider === 'kiku'
+        ? kikuFieldGrouping
+        : fieldGroupingProvider === 'senren'
+          ? senrenFieldGrouping
+          : 'disabled';
 
     return {
       model: lapis.sentenceCardModel,
@@ -854,8 +884,15 @@ export class AnkiIntegration {
       audioField: 'SentenceAudio',
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
-      kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',
+      kikuFieldGrouping,
       kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
+      senrenEnabled: senren.enabled,
+      fieldGroupingProvider,
+      fieldGroupingMode,
+      fieldGroupingDeleteDuplicateInAuto:
+        fieldGroupingProvider === 'senren'
+          ? senren.deleteDuplicateInAuto !== false
+          : kiku.deleteDuplicateInAuto !== false,
       wordCardKind: resolveWordCardKindSetting(this.config.lapisKiku?.wordCardKind),
     };
   }
@@ -874,7 +911,7 @@ export class AnkiIntegration {
 
   private async processNewCard(
     noteId: number,
-    options?: { skipKikuFieldGrouping?: boolean },
+    options?: { skipFieldGrouping?: boolean },
   ): Promise<void> {
     await this.noteUpdateWorkflow.execute(noteId, options);
   }
@@ -1203,12 +1240,13 @@ export class AnkiIntegration {
   private beginUpdateProgress(initialMessage: string): void {
     if (!this.shouldUseOsdNotifications()) {
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       return;
@@ -1220,6 +1258,10 @@ export class AnkiIntegration {
 
   private endUpdateProgress(): void {
     if (!this.shouldUseOsdNotifications()) {
+      if (this.overlayUpdateProgressActive) {
+        this.overlayUpdateProgressActive = false;
+        this.overlayNotificationDismissCallback?.('anki-update-progress');
+      }
       return;
     }
     endUpdateProgress(this.uiFeedbackState, (timer) => {
@@ -1243,18 +1285,20 @@ export class AnkiIntegration {
     if (!this.shouldUseOsdNotifications()) {
       this.updateInProgress = true;
       if (this.shouldUseOverlayNotifications()) {
+        this.overlayUpdateProgressActive = true;
         this.overlayNotificationCallback?.({
           id: 'anki-update-progress',
           title: 'Anki update',
           body: initialMessage,
           variant: 'progress',
-          persistent: false,
+          persistent: true,
         });
       }
       try {
         return await action();
       } finally {
         this.updateInProgress = false;
+        this.endUpdateProgress();
       }
     }
     return withUpdateProgress(
@@ -1353,6 +1397,7 @@ export class AnkiIntegration {
         : undefined;
 
     if (shouldShowOverlayNotification && this.overlayNotificationCallback) {
+      this.overlayUpdateProgressActive = false;
       this.overlayNotificationCallback({
         id: 'anki-update-progress',
         title: 'Anki Card Updated',
@@ -1496,7 +1541,7 @@ export class AnkiIntegration {
     trackedDuplicateNoteIdsBeforeCreate: Set<number>,
   ): boolean {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    if (!sentenceCardConfig.kikuEnabled || sentenceCardConfig.kikuFieldGrouping === 'disabled') {
+    if (sentenceCardConfig.fieldGroupingMode === 'disabled') {
       return false;
     }
 
@@ -1553,13 +1598,6 @@ export class AnkiIntegration {
   private getPreferredSentenceAudioFieldName(): string {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
     return sentenceCardConfig.audioField || 'SentenceAudio';
-  }
-
-  private getResolvedSentenceAudioFieldName(noteInfo: NoteInfo): string | null {
-    return (
-      this.resolveNoteFieldName(noteInfo, this.getPreferredSentenceAudioFieldName()) ||
-      this.resolveConfiguredFieldName(noteInfo, this.config.fields?.audio)
-    );
   }
 
   private getConfiguredWordFieldName(): string {

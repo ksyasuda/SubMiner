@@ -1065,44 +1065,85 @@ test('sendToActiveOverlayWindow flushes every queued load and ready listener bef
   assert.deepEqual(window.sent, [['runtime-options:open'], ['session-help:open']]);
 });
 
-for (const platform of ['darwin', 'win32'] as const) {
-  test(`modal reopen reuses the warm window and shows it immediately on ${platform}`, () => {
-    const modalWindow = createMockWindow();
-    let createCalls = 0;
+test('modal reopen reuses the warm window and shows it immediately on macOS', () => {
+  const modalWindow = createMockWindow();
+  let createCalls = 0;
 
-    const runtime = createOverlayModalRuntimeService(
-      {
-        getMainWindow: () => null,
-        getModalWindow: () => modalWindow as never,
-        createModalWindow: () => {
-          createCalls += 1;
-          return modalWindow as never;
-        },
-        getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
-        setModalWindowBounds: () => {},
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => modalWindow as never,
+      createModalWindow: () => {
+        createCalls += 1;
+        return modalWindow as never;
       },
-      { platform },
-    );
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    { platform: 'darwin' },
+  );
 
-    runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: 'runtime-options',
-    });
-    runtime.notifyOverlayModalOpened('runtime-options');
-    runtime.handleOverlayModalClosed('runtime-options');
-
-    assert.equal(modalWindow.isDestroyed(), false);
-    assert.equal(modalWindow.isVisible(), false);
-
-    const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
-      restoreOnModalClose: 'runtime-options',
-    });
-
-    assert.equal(sent, true);
-    assert.equal(createCalls, 0);
-    assert.equal(modalWindow.isVisible(), true);
-    assert.equal(modalWindow.getShowCount(), 2);
+  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
   });
-}
+  runtime.notifyOverlayModalOpened('runtime-options');
+  runtime.handleOverlayModalClosed('runtime-options');
+
+  assert.equal(modalWindow.isDestroyed(), false);
+  assert.equal(modalWindow.isVisible(), false);
+
+  const sent = runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+
+  assert.equal(sent, true);
+  assert.equal(createCalls, 0);
+  assert.equal(modalWindow.isVisible(), true);
+  assert.equal(modalWindow.getShowCount(), 2);
+});
+
+test('modal reopen on Windows uses a fresh prewarmed interactive window', () => {
+  const firstWindow = createMockWindow();
+  const replacementWindow = createMockWindow();
+  let currentModal = firstWindow;
+  let createCalls = 0;
+
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => null,
+      getModalWindow: () => currentModal as never,
+      createModalWindow: () => {
+        createCalls += 1;
+        currentModal = replacementWindow;
+        return replacementWindow as never;
+      },
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    { platform: 'win32' },
+  );
+
+  runtime.sendToActiveOverlayWindow('runtime-options:open', undefined, {
+    restoreOnModalClose: 'runtime-options',
+  });
+  runtime.notifyOverlayModalOpened('runtime-options');
+  runtime.handleOverlayModalClosed('runtime-options');
+
+  assert.equal(firstWindow.isDestroyed(), true);
+  assert.equal(currentModal, replacementWindow);
+  assert.equal(replacementWindow.isVisible(), false);
+  assert.equal(createCalls, 1);
+
+  const sent = runtime.sendToActiveOverlayWindow('session-help:open', undefined, {
+    restoreOnModalClose: 'session-help',
+  });
+
+  assert.equal(sent, true);
+  assert.equal(createCalls, 1);
+  assert.equal(replacementWindow.isVisible(), true);
+  assert.equal(replacementWindow.ignoreMouseEvents, false);
+  assert.deepEqual(replacementWindow.sent, [['session-help:open']]);
+});
 
 test('modal reopen on the warm window notifies state change for each lifecycle', () => {
   const modalWindow = createMockWindow();

@@ -165,11 +165,14 @@ if (entry.argv.includes('--ensure-linux-runtime-plugin-assets')) {
   const pluginDir = path.join(dataDir, 'plugin', 'subminer');
   const pluginConfigPath = path.join(dataDir, 'plugin', 'subminer.conf');
   const themePath = path.join(dataDir, 'themes', 'subminer.rasi');
+  const thumbnailerPath = path.join(dataDir, 'thumbnailers', 'subminer-ffmpegthumbnailer.thumbnailer');
   fs.mkdirSync(pluginDir, { recursive: true });
   fs.mkdirSync(path.dirname(themePath), { recursive: true });
+  fs.mkdirSync(path.dirname(thumbnailerPath), { recursive: true });
   fs.writeFileSync(path.join(pluginDir, 'main.lua'), '-- smoke plugin\\n');
   fs.writeFileSync(pluginConfigPath, 'smoke=true\\n');
   fs.writeFileSync(themePath, '/* smoke theme */\\n');
+  fs.writeFileSync(thumbnailerPath, '[Thumbnailer Entry]\\n');
   if (responsePath) {
     fs.mkdirSync(path.dirname(responsePath), { recursive: true });
     fs.writeFileSync(responsePath, JSON.stringify({ ok: true, status: 'installed', path: path.join(pluginDir, 'main.lua') }));
@@ -620,9 +623,20 @@ test(
       );
       assert.match(result.stdout, /pause mpv until overlay and tokenization are ready/i);
       if (process.platform === 'linux') {
-        assert.match(result.stdout, /managed plugin\/theme assets/i);
+        assert.match(result.stdout, /managed plugin\/theme\/thumbnailer assets/i);
         assert.equal(
           fs.existsSync(path.join(smokeCase.xdgDataHome, 'SubMiner', 'themes', 'subminer.rasi')),
+          true,
+        );
+        assert.equal(
+          fs.existsSync(
+            path.join(
+              smokeCase.xdgDataHome,
+              'SubMiner',
+              'thumbnailers',
+              'subminer-ffmpegthumbnailer.thumbnailer',
+            ),
+          ),
           true,
         );
       }

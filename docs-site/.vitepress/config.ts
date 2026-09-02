@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, posix, resolve, sep } from 'node:path';
 import type { DefaultTheme, HeadConfig, TransformContext, UserConfig } from 'vitepress';
@@ -26,6 +27,9 @@ function optionalEnv(value: string | undefined): string | undefined {
 const base = normalizeBase(optionalEnv(process.env.SUBMINER_DOCS_BASE) ?? '/');
 const outDir = optionalEnv(process.env.SUBMINER_DOCS_OUT_DIR);
 const docsSourceDir = optionalEnv(process.env.SUBMINER_DOCS_SOURCE_DIR) ?? process.cwd();
+// The tracked `docs-site/` checkout, which stays a git working tree even when
+// `docsSourceDir` points at an untracked release snapshot. Used for git lookups only.
+const repoDocsDir = optionalEnv(process.env.SUBMINER_DOCS_REPO_DIR) ?? process.cwd();
 const channel = normalizeChannel(optionalEnv(process.env.SUBMINER_DOCS_CHANNEL));
 const docsVersion = optionalEnv(process.env.SUBMINER_DOCS_VERSION);
 const latestStable = optionalEnv(process.env.SUBMINER_DOCS_LATEST_STABLE) ?? 'v0.18.0';
@@ -82,15 +86,18 @@ function pageToRoute(page: string): string | null {
   return route ? `/${route}` : '/';
 }
 
+// Only the root channel is indexable. `main` and every /v/<version>/ archive are
+// near-verbatim copies of it, so they own their URL via a self-referential canonical
+// and are excluded from the index instead of being consolidated onto root. Uniform
+// self-canonical plus noindex avoids mixing noindex with a cross-page canonical,
+// which Google treats as a conflicting signal.
+const isIndexableChannel = channel === 'stable-root';
+
 function pageToCanonicalHref(page: string): string | null {
   const route = pageToRoute(page);
   if (!route) return null;
 
-  if (channel === 'main') {
-    return `${DOCS_HOSTNAME}${canonicalRouteWithBase(route)}`;
-  }
-
-  if (channel === 'stable-archive' && docsVersion !== latestStable) {
+  if (!isIndexableChannel) {
     return `${DOCS_HOSTNAME}${canonicalRouteWithBase(route)}`;
   }
 
@@ -106,7 +113,9 @@ function transformPageHead({ page }: TransformContext): HeadConfig[] {
   const href = pageToCanonicalHref(page);
   const head: HeadConfig[] = href ? [['link', { rel: 'canonical', href }]] : [];
 
-  if (channel === 'main') {
+  // Crawlable so links still pass through, but out of the index: ~30 archived copies
+  // of every page otherwise soak up the crawl budget the current docs need.
+  if (!isIndexableChannel) {
     head.push(['meta', { name: 'robots', content: 'noindex,follow' }]);
   }
 
@@ -287,6 +296,39 @@ const versionItems = [
   })),
 ];
 
+function sitemapUrlToPage(url: string): string {
+  const route = url.replace(/\.html$/, '').replace(/^\/+|\/+$/g, '');
+  return route ? `${route}.md` : 'index.md';
+}
+
+// VitePress derives <lastmod> by running `git log` inside its source dir. Production
+// builds point that at an untracked snapshot of the release tag, so the lookup comes
+// back empty and the sitemap ships with no dates at all. Resolve it from the tracked
+// checkout at the ref being built instead.
+function lastModifiedFor(url: string): string | undefined {
+  const ref = docsVersion && docsVersion !== 'main' ? docsVersion : 'HEAD';
+  const result = spawnSync('git', ['log', '-1', '--format=%cI', ref, '--', sitemapUrlToPage(url)], {
+    cwd: repoDocsDir,
+    encoding: 'utf8',
+  });
+
+  return (result.status === 0 && result.stdout.trim()) || undefined;
+}
+
+// Only the root channel publishes a sitemap. Archived and `main` builds would emit
+// their own copies listing the same canonical URLs, which just advertises the
+// duplicate trees we are trying to keep out of the index.
+const sitemap: UserConfig['sitemap'] = isIndexableChannel
+  ? {
+      hostname: DOCS_HOSTNAME,
+      transformItems(items) {
+        return items
+          .filter((item) => item.url !== 'README' && item.url !== `${DOCS_HOSTNAME}/README`)
+          .map((item) => ({ ...item, lastmod: item.lastmod ?? lastModifiedFor(item.url) }));
+      },
+    }
+  : undefined;
+
 const nav: DefaultTheme.NavItem[] = [
   { text: 'Home', link: '/' },
   { text: 'Get Started', link: '/installation' },
@@ -420,14 +462,7 @@ const config: UserConfig = {
   appearance: 'dark',
   cleanUrls: true,
   metaChunk: true,
-  sitemap: {
-    hostname: DOCS_HOSTNAME,
-    transformItems(items) {
-      return items.filter(
-        (item) => item.url !== 'README' && item.url !== `${DOCS_HOSTNAME}/README`,
-      );
-    },
-  },
+  sitemap,
   transformHead: transformPageHead,
   lastUpdated: true,
   srcExclude: ['subagents/**', 'README.md'],

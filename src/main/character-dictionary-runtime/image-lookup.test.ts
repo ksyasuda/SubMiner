@@ -11,6 +11,22 @@ import {
 } from './image-lookup';
 import type { CharacterDictionarySnapshot } from './types';
 
+// Lookup indexes rebuild in the background while gets serve stale data, so tests poll until the
+// refresh they triggered has landed.
+async function waitForRefresh<T>(probe: () => T | null | undefined): Promise<T> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const value = probe();
+    if (value !== null && value !== undefined) {
+      return value;
+    }
+    if (Date.now() > deadline) {
+      throw new Error('timed out waiting for background snapshot refresh');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 const PNG_1X1_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+nmX8AAAAASUVORK5CYII=';
 
@@ -18,7 +34,7 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-character-image-lookup-'));
 }
 
-test('buildCharacterNameImageIndexFromSnapshots maps name terms to character portrait data URLs', () => {
+test('buildCharacterNameImageIndexFromSnapshots maps name terms to character portrait data URLs', async () => {
   const outputDir = makeTempDir();
   const snapshot: CharacterDictionarySnapshot = {
     formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
@@ -75,9 +91,9 @@ test('buildCharacterNameImageIndexFromSnapshots maps name terms to character por
       { path: 'img/m130298-va456.png', dataBase64: 'BBBB' },
     ],
   };
-  writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
 
-  const index = buildCharacterNameImageIndexFromSnapshots(outputDir);
+  const index = await buildCharacterNameImageIndexFromSnapshots(outputDir);
 
   assert.deepEqual(index.get('アレクシア'), {
     src: 'data:image/png;base64,AAAA',
@@ -85,7 +101,7 @@ test('buildCharacterNameImageIndexFromSnapshots maps name terms to character por
   });
 });
 
-test('buildCharacterNameImageIndexFromSnapshots sniffs image MIME from bytes before path extension', () => {
+test('buildCharacterNameImageIndexFromSnapshots sniffs image MIME from bytes before path extension', async () => {
   const outputDir = makeTempDir();
   const snapshot: CharacterDictionarySnapshot = {
     formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
@@ -116,14 +132,14 @@ test('buildCharacterNameImageIndexFromSnapshots sniffs image MIME from bytes bef
     ],
     images: [{ path: 'img/m130298-c123.jpg', dataBase64: PNG_1X1_BASE64 }],
   };
-  writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
 
-  const index = buildCharacterNameImageIndexFromSnapshots(outputDir);
+  const index = await buildCharacterNameImageIndexFromSnapshots(outputDir);
 
   assert.equal(index.get('アレクシア')?.src, `data:image/png;base64,${PNG_1X1_BASE64}`);
 });
 
-test('createCharacterDictionaryImageLookup can scope duplicate names to the current media', () => {
+test('createCharacterDictionaryImageLookup can scope duplicate names to the current media', async () => {
   const outputDir = makeTempDir();
   const towerSnapshot: CharacterDictionarySnapshot = {
     formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
@@ -173,15 +189,76 @@ test('createCharacterDictionaryImageLookup can scope duplicate names to the curr
     ],
     images: [{ path: 'img/m21202-c2.png', dataBase64: 'KONOSUBA' }],
   };
-  writeSnapshot(getSnapshotPath(outputDir, towerSnapshot.mediaId), towerSnapshot);
-  writeSnapshot(getSnapshotPath(outputDir, konosubaSnapshot.mediaId), konosubaSnapshot);
+  await writeSnapshot(getSnapshotPath(outputDir, towerSnapshot.mediaId), towerSnapshot);
+  await writeSnapshot(getSnapshotPath(outputDir, konosubaSnapshot.mediaId), konosubaSnapshot);
 
   const lookup = createCharacterDictionaryImageLookup({ outputDir });
 
-  assert.equal(lookup.get('カズ', 21202)?.alt, 'Kazuma');
+  const scoped = await waitForRefresh(() => lookup.get('カズ', 21202));
+  assert.equal(scoped.alt, 'Kazuma');
 });
 
-test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', () => {
+test('createCharacterDictionaryImageLookup reports and retries a failed index-ready callback', async () => {
+  const outputDir = makeTempDir();
+  const snapshot: CharacterDictionarySnapshot = {
+    formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
+    mediaId: 21858,
+    mediaTitle: 'Little Witch Academia',
+    entryCount: 1,
+    updatedAt: 1_700_000_000_000,
+    termEntries: [
+      [
+        'ダイアナ',
+        'だいあな',
+        'name primary',
+        '',
+        75,
+        [
+          {
+            type: 'structured-content',
+            content: {
+              tag: 'img',
+              path: 'img/m21858-c81709.png',
+              alt: 'ダイアナ・キャベンディッシュ',
+            },
+          },
+        ],
+        0,
+        '',
+      ],
+    ],
+    images: [{ path: 'img/m21858-c81709.png', dataBase64: PNG_1X1_BASE64 }],
+  };
+  await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  const callbackError = new Error('annotation refresh failed');
+  const reportingError = new Error('error reporter failed');
+  let readyCount = 0;
+  const reportedErrors: unknown[] = [];
+  const lookup = createCharacterDictionaryImageLookup({
+    outputDir,
+    onIndexReady: () => {
+      readyCount += 1;
+      if (readyCount === 1) {
+        throw callbackError;
+      }
+    },
+    onIndexReadyError: (error) => {
+      reportedErrors.push(error);
+      throw reportingError;
+    },
+  });
+
+  assert.equal(lookup.get('ダイアナ', snapshot.mediaId), null);
+  await waitForRefresh(() => (reportedErrors.length === 1 ? true : null));
+  assert.ok(lookup.get('ダイアナ', snapshot.mediaId));
+
+  assert.equal(readyCount, 2);
+  assert.deepEqual(reportedErrors, [callbackError]);
+  lookup.get('ダイアナ', snapshot.mediaId);
+  assert.equal(readyCount, 2);
+});
+
+test('createCharacterDictionaryImageLookup does not fall back globally on scoped miss', async () => {
   const outputDir = makeTempDir();
   const snapshot: CharacterDictionarySnapshot = {
     formatVersion: CHARACTER_DICTIONARY_FORMAT_VERSION,
@@ -208,10 +285,11 @@ test('createCharacterDictionaryImageLookup does not fall back globally on scoped
     ],
     images: [{ path: 'img/m115230-c1.png', dataBase64: 'TOWER' }],
   };
-  writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
+  await writeSnapshot(getSnapshotPath(outputDir, snapshot.mediaId), snapshot);
 
   const lookup = createCharacterDictionaryImageLookup({ outputDir });
 
+  const unscoped = await waitForRefresh(() => lookup.get('カズ'));
+  assert.equal(unscoped.alt, 'Kaz');
   assert.equal(lookup.get('カズ', 21202), null);
-  assert.equal(lookup.get('カズ')?.alt, 'Kaz');
 });

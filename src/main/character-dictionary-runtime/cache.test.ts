@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import test from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
 import { getSnapshotPath, readSnapshot, writeSnapshot } from './cache';
 import { CHARACTER_DICTIONARY_FORMAT_VERSION } from './constants';
 import type { CharacterDictionarySnapshot } from './types';
@@ -29,17 +30,72 @@ function createSnapshot(): CharacterDictionarySnapshot {
   };
 }
 
-test('writeSnapshot persists and readSnapshot restores current-format snapshots', () => {
+test('writeSnapshot persists and readSnapshot restores current-format snapshots', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const snapshot = createSnapshot();
 
-  writeSnapshot(snapshotPath, snapshot);
+  await writeSnapshot(snapshotPath, snapshot);
 
-  assert.deepEqual(readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
+  assert.deepEqual(await readSnapshot(snapshotPath), { ...snapshot, nameSplitSource: 'heuristic' });
 });
 
-test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', () => {
+// A manual generate and an auto-sync can both land on the same media, so two writes for one
+// snapshot can overlap. They must not stream into a shared temp file and interleave into a
+// half-and-half snapshot.
+test('concurrent writeSnapshot calls for the same media leave one complete snapshot', async () => {
+  const outputDir = makeTempDir();
+  const snapshotPath = getSnapshotPath(outputDir, 130298);
+  const base = createSnapshot();
+  // Distinct titles, lengths, and term text so the surviving file can be pinned to exactly one
+  // writer rather than merely "a snapshot that parses". A shared temp file is caught by the
+  // losing writers failing to rename; interleaved content is only caught when the timing happens
+  // to leave a mix, which is why the assertion checks identity rather than shape.
+  const variants: CharacterDictionarySnapshot[] = ['alpha', 'beta', 'gamma'].map((label, index) => {
+    const entryCount = 400 + index * 100;
+    return {
+      ...base,
+      mediaTitle: `${base.mediaTitle} ${label}`,
+      entryCount,
+      termEntries: Array.from({ length: entryCount }, (_entry, entryIndex) => [
+        `${label}${entryIndex}`,
+        'なまえ',
+        'name primary',
+        '',
+        75,
+        [`${label} character ${entryIndex} `.repeat(600)],
+        0,
+        '',
+      ]) as CharacterDictionarySnapshot['termEntries'],
+    };
+  });
+
+  await Promise.all(variants.map((variant) => writeSnapshot(snapshotPath, variant)));
+
+  const restored = await readSnapshot(snapshotPath);
+  const expected = variants.map((variant) => ({
+    ...variant,
+    nameSplitSource: 'heuristic' as const,
+  }));
+  const matches = expected.filter((candidate) => isDeepStrictEqual(restored, candidate));
+  assert.equal(
+    matches.length,
+    1,
+    `expected exactly one writer's complete snapshot to survive, got ${
+      restored === null
+        ? 'an unreadable file'
+        : `entryCount=${restored.entryCount}, terms=${restored.termEntries.length}, title=${restored.mediaTitle}`
+    }`,
+  );
+
+  // Every writer cleaned up after itself, so no temp files are left behind.
+  const leftovers = fs
+    .readdirSync(path.dirname(snapshotPath))
+    .filter((name) => name.includes('.tmp-'));
+  assert.deepEqual(leftovers, []);
+});
+
+test('readSnapshot preserves the mecab name-split source and defaults missing values to heuristic', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const snapshot: CharacterDictionarySnapshot = {
@@ -47,12 +103,12 @@ test('readSnapshot preserves the mecab name-split source and defaults missing va
     nameSplitSource: 'mecab',
   };
 
-  writeSnapshot(snapshotPath, snapshot);
+  await writeSnapshot(snapshotPath, snapshot);
 
-  assert.equal(readSnapshot(snapshotPath)?.nameSplitSource, 'mecab');
+  assert.equal((await readSnapshot(snapshotPath))?.nameSplitSource, 'mecab');
 });
 
-test('readSnapshot ignores snapshots written with an older format version', () => {
+test('readSnapshot ignores snapshots written with an older format version', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const staleSnapshot = {
@@ -63,10 +119,10 @@ test('readSnapshot ignores snapshots written with an older format version', () =
   fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
   fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
 
-  assert.equal(readSnapshot(snapshotPath), null);
+  assert.equal(await readSnapshot(snapshotPath), null);
 });
 
-test('readSnapshot ignores v15 snapshots with stale romanized character-name entries', () => {
+test('readSnapshot ignores v15 snapshots with stale romanized character-name entries', async () => {
   const outputDir = makeTempDir();
   const snapshotPath = getSnapshotPath(outputDir, 130298);
   const staleSnapshot = {
@@ -78,5 +134,5 @@ test('readSnapshot ignores v15 snapshots with stale romanized character-name ent
   fs.mkdirSync(path.dirname(snapshotPath), { recursive: true });
   fs.writeFileSync(snapshotPath, JSON.stringify(staleSnapshot), 'utf8');
 
-  assert.equal(readSnapshot(snapshotPath), null);
+  assert.equal(await readSnapshot(snapshotPath), null);
 });

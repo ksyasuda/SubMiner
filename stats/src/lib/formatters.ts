@@ -38,7 +38,8 @@ export function formatRelativeDate(ms: number): string {
 }
 
 export function epochDayToDate(epochDay: number): Date {
-  return new Date(epochDay * 86_400_000);
+  const utcDate = new Date(epochDay * 86_400_000);
+  return new Date(utcDate.getUTCFullYear(), utcDate.getUTCMonth(), utcDate.getUTCDate());
 }
 
 export function localDayFromMs(ms: number): number {

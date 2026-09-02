@@ -125,9 +125,83 @@ test('mineSentenceCard creates sentence card from mpv subtitle state', async () 
   ]);
 });
 
-test('mineSentenceCard refreshes secondary subtitle text before creating card', async () => {
+test('mineSentenceCard prefers a canonical primary subtitle snapshot', async () => {
+  const created: Array<{
+    sentence: string;
+    startTime: number;
+    endTime: number;
+    secondarySub?: string;
+  }> = [];
+
+  await mineSentenceCard({
+    ankiIntegration: {
+      updateLastAddedFromClipboard: async () => {},
+      triggerFieldGroupingForLastAddedCard: async () => {},
+      markLastCardAsAudioCard: async () => {},
+      createSentenceCard: async (sentence, startTime, endTime, secondarySub) => {
+        created.push({ sentence, startTime, endTime, secondarySub });
+        return true;
+      },
+    },
+    mpvClient: {
+      connected: true,
+      currentSubText: '今今今手手手',
+      currentSubStart: 11.4,
+      currentSubEnd: 11.8,
+      currentSecondarySubText: 'English subtitle',
+    },
+    primarySubtitle: {
+      text: '今　手にある物差しでは',
+      startTime: 11.13,
+      endTime: 13.83,
+    },
+    showMpvOsd: () => {},
+  });
+
+  assert.deepEqual(created, [
+    {
+      sentence: '今　手にある物差しでは',
+      startTime: 11.13,
+      endTime: 13.83,
+      secondarySub: 'English subtitle',
+    },
+  ]);
+});
+
+test('mineSentenceCard uses normalized secondary subtitle state instead of raw mpv text', async () => {
   const created: Array<{ sentence: string; secondarySub?: string }> = [];
-  const requestedProperties: string[] = [];
+  let requestedRawSecondaryText = false;
+
+  await mineSentenceCard({
+    ankiIntegration: {
+      updateLastAddedFromClipboard: async () => {},
+      triggerFieldGroupingForLastAddedCard: async () => {},
+      markLastCardAsAudioCard: async () => {},
+      createSentenceCard: async (sentence, _startTime, _endTime, secondarySub) => {
+        created.push({ sentence, secondarySub });
+        return true;
+      },
+    },
+    mpvClient: {
+      connected: true,
+      currentSubText: '日本語字幕',
+      currentSubStart: 10,
+      currentSubEnd: 12,
+      currentSecondarySubText: 'Your\nmosaic',
+      requestProperty: async () => {
+        requestedRawSecondaryText = true;
+        return 'Your\nYour\nYour\nYour\nmosaic';
+      },
+    },
+    showMpvOsd: () => {},
+  });
+
+  assert.equal(requestedRawSecondaryText, false);
+  assert.deepEqual(created, [{ sentence: '日本語字幕', secondarySub: 'Your\nmosaic' }]);
+});
+
+test('mineSentenceCard omits normalized secondary text that matches the primary subtitle', async () => {
+  const created: Array<{ sentence: string; secondarySub?: string }> = [];
 
   await mineSentenceCard({
     ankiIntegration: {
@@ -145,43 +219,6 @@ test('mineSentenceCard refreshes secondary subtitle text before creating card', 
       currentSubStart: 10,
       currentSubEnd: 12,
       currentSecondarySubText: '日本語字幕',
-      requestProperty: async (name: string) => {
-        requestedProperties.push(name);
-        return name === 'secondary-sub-text' ? 'English subtitle' : null;
-      },
-    },
-    showMpvOsd: () => {},
-  });
-
-  assert.deepEqual(requestedProperties, ['secondary-sub-text']);
-  assert.deepEqual(created, [{ sentence: '日本語字幕', secondarySub: 'English subtitle' }]);
-});
-
-test('mineSentenceCard does not fall back to stale cached secondary subtitle after successful refresh', async () => {
-  const created: Array<{ sentence: string; secondarySub?: string }> = [];
-
-  await mineSentenceCard({
-    ankiIntegration: {
-      updateLastAddedFromClipboard: async () => {},
-      triggerFieldGroupingForLastAddedCard: async () => {},
-      markLastCardAsAudioCard: async () => {},
-      createSentenceCard: async (sentence, _startTime, _endTime, secondarySub) => {
-        created.push({ sentence, secondarySub });
-        return true;
-      },
-    },
-    mpvClient: {
-      connected: true,
-      currentSubText: '日本語字幕',
-      currentSubStart: 10,
-      currentSubEnd: 12,
-      currentSecondarySubText: 'stale cached subtitle',
-      requestProperty: async (name: string) => {
-        if (name === 'secondary-sub-text') {
-          return '';
-        }
-        return null;
-      },
     },
     showMpvOsd: () => {},
   });
@@ -205,6 +242,35 @@ test('handleMultiCopyDigit copies available history and reports truncation', () 
 
   assert.deepEqual(copied, ['a\n\nb']);
   assert.equal(osd.at(-1), 'Only 2 lines available, copied 2');
+});
+
+test('handleMultiCopyDigit copies backward from the current subtitle after a backward seek', () => {
+  const copied: string[] = [];
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('A', 1, 2);
+    tracker.recordSubtitle('B', 3, 4);
+    tracker.recordSubtitle('C', 5, 6);
+    tracker.recordSubtitle('B', 3, 4);
+
+    const deps = {
+      subtitleTimingTracker: tracker,
+      writeClipboardText: (text: string) => copied.push(text),
+      showMpvOsd: () => {},
+    };
+
+    handleMultiCopyDigit(1, deps);
+    handleMultiCopyDigit(2, deps);
+
+    assert.deepEqual(copied, ['B', 'A\n\nB']);
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'A', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'B', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
+  } finally {
+    tracker.destroy();
+  }
 });
 
 test('handleMineSentenceDigit reports async create failures', async () => {
@@ -302,6 +368,22 @@ test('handleMineSentenceDigit keeps per-entry timings when subtitle text repeats
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.deepEqual(created, [{ sentence: 'same other same', startTime: 1, endTime: 6 }]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
+test('subtitle timing history preserves adjacent repeated text with distinct timings', () => {
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('same', 1, 2);
+    tracker.recordSubtitle('same', 3, 4);
+
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'same', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'same', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
   } finally {
     tracker.destroy();
   }

@@ -298,10 +298,12 @@ test('settings registry puts feature toggles first, then other toggles alphabeti
   ];
   assert.equal(miningSections[0], 'AnkiConnect');
 
-  const kikuLapis = fields.filter((candidate) => candidate.section === 'Kiku/Lapis Features');
+  const kikuLapis = fields.filter(
+    (candidate) => candidate.section === 'Kiku/Lapis/Senren Features',
+  );
   assert.deepEqual(
-    kikuLapis.slice(0, 2).map((candidate) => candidate.configPath),
-    ['ankiConnect.isLapis.enabled', 'ankiConnect.isKiku.enabled'],
+    kikuLapis.slice(0, 3).map((candidate) => candidate.configPath),
+    ['ankiConnect.isLapis.enabled', 'ankiConnect.isKiku.enabled', 'ankiConnect.isSenren.enabled'],
   );
 });
 
@@ -366,6 +368,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'ankiConnect.fields.miscInfo',
     'ankiConnect.isLapis.sentenceCardModel',
     'ankiConnect.isKiku.fieldGrouping',
+    'ankiConnect.isSenren.fieldGrouping',
   ]) {
     assert.equal(field(path).restartBehavior, 'hot-reload', path);
   }

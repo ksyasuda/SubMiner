@@ -203,8 +203,19 @@ export function createNotifySendReplacer(
   };
 }
 
+/**
+ * Electron AppImages export `LD_LIBRARY_PATH=<mount>/usr/lib`, whose bundled libnotify predates the
+ * symbols the system notify-send links against, so an inherited environment kills the child with a
+ * symbol lookup error before it can send anything. A system binary resolves its own libraries fine,
+ * so the override is dropped entirely rather than filtered.
+ */
+export function buildNotifySendEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const { LD_LIBRARY_PATH: _dropped, ...rest } = env;
+  return rest;
+}
+
 const showLinuxReplaceableNotification = createNotifySendReplacer((args, callback) =>
-  execFile('notify-send', args, { timeout: 5_000 }, (error, stdout) =>
+  execFile('notify-send', args, { timeout: 5_000, env: buildNotifySendEnv() }, (error, stdout) =>
     callback(error, stdout ?? ''),
   ),
 );

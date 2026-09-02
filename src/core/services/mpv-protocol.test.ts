@@ -63,6 +63,8 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
       emitSubtitleTiming: (payload) => state.events.push(payload),
       emitSecondarySubtitleChange: (payload) => state.events.push(payload),
       emitSubtitleTrackChange: (payload) => state.events.push(payload),
+      emitSecondarySubtitleTrackChange: (payload) => state.events.push(payload),
+      emitSecondarySubtitleDelayChange: (payload) => state.events.push(payload),
       emitSubtitleTrackListChange: (payload) => state.events.push(payload),
       getCurrentSubText: () => state.subText,
       setCurrentSubText: (text) => {
@@ -81,6 +83,7 @@ function createDeps(overrides: Partial<MpvProtocolHandleMessageDeps> = {}): {
         state.secondarySubText = text;
       },
       resolvePendingRequest: () => false,
+      shouldEnforceSecondarySubVisibilityHidden: () => true,
       setSecondarySubVisibility: () => {},
       syncCurrentAudioStreamIndex: () => {},
       setCurrentAudioTrackId: () => {},
@@ -159,11 +162,56 @@ test('dispatchMpvProtocolMessage emits subtitle track changes', async () => {
 
   await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '3' }, deps);
   await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-delay', data: '0.5' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
     { event: 'property-change', name: 'track-list', data: [{ type: 'sub', id: 3 }] },
     deps,
   );
 
-  assert.deepEqual(state.events, [{ sid: 3 }, { trackList: [{ type: 'sub', id: 3 }] }]);
+  assert.deepEqual(state.events, [
+    { sid: 3 },
+    { sid: 4 },
+    { delay: 0.5 },
+    { trackList: [{ type: 'sub', id: 3 }] },
+  ]);
+});
+
+test('dispatchMpvProtocolMessage rejects decimal subtitle track IDs', async () => {
+  const { deps, state } = createDeps();
+
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: '4.5' }, deps);
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4.5' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage({ event: 'property-change', name: 'sid', data: 4.5 }, deps);
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: 4.5 },
+    deps,
+  );
+
+  assert.deepEqual(state.events, [{ sid: null }, { sid: null }, { sid: null }, { sid: null }]);
+});
+
+test('dispatchMpvProtocolMessage hides native secondary subtitles after a track change', async () => {
+  const visibilityChanges: boolean[] = [];
+  const { deps, state } = createDeps({
+    setSecondarySubVisibility: (visible) => visibilityChanges.push(visible),
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sid', data: '4' },
+    deps,
+  );
+
+  assert.deepEqual(visibilityChanges, [false]);
+  assert.deepEqual(state.events, [{ sid: 4 }]);
 });
 
 test('dispatchMpvProtocolMessage enforces sub-visibility hidden when overlay suppression is enabled', async () => {
@@ -205,6 +253,24 @@ test('dispatchMpvProtocolMessage skips sub-visibility suppression when overlay i
   );
 
   assert.equal(state.commands.length, 0);
+});
+
+test('dispatchMpvProtocolMessage corrects native secondary subtitle visibility', async () => {
+  const visibilityChanges: boolean[] = [];
+  const { deps } = createDeps({
+    setSecondarySubVisibility: (visible) => visibilityChanges.push(visible),
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-visibility', data: 'yes' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage(
+    { event: 'property-change', name: 'secondary-sub-visibility', data: 'no' },
+    deps,
+  );
+
+  assert.deepEqual(visibilityChanges, [false]);
 });
 
 test('dispatchMpvProtocolMessage sets secondary subtitle track based on track list response', async () => {

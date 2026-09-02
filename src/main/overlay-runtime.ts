@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron';
 import type { OverlayHostedModal } from '../shared/ipc/contracts';
 import type { WindowGeometry } from '../types';
 import type { HyprlandPlacementStatus } from '../core/services/hyprland-window-placement';
+import { applyOverlayClickThrough } from '../core/services/overlay-click-through';
 import {
   OVERLAY_WINDOW_CONTENT_READY_FLAG,
   OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG,
@@ -89,8 +90,9 @@ export function createOverlayModalRuntimeService(
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
   const platform = options.platform ?? process.platform;
-  const keepModalWindowWarm = platform === 'darwin' || platform === 'win32';
-  const shouldKeepModalWindowWarm = (): boolean => keepModalWindowWarm || retainModalWindowState;
+  const shouldPrimeModalWindow = platform === 'darwin' || platform === 'win32';
+  const shouldReuseModalWindowAfterClose = (): boolean =>
+    platform === 'darwin' || (platform !== 'win32' && retainModalWindowState);
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -187,7 +189,7 @@ export function createOverlayModalRuntimeService(
   };
 
   const primeModalWindow = (): boolean => {
-    if (!keepModalWindowWarm) {
+    if (!shouldPrimeModalWindow) {
       return false;
     }
     const modalWindow = resolveModalWindow();
@@ -304,7 +306,7 @@ export function createOverlayModalRuntimeService(
     }
     elevateModalWindow(window);
     if (options.passThroughMouseEvents) {
-      window.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(window, platform === 'win32');
     } else {
       window.setIgnoreMouseEvents(false);
     }
@@ -365,7 +367,7 @@ export function createOverlayModalRuntimeService(
         mainWindowMousePassthroughForcedByModal = false;
         return;
       }
-      mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      applyOverlayClickThrough(mainWindow, platform === 'win32');
       mainWindowMousePassthroughForcedByModal = true;
       return;
     }
@@ -521,13 +523,19 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        if (shouldKeepModalWindowWarm()) {
-          modalWindow.setIgnoreMouseEvents(true, { forward: true });
+        if (shouldReuseModalWindowAfterClose()) {
+          applyOverlayClickThrough(modalWindow, false);
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
         } else {
           modalWindow.destroy();
           modalWindowPrimedForImmediateShow = false;
+          // Reusing a transparent click-through BrowserWindow can leave later modal sessions
+          // non-interactive on Windows. Recycle the renderer after every close, then warm its
+          // replacement so the next shortcut still opens promptly.
+          if (platform === 'win32') {
+            primeModalWindow();
+          }
         }
       }
       mainWindowMousePassthroughForcedByModal = false;

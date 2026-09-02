@@ -136,6 +136,8 @@ SubMiner maps its data to your Anki note fields. Configure these under `ankiConn
 
 Field names are matched against your Anki note type case-insensitively (an exact match wins, then a lowercase comparison). If a configured field does not exist on the note type, SubMiner skips it without error.
 
+These mappings always control normal word-card enrichment, including Yomitan proxy/polling updates and manual clipboard updates. Enabling Lapis or Kiku does not replace the configured word-card sentence and audio fields with `Sentence` and `SentenceAudio`. The dedicated sentence-card and audio-card shortcuts still use those Lapis/Kiku field names.
+
 Two related options live alongside `fields`: `ankiConnect.deck` (target deck; empty falls back as described above) and `ankiConnect.tags` (tags added to mined cards, default `["SubMiner"]`; set `[]` to disable tagging). The `miscInfo` content is controlled by `ankiConnect.metadata.pattern` (default `[SubMiner] %f (%t)`; tokens: `%f` filename, `%F` filename with extension, `%t` timestamp, `%T` timestamp with milliseconds, `<br>` newline).
 
 ### Minimal Config
@@ -233,7 +235,7 @@ Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`)
 
 When media is available, mined-card overlay and system notifications include the same current-frame thumbnail.
 
-`overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated sentence audio, while leaving the word audio field unchanged.
+`overwriteAudio` applies to automatic card updates and duplicate-card enrichment. Manual clipboard subtitle updates (`Ctrl/Cmd+C`, then `Ctrl/Cmd+V`) always replace generated sentence audio in `ankiConnect.fields.audio`, even when `overwriteAudio` is disabled.
 
 ## AI Translation
 
@@ -287,6 +289,8 @@ Sentence card creation and audio card marking require a non-empty `ankiConnect.i
 
 Trigger with the mine sentence shortcut (`Ctrl/Cmd+S` by default). The card is created directly via AnkiConnect with the sentence, audio, and image filled in.
 
+The dedicated sentence-card and audio-card shortcuts use the Lapis/Kiku-compatible `Sentence` and `SentenceAudio` fields. This does not affect the configured fields used to enrich normal word cards.
+
 To mine multiple subtitle lines as one sentence card, use `Ctrl/Cmd+Shift+S` followed by a digit (1–9) to select how many recent lines to combine.
 
 ## Word Card Type (Kiku/Lapis)
@@ -304,15 +308,27 @@ Word cards get a card-type flag when SubMiner fills their sentence, whether that
 
 `click` marks `IsClickCard`, `sentence` marks `IsSentenceCard`, `audio` marks `IsAudioCard`, and `none` leaves the flags untouched for templates that manage them elsewhere. Whichever flag is chosen, the other card-type flags are cleared so the note never claims two card types. The setting is only read when `isKiku` or `isLapis` is enabled, and cards mined with Mine Sentence or Mine Audio keep their own flag.
 
-## Field Grouping (Kiku)
+## Field Grouping (Kiku/Senren)
 
-When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/youyoumu/kiku) that support grouped sentence/audio/image fields.
+When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types that support grouped fields: [Kiku](https://github.com/youyoumu/kiku) and [Senren](https://github.com/BrenoAqua/Senren) (which calls the feature scene switching).
 
 ```jsonc
 "ankiConnect": {
   "isKiku": {
     "enabled": true,
     "fieldGrouping": "manual",         // "auto", "manual", or "disabled"
+    "deleteDuplicateInAuto": true      // delete new card after auto-merge
+  }
+}
+```
+
+For Senren note types, enable `isSenren` instead. Kiku and Senren write incompatible markup into the same fields, so only one can be enabled at a time; if both are enabled, Kiku wins and a config warning is emitted.
+
+```jsonc
+"ankiConnect": {
+  "isSenren": {
+    "enabled": true,
+    "fieldGrouping": "auto",           // "auto" (default), "manual", or "disabled"
     "deleteDuplicateInAuto": true      // delete new card after auto-merge
   }
 }
@@ -333,8 +349,11 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 | Sentence | Both cards' sentences kept as grouped entries |
 | Audio    | Both cards' `[sound:...]` entries kept        |
 | Image    | Both cards' images kept                       |
+| MiscInfo | Both cards' source info kept as grouped entries |
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
+
+The merge markup depends on the note type. Kiku entries are wrapped in `<span data-group-id="...">` spans ordered newest first. Senren entries follow the [scene switching](https://github.com/BrenoAqua/Senren/blob/main/docs/scene_switching.md) format: sentence, sentenceFurigana, and miscInfo entries use `group` spans when ordinal order is sufficient and numbered `groupN` spans when they need an absolute scene target. Audio and pictures are appended positionally, and the number of sentenceAudio entries drives Senren's scene count. Ungrouped legacy content is wrapped into a group span on first merge, and source `groupN` spans are rebased after the kept note's existing audio scenes.
 
 ### Keyboard Shortcuts in the Modal
 

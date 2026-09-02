@@ -19,7 +19,7 @@ Read when: finding internal docs or checking verification status
 | Quality scorecard | `docs/knowledge-base/quality.md` | active | 2026-03-13 | quality grades and gaps |
 | Workflow index | `docs/workflow/README.md` | active | 2026-08-13 | execution map |
 | Planning guide | `docs/workflow/planning.md` | active | 2026-05-23 | lightweight vs execution plans |
-| Agent skills | `docs/workflow/agent-skills.md` | active | 2026-08-13 | repo-local workflow skill ownership |
+| Agent skills | `docs/workflow/agent-skills.md` | active | 2026-08-23 | repo-local workflow skill ownership |
 | Verification guide | `docs/workflow/verification.md` | active | 2026-08-13 | maintained verification lanes |
 | Release guide | `docs/RELEASING.md` | active | 2026-05-23 | release checklist |
 

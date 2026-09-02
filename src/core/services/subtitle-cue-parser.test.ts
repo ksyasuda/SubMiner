@@ -35,6 +35,12 @@ test('parseSrtCues handles multi-line subtitle text', () => {
   assert.equal(cues[0]!.text, 'これは\nテストです');
 });
 
+test('parseSrtCues preserves lines that only resemble malformed ASS controls', () => {
+  const content = ['1', '00:01:00,000 --> 00:01:05,000', '\\', '{\\fr0', ''].join('\n');
+
+  assert.equal(parseSrtCues(content)[0]?.text, '\\\n{\\fr0');
+});
+
 test('parseSrtCues strips HTML-like markup while preserving line breaks', () => {
   const content = [
     '1',
@@ -327,6 +333,122 @@ test('parseSubtitleCues collapses per-frame karaoke duplicates into one cue', ()
   assert.equal(cues[0]!.text, '過ぎ去ってしまう瞬間を');
 });
 
+test('parseSubtitleCues collapses long full-line color phases', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:03:49.75,0:03:51.21,OPJP,,0,0,0,,{\\blur0.6\\c&H312D38&\\4c&HFFFFFF&}ちゃんと目を{\\4c&HD590FF&}合わせてよ',
+    'Dialogue: 1,0:03:51.21,0:03:52.25,OPJP,,0,0,0,,{\\blur0.6\\4c&H312D38&\\c&HFFFFFF&}ちゃんと目を{\\4c&HD590FF&}合わせてよ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 229.75,
+      endTime: 232.25,
+      text: 'ちゃんと目を合わせてよ',
+    },
+  ]);
+});
+
+test('parseSubtitleCues keeps ordinary repeated dialogue separate', () => {
+  // A single restyle tag on a repeated line is how ordinary dialogue gets decorated;
+  // it is not phase evidence, whatever the line length.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:02.00,OPJP,,0,0,0,,{\\c&H111111&}歌詞',
+    'Dialogue: 1,0:00:02.00,0:00:03.00,OPJP,,0,0,0,,{\\c&H222222&}歌詞',
+    'Dialogue: 1,0:00:04.00,0:00:05.00,OPJP,,0,0,0,,{\\c&H333333&}別の歌詞',
+    'Dialogue: 1,0:00:05.00,0:00:06.00,OPJP,,0,0,0,,{\\c&H444444&}別の歌詞',
+    'Dialogue: 8,0:00:07.00,0:00:08.00,Text - JP,,0,0,0,,えっ？',
+    'Dialogue: 8,0:00:08.00,0:00:09.00,Text - JP,,0,0,0,,えっ？',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '歌詞' },
+    { startTime: 2, endTime: 3, text: '歌詞' },
+    { startTime: 4, endTime: 5, text: '別の歌詞' },
+    { startTime: 5, endTime: 6, text: '別の歌詞' },
+    { startTime: 7, endTime: 8, text: 'えっ？' },
+    { startTime: 8, endTime: 9, text: 'えっ？' },
+  ]);
+});
+
+test('parseSubtitleCues keeps separately positioned temporal signs separate', () => {
+  // Two flush signs with the same text but different \move paths are separate authored
+  // occurrences, not phases of one redraw: temporal evidence alone must not merge them.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Sign,,0,0,0,,{\\move(100,100,200,100)}立入禁止',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Sign,,0,0,0,,{\\move(500,400,600,400)}立入禁止',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '立入禁止' },
+    { startTime: 2, endTime: 3, text: '立入禁止' },
+  ]);
+});
+
+test('parseSubtitleCues keeps richly styled ordinary repeats separate', () => {
+  // Blur plus a changing color is still an ordinary restyle. Phase redraws are
+  // recognized by the color/highlight boundary moving *within* the line, which these
+  // leading-block-only events do not have.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Dial,,0,0,0,,{\\blur0.4\\c&H111111&}待ってよ',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Dial,,0,0,0,,{\\blur0.4\\c&H222222&}待ってよ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: '待ってよ' },
+    { startTime: 2, endTime: 3, text: '待ってよ' },
+  ]);
+});
+
+test('parseSubtitleCues keeps canonical metadata when an identical plain cue exists', () => {
+  // A plain dialogue line can share exact timing and text with a recovered canonical
+  // cue from another style. The canonical copy must win the exact-duplicate collapse,
+  // or the live overlay loses the marker it substitutes on.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:05.00,0:00:08.00,Plain,,0,0,0,,ライン',
+    'Comment: 0,0:00:05.00,0:00:08.00,OP,,0,0,0,,ライン',
+    'Dialogue: 0,0:00:05.00,0:00:05.04,OP,,0,0,0,,{\\pos(1,1)\\clip(m 1 1)}ライン',
+    'Dialogue: 0,0:00:05.04,0:00:05.08,OP,,0,0,0,,{\\pos(1,1)\\clip(m 2 2)}ライン',
+    'Dialogue: 0,0:00:05.08,0:00:08.00,OP,,0,0,0,,{\\pos(1,1)\\clip(m 3 3)}ライン',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 5,
+      endTime: 8,
+      text: 'ライン',
+      source: 'canonical-ass',
+      animationStartTime: 5,
+      animationEndTime: 8,
+    },
+  ]);
+});
+
+test('parseSubtitleCues keeps short styled repeats separate even with richer styling', () => {
+  // Two ordinary えっ lines restyled with different colors are two utterances, not two
+  // phases of one lyric: short text never satisfies the changing-override evidence path.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Dial,,0,0,0,,{\\blur0.4\\c&H111111&}えっ',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,Dial,,0,0,0,,{\\blur0.4\\c&H222222&}えっ',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'えっ' },
+    { startTime: 2, endTime: 3, text: 'えっ' },
+  ]);
+});
+
 test('parseSubtitleCues keeps back-to-back plain dialogue repeats separate', () => {
   // Several characters greeting in turn: distinct utterances that happen to abut.
   const content = [
@@ -355,6 +477,274 @@ test('parseSubtitleCues collapses exact duplicate cues even without effect tags'
   const cues = parseSubtitleCues(content, 'test.ass');
 
   assert.equal(cues.length, 1);
+});
+
+test('parseSubtitleCues replaces generated glyph animation with its timed canonical comment', () => {
+  // Aegisub automation commonly keeps the authored lyric as a Comment and emits
+  // multiple moving Dialogue layers for every glyph. This mirrors the MyGO ED script:
+  // three entrance copies followed by three exit copies for each character.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.20,0:00:03.80,ED_JP,,0,0,0,,{\\fad(480,480)}今　手にある',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(10,20,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(30,40,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 0,0:00:00.80,0:00:01.50,ED_JP,,0,0,0,,{\\move(50,60,100,200)\\t(0,600,\\fscx100)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,20,30)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,40,50)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 1,0:00:01.40,0:00:04.20,ED_JP,,0,0,0,,{\\move(100,200,60,70)\\t(2000,2600,\\blur20)}今',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(10,20,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(30,40,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 0,0:00:00.86,0:00:01.56,ED_JP,,0,0,0,,{\\move(50,60,140,200)\\t(0,600,\\fscx100)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,20,30)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,40,50)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 1,0:00:01.46,0:00:04.26,ED_JP,,0,0,0,,{\\move(140,200,60,70)\\t(2000,2600,\\blur20)}手',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(10,20,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(30,40,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 0,0:00:00.92,0:00:01.62,ED_JP,,0,0,0,,{\\move(50,60,180,200)\\t(0,600,\\fscx100)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,20,30)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,40,50)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 1,0:00:01.52,0:00:04.32,ED_JP,,0,0,0,,{\\move(180,200,60,70)\\t(2000,2600,\\blur20)}にある',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Dial_JP,,0,0,0,,普通の会話',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    {
+      startTime: 1.2,
+      endTime: 3.8,
+      text: '今　手にある',
+      source: 'canonical-ass',
+      // Entrance frames start before and exit frames end after the authored timing.
+      animationStartTime: 0.8,
+      animationEndTime: 4.32,
+    },
+    { startTime: 6, endTime: 8, text: '普通の会話' },
+  ]);
+});
+
+test('parseSubtitleCues recovers a full Dialogue line surrounding generated fragments', () => {
+  // Some scripts do not retain the authored line as a Comment. Instead, brief entrance
+  // and exit events contain the complete line around a long run of generated syllables.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:01.15,ED Romaji,,0,0,0,fx,{\\move(100,40,60,40)}toki yo ugokidase',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(0,300,\\c&HFFFFFF&)}to',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(300,500,\\c&HFFFFFF&)}ki',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(500,700,\\c&HFFFFFF&)}yo',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(700,900,\\c&HFFFFFF&)}u',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(900,1100,\\c&HFFFFFF&)}go',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1100,1300,\\c&HFFFFFF&)}ki',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1300,1500,\\c&HFFFFFF&)}da',
+    'Dialogue: 1,0:00:01.15,0:00:03.00,ED Romaji,,0,0,0,fx,{\\t(1500,1800,\\c&HFFFFFF&)}se',
+    'Dialogue: 1,0:00:03.00,0:00:03.15,ED Romaji,,0,0,0,fx,{\\move(60,40,20,40)}toki yo ugokidase',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Default,,0,0,0,,Ordinary dialogue',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3.15,
+      text: 'toki yo ugokidase',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3.15,
+    },
+    { startTime: 6, endTime: 8, text: 'Ordinary dialogue' },
+  ]);
+});
+
+test('parseSubtitleCues replaces animated glyph copies of a static canonical Dialogue line', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:04.00,OP - JP,,0,0,0,,重複字幕',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,OP - JP,,0,0,0,,{\\pos(400,50)\\t(0,100,\\fry0)}重',
+    'Dialogue: 2,0:00:01.10,0:00:04.00,OP - JP,,0,0,0,,{\\pos(440,50)\\t(0,100,\\fry0)}複',
+    'Dialogue: 2,0:00:01.20,0:00:04.00,OP - JP,,0,0,0,,{\\pos(480,50)\\t(0,100,\\fry0)}字',
+    'Dialogue: 2,0:00:01.30,0:00:04.00,OP - JP,,0,0,0,,{\\pos(520,50)\\t(0,100,\\fry0)}幕',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 4,
+      text: '重複字幕',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 4,
+    },
+  ]);
+});
+
+test('parseSubtitleCues does not promote a short animated fragment as a complete line', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}my',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}my',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}m',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx120)}m',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(120,100)\\t(20,120,\\fscx120)}y',
+    'Dialogue: 2,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\pos(120,100)\\t(20,120,\\fscx120)}y',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(
+    cues.some((cue) => cue.source === 'canonical-ass'),
+    false,
+  );
+});
+
+test('parseSubtitleCues keeps short animated English dialogue as separate cues', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,English Dialogue,,0,0,0,,{\\t(0,100,\\fscx110)}Hi',
+    'Dialogue: 0,0:00:02.00,0:00:03.00,English Dialogue,,0,0,0,,{\\t(0,100,\\fscx110)}No',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Hi' },
+    { startTime: 2, endTime: 3, text: 'No' },
+  ]);
+});
+
+test('parseSubtitleCues does not reconstruct an already canonical English cue', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,OP English,,0,0,0,,{\\move(100,100,120,100)}POOF',
+    'Dialogue: 0,0:00:01.00,0:00:01.04,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 1 1)}POOF',
+    'Dialogue: 0,0:00:01.04,0:00:01.08,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 2 2)}POOF',
+    'Dialogue: 0,0:00:01.08,0:00:03.00,OP English,,0,0,0,,{\\pos(100,100)\\clip(m 3 3)}POOF',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: 'POOF',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+    },
+  ]);
+});
+
+test('parseSubtitleCues reconstructs a short positioned fragment without a lyric style name', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Karaoke,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx110)}Oh',
+    'Dialogue: 1,0:00:01.00,0:00:03.00,Karaoke,,0,0,0,,{\\pos(100,100)\\t(0,100,\\fscx110)}Oh',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: 'Oh',
+      source: 'reconstructed-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+      assStyle: 'Karaoke',
+    },
+  ]);
+});
+
+test('parseSubtitleCues ignores timed comments without a matching animated dialogue cluster', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,Dial_JP,,0,0,0,,編集メモ',
+    'Comment: 0,0:00:04.00,0:00:06.00,Dial_JP,,0,0,0,,別案の字幕',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Dial_JP,,0,0,0,,通常の字幕',
+    'Dialogue: 0,0:00:04.00,0:00:06.00,Dial_JP,,0,0,0,,別案の字幕',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    { startTime: 1, endTime: 3, text: '通常の字幕' },
+    { startTime: 4, endTime: 6, text: '別案の字幕' },
+  ]);
+});
+
+test('parseAssCues returns recovered canonical cues in chronological order', () => {
+  // Recovery appends recovered cues after surviving dialogue; the bare parseAssCues
+  // export must still come back time-ordered.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:06.00,0:00:08.00,Dial,,0,0,0,,あとのセリフ',
+    'Comment: 0,0:00:01.20,0:00:03.80,OP,,0,0,0,,雨が上がっても',
+    'Dialogue: 0,0:00:01.20,0:00:01.24,OP,,0,0,0,,{\\pos(1,1)\\clip(m 1 1)}雨が上がっても',
+    'Dialogue: 0,0:00:01.24,0:00:01.28,OP,,0,0,0,,{\\pos(1,1)\\clip(m 2 2)}雨が上がっても',
+    'Dialogue: 0,0:00:01.28,0:00:03.80,OP,,0,0,0,,{\\pos(1,1)\\clip(m 3 3)}雨が上がっても',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseAssCues(content).map((cue) => cue.startTime),
+    [1.2, 6],
+  );
+});
+
+test('parseSubtitleCues withdraws a recovery whose owner is claimed by a later candidate', () => {
+  // The exit boundary event appears first in the file and recovers a canonical cue from
+  // its own small cluster. The entrance candidate then proves that exit event was a
+  // generated frame of the full animation; the earlier recovery is a duplicate of the
+  // same authored line and must not survive alongside it.
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 1,0:00:14.00,0:00:14.20,ED,,0,0,0,,{\\move(100,200,20,30)}ABCDEFGH',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(0,300,\\c&HFFFFFF&)}ABC',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(300,600,\\c&HFFFFFF&)}DEF',
+    'Dialogue: 1,0:00:13.50,0:00:14.50,ED,,0,0,0,,{\\t(600,900,\\c&HFFFFFF&)}GH',
+    'Dialogue: 0,0:00:10.00,0:00:10.20,ED,,0,0,0,,{\\move(10,20,100,200)}ABCDEFGH',
+    'Dialogue: 0,0:00:10.00,0:00:12.00,ED,,0,0,0,,{\\t(0,300,\\fscx100)}ABC',
+    'Dialogue: 0,0:00:10.00,0:00:12.00,ED,,0,0,0,,{\\t(300,600,\\fscx100)}DEF',
+    'Dialogue: 0,0:00:10.00,0:00:13.40,ED,,0,0,0,,{\\t(600,900,\\fscx100)}GH',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    {
+      startTime: 10,
+      endTime: 14.2,
+      text: 'ABCDEFGH',
+      source: 'canonical-ass',
+      animationStartTime: 10,
+      animationEndTime: 14.2,
+    },
+  ]);
+});
+
+test('parseSubtitleCues recovers canonical comments from generated clip frames', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Comment: 0,0:00:01.00,0:00:03.00,OP_JP,,0,0,0,,雨が上がっても',
+    'Dialogue: 0,0:00:01.00,0:00:01.04,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 1 1)}雨が上がっても',
+    'Dialogue: 0,0:00:01.04,0:00:01.08,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 2 2)}雨が上がっても',
+    'Dialogue: 0,0:00:01.08,0:00:03.00,OP_JP,,0,0,0,,{\\pos(960,1068)\\clip(m 3 3)}雨が上がっても',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(cues, [
+    {
+      startTime: 1,
+      endTime: 3,
+      text: '雨が上がっても',
+      source: 'canonical-ass',
+      animationStartTime: 1,
+      animationEndTime: 3,
+    },
+  ]);
 });
 
 test('parseSubtitleCues collapses tag-less animation frames in converted SRT', () => {
@@ -659,4 +1049,1228 @@ test('parseSubtitleCues detects subtitle formats from remote URLs', () => {
 
   assert.equal(cues.length, 1);
   assert.equal(cues[0]!.text, 'URLテスト');
+});
+
+test('parseSubtitleCues skips zero-duration ASS metadata events', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:00.00,0:00:00.00,Default,,0,0,0,,[Script Info]',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Real subtitle',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Real subtitle' },
+  ]);
+});
+
+test('parseSubtitleCues drops malformed ASS spacer reset debris', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:02.00,Background,,0,0,0,,{\\pos(10,10)}\\h\\h\\h\\{\\fr0',
+    'Dialogue: 1,0:00:01.00,0:00:02.00,Default,,0,0,0,,Visible line',
+  ].join('\n');
+
+  assert.deepEqual(parseSubtitleCues(content, 'test.ass'), [
+    { startTime: 1, endTime: 2, text: 'Visible line' },
+  ]);
+});
+
+test('parseSubtitleCues recovers spaces encoded only by positioned Latin glyph gaps', () => {
+  const glyphs = [
+    ['T', 100],
+    ['h', 118],
+    ['e', 136],
+    ['s', 164],
+    ['t', 178],
+    ['a', 194],
+    ['r', 210],
+    ['s', 227],
+    ['I', 255],
+    ['s', 275],
+    ['e', 293],
+    ['e', 311],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      glyphs.map(
+        ([glyph, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'The stars I see');
+});
+
+test('parseSubtitleCues does not split narrow letters inside positioned English words', () => {
+  const text = 'carryinghappiness';
+  const positions = [
+    323, 341, 356, 369, 383, 396, 410, 428, 456, 474, 493, 512, 526, 540, 558, 575, 590,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'carrying happiness');
+});
+
+test('parseSubtitleCues keeps proportional-font variation inside positioned English words', () => {
+  const text = 'sendsripplesacrossthestillnessofyourheart';
+  const positions = [
+    32, 46, 60, 78, 95, 121, 131, 144, 163, 177, 189, 203, 232, 248, 261, 274, 288, 302, 329, 346,
+    363, 390, 405, 416, 423, 432, 443, 457, 471, 485, 512, 525, 551, 564, 579, 593, 622, 639, 655,
+    670, 684,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,Insert English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'sends ripples across the stillness of your heart',
+  );
+});
+
+test('parseSubtitleCues keeps a short capitalized word when the following gap is larger', () => {
+  const text = 'IfIgrow';
+  const positions = [347, 365, 397, 430, 446, 463, 485];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,Insert English,,0,0,0,,{\\pos(${positions[index]},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'If I grow');
+});
+
+// Geometry taken from a real per-glyph ED line. The `waves within` gap crosses a wide
+// `w`, so the width-normalized ratio reads it as a common advance; only the constant
+// extra distance of the authored word space gives it away.
+test('parseSubtitleCues recovers a word gap measured across a wide glyph', () => {
+  const text = 'youcanhearthesoundofthewaveswithinmyheart';
+  const positions = [
+    202, 223, 244, 274, 296, 317, 346, 367, 389, 408, 433, 450, 470, 499, 517, 538, 557, 578, 609,
+    627, 651, 668, 688, 723, 748, 770, 792, 811, 843, 863, 875, 892, 907, 922, 957, 983, 1013, 1034,
+    1055, 1075, 1090,
+  ];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},687)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'you can hear the sound of the waves within my heart',
+  );
+});
+
+// A single short word gives too few gap samples to trust the excess rule: its narrow
+// glyphs skew the common advance low and `w e` would read as a word gap.
+test('parseSubtitleCues does not split a short single positioned word', () => {
+  const text = 'Swelling';
+  const positions = [592, 613, 635, 647, 655, 662, 673, 689];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},682)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Swelling');
+});
+
+// A capitalized word whose first letter sits before a wide glyph (`S|miles`) overruns
+// the width table; the excess rule must not split a capital from its lowercase run.
+test('parseSubtitleCues keeps a capitalized word intact under the excess rule', () => {
+  const text = 'Smilesarebudding';
+  const positions = [37, 63, 80, 88, 99, 113, 142, 157, 171, 201, 217, 235, 255, 269, 280, 295];
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      [...text].map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED English,,0,0,0,,{\\pos(${positions[index]},682)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Smiles are budding');
+});
+
+// Mirrors a real ED: per-syllable romaji at y=34 overlaid with animated single letters
+// at y=29 rendered through `\fn` in a symbol font, where `a` draws as a sparkle. The
+// letters must neither join the reconstructed line nor survive as their own cues.
+test('parseSubtitleCues drops symbol-font glyph decoration from a reconstructed line', () => {
+  const syllables = [
+    ['so', 479],
+    ['t', 505],
+    ['to', 529],
+    ['mi', 577],
+    ['mi', 618],
+    ['ni', 663],
+    ['a', 699],
+    ['te', 728],
+    ['ru', 764],
+    ['to', 810],
+  ] as const;
+  const decoration = [
+    ['a', 479, '0:00:01.25'],
+    ['z', 577, '0:00:02.51'],
+    ['x', 618, '0:00:02.78'],
+    ['q', 505, '0:00:04.20'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      syllables.map(
+        ([syllable, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:05.37,ED Romaji,,0,0,0,fx,{\\an5\\pos(${x},34)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${syllable}`,
+      ),
+    ),
+    ...decoration.map(
+      ([glyph, x, start]) =>
+        `Dialogue: 0,${start},0:00:05.37,ED Romaji,,0,0,0,fx,{\\pos(${x},29)\\fnSplit splat splodge\\fs28\\t(3870,3970,\\fscx105)}${glyph}`,
+    ),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'sotto mimi ni ateru to');
+});
+
+test('parseSubtitleCues drops clipped repeated-glyph texture text', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 10,0:00:01.00,0:00:04.00,Default,,0,0,0,,I'm blocking them.",
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,80)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLLLLLLLLLLLLLLLLLLLLLL',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,150)\\fnSF Pro Display}Enter a message',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ["I'm blocking them.", 'Enter a message'],
+  );
+});
+
+test('parseSubtitleCues preserves opaque same-font text beside texture fragments', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,seed,0,0,0,,{\\pos(960,80)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLLLLLLLLLLLLLLLLLLLLLL',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,piece,0,0,0,,{\\pos(960,110)\\fnSerangkaian Pattern Regular\\clip(800,20,1120,140)}LLLL',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,label,0,0,0,,{\\pos(960,150)\\fnSerangkaian Pattern Regular}Keep this label',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Keep this label'],
+  );
+});
+
+test('parseSubtitleCues drops tiny alpha payloads from a proven texture font', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain Medium\\clip(500,40,660,150)}LLLLLLLLLLLL',
+    "Dialogue: 1,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(580,95)\\fnGrain\\fs10\\alpha&H70&}q26D'vrA;\\NE? GS\\NESLhlawEv",
+    'Dialogue: 3,0:00:06.00,0:00:09.00,FrogSigns,,0,0,0,,{\\pos(1040,620)\\fnSF Pro Display\\fs66}Waiting!',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Waiting!'],
+  );
+});
+
+test('parseSubtitleCues preserves a small multiline translation using an unverified transparent font', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 2,0:00:01.00,0:00:04.00,Transition,,0,0,0,,{\\pos(580,95)\\fnPhone UI\\fs60\\alpha&HF0&}Faded transition',
+    'Dialogue: 3,0:00:06.00,0:00:09.00,Phone,,0,0,0,,{\\pos(1040,620)\\fnPhone UI\\fs10\\alpha&H70&}Call me when you arrive.\\NI will still be awake.\\NDo not rush.',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Faded transition', 'Call me when you arrive.\nI will still be awake.\nDo not rush.'],
+  );
+});
+
+test('parseSubtitleCues drops clipped repeated-glyph texture text without a font override', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\an7\\pos(736.49,152.99)\\fscy150\\fs10\\bord3\\c&H657BC8&\\3c&H657BC8&\\blur3\\clip}lllllllllllll',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\an7\\pos(769.9,106.18)\\fscy150\\fs12\\bord3\\c&H66729F&\\3c&H66729F&\\blur5\\clip}llll',
+    'Dialogue: 5,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(893,311)}Read',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Read'],
+  );
+});
+
+test('parseSubtitleCues drops per-character alpha texture text', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 10,0:00:01.00,0:00:04.00,Default,Girl,0,0,0,,So Doloris was actually Uika-chan from sumimi! That's amazing!",
+    "Dialogue: 2,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,240)\\fnCinzel}Hanasakigawa Girl's School",
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,300)\\fnSplit splat splodge\\clip(800,200,1120,400)}d{\\2a1}s{\\2a0}h{\\2a1}f{\\2a0}k{\\2a1}h{\\2a0}f{\\2a1}s{\\2a0}d{\\2a1}f{\\2a0}e',
+    'Dialogue: 3,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(980,340)\\fnSplit splat splodge}f {\\2a1}a',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,MarySigns,,0,0,0,,{\\pos(960,360)\\fnGrain SemiBold}5{\\2a1}X{\\2a0}N{\\2a1}T{\\2a0}f{\\2a1}I{\\2a0}g{\\2a1}F{\\2a0}B{\\2a1}?{\\2a0}k{\\2a1}u{\\2a0}C{\\2a1}m',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    [
+      "So Doloris was actually Uika-chan from sumimi! That's amazing!",
+      "Hanasakigawa Girl's School",
+    ],
+  );
+});
+
+test('parseSubtitleCues drops transparent texture payloads across an animated sign', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    "Dialogue: 90,0:00:01.00,0:00:04.00,Alt,,0,0,0,,Even if you want to see her, she doesn't want to see you!",
+    'Dialogue: 0,0:00:01.00,0:00:01.08,FrogSigns,,0,0,0,,{\\pos(699,803)\\fnSerangkaian Pattern Regular\\clip(300,380,1130,1050)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a0}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\\\\\\\\\\\\\\\\\\\\\',
+    'Dialogue: 3,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnGrain\\alpha&HE0&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 5,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnRoboto Medium\\alpha&H00&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 6,0:00:01.00,0:00:01.08,FrogSigns,Street,0,0,0,,{\\pos(285,653)\\fnGrain\\alpha&HE0&}H1.4igcAhGYHVWD"kHcVlG2W9eKEWj"!X\\N\'uNVaEVpTXMd9rk7dnRX\'P!RhsS"Wn90k6',
+    'Dialogue: 6,0:00:01.00,0:00:01.08,FrogSigns,18K,0,0,0,,{\\pos(284,821)\\fnGrain\\alpha&HE0&}ou:QepiiPqQ.4n.IYbFaGHtPzWyKI9CUSq:',
+    'Dialogue: 1,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(581,921)\\fnSerangkaian Pattern Regular\\clip(195,495,986,1120)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{',
+    'Dialogue: 3,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HE0&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 5,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnRoboto Medium\\alpha&H00&}Street performance by Mortis from\\NMujica - Acting prodigy in action!',
+    'Dialogue: 3,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HF0&}9LF\'GpPCTlOkLxBLV:QN,8R8NUVM"ha.s\\NNUUPNTBdJih4jUthK34i,yYe;9EBgLXbET',
+    "Dialogue: 6,0:00:01.08,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(150,936)\\fnGrain\\alpha&HE0&}JS7vl:lD;'PzkCb!bGT;.7TbA.KCkEH0LOk",
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    [
+      'Street performance by Mortis from\nMujica - Acting prodigy in action!',
+      "Even if you want to see her, she doesn't want to see you!",
+      'Street performance by Mortis from\nMujica - Acting prodigy in action!',
+    ],
+  );
+});
+
+test('parseSubtitleCues does not reconstruct short texture pieces under another actor', () => {
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,bubble,0,0,0,,{\\pos(245,-102)\\fnSerangkaian Pattern Regular\\clip(224,-1,831,106)}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L{\\2a0}L{\\2a1}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(917,293)\\alpha&H20&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(911,293)\\alpha&H58&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 4,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(845,300)\\alpha&H00&\\fnSerangkaian Pattern Regular\\clip(904,289,1010,336)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(907,293)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,289,1010,338)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(911,293)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,289,1010,338)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 7,0:00:01.00,0:00:04.00,FrogSigns,read,0,0,0,,{\\pos(922,130)\\alpha&HD0&\\fnSerangkaian Pattern Regular\\clip(891,120,1010,173)}L{\\2a0}L{\\2a1}L{\\2a0}L',
+    'Dialogue: 5,0:00:01.00,0:00:04.00,FrogSigns,,0,0,0,,{\\pos(893,311)\\fnSFProDisplay-Regular-STR}Read 3',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['Read 3'],
+  );
+});
+
+test('parseSubtitleCues separates overlapping positioned English lyric sequences', () => {
+  const fragments = [
+    ['my', 642, '0:00:01.00', '0:00:04.05'],
+    ['song!', 713, '0:00:01.00', '0:00:04.05'],
+    ['I', 533, '0:00:01.67', '0:00:04.09'],
+    ['h', 557, '0:00:01.67', '0:00:04.09'],
+    ['u', 575, '0:00:01.67', '0:00:04.09'],
+    ['m', 597, '0:00:01.67', '0:00:04.09'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([text, x, start, end], index) =>
+          `Dialogue: ${layer},${start},${end},OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'my song! I hum');
+});
+
+const eventsHeader = [
+  '[Events]',
+  'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+];
+
+test('parseSubtitleCues keeps tall CC-style base dialogue publishable after removing furigana', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(212,383)\\fscx50\\fscy50}たき',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(172,437)\\fscx50}（{\\fscx100}立希{\\fscx50}）',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(332,443)\\fscx50\\fscy50}ともり',
+    'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(192,497)}お前…{\\fscx50}　{\\fscx100}燈をバンドに誘ったの？',
+    // A second labeled turn, so the script reads as broadcast captions.
+    'Dialogue: 0,0:00:10.11,0:00:12.00,Default,,0,0,0,,{\\pos(192,497)\\fscx50}（{\\fscx100}燈{\\fscx50}）{\\fscx100}うん。',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  // The bare speaker label row joins the dialogue row beneath it as one cue.
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['（立希）\nお前…　燈をバンドに誘ったの？', '（燈）うん。'],
+  );
+  assert.deepEqual(cues[0]?.assFurigana, ['たき', 'ともり']);
+  assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
+});
+
+test('parseSubtitleCues removes half-size positioned furigana from broadcast captions', () => {
+  const content = [
+    '[Script Info]',
+    'PlayResY: 540',
+    '',
+    ...eventsHeader,
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(192,77)\\fscx50}（{\\fscx100}山田{\\fscx50}）{\\fscx100}ごめん{\\fscx50}　{\\fscx100}結局{\\fscx50}　{\\fscx100}ぬれたな{\\fscx50}。',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,113)\\fscx50\\fscy50}だいじょうぶ',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(552,167)}大丈夫{\\fscx50}。',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,407)\\fscx50}（{\\fscx100}山田の母{\\fscx50}）{\\fscx100}ほんなら',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,443)\\fscx50\\fscy50}かく',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(312,443)\\fscx50\\fscy50}ちょぞう',
+    'Dialogue: 0,0:03:51.34,0:03:53.68,Default,,0,0,0,,{\\pos(232,497)}隠し貯蔵のミルクまんじゅう➡',
+    'Dialogue: 0,0:04:00.00,0:04:03.00,Default,,0,0,0,,{\\pos(232,443)\\fscx50\\fscy50}ぜったい　ちが',
+    'Dialogue: 0,0:04:00.00,0:04:03.00,Default,,0,0,0,,{\\pos(232,497)}絶対違う',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e08.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      '（山田）ごめん　結局　ぬれたな。',
+      '大丈夫。',
+      '（山田の母）ほんなら\n隠し貯蔵のミルクまんじゅう➡',
+      '絶対違う',
+    ],
+  );
+  assert.deepEqual(cues[1]?.assFurigana, ['だいじょうぶ']);
+  assert.deepEqual(cues[2]?.assFurigana, ['かく', 'ちょぞう']);
+  assert.deepEqual(cues[3]?.assFurigana, ['ぜったい　ちが']);
+});
+
+// Broadcast-caption rows from You and I Are Polar Opposites S02E09. Every pair shares
+// timing, style, and the bottom band; only the text tells a wrap from a second speaker.
+const captionRowsHeader = ['[Script Info]', 'PlayResY: 540', '', ...eventsHeader];
+
+function captionRow(start: string, end: string, x: number, y: number, text: string): string {
+  return `Dialogue: 0,${start},${end},Default,,0,0,0,,{\\pos(${x},${y})}${text}`;
+}
+
+test('parseSubtitleCues joins caption rows that wrap one sentence across two events', () => {
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:19.08', '0:00:22.66', 172, 437, '⸨ぶっちゃけ'),
+    captionRow(
+      '0:00:19.08',
+      '0:00:22.66',
+      172,
+      497,
+      '早く{\\fscx50}　{\\fscx100}この勉強生活　終えたいし⸩',
+    ),
+    // No bracket at all: the upper row simply has not reached sentence punctuation.
+    captionRow('0:02:42.33', '0:02:44.43', 232, 437, '（東）≪好きだと'),
+    captionRow('0:02:42.33', '0:02:44.43', 232, 497, '自覚してしまったものの➡'),
+    // Rows are centred independently, so a wrap can change x between rows.
+    captionRow('0:00:42.21', '0:00:45.21', 252, 407, '≪ちょっとしたことで'),
+    captionRow('0:00:42.21', '0:00:45.21', 292, 497, '勝手に落ち込んだり➡'),
+    // A quote closed with 」 inside a still-open ≪…≫ span is not the end of the line.
+    captionRow('0:19:02.84', '0:19:05.00', 212, 437, '≪「つきあえる自信がない」'),
+    captionRow('0:19:02.84', '0:19:05.00', 452, 497, 'じゃない≫'),
+    // An in-sentence 「 quote on the lower row is not a new turn.
+    captionRow('0:18:35.55', '0:18:38.00', 232, 437, '今　「好きだ」と'),
+    captionRow('0:18:35.55', '0:18:38.00', 192, 497, '「心地いい」と感じてるのも➡'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e09.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      '⸨ぶっちゃけ\n早く　この勉強生活　終えたいし⸩',
+      '≪ちょっとしたことで\n勝手に落ち込んだり➡',
+      '（東）≪好きだと\n自覚してしまったものの➡',
+      '今　「好きだ」と\n「心地いい」と感じてるのも➡',
+      '≪「つきあえる自信がない」\nじゃない≫',
+    ],
+  );
+  assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
+});
+
+test('parseSubtitleCues keeps simultaneous caption rows from two speakers separate', () => {
+  const content = [
+    ...captionRowsHeader,
+    // Both unlabeled: the upper row finished its sentence.
+    captionRow('0:03:56.10', '0:04:00.04', 172, 437, 'なあ　車両　変えね？'),
+    captionRow('0:03:56.10', '0:04:00.04', 632, 497, 'えっ？➡'),
+    // Lower row opens a labeled turn.
+    captionRow('0:03:38.48', '0:03:42.05', 592, 437, 'おはよう！'),
+    captionRow('0:03:38.48', '0:03:42.05', 272, 497, '（平）あっ　声　でかっ。'),
+    // A closed monologue span above a sound effect.
+    captionRow('0:08:16.83', '0:08:19.50', 372, 437, '≪落ち着け　落ち着け≫'),
+    captionRow('0:08:16.83', '0:08:19.50', 272, 497, 'ドクン　ドクン　ドクン…'),
+    // Two labeled speakers.
+    captionRow('0:09:27.90', '0:09:31.07', 312, 437, '（平）ぐぅ…。'),
+    captionRow('0:09:27.90', '0:09:31.07', 352, 497, '（東）≪ちくしょう～！≫'),
+    // A bare label never swallows a differently labeled row.
+    captionRow('0:11:43.24', '0:11:45.00', 212, 437, '（長谷川）'),
+    captionRow('0:11:43.24', '0:11:45.00', 412, 497, '（早乙女）ん？'),
+    // A short sentence-final 。 closes the upper row like any other.
+    captionRow('0:12:31.55', '0:12:33.55', 172, 437, '⚞（東）平。'),
+    captionRow('0:12:31.55', '0:12:33.55', 532, 497, 'あっ。'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'polar-opposites-s02e09.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'おはよう！',
+      '（平）あっ　声　でかっ。',
+      'なあ　車両　変えね？',
+      'えっ？➡',
+      '≪落ち着け　落ち着け≫',
+      'ドクン　ドクン　ドクン…',
+      '（平）ぐぅ…。',
+      '（東）≪ちくしょう～！≫',
+      '（長谷川）',
+      '（早乙女）ん？',
+      '⚞（東）平。',
+      'あっ。',
+    ],
+  );
+});
+
+test('parseSubtitleCues keeps caption rows apart across styles, bands, and timing', () => {
+  const content = [
+    ...captionRowsHeader,
+    // Same wording as a wrap, but the rows sit in different vertical bands.
+    captionRow('0:01:00.00', '0:01:02.00', 172, 77, '≪ちょっとしたことで'),
+    captionRow('0:01:00.00', '0:01:02.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Same band, but a sign style beside dialogue.
+    'Dialogue: 0,0:01:05.00,0:01:07.00,Sign,,0,0,0,,{\\pos(172,437)}ちょっとしたことで',
+    captionRow('0:01:05.00', '0:01:07.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Same rows, but the lower one ends later.
+    captionRow('0:01:10.00', '0:01:12.00', 172, 437, '≪ちょっとしたことで'),
+    captionRow('0:01:10.00', '0:01:13.00', 172, 497, '勝手に落ち込んだり➡'),
+    // Style-aligned rows without \pos are never caption rows.
+    'Dialogue: 0,0:01:15.00,0:01:17.00,Default,,0,0,0,,{\\an8}≪ちょっとしたことで',
+    'Dialogue: 0,0:01:15.00,0:01:17.00,Default,,0,0,0,,{\\an2}勝手に落ち込んだり➡',
+    // Same height: the events sit side by side, not one above the other.
+    captionRow('0:01:20.00', '0:01:22.00', 172, 497, '≪ちょっとしたことで'),
+    captionRow('0:01:20.00', '0:01:22.00', 612, 497, '勝手に落ち込んだり➡'),
+    // Same bottom band, but further apart than two text rows.
+    captionRow('0:01:25.00', '0:01:27.00', 172, 367, '≪ちょっとしたことで'),
+    captionRow('0:01:25.00', '0:01:27.00', 172, 497, '勝手に落ち込んだり➡'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.equal(cues.length, 12);
+  assert.ok(cues.every((cue) => !cue.text.includes('\n')));
+});
+
+test('parseSubtitleCues leaves typeset rows alone in scripts that are not broadcast captions', () => {
+  // Fansub typesetting stacks positioned rows for signs, chat bubbles, and headlines. Such
+  // text carries no caption punctuation, so without the script-level gate every stacked
+  // pair here would read as an unfinished sentence and merge.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:14.00', 640, 200, 'Shocking Statement Leaves'),
+    captionRow('0:00:10.00', '0:00:14.00', 640, 260, 'Listeners Speechless!'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 300, 'shes here AGAIN'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 360, 'make sakiko-chan go home'),
+    // Japanese typesetting in the same script is held back by the same gate.
+    captionRow('0:02:00.00', '0:02:04.00', 300, 400, '定休日'),
+    captionRow('0:02:00.00', '0:02:04.00', 300, 460, '毎週水曜日'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'Shocking Statement Leaves',
+      'Listeners Speechless!',
+      'shes here AGAIN',
+      'make sakiko-chan go home',
+      '定休日',
+      '毎週水曜日',
+    ],
+  );
+});
+
+test('parseSubtitleCues never joins caption rows that carry no Japanese', () => {
+  // Even inside a caption script, romaji or English rows are not the wrapped Japanese
+  // sentences this pass targets.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:13.00', 172, 437, '（東）≪好きだと'),
+    captionRow('0:00:10.00', '0:00:13.00', 172, 497, '自覚してしまったものの➡'),
+    captionRow('0:00:20.00', '0:00:23.00', 172, 437, '（平）ん？'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 437, 'NOW LOADING'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 497, 'please wait'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['（東）≪好きだと\n自覚してしまったものの➡', '（平）ん？', 'NOW LOADING', 'please wait'],
+  );
+});
+
+test('parseSubtitleCues scales furigana geometry by PlayResY', () => {
+  const content = [
+    '[Script Info]',
+    'PlayResY: 1080',
+    '',
+    ...eventsHeader,
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(1104,226)\\fscx50\\fscy50}だいじょうぶ',
+    'Dialogue: 0,0:02:38.20,0:02:41.87,Default,,0,0,0,,{\\pos(1104,334)}大丈夫{\\fscx50}。',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['大丈夫。'],
+  );
+  assert.deepEqual(cues[0]?.assFurigana, ['だいじょうぶ']);
+});
+
+test('parseSubtitleCues preserves small kana without a matching kanji base caption', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,200)\\fscx50\\fscy50}ひそひそ',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,254)}ordinary dialogue',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['ひそひそ', 'ordinary dialogue'],
+  );
+});
+
+test('parseSubtitleCues preserves small kana horizontally separated from a kanji caption', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(800,200)\\fscx50\\fscy50}ひそひそ',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\pos(200,254)}漢字',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.match(cues.map((cue) => cue.text).join('\n'), /ひそひそ/);
+  assert.deepEqual(
+    cues.flatMap((cue) => cue.assFurigana ?? []),
+    [],
+  );
+});
+
+test('parseSubtitleCues marks re-shown countdown frames as a fragment grid', () => {
+  const rows = [
+    ['juu', '10'],
+    ['juu', '10'],
+    ['kyuu', '9'],
+    ['kyuu', '9'],
+    ['hachi', '8'],
+    ['hachi', '8'],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...rows.flatMap(([word, num], index) => {
+      const timestamp = (seconds: number) => `0:00:${seconds.toFixed(2).padStart(5, '0')}`;
+      const start = timestamp(6 + index * 0.4);
+      const end = timestamp(6 + index * 0.4 + 0.4);
+      return [0, 1].flatMap((layer) => [
+        `Dialogue: ${layer},${start},${end},ED Romaji,,0,0,0,,{\\pos(${300 + index * 8},40)\\t(0,100,\\fscx120)}${word}`,
+        `Dialogue: ${layer},${start},${end},ED Romaji,,0,0,0,,{\\pos(${300 + index * 8},93)\\t(0,100,\\fscx120)}${num}`,
+      ]);
+    }),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues marks scattered single-glyph typesetting as a fragment grid', () => {
+  const glyphs = ['の', 'こ', '部', 'そ', '屋'];
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      glyphs.map(
+        (glyph, index) =>
+          `Dialogue: ${layer},0:00:06.00,0:00:09.00,OP-JP,,0,0,0,,{\\pos(${500 + index * 30},${-30 + index * 35})\\t(0,100,\\fscx120)}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues marks a repeated-token sign wall as a fragment grid', () => {
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      Array.from(
+        { length: 6 },
+        (_, index) =>
+          `Dialogue: ${layer},0:00:06.00,0:00:09.00,Sign,,0,0,0,,{\\pos(${200 + index * 60},${100 + index * 30})\\t(0,100,\\fscx120)}${index % 2 === 0 ? 'Maid' : 'Cafe'}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues keeps a wrapped lyric with a staggered repeated token publishable', () => {
+  const fragments = [
+    ['dreams', 300, 115, '0:00:01.00'],
+    ['ju', 250, 39, '0:00:01.00'],
+    ['n', 280, 39, '0:00:01.00'],
+    ['jo', 300, 39, '0:00:01.00'],
+    ['u', 330, 39, '0:00:01.00'],
+    ['to', 360, 39, '0:00:01.00'],
+    ['jo', 395, 39, '0:00:01.02'],
+    ['u', 425, 39, '0:00:01.00'],
+    ['ne', 455, 39, '0:00:01.00'],
+    ['tsu!', 485, 39, '0:00:01.00'],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([text, x, y, start], index) =>
+          `Dialogue: ${layer},${start},0:00:04.00,ED Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${text}`,
+      ),
+    ),
+  ].join('\n');
+
+  const cue = parseSubtitleCues(content, 'test.ass')[0];
+  assert.notEqual(cue?.assLayout?.kind, 'fragment-grid');
+});
+
+test('parseSubtitleCues adds a missing word space after positioned punctuation', () => {
+  const fragments = [
+    ['H', 100],
+    ['i,', 119],
+    ['t', 153],
+    ['h', 168],
+    ['e', 186],
+    ['r', 202],
+    ['e', 216],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'Hi, there');
+});
+
+test('parseSubtitleCues does not split a positioned thousands separator', () => {
+  const fragments = [
+    ['1,', 100],
+    ['000', 145],
+    ['0', 185],
+    ['0', 205],
+    ['0', 225],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, '1,000000');
+});
+
+test('parseSubtitleCues does not split a wide glyph from its punctuated suffix', () => {
+  const fragments = [
+    ['v', 904],
+    ['o', 924],
+    ['i', 939],
+    ['c', 955],
+    ['e', 976],
+    ['r', 1004],
+    ['e', 1021],
+    ['a', 1042],
+    ['c', 1063],
+    ['h', 1083],
+    ['e', 1104],
+    ['d', 1125],
+    ['m', 1161],
+    ['e,', 1193],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP English,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'voice reached me,');
+});
+
+test('parseSubtitleCues spaces positioned lyric fragments across authored rows', () => {
+  const fragments = [
+    ['My', 472, 39],
+    ['song!', 543, 39],
+    ['My', 507, 78],
+    ['song!', 578, 78],
+    ['ku', 643, 39],
+    ['chi', 683, 39],
+    ['zu', 722, 39],
+    ['sa', 757, 39],
+    ['n', 783, 39],
+    ['de', 811, 39],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x, y], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},${y})\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'My song! My song! kuchizusande');
+});
+
+test('parseSubtitleCues recovers positioned word gaps between romaji fragments', () => {
+  const fragments = [
+    ['sa', 380],
+    ['ga', 421],
+    ['shi', 467],
+    ['te', 510],
+    ['ta', 545],
+    ['ha', 593],
+    ['ji', 624],
+    ['ke', 655],
+    ['ta', 693],
+    ['i', 726],
+    ['ro', 749],
+    ['no', 798],
+    ['yu', 849],
+    ['me', 895],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'sagashiteta hajiketa iro no yume');
+});
+
+test('parseSubtitleCues recovers clear word gaps in a short romaji line', () => {
+  const fragments = [
+    ['bo', 542],
+    ['ku', 584],
+    ['wo', 640],
+    ['yo', 697],
+    ['bu', 738],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,OP Romaji,,0,0,0,,{\\pos(${x},110)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'boku wo yobu');
+});
+
+test('parseSubtitleCues suppresses a karaoke highlight sweep without publishing it', () => {
+  // Main lyric: per-glyph fragments alive together for the whole line.
+  const lineFragments = [
+    ['to', 972],
+    ['so', 1051],
+    ['u', 1113],
+    ['o', 1166],
+    ['mo', 1204],
+  ] as const;
+  // Highlight sweep: one syllable at a time over the same lyric, each event ending
+  // exactly as the next begins, so no two syllables are ever on screen together.
+  const sweepFragments = [
+    ['to', 972, '0:00:01.00', '0:00:01.40'],
+    ['so', 1051, '0:00:01.40', '0:00:01.80'],
+    ['u', 1113, '0:00:01.80', '0:00:02.20'],
+    ['o', 1166, '0:00:02.20', '0:00:02.60'],
+    ['mo', 1204, '0:00:02.60', '0:00:03.00'],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...[0, 1].flatMap((layer) =>
+      lineFragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:00:01.00,0:00:04.00,ED Romaji,,0,0,0,fx,{\\pos(${x},60)\\t(${index * 2},${index * 2 + 100},\\fscx120)}${fragment}`,
+      ),
+    ),
+    ...sweepFragments.flatMap(([fragment, x, start, end]) =>
+      [
+        [40, x, 60],
+        [41, x + 4, 64],
+      ].map(
+        ([layer, copyX, copyY]) =>
+          `Dialogue: ${layer},${start},${end},ED Romaji2,,0,0,0,fx,{\\an5\\pos(${copyX},${copyY})\\t(150,290,\\1a&HFF&)}${fragment}`,
+      ),
+    ),
+    'Dialogue: 42,0:00:01.20,0:00:01.30,ED Romaji2,,0,0,0,fx,{\\fnWebdings\\pos(900,50)\\t(0,100,\\fscx120)}a',
+    'Dialogue: 42,0:00:04.00,0:00:04.20,ED Romaji2,,0,0,0,fx,{\\fnWebdings\\pos(900,50)\\t(0,100,\\fscx120)}z',
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'tosouomo');
+  assert.equal(cues[1]?.text, 'z');
+});
+
+test('parseSubtitleCues collapses drop-shadow layer copies offset by a few pixels', () => {
+  const fragments = [
+    ['me', 580],
+    ['no', 668],
+    ['mae', 770],
+    ['ni', 864],
+    ['no', 939],
+    ['bi', 996],
+    ['ru', 1049],
+  ] as const;
+  const content = [
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    ...fragments.flatMap(([fragment, x], index) => [
+      `Dialogue: 30,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x},25)\\bord0\\t(${index * 2},${index * 2 + 120},\\blur0.5)}${fragment}`,
+      // Shadow copy sits 4px off the base glyph and must not read as a second syllable.
+      `Dialogue: 29,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x + 4},29)\\c&HFFFFFF&\\t(${index * 2},${index * 2 + 120},\\blur9)}${fragment}`,
+      `Dialogue: 28,0:01:42.00,0:01:46.92,OP Romaji,,0,0,0,fx,{\\pos(${x},25)\\c&HFFFFFF&\\t(${index * 2},${index * 2 + 120},\\blur9)}${fragment}`,
+    ]),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text.replace(/\s+/gu, ''), 'menomaeninobiru');
+});
+
+test('parseSubtitleCues recovers positional word gaps beside an authored space', () => {
+  // Real ED line: every glyph is placed by `\move`, but the `star` fragment alone carries
+  // a literal leading space. The authored space must not disable positional recovery for
+  // the rest of the line.
+  const fragments = [
+    ['s', 633],
+    ['e', 665],
+    ['a', 697],
+    ['r', 723],
+    ['c', 747],
+    ['h', 774],
+    ['i', 793],
+    ['n', 813],
+    ['g', 838],
+    ['f', 884],
+    ['o', 911],
+    ['r', 937],
+    ['a', 986],
+    ['s', 1041],
+    ['h', 1070],
+    ['o', 1098],
+    ['o', 1128],
+    ['t', 1153],
+    ['i', 1169],
+    ['n', 1188],
+    ['g', 1214],
+    [' s', 1264],
+    ['t', 1290],
+    ['a', 1316],
+    ['r', 1342],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:22:44.83,0:22:47.70,ED English,,0,0,0,fx,{\\move(${x},1020,${x},1020,0,300)\\t(${index * 2},${index * 2 + 300},\\fs90)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(parseSubtitleCues(content, 'test.ass')[0]?.text, 'searching for a shooting star');
+});
+
+test('parseSubtitleCues splits chunked words whose gap only the excess rule catches', () => {
+  // `Choices|presumably` normalizes to just under the ratio threshold because both
+  // neighbors are wide three-letter chunks; its constant word-space excess still shows.
+  const fragments = [
+    ['Ch', 526],
+    ['oi', 584],
+    ['ces', 648],
+    ['pre', 747],
+    ['su', 819],
+    ['mab', 904],
+    ['ly', 981],
+    ['ma', 1059],
+    ['de', 1128],
+    ['by', 1203],
+    ['cha', 1295],
+    ['nce', 1385],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...[0, 1].flatMap((layer) =>
+      fragments.map(
+        ([fragment, x], index) =>
+          `Dialogue: ${layer},0:01:53.01,0:01:55.52,OP English,,0,0,0,fx,{\\pos(${x},1055)\\t(${index * 2},${index * 2 + 120},\\blur0.5)}${fragment}`,
+      ),
+    ),
+  ].join('\n');
+
+  assert.equal(
+    parseSubtitleCues(content, 'test.ass')[0]?.text,
+    'Choices presumably made by chance',
+  );
+});
+
+test('parseSubtitleCues rebuilds a line from per-glyph phase stacks with staggered timing', () => {
+  // Each glyph lives as four events anchored at one point: a transparent pre-echo until
+  // its syllable is sung, a short highlight, a rising exit ghost, and a steady hold.
+  // No timing window is shared across the phases, only the anchor ties them together.
+  const glyphs = [
+    ['エ', 559],
+    ['ネ', 601],
+    ['ル', 643],
+    ['ギ', 686],
+    ['ー', 728],
+  ] as const;
+  const timestamp = (seconds: number) => `0:00:${seconds.toFixed(2).padStart(5, '0')}`;
+  const content = [
+    ...eventsHeader,
+    ...glyphs.flatMap(([glyph, x], index) => {
+      const highlightStart = 20.9 + index * 0.4;
+      return [
+        `Dialogue: 3,${timestamp(20 + index * 0.03)},${timestamp(highlightStart)},OP - JP,,0,0,0,,{\\blur1.5\\bord2\\c&H404040&\\3c&HFFFFFF&\\an5\\pos(${x},50)\\fad(300,0)\\1a&HFF&}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart)},${timestamp(highlightStart + 0.4)},OP - JP,,0,0,0,,{\\an5\\pos(${x},50)\\bord2\\c&H404040&\\3c&HFFFFFF&\\t(120,240,\\3c&H007A7A7A&\\blur0)\\fad(0,300)}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart)},${timestamp(highlightStart + 2.4)},OP - JP,,0,0,0,,{\\an5\\move(${x},50,${x},0)\\bord0\\shad0\\t(\\c&HFFFFFF&\\blur5\\alpha&HFF&)}${glyph}`,
+        `Dialogue: 3,${timestamp(highlightStart + 0.4)},${timestamp(26.1 + index * 0.05)},OP - JP,,0,0,0,,{\\an5\\pos(${x},50)\\bord2\\c&H404040&\\3c&HFFFFFF&\\fad(0,300)}${glyph}`,
+      ];
+    }),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'エネルギー');
+  assert.equal(cues[0]?.source, 'reconstructed-ass');
+  // Published from the first sung syllable to the end of the hold, so the transparent
+  // lead-in and the exit ghosts' fade tail never overlap the neighboring lines. The
+  // full generated span stays available as the animation window.
+  assert.equal(cues[0]?.startTime, 20.9);
+  assert.equal(cues[0]?.endTime, 26.3);
+  assert.equal(cues[0]?.animationStartTime, 20);
+  assert.equal(cues[0]?.animationEndTime, 26.3);
+});
+
+test('parseSubtitleCues drops transparent glow echoes and merges an exit replay', () => {
+  // The visible line sits at one row while transparent-fill glow copies duplicate every
+  // glyph on another row, and the exit shatters each glyph into copies launched from a
+  // shared anchor. Only the authored line may publish, as a single unbroken cue.
+  const glyphs = [
+    ['さ', 686],
+    ['あ', 728],
+    ['預', 770],
+    ['け', 812],
+    ['て', 854],
+  ] as const;
+  const content = [
+    ...eventsHeader,
+    ...glyphs.flatMap(([glyph, x]) => [
+      `Dialogue: 3,0:00:16.28,0:00:18.71,OP - JP,,0,0,0,,{\\an2\\pos(${x},85)\\fad(200,0)\\fry-90\\c&H404040&\\3c&HF4F4F4&\\bord2\\t(0,300,\\fry0)}${glyph}`,
+      ...[0, 1].map(
+        () =>
+          `Dialogue: 3,0:00:16.28,0:00:20.01,OP - JP,,0,0,0,,{\\pos(${x},15)\\blur5.8\\fry-90\\1a&HFF&\\fad(200,0)\\3c&H3F26AA&\\t(0,300,\\fry0)\\t(2596,3222,\\bord0\\3a&HFF&)}${glyph}`,
+      ),
+      ...[0, 1].map(
+        (copy) =>
+          `Dialogue: 3,0:00:18.71,0:00:20.89,OP - JP,,0,0,0,,{\\an5\\bord2\\fad(0,200)\\move(${x},50,${x + 25 + copy * 3},${17 - copy * 39},1605,2055)\\t(450,792,\\c&H3500DE&\\bord0)\\t(1605,2055,\\blur15\\fscx20\\fscy20\\1a&H50&\\3a&H50&)}${glyph}`,
+      ),
+    ]),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, 'さあ預けて');
+  assert.equal(cues[0]?.startTime, 16.28);
+  assert.equal(cues[0]?.endTime, 20.89);
+});
+
+test('parseSubtitleCues does not double a line rendered whole beside its glyph swarm', () => {
+  // An assembly effect shows the authored line as one positioned event while dozens of
+  // per-glyph particle copies converge onto each glyph's anchor. The whole event and
+  // the swarm spell the same text and must publish as one line, once.
+  const glyphs = [
+    ['可', 854],
+    ['笑', 896],
+    ['し', 938],
+    ['い', 980],
+    ['わ', 1022],
+    ['ね', 1064],
+  ] as const;
+  const wholeLine = glyphs.map(([glyph]) => `{\\an5\\fad(300,500)\\pos(960,50)}${glyph}`).join('');
+  const content = [
+    ...eventsHeader,
+    `Dialogue: 1,0:00:17.29,0:00:18.99,OP - JP,,0,0,0,,${wholeLine}`,
+    ...glyphs.flatMap(([glyph, x], index) =>
+      [0, 1, 2].map(
+        (copy) =>
+          `Dialogue: 2,0:00:17.${30 + index * 5 + copy},0:00:19.10,OP - JP,,0,0,0,,{\\bord4\\blur4\\an5\\fad(500,0)\\move(${x - 60 - copy * 17},${120 + copy * 6},${x},50,20,900)\\clip(${x - 70},80,${x - 66},84)\\t(20,900,\\clip(${x - 4},7,${x},11))}${glyph}`,
+      ),
+    ),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0]?.text, '可笑しいわね');
+});
+
+test('parseSubtitleCues drops a wall of near-invisible positioned texture strings', () => {
+  // An image drawn by \p1 vector events carries no texture seed, but its glyph payload
+  // is still dozens of near-transparent positioned strings sharing one window. A real
+  // faint translation is one or two events and stays published.
+  const content = [
+    ...eventsHeader,
+    "Dialogue: 90,0:00:12.66,0:00:14.91,Default,,0,0,0,,We'll play as a band, and then...",
+    ...Array.from(
+      { length: 12 },
+      (_, index) =>
+        `Dialogue: 9,0:00:12.66,0:00:14.91,MarySigns,,0,0,0,,{\\an7\\pos(${640 + index * 13},${4 + index * 40})\\fnGrain SemiBold\\c&H000000&\\alpha&HFD&}gtO${index}x!`,
+    ),
+    'Dialogue: 9,0:00:12.66,0:00:14.91,OtherSign,,0,0,0,,{\\pos(151,769)\\fnGrain\\alpha&HE0&}A faint but real translation',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ["We'll play as a band, and then...", 'A faint but real translation'],
+  );
+});
+
+test('parseSubtitleCues drops zero-scaled zero-clipped hidden warning text', () => {
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 99,0:00:00.00,0:00:15.16,Default,,0,0,0,,{\\org(0,0)\\fscx0\\fscy0\\clip(0,0,0,0)}Your media player does not support the subtitle format.',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\fscx0\\t(0,300,\\fscx100)}見えるセリフ',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['見えるセリフ'],
+  );
+});
+
+test('parseSubtitleCues keeps hidden events hidden when a transform animates an unrelated tag', () => {
+  // `\t(...)` only reveals a zero-scaled or fully clipped event when it animates the
+  // scale or the clip itself. Animating an unrelated property -- at any nesting depth --
+  // leaves the event invisible, so its text must not reach the subtitles.
+  const content = [
+    ...eventsHeader,
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\fscx0\\fscy0\\clip(0,0,0,0)\\t(0,300,\\bord5)}hidden warning',
+    'Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\clip(0,0,0,0)\\t(0,600,\\t(0,300,\\blur4))}nested hidden warning',
+    'Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,{\\fscx0\\t(0,300,\\fscx100)}grows into view',
+    'Dialogue: 0,0:00:09.00,0:00:12.00,Default,,0,0,0,,{\\clip(0,0,0,0)\\t(0,300,\\clip(0,0,500,500))}wipes into view',
+  ].join('\n');
+
+  assert.deepEqual(
+    parseSubtitleCues(content, 'test.ass').map((cue) => cue.text),
+    ['grows into view', 'wipes into view'],
+  );
+});
+
+test('parseAssCues records the vertical band from style alignment, overrides, and \\pos', () => {
+  const ass = [
+    '[Script Info]',
+    'PlayResY: 720',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, Bold, Alignment, MarginV, Encoding',
+    'Style: Bottom,Arial,54,&H00FFFFFF,0,2,30,1',
+    'Style: TopSong,Arial,54,&H00FFFFFF,0,9,12,1',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,\u4e0b\u306e\u30bb\u30ea\u30d5',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,TopSong,,0,0,0,,\u6b4c\u8a5e\u306e\u884c',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,{\\an8}\u4e0a\u66f8\u304d\u306e\u884c',
+    'Dialogue: 0,0:00:01.00,0:00:03.00,Bottom,,0,0,0,,{\\pos(640,20)}\u770b\u677f\u306e\u884c',
+  ].join('\n');
+
+  const bands = parseAssCues(ass).map((cue) => cue.assLayout?.verticalBand);
+  assert.deepEqual(bands, ['bottom', 'top', 'top', 'top']);
 });

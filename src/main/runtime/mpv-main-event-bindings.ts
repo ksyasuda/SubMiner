@@ -43,6 +43,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   logSubtitleTimingError: (message: string, error: unknown) => void;
 
   setCurrentSubText: (text: string) => void;
+  resolveSubtitleText?: (text: string) => string;
+  getCurrentLiveSubtitleText?: () => string;
   getImmediateSubtitlePayload?: (text: string) => SubtitleData | null;
   emitImmediateSubtitle?: (payload: SubtitleData) => void;
   broadcastSubtitle: (payload: SubtitleData) => void;
@@ -54,6 +56,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   broadcastSubtitleAss: (text: string) => void;
   broadcastSecondarySubtitle: (text: string) => void;
   onSubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleTrackChange?: (sid: number | null) => void;
+  onSecondarySubtitleDelayChange?: (delay: number) => void;
   onSubtitleTrackListChange?: (trackList: unknown[] | null) => void;
 
   updateCurrentMediaPath: (path: string) => void;
@@ -75,6 +79,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
   recordMediaDuration: (durationSec: number) => void;
   reportJellyfinRemoteProgress: (forceImmediate: boolean) => void;
   onTimePosUpdate?: (time: number) => void;
+  consumeExplicitSeek?: () => boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
   recordPauseState: (paused: boolean) => void;
 
@@ -117,6 +122,7 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
     });
     const handleMpvSubtitleChange = createHandleMpvSubtitleChangeHandler({
+      resolveSubtitleText: deps.resolveSubtitleText,
       setCurrentSubText: (text) => deps.setCurrentSubText(text),
       getImmediateSubtitlePayload: (text) => deps.getImmediateSubtitlePayload?.(text) ?? null,
       emitImmediateSubtitle: deps.emitImmediateSubtitle
@@ -167,7 +173,15 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       refreshDiscordPresence: () => deps.refreshDiscordPresence(),
       maybeRunAnilistPostWatchUpdate: (options) => deps.maybeRunAnilistPostWatchUpdate(options),
       logError: (message, error) => deps.logSubtitleTimingError(message, error),
-      onTimePosUpdate: (time) => deps.onTimePosUpdate?.(time),
+      consumeExplicitSeek: deps.consumeExplicitSeek,
+      onTimePosUpdate: (time, updateKind) => {
+        deps.onTimePosUpdate?.(time);
+        if (updateKind === 'playback') return;
+        const liveText = deps.getCurrentLiveSubtitleText?.();
+        if (liveText !== undefined) {
+          handleMpvSubtitleChange({ text: liveText });
+        }
+      },
     });
     const handleMpvPauseChange = createHandleMpvPauseChangeHandler({
       recordPauseState: (paused) => deps.recordPauseState(paused),
@@ -189,6 +203,8 @@ export function createBindMpvMainEventHandlersHandler(deps: {
       onSubtitleAssChange: handleMpvSubtitleAssChange,
       onSecondarySubtitleChange: handleMpvSecondarySubtitleChange,
       onSubtitleTrackChange: ({ sid }) => deps.onSubtitleTrackChange?.(sid),
+      onSecondarySubtitleTrackChange: ({ sid }) => deps.onSecondarySubtitleTrackChange?.(sid),
+      onSecondarySubtitleDelayChange: ({ delay }) => deps.onSecondarySubtitleDelayChange?.(delay),
       onSubtitleTrackListChange: ({ trackList }) => deps.onSubtitleTrackListChange?.(trackList),
       onSubtitleTiming: handleMpvSubtitleTiming,
       onMediaPathChange: handleMpvMediaPathChange,

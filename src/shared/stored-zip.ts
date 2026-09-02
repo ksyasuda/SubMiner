@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as zlib from 'zlib';
 
 type ZipEntry = {
   name: string;
@@ -36,10 +37,17 @@ const CRC32_TABLE = (() => {
   return table;
 })();
 
+// Native CRC32 (Node >= 20.15) runs at native throughput, which matters for the multi-hundred-MB
+// dictionary archives; the table loop stays as a fallback for runtimes without it.
+const nativeCrc32 = (zlib as { crc32?: (data: Uint8Array, value?: number) => number }).crc32;
+
 function crc32(data: Buffer): number {
+  if (typeof nativeCrc32 === 'function') {
+    return nativeCrc32(data) >>> 0;
+  }
   let crc = 0xffffffff;
-  for (const byte of data) {
-    crc = CRC32_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+  for (let i = 0; i < data.length; i += 1) {
+    crc = CRC32_TABLE[(crc ^ data[i]!) & 0xff]! ^ (crc >>> 8);
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
@@ -294,59 +302,70 @@ function writeBuffer(fd: number, buffer: Buffer): void {
   }
 }
 
+type ZipWriteState = {
+  entries: ZipEntry[];
+  offset: number;
+};
+
+/** Appends one stored entry (local header + data) and returns the bytes written. */
+function appendStoredZipFile(fd: number, state: ZipWriteState, file: StoredZipFile): number {
+  const fileName = Buffer.from(file.name, 'utf8');
+  const fileSize = file.data.length;
+  if (fileName.length > ZIP32_MAX_UINT16) {
+    throw new RangeError(`ZIP entry name too long: ${file.name}`);
+  }
+  if (fileSize > ZIP32_MAX_UINT32) {
+    throw new RangeError(`ZIP entry too large for ZIP32: ${file.name}`);
+  }
+  if (state.offset > ZIP32_MAX_UINT32) {
+    throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+  }
+  const fileCrc32 = crc32(file.data);
+  const localHeader = createLocalFileHeader(fileName, fileCrc32, fileSize);
+  const nextOffset = state.offset + localHeader.length + fileSize;
+  if (nextOffset > ZIP32_MAX_UINT32) {
+    throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+  }
+  writeBuffer(fd, localHeader);
+  writeBuffer(fd, file.data);
+  state.entries.push({
+    name: file.name,
+    crc32: fileCrc32,
+    size: fileSize,
+    localHeaderOffset: state.offset,
+  });
+  const written = nextOffset - state.offset;
+  state.offset = nextOffset;
+  return written;
+}
+
+function finishStoredZip(fd: number, state: ZipWriteState): void {
+  const centralStart = state.offset;
+  if (centralStart > ZIP32_MAX_UINT32) {
+    throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
+  }
+  for (const entry of state.entries) {
+    const centralHeader = createCentralDirectoryHeader(entry);
+    writeBuffer(fd, centralHeader);
+    state.offset += centralHeader.length;
+  }
+
+  const centralSize = state.offset - centralStart;
+  writeBuffer(fd, createEndOfCentralDirectory(state.entries.length, centralSize, centralStart));
+}
+
 export function writeStoredZip(
   outputPath: string,
   files: Iterable<StoredZipFile>,
 ): { entryCount: number } {
-  const entries: ZipEntry[] = [];
-  let offset = 0;
+  const state: ZipWriteState = { entries: [], offset: 0 };
   const fd = fs.openSync(outputPath, 'w');
 
   try {
     for (const file of files) {
-      const fileName = Buffer.from(file.name, 'utf8');
-      const fileSize = file.data.length;
-      if (fileName.length > ZIP32_MAX_UINT16) {
-        throw new RangeError(`ZIP entry name too long: ${file.name}`);
-      }
-      if (fileSize > ZIP32_MAX_UINT32) {
-        throw new RangeError(`ZIP entry too large for ZIP32: ${file.name}`);
-      }
-      if (offset > ZIP32_MAX_UINT32) {
-        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
-      }
-      const fileCrc32 = crc32(file.data);
-      const localHeader = createLocalFileHeader(fileName, fileCrc32, fileSize);
-      const nextOffset = offset + localHeader.length + fileSize;
-      if (nextOffset > ZIP32_MAX_UINT32) {
-        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
-      }
-      writeBuffer(fd, localHeader);
-      writeBuffer(fd, file.data);
-      entries.push({
-        name: file.name,
-        crc32: fileCrc32,
-        size: fileSize,
-        localHeaderOffset: offset,
-      });
-      if (nextOffset > ZIP32_MAX_UINT32) {
-        throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
-      }
-      offset = nextOffset;
+      appendStoredZipFile(fd, state, file);
     }
-
-    const centralStart = offset;
-    if (centralStart > ZIP32_MAX_UINT32) {
-      throw new RangeError('Archive exceeds ZIP32 limits (Zip64 not implemented)');
-    }
-    for (const entry of entries) {
-      const centralHeader = createCentralDirectoryHeader(entry);
-      writeBuffer(fd, centralHeader);
-      offset += centralHeader.length;
-    }
-
-    const centralSize = offset - centralStart;
-    writeBuffer(fd, createEndOfCentralDirectory(entries.length, centralSize, centralStart));
+    finishStoredZip(fd, state);
   } catch (error) {
     fs.closeSync(fd);
     fs.rmSync(outputPath, { force: true });
@@ -354,5 +373,42 @@ export function writeStoredZip(
   }
 
   fs.closeSync(fd);
-  return { entryCount: entries.length };
+  return { entryCount: state.entries.length };
+}
+
+// Yielding roughly every 8MB keeps individual event-loop blocks in the low tens of milliseconds
+// while adding a negligible number of macrotask hops even for the largest merged dictionary.
+const ASYNC_ZIP_YIELD_BYTE_BUDGET = 8 * 1024 * 1024;
+
+/**
+ * Same archive as {@link writeStoredZip}, written without starving the event loop: entry
+ * generation, CRC, and writes proceed in byte-budgeted slices with a macrotask yield in between.
+ * Multi-hundred-MB dictionary archives previously blocked the main process long enough for the
+ * compositor to declare the app unresponsive.
+ */
+export async function writeStoredZipAsync(
+  outputPath: string,
+  files: Iterable<StoredZipFile>,
+): Promise<{ entryCount: number }> {
+  const state: ZipWriteState = { entries: [], offset: 0 };
+  const fd = fs.openSync(outputPath, 'w');
+
+  try {
+    let bytesSinceYield = 0;
+    for (const file of files) {
+      bytesSinceYield += appendStoredZipFile(fd, state, file);
+      if (bytesSinceYield >= ASYNC_ZIP_YIELD_BYTE_BUDGET) {
+        bytesSinceYield = 0;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+    }
+    finishStoredZip(fd, state);
+  } catch (error) {
+    fs.closeSync(fd);
+    fs.rmSync(outputPath, { force: true });
+    throw error;
+  }
+
+  fs.closeSync(fd);
+  return { entryCount: state.entries.length };
 }

@@ -1,80 +1,68 @@
 > This is a prerelease build for testing. Stable changelog and docs-site updates remain pending until the final stable release.
 
-<!-- prerelease-base-version: 0.19.0 -->
+<!-- prerelease-base-version: 0.19.4 -->
 
 ## Highlights
 ### Added
 
-- **Sync Stats & History**
-  - New **Sync Stats & History** window (tray menu) and `subminer sync <host>` command keep mining stats and watch history in sync between machines over SSH, with saved devices, per-host sync direction, and live stage-by-stage progress.
-  - Merges are safe to repeat: data combines without duplicates, and hosts with auto-sync enabled sync automatically in the background on a schedule, reporting results as overlay notifications.
-  - Manual snapshot tools (create, merge, reveal, delete) and connection testing cover one-off transfers; Windows machines running the built-in OpenSSH Server work as sync remotes too, with no setup needed beyond SSH access. Power users can script transfers directly with `--push`/`--pull`, `--check`, `--snapshot`/`--merge`, and `--json` flags.
+- Library Merge & Reassignment
+  - Duplicate library cards for the same show can be combined: select entries in "Select" mode and use "Merge Selected" to combine their sessions, mined cards, and watch time onto one card.
+  - Episodes can be moved to a different entry with a per-episode "→" button, fixing stray files that split off their own entry; manual assignments now survive later filename parsing, Jellyfin refreshes, and season repair.
+  - Exact AniList matches with compatible seasons merge automatically, while likely (fuzzy) matches surface as a dismissible "Possible duplicate" suggestion instead of merging silently.
 
-- **TsukiHime Subtitle Downloads**
-  - Download Japanese and secondary-language subtitles for the current video directly from TsukiHime, mirroring the existing Jimaku flow.
-  - Press `Ctrl+Shift+T` to search by tabs for the primary and secondary languages; the matching release is found automatically from the video filename and loads straight into mpv, no API key required.
-
-- **Post-Playback History Menu**
-  - After a watch-history episode ends or mpv closes, the fzf/rofi launcher returns to that series with options to play the previous or next episode, rewatch, pick another episode, or quit SubMiner.
-  - Previous/Next continue across season directories, so you can binge a show without manually browsing folders.
-  - The menu shown right after picking a series from `subminer -H` now offers the previous episode too, matching the post-playback menu.
-
-- **Known-Word Highlighting by Anki Maturity**
-  - Subtitle highlights for known words can now be colored by Anki card maturity (new, learning, young, mature), similar to asbplayer. Enable it with `ankiConnect.knownWords.maturityEnabled`, or toggle it live during a session.
-  - The mature-interval threshold and the four tier colors are configurable, and the in-session help legend shows the active tier colors while maturity highlighting is on.
-  - Tiers follow Anki's own card state: a lapsed card correctly shows as learning rather than young, and a note is treated as mature if any of its cards are mature. Stats and other known-word tools stay accurate with this new data.
-
-- **Stats Library Entry Deletion**
-  - Added a "Delete Entry" action in the stats Library detail view that removes an entire title in one step: every episode, session, subtitle line, rollup, cover, and vocabulary count derived from it. Previously a mistaken entry had to be cleared episode by episode and still lingered in the Library.
-  - Delete progress (session, session group, episode, or full entry) now shows app-wide as a progress bar plus a status toast, staying visible across tabs and windows instead of disappearing when you switch away.
-  - Deletes are dramatically faster on large libraries, and opening the Vocabulary tab no longer stalls; the first launch after upgrading migrates the stats database in place to support this.
-
-### Changed
-
-- **Clipboard-Video Shortcut**
-  - The "append clipboard video to queue" shortcut is now configurable via `shortcuts.appendClipboardVideoToQueue` instead of being fixed.
+- Duplicate Line Cleanup
+  - The Vocabulary tab's new **Duplicates** button scans a chosen time window for the repeated-line bursts described under Fixed below and collapses each burst to a single line once confirmed.
+  - A matching `subminer stats cleanup --duplicate-lines` command (with `--dry-run` and `--lookback-days <n>`) is available from the terminal.
+  - Only the affected subtitle lines and the vocabulary counts they inflated are touched; watch time and lines-seen totals are left as recorded.
 
 ### Fixed
 
-- **Word Highlighting Accuracy**
-  - Fixed several incorrect word highlighting and annotation cases: inconsistent part-of-speech exclusions on merged quote-particle tokens, missing annotations for rare kanji, katakana punctuation wrongly treated as non-kana noise, and certain kanji vocabulary skipped for next-level ("N+1") highlighting.
+- Subtitle Duplication from Karaoke & Animated Signs
+  - Typeset ASS karaoke and animated signs no longer flood the overlay, subtitle sidebar, immersion history, mined cards, or stats with repeated glyph fragments or per-frame duplicates; the complete authored line is recovered instead, without merging genuinely repeated dialogue or separately positioned signs.
+  - Fragmented karaoke now preserves the spaces the author placed between words instead of joining them together, and lyric transitions (including seeking into the middle of a line) resolve to the clean line instead of a stray entrance or exit frame.
+  - The secondary overlay shares the same deduplication logic as the primary overlay, including collapsing lines that differ only by whitespace or trailing punctuation, and sidebar navigation moves between clean lyric lines while keeping the right line selected.
 
-- **AniList Season Resolution**
-  - Season 2 and later episodes now resolve to the correct AniList entry by walking sequel relations instead of guessing from the title, so watch progress, the character dictionary, and cover art for later seasons no longer silently fall back to season 1.
-  - Manual AniList overrides now stay in effect for every episode in the same season (by folder and detected season), and setting an override now fixes both the character dictionary and AniList watch progress together instead of needing separate corrections.
+- Anki Media Generation
+  - Sentence-audio generation no longer times out on slow network-mounted video files with many subtitle and font streams, and a failed extraction now reports a clear error instead of a raw `ENOENT`.
+  - Mined audio and animated AVIF clips now capture the subtitle line you actually mined, instead of whatever line happened to be on screen once slow audio extraction finished.
 
-- **Startup Playback Pausing Too Early**
-  - Fixed playback resuming before subtitle processing finished warming up, which could briefly show untranslated subtitles right after opening a video.
-  - Most noticeable when resuming mid-episode or when a subtitle cue starts within the first couple of seconds.
+- Character Dictionary Performance & Notifications
+  - Character dictionary generation, merged rebuilds, and imports no longer freeze the app on large dictionaries, and cached results (including character portraits) are reused across launches instead of regenerating everything every time.
+  - Portraits also now display correctly if their cache finishes loading after subtitles have already started showing.
+  - Desktop progress notifications, including on Linux AppImage installs, now update in place instead of flickering closed and reopening.
 
-- **Linux AppImage Crash Notification on Quit**
-  - Fixed a spurious "Service Crash" desktop notification appearing after closing a video when running the Linux AppImage.
-  - If needed, the mount-keepalive behavior behind this fix can be disabled with `SUBMINER_NO_APPIMAGE_MOUNT_KEEPALIVE=1`.
+- Overlay Reliability
+  - Overlay modals (settings, stats, etc.) now open promptly on the first shortcut press, including on repeated sessions on Windows, and appear above fullscreen mpv on macOS instead of switching Spaces or opening off-screen.
+  - The macOS window-tracking helper is now built for macOS 12.0+, so the overlay attaches to mpv on older systems like Ventura instead of crashing and getting stuck on "Overlay loading."
+  - The overlay no longer gets stuck on "Overlay loading" indefinitely if mpv's connection stalls; it now retries and shows an actionable error after 30 seconds.
+  - Fixed native Wayland drag-and-drop from file managers like Thunar, and fixed system-wide mouse lag on Windows caused by the overlay's click-through handling.
 
-- **AnkiConnect Proxy Port Conflict**
-  - Fixed video playback failing to start when another process already held the configured AnkiConnect proxy port; SubMiner now shows a notification explaining how to resolve the conflict instead of crashing.
+- Stats Dashboard
+  - Deletes, library merges, video moves, and AniList reassignments no longer freeze the stats dashboard or rebuild lifetime totals from scratch; large deletes that used to take minutes now finish in milliseconds.
+  - Vocabulary totals and charts now count all tracked vocabulary instead of just the first page, and new-word history uses corrected daily rollups.
+  - Calendar labels respect time zones west of UTC, and vocabulary cards refresh automatically after editing the word exclusion list (with a Retry option if a load fails).
 
-- **Stats & Settings Reliability**
-  - Fixed session stats reporting zero known words after the known-word cache gained maturity tiers.
-  - Hardened the stats server against malformed requests, stalled AniList lookups, media mismatches during word mining, and missing Yomitan connections.
-  - AnkiConnect settings validation now preserves valid custom configurations while safely falling back on invalid values instead of failing.
-
-- **Stats Library Cover After Relink**
-  - Relinking a title to a different AniList entry now updates its cover art in the stats Library grid, not just the detail view, so unrelated titles no longer end up sharing the wrong cover.
-
-- **Rofi Menu Prompt Spacing**
-  - Rofi menu prompts now keep a space between the prompt label and the input field instead of crowding the search placeholder text.
+- Linux Launcher Thumbnails
+  - Fixed missing MKV thumbnails in the Linux rofi picker when the system thumbnailer only registers legacy Matroska MIME aliases.
 
 ## What's Changed
 
-- feat(shortcuts): make clipboard-video-append shortcut configurable by @ksyasuda in #158
-- refactor(tokenizer): extract subtitle annotation filter into rule table by @ksyasuda in #162
-- refactor(tsukihime): swap Animetosho backend for TsukiHime API by @ksyasuda in #165
-- refactor: split anki-connect and stats-server resolvers into modules by @ksyasuda in #169
-- feat(launcher): add post-playback history menu with previous episode by @ksyasuda in #170
-- Anki maturity-based known-word highlighting by @ksyasuda in #172
-- fix(anilist): resolve later seasons via sequel relations, not title guessing by @ksyasuda in #173
-- feat(stats): add library entry deletion and app-wide delete progress by @ksyasuda in #174
+- feat(stats): add library entry merge and episode move by @ksyasuda in #190
+- fix(stats): stop counting duplicate typeset subtitle lines by @ksyasuda in #191
+- fix(media): tolerate slow MKV audio extraction by @ksyasuda in #195
+- fix(stats): subtract lifetime totals incrementally on delete by @ksyasuda in #196
+- fix(anki): snapshot mining media clip timing by @ksyasuda in #197
+- fix(notifications): replace Linux progress updates in place by @ksyasuda in #198
+- fix(overlay): support native Wayland file drag-and-drop by @ksyasuda in #199
+- fix(overlay): keep macOS modal windows on fullscreen Spaces by @ksyasuda in #200
+- fix(overlay): prevent Windows mouse lag during click-through tracking by @ksyasuda in #201
+- fix(stats): report complete vocabulary totals and new-word history by @ksyasuda in #202
+- fix(mpv): recover from stalled IPC connects by @ksyasuda in #204
+- fix(dictionary): prevent freezes and restore AppImage notifications by @ksyasuda in #205
+- fix(subtitles): recover canonical lines from ASS animation by @ksyasuda in #207
+- fix(overlay): deduplicate secondary subtitle rendering by @ksyasuda in #208
+- fix(launcher): restore Matroska thumbnails in Linux rofi picker by @ksyasuda in #210
+- fix(character-dictionary): cache completed MeCab refreshes by @ksyasuda in #212
 
 ## Installation
 

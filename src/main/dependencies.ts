@@ -132,6 +132,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   getYoutubeMediaSourceUrl?: AnkiJimakuIpcRuntimeOptions['getYoutubeMediaSourceUrl'];
   showDesktopNotification: AnkiJimakuIpcRuntimeOptions['showDesktopNotification'];
   showOverlayNotification?: (payload: OverlayNotificationPayload) => void;
+  dismissOverlayNotification?: (id: string) => void;
   createFieldGroupingCallback: AnkiJimakuIpcRuntimeOptions['createFieldGroupingCallback'];
   broadcastRuntimeOptionsChanged: AnkiJimakuIpcRuntimeOptions['broadcastRuntimeOptionsChanged'];
   getFieldGroupingResolver: AnkiJimakuIpcRuntimeOptions['getFieldGroupingResolver'];
@@ -336,6 +337,7 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
       : {}),
     showDesktopNotification: params.showDesktopNotification,
     showOverlayNotification: params.showOverlayNotification,
+    dismissOverlayNotification: params.dismissOverlayNotification,
     createFieldGroupingCallback: params.createFieldGroupingCallback,
     broadcastRuntimeOptionsChanged: params.broadcastRuntimeOptionsChanged,
     getFieldGroupingResolver: params.getFieldGroupingResolver,

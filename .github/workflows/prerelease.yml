@@ -274,7 +274,8 @@ jobs:
             config.example.jsonc \
             plugin/subminer \
             plugin/subminer.conf \
-            assets/themes/subminer.rasi
+            assets/themes/subminer.rasi \
+            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
 
       - name: Generate checksums
         run: |
@@ -296,15 +297,22 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Verify committed prerelease notes
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           if [ ! -s release/prerelease-notes.md ]; then
             echo "::error::release/prerelease-notes.md is missing or empty. Run 'bun run changelog:prerelease-notes --version <version>' locally and commit the file before tagging."
+            exit 1
+          fi
+          if ! bun run changelog:check-prerelease-notes --version "$RELEASE_VERSION"; then
+            echo "::error::release/prerelease-notes.md was not generated for $RELEASE_VERSION. Rerun 'bun run changelog:prerelease-notes --version $RELEASE_VERSION' locally, commit, and retag."
             exit 1
           fi
 
       - name: Publish Prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           set -euo pipefail
 
@@ -326,27 +334,27 @@ jobs:
             exit 1
           fi
 
-          if gh release view "${{ steps.version.outputs.VERSION }}" >/dev/null 2>&1; then
-            gh release edit "${{ steps.version.outputs.VERSION }}" \
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_VERSION" \
               --draft \
               --prerelease \
-              --title "${{ steps.version.outputs.VERSION }}" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/prerelease-notes.md
           else
-            gh release create "${{ steps.version.outputs.VERSION }}" \
+            gh release create "$RELEASE_VERSION" \
               --draft \
               --latest=false \
               --prerelease \
-              --title "${{ steps.version.outputs.VERSION }}" \
+              --title "$RELEASE_VERSION" \
               --notes-file release/prerelease-notes.md
           fi
 
           for asset in "${artifacts[@]}"; do
-            gh release upload "${{ steps.version.outputs.VERSION }}" "$asset" --clobber
+            gh release upload "$RELEASE_VERSION" "$asset" --clobber
           done
 
-          gh release edit "${{ steps.version.outputs.VERSION }}" \
+          gh release edit "$RELEASE_VERSION" \
             --draft=false \
             --prerelease \
-            --title "${{ steps.version.outputs.VERSION }}" \
+            --title "$RELEASE_VERSION" \
             --notes-file release/prerelease-notes.md

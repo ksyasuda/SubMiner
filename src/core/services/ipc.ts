@@ -34,6 +34,7 @@ import {
   parseSubsyncManualRunRequest,
   parseYoutubePickerResolveRequest,
 } from '../../shared/ipc/validators';
+import { applyOverlayClickThrough } from './overlay-click-through';
 
 const { ipcMain } = electron;
 
@@ -442,7 +443,13 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
       const senderWindow =
         electron.BrowserWindow?.fromWebContents((event as IpcMainEvent).sender) ?? null;
       if (senderWindow && !senderWindow.isDestroyed()) {
-        senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
+        // Route forwarding requests through the platform-aware helper so Windows never
+        // installs Electron's global mouse hook (see overlay-click-through.ts).
+        if (ignore && parsedOptions?.forward) {
+          applyOverlayClickThrough(senderWindow);
+        } else {
+          senderWindow.setIgnoreMouseEvents(ignore, parsedOptions);
+        }
       }
       deps.onOverlayMouseInteractionChanged?.(!ignore, senderWindow);
     },

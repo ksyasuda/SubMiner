@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import {
   MpvIpcClient,
   MpvIpcClientDeps,
@@ -21,6 +22,18 @@ function makeDeps(overrides: Partial<MpvIpcClientProtocolDeps> = {}): MpvIpcClie
     setReconnectTimer: () => {},
     ...overrides,
   };
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) {
+      throw new Error('Timed out waiting for MPV retry connection');
+    }
+    await wait(10);
+  }
 }
 
 function captureWarnLogs(run: () => void): string[] {
@@ -639,7 +652,7 @@ test('MpvIpcClient captures and disables secondary subtitle visibility on reques
   ]);
 });
 
-test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tracked value', async () => {
+test('MpvIpcClient restores secondary subtitle visibility and relinquishes suppression', async () => {
   const commands: unknown[] = [];
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
   const previous: boolean[] = [];
@@ -658,6 +671,12 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
   });
   client.restorePreviousSecondarySubVisibility();
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+
   assert.equal(previous[0], true);
   assert.equal(previous.length, 1);
   assert.deepEqual(commands, [
@@ -669,8 +688,53 @@ test('MpvIpcClient restorePreviousSecondarySubVisibility restores and clears tra
     },
   ]);
 
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.equal(commands.length, 2);
+
   client.restorePreviousSecondarySubVisibility();
   assert.equal(commands.length, 2);
+
+  const callbacks = (client as any).transport.callbacks;
+  callbacks.onConnect();
+  commands.length = 0;
+
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sub-visibility',
+    data: 'yes',
+  });
+  assert.deepEqual(commands, [{ command: ['set_property', 'secondary-sub-visibility', 'no'] }]);
+});
+
+test('MpvIpcClient keeps secondary subtitle suppression when restoration send fails', async () => {
+  const commands: unknown[] = [];
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+
+  (client as any).send = (payload: unknown) => {
+    commands.push(payload);
+    return false;
+  };
+
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_SECONDARY_SUB_VISIBILITY,
+    data: 'yes',
+  });
+  client.restorePreviousSecondarySubVisibility();
+  await invokeHandleMessage(client, {
+    event: 'property-change',
+    name: 'secondary-sid',
+    data: 4,
+  });
+
+  assert.deepEqual(commands, [
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'yes'] },
+    { command: ['set_property', 'secondary-sub-visibility', 'no'] },
+  ]);
 });
 
 test('MpvIpcClient updates current audio stream index from track list', async () => {
@@ -755,4 +819,118 @@ test('MpvIpcClient playNextSubtitle still auto-pauses at end while already playi
 
   assert.equal((client as any).pendingPauseAtSubEnd, true);
   assert.deepEqual(commands, [{ command: ['sub-seek', 1] }]);
+});
+
+class HangingTestSocket extends EventEmitter {
+  public connectedPaths: string[] = [];
+  public destroyed = false;
+
+  connect(path: string): void {
+    this.connectedPaths.push(path);
+    // Never resolves: models a stalled named-pipe dial.
+  }
+
+  write(): boolean {
+    return true;
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+  }
+}
+
+class RetryTestSocket extends EventEmitter {
+  public connectedPaths: string[] = [];
+  public destroyed = false;
+
+  constructor(private readonly shouldConnect: boolean) {
+    super();
+  }
+
+  connect(path: string): void {
+    this.connectedPaths.push(path);
+    if (this.shouldConnect) {
+      setTimeout(() => this.emit('connect'), 0);
+    }
+  }
+
+  write(): boolean {
+    return true;
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.emit('close');
+  }
+}
+
+test('MpvIpcClient automatically retries the same socket path after a connect timeout', async () => {
+  const sockets: RetryTestSocket[] = [];
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  const originalLogLevel = process.env.SUBMINER_LOG_LEVEL;
+  const client = new MpvIpcClient(
+    '/tmp/mpv.sock',
+    makeDeps({
+      connectTimeoutMs: 5,
+      getReconnectTimer: () => reconnectTimer,
+      setReconnectTimer: (timer) => {
+        reconnectTimer = timer;
+      },
+      socketFactory: () => {
+        const socket = new RetryTestSocket(sockets.length > 0);
+        sockets.push(socket);
+        return socket as unknown as import('node:net').Socket;
+      },
+    }),
+  );
+
+  process.env.SUBMINER_LOG_LEVEL = 'error';
+  try {
+    client.connect();
+    await waitFor(() => client.connected);
+
+    assert.equal(sockets.length, 2);
+    assert.equal(sockets[0]!.destroyed, true);
+    assert.equal(sockets[0]!.connectedPaths.at(0), '/tmp/mpv.sock');
+    assert.equal(sockets[1]!.connectedPaths.at(0), '/tmp/mpv.sock');
+    assert.equal(client.connected, true);
+  } finally {
+    if (originalLogLevel === undefined) {
+      delete process.env.SUBMINER_LOG_LEVEL;
+    } else {
+      process.env.SUBMINER_LOG_LEVEL = originalLogLevel;
+    }
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    (client as any).transport.shutdown();
+  }
+});
+
+test('MpvIpcClient.setSocketPath aborts an in-flight connect so the next dial targets the new path', () => {
+  const sockets: HangingTestSocket[] = [];
+  const client = new MpvIpcClient(
+    '/tmp/mpv-old.sock',
+    makeDeps({
+      socketFactory: () => {
+        const socket = new HangingTestSocket();
+        sockets.push(socket);
+        return socket as unknown as import('node:net').Socket;
+      },
+    }),
+  );
+
+  client.connect();
+  assert.equal(sockets.length, 1);
+  assert.equal(sockets[0]!.connectedPaths.at(0), '/tmp/mpv-old.sock');
+  assert.equal((client as any).connecting, true);
+
+  client.setSocketPath('/tmp/mpv-new.sock');
+  assert.equal((client as any).connecting, false);
+  assert.equal(sockets[0]!.destroyed, true);
+
+  client.connect();
+  assert.equal(sockets.length, 2);
+  assert.equal(sockets[1]!.connectedPaths.at(0), '/tmp/mpv-new.sock');
+
+  (client as any).transport.shutdown();
 });

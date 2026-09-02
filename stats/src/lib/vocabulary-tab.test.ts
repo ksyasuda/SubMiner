@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const VOCABULARY_TAB_PATH = fileURLToPath(
   new URL('../components/vocabulary/VocabularyTab.tsx', import.meta.url),
 );
+const VOCABULARY_HOOK_PATH = fileURLToPath(new URL('../hooks/useVocabulary.ts', import.meta.url));
 
 test('VocabularyTab declares all hooks before loading and error early returns', () => {
   const source = fs.readFileSync(VOCABULARY_TAB_PATH, 'utf8');
@@ -20,15 +21,32 @@ test('VocabularyTab declares all hooks before loading and error early returns', 
   assert.deepEqual(hooksAfterLoadingGuard ?? [], []);
 });
 
-test('VocabularyTab memoizes summary and known-word aggregate calculations', () => {
+test('VocabularyTab uses uncapped server-side data for its charts and card totals', () => {
   const source = fs.readFileSync(VOCABULARY_TAB_PATH, 'utf8');
+
+  assert.match(source, /\} = useVocabulary\(\);/);
+  assert.match(source, /charts\?\.topWordsWithoutNames/);
+  assert.match(source, /charts\?\.newWordsTimelineWithoutNames/);
+  assert.doesNotMatch(source, /buildVocabularySummary\(/);
+  assert.match(source, /uniqueWords: summary\?\.uniqueWordsWithoutNames \?\? 0/);
+  assert.match(source, /uniqueWords: summary\?\.uniqueWords \?\? 0/);
+  assert.match(source, /value=\{summary \? formatNumber\(summary\.uniqueKanji\) : '…'\}/);
+});
+
+test('VocabularyTab surfaces aggregate failures with a retry control', () => {
+  const source = fs.readFileSync(VOCABULARY_TAB_PATH, 'utf8');
+
+  assert.match(source, /aggregatesError/);
+  assert.match(source, /onClick=\{refreshAggregates\}/);
+});
+
+test('useVocabulary loads exact card totals without holding up the vocabulary tables', () => {
+  const source = fs.readFileSync(VOCABULARY_HOOK_PATH, 'utf8');
 
   assert.match(
     source,
-    /const summary = useMemo\([\s\S]*buildVocabularySummary\(filteredWords, kanji\)[\s\S]*\[filteredWords, kanji\][\s\S]*\);/,
+    /Promise\.allSettled\(\[\s*client\.getVocabulary\(500\),\s*client\.getKanji\(200\),\s*client\.getKnownWords\(\),?\s*\]\)/,
   );
-  assert.match(
-    source,
-    /const knownWordCount = useMemo\(\(\) => \{[\s\S]*for \(const w of filteredWords\) \{[\s\S]*knownWords\.has\(w\.headword\)[\s\S]*\}\s*return count;\s*\}, \[filteredWords, knownWords\]\);/,
-  );
+  assert.match(source, /client\s*\.getVocabularySummary\(\)\s*\.then\(/);
+  assert.match(source, /client\s*\.getVocabularyCharts\(\)/);
 });

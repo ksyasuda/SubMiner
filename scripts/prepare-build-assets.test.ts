@@ -8,7 +8,7 @@ test('macOS helper build creates dist scripts directory before swiftc output', (
   const buildFunctionIndex = source.indexOf('function buildMacosHelper()');
   assert.notEqual(buildFunctionIndex, -1);
 
-  const swiftcIndex = source.indexOf("execFileSync('swiftc'", buildFunctionIndex);
+  const swiftcIndex = source.indexOf("'swiftc'", buildFunctionIndex);
   assert.notEqual(swiftcIndex, -1);
 
   const ensureDirIndex = source.lastIndexOf('ensureDir(scriptsOutputDir)', swiftcIndex);
@@ -33,4 +33,11 @@ test('anime UI stylesheet files exist and are all staged', () => {
     source,
     /copyAssets\(animeUiSourceDir, animeUiOutputDir, 'animeui', \[\s*'style\.css',\s*'detail\.css',\s*'panels\.css',?\s*\]\)/,
   );
+});
+
+// Regression guard for #213: an untargeted swiftc stamps the build machine's OS
+// version as the helper's minimum, so released builds refuse to load on older macOS.
+test('macOS helper is compiled with an explicit deployment target', () => {
+  assert.match(source, /-target/);
+  assert.match(source, /apple-macos\$\{MACOS_HELPER_DEPLOYMENT_TARGET\}/);
 });

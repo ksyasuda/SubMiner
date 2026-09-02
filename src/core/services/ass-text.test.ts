@@ -10,6 +10,8 @@ import {
   isAssTemporalCommand,
   normalizePlainSubtitleText,
   parseAssEffectField,
+  removeLiveGlyphFragmentLines,
+  removeAssControlDebrisLines,
 } from './ass-text';
 
 test('assToPlainText drops vector drawing runs', () => {
@@ -72,6 +74,14 @@ test('assToPlainText is idempotent', () => {
 
 test('assToPlainText normalizes CRLF before converting', () => {
   assert.equal(assToPlainText('一行目\r\n二行目'), '一行目\n二行目');
+});
+
+test('removeAssControlDebrisLines drops malformed spacer resets without eating dialogue', () => {
+  assert.equal(
+    removeAssControlDebrisLines('Visible line\n\\\n{\\fr0\n\\{\\frz287.5'),
+    'Visible line',
+  );
+  assert.equal(removeAssControlDebrisLines('本文{\\pos(1,2)'), '本文{\\pos(1,2)');
 });
 
 test('normalizePlainSubtitleText settles whitespace without decoding ASS', () => {
@@ -192,4 +202,34 @@ test('isAnimatedAssEffectKind covers the stock animated effects only', () => {
   // Typesetting groups put static template names in this column too.
   assert.equal(isAnimatedAssEffectKind('other'), false);
   assert.equal(isAnimatedAssEffectKind('none'), false);
+});
+
+test('removeLiveGlyphFragmentLines drops a per-glyph typesetting wall and its syllable', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(removeLiveGlyphFragmentLines(`${wall}\ntai`), '');
+});
+
+test('removeLiveGlyphFragmentLines keeps concurrent dialogue beside a glyph wall', () => {
+  const wall = [...'wansdumretoikhI'].join('\n');
+  assert.equal(removeLiveGlyphFragmentLines(`${wall}\nそれよりも　ノート…`), 'それよりも　ノート…');
+});
+
+test('removeLiveGlyphFragmentLines leaves ordinary short lines alone', () => {
+  const text = 'え\nはい。\nそうだな';
+  assert.equal(removeLiveGlyphFragmentLines(text), text);
+});
+
+test('normalizePlainSubtitleText folds cue-boundary blank lines for text consumers', () => {
+  // The display layer splits on the blank line before normalizing; everyone else --
+  // tokenizer, cache key, dedup gate, mined sentence -- wants the plain line form.
+  assert.equal(
+    normalizePlainSubtitleText('\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee'),
+    '\u4e00\u884c\u76ee\n\u4e8c\u884c\u76ee',
+  );
+  assert.equal(
+    normalizePlainSubtitleText('\u4e00\u884c\u76ee\n\n\u4e8c\u884c\u76ee', {
+      collapseLineBreaks: true,
+    }),
+    '\u4e00\u884c\u76ee \u4e8c\u884c\u76ee',
+  );
 });

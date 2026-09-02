@@ -88,7 +88,7 @@ features:
 <script setup>
 import { withBase } from 'vitepress';
 
-const demoAssetVersion = '20260223-2';
+const demoAssetVersion = '20260819-1';
 </script>
 
 <div class="landing-shell">

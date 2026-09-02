@@ -34,18 +34,22 @@ subminer -R -r -d ~/Anime              # rofi picker, recursive
 subminer -R /directory                 # rofi picker, directory shortcut
 ```
 
-rofi shows a GUI menu with icon thumbnails when available. SubMiner ships the rofi theme plus the Linux launcher-managed runtime plugin copy in the release assets tarball:
+rofi shows a GUI menu with icon thumbnails when available. SubMiner ships the rofi theme, a scoped `ffmpegthumbnailer` MIME registration, and the Linux launcher-managed runtime plugin copy in the release assets tarball:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+mkdir -p ~/.local/share/SubMiner/thumbnailers
+cp /tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer ~/.local/share/SubMiner/thumbnailers/
 mkdir -p ~/.local/share/SubMiner/plugin
 cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
 
-Once the `SubMiner` data dir exists, `subminer -u` refreshes both assets automatically. Normal Linux launcher playback also checks for the managed runtime plugin copy and rofi theme before mpv launch and installs them from the bundled app automatically if either one is missing.
+Once the `SubMiner` data dir exists, `subminer -u` refreshes these assets automatically. Normal Linux launcher playback checks for all three assets and installs them from the bundled app when one is missing. For `subminer -R`, this repair runs before rofi opens.
+
+When `ffmpegthumbnailer` is installed, SubMiner prepends its own data directory to `XDG_DATA_DIRS` for the rofi process only. This lets rofi recognize the canonical Matroska MIME types used by newer GLib versions without changing the desktop-wide MIME or thumbnailer configuration. An existing registration in your own `$XDG_DATA_HOME/thumbnailers` still takes priority.
 
 The theme is auto-detected from these paths (first match wins):
 

@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { epochMsFromDbTimestamp, formatRelativeDate, formatSessionDayLabel } from './formatters';
+import {
+  epochDayToDate,
+  epochMsFromDbTimestamp,
+  formatRelativeDate,
+  formatSessionDayLabel,
+} from './formatters';
 
 const FIXED_NOW = new Date(2026, 2, 16, 12, 0, 0).getTime();
 
@@ -106,6 +111,19 @@ test('epochMsFromDbTimestamp converts seconds to ms', () => {
 
 test('epochMsFromDbTimestamp keeps ms timestamps as-is', () => {
   assert.equal(epochMsFromDbTimestamp(1_700_000_000_000), 1_700_000_000_000);
+});
+
+test('epochDayToDate preserves the calendar day west of UTC', () => {
+  const previousTimezone = process.env.TZ;
+  process.env.TZ = 'America/Los_Angeles';
+  try {
+    const epochDay = Math.floor(Date.UTC(2026, 2, 16) / 86_400_000);
+    const date = epochDayToDate(epochDay);
+    assert.deepEqual([date.getFullYear(), date.getMonth(), date.getDate()], [2026, 2, 16]);
+  } finally {
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
 });
 
 test('formatSessionDayLabel formats today and yesterday', () => {

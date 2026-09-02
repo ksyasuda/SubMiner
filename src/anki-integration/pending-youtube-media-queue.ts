@@ -39,7 +39,6 @@ export interface PendingYoutubeMediaQueueDeps {
     startTime: number;
     endTime: number;
   };
-  getResolvedSentenceAudioFieldName: (noteInfo: PendingYoutubeMediaNoteInfo) => string | null;
   resolveConfiguredFieldName: (
     noteInfo: PendingYoutubeMediaNoteInfo,
     ...preferredNames: (string | undefined)[]
@@ -136,7 +135,7 @@ export class PendingYoutubeMediaQueue {
       startTime: mediaRange.startTime,
       endTime: mediaRange.endTime,
       label: job.label,
-      audioFieldName: this.deps.getResolvedSentenceAudioFieldName(job.noteInfo) ?? undefined,
+      audioFieldName: this.resolveConfiguredAudioFieldName(job.noteInfo) ?? undefined,
       imageFieldName:
         this.deps.resolveConfiguredFieldName(
           job.noteInfo,
@@ -247,6 +246,14 @@ export class PendingYoutubeMediaQueue {
     return matched;
   }
 
+  private resolveConfiguredAudioFieldName(noteInfo: PendingYoutubeMediaNoteInfo): string | null {
+    const config = this.deps.getConfig();
+    return this.deps.resolveConfiguredFieldName(
+      noteInfo,
+      config.fields?.audio ?? DEFAULT_ANKI_CONNECT_CONFIG.fields.audio,
+    );
+  }
+
   private async applyUpdate(
     job: PendingYoutubeMediaUpdate,
     cachedPath: string,
@@ -283,7 +290,7 @@ export class PendingYoutubeMediaQueue {
         if (audioBuffer) {
           await this.deps.client.storeMediaFile(audioFilename, audioBuffer);
           const audioField =
-            job.audioFieldName || this.deps.getResolvedSentenceAudioFieldName(noteInfo) || null;
+            job.audioFieldName || this.resolveConfiguredAudioFieldName(noteInfo) || null;
           if (audioField) {
             const existingAudio = noteInfo.fields[audioField]?.value || '';
             mediaFields[audioField] = this.deps.mergeFieldValue(

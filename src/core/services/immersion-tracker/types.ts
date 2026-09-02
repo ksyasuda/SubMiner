@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 23;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -304,6 +304,16 @@ export interface VocabularyStatsRow {
   animeCount: number;
   firstSeen: number;
   lastSeen: number;
+}
+
+export interface VocabularyStatsSummary {
+  uniqueWords: number;
+  uniqueWordsWithoutNames: number;
+  uniqueKanji: number;
+  newThisWeek: number;
+  newThisWeekWithoutNames: number;
+  knownWordCount: number | null;
+  knownWordCountWithoutNames: number | null;
 }
 
 export interface StatsExcludedWordRow {

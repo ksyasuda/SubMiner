@@ -4,6 +4,7 @@ import type {
   SubtitleMiningContext,
   SubtitleSidebarSnapshot,
 } from '../../types';
+import { subtitleCueListSeekTime } from '../../core/services/subtitle-cue-navigation.js';
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
@@ -14,7 +15,6 @@ import {
 
 const MANUAL_SCROLL_HOLD_MS = 1500;
 const ACTIVE_CUE_LOOKAHEAD_SEC = 0.18;
-const CLICK_SEEK_OFFSET_SEC = 0.08;
 const SNAPSHOT_POLL_INTERVAL_MS = 80;
 const EMBEDDED_SIDEBAR_MIN_WIDTH_PX = 240;
 const EMBEDDED_SIDEBAR_MAX_RATIO = 0.45;
@@ -392,10 +392,9 @@ export function createSubtitleSidebarModal(
   }
 
   function seekToCue(cue: SubtitleCue): void {
-    const targetTime = Math.min(cue.endTime - 0.01, cue.startTime + CLICK_SEEK_OFFSET_SEC);
     window.electronAPI.sendMpvCommand([
       'seek',
-      Math.max(cue.startTime, targetTime),
+      subtitleCueListSeekTime(ctx.state.subtitleSidebarCues, cue),
       'absolute+exact',
     ]);
   }

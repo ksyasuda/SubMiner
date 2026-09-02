@@ -1,3 +1,5 @@
+import { applyOverlayClickThrough } from '../../core/services/overlay-click-through';
+
 type StatsOverlayVisibilityWindow = {
   isDestroyed: () => boolean;
   isVisible: () => boolean;
@@ -8,7 +10,7 @@ function makeOverlayMousePassive(window: StatsOverlayVisibilityWindow | null): v
   if (!window || window.isDestroyed() || !window.isVisible()) {
     return;
   }
-  window.setIgnoreMouseEvents(true, { forward: true });
+  applyOverlayClickThrough(window);
 }
 
 export function createStatsOverlayVisibilityChangeHandler(deps: {

@@ -38,8 +38,10 @@ bun run docs:dev
 The public docs root is stable-only:
 
 - `/` serves the latest stable release docs.
-- `/main/` serves development docs from `main` and is marked `noindex,follow`.
+- `/main/` serves development docs from `main`.
 - `/v/<version>/` serves stable release archives.
 - Prerelease tags do not update the docs site.
+
+Only `/` is indexable. `/main/` and every `/v/<version>/` page carries a self-referential canonical plus `noindex,follow`, and the generated `_headers` file repeats that as an `X-Robots-Tag`. They stay crawlable so their links still resolve, but ~30 archived copies of every page would otherwise consume the crawl budget the current docs need. Only the root build emits `sitemap.xml`, and its `<lastmod>` dates come from `git log` against the tracked checkout at the released tag, because the build renders from an untracked snapshot that VitePress cannot date itself.
 
 Keep Cloudflare Git auto-deploy disabled. The production deploy is `.github/workflows/docs-pages.yml`, which uploads `.tmp/docs-versioned-site` with `--branch main` so tag-triggered runs update Production instead of creating preview deployments.

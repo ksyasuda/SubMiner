@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
 import { createSubtitleProcessingController } from '../../core/services/subtitle-processing-controller';
 import type { SubtitleData } from '../../types';
 import {
@@ -209,6 +210,69 @@ test('primeCurrentSubtitleForAutoplay emits raw first paint on cache miss before
     // invalidated-but-unchanged line is still re-tokenized.
     'refresh:起動字幕',
   ]);
+});
+
+test('parsed cues replace a duplicate raw autoplay subtitle that was already primed', async () => {
+  const rawText = 'ジグザグな道を抜け\nジグザグな道を抜け';
+  const correctedText = 'ジグザグな道を抜け';
+  const mediaPath = '/media/video.mkv';
+  let currentSubText = '';
+  const emitted: string[] = [];
+  const client = {
+    connected: true,
+    currentVideoPath: mediaPath,
+    currentTimePos: 90,
+    currentSubText: rawText,
+    requestProperty: async (name: string) => {
+      if (name === 'sub-text') return rawText;
+      if (name === 'time-pos') return 90;
+      return null;
+    },
+  };
+  const cues = parseSubtitleCues(
+    [
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      `Dialogue: 1,0:01:29.00,0:01:32.00,EDJP,,0,0,0,,${correctedText}`,
+      `Dialogue: 0,0:01:29.00,0:01:32.00,EDJP,,0,0,0,,${correctedText}`,
+    ].join('\n'),
+    'startup-ending.ass',
+  );
+  let activeCues = cues.slice(0, 0);
+  const runtime = createAutoplaySubtitlePrimingRuntime({
+    getCurrentMediaPath: () => mediaPath,
+    getMpvClient: () => client,
+    setCurrentSubText: (text) => {
+      currentSubText = text;
+    },
+    getCurrentSubText: () => currentSubText,
+    getCurrentSubtitleData: () => null,
+    getActiveParsedSubtitleCues: () => activeCues,
+    setActiveParsedSubtitleMediaPath: () => {},
+    subtitleProcessingController: {
+      consumeCachedSubtitle: () => null,
+      onSubtitleChange: () => true,
+      refreshCurrentSubtitle: () => true,
+      notePlainSubtitleEmitted: () => {},
+    },
+    emitSubtitlePayload: (payload) => emitted.push(payload.text),
+    getSubtitlePrefetchService: () => null,
+    getLastObservedTimePos: () => 90,
+    getVisibleOverlayVisible: () => true,
+    emitSecondarySubtitle: () => {},
+    initSubtitlePrefetch: async () => {},
+    refreshSubtitlePrefetchFromActiveTrack: async () => {},
+    logDebug: () => {},
+  });
+
+  await runtime.primeCurrentSubtitleForAutoplay(mediaPath);
+  assert.equal(currentSubText, rawText);
+
+  activeCues = cues;
+  await runtime.primeAutoplaySubtitleFromParsedCues(mediaPath, cues);
+
+  assert.equal(currentSubText, correctedText);
+  assert.deepEqual(emitted, [rawText, correctedText]);
 });
 
 // Driven by the real processing controller rather than a stub: the failure this

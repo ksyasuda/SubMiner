@@ -59,6 +59,8 @@ package() {
 		"${pkgdir}/usr/share/SubMiner/plugin/subminer.conf"
 	install -Dm644 "${srcdir}/assets/themes/subminer.rasi" \
 		"${pkgdir}/usr/share/SubMiner/themes/subminer.rasi"
+	install -Dm644 "${srcdir}/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer" \
+		"${pkgdir}/usr/share/SubMiner/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer"
 
 	install -dm755 "${pkgdir}/usr/share/SubMiner/plugin/subminer"
 	cp -a "${srcdir}/plugin/subminer/." "${pkgdir}/usr/share/SubMiner/plugin/subminer/"

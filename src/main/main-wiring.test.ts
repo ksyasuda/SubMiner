@@ -183,7 +183,10 @@ test('remote media keeps parsed cues when the active subtitle source cannot be r
   )?.groups?.body;
 
   assert.ok(actionBlock);
-  assert.match(actionBlock, /isYoutubeMediaPath\(videoPath\) \|\| isRemoteMediaPath\(videoPath\)/);
+  assert.match(
+    actionBlock,
+    /isYoutubeMediaPath\(videoPath\) \|\| \(await detectRemoteMediaPath\(videoPath\)\)/,
+  );
 });
 
 test('jellyfin subtitle preload seeds the tokenization prefetch directly', () => {
@@ -482,10 +485,10 @@ test('Linux visible overlay recreation avoids display fallback before tracked ge
   assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
 });
 
-test('known-word updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
+test('subtitle annotation updates invalidate prefetched tokenizations before refreshing current subtitle', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /const refreshCurrentSubtitleAfterKnownWordUpdate = \(\): void => \{(?<body>[\s\S]*?)\n\};/,
+    /function refreshCurrentSubtitleAnnotations\(\): void \{(?<body>[\s\S]*?)\n\}/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -500,6 +503,20 @@ test('known-word updates invalidate prefetched tokenizations before refreshing c
       actionBlock.indexOf(
         'subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText)',
       ),
+  );
+});
+
+test('character portrait index readiness refreshes cached subtitle annotations', () => {
+  const source = readMainSource();
+  const lookupDeps = source.match(
+    /const characterDictionaryImageLookup = createCharacterDictionaryImageLookup\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(lookupDeps);
+  assert.match(lookupDeps, /onIndexReady: \(\) => refreshCurrentSubtitleAnnotations\(\),/);
+  assert.match(
+    lookupDeps,
+    /onIndexReadyError: \(error\) =>[\s\S]*?logger\.warn\([\s\S]*?character portrait index became ready\.[\s\S]*?error,/,
   );
 });
 
@@ -844,5 +861,21 @@ test('subtitle sidebar snapshot prefers cached YouTube parsed cues before active
   assert.ok(
     snapshotBlock.indexOf('shouldUseCachedYoutubeParsedCues(') <
       snapshotBlock.indexOf('resolveActiveSubtitleSidebarSourceHandler'),
+  );
+});
+
+test('main process extracts internal subtitle tracks without a network-mount guard', () => {
+  const source = readMainSource();
+  const resolverWiring = source.match(
+    /const resolveActiveSubtitleSidebarSourceHandler = createResolveActiveSubtitleSidebarSourceHandler\(\{(?<body>[\s\S]*?)\n\}\);/,
+  )?.groups?.body;
+
+  assert.ok(resolverWiring);
+  // Network-mounted files are extracted like local ones; only remote URLs skip
+  // extraction, handled inside the resolver itself.
+  assert.doesNotMatch(resolverWiring, /isRemoteMediaPath/);
+  assert.match(
+    resolverWiring,
+    /extractInternalSubtitleTrack:[\s\S]*cachedInternalSubtitleTrackExtractor\.extract/,
   );
 });

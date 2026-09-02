@@ -6,6 +6,7 @@ import {
   initializeExcludedWordsStore,
   resetExcludedWordsStoreForTests,
   setExcludedWords,
+  subscribeExcludedWordsServerSync,
 } from './useExcludedWords';
 import { BASE_URL } from '../lib/api-client';
 
@@ -195,6 +196,94 @@ test('initializeExcludedWordsStore retries after transient database load failure
   } finally {
     globalThis.fetch = originalFetch;
     console.error = originalConsoleError;
+    restore();
+    resetExcludedWordsStoreForTests();
+  }
+});
+
+test('a failing server-sync listener neither rolls back the write nor blocks other listeners', async () => {
+  resetExcludedWordsStoreForTests();
+  const { values: storage, restore } = installLocalStorage();
+  const originalFetch = globalThis.fetch;
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ ok: true }), { status: 200 })) as typeof globalThis.fetch;
+  const notified: string[] = [];
+  const unsubscribeFirst = subscribeExcludedWordsServerSync(() => {
+    notified.push('first');
+    throw new Error('listener exploded');
+  });
+  const unsubscribeSecond = subscribeExcludedWordsServerSync(() => {
+    notified.push('second');
+  });
+
+  try {
+    const rows = [{ headword: 'する', word: 'する', reading: 'する' }];
+    await assert.doesNotReject(() => setExcludedWords(rows));
+
+    assert.deepEqual(notified, ['first', 'second']);
+    assert.deepEqual(getExcludedWordsSnapshot(), rows);
+    assert.equal(storage.get(STORAGE_KEY), JSON.stringify(rows));
+  } finally {
+    unsubscribeFirst();
+    unsubscribeSecond();
+    globalThis.fetch = originalFetch;
+    console.error = originalConsoleError;
+    restore();
+    resetExcludedWordsStoreForTests();
+  }
+});
+
+test('overlapping writes serialize so an older list cannot overwrite a newer edit', async () => {
+  resetExcludedWordsStoreForTests();
+  const { restore } = installLocalStorage();
+  const originalFetch = globalThis.fetch;
+  const sentBodies: string[] = [];
+  let releaseFirst: (() => void) | null = null;
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    sentBodies.push(String(init?.body ?? ''));
+    if (sentBodies.length === 1) {
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof globalThis.fetch;
+  const syncs: string[] = [];
+  const unsubscribe = subscribeExcludedWordsServerSync(() => {
+    syncs.push(JSON.stringify(getExcludedWordsSnapshot()));
+  });
+
+  try {
+    const first = [{ headword: '猫', word: '猫', reading: 'ねこ' }];
+    const second = [...first, { headword: '犬', word: '犬', reading: 'いぬ' }];
+    const third = [...second, { headword: '鳥', word: '鳥', reading: 'とり' }];
+
+    // The first write reaches the network before the later edits are made.
+    const firstWrite = setExcludedWords(first);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const secondWrite = setExcludedWords(second);
+    const thirdWrite = setExcludedWords(third);
+
+    const release = releaseFirst as (() => void) | null;
+    assert.ok(release, 'expected the first write to be in flight');
+    release();
+    await Promise.all([firstWrite, secondWrite, thirdWrite]);
+
+    // The in-flight write finishes first, the superseded middle write is
+    // dropped, and the newest list is the last thing the server is told.
+    assert.deepEqual(sentBodies, [
+      JSON.stringify({ words: first }),
+      JSON.stringify({ words: third }),
+    ]);
+    assert.deepEqual(getExcludedWordsSnapshot(), third);
+    // Only the final revision notifies: the first write's acknowledgement was
+    // already obsolete, so it must not trigger an aggregate recomputation.
+    assert.deepEqual(syncs, [JSON.stringify(third)]);
+  } finally {
+    unsubscribe();
+    globalThis.fetch = originalFetch;
     restore();
     resetExcludedWordsStoreForTests();
   }

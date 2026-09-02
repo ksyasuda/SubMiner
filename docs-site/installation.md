@@ -396,7 +396,7 @@ subminer -u
 subminer --update
 ```
 
-SubMiner verifies AppImage, launcher, and Linux support-asset downloads against `SHA256SUMS.txt`. On Linux those support assets include the launcher-managed runtime plugin copy under `SubMiner/plugin/subminer` plus the rofi theme at `SubMiner/themes/subminer.rasi`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
+SubMiner verifies AppImage, launcher, and Linux support-asset downloads against `SHA256SUMS.txt`. On Linux those support assets include the launcher-managed runtime plugin copy under `SubMiner/plugin/subminer`, the rofi theme at `SubMiner/themes/subminer.rasi`, and the scoped Matroska thumbnailer registration under `SubMiner/thumbnailers`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
 
 The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. On Linux it replaces the running `.AppImage` in place via `electron-updater` and refreshes the managed support assets from `subminer-assets.tar.gz`; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
 
@@ -408,7 +408,7 @@ SubMiner is an overlay that sits on top of mpv. It connects to mpv through an IP
 
 The `subminer` launcher handles mpv IPC socket setup automatically. If you launch mpv yourself or from another tool, you must pass `--input-ipc-server=/tmp/subminer-socket` (or `\\.\pipe\subminer-socket` on Windows) - without it the overlay starts but subtitles won't appear.
 
-The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. On Linux, the `subminer` launcher now checks for its managed runtime plugin copy and rofi theme before every mpv-managed launch and installs those support assets from the bundled app automatically if either one is missing. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
+The bundled mpv plugin is injected at runtime automatically - you don't need to install it separately. On Linux, the `subminer` launcher checks for its managed runtime plugin copy, rofi theme, and scoped thumbnailer registration before every mpv-managed launch and installs those support assets from the bundled app automatically if one is missing. For a rofi picker launch, this check runs before the picker opens. It provides in-player keybindings (the `y` chord) for controlling the overlay from within mpv. See [MPV Plugin](/mpv-plugin) for the full keybinding and configuration reference.
 
 ## Platform Notes
 
@@ -460,18 +460,20 @@ sudo chmod +x /usr/local/bin/subminer
 
 ### Linux Support Assets
 
-SubMiner ships the Linux rofi theme plus the launcher-managed runtime plugin copy in `subminer-assets.tar.gz`:
+SubMiner ships the Linux rofi theme, scoped Matroska thumbnailer registration, and launcher-managed runtime plugin copy in `subminer-assets.tar.gz`:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz
 tar -xzf /tmp/subminer-assets.tar.gz -C /tmp
 mkdir -p ~/.local/share/SubMiner/themes
 cp /tmp/assets/themes/subminer.rasi ~/.local/share/SubMiner/themes/subminer.rasi
+mkdir -p ~/.local/share/SubMiner/thumbnailers
+cp /tmp/assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer ~/.local/share/SubMiner/thumbnailers/
 mkdir -p ~/.local/share/SubMiner/plugin
 cp -R /tmp/plugin/subminer ~/.local/share/SubMiner/plugin/subminer
 ```
 
-`subminer -u` and the tray updater keep those Linux support assets in sync automatically once the `SubMiner` data dir exists. Normal Linux launcher playback also auto-installs the managed runtime plugin copy and rofi theme from the bundled app if either support asset is missing, so manual extraction is mainly useful for pre-seeding or custom setups.
+`subminer -u` and the tray updater keep those Linux support assets in sync automatically once the `SubMiner` data dir exists. Normal Linux launcher playback also auto-installs all three assets from the bundled app if one is missing, so manual extraction is mainly useful for pre-seeding or custom setups. Rofi receives the SubMiner data path through its process-local `XDG_DATA_DIRS`, so the thumbnailer registration does not change the desktop-wide configuration.
 
 Override the theme path with `SUBMINER_ROFI_THEME=/absolute/path/to/theme.rasi`.
 

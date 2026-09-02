@@ -1,6 +1,3 @@
-import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
-import { estimateSubtitleTimingOffset } from '../../core/services/subtitle-timing-offset';
-
 type JellyfinSession = {
   serverUrl: string;
   accessToken: string;
@@ -33,11 +30,6 @@ type CachedSubtitleTrack = {
 
 type CachedExternalSubtitleTrack = CachedSubtitleTrack & {
   source: JellyfinSubtitleTrack;
-};
-
-type JellyfinSubtitleDelayKey = {
-  itemId: string;
-  streamIndex: number;
 };
 
 type MpvSubtitleTrack = {
@@ -257,54 +249,6 @@ async function waitForPreferredSubtitleTracks(
   return subtitleTracks;
 }
 
-async function estimateSubtitleDelayFromReference(
-  deps: {
-    loadSubtitleSourceText?: (source: string) => Promise<string>;
-    logDebug: (message: string, error: unknown) => void;
-  },
-  primaryTrack: CachedExternalSubtitleTrack | null,
-  referenceTrack: CachedExternalSubtitleTrack | null,
-): Promise<number | null> {
-  if (!deps.loadSubtitleSourceText || !primaryTrack || !referenceTrack) {
-    return null;
-  }
-
-  try {
-    const [primaryContent, referenceContent] = await Promise.all([
-      deps.loadSubtitleSourceText(primaryTrack.path),
-      deps.loadSubtitleSourceText(referenceTrack.path),
-    ]);
-    const primaryCues = parseSubtitleCues(primaryContent, primaryTrack.path);
-    const referenceCues = parseSubtitleCues(referenceContent, referenceTrack.path);
-    return estimateSubtitleTimingOffset(primaryCues, referenceCues)?.offsetSeconds ?? null;
-  } catch (error) {
-    deps.logDebug('Failed to auto-align Jellyfin subtitle timing', error);
-    return null;
-  }
-}
-
-function saveEstimatedSubtitleDelay(
-  deps: {
-    saveSubtitleDelay?: (
-      itemId: string,
-      streamIndex: number,
-      delaySeconds: number,
-    ) => boolean | void;
-    logDebug: (message: string, error: unknown) => void;
-  },
-  key: JellyfinSubtitleDelayKey,
-  delaySeconds: number,
-): void {
-  try {
-    const saved = deps.saveSubtitleDelay?.(key.itemId, key.streamIndex, delaySeconds);
-    if (saved === false) {
-      deps.logDebug('Failed to save Jellyfin auto subtitle delay', key);
-    }
-  } catch (error) {
-    deps.logDebug('Failed to save Jellyfin auto subtitle delay', error);
-  }
-}
-
 export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   listJellyfinSubtitleTracks: (
     session: JellyfinSession,
@@ -316,10 +260,6 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
   wait: (ms: number) => Promise<void>;
   cacheSubtitleTrack: (track: JellyfinSubtitleTrack) => Promise<CachedSubtitleTrack>;
   cleanupCachedSubtitles: (dirs: string[]) => void;
-  getSavedSubtitleDelay?: (itemId: string, streamIndex: number) => number | null;
-  setActiveSubtitleDelayKey?: (key: JellyfinSubtitleDelayKey | null) => void;
-  loadSubtitleSourceText?: (source: string) => Promise<string>;
-  saveSubtitleDelay?: (itemId: string, streamIndex: number, delaySeconds: number) => boolean | void;
   initSubtitlePrefetch?: (sourcePath: string) => void | Promise<void>;
   logDebug: (message: string, error: unknown) => void;
 }): PreloadJellyfinExternalSubtitlesHandler {
@@ -357,6 +297,7 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
     itemId: string;
   }): Promise<void> => {
     try {
+      resetManagedSubtitleDelay();
       try {
         cleanupActiveCache();
       } catch (error) {
@@ -369,8 +310,6 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
       );
       const externalTracks = tracks.filter((track) => Boolean(track.deliveryUrl));
       if (externalTracks.length === 0) {
-        deps.setActiveSubtitleDelayKey?.(null);
-        resetManagedSubtitleDelay();
         return;
       }
 
@@ -427,40 +366,13 @@ export function createPreloadJellyfinExternalSubtitlesHandler(deps: {
           japanesePrimaryId,
         );
         if (selectedCachedTrack) {
-          const delayKey = { itemId: params.itemId, streamIndex: selectedCachedTrack.source.index };
-          deps.setActiveSubtitleDelayKey?.(delayKey);
-          const savedDelay = deps.getSavedSubtitleDelay?.(delayKey.itemId, delayKey.streamIndex);
-          if (typeof savedDelay === 'number' && Number.isFinite(savedDelay)) {
-            deps.sendMpvCommand(['set_property', 'sub-delay', savedDelay]);
-          } else {
-            const referenceCachedTrack = findCachedTrackForMpvTrackId(
-              resolvedSubtitleTracks,
-              cachedTracks,
-              englishSecondaryId,
-            );
-            const estimatedDelay = await estimateSubtitleDelayFromReference(
-              deps,
-              selectedCachedTrack,
-              referenceCachedTrack,
-            );
-            if (estimatedDelay !== null) {
-              deps.sendMpvCommand(['set_property', 'sub-delay', estimatedDelay]);
-              saveEstimatedSubtitleDelay(deps, delayKey, estimatedDelay);
-            } else {
-              resetManagedSubtitleDelay();
-            }
-          }
           deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
           startSubtitlePrefetchForCachedTrack(selectedCachedTrack.path);
         } else {
-          deps.setActiveSubtitleDelayKey?.(null);
-          resetManagedSubtitleDelay();
           deps.sendMpvCommand(['set_property', 'sid', japanesePrimaryId]);
         }
       } else {
         deps.sendMpvCommand(['set_property', 'sid', 'no']);
-        deps.setActiveSubtitleDelayKey?.(null);
-        resetManagedSubtitleDelay();
       }
 
       if (englishSecondaryId !== null) {

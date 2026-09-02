@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createNotifySendReplacer, resolveDefaultNotificationIconPath } from './notification';
+import {
+  buildNotifySendEnv,
+  createNotifySendReplacer,
+  resolveDefaultNotificationIconPath,
+} from './notification';
+
+test('notify-send child environment drops the AppImage library-path override', () => {
+  const env = buildNotifySendEnv({
+    LD_LIBRARY_PATH: '/tmp/.mount_SubMinXXXXXX/usr/lib',
+    DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus',
+    HOME: '/home/user',
+  });
+
+  assert.equal(env.LD_LIBRARY_PATH, undefined);
+  assert.equal(env.DBUS_SESSION_BUS_ADDRESS, 'unix:path=/run/user/1000/bus');
+  assert.equal(env.HOME, '/home/user');
+});
 
 test('default notification icon resolves packaged SubMiner asset when no per-notification icon is provided', () => {
   const path = resolveDefaultNotificationIconPath({

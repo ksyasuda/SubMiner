@@ -58,6 +58,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearYomitanSettingsWindow: () => void;
 
   stopJellyfinRemoteSession: () => void;
+  cleanupInternalSubtitleTrackCache: () => void;
   cleanupYoutubeSubtitleTempDirs: () => void;
   cleanupYoutubeMediaCache: () => void;
   cleanupJellyfinSubtitleCache: () => void;
@@ -144,6 +145,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     },
     clearYomitanSettingsWindow: () => deps.clearYomitanSettingsWindow(),
     stopJellyfinRemoteSession: () => deps.stopJellyfinRemoteSession(),
+    cleanupInternalSubtitleTrackCache: () => deps.cleanupInternalSubtitleTrackCache(),
     cleanupYoutubeSubtitleTempDirs: () => deps.cleanupYoutubeSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => deps.cleanupYoutubeMediaCache(),
     cleanupJellyfinSubtitleCache: () => deps.cleanupJellyfinSubtitleCache(),

@@ -154,6 +154,7 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     last_seen REAL,
     frequency INTEGER,
     frequency_rank INTEGER,
+    vocabulary_visible INTEGER NOT NULL DEFAULT 1 CHECK(vocabulary_visible IN (0, 1)),
     UNIQUE(headword, word, reading)
   );
   CREATE TABLE imm_kanji(

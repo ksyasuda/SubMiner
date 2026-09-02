@@ -31,6 +31,7 @@ import {
   getKanjiOccurrences,
   getSessionSummaries,
   getVocabularyStats,
+  getVocabularySummary,
   getKanjiStats,
   getSessionEvents,
   getSessionTimeline,
@@ -1869,6 +1870,115 @@ test('getVocabularyStats returns rows ordered by frequency descending', () => {
     const nekIdx = rows.indexOf(nekRow);
     const inuIdx = rows.indexOf(inuRow);
     assert.ok(nekIdx < inuIdx, 'higher frequency word should appear first');
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary counts every tracked vocabulary row instead of a display page', () => {
+  const dbPath = makeDbPath();
+  const db = openTestDb(dbPath);
+
+  try {
+    ensureSchema(db);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const insertWord = db.prepare(`
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3,
+        first_seen, last_seen, frequency
+      ) VALUES (?, ?, '', 'noun', '名詞', '一般', '', ?, ?, 1)
+    `);
+    const insertKanji = db.prepare(`
+      INSERT INTO imm_kanji (kanji, first_seen, last_seen, frequency)
+      VALUES (?, ?, ?, 1)
+    `);
+
+    for (let index = 0; index < 501; index += 1) {
+      insertWord.run(`単語${index}`, `単語${index}`, nowSec - 8 * 86_400, nowSec - 8 * 86_400);
+    }
+    for (let index = 0; index < 201; index += 1) {
+      insertKanji.run(
+        String.fromCodePoint(0x4e00 + index),
+        nowSec - 8 * 86_400,
+        nowSec - 8 * 86_400,
+      );
+    }
+    insertWord.run('今週', '今週', nowSec - 86_400, nowSec - 86_400);
+
+    assert.deepEqual(getVocabularySummary(db, new Set(['単語0', '今週']), nowSec * 1000), {
+      uniqueWords: 502,
+      uniqueWordsWithoutNames: 502,
+      uniqueKanji: 201,
+      newThisWeek: 1,
+      newThisWeekWithoutNames: 1,
+      knownWordCount: 2,
+      knownWordCountWithoutNames: 2,
+    });
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary applies vocabulary exclusions and Hide Names totals', () => {
+  const dbPath = makeDbPath();
+  const db = openTestDb(dbPath);
+
+  try {
+    ensureSchema(db);
+    const insertWord = db.prepare(`
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3,
+        first_seen, last_seen, frequency
+      ) VALUES (?, ?, '', 'noun', '名詞', ?, '', 1, 1, 1)
+    `);
+    insertWord.run('猫', '猫', '一般');
+    insertWord.run('太郎', '太郎', '固有名詞');
+    insertWord.run('東京', '東京都', '一般');
+    db.prepare(
+      `
+      INSERT INTO imm_stats_excluded_words (headword, word, reading)
+      VALUES ('東京', '東京', '')
+    `,
+    ).run();
+
+    assert.deepEqual(getVocabularySummary(db, new Set(['猫', '太郎', '東京']), 9 * 86_400_000), {
+      uniqueWords: 2,
+      uniqueWordsWithoutNames: 1,
+      uniqueKanji: 0,
+      newThisWeek: 0,
+      newThisWeekWithoutNames: 0,
+      knownWordCount: 2,
+      knownWordCountWithoutNames: 1,
+    });
+  } finally {
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('getVocabularySummary counts identically across id-keyed scan batches', () => {
+  const dbPath = makeDbPath();
+  const db = openTestDb(dbPath);
+
+  try {
+    ensureSchema(db);
+    const insertWord = db.prepare(`
+      INSERT INTO imm_words (
+        headword, word, reading, part_of_speech, pos1, pos2, pos3,
+        first_seen, last_seen, frequency
+      ) VALUES (?, ?, '', 'noun', '名詞', '一般', '', 1, 1, 1)
+    `);
+    for (let index = 0; index < 5; index += 1) {
+      insertWord.run(`単語${index}`, `単語${index}`);
+    }
+
+    const fullScan = getVocabularySummary(db, new Set(['単語0']), 9 * 86_400_000);
+    const batchedScan = getVocabularySummary(db, new Set(['単語0']), 9 * 86_400_000, 2);
+
+    assert.equal(fullScan.uniqueWords, 5);
+    assert.deepEqual(batchedScan, fullScan);
   } finally {
     db.close();
     cleanupDbPath(dbPath);

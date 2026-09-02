@@ -60,6 +60,7 @@ const RUNTIME_OPTION_IDS: RuntimeOptionId[] = [
   'subtitle.annotation.jlpt',
   'subtitle.annotation.frequency',
   'anki.kikuFieldGrouping',
+  'anki.senrenFieldGrouping',
   'anki.nPlusOneMatchMode',
 ];
 

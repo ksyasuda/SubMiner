@@ -108,6 +108,36 @@ test('fixture schema stays aligned with production sync-touched tables and index
   }
 });
 
+test('fixture leaves lexical rollups pending when their table is absent', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-fixture-rollup-state-'));
+  const fixturePath = path.join(dir, 'fixture.sqlite');
+  try {
+    createImmersionDbFixture(fixturePath);
+    const db = new BunDatabase(fixturePath, { readonly: true });
+    try {
+      const state = db
+        .query<{ state_value: string }>(
+          `SELECT state_value FROM imm_rollup_state
+           WHERE state_key = 'lexical_daily_rollups_version'`,
+        )
+        .get();
+      const rollupTable = db
+        .query<{ name: string }>(
+          `SELECT name FROM sqlite_schema
+           WHERE type = 'table' AND name = 'imm_lexical_daily_rollups'`,
+        )
+        .get();
+
+      assert.equal(state?.state_value, '0');
+      assert.equal(rollupTable, null);
+    } finally {
+      db.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('fixture session inserts enforce foreign keys', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-fixture-foreign-keys-'));
   const fixturePath = path.join(dir, 'fixture.sqlite');

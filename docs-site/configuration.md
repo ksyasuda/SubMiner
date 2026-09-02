@@ -148,9 +148,9 @@ The configuration file includes several main sections:
 
 - [**Shared AI Provider**](#shared-ai-provider) - Canonical OpenAI-compatible provider config shared by Anki and YouTube subtitle fixing
 - [**AnkiConnect**](#ankiconnect) - Automatic Anki card creation with media
-- [**Kiku/Lapis Integration**](#kiku-lapis-integration) - Sentence cards and duplicate handling for Kiku/Lapis note types
+- [**Kiku/Lapis Integration**](#kiku-lapis-integration) - Sentence cards and duplicate handling for Kiku/Lapis/Senren note types
 - [**N+1 Word Highlighting**](#n-1-word-highlighting) - Known-word cache and single-target highlighting
-- [**Field Grouping Modes**](#field-grouping-modes) - Kiku/Lapis duplicate card merging
+- [**Field Grouping Modes**](#field-grouping-modes) - Kiku/Senren duplicate card merging
 
 **External Integrations**
 
@@ -1053,6 +1053,7 @@ This example is intentionally compact. The option table below documents availabl
 | `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time, `%T`=time with milliseconds, `<br>`=newline                                                                                                           |
 | `isLapis`                                         | object                                      | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.                                                                                    |
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
+| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                      |
 
 `ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
 API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
@@ -1082,6 +1083,7 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 - Enable `isKiku` to turn on duplicate merge behavior for mined Word/Expression hits.
 - When both are enabled, Kiku behavior is applied for grouping while sentence-card model settings are still read from `isLapis`.
 - `isKiku.fieldGrouping` supports `disabled`, `auto`, and `manual` merge modes; see [Field Grouping Modes](#field-grouping-modes).
+- For [Senren](https://github.com/BrenoAqua/Senren) note types, enable `isSenren` instead of `isKiku`. Duplicate merges then use Senren's scene-switching markup (including grouped `miscInfo` entries), and `isSenren.fieldGrouping` supports the same three modes (default: `auto`). Kiku and Senren are mutually exclusive; if both are enabled, Kiku wins and Senren is turned off with a config warning.
 - `lapisKiku.wordCardKind` picks the card-type flag set on word cards; see [Word Card Type](#word-card-type). It is read only while `isLapis` or `isKiku` is enabled.
 
 ### Word Card Type

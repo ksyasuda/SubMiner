@@ -1,6 +1,4 @@
 import type { DatabaseSync } from './sqlite';
-import { PartOfSpeech, type MergedToken } from '../../../types';
-import { shouldExcludeTokenFromVocabularyPersistence } from '../tokenizer/annotation-stage';
 import type {
   KanjiAnimeAppearanceRow,
   KanjiDetailRow,
@@ -13,18 +11,37 @@ import type {
   SimilarWordRow,
   StatsExcludedWordRow,
   VocabularyStatsRow,
+  VocabularyStatsSummary,
   WordAnimeAppearanceRow,
   WordDetailRow,
   WordOccurrenceRow,
 } from './types';
 import { fromDbTimestamp, toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
+import {
+  areLexicalDailyRollupsReady,
+  getLexicalDailyRollups,
+  localEpochDaySql,
+} from './lexical-rollups';
+import { isVocabularyStatsRowVisible } from './vocabulary-visibility';
 
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_FACTOR = 4;
 const VOCABULARY_STATS_FILTER_OVERSAMPLE_MIN = 100;
+const VOCABULARY_CHART_LIMIT = 12;
+const VOCABULARY_CHART_PAGE_SIZE = 100;
+const EXCLUSION_ALIAS_BATCH_SIZE = 300;
+const VOCABULARY_SUMMARY_SCAN_BATCH_SIZE = 5_000;
 const SENTENCE_SEARCH_DEFAULT_LIMIT = 50;
 const SENTENCE_SEARCH_MAX_LIMIT = 100;
 const KANJI_PATTERN = /\p{Script=Han}/gu;
+
+export interface VocabularyChartData {
+  ready: boolean;
+  topWords: Array<{ wordId: number; headword: string; frequency: number }>;
+  topWordsWithoutNames: Array<{ wordId: number; headword: string; frequency: number }>;
+  newWordsTimeline: Array<{ epochDay: number; wordCount: number }>;
+  newWordsTimelineWithoutNames: Array<{ epochDay: number; wordCount: number }>;
+}
 
 function resolveSentenceSearchLimit(limit: number): number {
   if (!Number.isFinite(limit)) return SENTENCE_SEARCH_DEFAULT_LIMIT;
@@ -71,33 +88,6 @@ function getHeadwordCandidatesForSentenceSearchTerm(
 
 function uniqueKanji(text: string): string[] {
   return Array.from(new Set(text.match(KANJI_PATTERN) ?? []));
-}
-
-function toVocabularyToken(row: VocabularyStatsRow): MergedToken {
-  const partOfSpeech =
-    row.partOfSpeech && Object.values(PartOfSpeech).includes(row.partOfSpeech as PartOfSpeech)
-      ? (row.partOfSpeech as PartOfSpeech)
-      : PartOfSpeech.other;
-
-  return {
-    surface: row.word,
-    reading: row.reading ?? '',
-    headword: row.headword,
-    startPos: 0,
-    endPos: row.word.length,
-    partOfSpeech,
-    pos1: row.pos1 ?? '',
-    pos2: row.pos2 ?? '',
-    pos3: row.pos3 ?? '',
-    frequencyRank: row.frequencyRank ?? undefined,
-    isMerged: false,
-    isKnown: false,
-    isNPlusOneTarget: false,
-  };
-}
-
-function isVocabularyStatsRowVisible(row: VocabularyStatsRow): boolean {
-  return !shouldExcludeTokenFromVocabularyPersistence(toVocabularyToken(row));
 }
 
 export function getVocabularyStats(
@@ -151,6 +141,198 @@ export function getVocabularyStats(
   }
 
   return visibleRows.slice(0, limit);
+}
+
+/**
+ * Chart data is intentionally independent of the paginated vocabulary tables.
+ * Top words use the frequency index; new-word history reads permanent daily
+ * lexical rollups rather than loading every vocabulary row into the dashboard.
+ */
+export function getVocabularyChartData(db: DatabaseSync): VocabularyChartData {
+  const ready = areLexicalDailyRollupsReady(db);
+  const excludedAliases = new Set(
+    getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
+  );
+  const isExcluded = (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>): boolean =>
+    excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias));
+  const topWords = getTopVocabularyChartWords(db, isExcluded);
+  const rollups = ready ? getLexicalDailyRollups(db) : [];
+  const timeline = new Map(rollups.map((row) => [row.epochDay, { ...row }]));
+  if (excludedAliases.size > 0 && ready) {
+    const aliases = [...excludedAliases];
+    const excludedRows = new Map<
+      number,
+      Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
+        wordId: number;
+        epochDay: number;
+      }
+    >();
+    for (let offset = 0; offset < aliases.length; offset += EXCLUSION_ALIAS_BATCH_SIZE) {
+      const batch = aliases.slice(offset, offset + EXCLUSION_ALIAS_BATCH_SIZE);
+      const placeholders = batch.map(() => '?').join(', ');
+      const rows = db
+        .prepare(
+          `
+            SELECT id AS wordId, headword, word, reading, pos2,
+              ${localEpochDaySql('first_seen')} AS epochDay
+            FROM imm_words
+            WHERE vocabulary_visible = 1
+              AND (headword IN (${placeholders}) OR word IN (${placeholders}) OR reading IN (${placeholders}))
+          `,
+        )
+        .all(...batch, ...batch, ...batch) as Array<
+        Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading' | 'pos2'> & {
+          wordId: number;
+          epochDay: number;
+        }
+      >;
+      for (const row of rows) excludedRows.set(row.wordId, row);
+    }
+    for (const word of excludedRows.values()) {
+      if (!isExcluded(word)) continue;
+      const rollup = timeline.get(word.epochDay);
+      if (!rollup) continue;
+      rollup.wordCount -= 1;
+      if (word.pos2 !== '固有名詞') rollup.wordCountWithoutNames -= 1;
+    }
+  }
+  return {
+    ready,
+    topWords: topWords.all.map((word) => ({
+      wordId: word.wordId,
+      headword: vocabularyDisplayHeadword(word),
+      frequency: word.frequency,
+    })),
+    topWordsWithoutNames: topWords.withoutNames.map((word) => ({
+      wordId: word.wordId,
+      headword: vocabularyDisplayHeadword(word),
+      frequency: word.frequency,
+    })),
+    newWordsTimeline: [...timeline.values()]
+      .filter((row) => row.wordCount > 0)
+      .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCount })),
+    newWordsTimelineWithoutNames: [...timeline.values()]
+      .filter((row) => row.wordCountWithoutNames > 0)
+      .map((row) => ({ epochDay: row.epochDay, wordCount: row.wordCountWithoutNames })),
+  };
+}
+
+function getTopVocabularyChartWords(
+  db: DatabaseSync,
+  isExcluded: (word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>) => boolean,
+): { all: VocabularyStatsRow[]; withoutNames: VocabularyStatsRow[] } {
+  const stmt = db.prepare(`
+    SELECT id AS wordId, headword, word, reading,
+      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen,
+      0 AS animeCount
+    FROM imm_words
+    ORDER BY frequency DESC, id
+    LIMIT ? OFFSET ?
+  `);
+  const all: VocabularyStatsRow[] = [];
+  const withoutNames: VocabularyStatsRow[] = [];
+  let offset = 0;
+
+  while (all.length < VOCABULARY_CHART_LIMIT || withoutNames.length < VOCABULARY_CHART_LIMIT) {
+    const page = stmt.all(VOCABULARY_CHART_PAGE_SIZE, offset) as VocabularyStatsRow[];
+    if (page.length === 0) break;
+    for (const word of page) {
+      if (!isVocabularyStatsRowVisible(word) || isExcluded(word)) continue;
+      if (all.length < VOCABULARY_CHART_LIMIT) all.push(word);
+      if (word.pos2 !== '固有名詞' && withoutNames.length < VOCABULARY_CHART_LIMIT) {
+        withoutNames.push(word);
+      }
+    }
+    offset += page.length;
+  }
+
+  return { all, withoutNames };
+}
+
+function excludedVocabularyAliases(
+  word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>,
+): string[] {
+  const aliases = [word.headword?.trim() ?? '', word.word?.trim() ?? ''].filter(Boolean);
+  if (aliases.length === 0) aliases.push(word.reading?.trim() ?? '');
+  return [...new Set(aliases)];
+}
+
+function vocabularyDisplayHeadword(
+  word: Pick<VocabularyStatsRow, 'headword' | 'word' | 'reading'>,
+): string {
+  return word.headword?.trim() || word.word?.trim() || word.reading?.trim() || '';
+}
+
+function timestampSeconds(timestamp: number): number {
+  return timestamp < 10_000_000_000 ? timestamp : Math.floor(timestamp / 1000);
+}
+
+export function getVocabularySummary(
+  db: DatabaseSync,
+  knownWords: ReadonlySet<string> | null,
+  nowMs: number = Date.now(),
+  scanBatchSize: number = VOCABULARY_SUMMARY_SCAN_BATCH_SIZE,
+): VocabularyStatsSummary {
+  // Visibility and exclusion rules live in JS, so rows are scanned in id-keyed
+  // batches to keep memory bounded on large vocabularies.
+  const scanStmt = db.prepare(`
+    SELECT id AS wordId, headword, word, reading,
+      part_of_speech AS partOfSpeech, pos1, pos2, pos3,
+      frequency, frequency_rank AS frequencyRank,
+      first_seen AS firstSeen, last_seen AS lastSeen,
+      0 AS animeCount
+    FROM imm_words
+    WHERE id > ?
+    ORDER BY id
+    LIMIT ?
+  `);
+  const excludedAliases = new Set(
+    getStatsExcludedWords(db).flatMap((word) => excludedVocabularyAliases(word)),
+  );
+  const weekAgoSec = nowMs / 1000 - 7 * 86_400;
+  const summary: VocabularyStatsSummary = {
+    uniqueWords: 0,
+    uniqueWordsWithoutNames: 0,
+    uniqueKanji: (db.prepare('SELECT COUNT(*) AS count FROM imm_kanji').get() as { count: number })
+      .count,
+    newThisWeek: 0,
+    newThisWeekWithoutNames: 0,
+    knownWordCount: knownWords ? 0 : null,
+    knownWordCountWithoutNames: knownWords ? 0 : null,
+  };
+
+  let lastId = Number.MIN_SAFE_INTEGER;
+  for (;;) {
+    const words = scanStmt.all(lastId, scanBatchSize) as VocabularyStatsRow[];
+    if (words.length === 0) break;
+    lastId = words[words.length - 1]!.wordId;
+    for (const word of words) {
+      if (
+        !isVocabularyStatsRowVisible(word) ||
+        excludedVocabularyAliases(word).some((alias) => excludedAliases.has(alias))
+      ) {
+        continue;
+      }
+      const isName = word.pos2 === '固有名詞';
+      const isNewThisWeek = timestampSeconds(fromDbTimestamp(word.firstSeen) ?? 0) >= weekAgoSec;
+      const isKnown = knownWords?.has(vocabularyDisplayHeadword(word)) ?? false;
+      summary.uniqueWords += 1;
+      if (!isName) summary.uniqueWordsWithoutNames += 1;
+      if (isNewThisWeek) {
+        summary.newThisWeek += 1;
+        if (!isName) summary.newThisWeekWithoutNames += 1;
+      }
+      if (isKnown) {
+        summary.knownWordCount! += 1;
+        if (!isName) summary.knownWordCountWithoutNames! += 1;
+      }
+    }
+    if (words.length < scanBatchSize) break;
+  }
+
+  return summary;
 }
 
 export function getStatsExcludedWords(db: DatabaseSync): StatsExcludedWordRow[] {

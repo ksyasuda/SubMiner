@@ -50,6 +50,11 @@ export {
 } from './tokenizer/yomitan-parser-runtime';
 export { syncYomitanDefaultAnkiServer } from './tokenizer/yomitan-parser-runtime';
 export { createSubtitleProcessingController } from './subtitle-processing-controller';
+export {
+  resolveSanitizedSubtitleSeekCommand,
+  subtitleCueListSeekTime,
+  subtitleCueSeekTime,
+} from './subtitle-cue-navigation';
 export { createFrequencyDictionaryLookup } from './frequency-dictionary';
 export { createJlptVocabularyLookup } from './jlpt-vocab';
 export {
@@ -126,12 +131,6 @@ export {
   resolvePlaybackPlan as resolveJellyfinPlaybackPlanRuntime,
   ticksToSeconds as jellyfinTicksToSecondsRuntime,
 } from './jellyfin';
-export { loadJellyfinSubtitleDelay, saveJellyfinSubtitleDelay } from './jellyfin-subtitle-delay';
-export {
-  estimateSubtitleTimingOffset,
-  type SubtitleTimingOffsetOptions,
-  type SubtitleTimingOffsetResult,
-} from './subtitle-timing-offset';
 export { buildJellyfinTimelinePayload, JellyfinRemoteSessionService } from './jellyfin-remote';
 export {
   broadcastRuntimeOptionsChangedRuntime,

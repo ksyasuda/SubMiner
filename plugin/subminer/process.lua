@@ -7,6 +7,8 @@ local OVERLAY_RESTART_PING_MAX_ATTEMPTS = 20
 local OVERLAY_LOADING_OSD_PREFIX = "Overlay loading "
 local OVERLAY_LOADING_OSD_FRAMES = { "|", "/", "-", "\\" }
 local OVERLAY_LOADING_OSD_REFRESH_SECONDS = 0.18
+local OVERLAY_LOADING_OSD_DEADLINE_SECONDS = 30
+local OVERLAY_LOADING_OSD_TIMEOUT_MESSAGE = "Overlay did not become ready; check SubMiner logs"
 local AUTO_PLAY_READY_LOADING_OSD = "Loading subtitle tokenization..."
 local AUTO_PLAY_READY_READY_OSD = "Subtitle tokenization ready"
 local DEFAULT_AUTO_PLAY_READY_TIMEOUT_SECONDS = 30
@@ -265,10 +267,19 @@ function M.create(ctx)
 		state.overlay_loading_osd_timer = nil
 	end
 
+	local function clear_overlay_loading_osd_deadline()
+		local timeout = state.overlay_loading_osd_deadline
+		if timeout and timeout.kill then
+			timeout:kill()
+		end
+		state.overlay_loading_osd_deadline = nil
+	end
+
 	local function stop_overlay_loading_osd()
 		state.overlay_loading_osd_active = false
 		state.overlay_loading_osd_frame = 1
 		clear_overlay_loading_osd_timer()
+		clear_overlay_loading_osd_deadline()
 	end
 
 	local function start_overlay_loading_osd()
@@ -289,6 +300,21 @@ function M.create(ctx)
 				if state.overlay_loading_osd_active then
 					show_next_overlay_loading_frame()
 				end
+			end)
+		end
+		if type(mp.add_timeout) == "function" then
+			state.overlay_loading_osd_deadline = mp.add_timeout(OVERLAY_LOADING_OSD_DEADLINE_SECONDS, function()
+				if not state.overlay_loading_osd_active then
+					return
+				end
+				state.overlay_loading_osd_deadline = nil
+				stop_overlay_loading_osd()
+				subminer_log(
+					"warn",
+					"process",
+					"Overlay loading deadline expired before the app reported content ready"
+				)
+				show_osd(OVERLAY_LOADING_OSD_TIMEOUT_MESSAGE, { force = true })
 			end)
 		end
 	end

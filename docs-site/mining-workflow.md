@@ -41,7 +41,7 @@ If you prefer a hands-on approach (animecards-style), you can copy the current s
    - For multiple lines: press `Ctrl/Cmd+Shift+C`, then a digit `1`–`9` to select how many recent subtitle lines to combine. The combined text is copied to the clipboard.
 3. Press `Ctrl/Cmd+V` to update the last-added card with the clipboard contents plus audio, image, and translation - the same fields auto-update would fill.
 
-Manual clipboard updates always replace generated sentence audio, even when `ankiConnect.behavior.overwriteAudio` is disabled. The word audio field is left unchanged because the word itself does not change in this flow.
+Manual clipboard updates always replace generated sentence audio in `ankiConnect.fields.audio`, even when `ankiConnect.behavior.overwriteAudio` is disabled. Normal word-card updates use the configured sentence and audio fields even when Lapis or Kiku support is enabled.
 
 This is useful when auto-update is disabled or when you want explicit control over which subtitle line gets attached to the card.
 
@@ -72,17 +72,17 @@ After adding a word via Yomitan, press the audio card shortcut (`Ctrl/Cmd+Shift+
 Audio card marking uses the same `ankiConnect.isLapis.sentenceCardModel` note type as sentence cards. See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
 :::
 
-### Field Grouping (Kiku)
+### Field Grouping (Kiku/Senren)
 
-If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and similar note types that support grouped fields.
+If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and [Senren](https://github.com/BrenoAqua/Senren) note types that support grouped fields (Senren calls it scene switching).
 
 1. You add a word via Yomitan.
 2. SubMiner detects the new card and checks if a card with the same expression already exists.
-3. If a duplicate is found (this requires `ankiConnect.isKiku.fieldGrouping` to be set to `"auto"` or `"manual"`; it defaults to `"disabled"`):
-   - **Auto mode** (`ankiConnect.isKiku.fieldGrouping: "auto"`): Merges automatically. Both sentences, audio clips, and images are combined into the existing card. The duplicate is optionally deleted.
-   - **Manual mode** (`ankiConnect.isKiku.fieldGrouping: "manual"`): A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
+3. If a duplicate is found (this requires Kiku or Senren to be enabled with a field grouping mode of `"auto"` or `"manual"`):
+   - **Auto mode**: Merges automatically. Both sentences, audio clips, images, and source info are combined into the existing card. The duplicate is optionally deleted.
+   - **Manual mode**: A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
 
-See [Anki Integration - Field Grouping](/anki-integration#field-grouping-kiku) for configuration options, merge behavior, and modal keyboard shortcuts.
+See [Anki Integration - Field Grouping](/anki-integration#field-grouping-kiku-senren) for configuration options, merge behavior, and modal keyboard shortcuts.
 
 ## Overlay Model
 
@@ -108,7 +108,11 @@ The secondary bar is a compact top-strip region in the same overlay window. It s
 - Quick comprehension checks without leaving the mining flow.
 - Auto-populating the translation field on mined cards - when a card is created, SubMiner uses the secondary subtitle text as the translation field value (unless AI translation is configured to override it).
 
+For local media, SubMiner can parse supported embedded secondary tracks into timed cues. For remote URLs and files on network mounts, it uses mpv's live secondary subtitle text instead of scanning the media with ffmpeg.
+
 It is controlled by `secondarySub` configuration and shares its lifecycle with the main overlay window. Cycle which track feeds it with `Shift+J`.
+
+SubMiner collapses duplicate ASS layers in parsed secondary tracks. Exact repeated lines collapse at any length, while distinct simultaneous short lines remain separate. Long dialogue and positioned-sign copies also collapse when they differ only in whitespace or terminal punctuation. Dense multi-row sign layouts, such as translated timetables, are excluded instead of being concatenated into the secondary bar.
 
 ### Display Modes
 

@@ -10,6 +10,7 @@ export interface ManagedLinuxRuntimePluginPaths {
   pluginEntrypointPath: string;
   pluginConfigPath: string;
   themePath: string;
+  thumbnailerPath: string;
 }
 
 export interface EnsureLinuxRuntimePluginAssetsResult {
@@ -23,6 +24,7 @@ interface RuntimePluginAssetSources {
   pluginDirSource?: string;
   pluginConfigSource?: string;
   themeSourcePath?: string;
+  thumbnailerSourcePath?: string;
 }
 
 interface RuntimePluginDirentLike {
@@ -72,6 +74,11 @@ export function resolveManagedLinuxRuntimePluginPaths(options: {
     pluginEntrypointPath: pathModule.join(pluginDir, 'main.lua'),
     pluginConfigPath: pathModule.join(rootDir, 'subminer.conf'),
     themePath: pathModule.join(dataDir, 'themes', 'subminer.rasi'),
+    thumbnailerPath: pathModule.join(
+      dataDir,
+      'thumbnailers',
+      'subminer-ffmpegthumbnailer.thumbnailer',
+    ),
   };
 }
 
@@ -95,11 +102,12 @@ async function copyDirectoryRecursive(
   }
 }
 
-function resolveBundledThemePath(options: {
+function resolveBundledAssetPath(options: {
   dirname: string;
   appPath: string;
   resourcesPath: string;
   existsSync: (candidate: string) => boolean;
+  relativePath: string;
 }): string | null {
   const roots = [
     path.join(options.resourcesPath, 'assets'),
@@ -111,7 +119,7 @@ function resolveBundledThemePath(options: {
   ];
 
   for (const root of roots) {
-    const candidate = path.join(root, 'themes', 'subminer.rasi');
+    const candidate = path.join(root, options.relativePath);
     if (options.existsSync(candidate)) return candidate;
   }
 
@@ -129,16 +137,25 @@ function resolveBundledAssetsDefault(
     existsSync,
   });
 
-  const themeSourcePath = resolveBundledThemePath({
+  const themeSourcePath = resolveBundledAssetPath({
     dirname: __dirname,
     appPath: process.execPath,
     resourcesPath,
     existsSync,
+    relativePath: path.join('themes', 'subminer.rasi'),
+  });
+  const thumbnailerSourcePath = resolveBundledAssetPath({
+    dirname: __dirname,
+    appPath: process.execPath,
+    resourcesPath,
+    existsSync,
+    relativePath: path.join('thumbnailers', 'subminer-ffmpegthumbnailer.thumbnailer'),
   });
 
   return {
     ...(pluginAssets ?? {}),
     ...(themeSourcePath ? { themeSourcePath } : {}),
+    ...(thumbnailerSourcePath ? { thumbnailerSourcePath } : {}),
   };
 }
 
@@ -178,7 +195,8 @@ export async function ensureLinuxRuntimePluginAssets(
   const pluginAssetsExist =
     existsSync(managedPaths.pluginEntrypointPath) && existsSync(managedPaths.pluginConfigPath);
   const themeExists = existsSync(managedPaths.themePath);
-  if (pluginAssetsExist && themeExists) {
+  const thumbnailerExists = existsSync(managedPaths.thumbnailerPath);
+  if (pluginAssetsExist && themeExists && thumbnailerExists) {
     return {
       ok: true,
       status: 'already-present',
@@ -193,6 +211,7 @@ export async function ensureLinuxRuntimePluginAssets(
 
   const shouldInstallPluginAssets = !pluginAssetsExist;
   const shouldInstallTheme = !themeExists;
+  const shouldInstallThumbnailer = !thumbnailerExists;
   if (
     shouldInstallPluginAssets &&
     (!bundledAssets.pluginDirSource || !bundledAssets.pluginConfigSource)
@@ -210,6 +229,13 @@ export async function ensureLinuxRuntimePluginAssets(
       error: 'Bundled Linux runtime theme asset was not found.',
     };
   }
+  if (shouldInstallThumbnailer && !bundledAssets.thumbnailerSourcePath) {
+    return {
+      ok: false,
+      status: 'failed',
+      error: 'Bundled Linux rofi thumbnailer asset was not found.',
+    };
+  }
 
   const stagingSuffix = `${process.pid}-${Date.now()}`;
   const stagedPluginDir = pathModule.join(managedPaths.rootDir, `.subminer-stage-${stagingSuffix}`);
@@ -221,9 +247,14 @@ export async function ensureLinuxRuntimePluginAssets(
     pathModule.dirname(managedPaths.themePath),
     `.subminer.rasi-stage-${stagingSuffix}`,
   );
+  const stagedThumbnailerPath = pathModule.join(
+    pathModule.dirname(managedPaths.thumbnailerPath),
+    `.subminer-ffmpegthumbnailer.thumbnailer-stage-${stagingSuffix}`,
+  );
   let pluginDirInstalled = false;
   let pluginConfigInstalled = false;
   let themeInstalled = false;
+  let thumbnailerInstalled = false;
 
   try {
     if (shouldInstallPluginAssets) {
@@ -249,6 +280,14 @@ export async function ensureLinuxRuntimePluginAssets(
       await mkdir(pathModule.dirname(managedPaths.themePath), { recursive: true });
       await copyFile(themeSourcePath, stagedThemePath);
     }
+    if (shouldInstallThumbnailer) {
+      const thumbnailerSourcePath = bundledAssets.thumbnailerSourcePath;
+      if (!thumbnailerSourcePath) {
+        throw new Error('Bundled Linux rofi thumbnailer asset was not found.');
+      }
+      await mkdir(pathModule.dirname(managedPaths.thumbnailerPath), { recursive: true });
+      await copyFile(thumbnailerSourcePath, stagedThumbnailerPath);
+    }
     if (shouldInstallPluginAssets) {
       await rm(managedPaths.pluginDir, { recursive: true, force: true });
       await rm(managedPaths.pluginConfigPath, { force: true });
@@ -261,6 +300,11 @@ export async function ensureLinuxRuntimePluginAssets(
       await rm(managedPaths.themePath, { force: true });
       await rename(stagedThemePath, managedPaths.themePath);
       themeInstalled = true;
+    }
+    if (shouldInstallThumbnailer) {
+      await rm(managedPaths.thumbnailerPath, { force: true });
+      await rename(stagedThumbnailerPath, managedPaths.thumbnailerPath);
+      thumbnailerInstalled = true;
     }
 
     return {
@@ -278,9 +322,13 @@ export async function ensureLinuxRuntimePluginAssets(
     if (themeInstalled) {
       await rm(managedPaths.themePath, { force: true }).catch(() => {});
     }
+    if (thumbnailerInstalled) {
+      await rm(managedPaths.thumbnailerPath, { force: true }).catch(() => {});
+    }
     await rm(stagedPluginDir, { recursive: true, force: true }).catch(() => {});
     await rm(stagedPluginConfigPath, { force: true }).catch(() => {});
     await rm(stagedThemePath, { force: true }).catch(() => {});
+    await rm(stagedThumbnailerPath, { force: true }).catch(() => {});
     return {
       ok: false,
       status: 'failed',
