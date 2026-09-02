@@ -298,18 +298,25 @@ export function stripCanonicalFragmentLines(options: {
 }
 
 /**
- * The parsed-cue view of a live sample, or `null` when the parsed cues do not explain
- * every live line. Consumers that record rather than display use this to tell a resolved
- * line -- already complete, with ASS furigana events folded back into their base line --
- * from raw mpv text that still needs `stripCanonicalFragmentLines`.
+ * Recording text for a live sample. Callers substitute canonical cues themselves and
+ * record those cue by cue, so what is resolved here is the parsed view -- the one that
+ * folds ASS furigana events back into their base line. Its text is already a complete
+ * line, while fragment stripping takes raw mpv text and would discard a resolved line
+ * whole while a fragment grid is on screen, so only one of the two ever runs.
  */
-export function resolveParsedPrimarySubtitle(options: {
+export function resolveRecordedPrimarySubtitleText(options: {
   liveText: string;
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
-}): ResolvedPrimarySubtitle | null {
+}): string {
   const liveText = decodedLiveText(options.liveText, options.cues);
-  return liveText.trim() ? resolveActiveParsedPrimarySubtitle({ ...options, liveText }) : null;
+  if (!liveText.trim()) {
+    return liveText;
+  }
+  return (
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
+    stripCanonicalFragmentLines({ ...options, liveText })
+  );
 }
 
 export function resolvePrimarySubtitleText(options: {

@@ -719,4 +719,13 @@ test('a resolved line survives recording while a fragment grid is on screen', ()
 
   assert.deepEqual(immersion, ['飛び越えてみたくて']);
   assert.deepEqual(timing, ['飛び越えてみたくて']);
+
+  // A spacer event left as literal control debris is not a subtitle line. The display
+  // drops it, so no recorder may keep it either.
+  assert.equal(handlers.resolveSubtitleText?.('\\'), '');
+  handlers.recordImmersionSubtitleLine('\\', 3, 6);
+  handlers.recordSubtitleTiming('\\', 3, 6);
+
+  assert.equal(immersion.length, 1);
+  assert.equal(timing.length, 1);
 });
