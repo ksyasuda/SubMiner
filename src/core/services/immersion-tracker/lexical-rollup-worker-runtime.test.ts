@@ -134,3 +134,43 @@ test('lexical rollup worker times out when it never responds', async () => {
     runtime.destroy();
   }
 });
+
+test('destroy waits for active worker termination', async () => {
+  let releaseTermination = (): void => {};
+  let emitExit: ((code: number) => void) | null = null;
+  const terminationGate = new Promise<void>((resolve) => {
+    releaseTermination = resolve;
+  });
+  const runtime = new LexicalRollupWorkerRuntime({
+    resolveWorkerPath: () => '/tmp/fake-worker.js',
+    createWorker: async () => ({
+      once(event: string, listener: (value: never) => void) {
+        if (event === 'exit') emitExit = listener as (code: number) => void;
+        return this;
+      },
+      terminate: async () => {
+        await terminationGate;
+        emitExit?.(1);
+        return 1;
+      },
+    }),
+    warn: () => {},
+  } as never);
+
+  const runTask = runtime.run('/tmp/not-used.sqlite');
+  await new Promise((resolve) => setImmediate(resolve));
+  const destroyTask = runtime.destroy();
+  assert.ok(destroyTask instanceof Promise);
+
+  let destroyed = false;
+  void destroyTask.then(() => {
+    destroyed = true;
+  });
+  await Promise.resolve();
+  assert.equal(destroyed, false);
+
+  releaseTermination();
+  await destroyTask;
+  await assert.rejects(runTask, /exited with code 1/);
+  assert.equal(destroyed, true);
+});

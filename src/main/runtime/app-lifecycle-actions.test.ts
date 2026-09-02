@@ -6,7 +6,7 @@ import {
   createShouldRestoreWindowsOnActivateHandler,
 } from './app-lifecycle-actions';
 
-test('on will quit cleanup handler runs all cleanup steps', () => {
+test('on will quit cleanup handler runs all cleanup steps', async () => {
   const calls: string[] = [];
   const cleanup = createOnWillQuitCleanupHandler({
     destroyTray: () => calls.push('destroy-tray'),
@@ -32,7 +32,9 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyMpvSocket: () => calls.push('destroy-socket'),
     clearReconnectTimer: () => calls.push('clear-reconnect'),
     destroySubtitleTimingTracker: () => calls.push('destroy-subtitle-tracker'),
-    destroyImmersionTracker: () => calls.push('destroy-immersion'),
+    destroyImmersionTracker: () => {
+      calls.push('destroy-immersion');
+    },
     destroyAnkiIntegration: () => calls.push('destroy-anki'),
     destroyAnilistSetupWindow: () => calls.push('destroy-anilist-window'),
     clearAnilistSetupWindow: () => calls.push('clear-anilist-window'),
@@ -50,7 +52,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
-  cleanup();
+  await cleanup();
   assert.equal(calls.length, 35);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
@@ -63,7 +65,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 
-test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', () => {
+test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', async () => {
   const calls: string[] = [];
   const cleanup = createOnWillQuitCleanupHandler({
     destroyTray: () => {},
@@ -106,7 +108,7 @@ test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping 
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
-  assert.throws(() => cleanup(), /stop failed/);
+  await assert.rejects(cleanup(), /stop failed/);
   assert.deepEqual(calls, [
     'stop-jellyfin-remote',
     'cleanup-jellyfin-subtitles',

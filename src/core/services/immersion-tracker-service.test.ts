@@ -617,6 +617,72 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
   }
 });
 
+test('destroy waits for lexical backfill shutdown before finalizing and draining writes', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let releaseBackfill = (): void => {};
+  let releaseTermination = (): void => {};
+  const heldBackfill = new Promise<void>((resolve) => {
+    releaseBackfill = resolve;
+  });
+  const heldTermination = new Promise<void>((resolve) => {
+    releaseTermination = resolve;
+  });
+  const calls: string[] = [];
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath },
+      {
+        runLexicalRollupBackfillTask: async () => heldBackfill,
+        destroyLexicalRollupBackfillRunner: async () => {
+          calls.push('stop');
+          releaseBackfill();
+          await heldTermination;
+          calls.push('stopped');
+        },
+      },
+    );
+    tracker.handleMediaChange('/tmp/destroy-backfill.mkv', 'Destroy Backfill');
+    tracker.recordCardsMined(1);
+
+    const privateApi = tracker as unknown as {
+      queue: unknown[];
+      finalizeActiveSession: () => void;
+    };
+    const finalizeActiveSession = privateApi.finalizeActiveSession.bind(tracker);
+    privateApi.finalizeActiveSession = () => {
+      finalizeActiveSession();
+      calls.push(`finalized:${privateApi.queue.length}`);
+    };
+
+    const destroyTask = tracker.destroy();
+    assert.ok(destroyTask instanceof Promise);
+    assert.deepEqual(calls, ['stop']);
+    assert.ok(privateApi.queue.length > 0);
+
+    releaseTermination();
+    await destroyTask;
+    assert.deepEqual(calls, ['stop', 'stopped', 'finalized:0']);
+  } finally {
+    releaseBackfill();
+    releaseTermination();
+    await tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('tracker runs startup session-rollup maintenance before lexical backfill locks writes', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

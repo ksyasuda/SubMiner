@@ -116,6 +116,35 @@ test('a batch rebuilds the lifetime summaries once, not once per episode', async
   }
 });
 
+test('watch-state changes rebuild lifetime completion for an already-recorded episode', async () => {
+  const { tracker, dir } = await createTracker();
+  try {
+    const recordedEpisode = episode(EP1, 1);
+    tracker.recordStreamPlaybackMetadata(recordedEpisode);
+    tracker.handleMediaChange(EP1, recordedEpisode.displayTitle);
+    tracker.handleMediaChange(EP2, 'Next Episode');
+
+    const privateApi = tracker as unknown as {
+      db: import('./immersion-tracker/sqlite').DatabaseSync;
+    };
+    const getCompleted = (): number | null =>
+      (
+        privateApi.db
+          .prepare('SELECT completed FROM imm_lifetime_media ORDER BY video_id LIMIT 1')
+          .get() as { completed: number } | null
+      )?.completed ?? null;
+
+    assert.equal(getCompleted(), 0);
+    await tracker.setStreamWatchState([recordedEpisode], true);
+    assert.equal(getCompleted(), 1);
+    await tracker.setStreamWatchState([recordedEpisode], false);
+    assert.equal(getCompleted(), 0);
+  } finally {
+    await tracker.destroy();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('an episode with no stats path is skipped rather than recorded as unknown', async () => {
   const { tracker, dir } = await createTracker();
   try {

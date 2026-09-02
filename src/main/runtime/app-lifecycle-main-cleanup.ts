@@ -119,10 +119,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     destroySubtitleTimingTracker: () => {
       deps.getSubtitleTimingTracker()?.destroy();
     },
-    destroyImmersionTracker: () => {
+    destroyImmersionTracker: async () => {
       const tracker = deps.getImmersionTracker();
       if (!tracker) return;
-      tracker.destroy();
+      await tracker.destroy();
       deps.clearImmersionTracker();
     },
     destroyAnkiIntegration: () => {

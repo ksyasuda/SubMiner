@@ -463,7 +463,7 @@ export class ImmersionTrackerService {
   private readonly vocabularySummariesInFlight = new Map<string, Promise<VocabularyStatsSummary>>();
   private readonly destroyVocabularySummaryRunner: () => void;
   private readonly runLexicalRollupBackfillTask: () => Promise<void>;
-  private readonly destroyLexicalRollupBackfillRunner: () => void;
+  private readonly destroyLexicalRollupBackfillRunner: () => void | Promise<void>;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -472,6 +472,9 @@ export class ImmersionTrackerService {
   private preserveWriteQueueUntilDrained = false;
   private lastVacuumMs = 0;
   private isDestroyed = false;
+  private isDestroying = false;
+  private lexicalRollupBackfillTask: Promise<void> | null = null;
+  private destroyTask: Promise<void> | null = null;
   private sessionState: SessionState | null = null;
   private currentVideoKey = '';
   private currentMediaPathOrUrl = '';
@@ -495,7 +498,7 @@ export class ImmersionTrackerService {
       runVocabularySummaryTask?: RunVocabularySummaryTask;
       destroyVocabularySummaryRunner?: () => void;
       runLexicalRollupBackfillTask?: (dbPath: string) => Promise<void>;
-      destroyLexicalRollupBackfillRunner?: () => void;
+      destroyLexicalRollupBackfillRunner?: () => void | Promise<void>;
     } = {},
   ) {
     this.dbPath = options.dbPath;
@@ -635,8 +638,10 @@ export class ImmersionTrackerService {
     this.scheduleFlush();
   }
 
-  destroy(): void {
+  destroy(): void | Promise<void> {
+    if (this.destroyTask) return this.destroyTask;
     if (this.isDestroyed) return;
+    this.isDestroying = true;
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -645,13 +650,28 @@ export class ImmersionTrackerService {
       clearInterval(this.maintenanceTimer);
       this.maintenanceTimer = null;
     }
-    this.finalizeActiveSession();
-    this.isDestroyed = true;
-    this.deleteMaintenanceScheduler.destroy();
-    this.destroyDeleteMaintenanceRunner();
-    this.destroyVocabularySummaryRunner();
-    this.destroyLexicalRollupBackfillRunner();
-    this.db.close();
+    const stopLexicalBackfill = this.destroyLexicalRollupBackfillRunner();
+    const pendingLexicalBackfill = this.lexicalRollupBackfillTask;
+    const finish = (): void => {
+      this.finalizeActiveSession();
+      this.isDestroyed = true;
+      this.deleteMaintenanceScheduler.destroy();
+      this.destroyDeleteMaintenanceRunner();
+      this.destroyVocabularySummaryRunner();
+      this.db.close();
+    };
+
+    if (!stopLexicalBackfill && !pendingLexicalBackfill) {
+      finish();
+      return;
+    }
+
+    this.destroyTask = (async () => {
+      await stopLexicalBackfill;
+      await pendingLexicalBackfill;
+      finish();
+    })();
+    return this.destroyTask;
   }
 
   async getSessionSummaries(limit = 50): Promise<SessionSummaryQueryRow[]> {
@@ -914,14 +934,13 @@ export class ImmersionTrackerService {
         const statsPath = normalizeMediaPath(episode.statsPath);
         if (!statsPath) continue;
         if (watched) {
-          needsLifetimeRebuild =
-            this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true }) ||
-            needsLifetimeRebuild;
+          this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true });
         }
 
         const videoId = getVideoIdByVideoKey(this.db, buildVideoKey(statsPath, SOURCE_TYPE_REMOTE));
         if (videoId === null) continue;
         markVideoWatched(this.db, videoId, watched);
+        needsLifetimeRebuild = true;
         changed += 1;
 
         if (!watched && this.sessionState?.videoId === videoId) clearedActiveVideo = true;
@@ -1111,7 +1130,7 @@ export class ImmersionTrackerService {
     this.requireWriteQueueDrained('lexical rollup backfill');
     this.preserveWriteQueueUntilDrained = true;
     this.setWriteLock('lexical-rollup-backfill', true);
-    void this.runLexicalRollupBackfillTask()
+    const task = this.runLexicalRollupBackfillTask()
       .catch((error: unknown) => {
         this.logger.warn(
           'Lexical daily rollup backfill failed; it will retry on next startup',
@@ -1121,8 +1140,10 @@ export class ImmersionTrackerService {
       .finally(() => {
         this.setWriteLock('lexical-rollup-backfill', false);
         if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
-        else if (!this.isDestroyed) this.scheduleFlush(0);
+        else if (!this.isDestroyed && !this.isDestroying) this.scheduleFlush(0);
+        if (this.lexicalRollupBackfillTask === task) this.lexicalRollupBackfillTask = null;
       });
+    this.lexicalRollupBackfillTask = task;
   }
 
   async reassignAnimeAnilist(

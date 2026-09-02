@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createBuildOnWillQuitCleanupDepsHandler } from './app-lifecycle-main-cleanup';
 import { createOnWillQuitCleanupHandler } from './app-lifecycle-actions';
 
-test('cleanup deps builder returns handlers that guard optional runtime objects', () => {
+test('cleanup deps builder returns handlers that guard optional runtime objects', async () => {
   const calls: string[] = [];
   let reconnectTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {}, 60_000);
   let immersionTracker: { destroy: () => void } | null = {
@@ -80,7 +80,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   });
 
   const cleanup = createOnWillQuitCleanupHandler(depsFactory());
-  cleanup();
+  await cleanup();
 
   assert.ok(calls.includes('destroy-tray'));
   assert.ok(calls.includes('destroy-main-overlay-window'));
