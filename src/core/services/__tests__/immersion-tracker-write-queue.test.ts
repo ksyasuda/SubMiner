@@ -42,10 +42,19 @@ interface TrackerInternals {
   writeLock: { locked: boolean };
 }
 
+function replaceFlushNow(tracker: TrackerInternals, replacement: () => void): () => void {
+  const original = tracker.flushNow;
+  tracker.flushNow = replacement;
+  return () => {
+    tracker.flushNow = original;
+  };
+}
+
 test('delete maintenance fails closed when queued writes cannot drain', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
   let deleteRunnerCalls = 0;
+  let restoreFlushNow = (): void => {};
 
   try {
     const Ctor = await loadTrackerCtor();
@@ -61,10 +70,10 @@ test('delete maintenance fails closed when queued writes cannot drain', async ()
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 1);
     let flushCalls = 0;
-    internals.flushNow = () => {
+    restoreFlushNow = replaceFlushNow(internals, () => {
       flushCalls += 1;
       if (flushCalls > 1) throw new Error('bounded no-progress sentinel');
-    };
+    });
 
     await assert.rejects(internals.deleteSession(1), /queue did not drain/i);
 
@@ -72,6 +81,7 @@ test('delete maintenance fails closed when queued writes cannot drain', async ()
     assert.equal(deleteRunnerCalls, 0);
     assert.equal(internals.writeLock.locked, false);
   } finally {
+    restoreFlushNow();
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
@@ -80,6 +90,7 @@ test('delete maintenance fails closed when queued writes cannot drain', async ()
 test('reassignAnimeAnilist fails closed before resolving a conflict when writes cannot drain', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
+  let restoreFlushNow = (): void => {};
 
   try {
     const Ctor = await loadTrackerCtor();
@@ -88,7 +99,7 @@ test('reassignAnimeAnilist fails closed before resolving a conflict when writes 
     seedTwoEntries(internals.db);
     internals.db.prepare('UPDATE imm_anime SET anilist_id = 123 WHERE anime_id = 2').run();
     queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
+    restoreFlushNow = replaceFlushNow(internals, () => {});
 
     await assert.rejects(
       internals.reassignAnimeAnilist(1, { anilistId: 123 }),
@@ -107,6 +118,7 @@ test('reassignAnimeAnilist fails closed before resolving a conflict when writes 
       ],
     );
   } finally {
+    restoreFlushNow();
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
@@ -115,6 +127,7 @@ test('reassignAnimeAnilist fails closed before resolving a conflict when writes 
 test('mergeAnime fails closed when queued writes cannot drain', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
+  let restoreFlushNow = (): void => {};
 
   try {
     const Ctor = await loadTrackerCtor();
@@ -122,7 +135,7 @@ test('mergeAnime fails closed when queued writes cannot drain', async () => {
     const internals = tracker as unknown as TrackerInternals;
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
+    restoreFlushNow = replaceFlushNow(internals, () => {});
 
     await assert.rejects(internals.mergeAnime(1, [2]), /queue did not drain/i);
 
@@ -134,6 +147,7 @@ test('mergeAnime fails closed when queued writes cannot drain', async () => {
       [1, 2],
     );
   } finally {
+    restoreFlushNow();
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
@@ -142,6 +156,7 @@ test('mergeAnime fails closed when queued writes cannot drain', async () => {
 test('moveVideoToAnime fails closed when queued writes cannot drain', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
+  let restoreFlushNow = (): void => {};
 
   try {
     const Ctor = await loadTrackerCtor();
@@ -149,7 +164,7 @@ test('moveVideoToAnime fails closed when queued writes cannot drain', async () =
     const internals = tracker as unknown as TrackerInternals;
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
+    restoreFlushNow = replaceFlushNow(internals, () => {});
 
     await assert.rejects(internals.moveVideoToAnime(2, 1), /queue did not drain/i);
     assert.equal(
@@ -163,6 +178,7 @@ test('moveVideoToAnime fails closed when queued writes cannot drain', async () =
       2,
     );
   } finally {
+    restoreFlushNow();
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }
@@ -171,6 +187,7 @@ test('moveVideoToAnime fails closed when queued writes cannot drain', async () =
 test('rebuildLifetimeSummaries fails closed when queued writes cannot drain', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
+  let restoreFlushNow = (): void => {};
 
   try {
     const Ctor = await loadTrackerCtor();
@@ -178,10 +195,11 @@ test('rebuildLifetimeSummaries fails closed when queued writes cannot drain', as
     const internals = tracker as unknown as TrackerInternals;
     seedTwoEntries(internals.db);
     queueSubtitleLines(internals, 1);
-    internals.flushNow = () => {};
+    restoreFlushNow = replaceFlushNow(internals, () => {});
 
     await assert.rejects(internals.rebuildLifetimeSummaries(), /queue did not drain/i);
   } finally {
+    restoreFlushNow();
     tracker?.destroy();
     cleanupDbPath(dbPath);
   }

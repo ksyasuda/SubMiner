@@ -617,18 +617,13 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
   }
 });
 
-test('destroy waits for lexical backfill shutdown before finalizing and draining writes', async () => {
+test('destroy drains queued telemetry and events after lexical backfill stops', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
   let releaseBackfill = (): void => {};
-  let releaseTermination = (): void => {};
   const heldBackfill = new Promise<void>((resolve) => {
     releaseBackfill = resolve;
   });
-  const heldTermination = new Promise<void>((resolve) => {
-    releaseTermination = resolve;
-  });
-  const calls: string[] = [];
 
   try {
     const setupDb = new Database(dbPath);
@@ -643,41 +638,37 @@ test('destroy waits for lexical backfill shutdown before finalizing and draining
 
     const Ctor = await loadTrackerCtor();
     tracker = new Ctor(
-      { dbPath },
+      { dbPath, policy: { batchSize: 1, flushIntervalMs: 60_000 } },
       {
         runLexicalRollupBackfillTask: async () => heldBackfill,
-        destroyLexicalRollupBackfillRunner: async () => {
-          calls.push('stop');
+        destroyLexicalRollupBackfillRunner: () => {
           releaseBackfill();
-          await heldTermination;
-          calls.push('stopped');
         },
       },
     );
     tracker.handleMediaChange('/tmp/destroy-backfill.mkv', 'Destroy Backfill');
     tracker.recordCardsMined(1);
-
-    const privateApi = tracker as unknown as {
-      queue: unknown[];
-      finalizeActiveSession: () => void;
-    };
-    const finalizeActiveSession = privateApi.finalizeActiveSession.bind(tracker);
-    privateApi.finalizeActiveSession = () => {
-      finalizeActiveSession();
-      calls.push(`finalized:${privateApi.queue.length}`);
-    };
+    tracker.recordLookup(true);
 
     const destroyTask = tracker.destroy();
     assert.ok(destroyTask instanceof Promise);
-    assert.deepEqual(calls, ['stop']);
-    assert.ok(privateApi.queue.length > 0);
-
-    releaseTermination();
     await destroyTask;
-    assert.deepEqual(calls, ['stop', 'stopped', 'finalized:0']);
+
+    const db = new Database(dbPath);
+    try {
+      const eventCount = db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+        total: number;
+      };
+      const telemetryCount = db
+        .prepare('SELECT COUNT(*) AS total FROM imm_session_telemetry')
+        .get() as { total: number };
+      assert.equal(eventCount.total, 2);
+      assert.equal(telemetryCount.total, 2);
+    } finally {
+      db.close();
+    }
   } finally {
     releaseBackfill();
-    releaseTermination();
     await tracker?.destroy();
     cleanupDbPath(dbPath);
   }

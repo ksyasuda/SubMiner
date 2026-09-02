@@ -654,6 +654,7 @@ export class ImmersionTrackerService {
     const pendingLexicalBackfill = this.lexicalRollupBackfillTask;
     const finish = (): void => {
       this.finalizeActiveSession();
+      this.requireWriteQueueDrained('destroying immersion tracker');
       this.isDestroyed = true;
       this.deleteMaintenanceScheduler.destroy();
       this.destroyDeleteMaintenanceRunner();
