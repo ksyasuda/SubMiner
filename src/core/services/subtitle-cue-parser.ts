@@ -2442,7 +2442,9 @@ function mergeAssCaptionRows(
   for (const cue of cues) {
     if (!isCaptionRowCandidate(cue)) continue;
     const key = captionRowGroupKey(cue);
-    groups.set(key, [...(groups.get(key) ?? []), cue]);
+    const group = groups.get(key);
+    if (group) group.push(cue);
+    else groups.set(key, [cue]);
   }
 
   const maxRowGap = MAX_CAPTION_ROW_GAP * assFuriganaGeometryScale(playResY);
