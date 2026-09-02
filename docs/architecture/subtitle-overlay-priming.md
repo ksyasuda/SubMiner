@@ -138,7 +138,10 @@ coming and prefetching would otherwise idle for the rest of the cue.
   `preserveLineBreaks` treats them like an authored `\N`. A row continues the one above it when
   that row is a bare speaker label, ends without terminal punctuation, or leaves a ≪…≫ / ⸨…⸩ span
   open; a lower row that opens its own label or span always starts a new cue, which keeps two
-  speakers sharing the screen on separate lines.
+  speakers sharing the screen on separate lines. The pass runs only on scripts that read as
+  broadcast captions (a meaningful share of events carry speaker labels or ≪…≫ / ⸨…⸩ spans) and
+  only on rows containing Japanese, because fansub typesetting stacks positioned rows for signs,
+  chat bubbles, and headlines where that punctuation convention does not hold.
 - Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
   survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
   boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that

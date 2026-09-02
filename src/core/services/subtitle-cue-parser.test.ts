@@ -1449,13 +1449,15 @@ test('parseSubtitleCues keeps tall CC-style base dialogue publishable after remo
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(172,437)\\fscx50}（{\\fscx100}立希{\\fscx50}）',
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(332,443)\\fscx50\\fscy50}ともり',
     'Dialogue: 0,0:00:06.11,0:00:10.11,Default,,0,0,0,,{\\pos(192,497)}お前…{\\fscx50}　{\\fscx100}燈をバンドに誘ったの？',
+    // A second labeled turn, so the script reads as broadcast captions.
+    'Dialogue: 0,0:00:10.11,0:00:12.00,Default,,0,0,0,,{\\pos(192,497)\\fscx50}（{\\fscx100}燈{\\fscx50}）{\\fscx100}うん。',
   ].join('\n');
 
   const cues = parseSubtitleCues(content, 'test.ass');
   // The bare speaker label row joins the dialogue row beneath it as one cue.
   assert.deepEqual(
     cues.map((cue) => cue.text),
-    ['（立希）\nお前…　燈をバンドに誘ったの？'],
+    ['（立希）\nお前…　燈をバンドに誘ったの？', '（燈）うん。'],
   );
   assert.deepEqual(cues[0]?.assFurigana, ['たき', 'ともり']);
   assert.ok(cues.every((cue) => cue.assLayout?.kind === 'positioned'));
@@ -1613,6 +1615,56 @@ test('parseSubtitleCues keeps caption rows apart across styles, bands, and timin
 
   assert.equal(cues.length, 12);
   assert.ok(cues.every((cue) => !cue.text.includes('\n')));
+});
+
+test('parseSubtitleCues leaves typeset rows alone in scripts that are not broadcast captions', () => {
+  // Fansub typesetting stacks positioned rows for signs, chat bubbles, and headlines. Such
+  // text carries no caption punctuation, so without the script-level gate every stacked
+  // pair here would read as an unfinished sentence and merge.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:14.00', 640, 200, 'Shocking Statement Leaves'),
+    captionRow('0:00:10.00', '0:00:14.00', 640, 260, 'Listeners Speechless!'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 300, 'shes here AGAIN'),
+    captionRow('0:01:00.00', '0:01:04.00', 400, 360, 'make sakiko-chan go home'),
+    // Japanese typesetting in the same script is held back by the same gate.
+    captionRow('0:02:00.00', '0:02:04.00', 300, 400, '定休日'),
+    captionRow('0:02:00.00', '0:02:04.00', 300, 460, '毎週水曜日'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'Shocking Statement Leaves',
+      'Listeners Speechless!',
+      'shes here AGAIN',
+      'make sakiko-chan go home',
+      '定休日',
+      '毎週水曜日',
+    ],
+  );
+});
+
+test('parseSubtitleCues never joins caption rows that carry no Japanese', () => {
+  // Even inside a caption script, romaji or English rows are not the wrapped Japanese
+  // sentences this pass targets.
+  const content = [
+    ...captionRowsHeader,
+    captionRow('0:00:10.00', '0:00:13.00', 172, 437, '（東）≪好きだと'),
+    captionRow('0:00:10.00', '0:00:13.00', 172, 497, '自覚してしまったものの➡'),
+    captionRow('0:00:20.00', '0:00:23.00', 172, 437, '（平）ん？'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 437, 'NOW LOADING'),
+    captionRow('0:00:30.00', '0:00:34.00', 640, 497, 'please wait'),
+  ].join('\n');
+
+  const cues = parseSubtitleCues(content, 'test.ass');
+
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    ['（東）≪好きだと\n自覚してしまったものの➡', '（平）ん？', 'NOW LOADING', 'please wait'],
+  );
 });
 
 test('parseSubtitleCues scales furigana geometry by PlayResY', () => {

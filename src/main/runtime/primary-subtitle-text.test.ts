@@ -688,6 +688,8 @@ test('resolvePrimarySubtitleText publishes a wrapped caption sentence as one cue
     'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(232,437)\\fscx50}（{\\fscx100}東{\\fscx50}）{\\fscx100}≪好きだと',
     'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(292,443)\\fscx50\\fscy50}じかく',
     'Dialogue: 0,0:02:42.33,0:02:44.43,Default,,0,0,0,,{\\pos(232,497)}自覚してしまったものの➡',
+    // A second labeled turn, so the script reads as broadcast captions.
+    'Dialogue: 0,0:02:44.43,0:02:47.37,Default,,0,0,0,,{\\pos(212,497)\\fscx50}（{\\fscx100}平{\\fscx50}）{\\fscx100}どうした？',
   ].join('\n');
   const cues = parseSubtitleCues(ass, 'polar-opposites-s02e09.ass');
 

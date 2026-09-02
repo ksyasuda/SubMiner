@@ -2359,6 +2359,33 @@ const CAPTION_SPANS: ReadonlyArray<readonly [open: string, close: string]> = [
 // furigana geometry is tuned for), or two when a ruby row lies between them. Rows at the
 // same height sit side by side, and rows further apart are separate placements.
 const MAX_CAPTION_ROW_GAP = 120;
+// Only a broadcast-caption script gets rows joined. Typesetters position rows for signs,
+// chat bubbles, and lyric stacks too, and there the continuation rule below has no
+// convention to read: sign text rarely carries sentence punctuation, so unrelated rows
+// would run together. A caption script announces itself by labelling speakers （名） and
+// bracketing off-screen speech in ≪…≫ / ⸨…⸩; typeset scripts use those in a handful of
+// lines at most. Measured over local tracks, caption scripts sit near 25% and every typeset
+// script below 1%, so the threshold has room on both sides. It is deliberately strict: a
+// caption script wrongly held back just keeps one sentence on two rows, while a typeset
+// script wrongly let through concatenates unrelated signs.
+const MIN_CAPTION_EVIDENCE_EVENTS = 2;
+const MIN_CAPTION_EVIDENCE_RATIO = 0.05;
+const CAPTION_EVIDENCE_PATTERN = /^（[^（）]{1,14}）|[≪⸨]/u;
+// Rows that carry no Japanese are not the broadcast captions this pass targets.
+const JAPANESE_SCRIPT_PATTERN = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
+function hasBroadcastCaptionConventions(cues: readonly AnnotatedSubtitleCue[]): boolean {
+  let evidence = 0;
+  let published = 0;
+  for (const cue of cues) {
+    if (!cue.text.trim()) continue;
+    published += 1;
+    if (CAPTION_EVIDENCE_PATTERN.test(cue.text)) evidence += 1;
+  }
+  return (
+    evidence >= MIN_CAPTION_EVIDENCE_EVENTS && evidence >= published * MIN_CAPTION_EVIDENCE_RATIO
+  );
+}
 
 function captionSpanDepth(text: string, [open, close]: readonly [string, string]): number {
   let depth = 0;
@@ -2398,7 +2425,8 @@ function isCaptionRowCandidate(cue: AnnotatedSubtitleCue): boolean {
     cue.effect.trim() === '' &&
     !cue.text.includes('\n') &&
     !hasAssTemporalOverride(cue.overrides) &&
-    (scaleY === null || scaleY > MAX_ASS_FURIGANA_SCALE_PERCENT)
+    (scaleY === null || scaleY > MAX_ASS_FURIGANA_SCALE_PERCENT) &&
+    JAPANESE_SCRIPT_PATTERN.test(cue.text)
   );
 }
 
@@ -2432,12 +2460,15 @@ function mergeCaptionRows(rows: readonly AnnotatedSubtitleCue[]): AnnotatedSubti
  * Join simultaneous caption rows that spell one utterance into a single cue, so the
  * overlay can wrap or flatten it like an authored `\N` line and the sidebar and mining
  * paths see the whole sentence. Rows stack top to bottom; each row joins the cue above it
- * only while `isCaptionRowContinuation` holds, so a second speaker starts a new cue.
+ * only while `isCaptionRowContinuation` holds, so a second speaker starts a new cue. The
+ * whole pass is skipped unless the script reads as broadcast captions.
  */
 function mergeAssCaptionRows(
   cues: AnnotatedSubtitleCue[],
   playResY: number | null,
 ): AnnotatedSubtitleCue[] {
+  if (!hasBroadcastCaptionConventions(cues)) return cues;
+
   const groups = new Map<string, AnnotatedSubtitleCue[]>();
   for (const cue of cues) {
     if (!isCaptionRowCandidate(cue)) continue;
