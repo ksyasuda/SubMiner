@@ -3,7 +3,7 @@ import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
 import {
   resolveCanonicalPrimarySubtitle,
   resolvePrimarySubtitleText,
-  stripCanonicalFragmentLines,
+  resolveRecordedPrimarySubtitleText,
 } from './primary-subtitle-text';
 
 type AnilistPostWatchRunOptions = {
@@ -131,10 +131,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       currentTimeSec: startSec,
       cues: deps.appState.activeParsedSubtitleCues,
     });
-  // When substitution declined because dialogue shares the screen with a song, record
-  // the dialogue alone rather than the combined dialogue-plus-fragments stack.
-  const stripFragmentsForRecording = (liveText: string, startSec: number) =>
-    stripCanonicalFragmentLines({
+  // Recorders see the same text the overlay displays: mpv's live `sub-text` lists every
+  // simultaneously active ASS event, including furigana events the parser folded into
+  // their base line. Cues the caller already resolved canonically are recorded one by
+  // one above; everything else goes through the shared recording resolution.
+  const resolveTextForRecording = (liveText: string, startSec: number): string =>
+    resolveRecordedPrimarySubtitleText({
       liveText,
       currentTimeSec: startSec,
       cues: deps.appState.activeParsedSubtitleCues,
@@ -218,7 +220,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         }
         return;
       }
-      text = stripFragmentsForRecording(text, start);
+      text = resolveTextForRecording(text, start);
       if (!text.trim()) {
         return;
       }
@@ -232,7 +234,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
       const canonical = resolveCanonicalSample(text, start);
       if (!canonical) {
-        const recordableText = stripFragmentsForRecording(text, start);
+        const recordableText = resolveTextForRecording(text, start);
         if (!recordableText.trim()) {
           return;
         }

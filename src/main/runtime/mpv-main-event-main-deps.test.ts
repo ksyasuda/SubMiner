@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseAssCues } from '../../core/services/subtitle-cue-parser';
 import { createBuildBindMpvMainEventHandlersMainDepsHandler } from './mpv-main-event-main-deps';
 
 test('mpv main event main deps map app state updates and delegate callbacks', async () => {
@@ -581,4 +582,157 @@ test('subtitle-track changes stop stale canonical cues from substituting immedia
   assert.deepEqual(appState.activeParsedSubtitleCues, []);
   assert.equal(appState.activeParsedSubtitleSource, null);
   assert.equal(handlers.resolveSubtitleText?.('今\n手にある'), '今\n手にある');
+});
+
+test('subtitle recorders drop ASS furigana events the same way the display does', () => {
+  // Broadcast-caption ASS (Caption2Ass style): furigana are separate half-scale events
+  // positioned above their base line, and mpv lists them as their own live lines.
+  const cues = parseAssCues(
+    [
+      '[Script Info]',
+      'PlayResX: 960',
+      'PlayResY: 540',
+      '',
+      '[V4+ Styles]',
+      'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+      'Style: Default,Yu Gothic,46,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,1,0,0,0,100,100,4,0,1,2,2,1,0,0,0,1',
+      '',
+      '[Events]',
+      'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+      'Dialogue: 0,0:04:56.26,0:04:59.63,Default,,0000,0000,0000,,{\\pos(472,443)\\fscx50\\fscy50}あくむ',
+      'Dialogue: 0,0:04:56.26,0:04:59.63,Default,,0000,0000,0000,,{\\pos(172,497)}こんな短時間で{\\fscx50}　{\\fscx100}悪夢{\\fscx50}　{\\fscx100}見んなよ{\\fscx50}。',
+      'Dialogue: 0,0:04:59.63,0:05:03.54,Default,,0000,0000,0000,,{\\pos(172,407)\\fscx50}（{\\fscx100}平{\\fscx50}）{\\fscx100}暗記教科は{\\fscx50}　{\\fscx100}もう',
+      'Dialogue: 0,0:04:59.63,0:05:03.54,Default,,0000,0000,0000,,{\\pos(332,443)\\fscx50\\fscy50}かた',
+      'Dialogue: 0,0:04:59.63,0:05:03.54,Default,,0000,0000,0000,,{\\pos(412,443)\\fscx50\\fscy50}ぱし',
+      'Dialogue: 0,0:04:59.63,0:05:03.54,Default,,0000,0000,0000,,{\\pos(172,497)}とにかく片っ端から覚えるんだよ{\\fscx50}。',
+    ].join('\n'),
+  );
+  assert.deepEqual(
+    cues.map((cue) => cue.text),
+    [
+      'こんな短時間で　悪夢　見んなよ。',
+      '（平）暗記教科は　もう',
+      'とにかく片っ端から覚えるんだよ。',
+    ],
+  );
+
+  const immersion: string[] = [];
+  const timing: string[] = [];
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: { currentTimePos: 299.7 },
+      immersionTracker: { recordSubtitleLine: (text: string) => immersion.push(text) },
+      subtitleTimingTracker: { recordSubtitle: (text: string) => timing.push(text) },
+      activeParsedSubtitleCues: cues,
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  const liveText = '（平）暗記教科は　もう\nかた\nぱし\nとにかく片っ端から覚えるんだよ。';
+  const expected = '（平）暗記教科は　もう\n\nとにかく片っ端から覚えるんだよ。';
+  assert.equal(handlers.resolveSubtitleText?.(liveText), expected);
+  handlers.recordImmersionSubtitleLine(liveText, 299.63, 303.54);
+  handlers.recordSubtitleTiming(liveText, 299.63, 303.54);
+
+  assert.deepEqual(immersion, [expected]);
+  assert.deepEqual(timing, [expected]);
+});
+
+test('a resolved line survives recording while a fragment grid is on screen', () => {
+  // Fragment stripping drops every line it can trace back to a cue, and returns nothing
+  // at all when a fragment grid is nearby. Text the parsed cues already resolved is a
+  // complete line, not raw mpv output, so it must not be fed through that path.
+  const immersion: string[] = [];
+  const timing: string[] = [];
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: { currentTimePos: 3.2 },
+      immersionTracker: { recordSubtitleLine: (text: string) => immersion.push(text) },
+      subtitleTimingTracker: { recordSubtitle: (text: string) => timing.push(text) },
+      activeParsedSubtitleCues: [
+        { startTime: 3, endTime: 6, text: '飛び越えてみたくて', source: 'canonical-ass' },
+        {
+          startTime: 3,
+          endTime: 6,
+          text: 'MaidCafeMaidCafe',
+          source: 'reconstructed-ass',
+          assLayout: { kind: 'fragment-grid', sourceOrder: 2 },
+        },
+      ],
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  // The grid fragment beside the lyric keeps canonical substitution from applying, so
+  // recording falls to the parsed view -- which is where the whole line is recovered.
+  const liveText = '飛び越え\nMaid';
+  assert.equal(handlers.resolveSubtitleText?.(liveText), '飛び越えてみたくて');
+  handlers.recordImmersionSubtitleLine(liveText, 3, 6);
+  handlers.recordSubtitleTiming(liveText, 3, 6);
+
+  assert.deepEqual(immersion, ['飛び越えてみたくて']);
+  assert.deepEqual(timing, ['飛び越えてみたくて']);
+
+  // A spacer event left as literal control debris is not a subtitle line. The display
+  // drops it, so no recorder may keep it either.
+  assert.equal(handlers.resolveSubtitleText?.('\\'), '');
+  handlers.recordImmersionSubtitleLine('\\', 3, 6);
+  handlers.recordSubtitleTiming('\\', 3, 6);
+
+  assert.equal(immersion.length, 1);
+  assert.equal(timing.length, 1);
 });

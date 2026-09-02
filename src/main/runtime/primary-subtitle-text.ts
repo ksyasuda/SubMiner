@@ -26,6 +26,13 @@ function cuesUseAssSyntax(cues: readonly SubtitleCue[] | null | undefined): bool
   );
 }
 
+function decodedLiveText(
+  liveText: string,
+  cues: readonly SubtitleCue[] | null | undefined,
+): string {
+  return cuesUseAssSyntax(cues) ? removeAssControlDebrisLines(liveText) : liveText;
+}
+
 function animationSpan(cue: SubtitleCue): { start: number; end: number } {
   return {
     start: cue.animationStartTime ?? cue.startTime,
@@ -290,14 +297,34 @@ export function stripCanonicalFragmentLines(options: {
   return removeLiveGlyphFragmentLines(options.liveText);
 }
 
+/**
+ * Recording text for a live sample. Callers substitute canonical cues themselves and
+ * record those cue by cue, so what is resolved here is the parsed view -- the one that
+ * folds ASS furigana events back into their base line. Its text is already a complete
+ * line, while fragment stripping takes raw mpv text and would discard a resolved line
+ * whole while a fragment grid is on screen, so only one of the two ever runs.
+ */
+export function resolveRecordedPrimarySubtitleText(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): string {
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  if (!liveText.trim()) {
+    return liveText;
+  }
+  return (
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
+    stripCanonicalFragmentLines({ ...options, liveText })
+  );
+}
+
 export function resolvePrimarySubtitleText(options: {
   liveText: string;
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
-  const liveText = cuesUseAssSyntax(options.cues)
-    ? removeAssControlDebrisLines(options.liveText)
-    : options.liveText;
+  const liveText = decodedLiveText(options.liveText, options.cues);
   if (!liveText.trim()) {
     return liveText;
   }
