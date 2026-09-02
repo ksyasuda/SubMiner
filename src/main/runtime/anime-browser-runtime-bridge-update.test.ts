@@ -208,3 +208,57 @@ test('requests that arrive mid-update wait for the new bridge instead of startin
   assert.equal(started(), 2);
   assert.equal(ensured!.install?.version, 'v1.0.6.0');
 });
+
+test('an update waits for an in-flight start and stops its sidecar before commit', async () => {
+  let releaseFirstStart: () => void = () => undefined;
+  const firstStartGate = new Promise<void>((resolve) => {
+    releaseFirstStart = resolve;
+  });
+  let markFirstStartEntered: () => void = () => undefined;
+  const firstStartEntered = new Promise<void>((resolve) => {
+    markFirstStartEntered = resolve;
+  });
+  const events: string[] = [];
+  let startCount = 0;
+  let current = OLD;
+  const { runtime } = await setup({
+    ensureBinaries: async () => current,
+    stageBridgeUpdate: async () => ({
+      version: LATEST,
+      commit: async () => {
+        events.push('commit');
+        current = NEW;
+        return NEW;
+      },
+    }),
+    startSidecar: async () => {
+      const id = ++startCount;
+      events.push(`start:${id}`);
+      if (id === 1) {
+        markFirstStartEntered();
+        await firstStartGate;
+      }
+      return {
+        client: { listAnimeSources: async () => [] } as unknown as AnimeBridgeClient,
+        baseUrl: `http://127.0.0.1:${id}`,
+        port: id,
+        stop: async () => {
+          events.push(`stop:${id}`);
+        },
+        onExit: () => undefined,
+      };
+    },
+  });
+
+  const firstStart = runtime.ensureBridge();
+  await firstStartEntered;
+  const update = runtime.updateBridge();
+  await tick();
+  assert.deepEqual(events, ['start:1']);
+
+  releaseFirstStart();
+  await Promise.all([firstStart, update]);
+
+  assert.deepEqual(events, ['start:1', 'stop:1', 'commit', 'start:2']);
+  assert.equal(runtime.getSnapshot().bridge.install?.version, NEW.version);
+});

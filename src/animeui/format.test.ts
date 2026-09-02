@@ -84,8 +84,16 @@ test('describeBridgeInstall says who updates the bridge', () => {
     }),
     /v1\.0\.6\.0 is available/,
   );
-  assert.match(
-    describeBridgeInstall({ origin: 'managed', version: null, dir: '/d', updateAvailable: null }),
-    /unknown version.*up to date/,
-  );
+});
+
+test('describeBridgeInstall does not treat an unchecked managed bridge as up to date', () => {
+  const description = describeBridgeInstall({
+    origin: 'managed',
+    version: null,
+    dir: '/d',
+    updateAvailable: null,
+  });
+
+  assert.match(description, /unknown version.*checks this installation for updates after startup/);
+  assert.doesNotMatch(description, /up to date/);
 });

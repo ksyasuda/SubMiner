@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -231,4 +231,60 @@ test('stageBridgeUpdate downloads beside the install and commit swaps it in', as
   assert.ok(!(await exists(path.join(managed, 'MExtensionServer-v1.0.5.0.jar'))));
   assert.ok(!(await exists(`${managed}.next`)));
   assert.ok(await exists(path.join(managed, BUNDLE_MARKER_FILE)));
+});
+
+test('stageBridgeUpdate commit leaves the existing install in place when its backup move fails', async () => {
+  const root = await tempRoot();
+  const managed = path.join(root, 'managed');
+  await writeBundle(managed, 'MExtensionServer-v1.0.5.0.jar');
+  await writeBundleMarker(managed, 'v1.0.5.0');
+  const { options } = fakeUpstream();
+  const staged = await stageBridgeUpdate({
+    ...options,
+    installDir: managed,
+    systemDirs: [],
+    renameImpl: async () => {
+      throw new Error('backup move failed');
+    },
+  });
+
+  await assert.rejects(staged.commit(), /backup move failed/);
+
+  assert.ok(await exists(path.join(managed, 'MExtensionServer-v1.0.5.0.jar')));
+  assert.equal(await readBundleMarker(managed), 'v1.0.5.0');
+  assert.ok(await exists(path.join(`${managed}.next`, `MExtensionServer-${LATEST}.jar`)));
+  assert.deepEqual(
+    (await readdir(root)).filter((entry) => entry.startsWith('managed.backup-')),
+    [],
+  );
+});
+
+test('stageBridgeUpdate commit restores the existing install when activation fails', async () => {
+  const root = await tempRoot();
+  const managed = path.join(root, 'managed');
+  await writeBundle(managed, 'MExtensionServer-v1.0.5.0.jar');
+  await writeBundleMarker(managed, 'v1.0.5.0');
+  const { options } = fakeUpstream();
+  let renameCalls = 0;
+  const staged = await stageBridgeUpdate({
+    ...options,
+    installDir: managed,
+    systemDirs: [],
+    renameImpl: async (fromPath, toPath) => {
+      renameCalls += 1;
+      if (renameCalls === 2) throw new Error('activation failed');
+      await rename(fromPath, toPath);
+    },
+  });
+
+  await assert.rejects(staged.commit(), /activation failed/);
+
+  assert.equal(renameCalls, 3);
+  assert.ok(await exists(path.join(managed, 'MExtensionServer-v1.0.5.0.jar')));
+  assert.equal(await readBundleMarker(managed), 'v1.0.5.0');
+  assert.ok(await exists(path.join(`${managed}.next`, `MExtensionServer-${LATEST}.jar`)));
+  assert.deepEqual(
+    (await readdir(root)).filter((entry) => entry.startsWith('managed.backup-')),
+    [],
+  );
 });

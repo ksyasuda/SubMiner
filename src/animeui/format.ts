@@ -45,5 +45,5 @@ export function describeBridgeInstall(install: AnimeBrowserBridgeInstall | null)
   if (install.updateAvailable !== null) {
     return `M-Extension-Server ${version} in ${install.dir}, downloaded by SubMiner. ${install.updateAvailable} is available from the banner above.`;
   }
-  return `M-Extension-Server ${version} in ${install.dir}, downloaded by SubMiner and up to date.`;
+  return `M-Extension-Server ${version} in ${install.dir}, downloaded by SubMiner. SubMiner checks this installation for updates after startup.`;
 }

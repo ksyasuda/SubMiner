@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   bundleReleaseUrl,
@@ -70,6 +70,8 @@ export interface EnsureBridgeOptions extends BridgeReleaseOptions {
   systemDirs?: string[];
   /** Replaces the unzip/tar extraction. Tests only. */
   extractImpl?: (zipPath: string, targetDir: string) => Promise<void>;
+  /** Replaces atomic directory moves. Tests only. */
+  renameImpl?: typeof rename;
   onProgress?: (progress: InstallProgress) => void;
 }
 
@@ -297,12 +299,41 @@ export async function stageBridgeUpdate(options: EnsureBridgeOptions): Promise<S
   return {
     version: downloaded.tagName,
     commit: async () => {
-      await rm(options.installDir, { recursive: true, force: true });
-      await rename(stagingDir, options.installDir);
-      const binaries = await findBundleBinaries(options.installDir);
-      if (!binaries)
-        throw new Error('The updated anime bridge is missing its java runtime or jar.');
-      return describeInstall(binaries, options.installDir, 'managed');
+      const backupRoot = await mkdtemp(`${options.installDir}.backup-`);
+      const backupDir = path.join(backupRoot, 'previous');
+      const renameImpl = options.renameImpl ?? rename;
+      let backupHoldsInstall = false;
+
+      try {
+        await renameImpl(options.installDir, backupDir);
+        backupHoldsInstall = true;
+        try {
+          await renameImpl(stagingDir, options.installDir);
+        } catch (replaceError) {
+          try {
+            await renameImpl(backupDir, options.installDir);
+            backupHoldsInstall = false;
+          } catch (restoreError) {
+            throw new AggregateError(
+              [replaceError, restoreError],
+              `Failed to activate the staged anime bridge and restore the previous install. ` +
+                `The previous install remains at ${backupDir}.`,
+            );
+          }
+          throw replaceError;
+        }
+
+        const binaries = await findBundleBinaries(options.installDir);
+        if (!binaries)
+          throw new Error('The updated anime bridge is missing its java runtime or jar.');
+        await rm(backupRoot, { recursive: true, force: true });
+        backupHoldsInstall = false;
+        return describeInstall(binaries, options.installDir, 'managed');
+      } finally {
+        if (!backupHoldsInstall) {
+          await rm(backupRoot, { recursive: true, force: true });
+        }
+      }
     },
   };
 }

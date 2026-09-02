@@ -2,7 +2,7 @@
 
 pkgname=subminer-bin
 pkgver=0.6.2
-pkgrel=1
+pkgrel=2
 pkgdesc='All-in-one sentence mining overlay with AnkiConnect and dictionary integration'
 arch=('x86_64')
 url='https://github.com/ksyasuda/SubMiner'

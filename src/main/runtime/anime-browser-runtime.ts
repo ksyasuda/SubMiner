@@ -250,11 +250,17 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
 
   /** Stop the bridge and its proxy on purpose, without disturbing playback state. */
   async function stopBridge(): Promise<void> {
+    const pendingStart = starting;
+    starting = null;
+    try {
+      await pendingStart;
+    } catch {
+      // A failed start has no sidecar to stop.
+    }
     const handle = sidecar;
     const proxy = stripProxy;
     sidecar = null;
     stripProxy = null;
-    starting = null;
     await proxy?.close();
     await handle?.stop();
   }
