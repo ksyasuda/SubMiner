@@ -503,13 +503,20 @@ test('canonical ASS cues replace live glyph spam for display, history, and immer
   assert.deepEqual(timing.slice(3), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
   assert.equal(immersion.length, 3);
 
-  // A jump of exactly the seek threshold counts as a seek, matching the time-pos
-  // handler's own `>=` boundary.
-  handlers.onTimePosUpdate?.(4.5);
-  handlers.onTimePosUpdate?.(2);
+  // Jumping back to a brief previous line moves time-pos by less than the general
+  // seek threshold. It is still a backward seek, so the revisited line records
+  // again; otherwise multi-line copy would keep treating the later line as current.
+  handlers.onTimePosUpdate?.(3.9);
+  handlers.onTimePosUpdate?.(2.9);
   handlers.recordSubtitleTiming('今', 0.8, 1.5);
 
   assert.deepEqual(timing.slice(4), [{ text: '今　手にある物差しでは', start: 1.2, end: 3.8 }]);
+
+  // Tiny time-pos jitter is not a seek and must not re-record the line.
+  handlers.onTimePosUpdate?.(3.0);
+  handlers.onTimePosUpdate?.(2.9);
+  handlers.recordSubtitleTiming('今', 0.8, 1.5);
+  assert.equal(timing.length, 5);
 
   handlers.recordImmersionSubtitleLine('Maid\nCafe', 10, 12);
   handlers.recordSubtitleTiming('Maid\nCafe', 10, 12);

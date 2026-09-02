@@ -244,6 +244,35 @@ test('handleMultiCopyDigit copies available history and reports truncation', () 
   assert.equal(osd.at(-1), 'Only 2 lines available, copied 2');
 });
 
+test('handleMultiCopyDigit copies backward from the current subtitle after a backward seek', () => {
+  const copied: string[] = [];
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('A', 1, 2);
+    tracker.recordSubtitle('B', 3, 4);
+    tracker.recordSubtitle('C', 5, 6);
+    tracker.recordSubtitle('B', 3, 4);
+
+    const deps = {
+      subtitleTimingTracker: tracker,
+      writeClipboardText: (text: string) => copied.push(text),
+      showMpvOsd: () => {},
+    };
+
+    handleMultiCopyDigit(1, deps);
+    handleMultiCopyDigit(2, deps);
+
+    assert.deepEqual(copied, ['B', 'A\n\nB']);
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'A', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'B', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
 test('handleMineSentenceDigit reports async create failures', async () => {
   const osd: string[] = [];
   const logs: Array<{ message: string; err: unknown }> = [];
@@ -339,6 +368,22 @@ test('handleMineSentenceDigit keeps per-entry timings when subtitle text repeats
     await new Promise((resolve) => setImmediate(resolve));
 
     assert.deepEqual(created, [{ sentence: 'same other same', startTime: 1, endTime: 6 }]);
+  } finally {
+    tracker.destroy();
+  }
+});
+
+test('subtitle timing history preserves adjacent repeated text with distinct timings', () => {
+  const tracker = new SubtitleTimingTracker();
+
+  try {
+    tracker.recordSubtitle('same', 1, 2);
+    tracker.recordSubtitle('same', 3, 4);
+
+    assert.deepEqual(tracker.getRecentEntries(2), [
+      { displayText: 'same', startTime: 1, endTime: 2, secondaryText: undefined },
+      { displayText: 'same', startTime: 3, endTime: 4, secondaryText: undefined },
+    ]);
   } finally {
     tracker.destroy();
   }

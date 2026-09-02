@@ -1,6 +1,5 @@
 import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
 import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
-import { SEEK_LIKE_TIME_DELTA_SECONDS } from './mpv-main-event-actions';
 import {
   resolveCanonicalPrimarySubtitle,
   resolvePrimarySubtitleText,
@@ -115,6 +114,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   // after the change is dropped instead of landing in the next session.
   let subtitleSessionEpoch = 0;
   let lastTimePosForTimingReset: number | null = null;
+  // Small margin so time-pos jitter is not mistaken for a backward seek.
+  const BACKWARD_SEEK_TIMING_RESET_SECONDS = 0.25;
   const canonicalCueKey = (cue: SubtitleCue): string =>
     `${cue.startTime}|${cue.endTime}|${cue.text}`;
   const resetSubtitleDeduplication = (): void => {
@@ -344,13 +345,15 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.reportJellyfinRemoteProgress(forceImmediate),
     consumeExplicitSeek: deps.consumeExplicitSeek,
     onTimePosUpdate: (time: number) => {
-      // Timing history is a viewing log: after a real backward seek, a rewatched
-      // canonical line should enter it again. Immersion stats keep their
-      // once-per-media deduplication and are not reset here.
+      // Timing history is a viewing log: after any backward seek, a rewatched canonical
+      // line should enter it again so multi-line copy treats it as the current line.
+      // Playback never moves time-pos backward on its own, so even a short jump to a
+      // brief previous line counts. Immersion stats keep their once-per-media
+      // deduplication and are not reset here.
       if (
         Number.isFinite(time) &&
         lastTimePosForTimingReset !== null &&
-        time <= lastTimePosForTimingReset - SEEK_LIKE_TIME_DELTA_SECONDS
+        time <= lastTimePosForTimingReset - BACKWARD_SEEK_TIMING_RESET_SECONDS
       ) {
         recordedTimingCanonicalKeys.clear();
       }
