@@ -102,6 +102,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     extensionsDir: '',
     repos: [],
     preferredQuality: '',
+    bridgeDir: '',
   },
   jimaku: {
     apiBaseUrl: 'https://jimaku.cc',

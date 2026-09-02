@@ -543,7 +543,11 @@ import {
 } from './main/runtime/setup-window-factory';
 import { createAnimeBrowserApplicationRuntime } from './main/runtime/anime-browser-application-runtime';
 import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
-import { ensureBridgeBinaries } from './main/runtime/anime-bridge-installer';
+import {
+  ensureBridgeBinaries,
+  findBridgeUpdate,
+  stageBridgeUpdate,
+} from './main/runtime/anime-bridge-installer';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
 import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
@@ -3332,6 +3336,13 @@ const animeBrowserApplicationRuntime = createAnimeBrowserApplicationRuntime({
     preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
     ensureBinaries: (onProgress) =>
       ensureBridgeBinaries({
+        installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
+        configuredDir: configService.getConfig().anime?.bridgeDir,
+        onProgress,
+      }),
+    checkBridgeUpdate: (install) => findBridgeUpdate(install),
+    stageBridgeUpdate: (onProgress) =>
+      stageBridgeUpdate({
         installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
         onProgress,
       }),

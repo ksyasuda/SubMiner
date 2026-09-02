@@ -215,6 +215,10 @@ Install [`subminer-bin`](https://aur.archlinux.org/packages/subminer-bin) from t
 paru -S subminer-bin
 ```
 
+For the [anime browser](anime-browser.md#the-bridge), optionally add
+`mangatan-extension-server`. SubMiner picks the package up instead of
+downloading its own copy of the bridge, and pacman keeps it updated.
+
 Or manually:
 
 ```bash

@@ -32,6 +32,7 @@ import { applyPreferenceValue, parsePreferences } from '../../anime-bridge/prefe
 import type { SourcePreferenceView } from '../../anime-bridge/preferences';
 import { ALL_SOURCES_ID } from '../../types/anime-browser';
 import type {
+  AnimeBrowserBridgeInstall,
   AnimeBrowserBridgeState,
   AnimeBrowserDetails,
   AnimeBrowserEntry,
@@ -54,13 +55,23 @@ import { createAnimeBrowserQueue } from './anime-browser-queue';
 import type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
 export type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
 
-const IDLE_STATE: AnimeBrowserBridgeState = { stage: 'idle', progress: null, message: null };
+const IDLE_STATE: AnimeBrowserBridgeState = {
+  stage: 'idle',
+  progress: null,
+  message: null,
+  install: null,
+};
+
+/** Stage, progress and message; `install` is carried across every state change. */
+type BridgeStateChange = Omit<AnimeBrowserBridgeState, 'install'>;
 
 export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let bridgeState: AnimeBrowserBridgeState = IDLE_STATE;
+  let install: AnimeBrowserBridgeInstall | null = null;
   let sidecar: SidecarHandle | null = null;
   let stripProxy: StreamStripProxyHandle | null = null;
   let starting: Promise<SidecarHandle> | null = null;
+  let updating: Promise<AnimeBrowserBridgeState> | null = null;
   let extensions: InstalledExtension[] = [];
   let sources: ExtensionSource[] = [];
   let loadFailures: ExtensionLoadFailure[] = [];
@@ -78,9 +89,9 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     return created;
   }
 
-  function setState(state: AnimeBrowserBridgeState): void {
-    bridgeState = state;
-    deps.onBridgeState(state);
+  function setState(change: BridgeStateChange): void {
+    bridgeState = { ...change, install };
+    deps.onBridgeState(bridgeState);
   }
 
   async function sourceFor(sourceId: string) {
@@ -119,13 +130,23 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   }
 
   async function startBridge(): Promise<SidecarHandle> {
-    const binaries = await deps.ensureBinaries((progress) =>
+    const resolved = await deps.ensureBinaries((progress) =>
       setState({ stage: progress.stage, progress: progress.progress, message: null }),
+    );
+    install = {
+      origin: resolved.origin,
+      version: resolved.version,
+      dir: resolved.dir,
+      updateAvailable: resolved.updateAvailable,
+    };
+    deps.log(
+      `[anime-browser] bridge ${resolved.version ?? 'unknown version'} (${resolved.origin}) ` +
+        `from ${resolved.dir}`,
     );
 
     setState({ stage: 'starting', progress: null, message: null });
     const handle = await (deps.startSidecar ?? startSidecar)({
-      binaries,
+      binaries: resolved,
       onLog: (line) => deps.log(`[anime-bridge] ${line}`),
     });
     sidecar = handle;
@@ -167,7 +188,31 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     }
 
     await scanExtensions(handle);
+    void checkForBridgeUpdate(handle);
     return handle;
+  }
+
+  /**
+   * Ask upstream whether a managed install is behind, after the bridge is up
+   * so a slow or failed GitHub call never delays a search. The answer lands
+   * in `install.updateAvailable` and is re-broadcast on the current state.
+   */
+  async function checkForBridgeUpdate(handle: SidecarHandle): Promise<void> {
+    if (install === null || install.origin !== 'managed') return;
+    try {
+      const latest = await deps.checkBridgeUpdate(install);
+      // The bridge may have been restarted or updated while we waited.
+      if (sidecar !== handle || install === null || latest === install.updateAvailable) return;
+      install = { ...install, updateAvailable: latest };
+      if (latest !== null) deps.log(`[anime-browser] bridge update available: ${latest}`);
+      setState({
+        stage: bridgeState.stage,
+        progress: bridgeState.progress,
+        message: bridgeState.message,
+      });
+    } catch (error) {
+      deps.log(`[anime-browser] bridge update check failed: ${describeError(error)}`);
+    }
   }
 
   /**
@@ -203,7 +248,25 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     });
   }
 
+  /** Stop the bridge and its proxy on purpose, without disturbing playback state. */
+  async function stopBridge(): Promise<void> {
+    const handle = sidecar;
+    const proxy = stripProxy;
+    sidecar = null;
+    stripProxy = null;
+    starting = null;
+    await proxy?.close();
+    await handle?.stop();
+  }
+
   async function ensureBridge(): Promise<AnimeBrowserBridgeState> {
+    // A request that lands while an update is swapping directories would start
+    // the old bridge out of a tree that is about to be deleted.
+    if (updating) await updating;
+    return startIfNeeded();
+  }
+
+  async function startIfNeeded(): Promise<AnimeBrowserBridgeState> {
     if (sidecar) return bridgeState;
     // Collapse concurrent callers onto one start; the UI calls this eagerly.
     if (!starting) {
@@ -219,6 +282,52 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       return bridgeState;
     }
     return bridgeState;
+  }
+
+  /**
+   * Move a managed install to the newest release: download beside it while
+   * the old bridge keeps serving, then stop, swap, and restart. A failed
+   * download leaves the old bridge running; a failed swap is reported as a
+   * failed start, which the next request retries.
+   */
+  function updateBridge(): Promise<AnimeBrowserBridgeState> {
+    if (updating) return updating;
+    if (install && install.origin !== 'managed') {
+      return Promise.reject(
+        new Error(`The bridge in ${install.dir} is managed outside SubMiner; update it there.`),
+      );
+    }
+    updating = (async () => {
+      let staged;
+      try {
+        staged = await deps.stageBridgeUpdate((progress) =>
+          setState({ stage: progress.stage, progress: progress.progress, message: null }),
+        );
+      } catch (error) {
+        setState({
+          stage: sidecar ? 'ready' : 'failed',
+          progress: null,
+          message: `Bridge update failed: ${describeError(error)}`,
+        });
+        return bridgeState;
+      }
+      await stopBridge();
+      try {
+        await staged.commit();
+      } catch (error) {
+        setState({
+          stage: 'failed',
+          progress: null,
+          message: `Bridge update failed: ${describeError(error)}`,
+        });
+        return bridgeState;
+      }
+      // Re-resolves the install from disk and re-checks upstream once it is up.
+      return startIfNeeded();
+    })().finally(() => {
+      updating = null;
+    });
+    return updating;
   }
 
   async function installExtensionFrom(extension: RepoExtension): Promise<void> {
@@ -404,6 +513,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     ensureBridge,
+    updateBridge,
 
     /**
      * Extensions available from the configured repositories, annotated with
@@ -670,16 +780,11 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     async dispose(): Promise<void> {
-      const handle = sidecar;
-      const proxy = stripProxy;
-      sidecar = null;
-      stripProxy = null;
-      starting = null;
+      const stopping = stopBridge();
       setState(IDLE_STATE);
       await queue.dispose();
       await playback.dispose();
-      await proxy?.close();
-      await handle?.stop();
+      await stopping;
     },
   };
 }

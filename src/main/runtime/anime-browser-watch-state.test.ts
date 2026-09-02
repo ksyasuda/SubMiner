@@ -20,6 +20,10 @@ async function setupRuntime(overrides: Partial<AnimeBrowserRuntimeDeps> = {}) {
     setRepos: () => undefined,
     preferencesFile: path.join(dir, 'preferences.json'),
     ensureBinaries: async () => ({}) as never,
+    checkBridgeUpdate: async () => null,
+    stageBridgeUpdate: async () => {
+      throw new Error('not under test');
+    },
     sendMpvCommand: () => undefined,
     ensureMpvConnected: async () => true,
     onBridgeState: () => undefined,

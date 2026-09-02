@@ -73,6 +73,12 @@
       <span class="bridge-dot" id="bridge-dot"></span>
       <span class="bridge-message" id="bridge-message"></span>
       <span class="bridge-meter hidden" id="bridge-meter"><i id="bridge-meter-fill"></i></span>
+      <button
+        class="ghost-button bridge-update hidden"
+        id="bridge-update"
+        type="button"
+        title="Downloads the verified release and restarts the bridge. A playing episode's stream stops."
+      ></button>
     </div>
 
     <section class="settings hidden" id="settings" role="tabpanel" aria-labelledby="tab-settings">
@@ -122,6 +128,9 @@
       </h3>
       <div class="lang-filter" id="lang-filter" role="group" aria-label="Filter by language"></div>
       <div class="ext-list" id="extensions-list" aria-label="Available extensions"></div>
+
+      <h3 class="ext-group-title">Bridge</h3>
+      <p class="repo-hint" id="bridge-info"></p>
     </section>
 
     <main class="layout" id="layout" role="tabpanel" aria-labelledby="tab-browse">

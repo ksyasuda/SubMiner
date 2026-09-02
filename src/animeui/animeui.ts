@@ -57,6 +57,7 @@ const banner = el<HTMLDivElement>('bridge-banner');
 const bannerMessage = el<HTMLSpanElement>('bridge-message');
 const bannerMeter = el<HTMLSpanElement>('bridge-meter');
 const bannerMeterFill = el<HTMLElement>('bridge-meter-fill');
+const bannerUpdate = el<HTMLButtonElement>('bridge-update');
 const statusMessage = el<HTMLSpanElement>('status-message');
 const browseTab = el<HTMLButtonElement>('tab-browse');
 const extensionsTab = el<HTMLButtonElement>('tab-extensions');
@@ -121,31 +122,33 @@ const BRIDGE_LABELS: Record<AnimeBrowserBridgeState['stage'], string> = {
   idle: 'Starting the extension bridge',
   locating: 'Looking up the extension bridge release',
   downloading: 'Downloading the extension bridge',
-  verifying: 'Verifying the download',
   extracting: 'Unpacking the extension bridge',
   starting: 'Starting the extension bridge',
   ready: 'Bridge ready',
   failed: 'Bridge failed to start',
 };
 
-const BUSY_STAGES = new Set([
-  'idle',
-  'locating',
-  'downloading',
-  'verifying',
-  'extracting',
-  'starting',
-]);
+const BUSY_STAGES = new Set(['idle', 'locating', 'downloading', 'extracting', 'starting']);
 
 function renderBridgeState(state: AnimeBrowserBridgeState): void {
   const busy = BUSY_STAGES.has(state.stage);
   banner.dataset.stage = state.stage;
   banner.dataset.busy = String(busy);
 
+  // An update is only offered from a running bridge; mid-start it would race
+  // the start it interrupts.
+  const update = state.stage === 'ready' ? (state.install?.updateAvailable ?? null) : null;
   // Once ready with nothing to report, the banner has nothing to say.
-  const hide = state.stage === 'ready' && state.message === null;
+  const hide = state.stage === 'ready' && state.message === null && update === null;
   banner.classList.toggle('hidden', hide);
-  bannerMessage.textContent = state.message ?? BRIDGE_LABELS[state.stage];
+  bannerMessage.textContent =
+    state.message ??
+    (update === null
+      ? BRIDGE_LABELS[state.stage]
+      : `Extension bridge ${state.install?.version ?? 'of unknown version'} is installed; ${update} is available.`);
+  bannerUpdate.classList.toggle('hidden', update === null);
+  bannerUpdate.textContent = update === null ? '' : `Update to ${update}`;
+  bannerUpdate.disabled = busy;
 
   const showMeter = state.progress !== null;
   bannerMeter.classList.toggle('hidden', !showMeter);
@@ -438,6 +441,31 @@ sourceSelect.addEventListener('change', () => {
 
 loadMoreButton.addEventListener('click', () => void loadNextPage());
 
+bannerUpdate.addEventListener('click', () => {
+  void (async () => {
+    bannerUpdate.disabled = true;
+    try {
+      const state = await api.updateBridge();
+      renderBridgeState(state);
+      if (state.stage === 'ready' && state.install?.updateAvailable === null) {
+        setStatus(
+          `Extension bridge updated to ${state.install.version ?? 'the pinned release'}.`,
+          'ok',
+        );
+      } else if (state.message !== null) {
+        setStatus(state.message, 'error');
+      }
+      // The bridge restarted, so the source list is fresh from disk.
+      const snapshot = await api.getSnapshot();
+      renderSources(snapshot.sources, snapshot.selectedSourceId);
+      if (currentView === 'extensions') await extensions.refresh();
+    } catch (error) {
+      setStatus(describe(error), 'error');
+      bannerUpdate.disabled = false;
+    }
+  })();
+});
+
 api.onBridgeState(renderBridgeState);
 
 // The queue changes without this window asking: it advances by itself when an
@@ -450,7 +478,7 @@ api.onPlaybackState((state) => {
 });
 
 void (async () => {
-  renderBridgeState({ stage: 'idle', progress: null, message: null });
+  renderBridgeState({ stage: 'idle', progress: null, message: null, install: null });
   // A queue survives the window being closed and reopened, so start from what
   // the main process already holds rather than from empty.
   void api.getQueue().then(
@@ -485,7 +513,12 @@ void (async () => {
   } catch (error) {
     // Without this the window keeps the "starting" banner up forever, with the
     // search box disabled and nothing saying why.
-    renderBridgeState({ stage: 'failed', progress: null, message: describe(error) });
+    renderBridgeState({
+      stage: 'failed',
+      progress: null,
+      message: describe(error),
+      install: null,
+    });
     setStatus(describe(error), 'error');
   }
 })();

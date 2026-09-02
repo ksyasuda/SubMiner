@@ -58,6 +58,12 @@ export interface AnimeConfig {
   repos?: string[];
   /** Preferred stream label, matched as a substring, e.g. "1080". */
   preferredQuality?: string;
+  /**
+   * Directory holding an M-Extension-Server bundle (java runtime plus server
+   * jar) to run instead of the copy SubMiner downloads. Empty checks the
+   * package-manager location, then the managed copy.
+   */
+  bridgeDir?: string;
 }
 
 export interface JimakuConfig {

@@ -40,6 +40,8 @@ export function createAnimeBrowserAPI(ipcRenderer: AnimeBrowserIpcRenderer): Ani
       ipcRenderer.invoke(request.animeBrowserGetSnapshot, sessionId),
     ensureBridge: (): Promise<AnimeBrowserBridgeState> =>
       ipcRenderer.invoke(request.animeBrowserEnsureBridge, sessionId),
+    updateBridge: (): Promise<AnimeBrowserBridgeState> =>
+      ipcRenderer.invoke(request.animeBrowserUpdateBridge),
     selectSource: (sourceId: string): Promise<void> =>
       ipcRenderer.invoke(request.animeBrowserSelectSource, sessionId, sourceId),
     search: (query: string, page?: number): Promise<AnimeBrowserSearchResult> =>

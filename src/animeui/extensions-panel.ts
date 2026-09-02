@@ -1,6 +1,6 @@
 import { describe, el } from './dom';
 import { buildIconIndex, iconMonogram, isSafeIconUrl, repoFaviconUrl } from './extension-icons';
-import { describeInstalled } from './format';
+import { describeBridgeInstall, describeInstalled } from './format';
 import {
   collectLanguages,
   filterByLanguage,
@@ -121,6 +121,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   const { api, setStatus, onSourcesChanged } = options;
 
   const extensionsDirLabel = el<HTMLSpanElement>('extensions-dir');
+  const bridgeInfo = el<HTMLParagraphElement>('bridge-info');
   const installedList = el<HTMLDivElement>('installed-list');
   const installedCount = el<HTMLSpanElement>('installed-count');
   const availableList = el<HTMLDivElement>('extensions-list');
@@ -328,6 +329,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   async function refresh(): Promise<void> {
     const snapshot = await api.getSnapshot();
     extensionsDirLabel.textContent = snapshot.extensionsDir;
+    bridgeInfo.textContent = describeBridgeInstall(snapshot.bridge.install);
     renderRepos(snapshot.repos);
 
     repoFailures = [];

@@ -128,17 +128,38 @@ export type AnimeBrowserBridgeStage =
   | 'idle'
   | 'locating'
   | 'downloading'
-  | 'verifying'
   | 'extracting'
   | 'starting'
   | 'ready'
   | 'failed';
+
+/** Where the running bridge came from, and whether SubMiner can move it forward. */
+export interface AnimeBrowserBridgeInstall {
+  /**
+   * `managed`: downloaded by SubMiner into its own directory, so it can be
+   * updated from the browser. `system`: a package-manager install (the AUR
+   * `mangatan-extension-server` package) or an `anime.bridgeDir` the user
+   * pointed at; SubMiner uses it as found and never writes to it.
+   */
+  origin: 'managed' | 'system';
+  /** Release tag, e.g. `v1.0.6.2`, or null when it cannot be read. */
+  version: string | null;
+  dir: string;
+  /**
+   * The newest upstream release with a bundle for this platform, when it is
+   * newer than a managed install; null when current, not managed, or not yet
+   * checked. Filled in once the bridge is running, since it needs the network.
+   */
+  updateAvailable: string | null;
+}
 
 export interface AnimeBrowserBridgeState {
   stage: AnimeBrowserBridgeStage;
   /** 0-1 while downloading, otherwise null. */
   progress: number | null;
   message: string | null;
+  /** Null until the bridge binaries have been located. */
+  install: AnimeBrowserBridgeInstall | null;
 }
 
 /** An extension APK that failed to load, surfaced instead of silently vanishing. */
@@ -255,6 +276,12 @@ export interface AnimeBrowserQueueState {
 export interface AnimeBrowserAPI {
   getSnapshot: () => Promise<AnimeBrowserSnapshot>;
   ensureBridge: () => Promise<AnimeBrowserBridgeState>;
+  /**
+   * Download the newest release over a managed install and restart the bridge
+   * on it. Rejected for a system install. A playing episode's stream dies with
+   * the old bridge.
+   */
+  updateBridge: () => Promise<AnimeBrowserBridgeState>;
   selectSource: (sourceId: string) => Promise<void>;
   search: (query: string, page?: number) => Promise<AnimeBrowserSearchResult>;
   getPopular: (page?: number) => Promise<AnimeBrowserSearchResult>;

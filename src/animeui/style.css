@@ -304,6 +304,13 @@ body {
   transition: width 0.2s ease;
 }
 
+.bridge-update {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
 /* ---------- layout ---------- */
 
 .layout {

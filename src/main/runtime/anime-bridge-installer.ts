@@ -1,22 +1,34 @@
 import { spawn } from 'node:child_process';
-import { chmod, mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   bundleReleaseUrl,
+  bundleVersionFromJar,
+  compareBundleVersions,
   findBundleBinaries,
-  PINNED_BUNDLE_TAG,
+  readBundleMarker,
   resolveBundleAssetName,
   selectBundleAsset,
-  verifyPinnedBundle,
+  systemBundleDirs,
+  writeBundleMarker,
+  type BundleAsset,
   type BundleBinaries,
 } from '../../anime-bridge/sidecar-bundle';
+import type { AnimeBrowserBridgeInstall } from '../../types/anime-browser';
 
 /**
- * Downloads and unpacks the M-Extension-Server bundle that runs Aniyomi
- * extension APKs. The bundle ships its own JRE, so no system Java is needed.
+ * Locates the M-Extension-Server bundle that runs Aniyomi extension APKs, or
+ * downloads and unpacks it. The bundle ships its own JRE, so no system Java is
+ * needed.
+ *
+ * Resolution order: an explicit `anime.bridgeDir`, then a package-manager
+ * install (the AUR `mangatan-extension-server` package on Arch), then the copy
+ * SubMiner manages under userData. Only the managed copy is ever downloaded or
+ * updated; the others belong to whoever put them there. Downloads take the
+ * newest upstream release that ships a bundle for this platform.
  */
 
-export type InstallStage = 'locating' | 'downloading' | 'verifying' | 'extracting';
+export type InstallStage = 'locating' | 'downloading' | 'extracting';
 
 /** Neither call has a default deadline, so a hung network would stall install. */
 const RELEASES_TIMEOUT_MS = 30_000;
@@ -40,12 +52,24 @@ export interface InstallProgress {
   progress: number | null;
 }
 
-export interface EnsureBridgeOptions {
-  /** Directory the bundle is unpacked into, e.g. `<userData>/anime-bridge`. */
-  installDir: string;
+/** The binaries to launch plus where they came from, for the browser to show. */
+export type BridgeInstall = BundleBinaries & AnimeBrowserBridgeInstall;
+
+export interface BridgeReleaseOptions {
   platform?: string;
   arch?: string;
   fetchImpl?: typeof fetch;
+}
+
+export interface EnsureBridgeOptions extends BridgeReleaseOptions {
+  /** Directory the managed bundle is unpacked into, e.g. `<userData>/anime-bridge`. */
+  installDir: string;
+  /** `anime.bridgeDir`: a bundle the user pointed at. Must hold a usable bundle. */
+  configuredDir?: string;
+  /** Package-manager locations to check before downloading. Defaults per platform. */
+  systemDirs?: string[];
+  /** Replaces the unzip/tar extraction. Tests only. */
+  extractImpl?: (zipPath: string, targetDir: string) => Promise<void>;
   onProgress?: (progress: InstallProgress) => void;
 }
 
@@ -123,14 +147,8 @@ async function downloadWithProgress(
   return merged;
 }
 
-/**
- * Return the bundle's java + jar paths, downloading the release first if the
- * install directory does not already hold a usable copy.
- */
-export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promise<BundleBinaries> {
-  const existing = await findBundleBinaries(options.installDir);
-  if (existing) return existing;
-
+/** The newest upstream release that ships this platform's bundle. */
+async function locateLatestBundle(options: BridgeReleaseOptions): Promise<BundleAsset> {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -143,20 +161,59 @@ export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promis
     );
   }
 
-  options.onProgress?.({ stage: 'locating', progress: null });
   const releasesResponse = await fetchImpl(bundleReleaseUrl(), {
     headers: { Accept: 'application/vnd.github+json' },
     signal: AbortSignal.timeout(RELEASES_TIMEOUT_MS),
   });
   if (!releasesResponse.ok) {
-    throw new Error(
-      `Could not read anime bridge release ${PINNED_BUNDLE_TAG} (${releasesResponse.status}).`,
-    );
+    throw new Error(`Could not list anime bridge releases (${releasesResponse.status}).`);
   }
   const asset = selectBundleAsset(await releasesResponse.json(), assetName);
   if (asset === null) {
-    throw new Error(`Anime bridge release ${PINNED_BUNDLE_TAG} has no ${assetName}.`);
+    throw new Error(`No anime bridge release ships ${assetName} at a supported version.`);
   }
+  return asset;
+}
+
+/**
+ * The newest release a managed install could move to, or null when it is
+ * current or is not SubMiner's to update. An install whose version cannot be
+ * read is offered the newest release: re-downloading is the way back to a
+ * known state. Network errors propagate; the caller decides how loudly.
+ */
+export async function findBridgeUpdate(
+  install: Pick<AnimeBrowserBridgeInstall, 'origin' | 'version'>,
+  options: BridgeReleaseOptions = {},
+): Promise<string | null> {
+  if (install.origin !== 'managed') return null;
+  const latest = await locateLatestBundle(options);
+  if (install.version === null) return latest.tagName;
+  return compareBundleVersions(latest.tagName, install.version) > 0 ? latest.tagName : null;
+}
+
+async function describeInstall(
+  binaries: BundleBinaries,
+  dir: string,
+  origin: AnimeBrowserBridgeInstall['origin'],
+): Promise<BridgeInstall> {
+  const version =
+    (origin === 'managed' ? await readBundleMarker(dir) : null) ??
+    bundleVersionFromJar(binaries.jarPath);
+  // The update check needs the network and runs once the bridge is up.
+  return { ...binaries, dir, origin, version, updateAvailable: null };
+}
+
+/**
+ * Download the newest release into `targetDir` and unpack it. The directory
+ * is created if needed and is not cleared first.
+ */
+async function downloadLatestBundle(
+  targetDir: string,
+  options: EnsureBridgeOptions,
+): Promise<{ binaries: BundleBinaries; tagName: string }> {
+  options.onProgress?.({ stage: 'locating', progress: null });
+  const asset = await locateLatestBundle(options);
+  const fetchImpl = options.fetchImpl ?? fetch;
 
   options.onProgress?.({ stage: 'downloading', progress: 0 });
   const downloadResponse = await fetchImpl(asset.downloadUrl, {
@@ -169,27 +226,83 @@ export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promis
     options.onProgress?.({ stage: 'downloading', progress: fraction }),
   );
 
-  options.onProgress?.({ stage: 'verifying', progress: null });
-  const verification = verifyPinnedBundle(assetName, bytes);
-  if (!verification.ok) throw new Error(verification.reason);
-
   options.onProgress?.({ stage: 'extracting', progress: null });
-  await mkdir(options.installDir, { recursive: true });
-  const zipPath = path.join(options.installDir, assetName);
+  await mkdir(targetDir, { recursive: true });
+  const zipPath = path.join(targetDir, asset.assetName);
   await writeFile(zipPath, bytes);
   try {
-    await extractZip(zipPath, options.installDir);
+    await (options.extractImpl ?? extractZip)(zipPath, targetDir);
   } finally {
     await rm(zipPath, { force: true });
   }
 
-  const binaries = await findBundleBinaries(options.installDir);
+  const binaries = await findBundleBinaries(targetDir);
   if (!binaries) {
     throw new Error('The anime bridge bundle unpacked without a java runtime or server jar.');
   }
   // Some extractors drop the executable bit; restore it rather than failing at spawn.
-  if (platform !== 'win32') {
+  if ((options.platform ?? process.platform) !== 'win32') {
     await chmod(binaries.javaPath, 0o755).catch(() => undefined);
   }
-  return binaries;
+  await writeBundleMarker(targetDir, asset.tagName);
+  return { binaries, tagName: asset.tagName };
+}
+
+/**
+ * Return the bridge's java + jar paths, downloading the newest release into
+ * the managed directory only when no other install is usable.
+ */
+export async function ensureBridgeBinaries(options: EnsureBridgeOptions): Promise<BridgeInstall> {
+  const configuredDir = options.configuredDir?.trim();
+  if (configuredDir) {
+    const configured = await findBundleBinaries(configuredDir);
+    if (!configured) {
+      throw new Error(
+        `anime.bridgeDir (${configuredDir}) holds no java runtime or MExtensionServer jar.`,
+      );
+    }
+    return describeInstall(configured, configuredDir, 'system');
+  }
+
+  for (const dir of options.systemDirs ?? systemBundleDirs(options.platform ?? process.platform)) {
+    const system = await findBundleBinaries(dir);
+    if (system) return describeInstall(system, dir, 'system');
+  }
+
+  const existing = await findBundleBinaries(options.installDir);
+  if (existing) return describeInstall(existing, options.installDir, 'managed');
+
+  const downloaded = await downloadLatestBundle(options.installDir, options);
+  return describeInstall(downloaded.binaries, options.installDir, 'managed');
+}
+
+export interface StagedBridgeUpdate {
+  version: string;
+  /**
+   * Replace the managed install with the staged one. Call only once the old
+   * bridge has stopped: on Windows its open files cannot be removed, and on
+   * every platform a JVM still running out of the old tree would outlive it.
+   */
+  commit: () => Promise<BridgeInstall>;
+}
+
+/**
+ * Download the newest release next to the managed install without touching
+ * it, so a failed download leaves the running bridge as it was.
+ */
+export async function stageBridgeUpdate(options: EnsureBridgeOptions): Promise<StagedBridgeUpdate> {
+  const stagingDir = `${options.installDir}.next`;
+  await rm(stagingDir, { recursive: true, force: true });
+  const downloaded = await downloadLatestBundle(stagingDir, options);
+  return {
+    version: downloaded.tagName,
+    commit: async () => {
+      await rm(options.installDir, { recursive: true, force: true });
+      await rename(stagingDir, options.installDir);
+      const binaries = await findBundleBinaries(options.installDir);
+      if (!binaries)
+        throw new Error('The updated anime bridge is missing its java runtime or jar.');
+      return describeInstall(binaries, options.installDir, 'managed');
+    },
+  };
 }

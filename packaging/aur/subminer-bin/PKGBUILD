@@ -27,6 +27,7 @@ optdepends=(
 	'python-guessit: improved AniSkip title and episode inference'
 	'alass-git: preferred subtitle synchronization engine'
 	'python-ffsubsync: fallback subtitle synchronization engine'
+	'mangatan-extension-server: anime browser bridge shared with Mangatan; skips the bundle download and is updated by pacman'
 )
 provides=("subminer=${pkgver}")
 conflicts=('subminer')

@@ -8,15 +8,15 @@ import type {
 export type StreamWatchMark = StreamPlaybackMetadataInput;
 import type { PlaybackEndFileEvent } from '../../anime-bridge/playback-outcome';
 import type { SubtitleCacheIo } from '../../anime-bridge/subtitle-cache';
-import type { BundleBinaries } from '../../anime-bridge/sidecar-bundle';
 import { startSidecar } from '../../anime-bridge/sidecar-process';
 import { startStreamStripProxy } from '../../anime-bridge/stream-strip-proxy';
 import type {
+  AnimeBrowserBridgeInstall,
   AnimeBrowserBridgeState,
   AnimeBrowserQueueState,
   AnimeBrowserSearchUpdate,
 } from '../../types/anime-browser';
-import type { InstallProgress } from './anime-bridge-installer';
+import type { BridgeInstall, InstallProgress, StagedBridgeUpdate } from './anime-bridge-installer';
 
 export interface AnimeBrowserRuntimeDeps {
   /** Where user-supplied Aniyomi extension APKs live. Read lazily so config edits apply. */
@@ -27,7 +27,20 @@ export interface AnimeBrowserRuntimeDeps {
   setRepos: (repos: string[]) => void;
   /** JSON file holding each source's saved preference values. */
   preferencesFile: string;
-  ensureBinaries: (onProgress: (progress: InstallProgress) => void) => Promise<BundleBinaries>;
+  /** Locates (or first downloads) the bridge and says where it came from. */
+  ensureBinaries: (onProgress: (progress: InstallProgress) => void) => Promise<BridgeInstall>;
+  /**
+   * The newest upstream release a managed install could move to, or null.
+   * Asked once the bridge is running; a rejection is logged, not shown.
+   */
+  checkBridgeUpdate: (install: AnimeBrowserBridgeInstall) => Promise<string | null>;
+  /**
+   * Downloads the newest release beside the managed install; the returned
+   * `commit` swaps it in once the old bridge has stopped.
+   */
+  stageBridgeUpdate: (
+    onProgress: (progress: InstallProgress) => void,
+  ) => Promise<StagedBridgeUpdate>;
   /** Sends mpv an IPC command; same transport the Jellyfin path uses. */
   sendMpvCommand: (command: Array<string | number>) => void;
   /** Brings mpv up if it is not already connected. Resolves false on failure. */

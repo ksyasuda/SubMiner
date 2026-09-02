@@ -128,6 +128,7 @@ export const IPC_CHANNELS = {
     getChangelogSnapshot: 'changelog:get-snapshot',
     animeBrowserGetSnapshot: 'anime-browser:get-snapshot',
     animeBrowserEnsureBridge: 'anime-browser:ensure-bridge',
+    animeBrowserUpdateBridge: 'anime-browser:update-bridge',
     animeBrowserSelectSource: 'anime-browser:select-source',
     animeBrowserSearch: 'anime-browser:search',
     animeBrowserGetPopular: 'anime-browser:get-popular',

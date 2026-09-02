@@ -21,6 +21,7 @@ pkgbase = subminer-bin
 	optdepends = python-guessit: improved AniSkip title and episode inference
 	optdepends = alass-git: preferred subtitle synchronization engine
 	optdepends = python-ffsubsync: fallback subtitle synchronization engine
+	optdepends = mangatan-extension-server: anime browser bridge shared with Mangatan; skips the bundle download and is updated by pacman
 	provides = subminer=0.6.2
 	conflicts = subminer
 	noextract = SubMiner-0.6.2.AppImage

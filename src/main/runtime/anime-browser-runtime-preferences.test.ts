@@ -31,6 +31,10 @@ async function setupRuntime(
     setRepos: () => undefined,
     preferencesFile,
     ensureBinaries: async () => ({}) as never,
+    checkBridgeUpdate: async () => null,
+    stageBridgeUpdate: async () => {
+      throw new Error('not under test');
+    },
     sendMpvCommand: () => undefined,
     ensureMpvConnected: async () => true,
     onBridgeState: () => undefined,

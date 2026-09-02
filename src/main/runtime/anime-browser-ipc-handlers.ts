@@ -48,6 +48,7 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
     registerSession(deps, event, sessionId);
     return runtime.ensureBridge();
   });
+  handle(channels.animeBrowserUpdateBridge, () => runtime.updateBridge());
   handle(channels.animeBrowserSelectSource, (event, sessionId, sourceId) =>
     runtime.selectSource(String(sourceId), registerSession(deps, event, sessionId)),
   );

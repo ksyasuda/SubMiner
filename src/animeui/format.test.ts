@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describeInstalled, sourceOptionLabel, summarizeSearch } from './format';
+import {
+  describeInstalled,
+  sourceOptionLabel,
+  summarizeSearch,
+  describeBridgeInstall,
+} from './format';
 import type { AnimeBrowserSearchResult } from '../types/anime-browser';
 
 const result = (
@@ -56,5 +61,31 @@ test('describeInstalled falls back to the package alone when nothing loaded', ()
   assert.equal(
     describeInstalled({ pkg: 'broken', name: 'broken', langs: [], sourceCount: 0, error: 'boom' }),
     'broken',
+  );
+});
+
+test('describeBridgeInstall says who updates the bridge', () => {
+  assert.match(describeBridgeInstall(null), /not started/);
+  assert.match(
+    describeBridgeInstall({
+      origin: 'system',
+      version: 'v1.0.6.2',
+      dir: '/usr/share/mangatan/extension_server',
+      updateAvailable: null,
+    }),
+    /v1\.0\.6\.2 from \/usr\/share\/mangatan\/extension_server.*package manager/,
+  );
+  assert.match(
+    describeBridgeInstall({
+      origin: 'managed',
+      version: 'v1.0.5.0',
+      dir: '/home/u/.config/SubMiner/anime-bridge',
+      updateAvailable: 'v1.0.6.0',
+    }),
+    /v1\.0\.6\.0 is available/,
+  );
+  assert.match(
+    describeBridgeInstall({ origin: 'managed', version: null, dir: '/d', updateAvailable: null }),
+    /unknown version.*up to date/,
   );
 });

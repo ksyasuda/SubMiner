@@ -1170,11 +1170,12 @@ Sources for the [anime browser](/anime-browser). SubMiner ships no extension rep
 }
 ```
 
-| Option                   | Type       | Default | Description                                                                                                                                                                   |
-| ------------------------ | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                   |
-| `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                           |
-| `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub. |
+| Option                   | Type       | Default | Description                                                                                                                                                                                                                                         |
+| ------------------------ | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                                                                                         |
+| `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                                                                                                 |
+| `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub.                                                                       |
+| `anime.bridgeDir`        | `string`   | `""`    | Directory holding an M-Extension-Server bundle (Java runtime plus server jar) to run instead of the downloaded copy. Empty checks the package-manager install first, then `<userData>/anime-bridge`. See [the bridge](anime-browser.md#the-bridge). |
 
 Repositories added from the browser's Extensions tab are written back to `anime.repos`, so the list can also be kept in a dotfile. Changes apply the next time the anime browser opens.
 

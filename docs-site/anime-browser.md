@@ -196,11 +196,12 @@ there is nowhere to write them and the status bar says so.
 
 ## Settings
 
-| Key                      | Purpose                                                              |
-| ------------------------ | -------------------------------------------------------------------- |
-| `anime.repos`            | Repository index URLs. Empty by default.                             |
-| `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.  |
-| `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`). |
+| Key                      | Purpose                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `anime.repos`            | Repository index URLs. Empty by default.                                |
+| `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.     |
+| `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`).    |
+| `anime.bridgeDir`        | A bridge bundle to run instead of the downloaded one. Empty by default. |
 
 ## Source settings
 
@@ -220,12 +221,47 @@ settings once after upgrading.
 
 ## The bridge
 
-The first launch downloads a platform bundle (~130 MB) containing the server and
-a matching Java runtime, so no system JDK is required. SubMiner pins one
-upstream release tag and the SHA-256 of each asset it has verified; the download
-is checked against that hash before anything runs, then unpacked into
-`<userData>/anime-bridge` and reused after that. Progress appears in the banner
-at the top of the window.
+SubMiner looks for the server in three places, in order, and runs the first
+one it finds:
+
+1. `anime.bridgeDir`, if set. It must hold a Java runtime and the
+   `MExtensionServer-*.jar`, laid out as upstream ships them. A directory that
+   holds neither is an error rather than a silent fallback.
+2. A package-manager install. On Arch that is the AUR
+   [`mangatan-extension-server`](https://aur.archlinux.org/packages/mangatan-extension-server)
+   package, which Mangatan also uses, at `/usr/share/mangatan/extension_server`.
+   Installing it means no download, and pacman keeps the bridge current. The
+   `subminer-bin` package lists it as an optional dependency.
+3. SubMiner's own copy in `<userData>/anime-bridge`. The first launch downloads
+   the newest upstream release that ships a bundle for your platform (~130 MB,
+   containing the server and a matching Java runtime, so no system JDK is
+   required), the same way Mangatan does. Releases older than the oldest server
+   SubMiner is known to work with are skipped. Progress appears in the banner
+   at the top of the window.
+
+The **Bridge** note at the bottom of the Extensions tab says which one is in
+use, its version, and who updates it.
+
+### Updating the bridge
+
+Only the copy SubMiner downloaded is ever updated by SubMiner. A package-manager
+install or an `anime.bridgeDir` belongs to whoever put it there.
+
+SubMiner records the release it installed and, once the bridge is running,
+asks GitHub for the newest one. When upstream has published a newer release,
+the banner reads "Extension bridge v… is installed; v… is available" with an
+**Update to v…** button. Clicking it downloads the new release beside the
+running bridge, so a failed download changes nothing, then stops the bridge,
+swaps the directories, and starts it again. The restart takes a few seconds
+and kills the stream of an episode that is playing, the same as when the
+bridge exits for any other reason; the queue and browser state survive. The
+check is one unauthenticated GitHub API call per bridge start; if it fails
+(offline, rate limited) it is logged and no update is offered until the next
+start.
+
+Upstream publishes no checksums, so the download is trusted the way Mangatan
+and the AUR package trust it: TLS to GitHub and the maintainer's account. That
+is the same trust running the server implies in the first place.
 
 The bridge stays running while the window is open. Resolved video URLs point at
 its own loopback proxy so the extension's cookies and headers apply, which means
@@ -241,10 +277,8 @@ Two known limits:
 
 - There is no Android WebView, so extensions that need one (typically for
   Cloudflare challenges) will fail with an error from the source.
-- Bundles are published for macOS (arm64, x64), Linux (x64), and Windows (x64),
-  but only the ones we have hashed ourselves will run: currently macOS arm64 and
-  Linux x64. The rest stop with "No pinned checksum for …" until a maintainer
-  verifies them. Other platforms are unsupported outright.
+- Bundles are published for macOS (arm64, x64), Linux (x64), and Windows (x64).
+  Other platforms are unsupported outright.
 
 ## Playback
 

@@ -588,6 +588,13 @@ export function buildIntegrationConfigOptionRegistry(
         'Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.',
     },
     {
+      path: 'anime.bridgeDir',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.bridgeDir,
+      description:
+        'Directory holding an M-Extension-Server bundle (java runtime plus server jar) to run instead of the copy SubMiner downloads. Empty checks the package-manager install (Arch: mangatan-extension-server), then <userData>/anime-bridge.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

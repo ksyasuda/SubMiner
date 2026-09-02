@@ -1,4 +1,5 @@
 import type {
+  AnimeBrowserBridgeInstall,
   AnimeBrowserSearchResult,
   AnimeBrowserSource,
   InstalledExtensionView,
@@ -32,4 +33,17 @@ export function describeInstalled(view: InstalledExtensionView): string {
   }
   if (view.langs.length > 0) parts.push(view.langs.join(', '));
   return parts.join(' · ');
+}
+
+/** One line for the Extensions tab: which bridge is running and who updates it. */
+export function describeBridgeInstall(install: AnimeBrowserBridgeInstall | null): string {
+  if (install === null) return 'The extension bridge has not started yet.';
+  const version = install.version ?? 'unknown version';
+  if (install.origin === 'system') {
+    return `M-Extension-Server ${version} from ${install.dir}, installed outside SubMiner (for example by your package manager), which is where updates come from.`;
+  }
+  if (install.updateAvailable !== null) {
+    return `M-Extension-Server ${version} in ${install.dir}, downloaded by SubMiner. ${install.updateAvailable} is available from the banner above.`;
+  }
+  return `M-Extension-Server ${version} in ${install.dir}, downloaded by SubMiner and up to date.`;
 }

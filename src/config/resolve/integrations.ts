@@ -357,6 +357,13 @@ export function applyIntegrationConfig(context: ResolveContext): void {
       );
     }
 
+    const bridgeDir = asString(src.anime.bridgeDir);
+    if (bridgeDir !== undefined) {
+      resolved.anime.bridgeDir = normalizeExternalProfilePath(bridgeDir);
+    } else if (src.anime.bridgeDir !== undefined) {
+      warn('anime.bridgeDir', src.anime.bridgeDir, resolved.anime.bridgeDir, 'Expected string.');
+    }
+
     const preferredQuality = asString(src.anime.preferredQuality);
     if (preferredQuality !== undefined) {
       resolved.anime.preferredQuality = preferredQuality.trim();

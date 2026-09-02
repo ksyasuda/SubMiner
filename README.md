@@ -182,6 +182,8 @@ See the [full requirements list](https://docs.subminer.moe/installation#_1-insta
 
 ```bash
 paru -S subminer-bin
+# optional: the anime browser bridge, shared with Mangatan and updated by pacman
+paru -S mangatan-extension-server
 ```
 
 </details>
