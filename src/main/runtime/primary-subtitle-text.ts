@@ -26,6 +26,13 @@ function cuesUseAssSyntax(cues: readonly SubtitleCue[] | null | undefined): bool
   );
 }
 
+function decodedLiveText(
+  liveText: string,
+  cues: readonly SubtitleCue[] | null | undefined,
+): string {
+  return cuesUseAssSyntax(cues) ? removeAssControlDebrisLines(liveText) : liveText;
+}
+
 function animationSpan(cue: SubtitleCue): { start: number; end: number } {
   return {
     start: cue.animationStartTime ?? cue.startTime,
@@ -290,14 +297,27 @@ export function stripCanonicalFragmentLines(options: {
   return removeLiveGlyphFragmentLines(options.liveText);
 }
 
+/**
+ * The parsed-cue view of a live sample, or `null` when the parsed cues do not explain
+ * every live line. Consumers that record rather than display use this to tell a resolved
+ * line -- already complete, with ASS furigana events folded back into their base line --
+ * from raw mpv text that still needs `stripCanonicalFragmentLines`.
+ */
+export function resolveParsedPrimarySubtitle(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): ResolvedPrimarySubtitle | null {
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  return liveText.trim() ? resolveActiveParsedPrimarySubtitle({ ...options, liveText }) : null;
+}
+
 export function resolvePrimarySubtitleText(options: {
   liveText: string;
   currentTimeSec: number;
   cues: readonly SubtitleCue[] | null | undefined;
 }): string {
-  const liveText = cuesUseAssSyntax(options.cues)
-    ? removeAssControlDebrisLines(options.liveText)
-    : options.liveText;
+  const liveText = decodedLiveText(options.liveText, options.cues);
   if (!liveText.trim()) {
     return liveText;
   }

@@ -657,3 +657,66 @@ test('subtitle recorders drop ASS furigana events the same way the display does'
   assert.deepEqual(immersion, [expected]);
   assert.deepEqual(timing, [expected]);
 });
+
+test('a resolved line survives recording while a fragment grid is on screen', () => {
+  // Fragment stripping drops every line it can trace back to a cue, and returns nothing
+  // at all when a fragment grid is nearby. Text the parsed cues already resolved is a
+  // complete line, not raw mpv output, so it must not be fed through that path.
+  const immersion: string[] = [];
+  const timing: string[] = [];
+  const handlers = createBuildBindMpvMainEventHandlersMainDepsHandler({
+    appState: {
+      initialArgs: null,
+      overlayRuntimeInitialized: true,
+      mpvClient: { currentTimePos: 3.2 },
+      immersionTracker: { recordSubtitleLine: (text: string) => immersion.push(text) },
+      subtitleTimingTracker: { recordSubtitle: (text: string) => timing.push(text) },
+      activeParsedSubtitleCues: [
+        { startTime: 3, endTime: 6, text: '飛び越えてみたくて', source: 'canonical-ass' },
+        {
+          startTime: 3,
+          endTime: 6,
+          text: 'MaidCafeMaidCafe',
+          source: 'reconstructed-ass',
+          assLayout: { kind: 'fragment-grid', sourceOrder: 2 },
+        },
+      ],
+      currentSubText: '',
+      currentSubAssText: '',
+      playbackPaused: null,
+      previousSecondarySubVisibility: false,
+    },
+    getQuitOnDisconnectArmed: () => false,
+    scheduleQuitCheck: () => {},
+    quitApp: () => {},
+    reportJellyfinRemoteStopped: () => {},
+    syncOverlayMpvSubtitleSuppression: () => {},
+    maybeRunAnilistPostWatchUpdate: async () => {},
+    logSubtitleTimingError: () => {},
+    broadcastToOverlayWindows: () => {},
+    onSubtitleChange: () => {},
+    ensureImmersionTrackerInitialized: () => {},
+    updateCurrentMediaPath: () => {},
+    restoreMpvSubVisibility: () => {},
+    getCurrentAnilistMediaKey: () => null,
+    resetAnilistMediaTracking: () => {},
+    maybeProbeAnilistDuration: () => {},
+    ensureAnilistMediaGuess: () => {},
+    syncImmersionMediaState: () => {},
+    updateCurrentMediaTitle: () => {},
+    resetAnilistMediaGuessState: () => {},
+    reportJellyfinRemoteProgress: () => {},
+    updateSubtitleRenderMetrics: () => {},
+    refreshDiscordPresence: () => {},
+  })();
+
+  // The grid fragment beside the lyric keeps canonical substitution from applying, so
+  // recording falls to the parsed view -- which is where the whole line is recovered.
+  const liveText = '飛び越え\nMaid';
+  assert.equal(handlers.resolveSubtitleText?.(liveText), '飛び越えてみたくて');
+  handlers.recordImmersionSubtitleLine(liveText, 3, 6);
+  handlers.recordSubtitleTiming(liveText, 3, 6);
+
+  assert.deepEqual(immersion, ['飛び越えてみたくて']);
+  assert.deepEqual(timing, ['飛び越えてみたくて']);
+});

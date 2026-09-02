@@ -3,6 +3,7 @@ import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
 import { SEEK_LIKE_TIME_DELTA_SECONDS } from './mpv-main-event-actions';
 import {
   resolveCanonicalPrimarySubtitle,
+  resolveParsedPrimarySubtitle,
   resolvePrimarySubtitleText,
   stripCanonicalFragmentLines,
 } from './primary-subtitle-text';
@@ -132,16 +133,18 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
     });
   // Recorders see the same text the overlay displays: mpv's live `sub-text` lists every
   // simultaneously active ASS event, including furigana events the parser folded into
-  // their base line, so substitute the parsed view wherever it explains every live
-  // line. When substitution declined because dialogue shares the screen with a song,
-  // record the dialogue alone rather than the combined dialogue-plus-fragments stack.
+  // their base line, so substitute the parsed view wherever it explains every live line.
+  // Canonical substitution is the callers' own branch, so what is left here is the parsed
+  // view, and its text is already a complete line -- fragment stripping takes raw mpv
+  // text and would discard a resolved line whole while a fragment grid is on screen. When
+  // nothing explained the sample -- dialogue sharing the screen with a song -- strip the
+  // raw text so the dialogue is recorded without the fragments beside it.
   const resolveTextForRecording = (liveText: string, startSec: number): string => {
     const cues = deps.appState.activeParsedSubtitleCues;
-    return stripCanonicalFragmentLines({
-      liveText: resolvePrimarySubtitleText({ liveText, currentTimeSec: startSec, cues }),
-      currentTimeSec: startSec,
-      cues,
-    });
+    return (
+      resolveParsedPrimarySubtitle({ liveText, currentTimeSec: startSec, cues })?.text ??
+      stripCanonicalFragmentLines({ liveText, currentTimeSec: startSec, cues })
+    );
   };
   const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
     Boolean(
