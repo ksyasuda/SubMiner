@@ -353,7 +353,7 @@ For Senren note types, enable `isSenren` instead. Kiku and Senren write incompat
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
 
-The merge markup depends on the note type. Kiku entries are wrapped in `<span data-group-id="...">` spans ordered newest first. Senren entries follow the [scene switching](https://github.com/BrenoAqua/Senren/blob/main/docs/scene_switching.md) format: sentence, sentenceFurigana, and miscInfo entries are appended as `<span class="group">` spans, audio and pictures are appended positionally, and the number of sentenceAudio entries drives Senren's scene count. Ungrouped legacy content is wrapped into a group span on first merge, and existing numbered `groupN` spans in miscInfo are preserved.
+The merge markup depends on the note type. Kiku entries are wrapped in `<span data-group-id="...">` spans ordered newest first. Senren entries follow the [scene switching](https://github.com/BrenoAqua/Senren/blob/main/docs/scene_switching.md) format: sentence, sentenceFurigana, and miscInfo entries use `group` spans when ordinal order is sufficient and numbered `groupN` spans when they need an absolute scene target. Audio and pictures are appended positionally, and the number of sentenceAudio entries drives Senren's scene count. Ungrouped legacy content is wrapped into a group span on first merge, and source `groupN` spans are rebased after the kept note's existing audio scenes.
 
 ### Keyboard Shortcuts in the Modal
 

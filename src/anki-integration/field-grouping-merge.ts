@@ -378,7 +378,7 @@ export class FieldGroupingMergeCollaborator {
     return this.parseSenrenSceneEntries(value).length;
   }
 
-  private rebaseSenrenNumberedGroup(entry: string, sceneOffset: number): string {
+  private rebaseSenrenGroup(entry: string, sceneOffset: number, sourceEntryIndex: number): string {
     if (sceneOffset <= 0) return entry;
 
     return entry.replace(
@@ -387,6 +387,9 @@ export class FieldGroupingMergeCollaborator {
         const classes = rawClasses
           .split(/(\s+)/)
           .map((classToken) => {
+            if (classToken === 'group') {
+              return `group${sceneOffset + sourceEntryIndex + 1}`;
+            }
             const groupMatch = classToken.match(/^group(\d+)$/);
             if (!groupMatch) return classToken;
             const targetScene = Number(groupMatch[1]);
@@ -467,15 +470,15 @@ export class FieldGroupingMergeCollaborator {
     if (this.isSentenceAudioField(fieldName)) {
       const existing = existingValue.trim();
       const added = newValue.trim();
-      if (!existing || !added) return existing || added;
-      if (!/\[sound:[^\]]+\]/.test(added)) {
+      if (added && !/\[sound:[^\]]+\]/.test(added)) {
         this.deps.warnFieldParseOnce(fieldName, 'missing-sound-tag');
       }
+      if (!existing || !added) return existing || added;
       return existing + added;
     }
 
-    const sourceEntries = this.parseSenrenSceneEntries(newValue).map((entry) =>
-      this.rebaseSenrenNumberedGroup(entry, sourceSceneOffset),
+    const sourceEntries = this.parseSenrenSceneEntries(newValue).map((entry, sourceEntryIndex) =>
+      this.rebaseSenrenGroup(entry, sourceSceneOffset, sourceEntryIndex),
     );
     const merged = [...this.parseSenrenSceneEntries(existingValue), ...sourceEntries];
     if (merged.length === 0) return existingValue || newValue;

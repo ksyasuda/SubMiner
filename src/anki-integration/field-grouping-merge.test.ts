@@ -47,7 +47,8 @@ function createCollaborator(
       getEffectiveSentenceCardConfig: () => ({
         sentenceField: 'Sentence',
         audioField: 'SentenceAudio',
-        fieldGroupingProvider: options.fieldGroupingProvider ?? 'kiku',
+        fieldGroupingProvider:
+          options.fieldGroupingProvider === undefined ? 'kiku' : options.fieldGroupingProvider,
       }),
       getCurrentSubtitleText: () => options.currentSubtitleText,
       resolveFieldName,
@@ -279,14 +280,39 @@ test('computeFieldGroupingMergedFields merges Senren notes into scene-switching 
   assert.equal(
     merged.sentence,
     '<span class="group">前<span class="highlight">語</span>後</span>' +
-      '<span class="group">次<span class="highlight">語</span>文</span>',
+      '<span class="group2">次<span class="highlight">語</span>文</span>',
   );
   assert.equal(merged.sentenceAudio, '[sound:original.opus][sound:new.opus]');
   assert.equal(merged.picture, '<img src="original.webp"><img src="new.webp">');
   assert.equal(
     merged.miscInfo,
-    '<span class="group">Show EP1 (0:01:00)</span><span class="group">Show EP2 (0:02:00)</span>',
+    '<span class="group">Show EP1 (0:01:00)</span><span class="group2">Show EP2 (0:02:00)</span>',
   );
+});
+
+test('Senren merge warns for invalid source audio when kept audio is empty', async () => {
+  const warnings: Array<{ fieldName: string; reason: string; detail?: string }> = [];
+  const { collaborator } = createCollaborator({
+    fieldGroupingProvider: 'senren',
+    warnings,
+  });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, { SentenceAudio: '' }),
+    makeNote(200, { SentenceAudio: 'invalid audio' }),
+    false,
+  );
+
+  assert.equal(merged.SentenceAudio, 'invalid audio');
+  assert.deepEqual(warnings, [
+    {
+      fieldName: 'SentenceAudio',
+      reason: 'missing-sound-tag',
+      detail: undefined,
+    },
+  ]);
 });
 
 test('Senren merge wraps ungrouped legacy content and preserves numbered groups', async () => {
@@ -310,13 +336,13 @@ test('Senren merge wraps ungrouped legacy content and preserves numbered groups'
 
   assert.equal(
     merged.sentence,
-    '<span class="group">plain legacy sentence</span><span class="group">new sentence</span>',
+    '<span class="group">plain legacy sentence</span><span class="group3">new sentence</span>',
   );
   assert.equal(merged.sentenceAudio, '[sound:a.opus][sound:b.opus][sound:c.opus]');
   assert.equal(
     merged.miscInfo,
     '<span class="group2">pinned</span><span class="group">stray text</span>' +
-      '<span class="group">new misc</span>',
+      '<span class="group3">new misc</span>',
   );
 });
 
@@ -348,6 +374,33 @@ test('Senren merge rebases numbered groups from an appended source note', async 
   );
 });
 
+test('Senren merge rebases plain source groups after empty and sparse kept fields', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      sentenceAudio: '[sound:keep-a.opus][sound:keep-b.opus]',
+      sentence: '',
+      miscInfo: '<span class="group">keep first</span>',
+    }),
+    makeNote(200, {
+      sentenceAudio: '[sound:source-a.opus][sound:source-b.opus]',
+      sentence: '<span class="group">source first</span>',
+      miscInfo: '<span class="group">source first</span><span class="group2">source second</span>',
+    }),
+    false,
+  );
+
+  assert.equal(merged.sentence, '<span class="group3">source first</span>');
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">keep first</span><span class="group3">source first</span>' +
+      '<span class="group4">source second</span>',
+  );
+});
+
 test('Senren merge keeps ungrouped text in place around an existing group span', async () => {
   const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
 
@@ -369,7 +422,7 @@ test('Senren merge keeps ungrouped text in place around an existing group span',
   assert.equal(
     merged.miscInfo,
     '<span class="group">leading</span><span class="group">middle</span>' +
-      '<span class="group">trailing</span><span class="group">appended</span>',
+      '<span class="group">trailing</span><span class="group4">appended</span>',
   );
   assert.equal(merged.sentenceAudio, '[sound:a.opus][sound:b.opus][sound:c.opus][sound:d.opus]');
 });
