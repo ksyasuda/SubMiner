@@ -20,9 +20,8 @@ interface FieldGroupingDeps {
     sentenceField: string;
     audioField: string;
     lapisEnabled: boolean;
-    kikuEnabled: boolean;
-    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
-    kikuDeleteDuplicateInAuto: boolean;
+    fieldGroupingProvider: 'kiku' | 'senren' | null;
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
   };
   isUpdateInProgress: () => boolean;
   getDeck?: () => string | undefined;
@@ -46,7 +45,7 @@ interface FieldGroupingDeps {
     noteInfo: FieldGroupingNoteInfo,
     configuredFieldNames: (string | undefined)[],
   ) => boolean;
-  processNewCard: (noteId: number, options?: { skipKikuFieldGrouping?: boolean }) => Promise<void>;
+  processNewCard: (noteId: number, options?: { skipFieldGrouping?: boolean }) => Promise<void>;
   getSentenceCardImageFieldName: () => string | undefined;
   resolveFieldName: (availableFieldNames: string[], preferredName: string) => string | null;
   computeFieldGroupingMergedFields: (
@@ -76,12 +75,12 @@ export class FieldGroupingService {
 
   async triggerFieldGroupingForLastAddedCard(): Promise<void> {
     const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
-    if (!sentenceCardConfig.kikuEnabled) {
-      this.deps.showOsdNotification('Kiku mode is not enabled');
+    if (sentenceCardConfig.fieldGroupingProvider === null) {
+      this.deps.showOsdNotification('Field grouping requires Kiku or Senren mode');
       return;
     }
-    if (sentenceCardConfig.kikuFieldGrouping === 'disabled') {
-      this.deps.showOsdNotification('Kiku field grouping is disabled');
+    if (sentenceCardConfig.fieldGroupingMode === 'disabled') {
+      this.deps.showOsdNotification('Field grouping is disabled');
       return;
     }
 
@@ -134,7 +133,7 @@ export class FieldGroupingService {
           ])
         ) {
           await this.deps.processNewCard(noteId, {
-            skipKikuFieldGrouping: true,
+            skipFieldGrouping: true,
           });
         }
 
@@ -147,7 +146,7 @@ export class FieldGroupingService {
 
         const noteInfo = refreshedInfo[0]!;
 
-        if (sentenceCardConfig.kikuFieldGrouping === 'auto') {
+        if (sentenceCardConfig.fieldGroupingMode === 'auto') {
           await this.deps.handleFieldGroupingAuto(
             duplicateNoteId,
             noteId,

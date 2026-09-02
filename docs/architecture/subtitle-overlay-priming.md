@@ -131,17 +131,19 @@ coming and prefetching would otherwise idle for the rest of the cue.
   authored source order when no usable position exists.
 - Half-size kana positioned directly above a same-timed kanji caption is treated as ASS
   furigana. The parser omits it from published cues but retains hidden matching metadata so
-  mpv's raw live text can be reconciled without displaying or mining the reading.
+  mpv's raw live text can be reconciled without displaying or mining the reading. The
+  timing tracker (clipboard copy, recent-line mining) and immersion recorders run the same
+  reconciliation on the `sub-start`/`sub-end` sample, so they record what the overlay shows.
 - Broadcast-caption rows that spell one utterance across several same-timed positioned events
   (same style, layer, and vertical band, stacked at most two text rows apart) are joined into
-  one cue with a single line break, so
-  `preserveLineBreaks` treats them like an authored `\N`. A row continues the one above it when
-  that row is a bare speaker label, ends without terminal punctuation, or leaves a ≪…≫ / ⸨…⸩ span
-  open; a lower row that opens its own label or span always starts a new cue, which keeps two
-  speakers sharing the screen on separate lines. The pass runs only on scripts that read as
-  broadcast captions (a meaningful share of events carry speaker labels or ≪…≫ / ⸨…⸩ spans) and
-  only on rows containing Japanese, because fansub typesetting stacks positioned rows for signs,
-  chat bubbles, and headlines where that punctuation convention does not hold.
+  one cue with a single line break, so `preserveLineBreaks` treats them like an authored `\N`,
+  and the recorders above see the whole sentence. A row continues the one above it when that row
+  is a bare speaker label, ends without terminal punctuation, or leaves a ≪…≫ / ⸨…⸩ span open; a
+  lower row that opens its own label or span always starts a new cue, which keeps two speakers
+  sharing the screen on separate lines. The pass runs only on scripts that read as broadcast
+  captions (a meaningful share of events carry speaker labels or ≪…≫ / ⸨…⸩ spans) and only on
+  rows containing Japanese, because fansub typesetting stacks positioned rows for signs, chat
+  bubbles, and headlines where that punctuation convention does not hold.
 - Fragment-only ASS karaoke is reconstructed per style before publication. Explicit spaces
   survive concatenation. Latin fragment typesetting with no literal spaces also recovers word
   boundaries represented only by materially larger horizontal `\pos` or `\move` gaps within that

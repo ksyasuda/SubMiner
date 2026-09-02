@@ -2188,6 +2188,7 @@ test('runtime options registry is centralized', () => {
     'subtitle.annotation.frequency',
     'anki.nPlusOneMatchMode',
     'anki.kikuFieldGrouping',
+    'anki.senrenFieldGrouping',
   ]);
 });
 
@@ -2772,6 +2773,47 @@ test('accepts a Kiku/Lapis word card kind and warns on an unknown one', () => {
     invalidService
       .getWarnings()
       .some((warning) => warning.path === 'ankiConnect.lapisKiku.wordCardKind'),
+  );
+});
+
+test('forces Senren off when Kiku is also enabled and validates Senren fieldGrouping', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "isKiku": { "enabled": true },
+        "isSenren": { "enabled": true }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+  assert.equal(service.getConfig().ankiConnect.isKiku.enabled, true);
+  assert.equal(service.getConfig().ankiConnect.isSenren.enabled, false);
+  assert.ok(
+    service.getWarnings().some((warning) => warning.path === 'ankiConnect.isSenren.enabled'),
+  );
+
+  const senrenOnlyDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(senrenOnlyDir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "isSenren": { "enabled": true, "fieldGrouping": "sometimes" }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const senrenOnlyService = new ConfigService(senrenOnlyDir);
+  assert.equal(senrenOnlyService.getConfig().ankiConnect.isSenren.enabled, true);
+  assert.equal(senrenOnlyService.getConfig().ankiConnect.isSenren.fieldGrouping, 'auto');
+  assert.ok(
+    senrenOnlyService
+      .getWarnings()
+      .some((warning) => warning.path === 'ankiConnect.isSenren.fieldGrouping'),
   );
 });
 

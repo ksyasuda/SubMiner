@@ -1,10 +1,9 @@
 import { createSubtitleLineDedupGate } from '../../core/services/subtitle-line-dedup-gate';
 import type { MergedToken, SubtitleCue, SubtitleData } from '../../types';
-import { SEEK_LIKE_TIME_DELTA_SECONDS } from './mpv-main-event-actions';
 import {
   resolveCanonicalPrimarySubtitle,
   resolvePrimarySubtitleText,
-  stripCanonicalFragmentLines,
+  resolveRecordedPrimarySubtitleText,
 } from './primary-subtitle-text';
 
 type AnilistPostWatchRunOptions = {
@@ -115,6 +114,8 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
   // after the change is dropped instead of landing in the next session.
   let subtitleSessionEpoch = 0;
   let lastTimePosForTimingReset: number | null = null;
+  // Small margin so time-pos jitter is not mistaken for a backward seek.
+  const BACKWARD_SEEK_TIMING_RESET_SECONDS = 0.25;
   const canonicalCueKey = (cue: SubtitleCue): string =>
     `${cue.startTime}|${cue.endTime}|${cue.text}`;
   const resetSubtitleDeduplication = (): void => {
@@ -130,10 +131,12 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       currentTimeSec: startSec,
       cues: deps.appState.activeParsedSubtitleCues,
     });
-  // When substitution declined because dialogue shares the screen with a song, record
-  // the dialogue alone rather than the combined dialogue-plus-fragments stack.
-  const stripFragmentsForRecording = (liveText: string, startSec: number) =>
-    stripCanonicalFragmentLines({
+  // Recorders see the same text the overlay displays: mpv's live `sub-text` lists every
+  // simultaneously active ASS event, including furigana events the parser folded into
+  // their base line. Cues the caller already resolved canonically are recorded one by
+  // one above; everything else goes through the shared recording resolution.
+  const resolveTextForRecording = (liveText: string, startSec: number): string =>
+    resolveRecordedPrimarySubtitleText({
       liveText,
       currentTimeSec: startSec,
       cues: deps.appState.activeParsedSubtitleCues,
@@ -217,7 +220,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         }
         return;
       }
-      text = stripFragmentsForRecording(text, start);
+      text = resolveTextForRecording(text, start);
       if (!text.trim()) {
         return;
       }
@@ -231,7 +234,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
       const canonical = resolveCanonicalSample(text, start);
       if (!canonical) {
-        const recordableText = stripFragmentsForRecording(text, start);
+        const recordableText = resolveTextForRecording(text, start);
         if (!recordableText.trim()) {
           return;
         }
@@ -344,13 +347,15 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       deps.reportJellyfinRemoteProgress(forceImmediate),
     consumeExplicitSeek: deps.consumeExplicitSeek,
     onTimePosUpdate: (time: number) => {
-      // Timing history is a viewing log: after a real backward seek, a rewatched
-      // canonical line should enter it again. Immersion stats keep their
-      // once-per-media deduplication and are not reset here.
+      // Timing history is a viewing log: after any backward seek, a rewatched canonical
+      // line should enter it again so multi-line copy treats it as the current line.
+      // Playback never moves time-pos backward on its own, so even a short jump to a
+      // brief previous line counts. Immersion stats keep their once-per-media
+      // deduplication and are not reset here.
       if (
         Number.isFinite(time) &&
         lastTimePosForTimingReset !== null &&
-        time <= lastTimePosForTimingReset - SEEK_LIKE_TIME_DELTA_SECONDS
+        time <= lastTimePosForTimingReset - BACKWARD_SEEK_TIMING_RESET_SECONDS
       ) {
         recordedTimingCanonicalKeys.clear();
       }

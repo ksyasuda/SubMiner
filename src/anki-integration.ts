@@ -835,6 +835,19 @@ export class AnkiIntegration {
     };
   }
 
+  private getSenrenConfig(): {
+    enabled: boolean;
+    fieldGrouping?: 'auto' | 'manual' | 'disabled';
+    deleteDuplicateInAuto?: boolean;
+  } {
+    const senren = this.config.isSenren;
+    return {
+      enabled: senren?.enabled === true,
+      fieldGrouping: senren?.fieldGrouping,
+      deleteDuplicateInAuto: senren?.deleteDuplicateInAuto,
+    };
+  }
+
   private getEffectiveSentenceCardConfig(): {
     model?: string;
     sentenceField: string;
@@ -843,10 +856,27 @@ export class AnkiIntegration {
     kikuEnabled: boolean;
     kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
     kikuDeleteDuplicateInAuto: boolean;
+    senrenEnabled: boolean;
+    fieldGroupingProvider: 'kiku' | 'senren' | null;
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
+    fieldGroupingDeleteDuplicateInAuto: boolean;
     wordCardKind: WordCardKind;
   } {
     const lapis = this.getLapisConfig();
     const kiku = this.getKikuConfig();
+    const senren = this.getSenrenConfig();
+
+    const kikuFieldGrouping = (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled';
+    const senrenFieldGrouping = (senren.fieldGrouping || 'auto') as 'auto' | 'manual' | 'disabled';
+    // Kiku and Senren are mutually exclusive; config resolution enforces it, and
+    // Kiku wins here too in case a runtime patch re-enables both.
+    const fieldGroupingProvider = kiku.enabled ? 'kiku' : senren.enabled ? 'senren' : null;
+    const fieldGroupingMode =
+      fieldGroupingProvider === 'kiku'
+        ? kikuFieldGrouping
+        : fieldGroupingProvider === 'senren'
+          ? senrenFieldGrouping
+          : 'disabled';
 
     return {
       model: lapis.sentenceCardModel,
@@ -854,8 +884,15 @@ export class AnkiIntegration {
       audioField: 'SentenceAudio',
       lapisEnabled: lapis.enabled,
       kikuEnabled: kiku.enabled,
-      kikuFieldGrouping: (kiku.fieldGrouping || 'disabled') as 'auto' | 'manual' | 'disabled',
+      kikuFieldGrouping,
       kikuDeleteDuplicateInAuto: kiku.deleteDuplicateInAuto !== false,
+      senrenEnabled: senren.enabled,
+      fieldGroupingProvider,
+      fieldGroupingMode,
+      fieldGroupingDeleteDuplicateInAuto:
+        fieldGroupingProvider === 'senren'
+          ? senren.deleteDuplicateInAuto !== false
+          : kiku.deleteDuplicateInAuto !== false,
       wordCardKind: resolveWordCardKindSetting(this.config.lapisKiku?.wordCardKind),
     };
   }
@@ -874,7 +911,7 @@ export class AnkiIntegration {
 
   private async processNewCard(
     noteId: number,
-    options?: { skipKikuFieldGrouping?: boolean },
+    options?: { skipFieldGrouping?: boolean },
   ): Promise<void> {
     await this.noteUpdateWorkflow.execute(noteId, options);
   }
@@ -1504,7 +1541,7 @@ export class AnkiIntegration {
     trackedDuplicateNoteIdsBeforeCreate: Set<number>,
   ): boolean {
     const sentenceCardConfig = this.getEffectiveSentenceCardConfig();
-    if (!sentenceCardConfig.kikuEnabled || sentenceCardConfig.kikuFieldGrouping === 'disabled') {
+    if (sentenceCardConfig.fieldGroupingMode === 'disabled') {
       return false;
     }
 

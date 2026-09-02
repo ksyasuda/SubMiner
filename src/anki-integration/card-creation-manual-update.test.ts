@@ -124,8 +124,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
       audioField: 'SentenceAudio',
       lapisEnabled: false,
       kikuEnabled: false,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
@@ -208,8 +207,7 @@ test('manual clipboard word-card update uses configured fields with Lapis and Ki
       audioField: 'SentenceAudio',
       lapisEnabled: true,
       kikuEnabled: true,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
   });
 
@@ -275,8 +273,7 @@ test('audio-card action keeps Lapis and Kiku sentence fields', async () => {
       audioField: 'SentenceAudio',
       lapisEnabled: true,
       kikuEnabled: true,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
   });
 
@@ -338,8 +335,7 @@ test('manual clipboard subtitle update marks Kiku word cards as word-and-sentenc
       audioField: 'SentenceAudio',
       lapisEnabled: false,
       kikuEnabled: true,
-      kikuFieldGrouping: 'disabled',
-      kikuDeleteDuplicateInAuto: false,
+      fieldGroupingMode: 'disabled',
     }),
     setCardTypeFields,
   });

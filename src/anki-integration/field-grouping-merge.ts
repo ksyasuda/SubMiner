@@ -19,6 +19,7 @@ interface FieldGroupingMergeDeps {
   getEffectiveSentenceCardConfig: () => {
     sentenceField: string;
     audioField: string;
+    fieldGroupingProvider: 'kiku' | 'senren' | null;
   };
   getCurrentSubtitleText: () => string | undefined;
   resolveFieldName: (availableFieldNames: string[], preferredName: string) => string | null;
@@ -78,6 +79,13 @@ export class FieldGroupingMergeCollaborator {
     const configuredWordField = getConfiguredWordFieldName(config);
     const groupableFields = this.getGroupableFieldNames();
     const keepFieldNames = Object.keys(keepNoteInfo.fields);
+    const sentenceCardConfig = this.deps.getEffectiveSentenceCardConfig();
+    const senrenSourceSceneOffset =
+      sentenceCardConfig.fieldGroupingProvider === 'senren'
+        ? this.countSenrenAudioScenes(
+            this.getResolvedFieldValue(keepNoteInfo, sentenceCardConfig.audioField),
+          )
+        : 0;
     const sourceFields: Record<string, string> = {};
     const resolvedKeepFieldByPreferred = new Map<string, string>();
     for (const preferredFieldName of groupableFields) {
@@ -154,14 +162,18 @@ export class FieldGroupingMergeCollaborator {
       if (!existingValue.trim() && !newValue.trim()) continue;
 
       if (keepFieldNormalized === 'sentencefurigana') {
+        const hasBothValues = existingValue.trim().length > 0 && newValue.trim().length > 0;
+        const usesSenrenGrouping =
+          this.deps.getEffectiveSentenceCardConfig().fieldGroupingProvider === 'senren';
         mergedFields[keepFieldName] =
-          existingValue.trim() && newValue.trim()
+          hasBothValues || usesSenrenGrouping
             ? this.applyFieldGrouping(
                 existingValue,
                 newValue,
                 keepNoteId,
                 deleteNoteId,
                 keepFieldName,
+                senrenSourceSceneOffset,
               )
             : '';
         continue;
@@ -174,6 +186,7 @@ export class FieldGroupingMergeCollaborator {
           keepNoteId,
           deleteNoteId,
           keepFieldName,
+          senrenSourceSceneOffset,
         );
       } else if (existingValue.trim() && newValue.trim()) {
         mergedFields[keepFieldName] = this.applyFieldGrouping(
@@ -182,6 +195,7 @@ export class FieldGroupingMergeCollaborator {
           keepNoteId,
           deleteNoteId,
           keepFieldName,
+          senrenSourceSceneOffset,
         );
       } else {
         if (!newValue.trim()) continue;
@@ -342,13 +356,152 @@ export class FieldGroupingMergeCollaborator {
     return [...entries].sort((a, b) => b.groupId - a.groupId);
   }
 
+  private isSentenceAudioField(fieldName: string): boolean {
+    const normalized = fieldName.toLowerCase();
+    const audioField = (
+      this.deps.getEffectiveSentenceCardConfig().audioField || 'sentenceaudio'
+    ).toLowerCase();
+    return normalized === 'sentenceaudio' || normalized === audioField;
+  }
+
+  private isSenrenGroupOpenTag(openTag: string): boolean {
+    const classMatch =
+      openTag.match(/class\s*=\s*"([^"]*)"/i) || openTag.match(/class\s*=\s*'([^']*)'/i);
+    if (!classMatch) return false;
+    // Senren's templates match class tokens case-sensitively (/^group\d*$/).
+    return classMatch[1]!.split(/\s+/).some((token) => /^group\d*$/.test(token));
+  }
+
+  private countSenrenAudioScenes(value: string): number {
+    const soundEntries = value.match(/\[sound:[^\]]+\]/g)?.length ?? 0;
+    if (soundEntries > 0) return soundEntries;
+    return this.parseSenrenSceneEntries(value).length;
+  }
+
+  private rebaseSenrenGroup(entry: string, sceneOffset: number, sourceEntryIndex: number): string {
+    if (sceneOffset <= 0) return entry;
+
+    return entry.replace(
+      /^(\s*<span\b[^>]*?\bclass\s*=\s*)(["'])([^"']*)\2/i,
+      (_match: string, prefix: string, quote: string, rawClasses: string) => {
+        const classes = rawClasses
+          .split(/(\s+)/)
+          .map((classToken) => {
+            if (classToken === 'group') {
+              return `group${sceneOffset + sourceEntryIndex + 1}`;
+            }
+            const groupMatch = classToken.match(/^group(\d+)$/);
+            if (!groupMatch) return classToken;
+            const targetScene = Number(groupMatch[1]);
+            if (!Number.isSafeInteger(targetScene) || targetScene <= 0) return classToken;
+            return `group${targetScene + sceneOffset}`;
+          })
+          .join('');
+        return `${prefix}${quote}${classes}${quote}`;
+      },
+    );
+  }
+
+  /**
+   * Splits a Senren field into ordered scene entries. Top-level
+   * `<span class="group">`/`"groupN"` spans are kept verbatim (nested markup like
+   * `<span class="highlight">` included); ungrouped runs are wrapped in a group
+   * span at their original position, because Senren discards anything outside a
+   * group span once scene switching activates.
+   */
+  private parseSenrenSceneEntries(value: string): string[] {
+    const tokenRegex = /<span\b[^>]*>|<\/span>/gi;
+    const entries: string[] = [];
+    const pushUngrouped = (raw: string): void => {
+      const text = raw.replace(/<br\s*\/?>/gi, ' ').trim();
+      if (text) entries.push(`<span class="group">${text}</span>`);
+    };
+    let cursor = 0;
+    let depth = 0;
+    let entryStart = -1;
+    let match;
+    while ((match = tokenRegex.exec(value)) !== null) {
+      const token = match[0]!;
+      if (token[1] !== '/') {
+        if (depth === 0 && this.isSenrenGroupOpenTag(token)) {
+          pushUngrouped(value.slice(cursor, match.index));
+          entryStart = match.index;
+          cursor = match.index;
+        }
+        depth += 1;
+      } else {
+        depth = Math.max(0, depth - 1);
+        if (depth === 0 && entryStart !== -1) {
+          const end = match.index + token.length;
+          entries.push(value.slice(entryStart, end));
+          entryStart = -1;
+          cursor = end;
+        }
+      }
+    }
+    if (entryStart !== -1) {
+      // Unclosed group span: close every span still open (the group and any nested
+      // markup) so the following scenes are siblings rather than nested inside it.
+      entries.push(`${value.slice(entryStart)}${'</span>'.repeat(depth)}`);
+    } else {
+      pushUngrouped(`${value.slice(cursor)}${'</span>'.repeat(depth)}`);
+    }
+    return entries;
+  }
+
+  /**
+   * Merges two notes' field values in Senren's scene-switching format. Scenes are
+   * appended in order (existing first, never resorted) so indices stay aligned
+   * across sentence/picture/miscInfo with the sentenceAudio entries, which alone
+   * drive Senren's scene count.
+   */
+  private applySenrenFieldGrouping(
+    existingValue: string,
+    newValue: string,
+    fieldName: string,
+    sourceSceneOffset: number,
+  ): string {
+    if (this.isPictureField(fieldName)) {
+      const tags = [...this.extractImageTags(existingValue), ...this.extractImageTags(newValue)];
+      if (tags.length === 0) return existingValue || newValue;
+      return tags.join('');
+    }
+
+    if (this.isSentenceAudioField(fieldName)) {
+      const existing = existingValue.trim();
+      const added = newValue.trim();
+      if (added && !/\[sound:[^\]]+\]/.test(added)) {
+        this.deps.warnFieldParseOnce(fieldName, 'missing-sound-tag');
+      }
+      if (!existing || !added) return existing || added;
+      return existing + added;
+    }
+
+    const sourceEntries = this.parseSenrenSceneEntries(newValue).map((entry, sourceEntryIndex) =>
+      this.rebaseSenrenGroup(entry, sourceSceneOffset, sourceEntryIndex),
+    );
+    const merged = [...this.parseSenrenSceneEntries(existingValue), ...sourceEntries];
+    if (merged.length === 0) return existingValue || newValue;
+    return merged.join('');
+  }
+
   private applyFieldGrouping(
     existingValue: string,
     newValue: string,
     keepGroupId: number,
     sourceGroupId: number,
     fieldName: string,
+    senrenSourceSceneOffset: number,
   ): string {
+    if (this.deps.getEffectiveSentenceCardConfig().fieldGroupingProvider === 'senren') {
+      return this.applySenrenFieldGrouping(
+        existingValue,
+        newValue,
+        fieldName,
+        senrenSourceSceneOffset,
+      );
+    }
+
     if (this.shouldUseStrictSpanGrouping(fieldName)) {
       if (this.isPictureField(fieldName)) {
         const keepEntries = this.parsePictureEntries(existingValue, keepGroupId);

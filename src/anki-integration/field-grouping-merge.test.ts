@@ -26,6 +26,7 @@ function createCollaborator(
       miscInfoValue?: string;
     };
     warnings?: Array<{ fieldName: string; reason: string; detail?: string }>;
+    fieldGroupingProvider?: 'kiku' | 'senren' | null;
   } = {},
 ) {
   const warnings = options.warnings ?? [];
@@ -46,6 +47,8 @@ function createCollaborator(
       getEffectiveSentenceCardConfig: () => ({
         sentenceField: 'Sentence',
         audioField: 'SentenceAudio',
+        fieldGroupingProvider:
+          options.fieldGroupingProvider === undefined ? 'kiku' : options.fieldGroupingProvider,
       }),
       getCurrentSubtitleText: () => options.currentSubtitleText,
       resolveFieldName,
@@ -251,7 +254,218 @@ test('computeFieldGroupingMergedFields uses generated media only when includeGen
   assert.equal(withMedia.MiscInfo, '<span data-group-id="11">generated misc</span>');
 });
 
-test('computeFieldGroupingMergedFields clears SentenceFurigana when either note lacks it', async () => {
+test('computeFieldGroupingMergedFields merges Senren notes into scene-switching markup', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      word: '語',
+      sentence: '<span class="group">前<span class="highlight">語</span>後</span>',
+      sentenceAudio: '[sound:original.opus]',
+      picture: '<img src="original.webp">',
+      miscInfo: '<span class="group">Show EP1 (0:01:00)</span>',
+    }),
+    makeNote(200, {
+      word: '語',
+      sentence: '<span class="group">次<span class="highlight">語</span>文</span>',
+      sentenceAudio: '[sound:new.opus]',
+      picture: '<img src="new.webp">',
+      miscInfo: 'Show EP2 (0:02:00)',
+    }),
+    false,
+  );
+
+  assert.equal(
+    merged.sentence,
+    '<span class="group">前<span class="highlight">語</span>後</span>' +
+      '<span class="group2">次<span class="highlight">語</span>文</span>',
+  );
+  assert.equal(merged.sentenceAudio, '[sound:original.opus][sound:new.opus]');
+  assert.equal(merged.picture, '<img src="original.webp"><img src="new.webp">');
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">Show EP1 (0:01:00)</span><span class="group2">Show EP2 (0:02:00)</span>',
+  );
+});
+
+test('Senren merge warns for invalid source audio when kept audio is empty', async () => {
+  const warnings: Array<{ fieldName: string; reason: string; detail?: string }> = [];
+  const { collaborator } = createCollaborator({
+    fieldGroupingProvider: 'senren',
+    warnings,
+  });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, { SentenceAudio: '' }),
+    makeNote(200, { SentenceAudio: 'invalid audio' }),
+    false,
+  );
+
+  assert.equal(merged.SentenceAudio, 'invalid audio');
+  assert.deepEqual(warnings, [
+    {
+      fieldName: 'SentenceAudio',
+      reason: 'missing-sound-tag',
+      detail: undefined,
+    },
+  ]);
+});
+
+test('Senren merge wraps ungrouped legacy content and preserves numbered groups', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      sentence: 'plain legacy sentence',
+      sentenceAudio: '[sound:a.opus][sound:b.opus]',
+      miscInfo: '<span class="group2">pinned</span> stray text',
+    }),
+    makeNote(200, {
+      sentence: '<span class="group">new sentence</span>',
+      sentenceAudio: '[sound:c.opus]',
+      miscInfo: '<span class="group">new misc</span>',
+    }),
+    false,
+  );
+
+  assert.equal(
+    merged.sentence,
+    '<span class="group">plain legacy sentence</span><span class="group3">new sentence</span>',
+  );
+  assert.equal(merged.sentenceAudio, '[sound:a.opus][sound:b.opus][sound:c.opus]');
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group2">pinned</span><span class="group">stray text</span>' +
+      '<span class="group3">new misc</span>',
+  );
+});
+
+test('Senren merge rebases numbered groups from an appended source note', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      sentenceAudio: '[sound:keep-a.opus][sound:keep-b.opus]',
+      miscInfo: '<span class="group">keep one</span><span class="group">keep two</span>',
+    }),
+    makeNote(200, {
+      sentenceAudio: '[sound:source-a.opus][sound:source-b.opus]',
+      miscInfo: '<span class="group2">source two</span>',
+    }),
+    false,
+  );
+
+  assert.equal(
+    merged.sentenceAudio,
+    '[sound:keep-a.opus][sound:keep-b.opus][sound:source-a.opus][sound:source-b.opus]',
+  );
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">keep one</span><span class="group">keep two</span>' +
+      '<span class="group4">source two</span>',
+  );
+});
+
+test('Senren merge rebases plain source groups after empty and sparse kept fields', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      sentenceAudio: '[sound:keep-a.opus][sound:keep-b.opus]',
+      sentence: '',
+      miscInfo: '<span class="group">keep first</span>',
+    }),
+    makeNote(200, {
+      sentenceAudio: '[sound:source-a.opus][sound:source-b.opus]',
+      sentence: '<span class="group">source first</span>',
+      miscInfo: '<span class="group">source first</span><span class="group2">source second</span>',
+    }),
+    false,
+  );
+
+  assert.equal(merged.sentence, '<span class="group3">source first</span>');
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">keep first</span><span class="group3">source first</span>' +
+      '<span class="group4">source second</span>',
+  );
+});
+
+test('Senren merge keeps ungrouped text in place around an existing group span', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      miscInfo: 'leading<span class="group">middle</span>trailing',
+      sentenceAudio: '[sound:a.opus][sound:b.opus][sound:c.opus]',
+    }),
+    makeNote(200, {
+      miscInfo: '<span class="group">appended</span>',
+      sentenceAudio: '[sound:d.opus]',
+    }),
+    false,
+  );
+
+  // Order must follow the source field, and the two ungrouped runs must stay separate.
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">leading</span><span class="group">middle</span>' +
+      '<span class="group">trailing</span><span class="group4">appended</span>',
+  );
+  assert.equal(merged.sentenceAudio, '[sound:a.opus][sound:b.opus][sound:c.opus][sound:d.opus]');
+});
+
+test('Senren merge closes unclosed group spans so later scenes stay siblings', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, { miscInfo: '<span class="group">a<span class="highlight">b' }),
+    makeNote(200, { miscInfo: '<span class="group">next</span>' }),
+    false,
+  );
+
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">a<span class="highlight">b</span></span><span class="group">next</span>',
+  );
+  const openTags = merged.miscInfo!.match(/<span\b/g)?.length ?? 0;
+  const closeTags = merged.miscInfo!.match(/<\/span>/g)?.length ?? 0;
+  assert.equal(openTags, closeTags);
+});
+
+test('Senren merge closes unclosed trailing markup before appending later scenes', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, { miscInfo: 'leading<span class="highlight">tail' }),
+    makeNote(200, { miscInfo: '<span class="group">next</span>' }),
+    false,
+  );
+
+  assert.equal(
+    merged.miscInfo,
+    '<span class="group">leading<span class="highlight">tail</span></span>' +
+      '<span class="group">next</span>',
+  );
+});
+
+test('Kiku merge clears SentenceFurigana when either note lacks it', async () => {
   const { collaborator } = createCollaborator();
 
   const merged = await collaborator.computeFieldGroupingMergedFields(
@@ -267,4 +481,22 @@ test('computeFieldGroupingMergedFields clears SentenceFurigana when either note 
   );
 
   assert.equal(merged.SentenceFurigana, '');
+});
+
+test('Senren merge keeps duplicate SentenceFurigana when the kept field is empty', async () => {
+  const { collaborator } = createCollaborator({ fieldGroupingProvider: 'senren' });
+
+  const merged = await collaborator.computeFieldGroupingMergedFields(
+    300,
+    200,
+    makeNote(300, {
+      SentenceFurigana: '',
+    }),
+    makeNote(200, {
+      SentenceFurigana: 'duplicate furigana',
+    }),
+    false,
+  );
+
+  assert.equal(merged.SentenceFurigana, '<span class="group">duplicate furigana</span>');
 });
