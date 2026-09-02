@@ -308,15 +308,27 @@ Word cards get a card-type flag when SubMiner fills their sentence, whether that
 
 `click` marks `IsClickCard`, `sentence` marks `IsSentenceCard`, `audio` marks `IsAudioCard`, and `none` leaves the flags untouched for templates that manage them elsewhere. Whichever flag is chosen, the other card-type flags are cleared so the note never claims two card types. The setting is only read when `isKiku` or `isLapis` is enabled, and cards mined with Mine Sentence or Mine Audio keep their own flag.
 
-## Field Grouping (Kiku)
+## Field Grouping (Kiku/Senren)
 
-When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types like [Kiku](https://github.com/youyoumu/kiku) that support grouped sentence/audio/image fields.
+When you mine the same word multiple times, SubMiner can merge the cards instead of creating duplicates. This is designed for note types that support grouped fields: [Kiku](https://github.com/youyoumu/kiku) and [Senren](https://github.com/BrenoAqua/Senren) (which calls the feature scene switching).
 
 ```jsonc
 "ankiConnect": {
   "isKiku": {
     "enabled": true,
     "fieldGrouping": "manual",         // "auto", "manual", or "disabled"
+    "deleteDuplicateInAuto": true      // delete new card after auto-merge
+  }
+}
+```
+
+For Senren note types, enable `isSenren` instead. Kiku and Senren write incompatible markup into the same fields, so only one can be enabled at a time; if both are enabled, Kiku wins and a config warning is emitted.
+
+```jsonc
+"ankiConnect": {
+  "isSenren": {
+    "enabled": true,
+    "fieldGrouping": "auto",           // "auto" (default), "manual", or "disabled"
     "deleteDuplicateInAuto": true      // delete new card after auto-merge
   }
 }
@@ -337,8 +349,11 @@ When you mine the same word multiple times, SubMiner can merge the cards instead
 | Sentence | Both cards' sentences kept as grouped entries |
 | Audio    | Both cards' `[sound:...]` entries kept        |
 | Image    | Both cards' images kept                       |
+| MiscInfo | Both cards' source info kept as grouped entries |
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.
+
+The merge markup depends on the note type. Kiku entries are wrapped in `<span data-group-id="...">` spans ordered newest first. Senren entries follow the [scene switching](https://github.com/BrenoAqua/Senren/blob/main/docs/scene_switching.md) format: sentence, sentenceFurigana, and miscInfo entries use `group` spans when ordinal order is sufficient and numbered `groupN` spans when they need an absolute scene target. Audio and pictures are appended positionally, and the number of sentenceAudio entries drives Senren's scene count. Ungrouped legacy content is wrapped into a group span on first merge, and source `groupN` spans are rebased after the kept note's existing audio scenes.
 
 ### Keyboard Shortcuts in the Modal
 
