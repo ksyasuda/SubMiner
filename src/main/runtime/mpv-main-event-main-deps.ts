@@ -130,14 +130,19 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       currentTimeSec: startSec,
       cues: deps.appState.activeParsedSubtitleCues,
     });
-  // When substitution declined because dialogue shares the screen with a song, record
-  // the dialogue alone rather than the combined dialogue-plus-fragments stack.
-  const stripFragmentsForRecording = (liveText: string, startSec: number) =>
-    stripCanonicalFragmentLines({
-      liveText,
+  // Recorders see the same text the overlay displays: mpv's live `sub-text` lists every
+  // simultaneously active ASS event, including furigana events the parser folded into
+  // their base line, so substitute the parsed view wherever it explains every live
+  // line. When substitution declined because dialogue shares the screen with a song,
+  // record the dialogue alone rather than the combined dialogue-plus-fragments stack.
+  const resolveTextForRecording = (liveText: string, startSec: number): string => {
+    const cues = deps.appState.activeParsedSubtitleCues;
+    return stripCanonicalFragmentLines({
+      liveText: resolvePrimarySubtitleText({ liveText, currentTimeSec: startSec, cues }),
       currentTimeSec: startSec,
-      cues: deps.appState.activeParsedSubtitleCues,
+      cues,
     });
+  };
   const hasInitialPlaybackQuitOnDisconnectArg = (): boolean =>
     Boolean(
       deps.appState.initialArgs?.managedPlayback ||
@@ -217,7 +222,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
         }
         return;
       }
-      text = stripFragmentsForRecording(text, start);
+      text = resolveTextForRecording(text, start);
       if (!text.trim()) {
         return;
       }
@@ -231,7 +236,7 @@ export function createBuildBindMpvMainEventHandlersMainDepsHandler(deps: {
       const secondaryText = deps.appState.mpvClient?.currentSecondarySubText || undefined;
       const canonical = resolveCanonicalSample(text, start);
       if (!canonical) {
-        const recordableText = stripFragmentsForRecording(text, start);
+        const recordableText = resolveTextForRecording(text, start);
         if (!recordableText.trim()) {
           return;
         }
