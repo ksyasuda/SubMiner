@@ -139,8 +139,7 @@ interface CardCreationDeps {
     audioField: string;
     lapisEnabled: boolean;
     kikuEnabled: boolean;
-    kikuFieldGrouping: 'auto' | 'manual' | 'disabled';
-    kikuDeleteDuplicateInAuto: boolean;
+    fieldGroupingMode: 'auto' | 'manual' | 'disabled';
     wordCardKind?: WordCardKind;
   };
   getFallbackDurationSeconds: () => number;
@@ -697,8 +696,7 @@ export class CardCreationService {
         ).trim();
         let duplicateNoteIds: number[] = [];
         if (
-          sentenceCardConfig.kikuEnabled &&
-          sentenceCardConfig.kikuFieldGrouping !== 'disabled' &&
+          sentenceCardConfig.fieldGroupingMode !== 'disabled' &&
           pendingExpressionText &&
           this.deps.findDuplicateNoteIds
         ) {

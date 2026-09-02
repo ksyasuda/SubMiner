@@ -59,7 +59,7 @@ function createWorkflowHarness() {
       sentenceField: 'Sentence',
       lapisEnabled: false,
       kikuEnabled: false,
-      kikuFieldGrouping: 'disabled' as const,
+      fieldGroupingMode: 'disabled' as const,
     }),
     appendKnownWordsFromNoteInfo: (_noteInfo: NoteUpdateWorkflowNoteInfo) => undefined,
     removeKnownWordNote: (_noteId: number) => undefined,
@@ -138,7 +138,7 @@ test('NoteUpdateWorkflow uses configured fields for word-card enrichment with La
     sentenceField: 'Sentence',
     lapisEnabled: true,
     kikuEnabled: true,
-    kikuFieldGrouping: 'disabled',
+    fieldGroupingMode: 'disabled',
   });
   harness.deps.client.notesInfo = async () =>
     [
@@ -195,7 +195,7 @@ test('NoteUpdateWorkflow marks enriched Kiku word cards as word-and-sentence car
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
   });
   harness.deps.client.notesInfo = async () =>
     [
@@ -228,7 +228,7 @@ test('NoteUpdateWorkflow marks the configured word card kind instead of word-and
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
     wordCardKind: 'click',
   });
   harness.deps.client.notesInfo = async () =>
@@ -264,7 +264,7 @@ test('NoteUpdateWorkflow leaves card type flags alone when the word card kind is
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'manual',
+    fieldGroupingMode: 'manual',
     wordCardKind: 'none',
   });
   harness.deps.client.notesInfo = async () =>
@@ -319,7 +319,7 @@ test('NoteUpdateWorkflow preserves explicit sentence card type during sentence e
     sentenceField: 'Sentence',
     lapisEnabled: true,
     kikuEnabled: false,
-    kikuFieldGrouping: 'disabled',
+    fieldGroupingMode: 'disabled',
   });
   harness.deps.client.notesInfo = async () =>
     [
@@ -362,7 +362,7 @@ test('NoteUpdateWorkflow updates note before auto field grouping merge', async (
     sentenceField: 'Sentence',
     lapisEnabled: false,
     kikuEnabled: true,
-    kikuFieldGrouping: 'auto',
+    fieldGroupingMode: 'auto',
   });
   harness.deps.findDuplicateNote = async () => 99;
   harness.deps.client.notesInfo = async () => {

@@ -92,6 +92,11 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
       fieldGrouping: 'disabled',
       deleteDuplicateInAuto: true,
     },
+    isSenren: {
+      enabled: false,
+      fieldGrouping: 'auto',
+      deleteDuplicateInAuto: true,
+    },
     lapisKiku: {
       wordCardKind: 'word-and-sentence',
     },

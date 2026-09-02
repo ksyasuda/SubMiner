@@ -77,6 +77,12 @@ export function initializeAnkiConnectResolution(
         ? (ankiConnect.isKiku as (typeof context.resolved)['ankiConnect']['isKiku'])
         : {}),
     },
+    isSenren: {
+      ...context.resolved.ankiConnect.isSenren,
+      ...(isObject(ankiConnect.isSenren)
+        ? (ankiConnect.isSenren as (typeof context.resolved)['ankiConnect']['isSenren'])
+        : {}),
+    },
     lapisKiku: {
       ...context.resolved.ankiConnect.lapisKiku,
     },

@@ -72,17 +72,17 @@ After adding a word via Yomitan, press the audio card shortcut (`Ctrl/Cmd+Shift+
 Audio card marking uses the same `ankiConnect.isLapis.sentenceCardModel` note type as sentence cards. See [Anki Integration - Sentence Cards](/anki-integration#sentence-cards-lapis) for setup.
 :::
 
-### Field Grouping (Kiku)
+### Field Grouping (Kiku/Senren)
 
-If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and similar note types that support grouped fields.
+If you mine the same word from different sentences, SubMiner can merge the cards instead of creating duplicates. This feature is designed for use with [Kiku](https://github.com/youyoumu/kiku) and [Senren](https://github.com/BrenoAqua/Senren) note types that support grouped fields (Senren calls it scene switching).
 
 1. You add a word via Yomitan.
 2. SubMiner detects the new card and checks if a card with the same expression already exists.
-3. If a duplicate is found (this requires `ankiConnect.isKiku.fieldGrouping` to be set to `"auto"` or `"manual"`; it defaults to `"disabled"`):
-   - **Auto mode** (`ankiConnect.isKiku.fieldGrouping: "auto"`): Merges automatically. Both sentences, audio clips, and images are combined into the existing card. The duplicate is optionally deleted.
-   - **Manual mode** (`ankiConnect.isKiku.fieldGrouping: "manual"`): A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
+3. If a duplicate is found (this requires Kiku or Senren to be enabled with a field grouping mode of `"auto"` or `"manual"`):
+   - **Auto mode**: Merges automatically. Both sentences, audio clips, images, and source info are combined into the existing card. The duplicate is optionally deleted.
+   - **Manual mode**: A modal appears showing both cards side by side. You choose which card to keep and preview the merged result before confirming.
 
-See [Anki Integration - Field Grouping](/anki-integration#field-grouping-kiku) for configuration options, merge behavior, and modal keyboard shortcuts.
+See [Anki Integration - Field Grouping](/anki-integration#field-grouping-kiku-senren) for configuration options, merge behavior, and modal keyboard shortcuts.
 
 ## Overlay Model
 

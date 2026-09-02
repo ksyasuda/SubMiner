@@ -302,7 +302,6 @@ import {
   listJellyfinItemsRuntime,
   listJellyfinLibrariesRuntime,
   listJellyfinSubtitleTracksRuntime,
-  loadJellyfinSubtitleDelay,
   loadSubtitlePosition as loadSubtitlePositionCore,
   loadYomitanExtension as loadYomitanExtensionCore,
   markLastCardAsAudioCard as markLastCardAsAudioCardCore,
@@ -315,7 +314,6 @@ import {
   resolveSanitizedSubtitleSeekCommand,
   resolveJellyfinPlaybackPlanRuntime,
   runStartupBootstrapRuntime,
-  saveJellyfinSubtitleDelay,
   saveSubtitlePosition as saveSubtitlePositionCore,
   clearYomitanParserCachesForWindow,
   getYomitanCurrentAnkiDeckName as getYomitanCurrentAnkiDeckNameCore,
@@ -684,7 +682,6 @@ function spawnManagedMpvProcess(args: string[]): ReturnType<typeof spawn> {
 }
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
-let activeJellyfinSubtitleDelayKey: { itemId: string; streamIndex: number } | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
 let jellyfinMpvAutoLaunchInFlight: Promise<boolean> | null = null;
 let backgroundWarmupsStarted = false;
@@ -2489,7 +2486,6 @@ const fieldGroupingOverlayRuntime = createFieldGroupingOverlayRuntime<OverlayHos
 const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroupingCallback;
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
-const JELLYFIN_SUBTITLE_DELAYS_PATH = path.join(CONFIG_DIR, 'jellyfin-subtitle-delays.json');
 
 const mediaRuntime = createMediaRuntimeService(
   createBuildMediaRuntimeMainDepsHandler({
@@ -3133,23 +3129,6 @@ const {
     wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     cacheSubtitleTrack: (track) => jellyfinSubtitleCacheIo.cacheSubtitleTrack(track),
     cleanupCachedSubtitles: (dirs) => jellyfinSubtitleCacheIo.cleanupCachedSubtitles(dirs),
-    getSavedSubtitleDelay: (itemId, streamIndex) =>
-      loadJellyfinSubtitleDelay({
-        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-        itemId,
-        streamIndex,
-      }),
-    setActiveSubtitleDelayKey: (key) => {
-      activeJellyfinSubtitleDelayKey = key;
-    },
-    loadSubtitleSourceText,
-    saveSubtitleDelay: (itemId, streamIndex, delaySeconds) =>
-      saveJellyfinSubtitleDelay({
-        filePath: JELLYFIN_SUBTITLE_DELAYS_PATH,
-        itemId,
-        streamIndex,
-        delaySeconds,
-      }),
     initSubtitlePrefetch: (sourcePath) =>
       subtitlePrefetchRuntime.refreshSubtitleSidebarFromSource(sourcePath),
     logDebug: (message, error) => {
@@ -3215,7 +3194,6 @@ const {
     getActivePlayback: () => activeJellyfinRemotePlayback,
     clearActivePlayback: () => {
       activeJellyfinRemotePlayback = null;
-      activeJellyfinSubtitleDelayKey = null;
     },
     getSession: () => appState.jellyfinRemoteSession,
     getNow: () => Date.now(),
@@ -4572,7 +4550,6 @@ const {
           appState.activeParsedSubtitleSource = null;
           appState.activeParsedSubtitleMediaPath = null;
         }
-        activeJellyfinSubtitleDelayKey = null;
         overlayManager.broadcastToOverlayWindows('subtitle:set', resetSubtitlePayload);
         subtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);
         annotationSubtitleWsService.broadcast(resetSubtitlePayload, frequencyOptions);

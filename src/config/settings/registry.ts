@@ -131,7 +131,7 @@ const SECTION_ORDER = new Map<string, number>(
     'AnkiConnect',
     'Note Fields',
     'Media Capture',
-    'Kiku/Lapis Features',
+    'Kiku/Lapis/Senren Features',
     'Anki AI',
     'AnkiConnect Proxy',
     'Jimaku',
@@ -163,6 +163,7 @@ const PATH_ORDER = new Map<string, number>(
     'ankiConnect.proxy.enabled',
     'ankiConnect.isLapis.enabled',
     'ankiConnect.isKiku.enabled',
+    'ankiConnect.isSenren.enabled',
     'subtitleStyle.knownWordColor',
     'ankiConnect.knownWords.matureThresholdDays',
     'subtitleStyle.knownWordMaturityColors.new',
@@ -221,6 +222,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'ankiConnect.nPlusOne.enabled': 'Enabled',
   'ankiConnect.isLapis.enabled': 'Enable Lapis Features',
   'ankiConnect.isKiku.enabled': 'Enable Kiku Features',
+  'ankiConnect.isSenren.enabled': 'Enable Senren Features',
   'ankiConnect.lapisKiku.wordCardKind': 'Word Card Type',
   'stats.toggleKey': 'Toggle Stats Overlay',
   'shortcuts.openCharacterDictionaryManager': 'Open Character Dictionary Manager',
@@ -252,7 +254,9 @@ const DESCRIPTION_OVERRIDES: Record<string, string> = {
   'ankiConnect.pollingRate':
     'Polling interval in milliseconds. Ignored while the local AnkiConnect proxy is enabled because push-based enrichment is used instead.',
   'ankiConnect.isKiku.enabled':
-    'Enable Kiku-specific mining behavior. Kiku supersedes Lapis: Lapis features still work, and Kiku adds duplicate handling and field grouping.',
+    'Enable Kiku-specific mining behavior. Kiku supersedes Lapis: Lapis features still work, and Kiku adds duplicate handling and field grouping. Mutually exclusive with Senren.',
+  'ankiConnect.isSenren.enabled':
+    'Enable Senren-specific duplicate handling: field grouping merges duplicates into Senren scene-switching markup (including miscInfo grouping). Mutually exclusive with Kiku; only one can be enabled at a time.',
   'ankiConnect.isLapis.enabled':
     'Enable Lapis-specific mining behavior and sentence-card model targeting. When Kiku is enabled, Lapis features still work and Kiku-specific features are added on top.',
   'ankiConnect.isLapis.sentenceCardModel':
@@ -408,9 +412,10 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (
     path.startsWith('ankiConnect.isKiku.') ||
     path.startsWith('ankiConnect.isLapis.') ||
+    path.startsWith('ankiConnect.isSenren.') ||
     path.startsWith('ankiConnect.lapisKiku.')
   ) {
-    return { category: 'mining-anki', section: 'Kiku/Lapis Features' };
+    return { category: 'mining-anki', section: 'Kiku/Lapis/Senren Features' };
   }
   if (path.startsWith('ankiConnect.ai.')) {
     return { category: 'mining-anki', section: 'Anki AI' };
@@ -711,6 +716,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.fields.miscInfo' ||
     path === 'ankiConnect.isLapis.sentenceCardModel' ||
     path === 'ankiConnect.isKiku.fieldGrouping' ||
+    path === 'ankiConnect.isSenren.fieldGrouping' ||
     path === 'ankiConnect.lapisKiku.wordCardKind' ||
     path === 'mpv.aniskipEnabled' ||
     path === 'mpv.aniskipButtonKey' ||
