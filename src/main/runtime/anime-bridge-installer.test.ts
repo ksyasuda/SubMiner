@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readdir, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -283,6 +283,31 @@ test('stageBridgeUpdate commit restores the existing install when activation fai
   assert.ok(await exists(path.join(managed, 'MExtensionServer-v1.0.5.0.jar')));
   assert.equal(await readBundleMarker(managed), 'v1.0.5.0');
   assert.ok(await exists(path.join(`${managed}.next`, `MExtensionServer-${LATEST}.jar`)));
+  assert.deepEqual(
+    (await readdir(root)).filter((entry) => entry.startsWith('managed.backup-')),
+    [],
+  );
+});
+
+test('stageBridgeUpdate commit restores the existing install when post-swap validation fails', async () => {
+  const root = await tempRoot();
+  const managed = path.join(root, 'managed');
+  await writeBundle(managed, 'MExtensionServer-v1.0.5.0.jar');
+  await writeBundleMarker(managed, 'v1.0.5.0');
+  const { options } = fakeUpstream();
+  const staged = await stageBridgeUpdate({ ...options, installDir: managed, systemDirs: [] });
+  const stagedJar = path.join(`${managed}.next`, `MExtensionServer-${LATEST}.jar`);
+  await rm(stagedJar);
+
+  await assert.rejects(
+    staged.commit(),
+    /The updated anime bridge is missing its java runtime or jar/,
+  );
+
+  assert.ok(await exists(path.join(managed, 'MExtensionServer-v1.0.5.0.jar')));
+  assert.equal(await readBundleMarker(managed), 'v1.0.5.0');
+  assert.ok(await exists(`${managed}.next`));
+  assert.ok(!(await exists(stagedJar)));
   assert.deepEqual(
     (await readdir(root)).filter((entry) => entry.startsWith('managed.backup-')),
     [],

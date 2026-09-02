@@ -324,8 +324,23 @@ export async function stageBridgeUpdate(options: EnsureBridgeOptions): Promise<S
         }
 
         const binaries = await findBundleBinaries(options.installDir);
-        if (!binaries)
-          throw new Error('The updated anime bridge is missing its java runtime or jar.');
+        if (!binaries) {
+          const validationError = new Error(
+            'The updated anime bridge is missing its java runtime or jar.',
+          );
+          try {
+            await renameImpl(options.installDir, stagingDir);
+            await renameImpl(backupDir, options.installDir);
+            backupHoldsInstall = false;
+          } catch (restoreError) {
+            throw new AggregateError(
+              [validationError, restoreError],
+              `The updated anime bridge failed validation and the previous install could not be ` +
+                `restored. The previous install remains at ${backupDir}.`,
+            );
+          }
+          throw validationError;
+        }
         await rm(backupRoot, { recursive: true, force: true });
         backupHoldsInstall = false;
         return describeInstall(binaries, options.installDir, 'managed');
