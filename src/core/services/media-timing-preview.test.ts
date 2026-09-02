@@ -23,6 +23,21 @@ describe('buildMediaTimingPreviewArgs', () => {
     assert.equal(args.at(-1), '/video/show.mkv');
   });
 
+  test('keeps source timestamps for cached remote windows', () => {
+    const args = buildMediaTimingPreviewArgs('/tmp/review.sock', {
+      mediaPath: '/tmp/window.mkv',
+      absoluteTimestamps: true,
+    });
+
+    assert.ok(args.includes('--rebase-start-time=no'));
+    assert.equal(
+      buildMediaTimingPreviewArgs('/tmp/review.sock', { mediaPath: '/video/show.mkv' }).includes(
+        '--rebase-start-time=no',
+      ),
+      false,
+    );
+  });
+
   test('separates an option-like media path without adding optional audio arguments', () => {
     const args = buildMediaTimingPreviewArgs('/tmp/review.sock', {
       mediaPath: '--fullscreen',

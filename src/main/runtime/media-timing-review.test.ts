@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type { MediaTimingReviewOpenPayload } from '../../types/anki';
+import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
+import type {
+  RemoteMediaWindow,
+  RemoteMediaWindowRange,
+  RemoteMediaWindowSource,
+} from '../../core/services/remote-media-window-cache';
+import type { MediaTimingPreviewSession } from '../../core/services/media-timing-preview';
+
+type MediaTimingPreviewSessionLike = Pick<MediaTimingPreviewSession, 'start'>;
 import {
   buildMediaTimingReviewPayload,
   collectMediaTimingContextLines,
@@ -177,12 +186,7 @@ test('media timing review pauses playback, resolves exact timing, and restores p
 });
 
 test('media timing review analyzes the visible range on the selected audio stream', async () => {
-  const waveformCalls: Array<{
-    mediaPath: string;
-    startTime: number;
-    endTime: number;
-    audioStreamIndex?: number;
-  }> = [];
+  const waveformCalls: SpeechWaveformOptions[] = [];
   let runtime: ReturnType<typeof createMediaTimingReviewRuntime>;
   runtime = createMediaTimingReviewRuntime({
     getMpvClient: () => ({
@@ -237,6 +241,300 @@ test('media timing review analyzes the visible range on the selected audio strea
       audioStreamIndex: 4,
     },
   ]);
+});
+
+const REMOTE_STREAM_URL = 'https://jellyfin.example/Videos/abc/stream?static=true';
+
+function createWindowStub(options: { fail?: boolean } = {}) {
+  const calls: Array<{ source: RemoteMediaWindowSource; range: RemoteMediaWindowRange }> = [];
+  const acquireMediaWindow = async (
+    source: RemoteMediaWindowSource,
+    range: RemoteMediaWindowRange,
+  ): Promise<RemoteMediaWindow> => {
+    calls.push({ source, range });
+    if (options.fail) throw new Error('offline');
+    const windowPath = `/tmp/window-${range.startTime}-${range.endTime}.mkv`;
+    return {
+      path: windowPath,
+      startTime: range.startTime,
+      endTime: range.endTime,
+      sourcePath: source.path,
+      audioStreamIndex: source.audioStreamIndex ?? null,
+      media: {
+        path: windowPath,
+        source: 'remote-window',
+        singleResolvedStream: true,
+        absoluteTimestamps: true,
+      },
+    };
+  };
+  return { calls, acquireMediaWindow };
+}
+
+function createRemoteReviewRuntime(options: {
+  windowStub: ReturnType<typeof createWindowStub>;
+  waveformCalls: SpeechWaveformOptions[];
+  previewStarts: Array<Parameters<MediaTimingPreviewSessionLike['start']>[0]>;
+  previewPlays: Array<[string, number, number]>;
+  disposed: string[];
+  openModal: (
+    runtime: ReturnType<typeof createMediaTimingReviewRuntime>,
+    payload: MediaTimingReviewOpenPayload,
+  ) => Promise<void>;
+}) {
+  let runtime!: ReturnType<typeof createMediaTimingReviewRuntime>;
+  runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: REMOTE_STREAM_URL,
+      currentAudioStreamIndex: 2,
+      requestProperty: async (name) =>
+        ({ pause: true, duration: 100, aid: 3, volume: 60 })[
+          name as 'pause' | 'duration' | 'aid' | 'volume'
+        ] ?? null,
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => REMOTE_STREAM_URL,
+    getMpvExecutablePath: () => 'mpv',
+    resolveMediaSource: async () => ({
+      path: REMOTE_STREAM_URL,
+      inputOptions: { reconnect: true },
+    }),
+    acquireMediaWindow: options.windowStub.acquireMediaWindow,
+    generateWaveform: async (waveformOptions) => {
+      options.waveformCalls.push(waveformOptions);
+      return [0.1, 0.8, 0.2];
+    },
+    createPreviewSession: () => {
+      let mediaPath = '';
+      return {
+        start: async (startOptions) => {
+          mediaPath = startOptions.mediaPath;
+          options.previewStarts.push(startOptions);
+        },
+        play: async (startTime, endTime) => {
+          options.previewPlays.push([mediaPath, startTime, endTime]);
+        },
+        stop: async () => undefined,
+        dispose: () => {
+          options.disposed.push(mediaPath);
+        },
+      };
+    },
+    openModal: async (payload) => {
+      await options.openModal(runtime, payload);
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+  return runtime;
+}
+
+test('media timing review downloads one window of a remote stream for the waveform and preview', async () => {
+  const windowStub = createWindowStub();
+  const waveformCalls: SpeechWaveformOptions[] = [];
+  const previewStarts: Array<Parameters<MediaTimingPreviewSessionLike['start']>[0]> = [];
+  const previewPlays: Array<[string, number, number]> = [];
+  const disposed: string[] = [];
+  const runtime = createRemoteReviewRuntime({
+    windowStub,
+    waveformCalls,
+    previewStarts,
+    previewPlays,
+    disposed,
+    openModal: async (active, payload) => {
+      const waveform = await active.getWaveform({
+        reviewId: payload.reviewId,
+        startTime: payload.timelineStartTime,
+        endTime: payload.timelineEndTime,
+      });
+      assert.deepEqual(waveform, { ok: true, peaks: [0.1, 0.8, 0.2] });
+      assert.deepEqual(
+        await active.previewRange({ reviewId: payload.reviewId, startTime: 9.5, endTime: 12.5 }),
+        { ok: true },
+      );
+      active.resolveReview({
+        reviewId: payload.reviewId,
+        decision: { action: 'confirm', startTime: 9.5, endTime: 12.5 },
+      });
+    },
+  });
+
+  const decision = await runtime.requestReview({
+    kind: 'word',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0.5,
+    maxMediaDuration: 30,
+  });
+
+  assert.deepEqual(decision, { action: 'confirm', startTime: 9.5, endTime: 12.5 });
+  assert.deepEqual(windowStub.calls, [
+    {
+      source: { path: REMOTE_STREAM_URL, inputOptions: { reconnect: true }, audioStreamIndex: 2 },
+      range: { startTime: 7.5, endTime: 14.5 },
+    },
+  ]);
+  assert.deepEqual(waveformCalls, [
+    {
+      mediaPath: {
+        path: '/tmp/window-7.5-14.5.mkv',
+        source: 'remote-window',
+        singleResolvedStream: true,
+        absoluteTimestamps: true,
+      },
+      startTime: 7.5,
+      endTime: 14.5,
+    },
+  ]);
+  assert.deepEqual(previewStarts, [
+    {
+      mediaPath: '/tmp/window-7.5-14.5.mkv',
+      executablePath: 'mpv',
+      volume: 60,
+      absoluteTimestamps: true,
+    },
+  ]);
+  assert.deepEqual(previewPlays, [['/tmp/window-7.5-14.5.mkv', 9.5, 12.5]]);
+  assert.deepEqual(disposed, ['/tmp/window-7.5-14.5.mkv']);
+});
+
+test('media timing review restarts the preview on a wider window when the timeline grows', async () => {
+  const windowStub = createWindowStub();
+  const waveformCalls: SpeechWaveformOptions[] = [];
+  const previewStarts: Array<Parameters<MediaTimingPreviewSessionLike['start']>[0]> = [];
+  const previewPlays: Array<[string, number, number]> = [];
+  const disposed: string[] = [];
+  const runtime = createRemoteReviewRuntime({
+    windowStub,
+    waveformCalls,
+    previewStarts,
+    previewPlays,
+    disposed,
+    openModal: async (active, payload) => {
+      await active.previewRange({ reviewId: payload.reviewId, startTime: 9.5, endTime: 12.5 });
+      // The user revealed two more seconds before the clip.
+      await active.getWaveform({ reviewId: payload.reviewId, startTime: 5.5, endTime: 14.5 });
+      await active.previewRange({ reviewId: payload.reviewId, startTime: 6, endTime: 12.5 });
+      active.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+    },
+  });
+
+  await runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0.5,
+    maxMediaDuration: 30,
+  });
+
+  assert.deepEqual(
+    windowStub.calls.map((call) => call.range),
+    [
+      { startTime: 7.5, endTime: 14.5 },
+      { startTime: 5.5, endTime: 14.5 },
+    ],
+  );
+  assert.deepEqual(
+    previewStarts.map((start) => start.mediaPath),
+    ['/tmp/window-7.5-14.5.mkv', '/tmp/window-5.5-14.5.mkv'],
+  );
+  assert.deepEqual(previewPlays, [
+    ['/tmp/window-7.5-14.5.mkv', 9.5, 12.5],
+    ['/tmp/window-5.5-14.5.mkv', 6, 12.5],
+  ]);
+  assert.deepEqual(disposed, ['/tmp/window-7.5-14.5.mkv', '/tmp/window-5.5-14.5.mkv']);
+  assert.equal(waveformCalls[0]?.startTime, 5.5);
+});
+
+test('media timing review falls back to the remote stream after one failed window download', async () => {
+  const windowStub = createWindowStub({ fail: true });
+  const waveformCalls: SpeechWaveformOptions[] = [];
+  const previewStarts: Array<Parameters<MediaTimingPreviewSessionLike['start']>[0]> = [];
+  const previewPlays: Array<[string, number, number]> = [];
+  const disposed: string[] = [];
+  const runtime = createRemoteReviewRuntime({
+    windowStub,
+    waveformCalls,
+    previewStarts,
+    previewPlays,
+    disposed,
+    openModal: async (active, payload) => {
+      await active.getWaveform({
+        reviewId: payload.reviewId,
+        startTime: payload.timelineStartTime,
+        endTime: payload.timelineEndTime,
+      });
+      await active.previewRange({ reviewId: payload.reviewId, startTime: 9.5, endTime: 12.5 });
+      active.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+    },
+  });
+
+  await runtime.requestReview({
+    kind: 'word',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0.5,
+    maxMediaDuration: 30,
+  });
+
+  assert.equal(windowStub.calls.length, 1);
+  assert.deepEqual(waveformCalls, [
+    {
+      mediaPath: { path: REMOTE_STREAM_URL, inputOptions: { reconnect: true } },
+      startTime: 7.5,
+      endTime: 14.5,
+      audioStreamIndex: 2,
+    },
+  ]);
+  assert.deepEqual(previewStarts, [
+    { mediaPath: REMOTE_STREAM_URL, executablePath: 'mpv', volume: 60, audioTrackId: 3 },
+  ]);
+  assert.deepEqual(previewPlays, [[REMOTE_STREAM_URL, 9.5, 12.5]]);
+});
+
+test('media timing review never downloads windows for local media', async () => {
+  const windowStub = createWindowStub();
+  let runtime!: ReturnType<typeof createMediaTimingReviewRuntime>;
+  runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: async (name) => (name === 'duration' ? 100 : name === 'pause' ? true : null),
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    resolveMediaSource: async () => ({ path: '/video/show.mkv' }),
+    acquireMediaWindow: windowStub.acquireMediaWindow,
+    generateWaveform: async () => [0.1, 0.8, 0.2],
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      dispose: () => undefined,
+    }),
+    openModal: async (payload) => {
+      await runtime.getWaveform({ reviewId: payload.reviewId, startTime: 7.5, endTime: 14.5 });
+      runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+
+  await runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0.5,
+    maxMediaDuration: 30,
+  });
+
+  assert.equal(windowStub.calls.length, 0);
 });
 
 test('media timing review rejects stale and out-of-range actions before allowing discard', async () => {
@@ -384,11 +682,16 @@ test('media timing review restores playback when setup fails after pausing', asy
       send: ({ command }) => commands.push(command),
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
-    getMpvExecutablePath: () => 'mpv',
-    generateWaveform: async () => [],
-    createPreviewSession: () => {
+    getMpvExecutablePath: () => {
       throw new Error('preview setup failed');
     },
+    generateWaveform: async () => [],
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      dispose: () => undefined,
+    }),
     openModal: async () => true,
     showStatus: () => undefined,
   });

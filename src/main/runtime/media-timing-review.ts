@@ -11,6 +11,13 @@ import type {
   MediaTimingReviewWaveformResult,
 } from '../../types/anki';
 import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
+import {
+  isRemoteMediaWindowSourcePath,
+  type RemoteMediaWindow,
+  type RemoteMediaWindowRange,
+  type RemoteMediaWindowSource,
+} from '../../core/services/remote-media-window-cache';
+import type { MediaInput, MediaInputOptions } from '../../media-input';
 
 const INITIAL_TIMELINE_MARGIN_SECONDS = 2;
 const REVIEW_DECISION_TIMEOUT_MS = 5 * 60_000;
@@ -31,19 +38,36 @@ interface PreviewSession {
     executablePath?: string;
     audioTrackId?: number;
     volume?: number;
+    absoluteTimestamps?: boolean;
   }): Promise<void>;
   play(startTime: number, endTime: number): Promise<void>;
   stop(): Promise<void>;
   dispose(): void;
 }
 
+interface ReviewMediaSource {
+  path: string;
+  inputOptions?: MediaInputOptions;
+  singleResolvedStream?: boolean;
+}
+
 interface ActiveReview {
   payload: MediaTimingReviewOpenPayload;
+  /** What the hidden mpv preview plays when no cached window is available. */
   mediaPath: string;
+  /** What the waveform reads when no cached window is available. */
+  waveformMedia: MediaInput;
   audioStreamIndex?: number;
+  /** Remote source to download windows of; null for local media or without a cache. */
+  windowSource: RemoteMediaWindowSource | null;
+  /** Latest window returned for this review; reused while it still covers the request. */
+  window: RemoteMediaWindow | null;
+  windowRequest: (RemoteMediaWindowRange & { promise: Promise<RemoteMediaWindow | null> }) | null;
+  windowFailed: boolean;
+  previewOptions: { executablePath?: string; audioTrackId?: number; volume?: number };
+  preview: { path: string; session: Promise<PreviewSession> } | null;
   mpvClient: ReviewMpvClient;
   restorePlayback: boolean;
-  preview: Promise<PreviewSession>;
   resolve: (decision: MediaTimingReviewDecision) => void;
 }
 
@@ -53,6 +77,13 @@ export interface MediaTimingReviewRuntimeDeps {
   getMpvExecutablePath: () => string;
   createPreviewSession: () => PreviewSession;
   generateWaveform: (options: SpeechWaveformOptions) => Promise<number[]>;
+  /** Resolves the FFmpeg-readable stream URL and headers behind the current media path. */
+  resolveMediaSource?: () => Promise<ReviewMediaSource | null>;
+  /** Downloads (or reuses) a local window of a remote source covering the range. */
+  acquireMediaWindow?: (
+    source: RemoteMediaWindowSource,
+    range: RemoteMediaWindowRange,
+  ) => Promise<RemoteMediaWindow>;
   getSubtitleContextLines?: (range: { startTime: number; endTime: number }) => {
     previous: MediaTimingReviewContextLine[];
     next: MediaTimingReviewContextLine[];
@@ -199,6 +230,84 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
   }
 
+  function ensureWindow(
+    review: ActiveReview,
+    range: RemoteMediaWindowRange,
+  ): Promise<RemoteMediaWindow | null> {
+    const { windowSource } = review;
+    if (!windowSource || review.windowFailed || !deps.acquireMediaWindow) {
+      return Promise.resolve(null);
+    }
+    const coversRange = (candidate: RemoteMediaWindowRange): boolean =>
+      candidate.startTime <= range.startTime && candidate.endTime >= range.endTime;
+    if (review.window && coversRange(review.window)) return Promise.resolve(review.window);
+    const inFlight = review.windowRequest;
+    if (inFlight && coversRange(inFlight)) return inFlight.promise;
+
+    const request = {
+      startTime: range.startTime,
+      endTime: range.endTime,
+      promise: Promise.resolve<RemoteMediaWindow | null>(null),
+    };
+    request.promise = deps
+      .acquireMediaWindow(windowSource, { startTime: range.startTime, endTime: range.endTime })
+      .then((window) => {
+        review.window = window;
+        return window;
+      })
+      .catch(() => {
+        // Fall back to the remote source for the rest of this review instead of retrying.
+        review.windowFailed = true;
+        return null;
+      })
+      .finally(() => {
+        if (review.windowRequest === request) review.windowRequest = null;
+      });
+    review.windowRequest = request;
+    return request.promise;
+  }
+
+  /**
+   * Returns the preview player for the range, restarting it when the range needs a
+   * different file (the first cached window, or a wider one after the timeline grew).
+   */
+  async function previewFor(
+    review: ActiveReview,
+    range: RemoteMediaWindowRange,
+  ): Promise<PreviewSession> {
+    const window = await ensureWindow(review, range);
+    if (active !== review) {
+      // The review ended during the download; do not start a player nobody will dispose.
+      throw new Error('This timing review is no longer active.');
+    }
+    const mediaPath = window?.path ?? review.mediaPath;
+    if (review.preview?.path === mediaPath) return review.preview.session;
+
+    const previous = review.preview;
+    const session = deps.createPreviewSession();
+    const { audioTrackId, ...previewOptions } = review.previewOptions;
+    const started = session
+      .start({
+        mediaPath,
+        ...previewOptions,
+        // A cached window keeps one audio stream, so mpv's track id from the source no longer applies.
+        ...(window
+          ? { absoluteTimestamps: true }
+          : audioTrackId !== undefined
+            ? { audioTrackId }
+            : {}),
+      })
+      .then(() => session)
+      .catch((error) => {
+        session.dispose();
+        throw error;
+      });
+    review.preview = { path: mediaPath, session: started };
+    void started.catch(() => {});
+    if (previous) void previous.session.then((old) => old.dispose()).catch(() => {});
+    return started;
+  }
+
   async function runReview(request: MediaTimingReviewRequest): Promise<MediaTimingReviewDecision> {
     const mpvClient = deps.getMpvClient();
     const mediaPath =
@@ -208,11 +317,12 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { action: 'use-original' };
     }
 
-    const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw] = await Promise.all([
+    const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw, resolvedSource] = await Promise.all([
       mpvClient.requestProperty?.('pause').catch(() => null) ?? null,
       mpvClient.requestProperty?.('duration').catch(() => null) ?? null,
       mpvClient.requestProperty?.('aid').catch(() => null) ?? null,
       mpvClient.requestProperty?.('volume').catch(() => null) ?? null,
+      deps.resolveMediaSource?.().catch(() => null) ?? null,
     ]);
     const pauseState = booleanProperty(pauseRaw);
     mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
@@ -232,38 +342,51 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       mediaDuration: finiteNumber(durationRaw) ?? undefined,
       ...(contextLines ? { contextLines } : {}),
     });
-    const previewSession = deps.createPreviewSession();
-    const preview = previewSession
-      .start({
-        mediaPath,
-        executablePath: deps.getMpvExecutablePath(),
-        audioTrackId: finiteNumber(audioTrackRaw) ?? undefined,
-        volume: finiteNumber(volumeRaw) ?? undefined,
-      })
-      .then(() => previewSession)
-      .catch((error) => {
-        previewSession.dispose();
-        throw error;
-      });
-    void preview.catch(() => {});
+    const sourcePath = resolvedSource?.path.trim() || mediaPath;
+    const inputOptions = resolvedSource?.inputOptions;
+    const audioStreamIndex =
+      resolvedSource?.singleResolvedStream || mpvClient.currentAudioStreamIndex == null
+        ? undefined
+        : mpvClient.currentAudioStreamIndex;
+    const windowSource: RemoteMediaWindowSource | null =
+      deps.acquireMediaWindow && isRemoteMediaWindowSourcePath(sourcePath)
+        ? {
+            path: sourcePath,
+            ...(inputOptions ? { inputOptions } : {}),
+            audioStreamIndex: audioStreamIndex ?? null,
+          }
+        : null;
 
     let resolveDecision!: (decision: MediaTimingReviewDecision) => void;
     const decisionPromise = new Promise<MediaTimingReviewDecision>((resolve) => {
       resolveDecision = resolve;
     });
-    active = {
+    const review: ActiveReview = {
       payload,
       mediaPath,
-      ...(mpvClient.currentAudioStreamIndex !== null &&
-      mpvClient.currentAudioStreamIndex !== undefined
-        ? { audioStreamIndex: mpvClient.currentAudioStreamIndex }
-        : {}),
+      waveformMedia: inputOptions ? { path: sourcePath, inputOptions } : sourcePath,
+      ...(audioStreamIndex !== undefined ? { audioStreamIndex } : {}),
+      windowSource,
+      window: null,
+      windowRequest: null,
+      windowFailed: false,
+      previewOptions: {
+        executablePath: deps.getMpvExecutablePath(),
+        audioTrackId: finiteNumber(audioTrackRaw) ?? undefined,
+        volume: finiteNumber(volumeRaw) ?? undefined,
+      },
+      preview: null,
       mpvClient,
       restorePlayback: pendingPauseRestore === mpvClient,
-      preview,
       resolve: resolveDecision,
     };
+    active = review;
     pendingPauseRestore = null;
+    // Download the visible timeline once now; the waveform and preview both wait on it.
+    void previewFor(review, {
+      startTime: payload.timelineStartTime,
+      endTime: payload.timelineEndTime,
+    }).catch(() => {});
 
     const opened = await deps.openModal(payload).catch(() => false);
     if (!opened) {
@@ -317,7 +440,10 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { ok: false, message: 'The selected preview range is invalid.' };
     }
     try {
-      const previewSession = await current.preview;
+      const previewSession = await previewFor(current, request);
+      if (active !== current) {
+        return { ok: false, message: 'This timing review is no longer active.' };
+      }
       await previewSession.play(request.startTime, request.endTime);
       return { ok: true };
     } catch (error) {
@@ -347,11 +473,15 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
 
     try {
+      const window = await ensureWindow(current, request);
+      if (active !== current) {
+        return { ok: false, message: 'This timing review is no longer active.' };
+      }
       const peaks = await deps.generateWaveform({
-        mediaPath: current.mediaPath,
+        mediaPath: window?.media ?? current.waveformMedia,
         startTime: request.startTime,
         endTime: request.endTime,
-        ...(current.audioStreamIndex !== undefined
+        ...(!window && current.audioStreamIndex !== undefined
           ? { audioStreamIndex: current.audioStreamIndex }
           : {}),
       });
@@ -370,8 +500,8 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { ok: false, message: 'This timing review is no longer active.' };
     }
     try {
-      const previewSession = await current.preview;
-      await previewSession.stop();
+      const previewSession = current.preview ? await current.preview.session : null;
+      await previewSession?.stop();
       return { ok: true };
     } catch (error) {
       return {
@@ -403,7 +533,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     const current = active;
     active = null;
     if (!current) return;
-    void current.preview.then((session) => session.dispose()).catch(() => {});
+    void current.preview?.session.then((session) => session.dispose()).catch(() => {});
     if (current.restorePlayback && current.mpvClient.connected) {
       current.mpvClient.send({ command: ['set_property', 'pause', 'no'] });
     }

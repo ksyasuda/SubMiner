@@ -22,6 +22,12 @@ import * as path from 'path';
 import * as os from 'os';
 import { createLogger } from './logger';
 import { normalizeMediaInput, type MediaInput } from './media-input';
+import {
+  getSharedRemoteMediaWindowCache,
+  isRemoteMediaWindowSourcePath,
+  type RemoteMediaWindowCache,
+  type RemoteMediaWindowRange,
+} from './core/services/remote-media-window-cache';
 
 const log = createLogger('media');
 const AUDIO_NORMALIZATION_FILTER = 'loudnorm=I=-23:TP=-2:LRA=11';
@@ -86,6 +92,11 @@ export interface MediaGeneratorOptions {
   logDebug?: (message: string) => void;
   now?: () => number;
   execFile?: MediaGeneratorExecFile;
+  /**
+   * Local window cache for http(s) sources. Defaults to the process-wide cache shared
+   * with the timing review; pass `null` to always read remote sources directly.
+   */
+  remoteMediaWindows?: RemoteMediaWindowCache | null;
 }
 
 function sanitizeDebugToken(value: string, fallback: string): string {
@@ -232,6 +243,54 @@ export class MediaGenerator {
     }, delayMs);
   }
 
+  /**
+   * Swaps an http(s) input for the locally cached window that covers `range`, so the
+   * clip is downloaded once instead of per FFmpeg run. `acquire` downloads on a miss;
+   * `lookup` only reuses a window that another step already fetched. Any failure falls
+   * back to reading the remote source directly.
+   */
+  private async resolveRemoteWindowInput(
+    input: MediaInput,
+    range: RemoteMediaWindowRange,
+    audioStreamIndex: number | null | undefined,
+    mode: 'acquire' | 'lookup',
+  ): Promise<MediaInput> {
+    const cache =
+      this.options.remoteMediaWindows === undefined
+        ? getSharedRemoteMediaWindowCache()
+        : this.options.remoteMediaWindows;
+    const sourcePath = typeof input === 'string' ? input : input.path;
+    if (!cache || !isRemoteMediaWindowSourcePath(sourcePath)) {
+      return input;
+    }
+    const source = {
+      path: sourcePath,
+      ...(typeof input === 'object' && input.inputOptions
+        ? { inputOptions: input.inputOptions }
+        : {}),
+      audioStreamIndex:
+        typeof input === 'object' && input.singleResolvedStream ? null : (audioStreamIndex ?? null),
+    };
+    const description = describeMediaInputForDebugLog(input);
+    try {
+      const window =
+        mode === 'acquire' ? await cache.acquire(source, range) : await cache.lookup(source, range);
+      if (!window) {
+        this.logMediaDebug(`window miss ${description} mode=${mode}`);
+        return input;
+      }
+      this.logMediaDebug(
+        `window hit ${description} mode=${mode} start=${window.startTime} end=${window.endTime}`,
+      );
+      return window.media;
+    } catch (error) {
+      this.logMediaDebug(
+        `window failed ${description} mode=${mode} reason=${sanitizeDebugToken((error as Error).message, 'error')}`,
+      );
+      return input;
+    }
+  }
+
   private ffmpegError(label: string, error: ExecFileException): Error {
     if (error.code === 'ENOENT') {
       return new Error('FFmpeg not found. Install FFmpeg to enable media generation.');
@@ -281,7 +340,13 @@ export class MediaGenerator {
     const safePadding = Number.isFinite(padding) ? Math.max(0, padding) : 0;
     const start = Math.max(0, startTime - safePadding);
     const duration = endTime - start + safePadding;
-    const mediaInput = normalizeMediaInput(videoPath);
+    const sourceInput = await this.resolveRemoteWindowInput(
+      videoPath,
+      { startTime: start, endTime: start + duration },
+      audioStreamIndex,
+      'acquire',
+    );
+    const mediaInput = normalizeMediaInput(sourceInput);
     const inputDescription = describeMediaInputForDebugLog(videoPath);
     const hasSelectedAudioStream =
       !mediaInput.singleResolvedStream &&
@@ -385,7 +450,15 @@ export class MediaGenerator {
       png: 'png',
       webp: 'webp',
     };
-    const mediaInput = normalizeMediaInput(videoPath);
+    // A single frame is cheap to fetch remotely, so only reuse a window another step downloaded.
+    const mediaInput = normalizeMediaInput(
+      await this.resolveRemoteWindowInput(
+        videoPath,
+        { startTime: timestamp, endTime: timestamp },
+        null,
+        'lookup',
+      ),
+    );
     const inputDescription = describeMediaInputForDebugLog(videoPath);
 
     const args: string[] = [
@@ -533,9 +606,17 @@ export class MediaGenerator {
       );
     }
 
+    const mediaInput = normalizeMediaInput(
+      await this.resolveRemoteWindowInput(
+        videoPath,
+        { startTime: start, endTime: start + duration },
+        null,
+        'acquire',
+      ),
+    );
+
     return new Promise((resolve, reject) => {
       const outputPath = this.createTempOutputPath('animation', 'avif');
-      const mediaInput = normalizeMediaInput(videoPath);
       const startedAt = this.nowMs();
 
       const encoderArgs: string[] = ['-c:v', av1Encoder];

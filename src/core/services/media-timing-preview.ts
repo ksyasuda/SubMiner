@@ -14,6 +14,8 @@ export interface MediaTimingPreviewStartOptions {
   executablePath?: string;
   audioTrackId?: number;
   volume?: number;
+  /** The file keeps source timestamps (a cached remote window); seek with the original times. */
+  absoluteTimestamps?: boolean;
 }
 
 type PreviewProcess = Pick<ChildProcess, 'kill' | 'once'>;
@@ -50,6 +52,9 @@ export function buildMediaTimingPreviewArgs(
   }
   if (typeof options.volume === 'number' && Number.isFinite(options.volume)) {
     args.push(`--volume=${Math.max(0, options.volume)}`);
+  }
+  if (options.absoluteTimestamps) {
+    args.push('--rebase-start-time=no');
   }
   args.push('--', options.mediaPath);
   return args;

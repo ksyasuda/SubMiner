@@ -158,6 +158,8 @@ If you only want sentence and audio on your cards:
 
 SubMiner uses FFmpeg to generate audio and image media from the video. FFmpeg must be installed and on `PATH`.
 
+For remote streams such as Jellyfin playback, SubMiner downloads the clip's time window once into a temporary Matroska file (a stream copy, no re-encoding) and reads the timing review waveform, audio preview, audio, and image from that file instead of fetching the stream again for each step. The window covers the clip plus padding, plus the visible timeline in timing review, and grows when you reveal more of the timeline. It is deleted when a different window replaces it, after ten minutes without use, or when SubMiner exits. If the download fails, media generation reads the remote stream directly as before.
+
 ### Audio
 
 Audio is extracted from the video file using the subtitle's start and end timestamps. Padding is opt-in; keep it at `0` when you want sentence audio to start exactly at the mined sentence.
@@ -351,11 +353,11 @@ For Senren note types, enable `isSenren` instead. Kiku and Senren write incompat
 
 ### What Gets Merged
 
-| Field    | Merge behavior                                |
-| -------- | --------------------------------------------- |
-| Sentence | Both cards' sentences kept as grouped entries |
-| Audio    | Both cards' `[sound:...]` entries kept        |
-| Image    | Both cards' images kept                       |
+| Field    | Merge behavior                                  |
+| -------- | ----------------------------------------------- |
+| Sentence | Both cards' sentences kept as grouped entries   |
+| Audio    | Both cards' `[sound:...]` entries kept          |
+| Image    | Both cards' images kept                         |
 | MiscInfo | Both cards' source info kept as grouped entries |
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.

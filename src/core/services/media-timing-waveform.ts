@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { normalizeMediaInput, type MediaInput } from '../../media-input';
 
 const WAVEFORM_SAMPLE_RATE = 8_000;
 const WAVEFORM_POINT_COUNT = 480;
@@ -9,7 +10,7 @@ const CENTER_CHANNEL_FILTER = `pan=mono|c0=FC,${SPEECH_FILTER}`;
 const DOWNMIX_FILTER = `aformat=channel_layouts=mono,${SPEECH_FILTER}`;
 
 export interface SpeechWaveformOptions {
-  mediaPath: string;
+  mediaPath: MediaInput;
   startTime: number;
   endTime: number;
   audioStreamIndex?: number;
@@ -22,6 +23,7 @@ export function buildSpeechWaveformArgs(
   mode: 'center' | 'downmix',
 ): string[] {
   const duration = options.endTime - options.startTime;
+  const input = normalizeMediaInput(options.mediaPath);
   const args = [
     '-hide_banner',
     '-nostdin',
@@ -29,8 +31,9 @@ export function buildSpeechWaveformArgs(
     'error',
     '-ss',
     String(options.startTime),
+    ...input.inputArgs,
     '-i',
-    options.mediaPath,
+    input.path,
     '-t',
     String(duration),
   ];

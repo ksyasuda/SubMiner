@@ -35,6 +35,29 @@ test('speech waveform maps the selected FFmpeg stream and visible range', () => 
   assert.match(args[args.indexOf('-af') + 1] ?? '', /c0=FC/);
 });
 
+test('speech waveform seeks cached windows by source timestamps', () => {
+  const args = buildSpeechWaveformArgs(
+    {
+      mediaPath: { path: '/tmp/window.mkv', absoluteTimestamps: true, singleResolvedStream: true },
+      startTime: 8,
+      endTime: 15,
+    },
+    'downmix',
+  );
+
+  assert.deepEqual(args.slice(args.indexOf('-ss'), args.indexOf('-t') + 2), [
+    '-ss',
+    '8',
+    '-seek_timestamp',
+    '1',
+    '-i',
+    '/tmp/window.mkv',
+    '-t',
+    '7',
+  ]);
+  assert.equal(args.includes('-map'), false);
+});
+
 test('waveform peaks are normalized without flattening quieter sections', () => {
   const peaks = computeWaveformPeaks(pcm([0, 1_000, -2_000, 4_000, -8_000, 16_000]), 3);
 

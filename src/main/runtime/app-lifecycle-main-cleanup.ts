@@ -61,6 +61,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   cleanupInternalSubtitleTrackCache: () => void;
   cleanupYoutubeSubtitleTempDirs: () => void;
   cleanupYoutubeMediaCache: () => void;
+  cleanupRemoteMediaWindows: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
@@ -148,6 +149,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
     cleanupInternalSubtitleTrackCache: () => deps.cleanupInternalSubtitleTrackCache(),
     cleanupYoutubeSubtitleTempDirs: () => deps.cleanupYoutubeSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => deps.cleanupYoutubeMediaCache(),
+    cleanupRemoteMediaWindows: () => deps.cleanupRemoteMediaWindows(),
     cleanupJellyfinSubtitleCache: () => deps.cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => deps.stopDiscordPresenceService(),
   });

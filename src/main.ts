@@ -464,6 +464,8 @@ import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
 import { createOverlayModalRuntimeService } from './main/overlay-runtime';
 import { createOverlayModalInputState } from './main/runtime/overlay-modal-input-state';
 import { MediaTimingPreviewSession } from './core/services/media-timing-preview';
+import { getSharedRemoteMediaWindowCache } from './core/services/remote-media-window-cache';
+import { resolveMediaGenerationInput } from './anki-integration/media-source';
 import { generateSpeechWaveform } from './core/services/media-timing-waveform';
 import {
   collectMediaTimingContextLines,
@@ -2896,6 +2898,21 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
     configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
   createPreviewSession: () => new MediaTimingPreviewSession(),
   generateWaveform: (options) => generateSpeechWaveform(options),
+  resolveMediaSource: async () => {
+    const resolved = await resolveMediaGenerationInput(appState.mpvClient, 'audio', {
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+    });
+    return resolved
+      ? {
+          path: resolved.path,
+          ...(resolved.inputOptions ? { inputOptions: resolved.inputOptions } : {}),
+          singleResolvedStream: resolved.singleResolvedStream,
+        }
+      : null;
+  },
+  acquireMediaWindow: (source, range) => getSharedRemoteMediaWindowCache().acquire(source, range),
   getSubtitleContextLines: (range) =>
     collectMediaTimingContextLines({
       cues: appState.activeParsedSubtitleCues,
@@ -3973,6 +3990,7 @@ const {
     cleanupInternalSubtitleTrackCache: () => cachedInternalSubtitleTrackExtractor.clear(),
     cleanupYoutubeSubtitleTempDirs: () => youtubeFlowRuntime.cleanupSubtitleTempDirs(),
     cleanupYoutubeMediaCache: () => youtubeMediaCache.cleanup(),
+    cleanupRemoteMediaWindows: () => getSharedRemoteMediaWindowCache().cleanup(),
     cleanupJellyfinSubtitleCache: () => cleanupJellyfinSubtitleCache(),
     stopDiscordPresenceService: () => {
       void appState.discordPresenceService?.stop();

@@ -32,6 +32,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupInternalSubtitleTrackCache: () => void;
   cleanupYoutubeSubtitleTempDirs: () => void;
   cleanupYoutubeMediaCache: () => void;
+  cleanupRemoteMediaWindows: () => void;
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
@@ -76,6 +77,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     }
     deps.cleanupYoutubeSubtitleTempDirs();
     deps.cleanupYoutubeMediaCache();
+    deps.cleanupRemoteMediaWindows();
     deps.stopDiscordPresenceService();
     return Promise.resolve(stopSyncAutoScheduler);
   };
