@@ -617,6 +617,13 @@ export function buildIntegrationConfigOptionRegistry(
         'Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.',
     },
     {
+      path: 'anime.defaultSource',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.defaultSource,
+      description:
+        'Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. The star beside the Source picker writes this value.',
+    },
+    {
       path: 'anime.bridgeDir',
       kind: 'string',
       defaultValue: defaultConfig.anime.bridgeDir,

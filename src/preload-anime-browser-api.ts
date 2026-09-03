@@ -44,6 +44,8 @@ export function createAnimeBrowserAPI(ipcRenderer: AnimeBrowserIpcRenderer): Ani
       ipcRenderer.invoke(request.animeBrowserUpdateBridge),
     selectSource: (sourceId: string): Promise<void> =>
       ipcRenderer.invoke(request.animeBrowserSelectSource, sessionId, sourceId),
+    setDefaultSource: (sourceId: string): Promise<void> =>
+      ipcRenderer.invoke(request.animeBrowserSetDefaultSource, sourceId),
     search: (query: string, page?: number): Promise<AnimeBrowserSearchResult> =>
       ipcRenderer.invoke(request.animeBrowserSearch, sessionId, query, page),
     getPopular: (page?: number): Promise<AnimeBrowserSearchResult> =>

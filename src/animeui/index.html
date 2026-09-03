@@ -33,10 +33,19 @@
         <button class="primary-button" id="search-button" type="submit">Search</button>
       </form>
 
-      <label class="source-picker">
-        <span class="source-label">Source</span>
+      <div class="source-picker">
+        <label class="source-label" for="source-select">Source</label>
         <select class="text-input" id="source-select" aria-label="Extension source"></select>
-      </label>
+        <button
+          class="ghost-button default-source-button"
+          id="source-default"
+          type="button"
+          title="Open the browser on this source"
+          aria-label="Set as default source"
+        >
+          &#9734;
+        </button>
+      </div>
 
       <nav class="tabs" role="tablist" aria-label="View">
         <button

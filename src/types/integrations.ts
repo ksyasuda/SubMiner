@@ -64,6 +64,11 @@ export interface AnimeConfig {
   /** Preferred stream label, matched as a substring, e.g. "1080". */
   preferredQuality?: string;
   /**
+   * Source id (`<package>:<source>`) selected when the browser opens, or
+   * "all" for every installed source. Empty selects the first installed one.
+   */
+  defaultSource?: string;
+  /**
    * Directory holding an M-Extension-Server bundle (java runtime plus server
    * jar) to run instead of the copy SubMiner downloads. Empty checks the
    * package-manager location, then the managed copy.

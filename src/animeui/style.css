@@ -276,6 +276,17 @@ body {
   width: auto;
 }
 
+.default-source-button {
+  padding: 6px 9px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.default-source-button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---------- bridge banner ---------- */
 
 .bridge-banner {

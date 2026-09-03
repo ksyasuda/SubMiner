@@ -388,6 +388,18 @@ export function applyIntegrationConfig(context: ResolveContext): void {
       );
     }
 
+    const defaultSource = asString(src.anime.defaultSource);
+    if (defaultSource !== undefined) {
+      resolved.anime.defaultSource = defaultSource.trim();
+    } else if (src.anime.defaultSource !== undefined) {
+      warn(
+        'anime.defaultSource',
+        src.anime.defaultSource,
+        resolved.anime.defaultSource,
+        'Expected string.',
+      );
+    }
+
     if (Array.isArray(src.anime.repos)) {
       const repos: string[] = [];
       for (const entry of src.anime.repos) {

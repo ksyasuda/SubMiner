@@ -633,6 +633,7 @@
     "extensionsDir": "", // Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.
     "repos": [], // Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.
     "preferredQuality": "", // Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.
+    "defaultSource": "", // Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. The star beside the Source picker writes this value.
     "bridgeDir": "" // Directory holding an M-Extension-Server bundle (java runtime plus server jar) to run instead of the copy SubMiner downloads. Empty checks the package-manager install (Arch: mangatan-extension-server), then <userData>/anime-bridge.
   }, // Anime browser sources. SubMiner ships no extension repositories and bundles no sources;
 

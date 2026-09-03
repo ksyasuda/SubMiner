@@ -1053,7 +1053,7 @@ This example is intentionally compact. The option table below documents availabl
 | `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time, `%T`=time with milliseconds, `<br>`=newline                                                                                                           |
 | `isLapis`                                         | object                                      | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.                                                                                    |
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
-| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                      |
+| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                     |
 
 `ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
 API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
@@ -1168,7 +1168,8 @@ Sources for the [anime browser](/anime-browser). SubMiner ships no extension rep
     "autoOpenJimaku": false,
     "extensionsDir": "",
     "repos": [],
-    "preferredQuality": ""
+    "preferredQuality": "",
+    "defaultSource": ""
   }
 }
 ```
@@ -1179,6 +1180,7 @@ Sources for the [anime browser](/anime-browser). SubMiner ships no extension rep
 | `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                                                                                         |
 | `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                                                                                                 |
 | `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub.                                                                       |
+| `anime.defaultSource`    | `string`   | `""`    | Source the Anime Browser selects when it opens: a source id (`<package>:<source>`) or `all` for every installed source. Empty selects the first installed source. The star beside the Source picker writes this value.                              |
 | `anime.bridgeDir`        | `string`   | `""`    | Directory holding an M-Extension-Server bundle (Java runtime plus server jar) to run instead of the downloaded copy. Empty checks the package-manager install first, then `<userData>/anime-bridge`. See [the bridge](anime-browser.md#the-bridge). |
 
 Repositories added from the browser's Extensions tab are written back to `anime.repos`, so the list can also be kept in a dotfile. Changes apply the next time the anime browser opens.

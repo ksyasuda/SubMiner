@@ -130,6 +130,7 @@ export const IPC_CHANNELS = {
     animeBrowserEnsureBridge: 'anime-browser:ensure-bridge',
     animeBrowserUpdateBridge: 'anime-browser:update-bridge',
     animeBrowserSelectSource: 'anime-browser:select-source',
+    animeBrowserSetDefaultSource: 'anime-browser:set-default-source',
     animeBrowserSearch: 'anime-browser:search',
     animeBrowserGetPopular: 'anime-browser:get-popular',
     animeBrowserGetDetails: 'anime-browser:get-details',

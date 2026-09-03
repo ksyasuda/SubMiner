@@ -325,6 +325,7 @@ export interface ResolvedConfig {
     extensionsDir: string;
     repos: string[];
     preferredQuality: string;
+    defaultSource: string;
     bridgeDir: string;
   };
   jimaku: JimakuConfig & {

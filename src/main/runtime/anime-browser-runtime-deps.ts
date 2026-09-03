@@ -79,6 +79,13 @@ export interface AnimeBrowserRuntimeDeps {
   /** Streams per-source progress while a search invoke is pending. */
   onSearchUpdate?: (update: AnimeBrowserSearchUpdate, sessionId: string) => void;
   preferredQuality?: () => string | undefined;
+  /**
+   * Source id (or `all`) a new browser session starts on. Falls back to the
+   * first installed source when unset or no longer installed.
+   */
+  defaultSourceId?: () => string | undefined;
+  /** Persists the default; absent when the host has no config to write to. */
+  setDefaultSourceId?: (sourceId: string) => void;
   log: (message: string) => void;
   /** Overrides process startup in focused runtime tests. */
   startSidecar?: typeof startSidecar;

@@ -116,6 +116,14 @@ missing.
 An extension that fails to load is skipped rather than blocking the others, so
 one bad APK will not hide the rest.
 
+### Default source
+
+The browser opens on the first installed source. To open on a different one,
+pick it in the **Source** picker and press the star beside it; the choice is
+written to `anime.defaultSource` and applies the next time a browser window or
+the in-player modal opens. **All sources** can be the default too. A default
+that is no longer installed falls back to the first source.
+
 ## Searching every source at once
 
 With more than one source installed, the **Source** picker gains an
@@ -200,13 +208,14 @@ there is nowhere to write them and the status bar says so.
 
 ## Settings
 
-| Key                      | Purpose                                                                 |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `anime.autoOpenJimaku`   | Pause new episodes and open Jimaku for Japanese subtitles.              |
-| `anime.repos`            | Repository index URLs. Empty by default.                                |
-| `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.     |
-| `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`).    |
-| `anime.bridgeDir`        | A bridge bundle to run instead of the downloaded one. Empty by default. |
+| Key                      | Purpose                                                                  |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `anime.autoOpenJimaku`   | Pause new episodes and open Jimaku for Japanese subtitles.               |
+| `anime.repos`            | Repository index URLs. Empty by default.                                 |
+| `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.      |
+| `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`).     |
+| `anime.defaultSource`    | Source the browser opens on: a source id or `all`. Empty uses the first. |
+| `anime.bridgeDir`        | A bridge bundle to run instead of the downloaded one. Empty by default.  |
 
 Enable `anime.autoOpenJimaku` to hand each newly loaded Anime Browser episode
 to Jimaku. SubMiner pauses playback, closes the in-player browser if it is open,

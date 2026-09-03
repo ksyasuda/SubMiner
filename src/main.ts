@@ -3426,6 +3426,9 @@ const animeBrowserApplicationRuntime = createAnimeBrowserApplicationRuntime({
     repos: () => configService.getConfig().anime?.repos ?? [],
     setRepos: (repos) => configService.patchRawConfig({ anime: { repos } }),
     preferredQuality: () => configService.getConfig().anime?.preferredQuality || undefined,
+    defaultSourceId: () => configService.getConfig().anime?.defaultSource || undefined,
+    setDefaultSourceId: (defaultSource) =>
+      configService.patchRawConfig({ anime: { defaultSource } }),
     preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
     ensureBinaries: (onProgress) =>
       ensureBridgeBinaries({

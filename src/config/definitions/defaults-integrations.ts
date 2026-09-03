@@ -108,6 +108,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     extensionsDir: '',
     repos: [],
     preferredQuality: '',
+    defaultSource: '',
     bridgeDir: '',
   },
   jimaku: {

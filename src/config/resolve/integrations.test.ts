@@ -86,3 +86,15 @@ test('resolveConfig warns for an invalid Anime Browser Jimaku handoff option', (
     },
   ]);
 });
+
+test('resolveConfig trims the Anime Browser default source and warns on a non-string', () => {
+  const trimmed = resolveConfig({ anime: { defaultSource: ' all ' } });
+  assert.equal(trimmed.resolved.anime.defaultSource, 'all');
+  assert.deepEqual(trimmed.warnings, []);
+
+  const invalid = resolveConfig({ anime: { defaultSource: 3 as never } });
+  assert.equal(invalid.resolved.anime.defaultSource, '');
+  assert.deepEqual(invalid.warnings, [
+    { path: 'anime.defaultSource', value: 3, fallback: '', message: 'Expected string.' },
+  ]);
+});

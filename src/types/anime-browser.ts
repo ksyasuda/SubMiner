@@ -218,6 +218,8 @@ export interface AnimeBrowserSnapshot {
   bridge: AnimeBrowserBridgeState;
   sources: AnimeBrowserSource[];
   selectedSourceId: string | null;
+  /** Configured `anime.defaultSource`, verbatim; null when unset. */
+  defaultSourceId: string | null;
   loadFailures: ExtensionLoadFailure[];
   /** Every extension on disk, whether or not it loaded. */
   installed: InstalledExtensionView[];
@@ -287,6 +289,8 @@ export interface AnimeBrowserAPI {
    */
   updateBridge: () => Promise<AnimeBrowserBridgeState>;
   selectSource: (sourceId: string) => Promise<void>;
+  /** Persist the source (or `all`) new browser sessions open on. */
+  setDefaultSource: (sourceId: string) => Promise<void>;
   search: (query: string, page?: number) => Promise<AnimeBrowserSearchResult>;
   getPopular: (page?: number) => Promise<AnimeBrowserSearchResult>;
   /** `sourceId` is required after an all-sources search; pass the entry's own. */

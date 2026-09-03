@@ -92,10 +92,24 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     return result;
   }
 
+  /**
+   * The configured default when it is installed (or `all` with anything
+   * installed), otherwise the first source the scan found. Null with nothing
+   * installed.
+   */
+  function initialSourceId(): string | null {
+    const configured = deps.defaultSourceId?.()?.trim();
+    if (configured) {
+      if (configured === ALL_SOURCES_ID && sources.length > 0) return ALL_SOURCES_ID;
+      if (sources.some((source) => source.id === configured)) return configured;
+    }
+    return sources[0]?.id ?? null;
+  }
+
   function getBrowserSession(sessionId = 'default') {
     const existing = browserSessions.get(sessionId);
     if (existing) return existing;
-    const created = { selectedSourceId: sources[0]?.id ?? null, searchToken: 0 };
+    const created = { selectedSourceId: initialSourceId(), searchToken: 0 };
     browserSessions.set(sessionId, created);
     return created;
   }
@@ -245,7 +259,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     for (const session of browserSessions.values()) {
       const keptAll = session.selectedSourceId === ALL_SOURCES_ID && sources.length > 0;
       if (!keptAll && !sources.some((source) => source.id === session.selectedSourceId)) {
-        session.selectedSourceId = sources[0]?.id ?? null;
+        session.selectedSourceId = initialSourceId();
       }
     }
 
@@ -526,6 +540,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           pkg: source.pkg,
         })),
         selectedSourceId: session.selectedSourceId,
+        defaultSourceId: deps.defaultSourceId?.()?.trim() || null,
         loadFailures,
         installed: toInstalledExtensionViews(extensions, sources, loadFailures),
         extensionsDir: deps.extensionsDir(),
@@ -654,6 +669,20 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
         return;
       }
       if (sources.some((source) => source.id === sourceId)) session.selectedSourceId = sourceId;
+    },
+
+    /**
+     * Remember `sourceId` as the source every future browser session opens on.
+     * Only an installed source (or `all`) is accepted, so a typo cannot be
+     * persisted from the UI; the config file itself is not validated this way.
+     */
+    setDefaultSource(sourceId: string): void {
+      const valid =
+        (sourceId === ALL_SOURCES_ID && sources.length > 0) ||
+        sources.some((source) => source.id === sourceId);
+      if (!valid) throw new Error('That source is no longer installed. Rescan and try again.');
+      if (!deps.setDefaultSourceId) throw new Error('Default source cannot be saved here.');
+      deps.setDefaultSourceId(sourceId);
     },
 
     /**

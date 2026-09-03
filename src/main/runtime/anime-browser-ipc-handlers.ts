@@ -52,6 +52,9 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserSelectSource, (event, sessionId, sourceId) =>
     runtime.selectSource(String(sourceId), registerSession(deps, event, sessionId)),
   );
+  handle(channels.animeBrowserSetDefaultSource, (_event, sourceId) =>
+    runtime.setDefaultSource(String(sourceId)),
+  );
   handle(channels.animeBrowserSearch, (event, sessionId, query, page) =>
     runtime.search(String(query ?? ''), toPage(page), registerSession(deps, event, sessionId)),
   );
