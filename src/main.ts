@@ -545,6 +545,7 @@ import {
 } from './main/runtime/setup-window-factory';
 import { createAnimeBrowserApplicationRuntime } from './main/runtime/anime-browser-application-runtime';
 import { createAnimeBrowserJimakuAutoOpen } from './main/runtime/anime-browser-jimaku-auto-open';
+import { waitForPlaybackWindow } from './main/runtime/playback-window-ready';
 import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
 import {
   ensureBridgeBinaries,
@@ -2526,12 +2527,28 @@ const animeBrowserJimakuAutoOpen = createAnimeBrowserJimakuAutoOpen({
   setPlaybackPaused: (paused) => {
     sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', paused ? 'yes' : 'no']);
   },
+  waitForPlaybackWindow: () =>
+    waitForPlaybackWindow({
+      isWindowTracked: () => appState.windowTracker?.isTracking() ?? null,
+      readProperty: (name) => {
+        const client = appState.mpvClient;
+        if (!client) return Promise.reject(new Error('mpv is not connected.'));
+        return client.requestProperty(name);
+      },
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    }),
   closeAnimeBrowserModal: () => {
     if (!overlayModalRuntime.isModalOpen('anime-browser')) return;
     overlayModalRuntime.sendToActiveOverlayWindow(IPC_CHANNELS.event.animeBrowserClose, undefined, {
       restoreOnModalClose: 'anime-browser',
       preferModalWindow: true,
     });
+  },
+  hideAnimeBrowserWindow: () => {
+    const window = appState.animeBrowserWindow;
+    if (window && !window.isDestroyed() && window.isVisible()) {
+      window.hide();
+    }
   },
   openJimakuModal: () => openJimakuOverlay(),
   logWarn: (message, error) => logger.warn(message, error),

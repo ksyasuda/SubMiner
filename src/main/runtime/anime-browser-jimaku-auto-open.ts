@@ -4,7 +4,10 @@ export interface AnimeBrowserJimakuAutoOpenDeps {
   getCurrentMediaPath: () => string | null;
   getPlaybackPaused: () => Promise<boolean | null>;
   setPlaybackPaused: (paused: boolean) => void;
+  /** Resolves true once mpv shows a video window; false when it never appears. */
+  waitForPlaybackWindow: () => Promise<boolean>;
   closeAnimeBrowserModal: () => void;
+  hideAnimeBrowserWindow: () => void;
   openJimakuModal: () => Promise<boolean>;
   logWarn: (message: string, error?: unknown) => void;
 }
@@ -20,7 +23,16 @@ interface ActiveFlow {
   ownsPause: boolean;
 }
 
-/** Coordinates the pause owned by the Anime Browser to Jimaku handoff. */
+/**
+ * Coordinates the pause owned by the Anime Browser to Jimaku handoff.
+ *
+ * The pause goes out on the path change so the stream freezes on its first
+ * frame, but Jimaku waits for mpv's window: the modal takes its geometry from
+ * that window, and on macOS closing the last modal yields focus back to it.
+ * Both Anime Browser surfaces get out of the way before Jimaku opens; a
+ * visible standalone window would otherwise be pulled in front of mpv the
+ * next time the app activates after that focus handoff.
+ */
 export function createAnimeBrowserJimakuAutoOpen(
   deps: AnimeBrowserJimakuAutoOpenDeps,
 ): AnimeBrowserJimakuAutoOpen {
@@ -68,7 +80,22 @@ export function createAnimeBrowserJimakuAutoOpen(
     }
 
     if (!isCurrent(flow)) return;
+    try {
+      const windowReady = await deps.waitForPlaybackWindow();
+      if (!isCurrent(flow)) return;
+      if (!windowReady) {
+        deps.logWarn('mpv showed no video window for Anime Browser playback; skipping Jimaku.');
+        releaseFlow(flow);
+        return;
+      }
+    } catch (error) {
+      deps.logWarn('Could not wait for the mpv window before opening Jimaku.', error);
+      releaseFlow(flow);
+      return;
+    }
+
     deps.closeAnimeBrowserModal();
+    deps.hideAnimeBrowserWindow();
 
     try {
       const opened = await deps.openJimakuModal();

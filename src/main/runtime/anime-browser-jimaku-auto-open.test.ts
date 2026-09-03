@@ -7,6 +7,7 @@ function createHarness(options?: {
   animeMedia?: boolean | ((mediaPath: string) => boolean);
   paused?: boolean | null;
   opened?: boolean;
+  windowReady?: () => Promise<boolean>;
 }) {
   const calls: string[] = [];
   let currentMediaPath: string | null = null;
@@ -19,7 +20,12 @@ function createHarness(options?: {
     getCurrentMediaPath: () => currentMediaPath,
     getPlaybackPaused: async () => (options?.paused === undefined ? false : options.paused),
     setPlaybackPaused: (paused) => calls.push(`pause:${paused}`),
+    waitForPlaybackWindow: () => {
+      calls.push('wait-window');
+      return options?.windowReady?.() ?? Promise.resolve(true);
+    },
     closeAnimeBrowserModal: () => calls.push('close-anime-browser'),
+    hideAnimeBrowserWindow: () => calls.push('hide-anime-browser-window'),
     openJimakuModal: async () => {
       calls.push('open-jimaku');
       return options?.opened ?? true;
@@ -36,20 +42,23 @@ function createHarness(options?: {
   };
 }
 
-test('anime browser playback pauses, opens Jimaku, and resumes after subtitle load', async () => {
+const OPEN_SEQUENCE = [
+  'pause:true',
+  'wait-window',
+  'close-anime-browser',
+  'hide-anime-browser-window',
+  'open-jimaku',
+];
+
+test('anime browser playback pauses, waits for the mpv window, opens Jimaku, and resumes after subtitle load', async () => {
   const harness = createHarness();
   harness.setMediaPath('https://127.0.0.1/stream.m3u8');
 
   await harness.runtime.handleMediaPathChange('https://127.0.0.1/stream.m3u8');
-  assert.deepEqual(harness.calls, ['pause:true', 'close-anime-browser', 'open-jimaku']);
+  assert.deepEqual(harness.calls, OPEN_SEQUENCE);
 
   harness.runtime.handleJimakuSubtitleLoaded();
-  assert.deepEqual(harness.calls, [
-    'pause:true',
-    'close-anime-browser',
-    'open-jimaku',
-    'pause:false',
-  ]);
+  assert.deepEqual(harness.calls, [...OPEN_SEQUENCE, 'pause:false']);
 });
 
 test('anime browser playback that was already paused stays paused after subtitle load', async () => {
@@ -59,7 +68,12 @@ test('anime browser playback that was already paused stays paused after subtitle
   await harness.runtime.handleMediaPathChange('https://127.0.0.1/stream.m3u8');
   harness.runtime.handleJimakuSubtitleLoaded();
 
-  assert.deepEqual(harness.calls, ['close-anime-browser', 'open-jimaku']);
+  assert.deepEqual(harness.calls, [
+    'wait-window',
+    'close-anime-browser',
+    'hide-anime-browser-window',
+    'open-jimaku',
+  ]);
 });
 
 test('disabled and non-Anime Browser media do not open Jimaku', async () => {
@@ -72,6 +86,41 @@ test('disabled and non-Anime Browser media do not open Jimaku', async () => {
   unrelated.setMediaPath('/video.mkv');
   await unrelated.runtime.handleMediaPathChange('/video.mkv');
   assert.deepEqual(unrelated.calls, []);
+});
+
+test('a stream that never shows a window releases the pause without opening Jimaku', async () => {
+  const harness = createHarness({ windowReady: async () => false });
+  harness.setMediaPath('https://127.0.0.1/stream.m3u8');
+
+  await harness.runtime.handleMediaPathChange('https://127.0.0.1/stream.m3u8');
+
+  assert.ok(!harness.calls.includes('open-jimaku'));
+  assert.equal(harness.calls.at(-1), 'pause:false');
+});
+
+test('a newer episode during the window wait cancels the stale Jimaku open', async () => {
+  const firstWait: { resolve: (ready: boolean) => void } = { resolve: () => {} };
+  const firstWaitPromise = new Promise<boolean>((resolve) => {
+    firstWait.resolve = resolve;
+  });
+  let waits = 0;
+  const harness = createHarness({
+    windowReady: () => {
+      waits += 1;
+      return waits === 1 ? firstWaitPromise : Promise.resolve(true);
+    },
+  });
+
+  harness.setMediaPath('https://127.0.0.1/one.m3u8');
+  const first = harness.runtime.handleMediaPathChange('https://127.0.0.1/one.m3u8');
+  await Promise.resolve();
+
+  harness.setMediaPath('https://127.0.0.1/two.m3u8');
+  await harness.runtime.handleMediaPathChange('https://127.0.0.1/two.m3u8');
+  firstWait.resolve(true);
+  await first;
+
+  assert.equal(harness.calls.filter((call) => call === 'open-jimaku').length, 1);
 });
 
 test('closing Jimaku or failing to open it releases an owned pause', async () => {

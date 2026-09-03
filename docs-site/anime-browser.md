@@ -220,10 +220,14 @@ there is nowhere to write them and the status bar says so.
 | `anime.bridgeDir`        | A bridge bundle to run instead of the downloaded one. Empty by default.  |
 
 Enable `anime.autoOpenJimaku` to hand each newly loaded Anime Browser episode
-to Jimaku. SubMiner pauses playback, closes the in-player browser if it is open,
-and opens Jimaku with the source title, season, and episode already filled in.
-Playback resumes after the selected subtitle loads. Closing Jimaku also releases
-the automatic pause, while playback that was already paused stays paused.
+to Jimaku. SubMiner pauses playback on its first frame, waits for mpv's video
+window to appear, closes the in-player browser if it is open, hides the
+standalone browser window, and opens Jimaku with the source title, season, and
+episode already filled in. Playback resumes after the selected subtitle loads.
+Closing Jimaku also releases the automatic pause, while playback that was
+already paused stays paused. A stream that never shows a window resumes without
+opening Jimaku. Reopen the browser window with `subminer anime`, the tray
+entry, or the shortcut to keep browsing.
 
 ## Source settings
 
