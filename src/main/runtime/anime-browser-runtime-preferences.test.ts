@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { BridgePreference } from '../../anime-bridge/types';
@@ -143,6 +143,32 @@ test('colliding bridge ids keep package preferences isolated and uninstall clear
   assert.equal(persisted['pkg.one:shared'], undefined);
   assert.deepEqual(persisted['pkg.two:shared'], [two]);
   await runtime.dispose();
+});
+
+test('uninstall rescans after preference cleanup fails and propagates the failure', async () => {
+  const saved = textPreference('password', 'secret');
+  const client = {
+    listAnimeSources: async () => [{ id: 'shared', name: 'Source', lang: 'en' }],
+    getSourcePreferences: async () => [textPreference('password')],
+  };
+  const { runtime, preferencesFile } = await setupRuntime(
+    client,
+    { 'pkg.one': 'one' },
+    { 'pkg.one:shared': [saved] },
+  );
+  await runtime.getPreferences('pkg.one:shared');
+
+  const blockedTemporaryFile = `${preferencesFile}.tmp`;
+  await mkdir(blockedTemporaryFile);
+  try {
+    await assert.rejects(runtime.removeExtension('pkg.one'));
+    assert.deepEqual(runtime.getSnapshot().installed, []);
+    assert.deepEqual(runtime.getSnapshot().sources, []);
+  } finally {
+    await chmod(blockedTemporaryFile, 0o700);
+    await rm(blockedTemporaryFile, { recursive: true, force: true });
+    await runtime.dispose();
+  }
 });
 
 test('standalone and modal browser sessions keep source selection and searches isolated', async () => {

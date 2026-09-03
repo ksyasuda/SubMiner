@@ -593,7 +593,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'boolean',
       defaultValue: defaultConfig.anime.autoOpenJimaku,
       description:
-        'Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes.',
+        'Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes only when auto-open initiated the pause.',
     },
     {
       path: 'anime.extensionsDir',

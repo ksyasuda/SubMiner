@@ -629,7 +629,7 @@
   // Hot-reload: autoOpenJimaku applies to the next episode; other anime changes apply the next time the anime browser opens.
   // ==========================================
   "anime": {
-    "autoOpenJimaku": false, // Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes. Values: true | false
+    "autoOpenJimaku": false, // Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes only when auto-open initiated the pause. Values: true | false
     "extensionsDir": "", // Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.
     "repos": [], // Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.
     "preferredQuality": "", // Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.

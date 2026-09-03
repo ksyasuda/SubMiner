@@ -632,8 +632,11 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     removeExtension(pkg: string): Promise<void> {
       return withExtensionMutation(async () => {
         await removeExtensionFile(deps.extensionsDir(), pkg);
-        await preferenceStore.clear(pkg).catch(() => undefined);
-        if (sidecar) await scanExtensions(sidecar);
+        try {
+          await preferenceStore.clear(pkg);
+        } finally {
+          if (sidecar) await scanExtensions(sidecar);
+        }
       });
     },
 
