@@ -2927,6 +2927,14 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       endTime: range.endTime,
     }),
   openModal: (payload) => openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload),
+  onPreviewEnded: (reviewId) => {
+    // The review may live in either overlay window; the renderer ignores foreign review ids.
+    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.event.mediaTimingReviewPreviewEnded, reviewId);
+      }
+    }
+  },
   showStatus: (message) =>
     overlayNotificationsRuntime.showConfiguredStatusNotification(message, { variant: 'warning' }),
 });

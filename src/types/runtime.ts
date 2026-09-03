@@ -523,6 +523,7 @@ export interface ElectronAPI {
   onOpenTsukihime: (callback: () => void) => void;
   onOpenYoutubeTrackPicker: (callback: (payload: YoutubePickerOpenPayload) => void) => void;
   onOpenMediaTimingReview: (callback: (payload: MediaTimingReviewOpenPayload) => void) => void;
+  onMediaTimingReviewPreviewEnded: (callback: (reviewId: string) => void) => void;
   previewMediaTimingReview: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;

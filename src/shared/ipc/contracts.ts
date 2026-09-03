@@ -148,6 +148,7 @@ export const IPC_CHANNELS = {
     tsukihimeOpen: 'tsukihime:open',
     youtubePickerOpen: 'youtube:picker-open',
     mediaTimingReviewOpen: 'media-timing-review:open',
+    mediaTimingReviewPreviewEnded: 'media-timing-review:preview-ended',
     youtubePickerCancel: 'youtube:picker-cancel',
     playlistBrowserOpen: 'playlist-browser:open',
     sessionNumericSelectionStart: 'session:numeric-selection-start',

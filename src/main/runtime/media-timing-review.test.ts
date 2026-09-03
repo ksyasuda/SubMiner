@@ -102,6 +102,7 @@ async function startActiveMediaTimingReview(
         previewCalls.push([startTime, endTime]);
       },
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async (payload) => {
@@ -145,6 +146,7 @@ test('media timing review pauses playback, resolves exact timing, and restores p
         previewCalls.push([startTime, endTime]);
       },
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async (payload) => {
@@ -206,6 +208,7 @@ test('media timing review analyzes the visible range on the selected audio strea
       start: async () => undefined,
       play: async () => undefined,
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async (payload) => {
@@ -316,6 +319,7 @@ function createRemoteReviewRuntime(options: {
           options.previewPlays.push([mediaPath, startTime, endTime]);
         },
         stop: async () => undefined,
+        onPlaybackEnded: () => undefined,
         dispose: () => {
           options.disposed.push(mediaPath);
         },
@@ -515,6 +519,7 @@ test('media timing review never downloads windows for local media', async () => 
       start: async () => undefined,
       play: async () => undefined,
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async (payload) => {
@@ -644,6 +649,7 @@ test('media timing review does not resume playback when the prior state is unava
       },
       play: async () => undefined,
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async (payload) => {
@@ -690,6 +696,7 @@ test('media timing review restores playback when setup fails after pausing', asy
       start: async () => undefined,
       play: async () => undefined,
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async () => true,
@@ -729,6 +736,7 @@ test('disposing an open review settles it with original timing and restores play
       start: async () => undefined,
       play: async () => undefined,
       stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
       dispose: () => undefined,
     }),
     openModal: async () => true,
@@ -751,4 +759,65 @@ test('disposing an open review settles it with original timing and restores play
     ['set_property', 'pause', 'yes'],
     ['set_property', 'pause', 'no'],
   ]);
+});
+
+test('media timing review forwards the hidden player finishing a preview to the modal', async () => {
+  const endedReviewIds: string[] = [];
+  const playback: { ended?: () => void } = {};
+  let publishPayload!: (payload: MediaTimingReviewOpenPayload) => void;
+  const openedPayload = new Promise<MediaTimingReviewOpenPayload>((resolve) => {
+    publishPayload = resolve;
+  });
+  const runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: async (name) => (name === 'duration' ? 100 : null),
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      onPlaybackEnded: (listener) => {
+        playback.ended = listener;
+      },
+      dispose: () => undefined,
+    }),
+    openModal: async (payload) => {
+      publishPayload(payload);
+      return true;
+    },
+    onPreviewEnded: (reviewId) => {
+      endedReviewIds.push(reviewId);
+    },
+    showStatus: () => undefined,
+  });
+  const pendingDecision = runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0,
+    maxMediaDuration: 30,
+  });
+  const payload = await openedPayload;
+
+  assert.deepEqual(
+    await runtime.previewRange({ reviewId: payload.reviewId, startTime: 10, endTime: 12 }),
+    {
+      ok: true,
+    },
+  );
+  assert.ok(playback.ended);
+  playback.ended();
+  assert.deepEqual(endedReviewIds, [payload.reviewId]);
+
+  runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+  await pendingDecision;
+  playback.ended();
+  assert.deepEqual(endedReviewIds, [payload.reviewId]);
 });

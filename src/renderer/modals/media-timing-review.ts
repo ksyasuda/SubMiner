@@ -11,6 +11,8 @@ const FINE_ADJUST_SECONDS = 0.1;
 const COARSE_ADJUST_SECONDS = 0.5;
 const TIMELINE_EXPANSION_SECONDS = 2;
 const LINE_REVEAL_MARGIN_SECONDS = 1;
+/** Slack past the clip length before the UI gives up waiting for mpv's end-of-clip signal. */
+const PREVIEW_END_GRACE_MS = 2_500;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -209,7 +211,11 @@ export function createMediaTimingReviewModal(
     previewTimer = null;
   }
 
-  /** Drives the play button label plus the playhead sweep that mirrors the hidden audio player. */
+  /**
+   * Drives the play button label plus the playhead sweep that mirrors the hidden audio player.
+   * mpv reports when the clip actually finishes (see handlePreviewEnded), which accounts for
+   * output latency such as Bluetooth headphones; the timer only covers a player that never does.
+   */
   function setPreviewPlaying(playing: boolean): void {
     previewPlaying = playing;
     ctx.dom.mediaTimingReviewPlayLabel.textContent = playing ? 'Stop preview' : 'Play selection';
@@ -222,7 +228,14 @@ export function createMediaTimingReviewModal(
     track.style.setProperty('--playhead-duration', `${clipSeconds}s`);
     void track.offsetWidth;
     track.classList.add('is-previewing');
-    previewTimer = setTimeout(() => stopPreview(), clipSeconds * 1000);
+    previewTimer = setTimeout(() => stopPreview(), clipSeconds * 1000 + PREVIEW_END_GRACE_MS);
+  }
+
+  /** The hidden player reached the end of the clip and paused itself. */
+  function handlePreviewEnded(reviewId: string): void {
+    if (!payload || payload.reviewId !== reviewId || !previewPlaying) return;
+    setPreviewPlaying(false);
+    setStatus('');
   }
 
   /** Callers that need to report a failure set their own status after stopping the preview. */
@@ -851,6 +864,7 @@ export function createMediaTimingReviewModal(
 
   return {
     openMediaTimingReviewModal,
+    handlePreviewEnded,
     requestCancel,
     handleMediaTimingReviewKeydown,
     wireDomEvents,

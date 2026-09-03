@@ -591,6 +591,11 @@ function registerModalOpenHandlers(): void {
       mediaTimingReviewModal.openMediaTimingReviewModal(payload);
     });
   });
+  window.electronAPI.onMediaTimingReviewPreviewEnded((reviewId) => {
+    runGuarded('media-timing-review:preview-ended', () => {
+      mediaTimingReviewModal.handlePreviewEnded(reviewId);
+    });
+  });
   window.electronAPI.onOpenPlaylistBrowser(() => {
     runGuardedAsync('playlist-browser:open', async () => {
       await playlistBrowserModal.openPlaylistBrowserModal();

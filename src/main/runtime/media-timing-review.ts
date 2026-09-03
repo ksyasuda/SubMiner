@@ -42,6 +42,8 @@ interface PreviewSession {
   }): Promise<void>;
   play(startTime: number, endTime: number): Promise<void>;
   stop(): Promise<void>;
+  /** Fires when the player reaches the end of the clip started by play(). */
+  onPlaybackEnded(listener: () => void): void;
   dispose(): void;
 }
 
@@ -90,6 +92,8 @@ export interface MediaTimingReviewRuntimeDeps {
   };
   decisionTimeoutMs?: number;
   openModal: (payload: MediaTimingReviewOpenPayload) => Promise<boolean>;
+  /** Tells the modal that the hidden player finished the previewed clip. */
+  onPreviewEnded?: (reviewId: string) => void;
   showStatus: (message: string) => void;
 }
 
@@ -285,6 +289,11 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
 
     const previous = review.preview;
     const session = deps.createPreviewSession();
+    session.onPlaybackEnded(() => {
+      if (active === review && review.preview?.session === started) {
+        deps.onPreviewEnded?.(review.payload.reviewId);
+      }
+    });
     const { audioTrackId, ...previewOptions } = review.previewOptions;
     const started = session
       .start({

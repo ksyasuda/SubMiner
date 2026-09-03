@@ -204,3 +204,88 @@ test('preview session bounds a connection attempt that never settles', async () 
   await assert.rejects(session.start({ mediaPath: '/video/show.mkv' }), /Timed out starting/);
   assert.equal(connectAttempts, 1);
 });
+
+function createFakeSocket() {
+  const socket = new EventEmitter() as EventEmitter & {
+    destroyed: boolean;
+    write: (data: string) => boolean;
+    end: () => void;
+    destroy: () => void;
+    off: EventEmitter['off'];
+  };
+  const writes: string[] = [];
+  socket.destroyed = false;
+  socket.write = (data) => {
+    writes.push(data);
+    return true;
+  };
+  socket.end = () => undefined;
+  socket.destroy = () => {
+    socket.destroyed = true;
+  };
+  return { socket, writes };
+}
+
+test('preview session plays once to the clip end and reports when mpv has drained it', async () => {
+  const { socket, writes } = createFakeSocket();
+  const child = new EventEmitter() as EventEmitter & { kill: () => boolean };
+  child.kill = () => true;
+  const session = new MediaTimingPreviewSession({
+    platform: 'linux',
+    spawnProcess: () => child as never,
+    connectSocket: () => {
+      queueMicrotask(() => socket.emit('connect'));
+      return socket as never;
+    },
+    removeSocketFile: () => undefined,
+    createSocketPath: () => '/tmp/review.sock',
+  });
+  let endedCount = 0;
+  session.onPlaybackEnded(() => {
+    endedCount += 1;
+  });
+  const property = (name: string, data: boolean): string =>
+    `${JSON.stringify({ event: 'property-change', name, data })}\n`;
+
+  await session.start({ mediaPath: '/video/show.mkv' });
+  assert.deepEqual(
+    writes.map((line) => JSON.parse(line).command),
+    [
+      ['observe_property', 1, 'eof-reached'],
+      ['observe_property', 2, 'pause'],
+    ],
+  );
+  // The observers' initial replies describe the idle paused player, not a finished preview.
+  socket.emit('data', property('eof-reached', false) + property('pause', true));
+  assert.equal(endedCount, 0);
+
+  writes.length = 0;
+  await session.play(12.25, 14.5);
+  assert.deepEqual(
+    writes.map((line) => JSON.parse(line).command),
+    [
+      ['set_property', 'pause', true],
+      ['seek', 12.25, 'absolute+exact'],
+      ['set_property', 'end', '14.500'],
+      ['set_property', 'pause', false],
+    ],
+  );
+
+  // Events may arrive split across chunks. The decoder passing `end` flips eof-reached while
+  // audio still drains; only the keep-open pause that follows marks the preview as finished.
+  socket.emit('data', property('eof-reached', false) + property('pause', false).slice(0, 20));
+  socket.emit('data', property('pause', false).slice(20) + property('eof-reached', true));
+  assert.equal(endedCount, 0);
+  socket.emit('data', property('pause', true));
+  assert.equal(endedCount, 1);
+  socket.emit('data', property('pause', true));
+  assert.equal(endedCount, 1);
+
+  // Stopping early pauses without an end signal, and a later real EOF is not a preview end.
+  await session.play(1, 2);
+  socket.emit('data', property('eof-reached', false) + property('pause', false));
+  await session.stop();
+  socket.emit('data', property('pause', true) + property('eof-reached', true));
+  assert.equal(endedCount, 1);
+  session.dispose();
+});

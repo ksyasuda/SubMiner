@@ -8,6 +8,13 @@ import { randomUUID } from 'crypto';
 const CONNECT_TIMEOUT_MS = 5_000;
 const CONNECT_ATTEMPT_TIMEOUT_MS = 500;
 const CONNECT_RETRY_MS = 40;
+/**
+ * mpv flips eof-reached as soon as the decoder passes `end`, while its audio buffer is still
+ * draining; keep-open then pauses once the buffer has played out. A preview has ended when
+ * both have happened.
+ */
+const EOF_OBSERVER_ID = 1;
+const PAUSE_OBSERVER_ID = 2;
 
 export interface MediaTimingPreviewStartOptions {
   mediaPath: string;
@@ -94,6 +101,11 @@ export class MediaTimingPreviewSession {
     resolve: () => void;
   } | null = null;
   private disposed = false;
+  private readBuffer = '';
+  private playing = false;
+  private eofReached = false;
+  private paused = true;
+  private readonly endedListeners = new Set<() => void>();
 
   constructor(deps: Partial<MediaTimingPreviewDeps> = {}) {
     this.deps = {
@@ -160,6 +172,11 @@ export class MediaTimingPreviewSession {
     await this.connectWithRetry(socketPath);
   }
 
+  /**
+   * Plays [startTime, endTime) once. mpv stops itself at `end` and, thanks to keep-open,
+   * pauses after draining the audio device, so the listener hears the whole clip even on
+   * high-latency outputs. onPlaybackEnded fires when mpv reports the end was reached.
+   */
   async play(startTime: number, endTime: number): Promise<void> {
     if (!this.socket || this.socket.destroyed) {
       throw new Error('Preview player is not ready');
@@ -168,16 +185,66 @@ export class MediaTimingPreviewSession {
       throw new Error('Preview timing is invalid');
     }
 
+    this.playing = false;
     this.send(['set_property', 'pause', true]);
-    this.send(['set_property', 'ab-loop-a', startTime]);
-    this.send(['set_property', 'ab-loop-b', endTime]);
     this.send(['seek', startTime, 'absolute+exact']);
+    // The option parser wants a time string; a raw JSON number is not accepted for `end`.
+    this.send(['set_property', 'end', endTime.toFixed(3)]);
     this.send(['set_property', 'pause', false]);
+    // Only the seek's eof-reached=false and the later keep-open pause count for this play.
+    this.eofReached = false;
+    this.paused = false;
+    this.playing = true;
   }
 
   async stop(): Promise<void> {
+    this.playing = false;
     if (!this.socket || this.socket.destroyed) return;
     this.send(['set_property', 'pause', true]);
+  }
+
+  onPlaybackEnded(listener: () => void): void {
+    this.endedListeners.add(listener);
+  }
+
+  private finishPlayback(): void {
+    if (!this.playing) return;
+    this.playing = false;
+    for (const listener of this.endedListeners) listener();
+  }
+
+  private handleSocketData(chunk: Buffer | string): void {
+    this.readBuffer += chunk.toString();
+    let newline = this.readBuffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = this.readBuffer.slice(0, newline).trim();
+      this.readBuffer = this.readBuffer.slice(newline + 1);
+      newline = this.readBuffer.indexOf('\n');
+      if (!line) continue;
+      let message: unknown;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (
+        typeof message === 'object' &&
+        message !== null &&
+        'event' in message &&
+        message.event === 'property-change' &&
+        'name' in message &&
+        'data' in message
+      ) {
+        this.handlePropertyChange(message.name, message.data);
+      }
+    }
+  }
+
+  private handlePropertyChange(name: unknown, data: unknown): void {
+    if (name === 'eof-reached') this.eofReached = data === true;
+    else if (name === 'pause') this.paused = data === true;
+    else return;
+    if (this.playing && this.eofReached && this.paused) this.finishPlayback();
   }
 
   dispose(): void {
@@ -234,6 +301,13 @@ export class MediaTimingPreviewSession {
           throw new Error('Preview session is closed');
         }
         this.socket = socket;
+        this.readBuffer = '';
+        socket.on('data', (chunk: Buffer | string) => {
+          if (this.socket === socket) this.handleSocketData(chunk);
+        });
+        socket.once('close', () => this.finishPlayback());
+        this.send(['observe_property', EOF_OBSERVER_ID, 'eof-reached']);
+        this.send(['observe_property', PAUSE_OBSERVER_ID, 'pause']);
         return;
       } catch {
         if (this.disposed) {
