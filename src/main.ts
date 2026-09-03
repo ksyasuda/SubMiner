@@ -235,7 +235,10 @@ import {
   createCycleSecondarySubModeRuntimeHandler,
 } from './main/runtime/domains/mpv';
 import { buildSubtitleTrackDiagnostics } from './main/runtime/mpv-track-diagnostics';
-import { resolveCanonicalPrimarySubtitle } from './main/runtime/primary-subtitle-text';
+import {
+  resolveCanonicalPrimarySubtitle,
+  resolvePrimarySubtitle,
+} from './main/runtime/primary-subtitle-text';
 import {
   createBuildCopyCurrentSubtitleMainDepsHandler,
   createBuildHandleMineSentenceDigitMainDepsHandler,
@@ -1829,28 +1832,31 @@ function withCurrentSubtitleTiming(payload: SubtitleData): SubtitleData {
 }
 
 function captureCurrentPrimarySubtitleMiningContext(): SubtitleMiningContext | null {
-  const canonical = resolveCanonicalPrimarySubtitle({
+  // Mine what the overlay shows, not raw mpv `sub-text`: the raw text lists every active
+  // event, so a finished caption row lingering beside a fresh line would end up on the
+  // card. The parsed view also carries the cue's own timings for the clip range.
+  const resolved = resolvePrimarySubtitle({
     liveText: appState.mpvClient?.currentSubText ?? '',
     currentTimeSec: Number(appState.mpvClient?.currentTimePos),
     cues: appState.activeParsedSubtitleCues,
   });
-  // Same validity bar as the live capture path: an unusable canonical span must fall
+  // Same validity bar as the live capture path: an unusable resolved span must fall
   // back rather than hand mining an empty line or an inverted range.
-  const canonicalText = canonical?.text.trim();
+  const resolvedText = resolved?.text.replace(/\n{2,}/g, '\n').trim();
   if (
-    !canonical ||
-    !canonicalText ||
-    !Number.isFinite(canonical.startTime) ||
-    !Number.isFinite(canonical.endTime) ||
-    canonical.endTime <= canonical.startTime
+    !resolved ||
+    !resolvedText ||
+    !Number.isFinite(resolved.startTime) ||
+    !Number.isFinite(resolved.endTime) ||
+    resolved.endTime <= resolved.startTime
   ) {
     return captureLiveSubtitleMiningContext(appState.mpvClient);
   }
   return {
     source: 'overlay',
-    text: canonicalText,
-    startTime: canonical.startTime,
-    endTime: canonical.endTime,
+    text: resolvedText,
+    startTime: resolved.startTime,
+    endTime: resolved.endTime,
     capturedAtMs: Date.now(),
   };
 }

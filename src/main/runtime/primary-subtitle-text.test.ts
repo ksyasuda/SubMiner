@@ -3,6 +3,7 @@ import test from 'node:test';
 import { parseSubtitleCues } from '../../core/services/subtitle-cue-parser';
 import {
   resolveCanonicalPrimarySubtitle,
+  resolvePrimarySubtitle,
   resolvePrimarySubtitleText,
   stripCanonicalFragmentLines,
 } from './primary-subtitle-text';
@@ -700,5 +701,39 @@ test('resolvePrimarySubtitleText publishes a wrapped caption sentence as one cue
       cues,
     }),
     '（東）≪好きだと\n自覚してしまったものの➡',
+  );
+});
+
+test('resolvePrimarySubtitle drops a finished caption row lingering beside a fresh line', () => {
+  // Broadcast captions give each row its own event, and a row of the previous line can
+  // outlive its siblings by a frame. mpv's sub-text still lists it, so the mined line
+  // must come from the parsed cue that is actually running, with that cue's timings.
+  const ass = [
+    '[Script Info]',
+    'PlayResY: 540',
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
+    'Dialogue: 0,0:14:30.00,0:14:33.00,Default,,0,0,0,,{\\pos(232,437)\\fscx50}（{\\fscx100}東{\\fscx50}）{\\fscx100}ずっと　言えなかっ',
+    'Dialogue: 0,0:14:30.00,0:14:33.02,Default,,0,0,0,,{\\pos(232,497)}たが',
+    'Dialogue: 0,0:14:33.00,0:14:36.00,Default,,0,0,0,,{\\pos(232,437)}⸨もし　お互い',
+    'Dialogue: 0,0:14:33.00,0:14:36.00,Default,,0,0,0,,{\\pos(232,497)}本命　受かったら　大学　近いし➡',
+  ].join('\n');
+  const cues = parseSubtitleCues(ass, 'polar-opposites-s02e09.ass');
+
+  const resolved = resolvePrimarySubtitle({
+    liveText: 'たが\n⸨もし　お互い\n本命　受かったら　大学　近いし➡',
+    currentTimeSec: 14 * 60 + 33.05,
+    cues,
+  });
+
+  assert.deepEqual(
+    { ...resolved, cues: resolved?.cues.map((cue) => cue.text) },
+    {
+      text: '⸨もし　お互い\n本命　受かったら　大学　近いし➡',
+      startTime: 14 * 60 + 33,
+      endTime: 14 * 60 + 36,
+      cues: ['⸨もし　お互い\n本命　受かったら　大学　近いし➡'],
+    },
   );
 });

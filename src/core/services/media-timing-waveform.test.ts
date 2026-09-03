@@ -58,14 +58,42 @@ test('speech waveform seeks cached windows by source timestamps', () => {
   assert.equal(args.includes('-map'), false);
 });
 
-test('waveform peaks are normalized without flattening quieter sections', () => {
+test('waveform levels rise with loudness and top out at the reference level', () => {
   const peaks = computeWaveformPeaks(pcm([0, 1_000, -2_000, 4_000, -8_000, 16_000]), 3);
 
   assert.equal(peaks.length, 3);
-  assert.ok((peaks[0] ?? 0) > 0);
-  assert.ok((peaks[0] ?? 0) < (peaks[1] ?? 0));
+  assert.equal(peaks[0], 0);
+  assert.ok((peaks[1] ?? 0) > 0);
   assert.ok((peaks[1] ?? 0) < (peaks[2] ?? 0));
   assert.equal(peaks[2], 1);
+});
+
+test('waveform flattens steady background noise and keeps speech bursts tall', () => {
+  // 20 slices of steady noise at a fixed level with an 18 dB louder "speech" burst in the middle.
+  const noise = 1_000;
+  const samples: number[] = [];
+  for (let slice = 0; slice < 20; slice += 1) {
+    const level = slice >= 8 && slice < 12 ? noise * 8 : noise;
+    for (let sample = 0; sample < 50; sample += 1) {
+      samples.push(sample % 2 === 0 ? level : -level);
+    }
+  }
+
+  const peaks = computeWaveformPeaks(pcm(samples), 20);
+
+  for (const [index, peak] of peaks.entries()) {
+    if (index >= 8 && index < 12) assert.equal(peak, 1);
+    else assert.equal(peak, 0);
+  }
+});
+
+test('waveform stays flat when the whole range is a single steady level', () => {
+  const peaks = computeWaveformPeaks(
+    pcm(Array.from({ length: 400 }, (_, i) => (i % 2 ? 900 : -900))),
+    40,
+  );
+
+  assert.ok(peaks.every((peak) => peak === 0));
 });
 
 test('speech waveform uses a mono downmix when the source has no center activity', async () => {
