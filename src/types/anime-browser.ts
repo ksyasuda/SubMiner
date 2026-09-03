@@ -208,6 +208,8 @@ export interface InstalledExtensionView {
   langs: string[];
   /** How many sources it provides; 0 when it failed to load. */
   sourceCount: number;
+  /** Each source it provides, so the Extensions tab can pick a default. */
+  sources: Array<{ id: string; name: string }>;
   /** Read from AndroidManifest.xml; null only for an invalid or unusual APK. */
   versionCode: number | null;
   /** Why it failed to load, or null when it loaded. */

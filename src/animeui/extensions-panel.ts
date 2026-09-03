@@ -8,6 +8,7 @@ import {
   pruneSelection,
   toggleLanguage,
 } from './language-filter';
+import { ALL_SOURCES_ID } from '../types/anime-browser';
 import type {
   AnimeBrowserAPI,
   AvailableExtension,
@@ -189,10 +190,44 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     setStatus(`${extensionName} ${verb}`, 'ok');
   }
 
+  /**
+   * The "default" tag and "Set default" buttons for a row's sources. The tag
+   * marks the one source (or All sources) the browser opens on; every other
+   * source gets a button, so exactly one can carry the tag at a time.
+   */
+  function defaultSourceControls(
+    sources: Array<{ id: string; name: string }>,
+    defaultSourceId: string | null,
+  ): { tags: RowOptions['tags']; actions: RowAction[] } {
+    const tags: NonNullable<RowOptions['tags']> = [];
+    const actions: RowAction[] = [];
+    const named = sources.length > 1;
+    for (const source of sources) {
+      if (source.id === defaultSourceId) {
+        tags.push({ text: named ? `default · ${source.name}` : 'default', className: 'default' });
+        continue;
+      }
+      actions.push({
+        label: named ? `Set default: ${source.name}` : 'Set default',
+        onClick: async () => {
+          try {
+            await api.setDefaultSource(source.id);
+            await refresh();
+            setStatus(`The browser now opens on ${source.name}.`, 'ok');
+          } catch (error) {
+            setStatus(describe(error), 'error');
+          }
+        },
+      });
+    }
+    return { tags, actions };
+  }
+
   function renderInstalled(
     installed: InstalledExtensionView[],
     offeredByPkg: Map<string, AvailableExtension>,
     extensionsDir: string,
+    defaultSourceId: string | null,
   ): void {
     installedCount.textContent = installed.length === 0 ? '' : String(installed.length);
     const updateStates = installed.map((view) =>
@@ -218,55 +253,74 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
       return;
     }
 
-    installedList.replaceChildren(
-      ...installed.map((view) => {
-        const actions: RowAction[] = [];
-        const updateState = getExtensionUpdateState(view, offeredByPkg.get(view.pkg));
-        if (updateState === 'available') {
-          actions.push({
-            label: 'Update',
-            onClick: async () => {
-              setStatus(`Updating ${view.name}…`);
-              try {
-                await api.installExtension(view.pkg);
-                await afterChange(view.name, 'updated');
-              } catch (error) {
-                setStatus(describe(error), 'error');
-              }
-            },
-          });
-        } else if (updateState === 'current') {
-          actions.push({ label: 'Up to date', disabled: true });
-        } else if (updateState === 'unknown') {
-          actions.push({
-            label: 'Version unknown',
-            disabled: true,
-            title: 'SubMiner could not read a version code from this APK.',
-          });
-        }
+    const rows = installed.map((view) => {
+      const defaults = defaultSourceControls(view.sources, defaultSourceId);
+      const actions: RowAction[] = [...defaults.actions];
+      const updateState = getExtensionUpdateState(view, offeredByPkg.get(view.pkg));
+      if (updateState === 'available') {
         actions.push({
-          label: 'Remove',
+          label: 'Update',
           onClick: async () => {
-            setStatus(`Removing ${view.name}…`);
+            setStatus(`Updating ${view.name}…`);
             try {
-              await api.removeExtension(view.pkg);
-              await afterChange(view.name, 'removed');
+              await api.installExtension(view.pkg);
+              await afterChange(view.name, 'updated');
             } catch (error) {
               setStatus(describe(error), 'error');
             }
           },
         });
-
-        return extensionRow({
-          name: view.name,
-          sub: view.error ?? describeInstalled(view),
-          iconUrl: iconsByPkg.get(view.pkg) ?? null,
-          isError: view.error !== null,
-          tags: view.error === null ? [] : [{ text: 'failed', className: 'nsfw' }],
-          actions,
+      } else if (updateState === 'current') {
+        actions.push({ label: 'Up to date', disabled: true });
+      } else if (updateState === 'unknown') {
+        actions.push({
+          label: 'Version unknown',
+          disabled: true,
+          title: 'SubMiner could not read a version code from this APK.',
         });
-      }),
-    );
+      }
+      actions.push({
+        label: 'Remove',
+        onClick: async () => {
+          setStatus(`Removing ${view.name}…`);
+          try {
+            await api.removeExtension(view.pkg);
+            await afterChange(view.name, 'removed');
+          } catch (error) {
+            setStatus(describe(error), 'error');
+          }
+        },
+      });
+
+      return extensionRow({
+        name: view.name,
+        sub: view.error ?? describeInstalled(view),
+        iconUrl: iconsByPkg.get(view.pkg) ?? null,
+        isError: view.error !== null,
+        tags: view.error === null ? defaults.tags : [{ text: 'failed', className: 'nsfw' }],
+        actions,
+      });
+    });
+
+    // "All sources" is a picker entry too, so it can be the default like any
+    // source. It only exists with more than one source installed.
+    const sourceTotal = installed.reduce((sum, view) => sum + view.sourceCount, 0);
+    if (sourceTotal > 1) {
+      const defaults = defaultSourceControls(
+        [{ id: ALL_SOURCES_ID, name: 'All sources' }],
+        defaultSourceId,
+      );
+      rows.unshift(
+        extensionRow({
+          name: 'All sources',
+          sub: `Search every installed source at once · ${sourceTotal} sources`,
+          tags: defaults.tags,
+          actions: defaults.actions,
+        }),
+      );
+    }
+
+    installedList.replaceChildren(...rows);
   }
 
   function renderRepos(repos: string[]): void {
@@ -412,7 +466,12 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     // The catalogue is the only source of icons, so an installed extension can
     // only show one while a repository still carries its package.
     iconsByPkg = buildIconIndex(available.extensions);
-    renderInstalled(snapshot.installed, offeredByPkg, snapshot.extensionsDir);
+    renderInstalled(
+      snapshot.installed,
+      offeredByPkg,
+      snapshot.extensionsDir,
+      snapshot.defaultSourceId,
+    );
     // Installed extensions have their own section; leaving them here too would
     // list every one of them twice.
     installable = available.extensions.filter((extension) => !extension.installed);

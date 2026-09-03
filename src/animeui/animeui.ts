@@ -50,7 +50,6 @@ const searchForm = el<HTMLFormElement>('search-form');
 const searchInput = el<HTMLInputElement>('search-input');
 const searchButton = el<HTMLButtonElement>('search-button');
 const sourceSelect = el<HTMLSelectElement>('source-select');
-const sourceDefaultButton = el<HTMLButtonElement>('source-default');
 const grid = el<HTMLDivElement>('grid');
 const gridEmpty = el<HTMLParagraphElement>('grid-empty');
 const loadMoreButton = el<HTMLButtonElement>('load-more');
@@ -71,8 +70,6 @@ const settingsTitle = el<HTMLHeadingElement>('settings-title');
 
 /** Last source accepted by the main process, used to roll back a rejected change. */
 let selectedSourceId: string | null = null;
-/** Configured `anime.defaultSource`, so the star reflects the picker's current value. */
-let defaultSourceId: string | null = null;
 
 /* ---------- tabs ---------- */
 
@@ -171,11 +168,7 @@ function renderBridgeState(state: AnimeBrowserBridgeState): void {
  * searches them together. That entry only earns its place with more than one
  * source installed.
  */
-function renderSources(
-  sources: AnimeBrowserSource[],
-  selectedId: string | null,
-  defaultId: string | null,
-): void {
+function renderSources(sources: AnimeBrowserSource[], selectedId: string | null): void {
   const options: HTMLOptionElement[] = [];
 
   if (sources.length > 1) {
@@ -197,23 +190,6 @@ function renderSources(
   sourceSelect.replaceChildren(...options);
   sourceSelect.disabled = options.length <= 1;
   selectedSourceId = selectedId;
-  defaultSourceId = defaultId;
-  renderDefaultSourceButton();
-}
-
-/**
- * The star is lit while the picker shows the configured default. With one
- * source or none there is nothing to choose between, so it stays hidden.
- */
-function renderDefaultSourceButton(): void {
-  const isDefault = sourceSelect.value !== '' && sourceSelect.value === defaultSourceId;
-  sourceDefaultButton.hidden = sourceSelect.options.length <= 1;
-  sourceDefaultButton.disabled = isDefault;
-  sourceDefaultButton.setAttribute('aria-pressed', String(isDefault));
-  sourceDefaultButton.textContent = isDefault ? '\u2605' : '\u2606';
-  sourceDefaultButton.title = isDefault
-    ? 'The browser opens on this source'
-    : 'Open the browser on this source';
 }
 
 function searchingAllSources(): boolean {
@@ -426,7 +402,7 @@ async function openSettings(): Promise<void> {
 
 async function refreshSources(): Promise<void> {
   const snapshot = await api.getSnapshot();
-  renderSources(snapshot.sources, snapshot.selectedSourceId, snapshot.defaultSourceId);
+  renderSources(snapshot.sources, snapshot.selectedSourceId);
 }
 
 const extensions = createExtensionsPanel({ api, setStatus, onSourcesChanged: refreshSources });
@@ -453,27 +429,11 @@ sourceSelect.addEventListener('change', () => {
     try {
       await api.selectSource(requestedSourceId);
       selectedSourceId = requestedSourceId;
-      renderDefaultSourceButton();
       // Settings belong to the source, so reload them rather than showing stale fields.
       if (currentView === 'settings') await openSettings();
       await runSearch(searchInput.value.trim());
     } catch (error) {
       if (selectedSourceId !== null) sourceSelect.value = selectedSourceId;
-      setStatus(describe(error), 'error');
-    }
-  })();
-});
-
-sourceDefaultButton.addEventListener('click', () => {
-  void (async () => {
-    const sourceId = sourceSelect.value;
-    try {
-      await api.setDefaultSource(sourceId);
-      defaultSourceId = sourceId;
-      renderDefaultSourceButton();
-      const label = sourceSelect.selectedOptions[0]?.textContent ?? sourceId;
-      setStatus(`${label} is now the default source.`, 'ok');
-    } catch (error) {
       setStatus(describe(error), 'error');
     }
   })();
@@ -497,7 +457,7 @@ bannerUpdate.addEventListener('click', () => {
       }
       // The bridge restarted, so the source list is fresh from disk.
       const snapshot = await api.getSnapshot();
-      renderSources(snapshot.sources, snapshot.selectedSourceId, snapshot.defaultSourceId);
+      renderSources(snapshot.sources, snapshot.selectedSourceId);
       if (currentView === 'extensions') await extensions.refresh();
     } catch (error) {
       setStatus(describe(error), 'error');
@@ -540,7 +500,7 @@ void (async () => {
     renderBridgeState(state);
 
     const snapshot = await api.getSnapshot();
-    renderSources(snapshot.sources, snapshot.selectedSourceId, snapshot.defaultSourceId);
+    renderSources(snapshot.sources, snapshot.selectedSourceId);
 
     if (state.stage === 'ready' && snapshot.sources.length > 0) {
       searchInput.focus();

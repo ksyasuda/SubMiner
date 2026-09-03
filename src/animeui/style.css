@@ -125,7 +125,6 @@ body {
   height: 52px;
   flex: none;
   object-fit: contain;
-  image-rendering: pixelated;
   filter: drop-shadow(0 5px 9px rgba(0, 0, 0, 0.28));
 }
 
@@ -274,17 +273,6 @@ body {
 .source-picker .text-input {
   flex: 1 1 auto;
   width: auto;
-}
-
-.default-source-button {
-  padding: 6px 9px;
-  font-size: 15px;
-  line-height: 1;
-}
-
-.default-source-button[aria-pressed='true'] {
-  color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* ---------- bridge banner ---------- */

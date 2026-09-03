@@ -152,6 +152,10 @@ test('toInstalledExtensionViews names an extension after the sources it provides
       name: 'One, Two',
       langs: ['en', 'ja'],
       sourceCount: 2,
+      sources: [
+        { id: 'multi:1', name: 'One' },
+        { id: 'multi:2', name: 'Two' },
+      ],
       versionCode: 7,
       error: null,
     },
@@ -172,6 +176,7 @@ test('toInstalledExtensionViews lists an extension that loaded nothing, with its
         name: 'broken',
         langs: [],
         sourceCount: 0,
+        sources: [],
         versionCode: null,
         error: 'dex2jar failed',
       },

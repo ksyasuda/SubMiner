@@ -51,6 +51,10 @@ test('describeInstalled reports sources and languages when the extension loaded'
       name: 'One, Two',
       langs: ['en', 'ja'],
       sourceCount: 2,
+      sources: [
+        { id: 'multi:1', name: 'One' },
+        { id: 'multi:2', name: 'Two' },
+      ],
       versionCode: 1,
       error: null,
     }),
@@ -65,6 +69,7 @@ test('describeInstalled falls back to the package alone when nothing loaded', ()
       name: 'broken',
       langs: [],
       sourceCount: 0,
+      sources: [],
       versionCode: null,
       error: 'boom',
     }),

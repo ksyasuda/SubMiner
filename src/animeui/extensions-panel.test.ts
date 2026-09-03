@@ -8,6 +8,7 @@ const installed = {
   name: 'Example',
   langs: ['en'],
   sourceCount: 1,
+  sources: [{ id: 'pkg.example:1', name: 'Example' }],
   versionCode: 12,
   error: null,
 } satisfies InstalledExtensionView;

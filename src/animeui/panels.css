@@ -312,6 +312,11 @@
   color: var(--ok);
 }
 
+.ext-tag.default {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .ext-tag.nsfw {
   border-color: rgba(237, 135, 150, 0.4);
   color: var(--danger);

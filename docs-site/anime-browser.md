@@ -119,10 +119,12 @@ one bad APK will not hide the rest.
 ### Default source
 
 The browser opens on the first installed source. To open on a different one,
-pick it in the **Source** picker and press the star beside it; the choice is
-written to `anime.defaultSource` and applies the next time a browser window or
-the in-player modal opens. **All sources** can be the default too. A default
-that is no longer installed falls back to the first source.
+press **Set default** on its row in the Installed list; the row then carries a
+**default** tag, and only one source can carry it. The choice is written to
+`anime.defaultSource` and applies the next time a browser window or the
+in-player modal opens. With more than one source installed, an **All sources**
+row at the top of the list can be the default too. A default that is no longer
+installed falls back to the first source.
 
 ## Searching every source at once
 

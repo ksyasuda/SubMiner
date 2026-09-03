@@ -621,7 +621,7 @@ export function buildIntegrationConfigOptionRegistry(
       kind: 'string',
       defaultValue: defaultConfig.anime.defaultSource,
       description:
-        'Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. The star beside the Source picker writes this value.',
+        'Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. "Set default" in the Extensions tab writes this value.',
     },
     {
       path: 'anime.bridgeDir',

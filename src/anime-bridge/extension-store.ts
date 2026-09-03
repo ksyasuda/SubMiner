@@ -96,6 +96,7 @@ export function toInstalledExtensionViews(
       name: names.length > 0 ? names.join(', ') : extension.fallbackName,
       langs: [...new Set(provided.map((source) => source.lang))],
       sourceCount: provided.length,
+      sources: provided.map((source) => ({ id: source.id, name: source.name })),
       versionCode: extension.versionCode,
       error: loadFailures.find((failure) => failure.pkg === extension.fallbackName)?.error ?? null,
     };
