@@ -14,7 +14,7 @@ Unlike Jimaku, TsukiHime needs no account or API key. The only requirement is th
 
 ## How It Works
 
-The integration runs through an in-overlay modal opened with `Ctrl+Shift+T` by default. The modal has two tabs that filter the subtitle tracks of the selected release by role: the first follows `secondarySub.secondarySubLanguages` (English when unset), and the second is always **Japanese**, the currently supported primary subtitle language. Tracks with no language tag stay visible on the secondary tab.
+The integration runs through an in-overlay modal opened with `Ctrl+Shift+T` by default. The modal has two tabs that filter both the release list and the subtitle tracks of the selected release by role: the first follows `secondarySub.secondarySubLanguages` (English when unset), and the second is always **Japanese**, the currently supported primary subtitle language. Each tab lists only the releases whose reported subtitle languages include the tab's language, so the Japanese tab hides the many releases that ship English subtitles only. Releases and tracks with no language tag stay visible on the secondary tab. If nothing on the active tab qualifies, the status line says so and points at the other tab.
 
 When you open the modal, SubMiner parses the current video filename to extract a title and episode number (same parser as Jimaku - `S01E03`, `1x03`, `E03`, and dash-separated numbers all work). If the filename yields a high-confidence match, SubMiner auto-searches immediately.
 
@@ -76,6 +76,7 @@ The previous `--open-animetosho` flag and `__animetosho-open` keybinding command
 ## Troubleshooting
 
 - **"xz binary not found"** - install `xz`/`xz-utils` with your package manager.
+- **"No releases with Japanese subtitles"** - none of the search results carry a Japanese track. Most releases only ship English subtitles; try another search, or use the [Jimaku integration](/jimaku-integration) for Japanese subtitles.
 - **"Batch releases are not supported"** - TsukiHime only exposes extracted attachments for single-file torrents. Pick the single-episode release for your episode instead of a season batch.
 - **"No text subtitle tracks in this release"** - the release only carries image-based subtitles (PGS/VobSub) or none at all; try a different release (fansub and SubsPlease-style releases almost always carry ASS tracks).
 - **Timing is off** - the subtitle came from a different release than your video file. Use the subtitle sync modal (`Ctrl+Alt+S`) or pick the release matching your file exactly.
