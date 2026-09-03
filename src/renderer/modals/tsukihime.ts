@@ -45,6 +45,9 @@ export function createTsukihimeModal(
   // them rather than filtering against the English fallback.
   let secondaryLanguagesReady: Promise<void> = Promise.resolve();
   let activeDownloadToken = 0;
+  // Bumped by every new search and by closing the modal, so results that
+  // arrive late cannot repopulate a reopened modal or a newer search.
+  let activeSearchToken = 0;
 
   function secondaryTabLabel(): string {
     return describeTsukihimeTabLanguages(secondaryLanguages);
@@ -280,12 +283,15 @@ export function createTsukihimeModal(
       return;
     }
 
+    const searchToken = ++activeSearchToken;
     resetTsukihimeLists();
     setTsukihimeStatus('Searching TsukiHime...');
     await secondaryLanguagesReady;
+    if (searchToken !== activeSearchToken) return;
 
     const response: TsukihimeApiResponse<TsukihimeEntry[]> =
       await window.electronAPI.tsukihimeSearchEntries({ query });
+    if (searchToken !== activeSearchToken) return;
     if (!response.ok) {
       setTsukihimeStatus(response.error.error, true);
       return;
@@ -464,6 +470,7 @@ export function createTsukihimeModal(
     if (!ctx.state.tsukihimeModalOpen) return;
 
     activeDownloadToken += 1;
+    activeSearchToken += 1;
     ctx.state.tsukihimeModalOpen = false;
     options.syncSettingsModalSubtitleSuppression();
     ctx.dom.tsukihimeModal.classList.add('hidden');

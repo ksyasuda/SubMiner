@@ -790,3 +790,35 @@ test('a search waits for the configured secondary languages before filtering', a
     harness.restoreGlobals();
   }
 });
+
+test('a search from a prior modal session cannot repopulate a reopened modal', async () => {
+  let openGate!: () => void;
+  const harness = createModalHarness([], {
+    secondaryLanguagesGate: new Promise<void>((resolve) => {
+      openGate = resolve;
+    }),
+    searchEntries: async () => ({ ok: true, data: [MULTI_SUB_ENTRY] }),
+  });
+  try {
+    harness.state.tsukihimeModalOpen = false;
+    harness.modal.openTsukihimeModal();
+    harness.titleInput.value = 'Futsutsuka na Akujo';
+
+    // The search parks on the language config, then the user closes and
+    // reopens the modal before it resolves.
+    pressKey(harness, 'Enter');
+    harness.modal.closeTsukihimeModal();
+    harness.modal.openTsukihimeModal();
+    await flushAsyncWork();
+    harness.status.textContent = 'Fresh modal session';
+
+    openGate();
+    await flushAsyncWork();
+
+    assert.deepEqual(harness.state.tsukihimeEntries, []);
+    assert.deepEqual(visibleEntryTitles(harness), []);
+    assert.equal(harness.status.textContent, 'Fresh modal session');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
