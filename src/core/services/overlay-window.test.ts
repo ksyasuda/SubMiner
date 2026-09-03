@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureOverlayWindowLevel, updateOverlayWindowBounds } from './overlay-window';
+import {
+  ensureOverlayWindowLevel,
+  updateOverlayWindowBounds,
+  scheduleOverlayContentReadyFallback,
+  OVERLAY_CONTENT_READY_FALLBACK_DELAY_MS,
+} from './overlay-window';
 import {
   handleOverlayWindowBeforeInputEvent,
   handleOverlayWindowBlurred,
@@ -321,4 +326,60 @@ test('updateOverlayWindowBounds aligns Linux overlay content bounds to mpv geome
   }
 
   assert.deepEqual(calls, [{ x: 0, y: -14, width: 3440, height: 1454 }]);
+});
+
+test('scheduleOverlayContentReadyFallback marks content ready when ready-to-show never fired', () => {
+  const events: string[] = [];
+  const scheduled: Array<() => void> = [];
+
+  scheduleOverlayContentReadyFallback({
+    isContentReady: () => false,
+    isDestroyed: () => false,
+    markContentReady: () => events.push('mark'),
+    setTimeoutFn: (callback, delayMs) => {
+      events.push(`schedule:${delayMs}`);
+      scheduled.push(callback);
+      return null;
+    },
+  });
+
+  assert.deepEqual(events, [`schedule:${OVERLAY_CONTENT_READY_FALLBACK_DELAY_MS}`]);
+  scheduled[0]?.();
+  assert.deepEqual(events, [`schedule:${OVERLAY_CONTENT_READY_FALLBACK_DELAY_MS}`, 'mark']);
+});
+
+test('scheduleOverlayContentReadyFallback no-ops once content is already ready', () => {
+  const scheduled: Array<() => void> = [];
+  const events: string[] = [];
+
+  scheduleOverlayContentReadyFallback({
+    isContentReady: () => true,
+    isDestroyed: () => false,
+    markContentReady: () => events.push('mark'),
+    setTimeoutFn: (callback) => {
+      scheduled.push(callback);
+      return null;
+    },
+  });
+
+  scheduled[0]?.();
+  assert.deepEqual(events, []);
+});
+
+test('scheduleOverlayContentReadyFallback no-ops after the window is destroyed', () => {
+  const scheduled: Array<() => void> = [];
+  const events: string[] = [];
+
+  scheduleOverlayContentReadyFallback({
+    isContentReady: () => false,
+    isDestroyed: () => true,
+    markContentReady: () => events.push('mark'),
+    setTimeoutFn: (callback) => {
+      scheduled.push(callback);
+      return null;
+    },
+  });
+
+  scheduled[0]?.();
+  assert.deepEqual(events, []);
 });

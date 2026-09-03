@@ -57,6 +57,7 @@ export interface OverlayModalRuntime {
   openTsukihime: () => void;
   handleOverlayModalClosed: (modal: OverlayHostedModal) => void;
   notifyOverlayModalOpened: (modal: OverlayHostedModal) => void;
+  isModalOpen: (modal: OverlayHostedModal) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
   getRestoreVisibleOverlayOnModalClose: () => Set<OverlayHostedModal>;
 }
@@ -85,11 +86,13 @@ export function createOverlayModalRuntimeService(
   let modalWindowPrimedForImmediateShow = false;
   let pendingModalWindowReveal: BrowserWindow | null = null;
   let pendingModalWindowRevealTimeout: RevealFallbackHandle | null = null;
+  let retainModalWindowState = false;
   const modalWindowBoundsReconcileGenerations = new WeakMap<BrowserWindow, number>();
   const modalWindowPrimeListenersRegistered = new WeakSet<BrowserWindow>();
   const platform = options.platform ?? process.platform;
   const shouldPrimeModalWindow = platform === 'darwin' || platform === 'win32';
-  const reuseModalWindowAfterClose = platform === 'darwin';
+  const shouldReuseModalWindowAfterClose = (): boolean =>
+    platform === 'darwin' || (platform !== 'win32' && retainModalWindowState);
   const focusApplication = options.focusApplication ?? requestOverlayApplicationFocus;
   const scheduleRevealFallback = (callback: () => void, delayMs: number): RevealFallbackHandle =>
     (options.scheduleRevealFallback ?? globalThis.setTimeout)(callback, delayMs);
@@ -137,6 +140,13 @@ export function createOverlayModalRuntimeService(
     return null;
   };
 
+  const isWindowDocumentLoaded = (window: BrowserWindow): boolean => {
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
+    };
+    return overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] !== false;
+  };
+
   const isWindowReadyForIpc = (window: BrowserWindow): boolean => {
     if (window.isDestroyed()) {
       return false;
@@ -144,13 +154,12 @@ export function createOverlayModalRuntimeService(
     if (window.webContents.isLoading()) {
       return false;
     }
-    const overlayWindow = window as BrowserWindow & {
-      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
-      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
-    };
-    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] === false) {
+    if (!isWindowDocumentLoaded(window)) {
       return false;
     }
+    const overlayWindow = window as BrowserWindow & {
+      [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean;
+    };
     if (
       typeof overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] === 'boolean' &&
       overlayWindow[OVERLAY_WINDOW_CONTENT_READY_FLAG] !== true
@@ -165,10 +174,7 @@ export function createOverlayModalRuntimeService(
     if (window.isDestroyed() || window.webContents.isLoading()) {
       return false;
     }
-    const overlayWindow = window as BrowserWindow & {
-      [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean;
-    };
-    if (overlayWindow[OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG] !== true) {
+    if (!isWindowDocumentLoaded(window)) {
       return false;
     }
     const currentURL = window.webContents.getURL();
@@ -517,7 +523,7 @@ export function createOverlayModalRuntimeService(
     if (restoreVisibleOverlayOnModalClose.size === 0) {
       clearPendingModalWindowReveal();
       if (modalWindow && !modalWindow.isDestroyed()) {
-        if (reuseModalWindowAfterClose) {
+        if (shouldReuseModalWindowAfterClose()) {
           applyOverlayClickThrough(modalWindow, false);
           modalWindow.hide();
           markModalWindowPrimed(modalWindow);
@@ -546,6 +552,7 @@ export function createOverlayModalRuntimeService(
 
   const notifyOverlayModalOpened = (modal: OverlayHostedModal): void => {
     if (!restoreVisibleOverlayOnModalClose.has(modal)) return;
+    if (modal === 'anime-browser') retainModalWindowState = true;
     openedModals.add(modal);
     const waiters = modalOpenWaiters.get(modal) ?? [];
     modalOpenWaiters.delete(modal);
@@ -603,6 +610,7 @@ export function createOverlayModalRuntimeService(
     openTsukihime,
     handleOverlayModalClosed,
     notifyOverlayModalOpened,
+    isModalOpen: (modal) => openedModals.has(modal),
     waitForModalOpen,
     getRestoreVisibleOverlayOnModalClose: () => restoreVisibleOverlayOnModalClose,
   };

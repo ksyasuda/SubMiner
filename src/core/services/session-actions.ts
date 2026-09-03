@@ -27,6 +27,7 @@ export interface SessionActionExecutorDeps {
   openTsukihime: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
+  openAnimeBrowser: () => boolean | void | Promise<boolean | void>;
   replayCurrentSubtitle: () => void;
   playNextSubtitle: () => void;
   cycleRuntimeOption: (id: RuntimeOptionId, direction: 1 | -1) => RuntimeOptionApplyResult;
@@ -124,6 +125,9 @@ export async function dispatchSessionAction(
       return;
     case 'openPlaylistBrowser':
       await deps.openPlaylistBrowser();
+      return;
+    case 'openAnimeBrowser':
+      await deps.openAnimeBrowser();
       return;
     case 'replayCurrentSubtitle':
       deps.replayCurrentSubtitle();

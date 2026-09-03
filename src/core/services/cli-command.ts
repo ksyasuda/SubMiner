@@ -45,6 +45,7 @@ export interface CliCommandServiceDeps {
   openYomitanSettingsDelayed: (delayMs: number) => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openAnimeBrowserWindow: () => void;
   setVisibleOverlayVisible: (visible: boolean) => void;
   copyCurrentSubtitle: () => void;
   startPendingMultiCopy: (timeoutMs: number) => void;
@@ -172,6 +173,7 @@ interface UiCliRuntime {
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openAnimeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -277,6 +279,7 @@ export function createCliCommandDepsRuntime(
     },
     openConfigSettingsWindow: options.ui.openConfigSettingsWindow,
     openSyncUiWindow: options.ui.openSyncUiWindow,
+    openAnimeBrowserWindow: options.ui.openAnimeBrowserWindow,
     setVisibleOverlayVisible: options.overlay.setVisible,
     copyCurrentSubtitle: options.mining.copyCurrentSubtitle,
     startPendingMultiCopy: options.mining.startPendingMultiCopy,
@@ -422,6 +425,8 @@ export function handleCliCommand(
     deps.openConfigSettingsWindow();
   } else if (args.syncWindow) {
     deps.openSyncUiWindow();
+  } else if (args.animeBrowser) {
+    deps.openAnimeBrowserWindow();
   } else if (args.show || args.showVisibleOverlay) {
     deps.setVisibleOverlayVisible(true);
   } else if (args.hide || args.hideVisibleOverlay) {

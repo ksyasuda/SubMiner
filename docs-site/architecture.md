@@ -74,8 +74,8 @@ src/
   shared/ipc/              # Cross-process IPC channel constants + payload validators
   renderer/                # Overlay renderer (modularized UI/runtime)
     handlers/              # Keyboard/mouse/gamepad interaction modules
-    modals/                # Modal flows (Jimaku, Kiku, subsync, runtime options, session help,
-                           #   changelog, character dictionary, playlist browser, subtitle
+    modals/                # Modal flows (Anime Browser, Jimaku, Kiku, subsync, runtime options,
+                           #   session help, changelog, character dictionary, playlist browser, subtitle
                            #   sidebar, YouTube track picker, controller config/debug/select)
     positioning/           # Subtitle position controller (drag-to-reposition)
   settings/                # Settings window UI (model, controls, markup)

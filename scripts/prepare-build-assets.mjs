@@ -6,12 +6,15 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
+const assetsSourceDir = path.join(repoRoot, 'assets');
 const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
 const settingsSourceDir = path.join(repoRoot, 'src', 'settings');
 const settingsOutputDir = path.join(repoRoot, 'dist', 'settings');
 const syncUiSourceDir = path.join(repoRoot, 'src', 'syncui');
 const syncUiOutputDir = path.join(repoRoot, 'dist', 'syncui');
+const animeUiSourceDir = path.join(repoRoot, 'src', 'animeui');
+const animeUiOutputDir = path.join(repoRoot, 'dist', 'animeui');
 const scriptsOutputDir = path.join(repoRoot, 'dist', 'scripts');
 const macosHelperSourcePath = path.join(scriptDir, 'get-mpv-window-macos.swift');
 const macosHelperBinaryPath = path.join(scriptsOutputDir, 'get-mpv-window-macos');
@@ -26,9 +29,11 @@ function copyFile(sourcePath, outputPath) {
   fs.copyFileSync(sourcePath, outputPath);
 }
 
-function copyAssets(sourceDir, outputDir, label) {
+function copyAssets(sourceDir, outputDir, label, stylesheets = ['style.css']) {
   copyFile(path.join(sourceDir, 'index.html'), path.join(outputDir, 'index.html'));
-  copyFile(path.join(sourceDir, 'style.css'), path.join(outputDir, 'style.css'));
+  for (const stylesheet of stylesheets) {
+    copyFile(path.join(sourceDir, stylesheet), path.join(outputDir, stylesheet));
+  }
   fs.cpSync(path.join(rendererSourceDir, 'fonts'), path.join(outputDir, 'fonts'), {
     recursive: true,
     force: true,
@@ -46,6 +51,15 @@ function copySettingsAssets() {
 
 function copySyncUiAssets() {
   copyAssets(syncUiSourceDir, syncUiOutputDir, 'syncui');
+}
+
+function copyAnimeUiAssets() {
+  copyAssets(animeUiSourceDir, animeUiOutputDir, 'animeui', [
+    'style.css',
+    'detail.css',
+    'panels.css',
+  ]);
+  copyFile(path.join(assetsSourceDir, 'SubMiner.png'), path.join(animeUiOutputDir, 'SubMiner.png'));
 }
 
 function fallbackToMacosSource() {
@@ -105,6 +119,7 @@ function main() {
   copyRendererAssets();
   copySettingsAssets();
   copySyncUiAssets();
+  copyAnimeUiAssets();
   buildMacosHelper();
 }
 

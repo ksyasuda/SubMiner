@@ -19,6 +19,7 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
       PLAY_NEXT_SUBTITLE: '__play-next-subtitle',
       YOUTUBE_PICKER_OPEN: '__youtube-picker-open',
       PLAYLIST_BROWSER_OPEN: '__playlist-browser-open',
+      ANIME_BROWSER_OPEN: '__anime-browser-open',
     },
     triggerSubsyncFromConfig: () => {
       calls.push('subsync');
@@ -37,6 +38,9 @@ function createOptions(overrides: Partial<Parameters<typeof handleMpvCommandFrom
     },
     openPlaylistBrowser: () => {
       calls.push('playlist-browser');
+    },
+    openAnimeBrowser: () => {
+      calls.push('anime-browser');
     },
     runtimeOptionsCycle: () => ({ ok: true }),
     showMpvOsd: (text) => {

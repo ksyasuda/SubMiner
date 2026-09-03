@@ -342,6 +342,12 @@
       ] // Command setting.
     },
     {
+      "key": "Ctrl+Alt+KeyA", // Key setting.
+      "command": [
+        "__anime-browser-open"
+      ] // Command setting.
+    },
+    {
       "key": "Ctrl+Shift+KeyH", // Key setting.
       "command": [
         "__replay-subtitle"
@@ -615,6 +621,21 @@
       "wordCardKind": "word-and-sentence" // Card-type flag SubMiner marks on Kiku/Lapis word cards. Only one flag is set at a time; the others are cleared. Requires isKiku.enabled or isLapis.enabled. Values: word-and-sentence | click | sentence | audio | none
     } // Lapis kiku setting.
   }, // Automatic Anki updates and media generation options.
+
+  // ==========================================
+  // Anime Browser
+  // Anime browser sources. SubMiner ships no extension repositories and bundles no sources;
+  // add a repository index URL here (or drop .apk files in the extensions directory) to have any.
+  // Hot-reload: autoOpenJimaku applies to the next episode; other anime changes apply the next time the anime browser opens.
+  // ==========================================
+  "anime": {
+    "autoOpenJimaku": false, // Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes only when auto-open initiated the pause. Values: true | false
+    "extensionsDir": "", // Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.
+    "repos": [], // Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.
+    "preferredQuality": "", // Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.
+    "defaultSource": "", // Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. "Set default" in the Extensions tab writes this value.
+    "bridgeDir": "" // Directory holding an M-Extension-Server bundle (java runtime plus server jar) to run instead of the copy SubMiner downloads. Empty checks the package-manager install (Arch: mangatan-extension-server), then <userData>/anime-bridge.
+  }, // Anime browser sources. SubMiner ships no extension repositories and bundles no sources;
 
   // ==========================================
   // Jimaku

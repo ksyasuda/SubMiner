@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:* https:; object-src 'none'; base-uri 'self';"
+    />
+    <title>SubMiner Anime</title>
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./detail.css" />
+    <link rel="stylesheet" href="./panels.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-block">
+        <img class="brand-logo" src="./SubMiner.png" alt="" width="52" height="52" />
+        <div class="brand-copy">
+          <div class="brand-title">SubMiner</div>
+          <div class="brand-subtitle">Anime</div>
+        </div>
+      </div>
+
+      <form class="search-form" id="search-form" role="search">
+        <input
+          class="text-input search-input"
+          id="search-input"
+          type="search"
+          placeholder="Search anime"
+          autocomplete="off"
+          aria-label="Search anime"
+        />
+        <button class="primary-button" id="search-button" type="submit">Search</button>
+      </form>
+
+      <label class="source-picker">
+        <span class="source-label">Source</span>
+        <select class="text-input" id="source-select" aria-label="Extension source"></select>
+      </label>
+
+      <nav class="tabs" role="tablist" aria-label="View">
+        <button
+          class="tab"
+          id="tab-browse"
+          type="button"
+          role="tab"
+          aria-controls="layout"
+          aria-selected="true"
+        >
+          Browse
+        </button>
+        <button
+          class="tab"
+          id="tab-extensions"
+          type="button"
+          role="tab"
+          aria-controls="extensions"
+          aria-selected="false"
+        >
+          Extensions
+        </button>
+        <button
+          class="tab"
+          id="tab-settings"
+          type="button"
+          role="tab"
+          aria-controls="settings"
+          aria-selected="false"
+        >
+          Source settings
+        </button>
+      </nav>
+    </header>
+
+    <div class="bridge-banner hidden" id="bridge-banner" role="status" aria-live="polite">
+      <span class="bridge-dot" id="bridge-dot"></span>
+      <span class="bridge-message" id="bridge-message"></span>
+      <span class="bridge-meter hidden" id="bridge-meter"><i id="bridge-meter-fill"></i></span>
+      <button
+        class="ghost-button bridge-update hidden"
+        id="bridge-update"
+        type="button"
+        title="Downloads the verified release and restarts the bridge. A playing episode's stream stops."
+      ></button>
+    </div>
+
+    <section class="settings hidden" id="settings" role="tabpanel" aria-labelledby="tab-settings">
+      <div class="settings-head">
+        <h2 class="settings-title" id="settings-title">Source settings</h2>
+        <span class="settings-note">Saved as you change them.</span>
+      </div>
+      <div class="settings-fields" id="settings-fields"></div>
+    </section>
+
+    <section
+      class="settings hidden"
+      id="extensions"
+      role="tabpanel"
+      aria-labelledby="tab-extensions"
+    >
+      <div class="settings-head">
+        <h2 class="settings-title">Extensions</h2>
+        <span class="settings-note" id="extensions-dir"></span>
+      </div>
+
+      <div class="ext-group-heading">
+        <h3 class="ext-group-title">
+          Installed <span class="ext-group-count" id="installed-count"></span>
+        </h3>
+        <button class="ghost-button ext-update-all" id="update-all" type="button" disabled>
+          No updates
+        </button>
+      </div>
+      <div class="ext-list" id="installed-list" aria-label="Installed extensions"></div>
+
+      <h3 class="ext-group-title">Repositories</h3>
+      <div class="repo-add">
+        <input
+          class="text-input"
+          id="repo-input"
+          type="url"
+          placeholder="https://example.org/repo/index.min.json"
+          aria-label="Repository index URL"
+        />
+        <button class="primary-button" id="repo-add" type="button">Add repository</button>
+      </div>
+      <p class="repo-hint" id="repo-hint">
+        SubMiner ships no repositories. Add any https URL to a repository's <code>.json</code> index
+        to install extensions from it, or drop <code>.apk</code> files in the extensions directory.
+      </p>
+
+      <div class="ext-list" id="repo-list" aria-label="Repositories"></div>
+
+      <h3 class="ext-group-title">
+        Available <span class="ext-group-count" id="available-count"></span>
+      </h3>
+      <div class="lang-filter" id="lang-filter" role="group" aria-label="Filter by language"></div>
+      <div class="ext-list" id="extensions-list" aria-label="Available extensions"></div>
+
+      <h3 class="ext-group-title">Bridge</h3>
+      <p class="repo-hint" id="bridge-info"></p>
+    </section>
+
+    <main class="layout" id="layout" role="tabpanel" aria-labelledby="tab-browse">
+      <section class="results" id="results" aria-label="Results">
+        <div class="grid" id="grid"></div>
+        <p class="empty hidden" id="grid-empty"></p>
+        <button class="ghost-button load-more hidden" id="load-more" type="button">
+          Load more
+        </button>
+      </section>
+
+      <section class="detail hidden" id="detail" aria-label="Details">
+        <div class="detail-body">
+          <button class="ghost-button detail-back" id="detail-back" type="button">
+            ← Back to results
+          </button>
+
+          <div class="detail-head">
+            <img class="detail-cover" id="detail-cover" alt="" />
+            <div class="detail-meta">
+              <h2 class="detail-title" id="detail-title"></h2>
+              <div class="detail-chips" id="detail-chips"></div>
+              <p class="detail-description" id="detail-description"></p>
+            </div>
+          </div>
+
+          <div class="episodes-head">
+            <h3 class="episodes-title">Episodes</h3>
+            <span class="episodes-count" id="episodes-count"></span>
+            <span class="episodes-watched hidden" id="episodes-watched"></span>
+            <span class="episodes-queued hidden" id="episodes-queued"></span>
+            <button
+              class="ghost-button episodes-queue-clear hidden"
+              id="episodes-queue-clear"
+              type="button"
+            >
+              Clear queue
+            </button>
+            <input
+              class="text-input episodes-filter hidden"
+              id="episodes-filter"
+              type="search"
+              placeholder="Filter: 12, 12-18, or a name"
+              autocomplete="off"
+              aria-label="Filter episodes"
+            />
+          </div>
+          <ol class="cue-rail" id="episodes"></ol>
+        </div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span id="status-message"></span>
+    </footer>
+
+    <script type="module" src="./animeui.js"></script>
+  </body>
+</html>

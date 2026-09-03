@@ -589,6 +589,48 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'mpv key used to skip the detected intro while the skip prompt is visible.',
     },
     {
+      path: 'anime.autoOpenJimaku',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anime.autoOpenJimaku,
+      description:
+        'Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes only when auto-open initiated the pause.',
+    },
+    {
+      path: 'anime.extensionsDir',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.extensionsDir,
+      description:
+        'Directory holding Aniyomi extension .apk files. Empty uses <userData>/anime-extensions.',
+    },
+    {
+      path: 'anime.repos',
+      kind: 'array',
+      defaultValue: defaultConfig.anime.repos,
+      description:
+        'Extension repository index URLs (any https .json index, e.g. https://.../index.min.json). Empty by default; SubMiner ships no repositories.',
+    },
+    {
+      path: 'anime.preferredQuality',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.preferredQuality,
+      description:
+        'Preferred stream quality label, matched as a substring (for example: 1080). Empty uses the source order.',
+    },
+    {
+      path: 'anime.defaultSource',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.defaultSource,
+      description:
+        'Source the Anime Browser selects when it opens: a source id (<package>:<source>) or "all" for every installed source. Empty selects the first installed source. "Set default" in the Extensions tab writes this value.',
+    },
+    {
+      path: 'anime.bridgeDir',
+      kind: 'string',
+      defaultValue: defaultConfig.anime.bridgeDir,
+      description:
+        'Directory holding an M-Extension-Server bundle (java runtime plus server jar) to run instead of the copy SubMiner downloads. Empty checks the package-manager install (Arch: mangatan-extension-server), then <userData>/anime-bridge.',
+    },
+    {
       path: 'jellyfin.enabled',
       kind: 'boolean',
       defaultValue: defaultConfig.jellyfin.enabled,

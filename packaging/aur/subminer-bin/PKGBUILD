@@ -1,8 +1,8 @@
 # Maintainer: Kyle Yasuda <suda@sudacode.com>
 
 pkgname=subminer-bin
-pkgver=0.6.2
-pkgrel=1
+pkgver=0.19.5
+pkgrel=2
 pkgdesc='All-in-one sentence mining overlay with AnkiConnect and dictionary integration'
 arch=('x86_64')
 url='https://github.com/ksyasuda/SubMiner'
@@ -27,6 +27,7 @@ optdepends=(
 	'python-guessit: improved AniSkip title and episode inference'
 	'alass-git: preferred subtitle synchronization engine'
 	'python-ffsubsync: fallback subtitle synchronization engine'
+	'mangatan-extension-server: anime browser bridge shared with Mangatan; skips the bundle download and is updated by pacman'
 )
 provides=("subminer=${pkgver}")
 conflicts=('subminer')
@@ -36,9 +37,9 @@ source=(
 	"subminer-assets-${pkgver}.tar.gz::https://github.com/ksyasuda/SubMiner/releases/download/v${pkgver}/subminer-assets.tar.gz"
 )
 sha256sums=(
-	'c91667adbbc47a0fba34855358233454a9ea442ab57510546b2219abd1f2461e'
-	'85050918e14cb2512fcd34be83387a2383fa5c206dc1bdc11e8d98f7d37817e5'
-	'210113be64a06840f4dfaebc22a8e6fc802392f1308413aa00d9348c804ab2a1'
+	'bd683d949956ff847927f23acfede49efad6320cf7ec4cdc3cbd586a5287884e'
+	'2fa292f672df715461765aef8d5c6bf3612004c8b8070b1b1f0afa10d4b74c1e'
+	'591468a1fc68a13de315acaf1154df9da41fe3bcbc0e5522a04ba21e939ed1ae'
 )
 noextract=("SubMiner-${pkgver}.AppImage")
 

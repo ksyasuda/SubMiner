@@ -15,6 +15,9 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     openPlaylistBrowser: () => {
       calls.push('playlist-browser');
     },
+    openAnimeBrowser: () => {
+      calls.push('anime-browser');
+    },
     cycleRuntimeOption: () => ({ ok: false as const, error: 'x' }),
     showMpvOsd: (text) => calls.push(`osd:${text}`),
     showRawMpvOsd: (text) => calls.push(`raw-osd:${text}`),
@@ -33,6 +36,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
   deps.openTsukihime();
   void deps.openYoutubeTrackPicker();
   void deps.openPlaylistBrowser();
+  void deps.openAnimeBrowser();
   assert.deepEqual(deps.cycleRuntimeOption('anki.nPlusOneMatchMode', 1), { ok: false, error: 'x' });
   deps.showMpvOsd('hello');
   deps.showRawMpvOsd?.('delay');
@@ -50,6 +54,7 @@ test('ipc mpv command main deps builder maps callbacks', () => {
     'tsukihime',
     'youtube-picker',
     'playlist-browser',
+    'anime-browser',
     'osd:hello',
     'raw-osd:delay',
     'feedback:primary',

@@ -47,6 +47,9 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openPlaylistBrowser: () => {
       calls.push('playlist');
     },
+    openAnimeBrowser: () => {
+      calls.push('anime-browser');
+    },
     replayCurrentSubtitle: () => calls.push('replay'),
     playNextSubtitle: () => calls.push('play-next'),
     cycleRuntimeOption: () => ({ ok: true }),

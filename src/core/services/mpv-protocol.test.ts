@@ -439,6 +439,28 @@ test('visibility and boolean parsers handle text values', () => {
   assert.equal(asBoolean('0', true), false);
 });
 
+test('dispatchMpvProtocolMessage emits end-file with reason and file error', async () => {
+  const received: Array<{ reason: string; fileError: string | null }> = [];
+  const { deps } = createDeps({
+    emitEndFile: (payload) => {
+      received.push(payload);
+    },
+  });
+
+  await dispatchMpvProtocolMessage(
+    { event: 'end-file', reason: 'error', file_error: 'no audio or video data played' },
+    deps,
+  );
+  await dispatchMpvProtocolMessage({ event: 'end-file', reason: 'eof' }, deps);
+  await dispatchMpvProtocolMessage({ event: 'end-file' }, deps);
+
+  assert.deepEqual(received, [
+    { reason: 'error', fileError: 'no audio or video data played' },
+    { reason: 'eof', fileError: null },
+    { reason: 'unknown', fileError: null },
+  ]);
+});
+
 test('dispatchMpvProtocolMessage emits client-message string args', async () => {
   const received: Array<{ args: string[] }> = [];
   const { deps } = createDeps({

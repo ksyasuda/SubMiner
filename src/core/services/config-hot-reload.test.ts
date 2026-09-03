@@ -102,6 +102,29 @@ test('classifyConfigHotReloadDiff keeps unsafe nested siblings restart-required'
   assert.deepEqual(diff.restartRequiredFields, ['ankiConnect', 'stats']);
 });
 
+test('classifyConfigHotReloadDiff treats anime Jimaku auto-open as hot-reloadable', () => {
+  const prev = deepCloneConfig(DEFAULT_CONFIG);
+  const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.anime.autoOpenJimaku = !prev.anime.autoOpenJimaku;
+
+  const diff = classifyConfigHotReloadDiff(prev, next);
+
+  assert.deepEqual(diff.hotReloadFields, ['anime.autoOpenJimaku']);
+  assert.deepEqual(diff.restartRequiredFields, []);
+});
+
+test('classifyConfigHotReloadDiff keeps other anime settings restart-required', () => {
+  const prev = deepCloneConfig(DEFAULT_CONFIG);
+  const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.anime.autoOpenJimaku = !prev.anime.autoOpenJimaku;
+  next.anime.preferredQuality = '1080';
+
+  const diff = classifyConfigHotReloadDiff(prev, next);
+
+  assert.deepEqual(diff.hotReloadFields, ['anime.autoOpenJimaku']);
+  assert.deepEqual(diff.restartRequiredFields, ['anime']);
+});
+
 test('config hot reload runtime debounces rapid watch events', () => {
   let watchedChangeCallback: (() => void) | null = null;
   const pendingTimers = new Map<number, () => void>();

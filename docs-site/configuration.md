@@ -154,6 +154,7 @@ The configuration file includes several main sections:
 
 **External Integrations**
 
+- [**Anime Browser**](#anime-browser) - Extension repositories and stream preferences for the anime browser
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**TsukiHime**](#tsukihime) - Multi-language subtitle search and download
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
@@ -592,6 +593,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 | `KeyJ`                  | `["cycle", "sid"]`            | Cycle primary subtitle track            |
 | `Shift+KeyJ`            | `["cycle", "secondary-sid"]`  | Cycle secondary subtitle track          |
 | `Ctrl+Alt+KeyP`         | `["__playlist-browser-open"]` | Open playlist browser                   |
+| `Ctrl+Alt+KeyA`         | `["__anime-browser-open"]`    | Toggle Anime Browser in the player      |
 | `Ctrl+Alt+KeyC`         | `["__youtube-picker-open"]`   | Open the manual YouTube subtitle picker |
 | `ArrowRight`            | `["seek", 5]`                 | Seek forward 5 seconds                  |
 | `ArrowLeft`             | `["seek", -5]`                | Seek backward 5 seconds                 |
@@ -633,7 +635,7 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 { "key": "Space", "command": null }
 ```
 
-**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__playlist-browser-open` opens the split-pane playlist browser for the current file's parent directory and the live mpv queue. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
+**Special commands:** Commands prefixed with `__` are handled internally by the overlay rather than sent to mpv. `__playlist-browser-open` opens the split-pane playlist browser for the current file's parent directory and the live mpv queue. `__anime-browser-open` opens the Anime Browser inside the player bounds. `__replay-subtitle` replays the current subtitle and pauses at its end. `__play-next-subtitle` seeks to the next subtitle, plays it, and pauses at its end. `__runtime-options-open` opens the runtime options palette. `__runtime-option-cycle:<id>[:next|prev]` cycles a runtime option value.
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 
@@ -1051,7 +1053,7 @@ This example is intentionally compact. The option table below documents availabl
 | `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time, `%T`=time with milliseconds, `<br>`=newline                                                                                                           |
 | `isLapis`                                         | object                                      | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.                                                                                    |
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
-| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                      |
+| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                     |
 
 `ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
 API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
@@ -1156,6 +1158,35 @@ When the manual merge popup opens, SubMiner pauses playback and closes any open 
 
 ## External Integrations
 
+### Anime Browser
+
+Sources for the [anime browser](/anime-browser). SubMiner ships no extension repositories and bundles no sources, so these are empty until you add one:
+
+```json
+{
+  "anime": {
+    "autoOpenJimaku": false,
+    "extensionsDir": "",
+    "repos": [],
+    "preferredQuality": "",
+    "defaultSource": ""
+  }
+}
+```
+
+| Option                   | Type       | Default | Description                                                                                                                                                                                                                                         |
+| ------------------------ | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anime.autoOpenJimaku`   | `boolean`  | `false` | Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes. Playback that was already paused stays paused.                                                                     |
+| `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                                                                                         |
+| `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                                                                                                 |
+| `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub.                                                                       |
+| `anime.defaultSource`    | `string`   | `""`    | Source the Anime Browser selects when it opens: a source id (`<package>:<source>`) or `all` for every installed source. Empty selects the first installed source. **Set default** in the Extensions tab writes this value.                          |
+| `anime.bridgeDir`        | `string`   | `""`    | Directory holding an M-Extension-Server bundle (Java runtime plus server jar) to run instead of the downloaded copy. Empty checks the package-manager install first, then `<userData>/anime-bridge`. See [the bridge](anime-browser.md#the-bridge). |
+
+Repositories added from the browser's Extensions tab are written back to `anime.repos`, so the list can also be kept in a dotfile. Changes apply the next time the anime browser opens.
+
+Per-source settings (server addresses, credentials, per-extension quality or language options) are not part of `config.jsonc`. They belong to the extension, are edited in the browser's **Source settings** tab, and persist in `<userData>/anime-source-preferences.json` with owner-only permissions.
+
 ### Jimaku
 
 Configure Jimaku API access and defaults:
@@ -1216,10 +1247,14 @@ Sync a subtitle track from the overlay picker using `alass` or `ffsubsync`. The 
 
 | Option           | Values          | Description                                                                                                               |
 | ---------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `alass_path`     | string path     | Path to `alass` executable. Empty falls back to `/usr/bin/alass`. `alass` must be installed separately.                   |
-| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty falls back to `/usr/bin/ffsubsync`. `ffsubsync` must be installed separately.       |
-| `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
+| `alass_path`     | string path     | Path to `alass` executable. Empty auto-discovers `alass` or `alass-cli`. `alass` must be installed separately.            |
+| `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty auto-discovers `ffsubsync`. `ffsubsync` must be installed separately.               |
+| `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` auto-discovers `ffmpeg`.                        |
 | `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
+
+Auto-discovery searches `PATH`, then the usual install prefixes (`/opt/homebrew/bin`, `/usr/local/bin`, `/opt/local/bin`, `/usr/bin`, `/bin`) — a GUI launch inherits a minimal `PATH` that often omits the first two. Set the option explicitly if your binary lives elsewhere.
+
+Subtitle tracks that mpv loaded from a URL (Aniyomi extension streams, Jellyfin) are downloaded to a temporary file first, reusing mpv's own request headers, so they can be used as either the sync target or the alass reference.
 
 Stats dashboard sentence mining also uses `alass_path` when available to align a local English sidecar against the local Japanese sidecar before filling the card translation field. This stats-only retime writes a temporary cached copy and never edits the original subtitle files.
 

@@ -106,6 +106,7 @@ function describeCommand(command: (string | number)[]): string {
   if (first === SPECIAL_COMMANDS.JIMAKU_OPEN) return 'Open jimaku';
   if (first === SPECIAL_COMMANDS.TSUKIHIME_OPEN) return 'Open TsukiHime';
   if (first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN) return 'Open playlist browser';
+  if (first === SPECIAL_COMMANDS.ANIME_BROWSER_OPEN) return 'Toggle Anime Browser';
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) return 'Replay current subtitle';
   if (first === SPECIAL_COMMANDS.PLAY_NEXT_SUBTITLE) return 'Play next subtitle';
   if (first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)) {
@@ -151,6 +152,7 @@ function sectionForCommand(command: (string | number)[]): string {
     first === SPECIAL_COMMANDS.JIMAKU_OPEN ||
     first === SPECIAL_COMMANDS.TSUKIHIME_OPEN ||
     first === SPECIAL_COMMANDS.PLAYLIST_BROWSER_OPEN ||
+    first === SPECIAL_COMMANDS.ANIME_BROWSER_OPEN ||
     first.startsWith(SPECIAL_COMMANDS.RUNTIME_OPTION_CYCLE_PREFIX)
   ) {
     return 'Runtime settings';
@@ -229,6 +231,8 @@ function describeSessionAction(
       return 'Open YouTube subtitle picker';
     case 'openPlaylistBrowser':
       return 'Open playlist browser';
+    case 'openAnimeBrowser':
+      return 'Toggle Anime Browser';
     case 'replayCurrentSubtitle':
       return 'Replay current subtitle';
     case 'playNextSubtitle':
@@ -270,6 +274,7 @@ function sectionForSessionBinding(binding: CompiledSessionBinding): string {
     case 'openControllerDebug':
     case 'openYoutubePicker':
     case 'openPlaylistBrowser':
+    case 'openAnimeBrowser':
     case 'openSessionHelp':
       return 'Modals and tools';
     case 'replayCurrentSubtitle':

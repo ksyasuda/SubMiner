@@ -317,6 +317,10 @@ function resolveCommandBinding(
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'openPlaylistBrowser' };
   }
+  if (first === SPECIAL_COMMANDS.ANIME_BROWSER_OPEN) {
+    if (command.length !== 1) return null;
+    return { actionType: 'session-action', actionId: 'openAnimeBrowser' };
+  }
   if (first === SPECIAL_COMMANDS.REPLAY_SUBTITLE) {
     if (command.length !== 1) return null;
     return { actionType: 'session-action', actionId: 'replayCurrentSubtitle' };

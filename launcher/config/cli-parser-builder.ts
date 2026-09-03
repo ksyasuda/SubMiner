@@ -23,6 +23,7 @@ export interface CliInvocations {
   jellyfinInvocation: JellyfinInvocation | null;
   configInvocation: CommandActionInvocation | null;
   settingsInvocation: CommandActionInvocation | null;
+  animeInvocation: CommandActionInvocation | null;
   mpvInvocation: CommandActionInvocation | null;
   appInvocation: { appArgs: string[] } | null;
   dictionaryTriggered: boolean;
@@ -115,6 +116,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'doctor',
     'config',
     'settings',
+    'anime',
     'mpv',
     'logs',
     'dictionary',
@@ -168,6 +170,7 @@ export function parseCliPrograms(
   let jellyfinInvocation: JellyfinInvocation | null = null;
   let configInvocation: CommandActionInvocation | null = null;
   let settingsInvocation: CommandActionInvocation | null = null;
+  let animeInvocation: CommandActionInvocation | null = null;
   let mpvInvocation: CommandActionInvocation | null = null;
   let appInvocation: { appArgs: string[] } | null = null;
   let dictionaryTriggered = false;
@@ -457,6 +460,16 @@ export function parseCliPrograms(
     });
 
   commandProgram
+    .command('anime')
+    .description('Open the anime browser window')
+    .option('--log-level <level>', 'Log level')
+    .action((options: Record<string, unknown>) => {
+      animeInvocation = {
+        logLevel: typeof options.logLevel === 'string' ? options.logLevel : undefined,
+      };
+    });
+
+  commandProgram
     .command('mpv')
     .description('MPV helpers')
     .argument('[action]', 'status|socket|idle', 'status')
@@ -510,6 +523,7 @@ export function parseCliPrograms(
       jellyfinInvocation,
       configInvocation,
       settingsInvocation,
+      animeInvocation,
       mpvInvocation,
       appInvocation,
       dictionaryTriggered,

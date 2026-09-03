@@ -57,3 +57,44 @@ test('resolveConfig warns for invalid mpv launch mode', () => {
     message: "Expected one of: 'normal', 'maximized', 'fullscreen'.",
   });
 });
+
+test('resolveConfig parses the Anime Browser Jimaku handoff option', () => {
+  const { resolved, warnings } = resolveConfig({
+    anime: {
+      autoOpenJimaku: true,
+    },
+  });
+
+  assert.equal(resolved.anime.autoOpenJimaku, true);
+  assert.deepEqual(warnings, []);
+});
+
+test('resolveConfig warns for an invalid Anime Browser Jimaku handoff option', () => {
+  const { resolved, warnings } = resolveConfig({
+    anime: {
+      autoOpenJimaku: 'yes' as never,
+    },
+  });
+
+  assert.equal(resolved.anime.autoOpenJimaku, false);
+  assert.deepEqual(warnings, [
+    {
+      path: 'anime.autoOpenJimaku',
+      value: 'yes',
+      fallback: false,
+      message: 'Expected boolean.',
+    },
+  ]);
+});
+
+test('resolveConfig trims the Anime Browser default source and warns on a non-string', () => {
+  const trimmed = resolveConfig({ anime: { defaultSource: ' all ' } });
+  assert.equal(trimmed.resolved.anime.defaultSource, 'all');
+  assert.deepEqual(trimmed.warnings, []);
+
+  const invalid = resolveConfig({ anime: { defaultSource: 3 as never } });
+  assert.equal(invalid.resolved.anime.defaultSource, '');
+  assert.deepEqual(invalid.warnings, [
+    { path: 'anime.defaultSource', value: 3, fallback: '', message: 'Expected string.' },
+  ]);
+});

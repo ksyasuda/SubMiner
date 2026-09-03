@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } 
 import os from 'node:os';
 import path from 'node:path';
 import { runCommand, type CommandResult } from '../../subsync/utils';
+import { resolveExecutable, SUBSYNC_EXECUTABLE_NAMES } from '../../subsync/executables';
 import { parseSubtitleCues, type SubtitleCue } from './subtitle-cue-parser.js';
 import { isEnglishYoutubeLang, normalizeYoutubeLangCode } from './youtube/labels.js';
 
@@ -11,13 +12,6 @@ const SUPPORTED_SUBTITLE_EXTENSIONS = new Set(['.srt', '.vtt', '.ass', '.ssa']);
 const TIMING_TOLERANCE_SECONDS = 0.25;
 const SAME_TIMING_EPSILON_SECONDS = 0.001;
 const RETIMED_SUBTITLE_TIMEOUT_MS = 30_000;
-const FALLBACK_ALASS_PATHS = [
-  '/opt/homebrew/bin/alass-cli',
-  '/opt/homebrew/bin/alass',
-  '/usr/local/bin/alass-cli',
-  '/usr/local/bin/alass',
-  '/usr/bin/alass',
-];
 
 type SidecarCandidate = {
   path: string;
@@ -74,61 +68,8 @@ function expandPreferredLanguages(
   return unique(expanded);
 }
 
-function isExecutableFile(filePath: string): boolean {
-  try {
-    return statSync(filePath).isFile();
-  } catch {
-    return false;
-  }
-}
-
-function pathEntries(): string[] {
-  const entries = (process.env.PATH ?? '')
-    .split(path.delimiter)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  return unique([...entries, ...FALLBACK_ALASS_PATHS.map((candidate) => path.dirname(candidate))]);
-}
-
-function executableNames(name: string): string[] {
-  if (process.platform !== 'win32') return [name];
-  const extensions = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT')
-    .split(';')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  if (path.extname(name)) return [name];
-  return [name, ...extensions.map((extension) => `${name}${extension}`)];
-}
-
-function findExecutable(names: readonly string[]): string {
-  for (const name of names) {
-    if (path.dirname(name) !== '.') {
-      return isExecutableFile(name) ? name : '';
-    }
-  }
-
-  for (const dir of pathEntries()) {
-    for (const name of names) {
-      for (const executableName of executableNames(name)) {
-        const candidate = path.join(dir, executableName);
-        if (isExecutableFile(candidate)) return candidate;
-      }
-    }
-  }
-
-  for (const candidate of FALLBACK_ALASS_PATHS) {
-    if (isExecutableFile(candidate)) return candidate;
-  }
-
-  return '';
-}
-
 function resolveAlassPath(configuredPath: string | null | undefined): string {
-  const trimmed = configuredPath?.trim() ?? '';
-  if (trimmed) {
-    return findExecutable([trimmed]);
-  }
-  return findExecutable(['alass', 'alass-cli']);
+  return resolveExecutable(configuredPath, SUBSYNC_EXECUTABLE_NAMES.alass);
 }
 
 function fileSignature(filePath: string): string | null {

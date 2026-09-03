@@ -18,7 +18,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyMpvSocket: () => void;
   clearReconnectTimer: () => void;
   destroySubtitleTimingTracker: () => void;
-  destroyImmersionTracker: () => void;
+  destroyImmersionTracker: () => void | Promise<void>;
   destroyAnkiIntegration: () => void;
   destroyAnilistSetupWindow: () => void;
   clearAnilistSetupWindow: () => void;
@@ -35,7 +35,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
-  return (): Promise<void> => {
+  return async (): Promise<void> => {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
@@ -55,7 +55,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyMpvSocket();
     deps.clearReconnectTimer();
     deps.destroySubtitleTimingTracker();
-    deps.destroyImmersionTracker();
+    await deps.destroyImmersionTracker();
     deps.destroyAnkiIntegration();
     deps.destroyAnilistSetupWindow();
     deps.clearAnilistSetupWindow();
@@ -77,7 +77,7 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.cleanupYoutubeSubtitleTempDirs();
     deps.cleanupYoutubeMediaCache();
     deps.stopDiscordPresenceService();
-    return Promise.resolve(stopSyncAutoScheduler);
+    await stopSyncAutoScheduler;
   };
 }
 

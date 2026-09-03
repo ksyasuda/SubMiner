@@ -149,6 +149,10 @@
                 <input id="tsukihimeTitle" type="text" placeholder="Anime title" />
               </label>
               <label class="jimaku-field">
+                <span>Season</span>
+                <input id="tsukihimeSeason" type="number" min="1" placeholder="1" />
+              </label>
+              <label class="jimaku-field">
                 <span>Episode</span>
                 <input id="tsukihimeEpisode" type="number" min="1" placeholder="1" />
               </label>
@@ -513,6 +517,25 @@
               <span>Ctrl/Cmd+Arrows reorder</span>
               <span>Esc close</span>
             </div>
+          </div>
+        </div>
+      </div>
+      <div id="animeBrowserModal" class="modal hidden" aria-hidden="true">
+        <div class="modal-content anime-browser-modal-content">
+          <div class="modal-header anime-browser-modal-header">
+            <div>
+              <div class="modal-title">Anime Browser</div>
+              <div class="anime-browser-modal-kicker">Playing inside mpv</div>
+            </div>
+            <button id="animeBrowserClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body anime-browser-modal-body">
+            <iframe
+              id="animeBrowserFrame"
+              class="anime-browser-frame"
+              title="Anime Browser"
+              data-src="../animeui/index.html?embedded=overlay-modal"
+            ></iframe>
           </div>
         </div>
       </div>

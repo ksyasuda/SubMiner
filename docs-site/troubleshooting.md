@@ -209,21 +209,26 @@ Resume playback and wait for the next subtitle to appear, then try mining again.
 
 Both **alass** and **ffsubsync** are optional external dependencies. Subtitle syncing requires at least one of them to be installed.
 
-**"Configured alass executable not found"**
+Subsync writes to the application log under the `subsync` scope, so the full command failure — exit code, stderr, resolved file paths — is recorded there as well as on the OSD.
+
+**"Could not find alass" / "Configured alass executable not found"**
 
 Install alass or configure the path:
 
+- **Homebrew**: `brew install alass`
 - **Arch Linux (AUR)**: `paru -S alass`
 - **Cargo**: `cargo install alass-cli`
 - Set the path: `subsync.alass_path` in your config.
 
-**"Configured ffsubsync executable not found"**
+Leaving the option empty searches `PATH` plus the usual install prefixes, and accepts either `alass` or `alass-cli`. Set the option explicitly when the binary lives somewhere else. The second message means the configured path itself does not exist — SubMiner never silently substitutes a different binary for one you named.
+
+**"Could not find ffsubsync" / "Configured ffsubsync executable not found"**
 
 Install ffsubsync or configure the path:
 
 - **Arch Linux (AUR)**: `paru -S python-ffsubsync`
 - **pip**: `pip install ffsubsync`
-- Must be on `PATH` or configured via `subsync.ffsubsync_path` in your config.
+- Must be discoverable, or configured via `subsync.ffsubsync_path` in your config.
 
 **"alass synchronization failed" / "ffsubsync synchronization failed"**
 
@@ -233,6 +238,38 @@ If subtitle sync fails (the error message is prefixed with the engine name):
 - Check that `ffmpeg` is available (used to extract the internal subtitle track).
 - Try running the sync tool manually to see detailed error output.
 - ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).
+
+**Syncing subtitles on a stream (Aniyomi extensions, Jellyfin)**
+
+Subtitle tracks mpv loaded from a URL are downloaded to a temporary file first, reusing mpv's own request headers, so they work as either the sync target or the alass reference. Downloading a Japanese track from Jimaku or TsukiHime while a stream is playing also works — it becomes the primary track and therefore the sync target.
+
+Internal subtitle tracks of a stream still go through `ffmpeg`, which has to reach the origin itself. If that fails, prefer an external track or a Jimaku download as the reference.
+
+Streams usually serve WebVTT, which alass cannot parse — it picks its parser from the file extension and treats a `.vtt` file as a video, failing with "no audio stream in file". SubMiner rewrites both the target and the reference as SRT for alass, so this is handled automatically; the retimed track mpv loads is that SRT.
+
+## Anime Browser
+
+See the [anime browser guide](/anime-browser) for how sources and the bridge work.
+
+**Nothing to search**
+
+SubMiner ships no extension repositories and bundles no sources. Until you add a repository index URL in the **Extensions** tab (or drop Aniyomi `.apk` files into the extensions directory) the browser has nothing to query.
+
+**"No pinned checksum for …"**
+
+The bridge bundle is verified against a SHA-256 that a maintainer has checked by hand. Bundles exist for macOS (arm64, x64), Linux (x64), and Windows (x64), but only macOS arm64 and Linux x64 are pinned so far; the rest stop with this message rather than running an unverified download. Other platforms are unsupported outright.
+
+**A source returns nothing, or asks for a login**
+
+Most extensions need configuration first - a server address, credentials, a preferred quality. Open the **Source settings** tab and fill them in; each save is handed straight back to the extension. Sources that need an Android WebView (typically for Cloudflare challenges) cannot work here, because the bridge has none.
+
+**"Playback failed" with an mpv error**
+
+"Playing" is only reported once mpv actually configures a video output, so this is a real failure rather than a silent one: a dead host, an expired stream URL, or an undecodable stream. Resolve the episode again; if it keeps failing, try another source or quality entry.
+
+**The browser starts failing every request**
+
+A bridge that dies (killed, crashed, stopped mid-operation) is named in the status bar and restarted on the next request. Anything already playing ends with it, since stream URLs point at its loopback proxy.
 
 ## TsukiHime
 

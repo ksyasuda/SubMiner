@@ -25,6 +25,7 @@ export type SessionActionId =
   | 'openTsukihime'
   | 'openYoutubePicker'
   | 'openPlaylistBrowser'
+  | 'openAnimeBrowser'
   | 'replayCurrentSubtitle'
   | 'playNextSubtitle'
   | 'cycleRuntimeOption';

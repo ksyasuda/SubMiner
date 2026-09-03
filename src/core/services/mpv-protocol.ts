@@ -7,6 +7,8 @@ export type MpvMessage = {
   args?: unknown;
   request_id?: number;
   error?: string;
+  reason?: unknown;
+  file_error?: unknown;
 };
 
 export const MPV_REQUEST_ID_SUBTEXT = 101;
@@ -99,6 +101,7 @@ export interface MpvProtocolHandleMessageDeps {
   shouldQuitOnMpvShutdown: () => boolean;
   requestAppQuit: () => void;
   emitClientMessage?: (payload: { args: string[] }) => void;
+  emitEndFile?: (payload: { reason: string; fileError: string | null }) => void;
 }
 
 type SubtitleTrackCandidate = {
@@ -414,6 +417,12 @@ export async function dispatchMpvProtocolMessage(
     if (args.length > 0) {
       deps.emitClientMessage?.({ args });
     }
+  } else if (msg.event === 'end-file') {
+    deps.emitEndFile?.({
+      reason: typeof msg.reason === 'string' ? msg.reason : 'unknown',
+      fileError:
+        typeof msg.file_error === 'string' && msg.file_error.length > 0 ? msg.file_error : null,
+    });
   } else if (msg.event === 'shutdown') {
     deps.restorePreviousSecondarySubVisibility();
     if (deps.shouldQuitOnMpvShutdown()) {

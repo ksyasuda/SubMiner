@@ -20,10 +20,11 @@ test('createOpenConfigSettingsWindowHandler focuses existing settings window', (
     },
     settingsHtmlPath: '/tmp/settings.html',
     promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
+    activateApp: () => calls.push('activate'),
   });
 
   assert.equal(open(), true);
-  assert.deepEqual(calls, ['show', 'focus', 'promote']);
+  assert.deepEqual(calls, ['show', 'activate', 'focus', 'promote']);
 });
 
 test('createOpenConfigSettingsWindowHandler creates window and clears closed state', () => {
@@ -45,11 +46,19 @@ test('createOpenConfigSettingsWindowHandler creates window and clears closed sta
     createSettingsWindow: () => created,
     settingsHtmlPath: '/tmp/settings.html',
     promoteSettingsWindowAboveOverlay: () => calls.push('promote'),
+    activateApp: () => calls.push('activate'),
     onClosed: () => calls.push('on-closed'),
   });
 
   assert.equal(open(), true);
-  assert.deepEqual(calls, ['load:/tmp/settings.html', 'set:window', 'show', 'focus', 'promote']);
+  assert.deepEqual(calls, [
+    'load:/tmp/settings.html',
+    'set:window',
+    'show',
+    'activate',
+    'focus',
+    'promote',
+  ]);
   assert.ok(handlers.closed);
   handlers.closed();
   assert.deepEqual(calls.slice(-2), ['set:null', 'on-closed']);

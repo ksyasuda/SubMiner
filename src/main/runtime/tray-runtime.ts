@@ -42,6 +42,7 @@ export type TrayMenuActionHandlers = {
   openYomitanSettings: () => void;
   openConfigSettings: () => void;
   openSyncUi: () => void;
+  openAnimeBrowser: () => void;
   exportLogs: () => void;
   openJellyfinSetup: () => void;
   showJellyfinDiscovery: boolean;
@@ -112,6 +113,10 @@ export function buildTrayMenuTemplateRuntime(handlers: TrayMenuActionHandlers): 
     {
       label: 'Sync Stats && History',
       click: handlers.openSyncUi,
+    },
+    {
+      label: 'Browse Anime',
+      click: handlers.openAnimeBrowser,
     },
     {
       label: 'Export Logs',

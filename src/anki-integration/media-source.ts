@@ -1,6 +1,7 @@
 import { isRemoteMediaPath } from '../jimaku/utils';
 import type { MediaInput, MediaInputOptions } from '../media-input';
 import type { MpvClient } from '../types/runtime';
+import { resolveMpvHttpHeaders, setHeaderIfMissing } from '../core/services/mpv-http-headers';
 import { extractFileUrlsFromMpvEdlSource } from './mpv-edl';
 
 export type MediaGenerationKind = 'audio' | 'video';
@@ -37,40 +38,12 @@ export function resolveAudioStreamIndexForMediaGeneration(
   return audioStreamIndex ?? undefined;
 }
 
-const BLOCKED_HTTP_HEADER_NAMES = new Set(['authorization', 'cookie', 'proxy-authorization']);
-const HTTP_HEADER_FIELD_PROPERTY_NAMES = [
-  'http-header-fields',
-  'options/http-header-fields',
-  'file-local-options/http-header-fields',
-] as const;
-const USER_AGENT_PROPERTY_NAMES = [
-  'file-local-options/user-agent',
-  'options/user-agent',
-  'user-agent',
-] as const;
-const REFERRER_PROPERTY_NAMES = [
-  'file-local-options/referrer',
-  'options/referrer',
-  'referrer',
-] as const;
-
 function trimToNonEmptyString(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeHeaderName(value: string): string | null {
-  const trimmed = value.trim();
-  if (!/^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(trimmed)) {
-    return null;
-  }
-  if (BLOCKED_HTTP_HEADER_NAMES.has(trimmed.toLowerCase())) {
-    return null;
-  }
-  return trimmed;
 }
 
 function extractUrlsFromMpvEdlSource(source: string): string[] {
@@ -198,68 +171,6 @@ function logMediaGenerationInputMiss(
   );
 }
 
-function setHeaderIfMissing(headers: Record<string, string>, name: string, value: string): void {
-  const lowerName = name.toLowerCase();
-  if (!Object.keys(headers).some((existing) => existing.toLowerCase() === lowerName)) {
-    headers[name] = value;
-  }
-}
-
-function parseMpvHeaderField(value: string): [string, string] | null {
-  const separatorIndex = value.indexOf(':');
-  if (separatorIndex <= 0) {
-    return null;
-  }
-
-  const name = normalizeHeaderName(value.slice(0, separatorIndex));
-  const headerValue = trimToNonEmptyString(value.slice(separatorIndex + 1));
-  if (!name || !headerValue) {
-    return null;
-  }
-  return [name, headerValue.replace(/[\r\n]+/g, ' ')];
-}
-
-function toHeaderFields(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === 'string');
-  }
-  if (typeof value === 'string') {
-    return value
-      .split(/\r?\n/)
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-  }
-  return [];
-}
-
-async function requestOptionalMpvProperty(
-  mpvClient: Pick<MpvClient, 'requestProperty'>,
-  name: string,
-): Promise<unknown> {
-  if (!mpvClient.requestProperty) {
-    return null;
-  }
-
-  try {
-    return await mpvClient.requestProperty(name);
-  } catch {
-    return null;
-  }
-}
-
-async function requestFirstNonEmptyStringProperty(
-  mpvClient: Pick<MpvClient, 'requestProperty'>,
-  names: readonly string[],
-): Promise<string | null> {
-  for (const name of names) {
-    const value = trimToNonEmptyString(await requestOptionalMpvProperty(mpvClient, name));
-    if (value) {
-      return value;
-    }
-  }
-  return null;
-}
-
 async function resolveRemoteInputOptions(
   mpvClient: Pick<MpvClient, 'requestProperty'>,
   resolvedPath: string,
@@ -268,24 +179,7 @@ async function resolveRemoteInputOptions(
     return undefined;
   }
 
-  const headers: Record<string, string> = {};
-  for (const propertyName of HTTP_HEADER_FIELD_PROPERTY_NAMES) {
-    const mpvHeaderFields = toHeaderFields(
-      await requestOptionalMpvProperty(mpvClient, propertyName),
-    );
-    for (const field of mpvHeaderFields) {
-      const parsed = parseMpvHeaderField(field);
-      if (parsed) {
-        headers[parsed[0]] = parsed[1];
-      }
-    }
-  }
-
-  const userAgent = await requestFirstNonEmptyStringProperty(mpvClient, USER_AGENT_PROPERTY_NAMES);
-  const referrer = await requestFirstNonEmptyStringProperty(mpvClient, REFERRER_PROPERTY_NAMES);
-  if (referrer) {
-    setHeaderIfMissing(headers, 'Referer', referrer);
-  }
+  const { headers, userAgent } = await resolveMpvHttpHeaders(mpvClient);
   if (isGoogleVideoMediaPath(resolvedPath)) {
     setHeaderIfMissing(headers, 'Referer', 'https://www.youtube.com/');
     setHeaderIfMissing(headers, 'Origin', 'https://www.youtube.com');

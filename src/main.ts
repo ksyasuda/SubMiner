@@ -54,6 +54,7 @@ import {
 } from './main/runtime/linux-visible-overlay-window-mode';
 import { shouldRunLinuxOverlayZOrderKeepAlive } from './main/runtime/linux-overlay-zorder-keepalive';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
+import { activateMacOSApp } from './main/runtime/macos-app-activation';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
 import { resolveFreshPlaybackPaused } from './main/runtime/playback-paused-state';
 import { mergeAiConfig } from './ai/config';
@@ -421,6 +422,7 @@ import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update
 import {
   guessAnilistMediaInfo,
   updateAnilistPostWatchProgress,
+  type AnilistMediaGuess,
 } from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
@@ -486,6 +488,12 @@ import {
   getJlptDictionarySearchPaths,
 } from './main/jlpt-runtime';
 import { createMediaRuntimeService } from './main/media-runtime';
+import {
+  createStreamPlaybackMetadataStore,
+  matchRequestedStreamPlaybackMetadata,
+  toAnilistMediaGuess,
+  toJimakuMediaInfo,
+} from './main/runtime/stream-playback-metadata';
 import { createOverlayVisibilityRuntimeService } from './main/overlay-visibility-runtime';
 import { createDiscordPresenceRuntime } from './main/runtime/discord-presence-runtime';
 import { createCharacterDictionaryRuntimeService } from './main/character-dictionary-runtime';
@@ -535,6 +543,15 @@ import {
   createCreateJellyfinSetupWindowHandler,
   createCreateSyncUiWindowHandler,
 } from './main/runtime/setup-window-factory';
+import { createAnimeBrowserApplicationRuntime } from './main/runtime/anime-browser-application-runtime';
+import { createAnimeBrowserJimakuAutoOpen } from './main/runtime/anime-browser-jimaku-auto-open';
+import { waitForPlaybackWindow } from './main/runtime/playback-window-ready';
+import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
+import {
+  ensureBridgeBinaries,
+  findBridgeUpdate,
+  stageBridgeUpdate,
+} from './main/runtime/anime-bridge-installer';
 import { createConfigSettingsRuntime } from './main/runtime/config-settings-runtime';
 import { createOpenConfigSettingsWindowHandler } from './main/runtime/config-settings-window';
 import { createSyncUiRuntime } from './main/runtime/sync-ui-runtime';
@@ -2283,6 +2300,15 @@ async function getCurrentYomitanAnkiDeckNameForRuntime(): Promise<string> {
   });
 }
 
+// Pulls the whole app forward on macOS so a freshly opened window lands in front of the
+// terminal (or mpv) that triggered it instead of behind it.
+const activateAppForForegroundWindow = (): void => {
+  activateMacOSApp({
+    stealAppFocus: () => app.focus({ steal: true }),
+    warn: (message, details) => logger.warn(message, details),
+  });
+};
+
 const configSettingsRuntime = createConfigSettingsRuntime({
   fields: configSettingsFields,
   getConfigPath: () => configService.getConfigPath(),
@@ -2305,6 +2331,7 @@ const configSettingsRuntime = createConfigSettingsRuntime({
   settingsHtmlPath: path.join(__dirname, 'settings', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
   openPath: (targetPath) => shell.openPath(targetPath),
   ipcMain,
   ipcChannels: IPC_CHANNELS.request,
@@ -2325,6 +2352,7 @@ const openSyncUiWindowHandler = createOpenConfigSettingsWindowHandler({
   settingsHtmlPath: path.join(__dirname, 'syncui', 'index.html'),
   promoteSettingsWindowAboveOverlay: (window) =>
     promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
   onClosed: () => {
     // requestAppQuit (not app.quit) so the forced-exit fallback covers a
     // stalled quit; a standalone sync window is the app's only reason to live.
@@ -2480,6 +2508,74 @@ const createFieldGroupingCallback = fieldGroupingOverlayRuntime.createFieldGroup
 
 const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
 
+/**
+ * What the anime browser resolved for the stream that is playing. Consulted by
+ * everything that would otherwise have to parse the mpv title, or — worse — the
+ * stream URL, which names only the proxy and the container format.
+ */
+const streamPlaybackMetadata = createStreamPlaybackMetadataStore();
+
+const animeBrowserJimakuAutoOpen = createAnimeBrowserJimakuAutoOpen({
+  isEnabled: () => configService.getConfig().anime.autoOpenJimaku,
+  isAnimeBrowserMedia: (mediaPath) => streamPlaybackMetadata.match(mediaPath) !== null,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getPlaybackPaused: () =>
+    resolveFreshPlaybackPaused({
+      getCachedPlaybackPaused: () => appState.playbackPaused,
+      getMpvClient: () => appState.mpvClient,
+    }),
+  setPlaybackPaused: (paused) => {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', paused ? 'yes' : 'no']);
+  },
+  waitForPlaybackWindow: () =>
+    waitForPlaybackWindow({
+      isWindowTracked: () => appState.windowTracker?.isTracking() ?? null,
+      readProperty: (name) => {
+        const client = appState.mpvClient;
+        if (!client) return Promise.reject(new Error('mpv is not connected.'));
+        return client.requestProperty(name);
+      },
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    }),
+  closeAnimeBrowserModal: () => {
+    if (!overlayModalRuntime.isModalOpen('anime-browser')) return;
+    overlayModalRuntime.sendToActiveOverlayWindow(IPC_CHANNELS.event.animeBrowserClose, undefined, {
+      restoreOnModalClose: 'anime-browser',
+      preferModalWindow: true,
+    });
+  },
+  hideAnimeBrowserWindow: () => {
+    const window = appState.animeBrowserWindow;
+    if (window && !window.isDestroyed() && window.isVisible()) {
+      window.hide();
+    }
+  },
+  openJimakuModal: () => openJimakuOverlay(),
+  logWarn: (message, error) => logger.warn(message, error),
+});
+
+/** Stream metadata for the requested path, or current media when none was supplied. */
+function getActiveStreamMetadata(mediaPath: string | null = null) {
+  return matchRequestedStreamPlaybackMetadata(
+    streamPlaybackMetadata,
+    mediaPath,
+    appState.currentMediaPath,
+  );
+}
+
+/**
+ * The AniList guess for what is playing. A stream answers from the fields its
+ * source reported; everything else goes through the usual title parsers.
+ */
+async function guessAnilistMediaInfoForCurrentMedia(
+  mediaPath: string | null,
+  mediaTitle: string | null,
+): Promise<AnilistMediaGuess | null> {
+  const stream = getActiveStreamMetadata(mediaPath);
+  const streamGuess = stream ? toAnilistMediaGuess(stream) : null;
+  return streamGuess ?? guessAnilistMediaInfo(mediaPath, mediaTitle);
+}
+
 const mediaRuntime = createMediaRuntimeService(
   createBuildMediaRuntimeMainDepsHandler({
     isRemoteMediaPath: (mediaPath) => isRemoteMediaPath(mediaPath),
@@ -2489,6 +2585,8 @@ const mediaRuntime = createMediaRuntimeService(
     getSubtitlePositionsDir: () => SUBTITLE_POSITIONS_DIR,
     setCurrentMediaPath: (nextPath: string | null) => {
       appState.currentMediaPath = nextPath;
+      animeBrowserApplicationRuntime.publishPlaybackState(nextPath);
+      void animeBrowserJimakuAutoOpen.handleMediaPathChange(nextPath);
     },
     clearPendingSubtitlePosition: () => {
       appState.pendingSubtitlePosition = null;
@@ -2512,7 +2610,8 @@ const characterDictionaryRuntime = createCharacterDictionaryRuntimeService({
   getCurrentVideoPath: () => appState.mpvClient?.currentVideoPath,
   getCurrentMediaTitle: () => appState.currentMediaTitle,
   resolveMediaPathForJimaku: (mediaPath) => mediaRuntime.resolveMediaPathForJimaku(mediaPath),
-  guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+  guessAnilistMediaInfo: (mediaPath, mediaTitle) =>
+    guessAnilistMediaInfoForCurrentMedia(mediaPath, mediaTitle),
   getNameMatchImagesEnabled: () => configService.getConfig().subtitleStyle.nameMatchImagesEnabled,
   getCollapsibleSectionOpenState: (section) =>
     configService.getConfig().anilist.characterDictionary.collapsibleSections[section],
@@ -2868,6 +2967,7 @@ function createOverlayHostedModalOpenDeps(): {
     },
   ) => boolean;
   waitForModalOpen: (modal: OverlayHostedModal, timeoutMs: number) => Promise<boolean>;
+  isModalOpen: (modal: OverlayHostedModal) => boolean;
   logWarn: (message: string) => void;
 } {
   return {
@@ -2877,6 +2977,7 @@ function createOverlayHostedModalOpenDeps(): {
     sendToActiveOverlayWindow: (channel, payload, runtimeOptions) =>
       overlayVisibilityComposer.sendToActiveOverlayWindow(channel, payload, runtimeOptions),
     waitForModalOpen: (modal, timeoutMs) => overlayModalRuntime.waitForModalOpen(modal, timeoutMs),
+    isModalOpen: (modal) => overlayModalRuntime.isModalOpen(modal),
     logWarn: (message) => logger.warn(message),
   };
 }
@@ -2885,20 +2986,22 @@ function openOverlayHostedModalWithOsd(
   openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
   unavailableMessage: string,
   failureLogMessage: string,
-): void {
-  void openModal(createOverlayHostedModalOpenDeps())
+): Promise<boolean> {
+  return openModal(createOverlayHostedModalOpenDeps())
     .then((opened) => {
       if (!opened) {
         overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
           variant: 'warning',
         });
       }
+      return opened;
     })
     .catch((error) => {
       logger.error(failureLogMessage, error);
       overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
         variant: 'error',
       });
+      return false;
     });
 }
 
@@ -2910,8 +3013,8 @@ function openRuntimeOptionsPalette(): void {
   );
 }
 
-function openJimakuOverlay(): void {
-  openOverlayHostedModalWithOsd(
+function openJimakuOverlay(): Promise<boolean> {
+  return openOverlayHostedModalWithOsd(
     openJimakuModalRuntime,
     'Jimaku overlay unavailable.',
     'Failed to open Jimaku overlay.',
@@ -2995,6 +3098,24 @@ function openPlaylistBrowser(): void {
   );
 }
 
+function openAnimeBrowserModal(): void {
+  if (!appState.mpvClient?.connected) {
+    overlayNotificationsRuntime.showConfiguredStatusNotification(
+      'The in-player Anime Browser requires active playback.',
+      {
+        title: 'Anime Browser',
+        variant: 'warning',
+      },
+    );
+    return;
+  }
+  openOverlayHostedModalWithOsd(
+    openAnimeBrowserModalRuntime,
+    'Anime Browser overlay unavailable.',
+    'Failed to open Anime Browser overlay.',
+  );
+}
+
 function getRuntimeBooleanOption(
   id:
     | 'subtitle.annotation.knownWords.highlightEnabled'
@@ -3038,6 +3159,7 @@ const {
   runJellyfinCommand,
   openJellyfinSetupWindow,
   getJellyfinClientInfo,
+  ensureMpvConnectedForPlayback,
 } = composeJellyfinRuntimeHandlers({
   getResolvedJellyfinConfigMainDeps: {
     getResolvedConfig: () => configService.getConfig(),
@@ -3312,6 +3434,104 @@ const {
     hasStoredSession: () => Boolean(jellyfinTokenStore.loadSession()),
   },
 });
+
+const animeBrowserApplicationRuntime = createAnimeBrowserApplicationRuntime({
+  userDataPath: USER_DATA_PATH,
+  mainModuleDir: __dirname,
+  configuredExtensionsDir: () => configService.getConfig().anime?.extensionsDir,
+  runtime: {
+    repos: () => configService.getConfig().anime?.repos ?? [],
+    setRepos: (repos) => configService.patchRawConfig({ anime: { repos } }),
+    preferredQuality: () => configService.getConfig().anime?.preferredQuality || undefined,
+    defaultSourceId: () => configService.getConfig().anime?.defaultSource || undefined,
+    setDefaultSourceId: (defaultSource) =>
+      configService.patchRawConfig({ anime: { defaultSource } }),
+    preferencesFile: path.join(USER_DATA_PATH, 'anime-source-preferences.json'),
+    ensureBinaries: (onProgress) =>
+      ensureBridgeBinaries({
+        installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
+        configuredDir: configService.getConfig().anime?.bridgeDir,
+        onProgress,
+      }),
+    checkBridgeUpdate: (install) => findBridgeUpdate(install),
+    stageBridgeUpdate: (onProgress) =>
+      stageBridgeUpdate({
+        installDir: path.join(USER_DATA_PATH, 'anime-bridge'),
+        onProgress,
+      }),
+    sendMpvCommand: (command) => sendMpvCommandRuntime(appState.mpvClient, command),
+    ensureMpvConnected: () => ensureMpvConnectedForPlayback(),
+    onPlaybackEndFile: (listener) => {
+      const client = appState.mpvClient;
+      if (!client) return () => {};
+      client.on('end-file', listener);
+      return () => client.off('end-file', listener);
+    },
+    onPlaybackPathChange: (listener) => {
+      const client = appState.mpvClient;
+      if (!client) return () => {};
+      const handler = ({ path: mediaPath }: { path: string }) => listener(mediaPath);
+      client.on('media-path-change', handler);
+      return () => client.off('media-path-change', handler);
+    },
+    readMpvProperty: (name) => {
+      const client = appState.mpvClient;
+      if (!client) return Promise.reject(new Error('mpv is not connected.'));
+      return client.requestProperty(name);
+    },
+    showVisibleOverlay: () => {
+      ensureTrayHandler();
+      setVisibleOverlayVisible(true);
+    },
+    showMpvOsd: (text) =>
+      overlayNotificationsRuntime.showConfiguredStatusNotification(text, { title: 'Anime' }),
+    getWatchState: async (statsPaths) => {
+      ensureImmersionTrackerStarted();
+      return (await appState.immersionTracker?.getStreamWatchState(statsPaths)) ?? new Map();
+    },
+    setWatchState: async (episodes, watched) => {
+      ensureImmersionTrackerStarted();
+      return (await appState.immersionTracker?.setStreamWatchState(episodes, watched)) ?? 0;
+    },
+    log: (message) => logger.info(message),
+  },
+  ipcMain,
+  playbackMetadata: streamPlaybackMetadata,
+  getInitialPlaybackMetadata: () => getActiveStreamMetadata(),
+  handlePlaybackMetadata: (metadata, prepared) => {
+    if (!prepared) {
+      // Set before mpv reports the path change so stats use the source title, not the proxy URL.
+      mediaRuntime.updateCurrentMediaTitle(metadata.displayTitle);
+    }
+    ensureImmersionTrackerStarted();
+    appState.immersionTracker?.recordStreamPlaybackMetadata({
+      mediaPath: metadata.mediaPath,
+      statsPath: metadata.statsPath,
+      displayTitle: metadata.displayTitle,
+      seriesTitle: metadata.seriesTitle,
+      seasonNumber: metadata.seasonNumber,
+      episodeNumber: metadata.episodeNumber,
+    });
+  },
+  getAnimeBrowserWindow: () => appState.animeBrowserWindow,
+  setAnimeBrowserWindow: (window) => {
+    appState.animeBrowserWindow = window as BrowserWindow | null;
+  },
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  promoteWindowAboveOverlay: (window) => promoteSettingsWindowAboveOverlay(window as BrowserWindow),
+  activateApp: activateAppForForegroundWindow,
+  dock: app.dock,
+  shouldRehideDockIcon: () => {
+    const mainWindow = overlayManager.getMainWindow();
+    return Boolean(mainWindow && !mainWindow.isDestroyed());
+  },
+  isStandaloneAnimeBrowserLaunch: () => Boolean(appState.initialArgs?.animeBrowser),
+  isMpvConnected: () => Boolean(appState.mpvClient?.connected),
+  ensureTray: () => ensureTrayHandler(),
+  requestAppQuit,
+  logError: (message) => logger.error(message),
+});
+const openAnimeBrowserWindowHandler = animeBrowserApplicationRuntime.openWindow;
 
 const maybeFocusExistingFirstRunSetupWindow = createMaybeFocusExistingFirstRunSetupWindowHandler({
   getSetupWindow: () => appState.firstRunSetupWindow,
@@ -3707,7 +3927,8 @@ const {
       mediaRuntime.resolveMediaPathForJimaku(currentMediaPath),
     getCurrentMediaPath: () => appState.currentMediaPath,
     getCurrentMediaTitle: () => appState.currentMediaTitle,
-    guessAnilistMediaInfo: (mediaPath, mediaTitle) => guessAnilistMediaInfo(mediaPath, mediaTitle),
+    guessAnilistMediaInfo: (mediaPath, mediaTitle) =>
+      guessAnilistMediaInfoForCurrentMedia(mediaPath, mediaTitle),
   },
   processNextRetryUpdateMainDeps: {
     nextReady: () => anilistUpdateQueue.nextReady(),
@@ -5449,6 +5670,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openControllerDebug: () => openControllerDebugOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
+    openAnimeBrowser: () => openAnimeBrowserModal(),
     replayCurrentSubtitle: () => replayCurrentSubtitleRuntime(appState.mpvClient),
     playNextSubtitle: () => playNextSubtitleRuntime(appState.mpvClient),
     cycleRuntimeOption: (id, direction) => {
@@ -5479,6 +5701,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     openTsukihime: () => openTsukihimeOverlay(),
     openYoutubeTrackPicker: () => openYoutubeTrackPickerFromPlayback(),
     openPlaylistBrowser: () => openPlaylistBrowser(),
+    openAnimeBrowser: () => openAnimeBrowserModal(),
     cycleRuntimeOption: (id, direction) => {
       if (!appState.runtimeOptionsManager) {
         return { ok: false, error: 'Runtime options manager unavailable' };
@@ -5552,6 +5775,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         ) {
           applyOverlayClickThrough(senderWindow);
           senderWindow.hide();
+        }
+        if (modal === 'jimaku') {
+          animeBrowserJimakuAutoOpen.handleJimakuModalClosed();
         }
         handleOverlayModalClosedHandler(modal);
       },
@@ -5910,8 +6136,13 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       getFieldGroupingResolver: () => getFieldGroupingResolverHandler(),
       setFieldGroupingResolver: (resolver: ((choice: KikuFieldGroupingChoice) => void) | null) =>
         setFieldGroupingResolverHandler(resolver),
-      parseMediaInfo: (mediaPath: string | null) =>
-        parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath)),
+      parseMediaInfo: (mediaPath: string | null) => {
+        // A stream already knows its series, season and episode; parsing the
+        // title back out of a string would only lose what the source told us.
+        const stream = getActiveStreamMetadata();
+        if (stream) return toJimakuMediaInfo(stream);
+        return parseMediaInfo(mediaRuntime.resolveMediaPathForJimaku(mediaPath));
+      },
       getCurrentMediaPath: () => appState.currentMediaPath,
       jimakuFetchJson: <T>(
         endpoint: string,
@@ -5927,6 +6158,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         headers: Record<string, string>,
         downloadOptions?: { isAllowedRedirect?: (url: URL) => boolean },
       ) => downloadToFile(url, destPath, headers, downloadOptions),
+      onJimakuSubtitleLoaded: () => {
+        animeBrowserJimakuAutoOpen.handleJimakuSubtitleLoaded();
+      },
     }),
     registerIpcRuntimeServices,
   },
@@ -6021,6 +6255,7 @@ const { handleCliCommand, handleInitialArgs } = composeCliStartupHandlers({
     openYomitanSettings: () => openYomitanSettings(),
     openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
     openSyncUiWindow: () => openSyncUiWindowHandler(),
+    openAnimeBrowserWindow: () => openAnimeBrowserWindowHandler(),
     cycleSecondarySubMode: () => cycleSecondarySubMode(),
     openRuntimeOptionsPalette: () => openRuntimeOptionsPalette(),
     printHelp: () => printHelp(DEFAULT_TEXTHOOKER_PORT),
@@ -6274,6 +6509,7 @@ const { ensureTray: ensureTrayHandler, destroyTray: destroyTrayHandler } =
       openYomitanSettings: () => openYomitanSettings(),
       openConfigSettingsWindow: () => configSettingsRuntime.openWindow(),
       openSyncUiWindow: () => openSyncUiWindowHandler(),
+      openAnimeBrowserWindow: () => openAnimeBrowserWindowHandler(),
       exportLogs: () => {
         void exportLogsFromTray();
       },

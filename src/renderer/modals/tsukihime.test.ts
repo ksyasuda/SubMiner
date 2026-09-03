@@ -198,6 +198,7 @@ function createModalHarness(
         setAttribute: () => {},
       },
       tsukihimeTitleInput: { value: '' },
+      tsukihimeSeasonInput: { value: '' },
       tsukihimeEpisodeInput: { value: '' },
       tsukihimeSearchButton: { addEventListener: () => {} },
       tsukihimeCloseButton: { addEventListener: () => {} },

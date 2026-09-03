@@ -24,6 +24,7 @@ export type RendererDom = {
 
   tsukihimeModal: HTMLDivElement;
   tsukihimeTitleInput: HTMLInputElement;
+  tsukihimeSeasonInput: HTMLInputElement;
   tsukihimeEpisodeInput: HTMLInputElement;
   tsukihimeSearchButton: HTMLButtonElement;
   tsukihimeCloseButton: HTMLButtonElement;
@@ -143,6 +144,10 @@ export type RendererDom = {
   playlistBrowserDirectoryList: HTMLUListElement;
   playlistBrowserPlaylistList: HTMLUListElement;
   playlistBrowserClose: HTMLButtonElement;
+
+  animeBrowserModal: HTMLDivElement;
+  animeBrowserClose: HTMLButtonElement;
+  animeBrowserFrame: HTMLIFrameElement;
 };
 
 function getRequiredElement<T extends HTMLElement>(id: string): T {
@@ -180,6 +185,7 @@ export function resolveRendererDom(): RendererDom {
 
     tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
     tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),
+    tsukihimeSeasonInput: getRequiredElement<HTMLInputElement>('tsukihimeSeason'),
     tsukihimeEpisodeInput: getRequiredElement<HTMLInputElement>('tsukihimeEpisode'),
     tsukihimeSearchButton: getRequiredElement<HTMLButtonElement>('tsukihimeSearch'),
     tsukihimeCloseButton: getRequiredElement<HTMLButtonElement>('tsukihimeClose'),
@@ -324,5 +330,9 @@ export function resolveRendererDom(): RendererDom {
       'playlistBrowserPlaylistList',
     ),
     playlistBrowserClose: getRequiredElement<HTMLButtonElement>('playlistBrowserClose'),
+
+    animeBrowserModal: getRequiredElement<HTMLDivElement>('animeBrowserModal'),
+    animeBrowserClose: getRequiredElement<HTMLButtonElement>('animeBrowserClose'),
+    animeBrowserFrame: getRequiredElement<HTMLIFrameElement>('animeBrowserFrame'),
   };
 }

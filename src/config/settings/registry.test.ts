@@ -55,6 +55,21 @@ test('settings registry groups playback startup controls under playback behavior
   }
 });
 
+test('settings registry groups Anime Browser options under Aniyomi integrations', () => {
+  for (const path of [
+    'anime.autoOpenJimaku',
+    'anime.bridgeDir',
+    'anime.extensionsDir',
+    'anime.preferredQuality',
+    'anime.repos',
+  ]) {
+    assert.equal(field(path).category, 'integrations', path);
+    assert.equal(field(path).section, 'Aniyomi', path);
+  }
+  assert.equal(field('anime.autoOpenJimaku').label, 'Auto-open Jimaku');
+  assert.equal(field('anime.autoOpenJimaku').restartBehavior, 'hot-reload');
+});
+
 test('settings registry moves AniSkip button key into input shortcuts and hot reload', () => {
   assert.equal(field('mpv.aniskipButtonKey').category, 'input');
   assert.equal(field('mpv.aniskipButtonKey').section, 'Overlay Shortcuts');

@@ -42,6 +42,40 @@ export interface YoutubePickerResolveResult {
   message: string;
 }
 
+export interface AnimeConfig {
+  /**
+   * Pause Anime Browser playback and open Jimaku when an episode loads. The
+   * owned pause is released after a Jimaku subtitle loads or the modal closes.
+   */
+  autoOpenJimaku?: boolean;
+  /**
+   * Directory holding Aniyomi extension `.apk` files. Defaults to
+   * `<userData>/anime-extensions` when unset.
+   */
+  extensionsDir?: string;
+  /**
+   * Extension repository index URLs (any https `.json` index, such as
+   * `https://.../index.min.json`).
+   *
+   * Ships empty and stays empty unless the user adds one. SubMiner performs no
+   * repository discovery and bundles no sources.
+   */
+  repos?: string[];
+  /** Preferred stream label, matched as a substring, e.g. "1080". */
+  preferredQuality?: string;
+  /**
+   * Source id (`<package>:<source>`) selected when the browser opens, or
+   * "all" for every installed source. Empty selects the first installed one.
+   */
+  defaultSource?: string;
+  /**
+   * Directory holding an M-Extension-Server bundle (java runtime plus server
+   * jar) to run instead of the copy SubMiner downloads. Empty checks the
+   * package-manager location, then the managed copy.
+   */
+  bridgeDir?: string;
+}
+
 export interface JimakuConfig {
   apiKey?: string;
   apiKeyCommand?: string;
