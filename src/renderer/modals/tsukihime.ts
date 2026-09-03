@@ -41,6 +41,9 @@ export function createTsukihimeModal(
 
   // Defaults to English until the configured secondary languages arrive.
   let secondaryLanguages: string[] = ['en'];
+  // Both tab filters read the configured languages, so a search must wait for
+  // them rather than filtering against the English fallback.
+  let secondaryLanguagesReady: Promise<void> = Promise.resolve();
   let activeDownloadToken = 0;
 
   function secondaryTabLabel(): string {
@@ -59,6 +62,47 @@ export function createTsukihimeModal(
       (file) =>
         !isPrimaryTrack(file) && tsukihimeTrackMatchesLanguages(file.lang, secondaryLanguages),
     );
+  }
+
+  // Releases are filtered by the languages the search index reports for
+  // them. Most releases carry no Japanese track, so the primary tab hides
+  // them outright. A release with no language data cannot be classified and
+  // stays on the secondary tab, mirroring how unlabeled tracks are handled.
+  function entryMatchesTab(entry: TsukihimeEntry, tab: 'secondary' | 'primary'): boolean {
+    if (tab === 'primary') {
+      return entry.sublangs.some((lang) => normalizeTsukihimeLangCode(lang) === 'ja');
+    }
+    if (entry.sublangs.length === 0) return true;
+    return entry.sublangs.some(
+      (lang) =>
+        normalizeTsukihimeLangCode(lang) !== 'ja' &&
+        tsukihimeTrackMatchesLanguages(lang, secondaryLanguages),
+    );
+  }
+
+  function getVisibleEntries(): TsukihimeEntry[] {
+    return ctx.state.tsukihimeEntries.filter((entry) =>
+      entryMatchesTab(entry, ctx.state.tsukihimeActiveTab),
+    );
+  }
+
+  function describeEmptyReleases(): string {
+    const otherTab = ctx.state.tsukihimeActiveTab === 'primary' ? 'secondary' : 'primary';
+    const otherTabHasReleases = ctx.state.tsukihimeEntries.some((entry) =>
+      entryMatchesTab(entry, otherTab),
+    );
+    const language = ctx.state.tsukihimeActiveTab === 'primary' ? 'Japanese' : secondaryTabLabel();
+    const otherLabel = otherTab === 'primary' ? 'Japanese' : secondaryTabLabel();
+    return otherTabHasReleases
+      ? `No releases with ${language} subtitles. Switch to the ${otherLabel} tab.`
+      : `No releases with ${language} subtitles.`;
+  }
+
+  function clearFiles(): void {
+    ctx.state.tsukihimeFiles = [];
+    ctx.state.selectedTsukihimeFileIndex = 0;
+    ctx.dom.tsukihimeFilesList.innerHTML = '';
+    ctx.dom.tsukihimeFilesSection.classList.add('hidden');
   }
 
   function renderTabs(): void {
@@ -98,12 +142,37 @@ export function createTsukihimeModal(
     ctx.state.selectedTsukihimeFileIndex = 0;
     renderTabs();
 
-    if (ctx.state.tsukihimeFiles.length === 0) return;
-    renderFiles();
-    if (getVisibleFiles().length === 0) {
-      setTsukihimeStatus(describeEmptyTab());
-    } else {
-      setTsukihimeStatus('Select a subtitle track.');
+    const currentEntry = ctx.state.tsukihimeEntries.find(
+      (entry) => entry.id === ctx.state.currentTsukihimeEntryId,
+    );
+    if (currentEntry && !entryMatchesTab(currentEntry, tab)) {
+      // The selected release is hidden on this tab; drop its tracks so the
+      // list matches what the tab claims to show.
+      ctx.state.currentTsukihimeEntryId = null;
+      ctx.state.selectedTsukihimeEntryIndex = 0;
+      clearFiles();
+      renderEntries();
+      setTsukihimeStatus(
+        getVisibleEntries().length === 0 ? describeEmptyReleases() : 'Select a release.',
+      );
+      return;
+    }
+
+    const visibleEntries = getVisibleEntries();
+    ctx.state.selectedTsukihimeEntryIndex = currentEntry ? visibleEntries.indexOf(currentEntry) : 0;
+    renderEntries();
+
+    if (ctx.state.tsukihimeFiles.length > 0) {
+      renderFiles();
+      setTsukihimeStatus(
+        getVisibleFiles().length === 0 ? describeEmptyTab() : 'Select a subtitle track.',
+      );
+      return;
+    }
+    if (!currentEntry && ctx.state.tsukihimeEntries.length > 0) {
+      setTsukihimeStatus(
+        visibleEntries.length === 0 ? describeEmptyReleases() : 'Select a release.',
+      );
     }
   }
 
@@ -121,13 +190,14 @@ export function createTsukihimeModal(
 
   function renderEntries(): void {
     ctx.dom.tsukihimeEntriesList.innerHTML = '';
-    if (ctx.state.tsukihimeEntries.length === 0) {
+    const visibleEntries = getVisibleEntries();
+    if (visibleEntries.length === 0) {
       ctx.dom.tsukihimeEntriesSection.classList.add('hidden');
       return;
     }
 
     ctx.dom.tsukihimeEntriesSection.classList.remove('hidden');
-    ctx.state.tsukihimeEntries.forEach((entry, index) => {
+    visibleEntries.forEach((entry, index) => {
       const li = document.createElement('li');
       li.textContent = entry.title;
 
@@ -212,6 +282,7 @@ export function createTsukihimeModal(
 
     resetTsukihimeLists();
     setTsukihimeStatus('Searching TsukiHime...');
+    await secondaryLanguagesReady;
 
     const response: TsukihimeApiResponse<TsukihimeEntry[]> =
       await window.electronAPI.tsukihimeSearchEntries({ query });
@@ -228,20 +299,22 @@ export function createTsukihimeModal(
       return;
     }
 
+    const visibleEntries = getVisibleEntries();
+    if (visibleEntries.length === 0) {
+      setTsukihimeStatus(describeEmptyReleases());
+      return;
+    }
+
     setTsukihimeStatus('Select a release.');
     renderEntries();
-    if (ctx.state.tsukihimeEntries.length === 1) {
+    if (visibleEntries.length === 1) {
       selectEntry(0);
     }
   }
 
   async function loadFiles(entryId: number): Promise<void> {
     setTsukihimeStatus('Loading subtitle tracks...');
-    ctx.state.tsukihimeFiles = [];
-    ctx.state.selectedTsukihimeFileIndex = 0;
-
-    ctx.dom.tsukihimeFilesList.innerHTML = '';
-    ctx.dom.tsukihimeFilesSection.classList.add('hidden');
+    clearFiles();
 
     const response: TsukihimeApiResponse<TsukihimeSubtitleFile[]> =
       await window.electronAPI.tsukihimeListFiles({ entryId });
@@ -279,11 +352,14 @@ export function createTsukihimeModal(
     }
   }
 
+  // `index` addresses the entries visible on the active tab, not the full
+  // search result list.
   function selectEntry(index: number): void {
-    if (index < 0 || index >= ctx.state.tsukihimeEntries.length) return;
+    const visibleEntries = getVisibleEntries();
+    if (index < 0 || index >= visibleEntries.length) return;
 
     ctx.state.selectedTsukihimeEntryIndex = index;
-    ctx.state.currentTsukihimeEntryId = ctx.state.tsukihimeEntries[index]!.id;
+    ctx.state.currentTsukihimeEntryId = visibleEntries[index]!.id;
     renderEntries();
 
     if (ctx.state.currentTsukihimeEntryId !== null) {
@@ -363,16 +439,15 @@ export function createTsukihimeModal(
     resetTsukihimeLists();
     renderTabs();
 
-    const secondaryLanguagesReady = loadSecondaryLanguages();
+    secondaryLanguagesReady = loadSecondaryLanguages();
 
     window.electronAPI
       .getJimakuMediaInfo()
-      .then(async (info: JimakuMediaInfo) => {
+      .then((info: JimakuMediaInfo) => {
         ctx.dom.tsukihimeTitleInput.value = info.title || '';
         ctx.dom.tsukihimeEpisodeInput.value = info.episode ? String(info.episode) : '';
 
         if (info.confidence === 'high' && info.title && info.episode) {
-          await secondaryLanguagesReady;
           void performTsukihimeSearch();
         } else if (info.title) {
           setTsukihimeStatus('Check title/episode and press Search.');
@@ -438,9 +513,9 @@ export function createTsukihimeModal(
           ctx.state.selectedTsukihimeFileIndex + 1,
         );
         renderFiles();
-      } else if (ctx.state.tsukihimeEntries.length > 0) {
+      } else if (getVisibleEntries().length > 0) {
         ctx.state.selectedTsukihimeEntryIndex = Math.min(
-          ctx.state.tsukihimeEntries.length - 1,
+          getVisibleEntries().length - 1,
           ctx.state.selectedTsukihimeEntryIndex + 1,
         );
         renderEntries();
@@ -456,7 +531,7 @@ export function createTsukihimeModal(
           ctx.state.selectedTsukihimeFileIndex - 1,
         );
         renderFiles();
-      } else if (ctx.state.tsukihimeEntries.length > 0) {
+      } else if (getVisibleEntries().length > 0) {
         ctx.state.selectedTsukihimeEntryIndex = Math.max(
           0,
           ctx.state.selectedTsukihimeEntryIndex - 1,
@@ -470,7 +545,7 @@ export function createTsukihimeModal(
       e.preventDefault();
       if (getVisibleFiles().length > 0) {
         void selectFile(ctx.state.selectedTsukihimeFileIndex);
-      } else if (ctx.state.tsukihimeEntries.length > 0) {
+      } else if (getVisibleEntries().length > 0) {
         selectEntry(ctx.state.selectedTsukihimeEntryIndex);
       } else {
         void performTsukihimeSearch();

@@ -40,13 +40,19 @@ function createElementStub() {
 }
 
 function createListStub() {
-  return {
-    innerHTML: '',
+  const list = {
     children: [] as unknown[],
     appendChild(child: unknown) {
-      this.children.push(child);
+      list.children.push(child);
     },
   };
+  // The modal clears lists through innerHTML before re-rendering.
+  return Object.defineProperty(list, 'innerHTML', {
+    get: () => '',
+    set: () => {
+      list.children.length = 0;
+    },
+  }) as typeof list & { innerHTML: string };
 }
 
 function createTabStub(active: boolean) {
@@ -118,6 +124,7 @@ function createModalHarness(
   files: TsukihimeSubtitleFile[],
   options: {
     secondaryLanguages?: string[];
+    secondaryLanguagesGate?: Promise<void>;
     downloadFile?: (query: unknown) => Promise<unknown>;
     listFiles?: (entryId: number) => Promise<unknown>;
     searchEntries?: (query: unknown) => Promise<unknown>;
@@ -138,7 +145,10 @@ function createModalHarness(
       if (options.downloadFile) return options.downloadFile(query);
       return { ok: true, path: '/tmp/subtitles/episode01.en.ass' };
     },
-    tsukihimeGetSecondaryLanguages: async () => options.secondaryLanguages ?? ['en', 'eng'],
+    tsukihimeGetSecondaryLanguages: async () => {
+      await options.secondaryLanguagesGate;
+      return options.secondaryLanguages ?? ['en', 'eng'];
+    },
     tsukihimeListFiles: async ({ entryId }: { entryId: number }) =>
       options.listFiles ? options.listFiles(entryId) : { ok: true, data: [] },
     tsukihimeSearchEntries: async (query: unknown) =>
@@ -609,6 +619,173 @@ test('renderFiles omits the size detail when the API does not report one', () =>
     assert.equal(firstFile.children.length, 1);
     assert.equal(firstFile.children[0]!.textContent.includes('0 B'), false);
     assert.match(firstFile.children[0]!.textContent, /English subs/);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+const ENGLISH_ONLY_ENTRY = {
+  id: 606713,
+  title: 'english only release',
+  timestamp: null,
+  totalSize: null,
+  numFiles: 1,
+  sublangs: ['en'],
+};
+
+const MULTI_SUB_ENTRY = {
+  id: 12255,
+  title: 'multi-sub release',
+  timestamp: null,
+  totalSize: null,
+  numFiles: 1,
+  sublangs: ['en-US', 'ja'],
+};
+
+const UNLABELED_ENTRY = {
+  id: 12256,
+  title: 'release without langs',
+  timestamp: null,
+  totalSize: null,
+  numFiles: 1,
+  sublangs: [],
+};
+
+function visibleEntryTitles(harness: ModalHarness): string[] {
+  return (harness.entriesList.children as Array<{ textContent: string }>).map(
+    (li) => li.textContent,
+  );
+}
+
+test('Japanese tab lists only releases that carry Japanese subtitles', async () => {
+  const SECOND_JAPANESE_TRACK: TsukihimeSubtitleFile = {
+    ...JAPANESE_TRACK,
+    attachmentId: 1955401,
+    filename: 'episode01.jpn.sdh.ass',
+  };
+  const harness = createModalHarness([], {
+    // Two tracks so the modal does not auto-download a lone match.
+    listFiles: async () => ({ ok: true, data: [JAPANESE_TRACK, SECOND_JAPANESE_TRACK] }),
+  });
+  try {
+    harness.state.currentTsukihimeEntryId = null;
+    harness.state.tsukihimeEntries = [ENGLISH_ONLY_ENTRY, MULTI_SUB_ENTRY, UNLABELED_ENTRY];
+
+    pressKey(harness, 'ArrowRight');
+    assert.deepEqual(visibleEntryTitles(harness), ['multi-sub release']);
+
+    // Enter addresses the visible list, so it must pick the multi-sub release
+    // rather than the hidden first search result.
+    pressKey(harness, 'Enter');
+    await flushAsyncWork();
+    assert.equal(harness.state.currentTsukihimeEntryId, MULTI_SUB_ENTRY.id);
+    assert.equal(harness.status.textContent, 'Select a subtitle track.');
+
+    pressKey(harness, 'ArrowLeft');
+    assert.deepEqual(visibleEntryTitles(harness), [
+      'english only release',
+      'multi-sub release',
+      'release without langs',
+    ]);
+    assert.equal(harness.state.currentTsukihimeEntryId, MULTI_SUB_ENTRY.id);
+    assert.equal(harness.state.selectedTsukihimeEntryIndex, 1);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('Japanese tab reports when no release carries Japanese subtitles', () => {
+  const harness = createModalHarness([]);
+  try {
+    harness.state.currentTsukihimeEntryId = null;
+    harness.state.tsukihimeEntries = [ENGLISH_ONLY_ENTRY, UNLABELED_ENTRY];
+
+    pressKey(harness, 'ArrowRight');
+    assert.deepEqual(visibleEntryTitles(harness), []);
+    assert.equal(
+      harness.status.textContent,
+      'No releases with Japanese subtitles. Switch to the English tab.',
+    );
+
+    pressKey(harness, 'ArrowLeft');
+    assert.deepEqual(visibleEntryTitles(harness), [
+      'english only release',
+      'release without langs',
+    ]);
+    assert.equal(harness.status.textContent, 'Select a release.');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('search reports when no release carries the secondary language', async () => {
+  const harness = createModalHarness([], {
+    searchEntries: async () => ({
+      ok: true,
+      data: [{ ...MULTI_SUB_ENTRY, sublangs: ['ja'] }],
+    }),
+  });
+  try {
+    harness.state.currentTsukihimeEntryId = null;
+    harness.titleInput.value = 'Futsutsuka na Akujo';
+
+    pressKey(harness, 'Enter');
+    await flushAsyncWork();
+    assert.deepEqual(visibleEntryTitles(harness), []);
+    assert.equal(
+      harness.status.textContent,
+      'No releases with English subtitles. Switch to the Japanese tab.',
+    );
+
+    pressKey(harness, 'ArrowRight');
+    assert.deepEqual(visibleEntryTitles(harness), ['multi-sub release']);
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('switching to a tab that hides the selected release clears its tracks', () => {
+  const harness = createModalHarness([ENGLISH_TRACK, JAPANESE_TRACK]);
+  try {
+    harness.state.tsukihimeEntries = [ENGLISH_ONLY_ENTRY, MULTI_SUB_ENTRY];
+
+    pressKey(harness, 'ArrowRight');
+    assert.equal(harness.state.currentTsukihimeEntryId, null);
+    assert.deepEqual(harness.state.tsukihimeFiles, []);
+    assert.deepEqual(visibleEntryTitles(harness), ['multi-sub release']);
+    assert.equal(harness.status.textContent, 'Select a release.');
+  } finally {
+    harness.restoreGlobals();
+  }
+});
+
+test('a search waits for the configured secondary languages before filtering', async () => {
+  let openGate!: () => void;
+  const harness = createModalHarness([], {
+    secondaryLanguages: ['de'],
+    secondaryLanguagesGate: new Promise<void>((resolve) => {
+      openGate = resolve;
+    }),
+    searchEntries: async () => ({
+      ok: true,
+      data: [{ ...MULTI_SUB_ENTRY, title: 'german release', sublangs: ['de'] }],
+    }),
+  });
+  try {
+    harness.state.tsukihimeModalOpen = false;
+    harness.modal.openTsukihimeModal();
+    harness.titleInput.value = 'Futsutsuka na Akujo';
+
+    // Searching before the config arrives must not filter against the English
+    // fallback, which would hide this German-only release.
+    pressKey(harness, 'Enter');
+    await flushAsyncWork();
+    assert.deepEqual(visibleEntryTitles(harness), []);
+
+    openGate();
+    await flushAsyncWork();
+
+    assert.deepEqual(visibleEntryTitles(harness), ['german release']);
   } finally {
     harness.restoreGlobals();
   }
