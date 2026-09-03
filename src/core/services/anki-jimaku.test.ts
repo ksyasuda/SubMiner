@@ -13,6 +13,7 @@ interface RuntimeHarness {
     fetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     tsukihimeFetchCalls: Array<{ endpoint: string; query?: Record<string, unknown> }>;
     sentCommands: Array<{ command: (string | number)[] }>;
+    jimakuSubtitleLoaded: number;
   };
 }
 
@@ -31,6 +32,7 @@ function createHarness(): RuntimeHarness {
       query?: Record<string, unknown>;
     }>,
     sentCommands: [] as Array<{ command: (string | number)[] }>,
+    jimakuSubtitleLoaded: 0,
   };
 
   const options: AnkiJimakuIpcRuntimeOptions = {
@@ -148,6 +150,9 @@ function createHarness(): RuntimeHarness {
       ok: true,
       path: `${destPath}:${url}`,
     }),
+    onJimakuSubtitleLoaded: () => {
+      state.jimakuSubtitleLoaded += 1;
+    },
   };
 
   let registered: Record<string, (...args: unknown[]) => unknown> = {};
@@ -313,6 +318,7 @@ test('searchJimakuEntries caps results and onDownloadedSubtitle sends sub-add to
 
   registered.onDownloadedSubtitle!('/tmp/subtitle.ass');
   assert.deepEqual(state.sentCommands, [{ command: ['sub-add', '/tmp/subtitle.ass', 'select'] }]);
+  assert.equal(state.jimakuSubtitleLoaded, 1);
 });
 
 test('onDownloadedSecondarySubtitle loads without stealing the primary track', async () => {

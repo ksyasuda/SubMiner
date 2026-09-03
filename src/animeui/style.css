@@ -58,7 +58,24 @@ html[data-embedded='overlay-modal'] .topbar {
 }
 
 html[data-embedded='overlay-modal'] .brand-block {
-  display: none;
+  gap: 0;
+}
+
+html[data-embedded='overlay-modal'] .brand-logo {
+  width: 38px;
+  height: 38px;
+}
+
+html[data-embedded='overlay-modal'] .brand-copy {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 html[data-embedded='overlay-modal'] .bridge-banner {
@@ -94,6 +111,22 @@ body {
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, var(--ctp-mantle), var(--ctp-base));
   flex: none;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 5px 9px rgba(0, 0, 0, 0.28));
 }
 
 .brand-title {

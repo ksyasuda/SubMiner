@@ -57,3 +57,32 @@ test('resolveConfig warns for invalid mpv launch mode', () => {
     message: "Expected one of: 'normal', 'maximized', 'fullscreen'.",
   });
 });
+
+test('resolveConfig parses the Anime Browser Jimaku handoff option', () => {
+  const { resolved, warnings } = resolveConfig({
+    anime: {
+      autoOpenJimaku: true,
+    },
+  });
+
+  assert.equal(resolved.anime.autoOpenJimaku, true);
+  assert.deepEqual(warnings, []);
+});
+
+test('resolveConfig warns for an invalid Anime Browser Jimaku handoff option', () => {
+  const { resolved, warnings } = resolveConfig({
+    anime: {
+      autoOpenJimaku: 'yes' as never,
+    },
+  });
+
+  assert.equal(resolved.anime.autoOpenJimaku, false);
+  assert.deepEqual(warnings, [
+    {
+      path: 'anime.autoOpenJimaku',
+      value: 'yes',
+      fallback: false,
+      message: 'Expected boolean.',
+    },
+  ]);
+});

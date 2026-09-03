@@ -33,6 +33,10 @@ test('anime UI stylesheet files exist and are all staged', () => {
     source,
     /copyAssets\(animeUiSourceDir, animeUiOutputDir, 'animeui', \[\s*'style\.css',\s*'detail\.css',\s*'panels\.css',?\s*\]\)/,
   );
+  assert.match(
+    source,
+    /copyFile\(\s*path\.join\(assetsSourceDir, 'SubMiner\.png'\),\s*path\.join\(animeUiOutputDir, 'SubMiner\.png'\),?\s*\)/,
+  );
 });
 
 // Regression guard for #213: an untargeted swiftc stamps the build machine's OS

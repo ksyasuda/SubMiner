@@ -44,6 +44,11 @@ export interface YoutubePickerResolveResult {
 
 export interface AnimeConfig {
   /**
+   * Pause Anime Browser playback and open Jimaku when an episode loads. The
+   * owned pause is released after a Jimaku subtitle loads or the modal closes.
+   */
+  autoOpenJimaku?: boolean;
+  /**
    * Directory holding Aniyomi extension `.apk` files. Defaults to
    * `<userData>/anime-extensions` when unset.
    */

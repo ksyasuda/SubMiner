@@ -145,6 +145,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   resolveJimakuApiKey: AnkiJimakuIpcRuntimeOptions['resolveJimakuApiKey'];
   isRemoteMediaPath: AnkiJimakuIpcRuntimeOptions['isRemoteMediaPath'];
   downloadToFile: AnkiJimakuIpcRuntimeOptions['downloadToFile'];
+  onJimakuSubtitleLoaded?: AnkiJimakuIpcRuntimeOptions['onJimakuSubtitleLoaded'];
 }
 
 export interface CliCommandRuntimeServiceDepsParams {
@@ -350,6 +351,9 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     resolveJimakuApiKey: params.resolveJimakuApiKey,
     isRemoteMediaPath: params.isRemoteMediaPath,
     downloadToFile: params.downloadToFile,
+    ...(params.onJimakuSubtitleLoaded
+      ? { onJimakuSubtitleLoaded: params.onJimakuSubtitleLoaded }
+      : {}),
   };
 }
 

@@ -147,7 +147,9 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
       'Anime browser sources. SubMiner ships no extension repositories and bundles no sources;',
       'add a repository index URL here (or drop .apk files in the extensions directory) to have any.',
     ],
-    notes: ['Hot-reload: anime changes apply the next time the anime browser opens.'],
+    notes: [
+      'Hot-reload: autoOpenJimaku applies to the next episode; other anime changes apply the next time the anime browser opens.',
+    ],
     key: 'anime',
   },
   {

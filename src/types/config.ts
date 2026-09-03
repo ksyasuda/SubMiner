@@ -321,6 +321,7 @@ export interface ResolvedConfig {
   subtitleSidebar: ResolvedSubtitleSidebarConfig;
   auto_start_overlay: boolean;
   anime: AnimeConfig & {
+    autoOpenJimaku: boolean;
     extensionsDir: string;
     repos: string[];
     preferredQuality: string;

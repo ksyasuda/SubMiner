@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
+const assetsSourceDir = path.join(repoRoot, 'assets');
 const rendererSourceDir = path.join(repoRoot, 'src', 'renderer');
 const rendererOutputDir = path.join(repoRoot, 'dist', 'renderer');
 const settingsSourceDir = path.join(repoRoot, 'src', 'settings');
@@ -58,6 +59,7 @@ function copyAnimeUiAssets() {
     'detail.css',
     'panels.css',
   ]);
+  copyFile(path.join(assetsSourceDir, 'SubMiner.png'), path.join(animeUiOutputDir, 'SubMiner.png'));
 }
 
 function fallbackToMacosSource() {

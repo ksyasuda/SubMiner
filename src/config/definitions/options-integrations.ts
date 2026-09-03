@@ -589,6 +589,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'mpv key used to skip the detected intro while the skip prompt is visible.',
     },
     {
+      path: 'anime.autoOpenJimaku',
+      kind: 'boolean',
+      defaultValue: defaultConfig.anime.autoOpenJimaku,
+      description:
+        'Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes.',
+    },
+    {
       path: 'anime.extensionsDir',
       kind: 'string',
       defaultValue: defaultConfig.anime.extensionsDir,

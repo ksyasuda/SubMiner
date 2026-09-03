@@ -104,6 +104,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
   anime: {
     // Empty by default: SubMiner ships no extension repositories and performs
     // no discovery. Sources exist only once the user adds a repo or an APK.
+    autoOpenJimaku: false,
     extensionsDir: '',
     repos: [],
     preferredQuality: '',

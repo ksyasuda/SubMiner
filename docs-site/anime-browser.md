@@ -202,10 +202,17 @@ there is nowhere to write them and the status bar says so.
 
 | Key                      | Purpose                                                                 |
 | ------------------------ | ----------------------------------------------------------------------- |
+| `anime.autoOpenJimaku`   | Pause new episodes and open Jimaku for Japanese subtitles.              |
 | `anime.repos`            | Repository index URLs. Empty by default.                                |
 | `anime.extensionsDir`    | Where APKs are read from. Empty uses `<userData>/anime-extensions`.     |
 | `anime.preferredQuality` | Preferred stream label, matched as a substring (for example `1080`).    |
 | `anime.bridgeDir`        | A bridge bundle to run instead of the downloaded one. Empty by default. |
+
+Enable `anime.autoOpenJimaku` to hand each newly loaded Anime Browser episode
+to Jimaku. SubMiner pauses playback, closes the in-player browser if it is open,
+and opens Jimaku with the source title, season, and episode already filled in.
+Playback resumes after the selected subtitle loads. Closing Jimaku also releases
+the automatic pause, while playback that was already paused stays paused.
 
 ## Source settings
 

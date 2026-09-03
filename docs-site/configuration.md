@@ -1165,6 +1165,7 @@ Sources for the [anime browser](/anime-browser). SubMiner ships no extension rep
 ```json
 {
   "anime": {
+    "autoOpenJimaku": false,
     "extensionsDir": "",
     "repos": [],
     "preferredQuality": ""
@@ -1174,6 +1175,7 @@ Sources for the [anime browser](/anime-browser). SubMiner ships no extension rep
 
 | Option                   | Type       | Default | Description                                                                                                                                                                                                                                         |
 | ------------------------ | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `anime.autoOpenJimaku`   | `boolean`  | `false` | Pause Anime Browser playback and open Jimaku when an episode loads. Playback resumes after a subtitle loads or the modal closes. Playback that was already paused stays paused.                                                                     |
 | `anime.extensionsDir`    | `string`   | `""`    | Directory holding Aniyomi extension `.apk` files. Empty uses `<userData>/anime-extensions`.                                                                                                                                                         |
 | `anime.repos`            | `string[]` | `[]`    | Extension repository index URLs. Any `https` URL ending in `.json` works; `index.min.json` is only the common name.                                                                                                                                 |
 | `anime.preferredQuality` | `string`   | `""`    | Preferred stream quality label, matched as a substring (for example `1080`). Empty keeps the source's own order. A Japanese-audio entry always outranks a higher-quality dub.                                                                       |

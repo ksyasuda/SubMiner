@@ -134,6 +134,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Kiku/Lapis/Senren Features',
     'Anki AI',
     'AnkiConnect Proxy',
+    'Aniyomi',
     'Jimaku',
     'Subtitle Sync',
     'MPV Keybindings',
@@ -245,6 +246,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   'mpv.pauseUntilOverlayReady': 'Pause Until Overlay Ready',
   'mpv.aniskipEnabled': 'Enable AniSkip',
   'mpv.aniskipButtonKey': 'AniSkip Button Key',
+  'anime.autoOpenJimaku': 'Auto-open Jimaku',
   'ankiConnect.media.mirrorMpvVolume': 'Mirror mpv Volume',
   'discordPresence.updateIntervalMs': 'Update Interval (ms)',
 };
@@ -443,6 +445,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   }
   if (path.startsWith('jimaku.') || path.startsWith('tsukihime.')) {
     return { category: 'integrations', section: topSection(path) };
+  }
+  if (path.startsWith('anime.')) {
+    return { category: 'integrations', section: 'Aniyomi' };
   }
   if (path.startsWith('subsync.')) {
     return { category: 'integrations', section: topSection(path) };
@@ -724,6 +729,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'logging.rotation' ||
     pathStartsWith(path, 'logging.files') ||
     pathStartsWith(path, 'notifications') ||
+    path === 'anime.autoOpenJimaku' ||
     path === 'youtube.primarySubLanguages' ||
     pathStartsWith(path, 'jimaku') ||
     pathStartsWith(path, 'subsync')

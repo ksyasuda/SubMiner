@@ -544,6 +544,7 @@ import {
   createCreateSyncUiWindowHandler,
 } from './main/runtime/setup-window-factory';
 import { createAnimeBrowserApplicationRuntime } from './main/runtime/anime-browser-application-runtime';
+import { createAnimeBrowserJimakuAutoOpen } from './main/runtime/anime-browser-jimaku-auto-open';
 import { openAnimeBrowserModal as openAnimeBrowserModalRuntime } from './main/runtime/anime-browser-open';
 import {
   ensureBridgeBinaries,
@@ -2513,6 +2514,29 @@ const SUBTITLE_POSITIONS_DIR = path.join(CONFIG_DIR, 'subtitle-positions');
  */
 const streamPlaybackMetadata = createStreamPlaybackMetadataStore();
 
+const animeBrowserJimakuAutoOpen = createAnimeBrowserJimakuAutoOpen({
+  isEnabled: () => configService.getConfig().anime.autoOpenJimaku,
+  isAnimeBrowserMedia: (mediaPath) => streamPlaybackMetadata.match(mediaPath) !== null,
+  getCurrentMediaPath: () => appState.currentMediaPath,
+  getPlaybackPaused: () =>
+    resolveFreshPlaybackPaused({
+      getCachedPlaybackPaused: () => appState.playbackPaused,
+      getMpvClient: () => appState.mpvClient,
+    }),
+  setPlaybackPaused: (paused) => {
+    sendMpvCommandRuntime(appState.mpvClient, ['set_property', 'pause', paused ? 'yes' : 'no']);
+  },
+  closeAnimeBrowserModal: () => {
+    if (!overlayModalRuntime.isModalOpen('anime-browser')) return;
+    overlayModalRuntime.sendToActiveOverlayWindow(IPC_CHANNELS.event.animeBrowserClose, undefined, {
+      restoreOnModalClose: 'anime-browser',
+      preferModalWindow: true,
+    });
+  },
+  openJimakuModal: () => openJimakuOverlay(),
+  logWarn: (message, error) => logger.warn(message, error),
+});
+
 /** Stream metadata for the requested path, or current media when none was supplied. */
 function getActiveStreamMetadata(mediaPath: string | null = null) {
   return matchRequestedStreamPlaybackMetadata(
@@ -2545,6 +2569,7 @@ const mediaRuntime = createMediaRuntimeService(
     setCurrentMediaPath: (nextPath: string | null) => {
       appState.currentMediaPath = nextPath;
       animeBrowserApplicationRuntime.publishPlaybackState(nextPath);
+      void animeBrowserJimakuAutoOpen.handleMediaPathChange(nextPath);
     },
     clearPendingSubtitlePosition: () => {
       appState.pendingSubtitlePosition = null;
@@ -2944,20 +2969,22 @@ function openOverlayHostedModalWithOsd(
   openModal: (deps: ReturnType<typeof createOverlayHostedModalOpenDeps>) => Promise<boolean>,
   unavailableMessage: string,
   failureLogMessage: string,
-): void {
-  void openModal(createOverlayHostedModalOpenDeps())
+): Promise<boolean> {
+  return openModal(createOverlayHostedModalOpenDeps())
     .then((opened) => {
       if (!opened) {
         overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
           variant: 'warning',
         });
       }
+      return opened;
     })
     .catch((error) => {
       logger.error(failureLogMessage, error);
       overlayNotificationsRuntime.showConfiguredStatusNotification(unavailableMessage, {
         variant: 'error',
       });
+      return false;
     });
 }
 
@@ -2969,8 +2996,8 @@ function openRuntimeOptionsPalette(): void {
   );
 }
 
-function openJimakuOverlay(): void {
-  openOverlayHostedModalWithOsd(
+function openJimakuOverlay(): Promise<boolean> {
+  return openOverlayHostedModalWithOsd(
     openJimakuModalRuntime,
     'Jimaku overlay unavailable.',
     'Failed to open Jimaku overlay.',
@@ -5729,6 +5756,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           applyOverlayClickThrough(senderWindow);
           senderWindow.hide();
         }
+        if (modal === 'jimaku') {
+          animeBrowserJimakuAutoOpen.handleJimakuModalClosed();
+        }
         handleOverlayModalClosedHandler(modal);
       },
       onOverlayModalOpened: (modal, senderWindow) => {
@@ -6108,6 +6138,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         headers: Record<string, string>,
         downloadOptions?: { isAllowedRedirect?: (url: URL) => boolean },
       ) => downloadToFile(url, destPath, headers, downloadOptions),
+      onJimakuSubtitleLoaded: () => {
+        animeBrowserJimakuAutoOpen.handleJimakuSubtitleLoaded();
+      },
     }),
     registerIpcRuntimeServices,
   },

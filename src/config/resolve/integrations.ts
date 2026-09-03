@@ -345,6 +345,18 @@ export function applyIntegrationConfig(context: ResolveContext): void {
   }
 
   if (isObject(src.anime)) {
+    const autoOpenJimaku = asBoolean(src.anime.autoOpenJimaku);
+    if (autoOpenJimaku !== undefined) {
+      resolved.anime.autoOpenJimaku = autoOpenJimaku;
+    } else if (src.anime.autoOpenJimaku !== undefined) {
+      warn(
+        'anime.autoOpenJimaku',
+        src.anime.autoOpenJimaku,
+        resolved.anime.autoOpenJimaku,
+        'Expected boolean.',
+      );
+    }
+
     const extensionsDir = asString(src.anime.extensionsDir);
     if (extensionsDir !== undefined) {
       resolved.anime.extensionsDir = normalizeExternalProfilePath(extensionsDir);
