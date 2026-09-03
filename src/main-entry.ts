@@ -22,7 +22,10 @@ import {
   shouldHandleStatsDaemonCommandAtEntry,
   spawnDetachedApp,
 } from './main-entry-runtime';
-import { requestSingleInstanceLockEarly } from './main/early-single-instance';
+import {
+  requestSingleInstanceLockEarly,
+  shouldBypassSingleInstanceLockForArgv,
+} from './main/early-single-instance';
 import { readConfiguredWindowsMpvLaunch } from './main-entry-launch-config';
 import { isAppControlServerAvailable, sendAppControlCommand } from './shared/app-control-client';
 import {
@@ -35,6 +38,7 @@ import { createWindowsMpvLaunchDeps, launchWindowsMpv } from './main/runtime/win
 import { runStatsDaemonControlFromProcess } from './stats-daemon-entry';
 import { handleSyncCliAtEntry } from './main/sync-cli';
 import { createFatalErrorReporter, registerFatalErrorHandlers } from './main/fatal-error';
+import { enforceElectronRuntimeGuard } from './main/electron-runtime-guard';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
 import {
   applyLogFileTogglesToEnv,
@@ -192,9 +196,23 @@ registerFatalErrorHandlers({
 });
 
 function startMainProcess(): void {
-  const gotSingleInstanceLock = requestSingleInstanceLockEarly(app);
+  // Normal launches serialize the runtime guard with the profile-scoped lock. Stats daemon
+  // commands keep their existing lock bypass when Electron runs in Node mode.
+  const gotSingleInstanceLock =
+    shouldBypassSingleInstanceLockForArgv(process.argv) || requestSingleInstanceLockEarly(app);
   if (!gotSingleInstanceLock) {
     app.exit(0);
+    return;
+  }
+
+  const runtimeGuard = enforceElectronRuntimeGuard({
+    electronVersion: process.versions.electron ?? '',
+    userDataPath,
+  });
+  if (!runtimeGuard.ok) {
+    console.error(runtimeGuard.details);
+    dialog.showErrorBox(runtimeGuard.title, runtimeGuard.details);
+    app.exit(1);
     return;
   }
   try {
