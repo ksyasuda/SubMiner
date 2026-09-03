@@ -175,6 +175,8 @@ export interface AvailableExtension {
   name: string;
   lang: string;
   version: string;
+  /** Monotonic Android version code used to decide whether an update exists. */
+  versionCode: number;
   nsfw: boolean;
   repoUrl: string;
   /** Where the repository publishes the extension's icon; may 404. */
@@ -206,6 +208,8 @@ export interface InstalledExtensionView {
   langs: string[];
   /** How many sources it provides; 0 when it failed to load. */
   sourceCount: number;
+  /** Read from AndroidManifest.xml; null only for an invalid or unusual APK. */
+  versionCode: number | null;
   /** Why it failed to load, or null when it loaded. */
   error: string | null;
 }
@@ -315,6 +319,7 @@ export interface AnimeBrowserAPI {
   ) => Promise<SourcePreferenceView[]>;
   listAvailableExtensions: () => Promise<AvailableExtensionsResult>;
   installExtension: (pkg: string) => Promise<void>;
+  updateAllExtensions: () => Promise<number>;
   removeExtension: (pkg: string) => Promise<void>;
   rescanExtensions: () => Promise<void>;
   addRepo: (url: string) => Promise<void>;

@@ -130,8 +130,26 @@
   color: var(--faint);
 }
 
+.ext-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ext-group-heading .ext-group-title {
+  margin-bottom: 0;
+}
+
+.ext-update-all {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
 /* A rule between the groups, but not above the first one. */
-.ext-list + .ext-group-title {
+.ext-list + .ext-group-title,
+.ext-list + .ext-group-heading {
   margin-top: 6px;
   padding-top: 14px;
   border-top: 1px solid var(--line);

@@ -35,6 +35,7 @@ test('readInstalledExtensions fingerprints apks without holding their bytes', as
   assert.equal(extensions.length, 1);
   assert.equal(extensions[0]?.fallbackName, 'my-source');
   assert.equal(extensions[0]?.sha256, createHash('sha256').update('APK-BYTES').digest('hex'));
+  assert.equal(extensions[0]?.versionCode, null);
 });
 
 test('the fingerprint changes when an apk is replaced in place', async () => {
@@ -69,7 +70,12 @@ test('readInstalledExtensions returns empty for a missing directory', async () =
 });
 
 test('toBridgeSource includes sourceId only when selecting inside a factory apk', () => {
-  const extension: InstalledExtension = { file: '/x/a.apk', fallbackName: 'a', sha256: 'hash-a' };
+  const extension: InstalledExtension = {
+    file: '/x/a.apk',
+    fallbackName: 'a',
+    sha256: 'hash-a',
+    versionCode: 1,
+  };
   assert.equal(toBridgeSource(extension).sourceId, undefined);
   assert.equal(toBridgeSource(extension, 'src-1').sourceId, 'src-1');
   assert.equal(toBridgeSource(extension, 'src-1').fingerprint, 'hash-a');
@@ -77,7 +83,7 @@ test('toBridgeSource includes sourceId only when selecting inside a factory apk'
 
 test('listExtensionSources flattens every source a factory apk provides', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a' },
+    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a', versionCode: 1 },
   ];
   const client = fakeClient(async () => [
     { id: 101, name: 'Source One', lang: 'en' },
@@ -96,8 +102,8 @@ test('listExtensionSources flattens every source a factory apk provides', async 
 
 test('sources with the same bridge id in different packages have distinct runtime ids', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/one.apk', fallbackName: 'pkg.one', sha256: 'hash-one' },
-    { file: '/x/two.apk', fallbackName: 'pkg.two', sha256: 'hash-two' },
+    { file: '/x/one.apk', fallbackName: 'pkg.one', sha256: 'hash-one', versionCode: 1 },
+    { file: '/x/two.apk', fallbackName: 'pkg.two', sha256: 'hash-two', versionCode: 2 },
   ];
   const client = fakeClient(async () => [{ id: 'shared', name: 'Source', lang: 'en' }]);
 
@@ -114,7 +120,7 @@ test('sources with the same bridge id in different packages have distinct runtim
 
 test('listExtensionSources falls back to the file name and a default language', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/my-ext.apk', fallbackName: 'my-ext', sha256: 'hash-a' },
+    { file: '/x/my-ext.apk', fallbackName: 'my-ext', sha256: 'hash-a', versionCode: 1 },
   ];
   const client = fakeClient(async () => [{ id: '1', name: '   ' }]);
 
@@ -126,14 +132,14 @@ test('listExtensionSources falls back to the file name and a default language', 
 test('listExtensionSources drops descriptors with no usable id', async () => {
   const client = fakeClient(async () => [{ name: 'No Id' }, { id: '', name: 'Empty' }]);
   const sources = await listExtensionSources(client, [
-    { file: '/x/a.apk', fallbackName: 'a', sha256: 'hash-a' },
+    { file: '/x/a.apk', fallbackName: 'a', sha256: 'hash-a', versionCode: 1 },
   ]);
   assert.deepEqual(sources, []);
 });
 
 test('toInstalledExtensionViews names an extension after the sources it provides', () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a' },
+    { file: '/x/multi.apk', fallbackName: 'multi', sha256: 'hash-a', versionCode: 7 },
   ];
   const sources: ExtensionSource[] = [
     { id: 'multi:1', bridgeId: '1', name: 'One', lang: 'en', pkg: 'multi', file: '/x/multi.apk' },
@@ -141,26 +147,42 @@ test('toInstalledExtensionViews names an extension after the sources it provides
   ];
 
   assert.deepEqual(toInstalledExtensionViews(extensions, sources, []), [
-    { pkg: 'multi', name: 'One, Two', langs: ['en', 'ja'], sourceCount: 2, error: null },
+    {
+      pkg: 'multi',
+      name: 'One, Two',
+      langs: ['en', 'ja'],
+      sourceCount: 2,
+      versionCode: 7,
+      error: null,
+    },
   ]);
 });
 
 test('toInstalledExtensionViews lists an extension that loaded nothing, with its reason', () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a' },
+    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a', versionCode: null },
   ];
 
   // A broken APK is still installed, so it must stay listed and removable.
   assert.deepEqual(
     toInstalledExtensionViews(extensions, [], [{ pkg: 'broken', error: 'dex2jar failed' }]),
-    [{ pkg: 'broken', name: 'broken', langs: [], sourceCount: 0, error: 'dex2jar failed' }],
+    [
+      {
+        pkg: 'broken',
+        name: 'broken',
+        langs: [],
+        sourceCount: 0,
+        versionCode: null,
+        error: 'dex2jar failed',
+      },
+    ],
   );
 });
 
 test('one broken extension does not hide the working ones', async () => {
   const extensions: InstalledExtension[] = [
-    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a' },
-    { file: '/x/good.apk', fallbackName: 'good', sha256: 'hash-b' },
+    { file: '/x/broken.apk', fallbackName: 'broken', sha256: 'hash-a', versionCode: null },
+    { file: '/x/good.apk', fallbackName: 'good', sha256: 'hash-b', versionCode: 1 },
   ];
   const failures: string[] = [];
   const client = fakeClient(async (source) => {

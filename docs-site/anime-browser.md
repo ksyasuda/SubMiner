@@ -94,8 +94,12 @@ extension you dropped in by hand — or one whose repository you have since
 removed — is still listed and still removable. An installed extension borrows
 its icon from the catalogue, so one no repository carries shows its monogram.
 
-**Update** appears next to an extension a configured repository still carries;
-it downloads the current version over the existing APK.
+SubMiner compares the APK's Android version code with the newest build in the
+configured repositories. **Update** is clickable only when the repository has a
+newer build. A current extension says **Up to date**. If an unusual APK has no
+readable version code, its disabled button says **Version unknown**. **Update
+all** installs every newer build in one pass and disables itself when there is
+nothing to update.
 
 ### From a file
 

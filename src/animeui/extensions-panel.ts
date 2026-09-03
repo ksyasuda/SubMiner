@@ -13,6 +13,7 @@ import type {
   AvailableExtension,
   InstalledExtensionView,
 } from '../types/anime-browser';
+import { hasExtensionUpdate } from '../shared/extension-updates';
 
 /**
  * The Extensions tab: what is installed, which repositories feed it, and what
@@ -31,11 +32,17 @@ export interface ExtensionsPanelOptions {
   onSourcesChanged: () => Promise<void>;
 }
 
-interface RowAction {
-  label: string;
-  primary?: boolean;
-  onClick: () => void | Promise<void>;
-}
+type RowAction =
+  | {
+      label: string;
+      primary?: boolean;
+      onClick: () => void | Promise<void>;
+    }
+  | {
+      label: string;
+      disabled: true;
+      title?: string;
+    };
 
 interface RowOptions {
   name: string;
@@ -96,8 +103,14 @@ function extensionRow(options: RowOptions): HTMLDivElement {
   for (const action of options.actions ?? []) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = action.primary ? 'primary-button' : 'ghost-button';
+    button.className = 'primary' in action && action.primary ? 'primary-button' : 'ghost-button';
     button.textContent = action.label;
+    if ('disabled' in action) {
+      button.disabled = true;
+      if (action.title) button.title = action.title;
+      row.append(button);
+      continue;
+    }
     button.addEventListener('click', () => {
       button.disabled = true;
       void Promise.resolve(action.onClick()).finally(() => {
@@ -108,6 +121,32 @@ function extensionRow(options: RowOptions): HTMLDivElement {
   }
 
   return row;
+}
+
+export type ExtensionUpdateState = 'available' | 'current' | 'unknown' | 'unavailable';
+
+export type ExtensionUpdateSummary =
+  | { kind: 'available'; count: number }
+  | { kind: 'current' }
+  | { kind: 'none' };
+
+export function getExtensionUpdateState(
+  installed: InstalledExtensionView,
+  offered: AvailableExtension | undefined,
+): ExtensionUpdateState {
+  if (!offered) return 'unavailable';
+  if (installed.versionCode === null) return 'unknown';
+  return hasExtensionUpdate(installed.versionCode, offered.versionCode) ? 'available' : 'current';
+}
+
+export function summarizeExtensionUpdates(
+  states: readonly ExtensionUpdateState[],
+): ExtensionUpdateSummary {
+  const count = states.filter((state) => state === 'available').length;
+  if (count > 0) return { kind: 'available', count };
+  return states.length > 0 && states.every((state) => state === 'current')
+    ? { kind: 'current' }
+    : { kind: 'none' };
 }
 
 function emptyNote(text: string): HTMLParagraphElement {
@@ -124,6 +163,7 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   const bridgeInfo = el<HTMLParagraphElement>('bridge-info');
   const installedList = el<HTMLDivElement>('installed-list');
   const installedCount = el<HTMLSpanElement>('installed-count');
+  const updateAllButton = el<HTMLButtonElement>('update-all');
   const availableList = el<HTMLDivElement>('extensions-list');
   const availableCount = el<HTMLSpanElement>('available-count');
   const langFilter = el<HTMLDivElement>('lang-filter');
@@ -138,6 +178,8 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
   let iconsByPkg = new Map<string, string>();
   let repoFailures: Array<{ name: string; error: string }> = [];
   let hasRepos = false;
+  let updatingAll = false;
+  let pendingUpdateCount = 0;
   /** Selected language codes; empty means "All". */
   let selectedLangs = new Set<string>();
 
@@ -149,10 +191,23 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
 
   function renderInstalled(
     installed: InstalledExtensionView[],
-    offeredPkgs: Set<string>,
+    offeredByPkg: Map<string, AvailableExtension>,
     extensionsDir: string,
   ): void {
     installedCount.textContent = installed.length === 0 ? '' : String(installed.length);
+    const updateStates = installed.map((view) =>
+      getExtensionUpdateState(view, offeredByPkg.get(view.pkg)),
+    );
+    const updateSummary = summarizeExtensionUpdates(updateStates);
+    const updateCount = updateSummary.kind === 'available' ? updateSummary.count : 0;
+    pendingUpdateCount = updateCount;
+    updateAllButton.textContent =
+      updateSummary.kind === 'available'
+        ? `Update all (${updateSummary.count})`
+        : updateSummary.kind === 'current'
+          ? 'All up to date'
+          : 'No updates';
+    updateAllButton.disabled = updatingAll || updateCount === 0;
 
     if (installed.length === 0) {
       installedList.replaceChildren(
@@ -166,9 +221,8 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
     installedList.replaceChildren(
       ...installed.map((view) => {
         const actions: RowAction[] = [];
-        // Only offer an update for an extension a configured repository still
-        // carries; reinstalling overwrites the APK in place.
-        if (offeredPkgs.has(view.pkg)) {
+        const updateState = getExtensionUpdateState(view, offeredByPkg.get(view.pkg));
+        if (updateState === 'available') {
           actions.push({
             label: 'Update',
             onClick: async () => {
@@ -180,6 +234,14 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
                 setStatus(describe(error), 'error');
               }
             },
+          });
+        } else if (updateState === 'current') {
+          actions.push({ label: 'Up to date', disabled: true });
+        } else if (updateState === 'unknown') {
+          actions.push({
+            label: 'Version unknown',
+            disabled: true,
+            title: 'SubMiner could not read a version code from this APK.',
           });
         }
         actions.push({
@@ -344,11 +406,13 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
       repoFailures.push({ name: failure.repoUrl, error: failure.error });
     }
 
-    const offeredPkgs = new Set(available.extensions.map((extension) => extension.pkg));
+    const offeredByPkg = new Map(
+      available.extensions.map((extension) => [extension.pkg, extension]),
+    );
     // The catalogue is the only source of icons, so an installed extension can
     // only show one while a repository still carries its package.
     iconsByPkg = buildIconIndex(available.extensions);
-    renderInstalled(snapshot.installed, offeredPkgs, snapshot.extensionsDir);
+    renderInstalled(snapshot.installed, offeredByPkg, snapshot.extensionsDir);
     // Installed extensions have their own section; leaving them here too would
     // list every one of them twice.
     installable = available.extensions.filter((extension) => !extension.installed);
@@ -367,6 +431,33 @@ export function createExtensionsPanel(options: ExtensionsPanelOptions) {
         await refresh();
       } catch (error) {
         setStatus(describe(error), 'error');
+      }
+    })();
+  });
+
+  updateAllButton.addEventListener('click', () => {
+    if (updateAllButton.disabled) return;
+    updatingAll = true;
+    updateAllButton.disabled = true;
+    updateAllButton.textContent = 'Updating…';
+    setStatus('Updating extensions…');
+    void (async () => {
+      try {
+        const count = await api.updateAllExtensions();
+        await refresh();
+        await onSourcesChanged();
+        setStatus(`${count} ${count === 1 ? 'extension' : 'extensions'} updated`, 'ok');
+      } catch (error) {
+        await refresh().catch(() => undefined);
+        await onSourcesChanged().catch(() => undefined);
+        setStatus(describe(error), 'error');
+      } finally {
+        updatingAll = false;
+        updateAllButton.disabled = pendingUpdateCount === 0;
+        if (updateAllButton.textContent === 'Updating…') {
+          updateAllButton.textContent =
+            pendingUpdateCount > 0 ? `Update all (${pendingUpdateCount})` : 'No updates';
+        }
       }
     })();
   });

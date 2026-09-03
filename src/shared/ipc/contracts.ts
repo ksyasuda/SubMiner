@@ -147,6 +147,7 @@ export const IPC_CHANNELS = {
     animeBrowserSetPreference: 'anime-browser:set-preference',
     animeBrowserListAvailableExtensions: 'anime-browser:list-available-extensions',
     animeBrowserInstallExtension: 'anime-browser:install-extension',
+    animeBrowserUpdateAllExtensions: 'anime-browser:update-all-extensions',
     animeBrowserRemoveExtension: 'anime-browser:remove-extension',
     animeBrowserRescanExtensions: 'anime-browser:rescan-extensions',
     animeBrowserAddRepo: 'anime-browser:add-repo',

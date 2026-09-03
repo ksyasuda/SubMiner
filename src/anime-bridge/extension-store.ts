@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
+import { readApkVersionCode } from './apk-version';
 import type { AnimeBridgeClient } from './bridge-client';
 import type { BridgeSource } from './bridge-client';
 import type { ExtensionLoadFailure, InstalledExtensionView } from '../types/anime-browser';
@@ -23,6 +24,8 @@ export interface InstalledExtension {
    * bridge's extension-id cache misses after an in-place upgrade.
    */
   sha256: string;
+  /** Android manifest version code, or null when the APK cannot declare one. */
+  versionCode: number | null;
 }
 
 export interface ExtensionSource {
@@ -56,10 +59,12 @@ export async function readInstalledExtensions(directory: string): Promise<Instal
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.apk')) continue;
     const file = path.join(directory, entry.name);
+    const [sha256, versionCode] = await Promise.all([hashFile(file), readApkVersionCode(file)]);
     extensions.push({
       file,
       fallbackName: entry.name.replace(/\.apk$/i, ''),
-      sha256: await hashFile(file),
+      sha256,
+      versionCode,
     });
   }
   return extensions;
@@ -91,6 +96,7 @@ export function toInstalledExtensionViews(
       name: names.length > 0 ? names.join(', ') : extension.fallbackName,
       langs: [...new Set(provided.map((source) => source.lang))],
       sourceCount: provided.length,
+      versionCode: extension.versionCode,
       error: loadFailures.find((failure) => failure.pkg === extension.fallbackName)?.error ?? null,
     };
   });

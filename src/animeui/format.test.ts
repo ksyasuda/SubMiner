@@ -51,6 +51,7 @@ test('describeInstalled reports sources and languages when the extension loaded'
       name: 'One, Two',
       langs: ['en', 'ja'],
       sourceCount: 2,
+      versionCode: 1,
       error: null,
     }),
     'multi · 2 sources · en, ja',
@@ -59,7 +60,14 @@ test('describeInstalled reports sources and languages when the extension loaded'
 
 test('describeInstalled falls back to the package alone when nothing loaded', () => {
   assert.equal(
-    describeInstalled({ pkg: 'broken', name: 'broken', langs: [], sourceCount: 0, error: 'boom' }),
+    describeInstalled({
+      pkg: 'broken',
+      name: 'broken',
+      langs: [],
+      sourceCount: 0,
+      versionCode: null,
+      error: 'boom',
+    }),
     'broken',
   );
 });

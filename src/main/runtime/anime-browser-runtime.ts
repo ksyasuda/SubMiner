@@ -50,6 +50,7 @@ import type {
   ExtensionLoadFailure,
 } from '../../types/anime-browser';
 import type { BridgeAnimePage, BridgePreference } from '../../anime-bridge/types';
+import { findExtensionUpdates, hasExtensionUpdate } from '../../shared/extension-updates';
 import { createAnimeBrowserPlayback } from './anime-browser-playback';
 import { createAnimeBrowserQueue } from './anime-browser-queue';
 import type { AnimeBrowserRuntimeDeps } from './anime-browser-runtime-deps';
@@ -72,6 +73,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
   let stripProxy: StreamStripProxyHandle | null = null;
   let starting: Promise<SidecarHandle> | null = null;
   let updating: Promise<AnimeBrowserBridgeState> | null = null;
+  let extensionMutationTail = Promise.resolve();
   let extensions: InstalledExtension[] = [];
   let sources: ExtensionSource[] = [];
   let loadFailures: ExtensionLoadFailure[] = [];
@@ -80,6 +82,15 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     { selectedSourceId: string | null; searchToken: number }
   >();
   const preferenceStore = new PreferenceStore(deps.preferencesFile);
+
+  function withExtensionMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = extensionMutationTail.then(operation);
+    extensionMutationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
 
   function getBrowserSession(sessionId = 'default') {
     const existing = browserSessions.get(sessionId);
@@ -187,7 +198,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
       deps.log(`[anime-browser] stream proxy failed to start: ${describeError(error)}`);
     }
 
-    await scanExtensions(handle);
+    await withExtensionMutation(() => scanExtensions(handle));
     void checkForBridgeUpdate(handle);
     return handle;
   }
@@ -336,8 +347,12 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     return updating;
   }
 
-  async function installExtensionFrom(extension: RepoExtension): Promise<void> {
+  async function downloadExtension(extension: RepoExtension): Promise<void> {
     await installExtension({ extensionsDir: deps.extensionsDir(), extension });
+  }
+
+  async function installExtensionFrom(extension: RepoExtension): Promise<void> {
+    await downloadExtension(extension);
     if (sidecar) await scanExtensions(sidecar);
   }
 
@@ -538,6 +553,7 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
           name: extension.name,
           lang: extension.lang,
           version: extension.version,
+          versionCode: extension.versionCode,
           nsfw: extension.nsfw,
           repoUrl: extension.repoUrl,
           iconUrl: extension.iconUrl,
@@ -549,22 +565,61 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     /** Download an extension by package name, then rescan. */
-    async installExtension(pkg: string): Promise<void> {
-      const repos = deps.repos();
-      if (repos.length === 0) throw new Error('No extension repository is configured.');
+    installExtension(pkg: string): Promise<void> {
+      return withExtensionMutation(async () => {
+        const repos = deps.repos();
+        if (repos.length === 0) throw new Error('No extension repository is configured.');
 
-      const catalogue = await fetchRepoCatalogue(repos);
-      const match = catalogue.extensions.find((candidate) => candidate.pkg === pkg);
-      if (!match) throw new Error(`${pkg} is not offered by any configured repository.`);
+        const catalogue = await fetchRepoCatalogue(repos);
+        const match = catalogue.extensions.find((candidate) => candidate.pkg === pkg);
+        if (!match) throw new Error(`${pkg} is not offered by any configured repository.`);
 
-      await installExtensionFrom(match);
+        const current = extensions.find((candidate) => candidate.fallbackName === pkg);
+        if (
+          current &&
+          current.versionCode !== null &&
+          !hasExtensionUpdate(current.versionCode, match.versionCode)
+        ) {
+          return;
+        }
+
+        await installExtensionFrom(match);
+      });
+    },
+
+    /** Download every strictly newer repository build, then rescan once. */
+    updateAllExtensions(): Promise<number> {
+      return withExtensionMutation(async () => {
+        const repos = deps.repos();
+        if (repos.length === 0) return 0;
+
+        const catalogue = await fetchRepoCatalogue(repos);
+        const installedVersions = extensions.map((extension) => ({
+          pkg: extension.fallbackName,
+          versionCode: extension.versionCode,
+        }));
+        const updates = findExtensionUpdates(installedVersions, catalogue.extensions);
+
+        let installedCount = 0;
+        try {
+          for (const extension of updates) {
+            await downloadExtension(extension);
+            installedCount += 1;
+          }
+        } finally {
+          if (installedCount > 0 && sidecar) await scanExtensions(sidecar);
+        }
+        return installedCount;
+      });
     },
 
     /** Remove an installed extension, then rescan. */
-    async removeExtension(pkg: string): Promise<void> {
-      await removeExtensionFile(deps.extensionsDir(), pkg);
-      await preferenceStore.clear(pkg).catch(() => undefined);
-      if (sidecar) await scanExtensions(sidecar);
+    removeExtension(pkg: string): Promise<void> {
+      return withExtensionMutation(async () => {
+        await removeExtensionFile(deps.extensionsDir(), pkg);
+        await preferenceStore.clear(pkg).catch(() => undefined);
+        if (sidecar) await scanExtensions(sidecar);
+      });
     },
 
     /**
@@ -586,8 +641,10 @@ export function createAnimeBrowserRuntime(deps: AnimeBrowserRuntimeDeps) {
     },
 
     /** Re-read the extensions directory without restarting the bridge. */
-    async rescanExtensions(): Promise<void> {
-      if (sidecar) await scanExtensions(sidecar);
+    rescanExtensions(): Promise<void> {
+      return withExtensionMutation(async () => {
+        if (sidecar) await scanExtensions(sidecar);
+      });
     },
 
     selectSource(sourceId: string, sessionId = 'default'): void {

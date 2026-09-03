@@ -30,6 +30,7 @@ test('anime browser API keeps one opaque session per renderer bridge', async () 
   await firstApi.getDetails('/frieren');
   await firstApi.getEpisodes('/frieren', 'source.one');
   await firstApi.getPlaybackState();
+  await firstApi.updateAllExtensions();
   await secondApi.getPopular(3);
 
   const firstSessionId = first.calls[0]?.args[0];
@@ -59,6 +60,10 @@ test('anime browser API keeps one opaque session per renderer bridge', async () 
     },
     {
       channel: IPC_CHANNELS.request.animeBrowserGetPlaybackState,
+      args: [],
+    },
+    {
+      channel: IPC_CHANNELS.request.animeBrowserUpdateAllExtensions,
       args: [],
     },
   ]);

@@ -29,3 +29,19 @@ test('anime browser preference IPC coerces values at the renderer boundary', () 
     ['source', 'invalid', ''],
   ]);
 });
+
+test('anime browser bulk update IPC returns the runtime result', async () => {
+  const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
+  registerAnimeBrowserIpcHandlers({
+    ipcMain: {
+      handle: (channel, listener) => handlers.set(channel, listener),
+    },
+    runtime: {
+      updateAllExtensions: async () => 3,
+    } as never,
+  });
+
+  const updateAll = handlers.get(IPC_CHANNELS.request.animeBrowserUpdateAllExtensions);
+  assert.ok(updateAll);
+  assert.equal(await updateAll({}), 3);
+});

@@ -82,6 +82,7 @@ export function registerAnimeBrowserIpcHandlers(deps: AnimeBrowserIpcDeps): void
   handle(channels.animeBrowserInstallExtension, (_event, pkg) =>
     runtime.installExtension(String(pkg)),
   );
+  handle(channels.animeBrowserUpdateAllExtensions, () => runtime.updateAllExtensions());
   handle(channels.animeBrowserRemoveExtension, (_event, pkg) =>
     runtime.removeExtension(String(pkg)),
   );

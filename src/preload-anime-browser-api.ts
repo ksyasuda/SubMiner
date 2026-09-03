@@ -85,6 +85,8 @@ export function createAnimeBrowserAPI(ipcRenderer: AnimeBrowserIpcRenderer): Ani
       ipcRenderer.invoke(request.animeBrowserListAvailableExtensions),
     installExtension: (pkg: string): Promise<void> =>
       ipcRenderer.invoke(request.animeBrowserInstallExtension, pkg),
+    updateAllExtensions: (): Promise<number> =>
+      ipcRenderer.invoke(request.animeBrowserUpdateAllExtensions),
     removeExtension: (pkg: string): Promise<void> =>
       ipcRenderer.invoke(request.animeBrowserRemoveExtension, pkg),
     rescanExtensions: (): Promise<void> => ipcRenderer.invoke(request.animeBrowserRescanExtensions),
