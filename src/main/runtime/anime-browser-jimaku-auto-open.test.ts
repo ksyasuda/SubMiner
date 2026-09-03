@@ -103,17 +103,25 @@ test('a newer episode during the window wait cancels the stale Jimaku open', asy
   const firstWaitPromise = new Promise<boolean>((resolve) => {
     firstWait.resolve = resolve;
   });
+  let notifyFirstWaitStarted: () => void = () => {};
+  const firstWaitStarted = new Promise<void>((resolve) => {
+    notifyFirstWaitStarted = resolve;
+  });
   let waits = 0;
   const harness = createHarness({
     windowReady: () => {
       waits += 1;
-      return waits === 1 ? firstWaitPromise : Promise.resolve(true);
+      if (waits === 1) {
+        notifyFirstWaitStarted();
+        return firstWaitPromise;
+      }
+      return Promise.resolve(true);
     },
   });
 
   harness.setMediaPath('https://127.0.0.1/one.m3u8');
   const first = harness.runtime.handleMediaPathChange('https://127.0.0.1/one.m3u8');
-  await Promise.resolve();
+  await firstWaitStarted;
 
   harness.setMediaPath('https://127.0.0.1/two.m3u8');
   await harness.runtime.handleMediaPathChange('https://127.0.0.1/two.m3u8');
