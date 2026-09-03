@@ -8,6 +8,7 @@ import {
   formatMediaTimingTimestamp,
   mediaTimingTimeFromPointer,
   slideMediaTimingSelection,
+  trimMediaTimingSelectionEnd,
 } from './media-timing-review';
 
 test('waveform path mirrors normalized peaks around its center line', () => {
@@ -121,4 +122,36 @@ test('preview request guard blocks overlap and invalidates stale responses', () 
   assert.equal(guard.isCurrent(second!), true);
   guard.finish(second!);
   assert.equal(guard.isInFlight(), false);
+});
+
+test('trailing silence trim follows the last speech slice and keeps cut-off or silent lines', () => {
+  // 10 slices over a 10 s timeline: one slice per second, speech in seconds 2-4 only.
+  const peaks = [0, 0, 0.9, 0.8, 0.7, 0.1, 0.2, 0, 0, 0];
+  const base = { peaks, timelineStart: 0, timelineEnd: 10, lineStart: 2, lineEnd: 8 };
+
+  const trimmed = trimMediaTimingSelectionEnd({ ...base, selectionEnd: 8, endPadSeconds: 0 });
+  assert.ok(trimmed !== null && Math.abs(trimmed - 5.15) < 1e-9);
+
+  const padded = trimMediaTimingSelectionEnd({ ...base, selectionEnd: 8.5, endPadSeconds: 0.5 });
+  assert.ok(padded !== null && Math.abs(padded - 5.65) < 1e-9);
+
+  // Speech running through the line end means the subtitle cuts the audio off; keep it.
+  assert.equal(
+    trimMediaTimingSelectionEnd({ ...base, lineEnd: 5, selectionEnd: 5, endPadSeconds: 0 }),
+    null,
+  );
+  // No speech inside the line at all: keep the subtitle timing rather than guess.
+  assert.equal(
+    trimMediaTimingSelectionEnd({ ...base, lineStart: 6, selectionEnd: 8, endPadSeconds: 0 }),
+    null,
+  );
+  // A saving below the minimum trim is not worth moving the handle for.
+  assert.equal(
+    trimMediaTimingSelectionEnd({ ...base, lineEnd: 5.2, selectionEnd: 5.2, endPadSeconds: 0 }),
+    null,
+  );
+  assert.equal(
+    trimMediaTimingSelectionEnd({ ...base, peaks: [1], selectionEnd: 8, endPadSeconds: 0 }),
+    null,
+  );
 });

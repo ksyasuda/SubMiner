@@ -11,6 +11,14 @@ const FINE_ADJUST_SECONDS = 0.1;
 const COARSE_ADJUST_SECONDS = 0.5;
 const TIMELINE_EXPANSION_SECONDS = 2;
 const LINE_REVEAL_MARGIN_SECONDS = 1;
+/**
+ * Subtitles usually linger past the dialogue for readability, so an untouched clip end
+ * follows the last speech-weighted waveform slice above this level (0..1, relative to the
+ * clip's own noise floor) plus a short tail, when that saves at least the minimum trim.
+ */
+const SPEECH_LEVEL_THRESHOLD = 0.3;
+const SPEECH_TAIL_SECONDS = 0.15;
+const MINIMUM_TRAILING_TRIM_SECONDS = 0.1;
 /** Slack past the clip length before the UI gives up waiting for mpv's end-of-clip signal. */
 const PREVIEW_END_GRACE_MS = 2_500;
 
@@ -107,6 +115,48 @@ export function buildMediaTimingWaveformPath(peaks: number[]): string {
   return `M ${upper.join(' L ')} L ${lower.join(' L ')} Z`;
 }
 
+/**
+ * Where an untouched clip should end once the waveform is known: just after the line's
+ * last speech slice, plus the configured end padding. Null keeps the subtitle timing when
+ * no speech shows inside the line, when speech runs through the line end (the subtitle is
+ * cutting the audio off, not lingering), or when the saving is too small to matter.
+ */
+export function trimMediaTimingSelectionEnd(options: {
+  peaks: readonly number[];
+  timelineStart: number;
+  timelineEnd: number;
+  lineStart: number;
+  lineEnd: number;
+  selectionEnd: number;
+  endPadSeconds: number;
+}): number | null {
+  const pointCount = options.peaks.length;
+  const span = options.timelineEnd - options.timelineStart;
+  if (pointCount < 2 || span <= 0 || options.lineEnd <= options.lineStart) return null;
+  // Point i covers [i, i + 1) / pointCount of the timeline (see computeWaveformPeaks).
+  const sliceEnd = (index: number): number =>
+    options.timelineStart + ((index + 1) / pointCount) * span;
+  const firstIndex = Math.max(
+    0,
+    Math.floor(((options.lineStart - options.timelineStart) / span) * pointCount),
+  );
+  const lastIndex = Math.min(
+    pointCount - 1,
+    Math.ceil(((options.lineEnd - options.timelineStart) / span) * pointCount) - 1,
+  );
+  let lastSpeechIndex = -1;
+  for (let index = lastIndex; index >= firstIndex; index -= 1) {
+    if ((options.peaks[index] ?? 0) >= SPEECH_LEVEL_THRESHOLD) {
+      lastSpeechIndex = index;
+      break;
+    }
+  }
+  if (lastSpeechIndex === -1 || lastSpeechIndex >= lastIndex) return null;
+  const trimmedEnd = sliceEnd(lastSpeechIndex) + SPEECH_TAIL_SECONDS + options.endPadSeconds;
+  if (options.selectionEnd - trimmedEnd < MINIMUM_TRAILING_TRIM_SECONDS) return null;
+  return trimmedEnd;
+}
+
 export function constrainMediaTimingSelection(options: {
   nextStart: number;
   nextEnd: number;
@@ -176,6 +226,8 @@ export function createMediaTimingReviewModal(
   let nextCount = 0;
   let startPadSeconds = 0;
   let endPadSeconds = 0;
+  /** True until the user moves the clip; the first waveform then trims trailing silence. */
+  let trailingTrimPending = false;
   let resolveInFlight = false;
   let previewPlaying = false;
   let previewTimer: ReturnType<typeof setTimeout> | null = null;
@@ -342,11 +394,35 @@ export function createMediaTimingReviewModal(
       }
       ctx.dom.mediaTimingReviewWaveformPath.setAttribute('d', path);
       setWaveformState('ready');
+      trimTrailingSilence(result.peaks ?? []);
     } catch {
       if (sequence === waveformSequence && payload?.reviewId === reviewId) {
         setWaveformState('unavailable');
       }
     }
+  }
+
+  /**
+   * Moves an untouched clip end back to where the line's dialogue ends. The Line end
+   * rail keeps marking the subtitle timing, and Reset restores it.
+   */
+  function trimTrailingSilence(peaks: readonly number[]): void {
+    if (!payload || !trailingTrimPending || previewPlaying || previewRequest.isInFlight()) {
+      return;
+    }
+    const lineRange = currentLineSelection();
+    const trimmedEnd = trimMediaTimingSelectionEnd({
+      peaks,
+      timelineStart,
+      timelineEnd,
+      lineStart: lineRange.rangeStart,
+      lineEnd: lineRange.rangeEnd,
+      selectionEnd,
+      endPadSeconds,
+    });
+    if (trimmedEnd === null) return;
+    updateSelection(selectionStart, trimmedEnd);
+    setStatus('Clip end moved to where the dialogue ends. Reset restores the subtitle timing.');
   }
 
   function queueWaveformLoad(delayMs = 0): void {
@@ -456,6 +532,7 @@ export function createMediaTimingReviewModal(
     });
     selectionStart = nextSelection.start;
     selectionEnd = nextSelection.end;
+    trailingTrimPending = false;
     if (previewPlaying || previewRequest.isInFlight()) stopPreview();
     setStatus('');
     renderSelection();
@@ -717,6 +794,7 @@ export function createMediaTimingReviewModal(
     nextCount = 0;
     startPadSeconds = Math.max(0, nextPayload.originalStartTime - nextPayload.selectionStartTime);
     endPadSeconds = Math.max(0, nextPayload.selectionEndTime - nextPayload.originalEndTime);
+    trailingTrimPending = true;
     resolveInFlight = false;
     setPreviewPlaying(false);
     ctx.dom.mediaTimingReviewKind.textContent =
