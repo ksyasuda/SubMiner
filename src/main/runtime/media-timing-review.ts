@@ -463,8 +463,16 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
         return staleReviewResult();
       }
       await previewSession.play(request.startTime, request.endTime);
+      // Playback spans the whole clip, so the review can end (watchdog, teardown) while
+      // it runs; reporting success would leave the modal open on a dead review.
+      if (active !== current) {
+        return staleReviewResult();
+      }
       return { ok: true };
     } catch (error) {
+      if (active !== current) {
+        return staleReviewResult();
+      }
       return {
         ok: false,
         message: `Audio preview unavailable: ${error instanceof Error ? error.message : String(error)}`,
@@ -503,11 +511,18 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
           ? { audioStreamIndex: current.audioStreamIndex }
           : {}),
       });
-      if (active !== current || peaks.length < 2 || peaks.some((peak) => !Number.isFinite(peak))) {
+      // ffmpeg decoding runs long enough for the review to end underneath it.
+      if (active !== current) {
+        return staleReviewResult();
+      }
+      if (peaks.length < 2 || peaks.some((peak) => !Number.isFinite(peak))) {
         return { ok: false, message: 'Timing waveform is unavailable.' };
       }
       return { ok: true, peaks };
     } catch {
+      if (active !== current) {
+        return staleReviewResult();
+      }
       return { ok: false, message: 'Timing waveform is unavailable.' };
     }
   }

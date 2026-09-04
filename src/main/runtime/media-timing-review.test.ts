@@ -78,6 +78,8 @@ async function startActiveMediaTimingReview(
   options: {
     maxMediaDuration?: number;
     decisionTimeoutMs?: number;
+    generateWaveform?: () => Promise<number[]>;
+    play?: () => Promise<void>;
   } = {},
 ) {
   const previewCalls: Array<[number, number]> = [];
@@ -94,12 +96,13 @@ async function startActiveMediaTimingReview(
     }),
     getCurrentMediaPath: () => '/video/show.mkv',
     getMpvExecutablePath: () => 'mpv',
-    generateWaveform: async () => [],
+    generateWaveform: options.generateWaveform ?? (async () => []),
     decisionTimeoutMs: options.decisionTimeoutMs,
     createPreviewSession: () => ({
       start: async () => undefined,
       play: async (startTime, endTime) => {
         previewCalls.push([startTime, endTime]);
+        await options.play?.();
       },
       stop: async () => undefined,
       onPlaybackEnded: () => undefined,
@@ -820,4 +823,37 @@ test('media timing review forwards the hidden player finishing a preview to the 
   await pendingDecision;
   playback.ended();
   assert.deepEqual(endedReviewIds, [payload.reviewId]);
+});
+
+test('preview reports a stale review when the review ends during playback', async () => {
+  let endReview: (() => Promise<void>) | null = null;
+  const { runtime, payload, pendingDecision } = await startActiveMediaTimingReview({
+    play: async () => {
+      await endReview?.();
+    },
+  });
+  endReview = () => runtime.dispose();
+
+  assert.deepEqual(
+    await runtime.previewRange({ reviewId: payload.reviewId, startTime: 10, endTime: 12 }),
+    { ok: false, stale: true, message: 'This timing review is no longer active.' },
+  );
+  await pendingDecision;
+});
+
+test('waveform reports a stale review when the review ends during analysis', async () => {
+  let endReview: (() => Promise<void>) | null = null;
+  const { runtime, payload, pendingDecision } = await startActiveMediaTimingReview({
+    generateWaveform: async () => {
+      await endReview?.();
+      return [0.1, 0.9, 0.2];
+    },
+  });
+  endReview = () => runtime.dispose();
+
+  assert.deepEqual(
+    await runtime.getWaveform({ reviewId: payload.reviewId, startTime: 8, endTime: 14 }),
+    { ok: false, stale: true, message: 'This timing review is no longer active.' },
+  );
+  await pendingDecision;
 });
