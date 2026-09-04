@@ -147,6 +147,9 @@ export class PendingYoutubeMediaQueue {
       generateAudio: shouldGenerateAudio(config),
       generateImage: shouldGenerateImage(config),
       volumeScale,
+      ...(job.context?.mediaPaddingSeconds !== undefined
+        ? { mediaPaddingSeconds: job.context.mediaPaddingSeconds }
+        : {}),
     });
     return true;
   }
@@ -282,7 +285,7 @@ export class PendingYoutubeMediaQueue {
           cachedMediaInput,
           job.startTime,
           job.endTime,
-          config.media?.audioPadding,
+          job.mediaPaddingSeconds ?? config.media?.audioPadding,
           undefined,
           config.media?.normalizeAudio !== false,
           job.volumeScale,
@@ -316,6 +319,7 @@ export class PendingYoutubeMediaQueue {
           job.startTime,
           job.endTime,
           animatedLeadInSeconds,
+          job.mediaPaddingSeconds,
         );
         if (imageBuffer) {
           await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
@@ -376,6 +380,7 @@ export class PendingYoutubeMediaQueue {
     startTime: number,
     endTime: number,
     animatedLeadInSeconds = 0,
+    mediaPaddingSeconds?: number,
   ): Promise<Buffer | null> {
     const config = this.deps.getConfig();
     if (config.media?.imageType === 'avif') {
@@ -383,7 +388,7 @@ export class PendingYoutubeMediaQueue {
         videoPath,
         startTime,
         endTime,
-        config.media?.audioPadding,
+        mediaPaddingSeconds ?? config.media?.audioPadding,
         {
           fps: config.media?.animatedFps,
           maxWidth: config.media?.animatedMaxWidth,

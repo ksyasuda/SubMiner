@@ -261,6 +261,32 @@ test('KnownWordCacheManager invalidates persisted cache when fields.word changes
   }
 });
 
+test('KnownWordCacheManager removes a deleted note from memory and persisted state', () => {
+  const config: AnkiConnectConfig = {
+    fields: { word: 'Word' },
+    knownWords: { highlightEnabled: true },
+  };
+  const { manager, statePath, cleanup } = createKnownWordCacheHarness(config);
+
+  try {
+    manager.appendFromNoteInfo({
+      noteId: 42,
+      fields: { Word: { value: '猫' } },
+    });
+
+    assert.equal(manager.removeNote(42), true);
+    assert.equal(manager.removeNote(42), false);
+    assert.equal(manager.isKnownWord('猫'), false);
+
+    const persisted = JSON.parse(fs.readFileSync(statePath, 'utf-8')) as {
+      notes?: Record<string, unknown>;
+    };
+    assert.deepEqual(persisted.notes, {});
+  } finally {
+    cleanup();
+  }
+});
+
 test('KnownWordCacheManager refresh incrementally reconciles deleted and edited note words', async () => {
   const config: AnkiConnectConfig = {
     fields: {

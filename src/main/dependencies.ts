@@ -62,6 +62,10 @@ export interface MainIpcRuntimeServiceDepsParams {
   onOverlayInteractiveHint?: IpcDepsRuntimeOptions['onOverlayInteractiveHint'];
   handleOverlayNotificationAction?: IpcDepsRuntimeOptions['handleOverlayNotificationAction'];
   onYoutubePickerResolve: IpcDepsRuntimeOptions['onYoutubePickerResolve'];
+  previewMediaTimingReview?: IpcDepsRuntimeOptions['previewMediaTimingReview'];
+  getMediaTimingReviewWaveform?: IpcDepsRuntimeOptions['getMediaTimingReviewWaveform'];
+  stopMediaTimingReviewPreview?: IpcDepsRuntimeOptions['stopMediaTimingReviewPreview'];
+  resolveMediaTimingReview?: IpcDepsRuntimeOptions['resolveMediaTimingReview'];
   openYomitanSettings: IpcDepsRuntimeOptions['openYomitanSettings'];
   quitApp: IpcDepsRuntimeOptions['quitApp'];
   toggleVisibleOverlay: IpcDepsRuntimeOptions['toggleVisibleOverlay'];
@@ -257,6 +261,10 @@ export function createMainIpcRuntimeServiceDeps(
     onOverlayInteractiveHint: params.onOverlayInteractiveHint,
     handleOverlayNotificationAction: params.handleOverlayNotificationAction,
     onYoutubePickerResolve: params.onYoutubePickerResolve,
+    previewMediaTimingReview: params.previewMediaTimingReview,
+    getMediaTimingReviewWaveform: params.getMediaTimingReviewWaveform,
+    stopMediaTimingReviewPreview: params.stopMediaTimingReviewPreview,
+    resolveMediaTimingReview: params.resolveMediaTimingReview,
     openYomitanSettings: params.openYomitanSettings,
     quitApp: params.quitApp,
     toggleVisibleOverlay: params.toggleVisibleOverlay,

@@ -1,7 +1,12 @@
 import { DEFAULT_ANKI_CONNECT_CONFIG } from '../config';
 import { getPreferredWordValueFromExtractedFields } from '../anki-field-config';
 import type { SubtitleMiningContext } from '../types/subtitle';
-import type { CardKind, WordCardKind } from '../types/anki';
+import type {
+  CardKind,
+  MediaTimingReviewDecision,
+  MediaTimingReviewRequest,
+  WordCardKind,
+} from '../types/anki';
 import { resolveWordCardKind } from './note-field-utils';
 
 export interface NoteUpdateWorkflowNoteInfo {
@@ -14,6 +19,7 @@ export interface NoteUpdateWorkflowDeps {
     notesInfo(noteIds: number[]): Promise<unknown>;
     updateNoteFields(noteId: number, fields: Record<string, string>): Promise<void>;
     storeMediaFile(filename: string, data: Buffer): Promise<void>;
+    deleteNotes(noteIds: number[]): Promise<void>;
   };
   getConfig: () => {
     fields?: {
@@ -44,6 +50,7 @@ export interface NoteUpdateWorkflowDeps {
     wordCardKind?: WordCardKind;
   };
   appendKnownWordsFromNoteInfo: (noteInfo: NoteUpdateWorkflowNoteInfo) => void;
+  removeKnownWordNote: (noteId: number) => void;
   extractFields: (fields: Record<string, { value: string }>) => Record<string, string>;
   findDuplicateNote: (
     expression: string,
@@ -102,6 +109,9 @@ export interface NoteUpdateWorkflowDeps {
   logWarn: (message: string, ...args: unknown[]) => void;
   logInfo: (message: string, ...args: unknown[]) => void;
   logError: (message: string, ...args: unknown[]) => void;
+  reviewMediaTiming?: (
+    request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
+  ) => Promise<MediaTimingReviewDecision>;
 }
 
 function normalizeSubtitleContextText(text: string): string {
@@ -171,7 +181,6 @@ export class NoteUpdateWorkflow {
       }
 
       const noteInfo = notesInfo[0]!;
-      this.deps.appendKnownWordsFromNoteInfo(noteInfo);
       const fields = this.deps.extractFields(noteInfo.fields);
       const config = this.deps.getConfig();
 
@@ -207,11 +216,53 @@ export class NoteUpdateWorkflow {
       // Audio and image generation run sequentially and audio extraction can take tens of
       // seconds, so resolve the clip range exactly once up front; reading live mpv sub
       // timings per generator clips whichever line is on screen when each one starts.
-      const mediaTimingContext =
+      let mediaTimingContext =
         subtitleMiningContext ?? this.deps.captureSubtitleMediaContext?.() ?? null;
+      let skipMedia = false;
+      let reviewedSentenceText: string | undefined;
       const noteLabel = hasExpressionText ? expressionText : noteId;
 
-      const currentSubtitleText = subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
+      if (mediaTimingContext) {
+        const timingDecision = this.deps.reviewMediaTiming
+          ? await this.deps.reviewMediaTiming({
+              kind: 'word',
+              text: mediaTimingContext.text,
+              startTime: mediaTimingContext.startTime,
+              endTime: mediaTimingContext.endTime,
+              noteId,
+            })
+          : ({ action: 'use-original' } as const);
+        if (timingDecision.action === 'discard') {
+          try {
+            await this.deps.client.deleteNotes([noteId]);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.deps.logError('Failed to delete discarded card:', message);
+            this.deps.showOsdNotification(`Card deletion failed: ${message}`);
+            return;
+          }
+          this.deps.removeKnownWordNote(noteId);
+          this.deps.showOsdNotification('Card deleted.');
+          return;
+        }
+        if (timingDecision.action === 'confirm') {
+          reviewedSentenceText = timingDecision.text?.trim() || undefined;
+          mediaTimingContext = {
+            ...mediaTimingContext,
+            ...(reviewedSentenceText !== undefined ? { text: reviewedSentenceText } : {}),
+            startTime: timingDecision.startTime,
+            endTime: timingDecision.endTime,
+            mediaPaddingSeconds: 0,
+          };
+        } else if (timingDecision.action === 'skip-media') {
+          skipMedia = true;
+        }
+      }
+
+      this.deps.appendKnownWordsFromNoteInfo(noteInfo);
+
+      const currentSubtitleText =
+        reviewedSentenceText ?? subtitleMiningContext?.text ?? this.deps.getCurrentSubtitleText();
       if (sentenceField && currentSubtitleText) {
         const processedSentence = this.deps.processSentence(currentSubtitleText, fields);
         updatedFields[sentenceField] = processedSentence;
@@ -239,8 +290,8 @@ export class NoteUpdateWorkflow {
         }
       }
 
-      const generateAudio = config.media?.generateAudio !== false;
-      const generateImage = config.media?.generateImage !== false;
+      const generateAudio = !skipMedia && config.media?.generateAudio !== false;
+      const generateImage = !skipMedia && config.media?.generateImage !== false;
       const mediaCacheQueued =
         (generateAudio || generateImage) && this.deps.queuePendingYoutubeMediaUpdate
           ? await this.deps.queuePendingYoutubeMediaUpdate({

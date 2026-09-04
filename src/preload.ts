@@ -69,6 +69,11 @@ import type {
   OverlayNotificationEventPayload,
   OverlayNotificationPosition,
   ChangelogSnapshot,
+  MediaTimingReviewActionResult,
+  MediaTimingReviewOpenPayload,
+  MediaTimingReviewPreviewRequest,
+  MediaTimingReviewResolveRequest,
+  MediaTimingReviewWaveformRequest,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
 
@@ -180,6 +185,15 @@ const onOpenTsukihimeEvent = createQueuedIpcListener(IPC_CHANNELS.event.tsukihim
 const onOpenYoutubeTrackPickerEvent = createQueuedIpcListenerWithPayload<YoutubePickerOpenPayload>(
   IPC_CHANNELS.event.youtubePickerOpen,
   (payload) => payload as YoutubePickerOpenPayload,
+);
+const onOpenMediaTimingReviewEvent =
+  createQueuedIpcListenerWithPayload<MediaTimingReviewOpenPayload>(
+    IPC_CHANNELS.event.mediaTimingReviewOpen,
+    (payload) => payload as MediaTimingReviewOpenPayload,
+  );
+const onMediaTimingReviewPreviewEndedEvent = createQueuedIpcListenerWithPayload<string>(
+  IPC_CHANNELS.event.mediaTimingReviewPreviewEnded,
+  (payload) => (typeof payload === 'string' ? payload : ''),
 );
 const onOpenPlaylistBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.playlistBrowserOpen);
 const onCancelYoutubeTrackPickerEvent = createQueuedIpcListener(
@@ -458,6 +472,20 @@ const electronAPI: ElectronAPI = {
   onOpenJimaku: onOpenJimakuEvent,
   onOpenTsukihime: onOpenTsukihimeEvent,
   onOpenYoutubeTrackPicker: onOpenYoutubeTrackPickerEvent,
+  onOpenMediaTimingReview: onOpenMediaTimingReviewEvent,
+  onMediaTimingReviewPreviewEnded: onMediaTimingReviewPreviewEndedEvent,
+  previewMediaTimingReview: (
+    request: MediaTimingReviewPreviewRequest,
+  ): Promise<MediaTimingReviewActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewPreview, request),
+  getMediaTimingReviewWaveform: (request: MediaTimingReviewWaveformRequest) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewWaveform, request),
+  stopMediaTimingReviewPreview: (reviewId: string): Promise<MediaTimingReviewActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewStopPreview, reviewId),
+  resolveMediaTimingReview: (
+    request: MediaTimingReviewResolveRequest,
+  ): Promise<MediaTimingReviewActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.mediaTimingReviewResolve, request),
   onOpenPlaylistBrowser: onOpenPlaylistBrowserEvent,
   onOpenCharacterDictionaryManager: onOpenCharacterDictionaryManagerEvent,
   onSubtitleSidebarToggle: onSubtitleSidebarToggleEvent,

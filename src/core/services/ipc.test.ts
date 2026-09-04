@@ -648,6 +648,83 @@ test('registerIpcHandlers exposes playback window activation request', async () 
   assert.deepEqual(calls, ['activate']);
 });
 
+test('registerIpcHandlers accepts the keep-without-media timing decision', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const requests: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      resolveMediaTimingReview: async (request) => {
+        requests.push(request);
+        return { ok: true };
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewResolve);
+  assert.ok(handler);
+  assert.deepEqual(
+    await handler!({}, { reviewId: 'review-1', decision: { action: 'skip-media' } }),
+    { ok: true },
+  );
+  assert.deepEqual(requests, [{ reviewId: 'review-1', decision: { action: 'skip-media' } }]);
+});
+
+test('registerIpcHandlers validates and forwards combined timing review text', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const requests: unknown[] = [];
+  registerIpcHandlers(
+    createRegisterIpcDeps({
+      resolveMediaTimingReview: async (request) => {
+        requests.push(request);
+        return { ok: true };
+      },
+    }),
+    registrar,
+  );
+
+  const handler = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewResolve);
+  assert.ok(handler);
+  assert.deepEqual(
+    await handler!(
+      {},
+      {
+        reviewId: 'review-1',
+        decision: {
+          action: 'confirm',
+          startTime: 10,
+          endTime: 12,
+          text: '前の行 対象の行',
+        },
+      },
+    ),
+    { ok: true },
+  );
+  assert.deepEqual(requests, [
+    {
+      reviewId: 'review-1',
+      decision: {
+        action: 'confirm',
+        startTime: 10,
+        endTime: 12,
+        text: '前の行 対象の行',
+      },
+    },
+  ]);
+
+  assert.deepEqual(
+    await handler!(
+      {},
+      {
+        reviewId: 'review-1',
+        decision: { action: 'confirm', startTime: 10, endTime: 12, text: '   ' },
+      },
+    ),
+    { ok: false, message: 'Timing review is unavailable.' },
+  );
+  assert.equal(requests.length, 1);
+});
+
 test('registerIpcHandlers forwards yomitan lookup tracking commands to immersion tracker', () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const calls: string[] = [];

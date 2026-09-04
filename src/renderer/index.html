@@ -196,6 +196,300 @@
           </div>
         </div>
       </div>
+      <div
+        id="mediaTimingReviewModal"
+        class="modal media-timing-review-modal hidden"
+        aria-hidden="true"
+      >
+        <div
+          class="modal-content media-timing-review-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mediaTimingReviewTitle"
+        >
+          <div class="media-timing-review-header">
+            <div class="media-timing-review-heading">
+              <div id="mediaTimingReviewTitle" class="media-timing-review-title">
+                Review media timing
+              </div>
+              <div id="mediaTimingReviewKind" class="media-timing-review-kind">Sentence card</div>
+            </div>
+            <button
+              id="mediaTimingReviewCancel"
+              class="media-timing-review-quiet-button"
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div id="mediaTimingReviewEditor" class="media-timing-review-editor">
+            <div class="media-timing-review-sentence-header">
+              <div class="media-timing-review-sentence-heading">
+                <span class="media-timing-review-sentence-label">Sentence on card</span>
+                <span id="mediaTimingReviewLineCount" class="media-timing-review-line-count">
+                  1 line
+                </span>
+              </div>
+              <div
+                id="mediaTimingReviewLineControls"
+                class="media-timing-review-line-controls hidden"
+              >
+                <div class="media-timing-review-line-stepper">
+                  <span>Prev</span>
+                  <button
+                    id="mediaTimingReviewPrevRemove"
+                    type="button"
+                    aria-label="Remove the earliest added previous subtitle line from the card sentence"
+                    title="Remove the earliest previous line (Shift+P)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewPrevAdd"
+                    type="button"
+                    aria-label="Add the previous subtitle line to the card sentence"
+                    title="Add the previous line (P)"
+                  >
+                    +
+                  </button>
+                </div>
+                <div class="media-timing-review-line-stepper">
+                  <span>Next</span>
+                  <button
+                    id="mediaTimingReviewNextRemove"
+                    type="button"
+                    aria-label="Remove the latest added next subtitle line from the card sentence"
+                    title="Remove the latest next line (Shift+N)"
+                  >
+                    &minus;
+                  </button>
+                  <button
+                    id="mediaTimingReviewNextAdd"
+                    type="button"
+                    aria-label="Add the next subtitle line to the card sentence"
+                    title="Add the next line (N)"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+            <blockquote id="mediaTimingReviewText" class="media-timing-review-text"></blockquote>
+
+            <div class="media-timing-review-readout" aria-live="polite">
+              <div>
+                <span>Starts</span>
+                <strong id="mediaTimingReviewStartValue">00:00.000</strong>
+              </div>
+              <div class="media-timing-review-duration">
+                <span>Clip length</span>
+                <strong id="mediaTimingReviewDuration">0.00s</strong>
+              </div>
+              <div>
+                <span>Ends</span>
+                <strong id="mediaTimingReviewEndValue">00:00.000</strong>
+              </div>
+            </div>
+
+            <div class="media-timing-review-timeline-shell">
+              <div class="media-timing-review-timeline-labels">
+                <span id="mediaTimingReviewTimelineStart">00:00</span>
+                <span id="mediaTimingReviewWaveformLabel">speech-weighted waveform</span>
+                <span id="mediaTimingReviewTimelineEnd">00:00</span>
+              </div>
+              <div id="mediaTimingReviewSelectionTrack" class="media-timing-review-track">
+                <svg
+                  class="media-timing-review-waveform"
+                  viewBox="0 0 1000 100"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="mediaTimingReviewWaveformFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop class="media-timing-review-waveform-edge-stop" offset="0%" />
+                      <stop class="media-timing-review-waveform-core-stop" offset="50%" />
+                      <stop class="media-timing-review-waveform-edge-stop" offset="100%" />
+                    </linearGradient>
+                  </defs>
+                  <path id="mediaTimingReviewWaveformPath"></path>
+                </svg>
+                <div
+                  class="media-timing-review-original-range"
+                  title="Mined subtitle timing"
+                  aria-hidden="true"
+                >
+                  <span class="media-timing-review-original-boundary is-start"></span>
+                  <span class="media-timing-review-original-boundary is-end"></span>
+                </div>
+                <span class="media-timing-review-original-label is-start" aria-hidden="true">
+                  Line start
+                </span>
+                <span class="media-timing-review-original-label is-end" aria-hidden="true">
+                  Line end
+                </span>
+                <div
+                  id="mediaTimingReviewSelectedRange"
+                  class="media-timing-review-selected-range"
+                  aria-hidden="true"
+                ></div>
+                <div class="media-timing-review-playhead" aria-hidden="true"></div>
+                <div
+                  id="mediaTimingReviewStartHandle"
+                  class="media-timing-review-handle media-timing-review-handle-start"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Clip start"
+                  aria-orientation="horizontal"
+                ></div>
+                <div
+                  id="mediaTimingReviewEndHandle"
+                  class="media-timing-review-handle media-timing-review-handle-end"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Clip end"
+                  aria-orientation="horizontal"
+                ></div>
+              </div>
+              <div class="media-timing-review-expand-row">
+                <button
+                  id="mediaTimingReviewShowEarlier"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                  aria-label="Show two more seconds before the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds before the visible timeline. The selected clip does not move."
+                >
+                  Earlier &minus;2s
+                </button>
+                <span>Drag an edge to trim, or drag the highlighted clip to move it.</span>
+                <button
+                  id="mediaTimingReviewShowLater"
+                  class="media-timing-review-expand-button"
+                  type="button"
+                  aria-label="Show two more seconds after the visible timeline without moving the selected clip"
+                  title="Show 2 more seconds after the visible timeline. The selected clip does not move."
+                >
+                  Later +2s
+                </button>
+              </div>
+            </div>
+
+            <div class="media-timing-review-fine-grid">
+              <div class="media-timing-review-fine-control">
+                <span>Start</span>
+                <button
+                  id="mediaTimingReviewStartBack"
+                  type="button"
+                  aria-label="Move start backward 100 milliseconds"
+                >
+                  &minus;0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewStartForward"
+                  type="button"
+                  aria-label="Move start forward 100 milliseconds"
+                >
+                  +0.1s
+                </button>
+              </div>
+              <div class="media-timing-review-fine-control">
+                <span>End</span>
+                <button
+                  id="mediaTimingReviewEndBack"
+                  type="button"
+                  aria-label="Move end backward 100 milliseconds"
+                >
+                  &minus;0.1s
+                </button>
+                <button
+                  id="mediaTimingReviewEndForward"
+                  type="button"
+                  aria-label="Move end forward 100 milliseconds"
+                >
+                  +0.1s
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="mediaTimingReviewStatus"
+              class="media-timing-review-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="media-timing-review-footer">
+              <div class="media-timing-review-preview-actions">
+                <button
+                  id="mediaTimingReviewPlay"
+                  class="media-timing-review-play-button"
+                  type="button"
+                >
+                  <span class="media-timing-review-play-glyph" aria-hidden="true"></span>
+                  <span id="mediaTimingReviewPlayLabel">Play selection</span>
+                </button>
+                <button
+                  id="mediaTimingReviewReset"
+                  class="media-timing-review-quiet-button"
+                  type="button"
+                >
+                  Reset timing
+                </button>
+              </div>
+              <button
+                id="mediaTimingReviewConfirm"
+                class="media-timing-review-confirm-button"
+                type="button"
+              >
+                Use this timing
+              </button>
+            </div>
+            <div class="media-timing-review-hints" aria-hidden="true">
+              <span><kbd>Space</kbd> preview</span>
+              <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> nudge focused edge</span>
+              <span><kbd>P</kbd>/<kbd>N</kbd> add prev/next line</span>
+              <span><kbd>Enter</kbd> confirm</span>
+              <span><kbd>Esc</kbd> cancel</span>
+            </div>
+          </div>
+
+          <div id="mediaTimingReviewCancelStep" class="media-timing-review-cancel-step hidden">
+            <div class="media-timing-review-cancel-mark" aria-hidden="true">?</div>
+            <h2>Stop reviewing?</h2>
+            <p id="mediaTimingReviewCancelMessage">Choose what should happen to this card.</p>
+            <div class="media-timing-review-cancel-actions">
+              <button
+                id="mediaTimingReviewCancelBack"
+                class="media-timing-review-quiet-button"
+                type="button"
+              >
+                Keep editing
+              </button>
+              <button
+                id="mediaTimingReviewUseOriginal"
+                class="media-timing-review-original-button"
+                type="button"
+              >
+                Use original timing
+              </button>
+              <button
+                id="mediaTimingReviewSkipMedia"
+                class="media-timing-review-skip-button"
+                type="button"
+                title="Keep this card but do not add audio or an image."
+              >
+                Keep without media
+              </button>
+              <button
+                id="mediaTimingReviewDiscard"
+                class="media-timing-review-discard-button"
+                type="button"
+              >
+                Delete card
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="kikuFieldGroupingModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content">
           <div class="modal-header">

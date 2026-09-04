@@ -75,6 +75,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
     cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
     cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
     cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
+    cleanupRemoteMediaWindows: () => calls.push('cleanup-remote-media-windows'),
     cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
@@ -157,6 +158,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     cleanupInternalSubtitleTrackCache: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
     cleanupYoutubeMediaCache: () => {},
+    cleanupRemoteMediaWindows: () => {},
     cleanupJellyfinSubtitleCache: () => {},
     stopDiscordPresenceService: () => {},
   });
@@ -210,6 +212,7 @@ test('cleanup deps builder skips global shortcut cleanup before app ready', () =
     cleanupInternalSubtitleTrackCache: () => {},
     cleanupYoutubeSubtitleTempDirs: () => {},
     cleanupYoutubeMediaCache: () => {},
+    cleanupRemoteMediaWindows: () => {},
     cleanupJellyfinSubtitleCache: () => {},
     stopDiscordPresenceService: () => {},
   });

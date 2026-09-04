@@ -354,6 +354,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'ankiConnect.deck',
     'ankiConnect.media.normalizeAudio',
     'ankiConnect.media.mirrorMpvVolume',
+    'ankiConnect.media.reviewTiming',
     'ankiConnect.knownWords.highlightEnabled',
     'ankiConnect.knownWords.refreshMinutes',
     'ankiConnect.knownWords.addMinedWordsImmediately',

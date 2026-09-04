@@ -20,6 +20,20 @@ export function buildRuntimeOptionRegistry(
       }),
     },
     {
+      id: 'anki.mediaReviewTiming',
+      path: 'ankiConnect.media.reviewTiming',
+      label: 'Review Media Timing',
+      scope: 'ankiConnect',
+      valueType: 'boolean',
+      allowedValues: [true, false],
+      defaultValue: defaultConfig.ankiConnect.media.reviewTiming,
+      requiresRestart: false,
+      formatValueForOsd: (value) => (value === true ? 'On' : 'Off'),
+      toAnkiPatch: (value) => ({
+        media: { reviewTiming: value === true },
+      }),
+    },
+    {
       id: 'subtitle.annotation.knownWords.highlightEnabled',
       path: 'ankiConnect.knownWords.highlightEnabled',
       label: 'Known Word Annotation',

@@ -28,6 +28,8 @@ import {
   KikuMergePreviewResponse,
   NotificationOptions,
   type WordCardKind,
+  type MediaTimingReviewDecision,
+  type MediaTimingReviewRequest,
 } from './types/anki';
 import { AiConfig } from './types/integrations';
 import type { KnownWordMaturityTier } from './types/subtitle';
@@ -240,6 +242,9 @@ export class AnkiIntegration {
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
+  private mediaTimingReviewCallback:
+    | ((request: MediaTimingReviewRequest) => Promise<MediaTimingReviewDecision>)
+    | null = null;
   private noteIdRedirects = new Map<number, number>();
   private trackedDuplicateNoteIds = new Map<number, number[]>();
   private getCachedMediaPath: MediaGenerationInputResolverOptions['getCachedMediaPath'] | null =
@@ -511,6 +516,7 @@ export class AnkiIntegration {
         findNotes: async (query, options) =>
           (await this.client.findNotes(query, options)) as number[],
         retrieveMediaFile: (filename) => this.client.retrieveMediaFile(filename),
+        deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
       },
       mediaGenerator: {
         generateAudio: (
@@ -568,6 +574,7 @@ export class AnkiIntegration {
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       getFallbackDurationSeconds: () => this.getFallbackDurationSeconds(),
       appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
+      removeKnownWordNote: (noteId) => this.removeKnownWordNote(noteId),
       isUpdateInProgress: () => this.updateInProgress,
       setUpdateInProgress: (value) => {
         this.updateInProgress = value;
@@ -583,6 +590,7 @@ export class AnkiIntegration {
       recordCardsMinedCallback: (count, noteIds) => {
         this.recordCardsMinedSafely(count, noteIds, 'card creation');
       },
+      reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
   }
 
@@ -639,12 +647,14 @@ export class AnkiIntegration {
         notesInfo: async (noteIds) => (await this.client.notesInfo(noteIds)) as unknown,
         updateNoteFields: (noteId, fields) => this.client.updateNoteFields(noteId, fields),
         storeMediaFile: (filename, data) => this.client.storeMediaFile(filename, data),
+        deleteNotes: (noteIds) => this.client.deleteNotes(noteIds),
       },
       getConfig: () => this.config,
       getCurrentSubtitleText: () => this.mpvClient.currentSubText,
       getCurrentSubtitleStart: () => this.mpvClient.currentSubStart,
       getEffectiveSentenceCardConfig: () => this.getEffectiveSentenceCardConfig(),
       appendKnownWordsFromNoteInfo: (noteInfo) => this.appendKnownWordsFromNoteInfo(noteInfo),
+      removeKnownWordNote: (noteId) => this.removeKnownWordNote(noteId),
       extractFields: (fields) => this.extractFields(fields),
       findDuplicateNote: (expression, excludeNoteId, noteInfo) =>
         this.findDuplicateNote(expression, excludeNoteId, noteInfo),
@@ -680,6 +690,7 @@ export class AnkiIntegration {
       logWarn: (...args) => log.warn(args[0] as string, ...args.slice(1)),
       logInfo: (...args) => log.info(args[0] as string, ...args.slice(1)),
       logError: (...args) => log.error(args[0] as string, ...args.slice(1)),
+      reviewMediaTiming: (request) => this.reviewMediaTiming(request),
     });
   }
 
@@ -795,6 +806,12 @@ export class AnkiIntegration {
       fields: noteInfo.fields,
     });
     if (changed) {
+      this.notifyKnownWordCacheUpdated();
+    }
+  }
+
+  private removeKnownWordNote(noteId: number): void {
+    if (this.knownWordCache.removeNote(noteId)) {
       this.notifyKnownWordCacheUpdated();
     }
   }
@@ -1076,7 +1093,7 @@ export class AnkiIntegration {
       videoPath,
       startTime,
       endTime,
-      this.config.media?.audioPadding,
+      context?.mediaPaddingSeconds ?? this.config.media?.audioPadding,
       resolveAudioStreamIndexForMediaGeneration(videoPath, this.mpvClient.currentAudioStreamIndex),
       this.config.media?.normalizeAudio !== false,
       await this.getMpvVolumeScale(),
@@ -1109,7 +1126,7 @@ export class AnkiIntegration {
         videoPath,
         mediaRange.startTime,
         mediaRange.endTime,
-        this.config.media?.audioPadding,
+        context?.mediaPaddingSeconds ?? this.config.media?.audioPadding,
         {
           fps: this.config.media?.animatedFps,
           maxWidth: this.config.media?.animatedMaxWidth,
@@ -1257,11 +1274,11 @@ export class AnkiIntegration {
   }
 
   private endUpdateProgress(): void {
+    if (this.overlayUpdateProgressActive) {
+      this.overlayUpdateProgressActive = false;
+      this.overlayNotificationDismissCallback?.('anki-update-progress');
+    }
     if (!this.shouldUseOsdNotifications()) {
-      if (this.overlayUpdateProgressActive) {
-        this.overlayUpdateProgressActive = false;
-        this.overlayNotificationDismissCallback?.('anki-update-progress');
-      }
       return;
     }
     endUpdateProgress(this.uiFeedbackState, (timer) => {
@@ -1759,6 +1776,25 @@ export class AnkiIntegration {
 
   setSubtitleMiningContextConsumer(callback: (() => SubtitleMiningContext | null) | null): void {
     this.consumeSubtitleMiningContextCallback = callback;
+  }
+
+  setMediaTimingReviewCallback(
+    callback: ((request: MediaTimingReviewRequest) => Promise<MediaTimingReviewDecision>) | null,
+  ): void {
+    this.mediaTimingReviewCallback = callback;
+  }
+
+  private async reviewMediaTiming(
+    request: Omit<MediaTimingReviewRequest, 'audioPadding' | 'maxMediaDuration'>,
+  ): Promise<MediaTimingReviewDecision> {
+    if (this.config.media?.reviewTiming !== true || !this.mediaTimingReviewCallback) {
+      return { action: 'use-original' };
+    }
+    return await this.mediaTimingReviewCallback({
+      ...request,
+      audioPadding: Math.max(0, this.config.media.audioPadding ?? 0),
+      maxMediaDuration: Math.max(0, this.config.media.maxMediaDuration ?? 30),
+    });
   }
 
   resolveCurrentNoteId(noteId: number): number {

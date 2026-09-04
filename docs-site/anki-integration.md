@@ -158,6 +158,8 @@ If you only want sentence and audio on your cards:
 
 SubMiner uses FFmpeg to generate audio and image media from the video. FFmpeg must be installed and on `PATH`.
 
+For remote streams such as Jellyfin playback, SubMiner downloads the clip's time window once into a temporary Matroska file (a stream copy, no re-encoding) and reads the timing review waveform, audio preview, audio, and image from that file instead of fetching the stream again for each step. The window covers the clip plus padding, plus the visible timeline in timing review, and grows when you reveal more of the timeline. It is deleted when a different window replaces it, after ten minutes without use, or when SubMiner exits. If the download fails, media generation reads the remote stream directly as before.
+
 ### Audio
 
 Audio is extracted from the video file using the subtitle's start and end timestamps. Padding is opt-in; keep it at `0` when you want sentence audio to start exactly at the mined sentence.
@@ -168,6 +170,7 @@ Audio is extracted from the video file using the subtitle's start and end timest
     "generateAudio": true,
     "normalizeAudio": true,      // normalize generated clip loudness
     "mirrorMpvVolume": true,     // apply the current mpv volume level
+    "reviewTiming": false,       // review and adjust timing before media generation
     "audioPadding": 0,           // optional seconds before and after subtitle timing
     "maxMediaDuration": 30       // cap total duration in seconds
   }
@@ -179,6 +182,12 @@ Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMine
 `mirrorMpvVolume` is also enabled by default. Immediately before extracting each playback-overlay card's audio, SubMiner reads mpv's numeric `volume` and applies mpv's cubic software-volume curve after loudness normalization. For example, mpv volume `50` produces `0.5³ = 0.125` gain. Amplified output above mpv volume `100` is limited to a `-1 dBFS` ceiling before MP3 encoding to prevent clipping. It ignores mpv's separate `mute` state. If the volume property is missing, invalid, or unavailable, extraction continues with unity scaling; disabling this option skips the query and volume filter. Changing this setting applies to the next extraction without restarting SubMiner. YouTube cards queued for a background media-cache download retain the volume captured when the card was mined. Stats-dashboard mining does not currently have access to the active mpv property client, so it does not apply mpv volume scaling.
 
 The audio is uploaded to Anki's media folder and inserted as `[sound:audio_<timestamp>.mp3]`.
+
+Set `media.reviewTiming` to `true` to pause playback and review each word, sentence, or audio card before its media is generated. The review opens with the subtitle range plus configured audio padding. Subtitles usually linger past the dialogue, so once the waveform loads an untouched clip end moves back to just after the line's last speech (plus the configured padding); the Line end rail keeps marking the subtitle timing, Reset restores it, and a line whose speech runs through its end is left alone. Drag either edge of the clip to trim it, drag the middle to slide it without changing its length, or press anywhere else on the waveform to snap the nearer edge there. A focused edge also moves with the arrow keys, by 100 ms alone or 500 ms with Shift, and the 100 ms buttons do the same. Space previews the selection with a playhead that sweeps the clip; the preview ends when the hidden player has actually played the last sample, so output latency such as Bluetooth headphones does not cut the clip short. Enter confirms, and Escape cancels. The Earlier and Later buttons reveal another two seconds of available timeline without moving the selected clip. A speech-weighted waveform shows the mined subtitle as a tinted band with labeled line-start and line-end rails, making adjacent dialogue easier to distinguish. SubMiner uses a center channel when one carries dialogue, then falls back to a mono mix, keeps only the 250 to 3500 Hz speech band, and draws each slice's loudness relative to the clip's own noise floor, so steady background music or ambience reads as a flat line while dialogue stands out. Waveform analysis failure leaves the timing controls available. The confirmed range is exact: SubMiner does not apply audio padding a second time. Static screenshots use its midpoint, and animated AVIF clips use the full confirmed range.
+
+The review can also pull adjacent subtitle lines onto the card. Press `P` or `N` (or use the Prev and Next steppers above the sentence preview) to add the previous or next line, as many times as lines are available; Shift+`P` and Shift+`N` remove them again. The sentence preview lists every included line with the mined line highlighted, so the card's sentence field is always visible before you confirm, and the clip start or end, along with the line-start and line-end rails on the waveform, follows the outermost added line, keeping the review's audio padding. Confirming writes the combined lines to the sentence field; the Reset button drops the added lines along with any timing changes. Adjacent lines come from the parsed subtitle track when one is loaded; otherwise only lines that already played are offered, and a clip capped by `media.maxMediaDuration` keeps the full combined sentence even when the audio cannot cover every added line.
+
+Canceling the review lets you keep editing, finish with the original timing, keep or create the card without audio or an image, or discard the card. Discard deletes an existing Yomitan or audio card and skips creation for a direct sentence card. Clipboard updates and stats-dashboard mining do not open timing review. Audio preview failure does not block confirmation or card creation. The option is disabled by default and hot-reloads. You can also toggle **Review Media Timing** for the current session from the runtime options palette (`Ctrl/Cmd+Shift+O`).
 
 ### Screenshots (Static)
 
@@ -344,11 +353,11 @@ For Senren note types, enable `isSenren` instead. Kiku and Senren write incompat
 
 ### What Gets Merged
 
-| Field    | Merge behavior                                |
-| -------- | --------------------------------------------- |
-| Sentence | Both cards' sentences kept as grouped entries |
-| Audio    | Both cards' `[sound:...]` entries kept        |
-| Image    | Both cards' images kept                       |
+| Field    | Merge behavior                                  |
+| -------- | ----------------------------------------------- |
+| Sentence | Both cards' sentences kept as grouped entries   |
+| Audio    | Both cards' `[sound:...]` entries kept          |
+| Image    | Both cards' images kept                         |
 | MiscInfo | Both cards' source info kept as grouped entries |
 
 Identical values from both cards are kept as separate grouped entries; the merge does not deduplicate.

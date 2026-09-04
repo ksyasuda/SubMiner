@@ -248,6 +248,7 @@ export interface ResolvedConfig {
       syncAnimatedImageToWordAudio: boolean;
       normalizeAudio: boolean;
       mirrorMpvVolume: boolean;
+      reviewTiming: boolean;
       audioPadding: number;
       fallbackDuration: number;
       maxMediaDuration: number;

@@ -319,6 +319,26 @@ export function resolveRecordedPrimarySubtitleText(options: {
   );
 }
 
+/**
+ * The parsed view of the live text with its cue timings: a canonical animation when one
+ * explains the live lines, otherwise the active parsed cues. Null when the parsed cues
+ * cannot account for every live line, in which case callers keep the raw mpv text.
+ */
+export function resolvePrimarySubtitle(options: {
+  liveText: string;
+  currentTimeSec: number;
+  cues: readonly SubtitleCue[] | null | undefined;
+}): ResolvedPrimarySubtitle | null {
+  const liveText = decodedLiveText(options.liveText, options.cues);
+  if (!liveText.trim()) {
+    return null;
+  }
+  return (
+    resolveCanonicalPrimarySubtitle({ ...options, liveText }) ??
+    resolveActiveParsedPrimarySubtitle({ ...options, liveText })
+  );
+}
+
 export function resolvePrimarySubtitleText(options: {
   liveText: string;
   currentTimeSec: number;
@@ -328,13 +348,5 @@ export function resolvePrimarySubtitleText(options: {
   if (!liveText.trim()) {
     return liveText;
   }
-  return (
-    resolveCanonicalPrimarySubtitle({
-      liveText,
-      currentTimeSec: options.currentTimeSec,
-      cues: options.cues,
-    })?.text ??
-    resolveActiveParsedPrimarySubtitle({ ...options, liveText })?.text ??
-    removeLiveGlyphFragmentLines(liveText)
-  );
+  return resolvePrimarySubtitle(options)?.text ?? removeLiveGlyphFragmentLines(liveText);
 }

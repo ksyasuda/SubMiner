@@ -452,6 +452,7 @@ function createKeyboardHandlerHarness() {
   const testGlobals = installKeyboardTestGlobals();
   const subtitleRootClassList = createClassList();
   const subtitleContainerClassList = createClassList();
+  let mediaTimingReviewKeydownCount = 0;
   let controllerSelectKeydownCount = 0;
   let openControllerSelectCount = 0;
   let openControllerDebugCount = 0;
@@ -494,6 +495,10 @@ function createKeyboardHandlerHarness() {
     handleKikuKeydown: () => false,
     handleJimakuKeydown: () => false,
     handleTsukihimeKeydown: () => false,
+    handleMediaTimingReviewKeydown: () => {
+      mediaTimingReviewKeydownCount += 1;
+      return false;
+    },
     handleControllerSelectKeydown: () => {
       controllerSelectKeydownCount += 1;
       return true;
@@ -523,6 +528,7 @@ function createKeyboardHandlerHarness() {
     ctx,
     handlers,
     testGlobals,
+    mediaTimingReviewKeydownCount: () => mediaTimingReviewKeydownCount,
     controllerSelectKeydownCount: () => controllerSelectKeydownCount,
     openControllerSelectCount: () => openControllerSelectCount,
     openControllerDebugCount: () => openControllerDebugCount,
@@ -1362,6 +1368,29 @@ test('keyboard mode: controller select modal handles arrow keys before yomitan p
       ),
       false,
     );
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('media timing review modal handles keys before later modal handlers', async () => {
+  const {
+    ctx,
+    testGlobals,
+    handlers,
+    mediaTimingReviewKeydownCount,
+    controllerSelectKeydownCount,
+  } = createKeyboardHandlerHarness();
+
+  try {
+    await handlers.setupMpvInputForwarding();
+    ctx.state.mediaTimingReviewModalOpen = true;
+    ctx.state.controllerSelectModalOpen = true;
+
+    testGlobals.dispatchKeydown({ key: 'ArrowDown', code: 'ArrowDown' });
+
+    assert.equal(mediaTimingReviewKeydownCount(), 1);
+    assert.equal(controllerSelectKeydownCount(), 0);
   } finally {
     testGlobals.restore();
   }

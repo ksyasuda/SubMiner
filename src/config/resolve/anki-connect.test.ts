@@ -21,6 +21,34 @@ function makeContext(ankiConnect: unknown): {
   return { context, warnings };
 }
 
+test('media timing review is disabled by default and accepts a boolean override', () => {
+  const defaultContext = makeContext({});
+  applyAnkiConnectResolution(defaultContext.context);
+  assert.equal(defaultContext.context.resolved.ankiConnect.media.reviewTiming, false);
+
+  const enabledContext = makeContext({ media: { reviewTiming: true } });
+  applyAnkiConnectResolution(enabledContext.context);
+  assert.equal(enabledContext.context.resolved.ankiConnect.media.reviewTiming, true);
+  assert.deepEqual(enabledContext.warnings, []);
+});
+
+test('modern media duration accepts zero as the disabled cap sentinel', () => {
+  const disabledCap = makeContext({ media: { maxMediaDuration: 0 } });
+  applyAnkiConnectResolution(disabledCap.context);
+  assert.equal(disabledCap.context.resolved.ankiConnect.media.maxMediaDuration, 0);
+  assert.deepEqual(disabledCap.warnings, []);
+
+  const invalidCap = makeContext({ media: { maxMediaDuration: -1 } });
+  applyAnkiConnectResolution(invalidCap.context);
+  assert.equal(
+    invalidCap.context.resolved.ankiConnect.media.maxMediaDuration,
+    DEFAULT_CONFIG.ankiConnect.media.maxMediaDuration,
+  );
+  assert.ok(
+    invalidCap.warnings.some((warning) => warning.path === 'ankiConnect.media.maxMediaDuration'),
+  );
+});
+
 test('modern invalid knownWords.highlightEnabled warns modern key and does not fallback to legacy', () => {
   const { context, warnings } = makeContext({
     nPlusOne: { highlightEnabled: true },

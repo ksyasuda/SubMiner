@@ -523,7 +523,7 @@
   // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
-  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
+  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume/reviewTiming, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
   // Shared AI provider transport settings are read from top-level ai and typically require restart.
   // Most other AnkiConnect settings still require restart.
   // ==========================================
@@ -569,6 +569,7 @@
       "syncAnimatedImageToWordAudio": true, // For animated AVIF images, prepend a frozen first frame matching the existing word-audio duration so motion starts with sentence audio. Values: true | false
       "normalizeAudio": true, // Normalize generated sentence audio loudness during media extraction. Changes apply live. Values: true | false
       "mirrorMpvVolume": true, // Apply mpv's current software volume curve to generated sentence audio. Changes apply live. Values: true | false
+      "reviewTiming": false, // Review and preview subtitle media timing before SubMiner creates or enriches a mined card. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
       "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.

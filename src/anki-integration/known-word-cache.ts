@@ -350,6 +350,17 @@ export class KnownWordCacheManager {
     return true;
   }
 
+  removeNote(noteId: number): boolean {
+    if (!this.noteEntriesById.has(noteId)) {
+      return false;
+    }
+
+    this.removeNoteSnapshot(noteId);
+    this.persistKnownWordCacheState();
+    log.info('Known-word cache removed deleted note', `noteId=${noteId}`);
+    return true;
+  }
+
   clearKnownWordCacheState(): void {
     this.clearInMemoryState();
     this.knownWordsStateKey = this.getKnownWordCacheStateKey();

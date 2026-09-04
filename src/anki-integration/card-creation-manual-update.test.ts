@@ -85,6 +85,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
       },
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async () => Buffer.from('audio'),
@@ -128,6 +129,7 @@ function createManualUpdateService(overrides: Partial<CardCreationDeps> = {}): {
     }),
     getFallbackDurationSeconds: () => 10,
     appendKnownWordsFromNoteInfo: () => undefined,
+    removeKnownWordNote: () => undefined,
     isUpdateInProgress: () => false,
     setUpdateInProgress: () => undefined,
     trackLastAddedNoteId: () => undefined,
@@ -200,6 +202,7 @@ test('manual clipboard word-card update uses configured fields with Lapis and Ki
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     getEffectiveSentenceCardConfig: () => ({
       model: 'Sentence',
@@ -266,6 +269,7 @@ test('audio-card action keeps Lapis and Kiku sentence fields', async () => {
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     getEffectiveSentenceCardConfig: () => ({
       model: 'Sentence',
@@ -328,6 +332,7 @@ test('manual clipboard subtitle update marks Kiku word cards as word-and-sentenc
       storeMediaFile: async () => undefined,
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     getEffectiveSentenceCardConfig: () => ({
       model: 'Sentence',
@@ -374,6 +379,7 @@ test('manual clipboard subtitle update uses configured audio when SentenceAudio 
       },
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
   });
 
@@ -462,6 +468,7 @@ test('manual clipboard subtitle update uses resolved mpv stream URLs for remote 
       },
       findNotes: async () => [42],
       retrieveMediaFile: async () => '',
+      deleteNotes: async () => undefined,
     },
     mediaGenerator: {
       generateAudio: async (path) => {
@@ -509,4 +516,99 @@ test('createSentenceCard relies on Anki progress notification without standalone
   assert.equal(created, true);
   assert.deepEqual(progressMessages, ['Creating sentence card']);
   assert.deepEqual(statusMessages, []);
+});
+
+test('discarding an audio-card timing review deletes the note before evicting its cache entry', async () => {
+  const events: string[] = [];
+  const statusMessages: string[] = [];
+  const { service } = createManualUpdateService({
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentSubText: '字幕',
+        currentSubStart: 4,
+        currentSubEnd: 6,
+        currentTimePos: 5,
+      }) as never,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: { Expression: { value: '単語' } },
+        },
+      ],
+      updateNoteFields: async () => undefined,
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+      deleteNotes: async (noteIds) => {
+        events.push(`delete:${noteIds.join(',')}`);
+      },
+    },
+    reviewMediaTiming: async () => ({ action: 'discard' }),
+    removeKnownWordNote: (noteId) => {
+      events.push(`cache:${noteId}`);
+    },
+    showStatusNotification: (message) => {
+      statusMessages.push(message);
+    },
+  });
+
+  await service.markLastCardAsAudioCard();
+
+  assert.deepEqual(events, ['delete:42', 'cache:42']);
+  assert.deepEqual(statusMessages, ['Card deleted.']);
+});
+
+test('keeping an audio card without media skips generation and preserves the note', async () => {
+  let generatedAudio = false;
+  let deleted = false;
+  const updates: Array<{ noteId: number; fields: Record<string, string> }> = [];
+  const { service, storedMedia } = createManualUpdateService({
+    getMpvClient: () =>
+      ({
+        currentVideoPath: '/video.mp4',
+        currentSubText: '字幕',
+        currentSubStart: 4,
+        currentSubEnd: 6,
+        currentTimePos: 5,
+      }) as never,
+    client: {
+      addNote: async () => 0,
+      addTags: async () => undefined,
+      notesInfo: async () => [
+        {
+          noteId: 42,
+          fields: { Expression: { value: '単語' }, Sentence: { value: '' } },
+        },
+      ],
+      updateNoteFields: async (noteId, fields) => {
+        updates.push({ noteId, fields });
+      },
+      storeMediaFile: async () => undefined,
+      findNotes: async () => [42],
+      retrieveMediaFile: async () => '',
+      deleteNotes: async () => {
+        deleted = true;
+      },
+    },
+    mediaGenerator: {
+      generateAudio: async () => {
+        generatedAudio = true;
+        return Buffer.from('audio');
+      },
+      generateScreenshot: async () => null,
+      generateAnimatedImage: async () => null,
+    },
+    reviewMediaTiming: async () => ({ action: 'skip-media' }),
+  });
+
+  await service.markLastCardAsAudioCard();
+
+  assert.equal(generatedAudio, false);
+  assert.equal(deleted, false);
+  assert.deepEqual(storedMedia, []);
+  assert.deepEqual(updates, [{ noteId: 42, fields: { Sentence: '字幕' } }]);
 });

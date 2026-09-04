@@ -45,6 +45,7 @@ import { createCharacterDictionaryModal } from './modals/character-dictionary.js
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
+import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
 import { createPositioningController } from './positioning.js';
 import { createOverlayContentMeasurementReporter } from './overlay-content-measurement.js';
 import { syncOverlayMouseIgnoreState } from './overlay-mouse-ignore.js';
@@ -112,6 +113,12 @@ const modalDescriptors = [
     id: 'youtube-track-picker',
     isOpen: () => ctx.state.youtubePickerModalOpen,
     close: () => youtubePickerModal.closeYoutubePickerModal(),
+    suppressesSubtitles: true,
+  },
+  {
+    id: 'media-timing-review',
+    isOpen: () => ctx.state.mediaTimingReviewModalOpen,
+    close: () => mediaTimingReviewModal.requestCancel(),
     suppressesSubtitles: true,
   },
   {
@@ -265,6 +272,10 @@ const playlistBrowserModal = createPlaylistBrowserModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
@@ -273,6 +284,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
   handleTsukihimeKeydown: tsukihimeModal.handleTsukihimeKeydown,
   handleYoutubePickerKeydown: youtubePickerModal.handleYoutubePickerKeydown,
+  handleMediaTimingReviewKeydown: mediaTimingReviewModal.handleMediaTimingReviewKeydown,
   handlePlaylistBrowserKeydown: playlistBrowserModal.handlePlaylistBrowserKeydown,
   handleControllerSelectKeydown: controllerSelectModal.handleControllerSelectKeydown,
   handleControllerDebugKeydown: controllerDebugModal.handleControllerDebugKeydown,
@@ -574,6 +586,16 @@ function registerModalOpenHandlers(): void {
       youtubePickerModal.openYoutubePickerModal(payload);
     });
   });
+  window.electronAPI.onOpenMediaTimingReview((payload) => {
+    runGuarded('media-timing-review:open', () => {
+      mediaTimingReviewModal.openMediaTimingReviewModal(payload);
+    });
+  });
+  window.electronAPI.onMediaTimingReviewPreviewEnded((reviewId) => {
+    runGuarded('media-timing-review:preview-ended', () => {
+      mediaTimingReviewModal.handlePreviewEnded(reviewId);
+    });
+  });
   window.electronAPI.onOpenPlaylistBrowser(() => {
     runGuardedAsync('playlist-browser:open', async () => {
       await playlistBrowserModal.openPlaylistBrowserModal();
@@ -805,6 +827,7 @@ async function init(): Promise<void> {
   jimakuModal.wireDomEvents();
   tsukihimeModal.wireDomEvents();
   youtubePickerModal.wireDomEvents();
+  mediaTimingReviewModal.wireDomEvents();
   playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();

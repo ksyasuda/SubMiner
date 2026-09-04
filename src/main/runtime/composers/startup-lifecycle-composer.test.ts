@@ -52,6 +52,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       cleanupInternalSubtitleTrackCache: () => {},
       cleanupYoutubeSubtitleTempDirs: () => {},
       cleanupYoutubeMediaCache: () => {},
+      cleanupRemoteMediaWindows: () => {},
       cleanupJellyfinSubtitleCache: () => {},
       stopDiscordPresenceService: () => {},
     },
