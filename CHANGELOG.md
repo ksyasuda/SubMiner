@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.19.6 (2026-09-04)
+
+### Added
+
+- **Card Timing Review**:
+  - Optional pre-generation timing review for word, sentence, and audio cards, with a speech-weighted waveform that flattens background noise so dialogue edges stand out clearly.
+  - The clip end automatically snaps back to where the line's dialogue actually ends once the waveform loads, with drag and keyboard adjustments available.
+  - Audio preview includes a sweeping playhead that plays the clip to its true end, even on high-latency outputs like Bluetooth headphones.
+  - Previous and next subtitle lines can be pulled onto the card with `P`/`N` (or the Prev/Next steppers) and removed with Shift; the sentence preview and waveform markers update automatically.
+  - Cancelling lets you keep a card without media, and the review can be toggled on or off for the session.
+- **Senren Field Grouping**:
+  - Enable `ankiConnect.isSenren` to merge duplicate mined cards using Senren's scene-switching markup, grouping sentence, furigana, audio, picture, and misc-info fields.
+  - Supports the same auto/manual/disabled modes as Kiku, including the manual merge modal; only one of Senren or Kiku can be enabled at a time.
+
+### Changed
+
+- **Remote Stream Mining Performance**: Mining a card from a remote stream (Jellyfin and other HTTP sources) now downloads the clip window once and reuses it for the timing review waveform, audio preview, audio extraction, and screenshot, instead of re-fetching the stream at each step; the temporary file is cleaned up after ten minutes of inactivity or on exit.
+- **TsukiHime Release Filtering**: The TsukiHime modal's Japanese and secondary-language tabs now filter the release list by the subtitle languages each release actually carries, and report when no release has subtitles for the active tab.
+
+### Fixed
+
+- **Subtitle & Mining Accuracy**:
+  - Broadcast-style captions that split one sentence across two on-screen rows (e.g. Crunchyroll Japanese subs) now merge into a single line for the sidebar and mined cards, while separate speakers, sound effects, and labeled turns still stay on their own lines.
+  - Mining from the overlay no longer pulls in a lingering row from the previous caption; the mined sentence and clip timing now match what's actually on screen.
+  - Multi-line copy and mining now select lines backward in timeline order after seeking, instead of in playback encounter order.
+  - Copying a subtitle, mining a sentence, or recording immersion stats no longer includes the separate furigana line that broadcast ASS captions place above a word.
+- **Card Update Notifications**: Dismissed lingering overlay card-update progress when notification settings switch to OSD before an update finishes.
+- **Overlay Stability on Hyprland**: Opening a modal window (timing review, Jimaku, session help, and others) while mpv is fullscreen no longer causes the overlay to flicker while the modal loads; the overlay now stays on screen untouched until the modal is ready.
+- **Jellyfin Subtitle Sync**: Jellyfin subtitle files now load with zero mpv delay instead of inferring and saving an offset from Japanese and English cue timelines.
+- **Secondary Subtitle Visibility**: Native mpv secondary subtitles stay hidden when switching secondary subtitle tracks during playback.
+
 ## v0.19.5 (2026-08-30)
 
 ### Fixed
