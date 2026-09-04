@@ -159,6 +159,15 @@ export function collectMediaTimingContextLines(options: {
   return { previous, next };
 }
 
+/**
+ * Result for requests that name a review main has already resolved or disposed (decision
+ * watchdog, overlay teardown, duplicate modal). The renderer closes on it instead of
+ * leaving the user with controls that can never succeed.
+ */
+function staleReviewResult(): MediaTimingReviewActionResult {
+  return { ok: false, stale: true, message: 'This timing review is no longer active.' };
+}
+
 function isValidMediaTimingRange(
   payload: MediaTimingReviewOpenPayload,
   startTime: number,
@@ -443,7 +452,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   ): Promise<MediaTimingReviewActionResult> {
     const current = active;
     if (!current || request.reviewId !== current.payload.reviewId) {
-      return { ok: false, message: 'This timing review is no longer active.' };
+      return staleReviewResult();
     }
     if (!isValidMediaTimingRange(current.payload, request.startTime, request.endTime)) {
       return { ok: false, message: 'The selected preview range is invalid.' };
@@ -451,7 +460,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     try {
       const previewSession = await previewFor(current, request);
       if (active !== current) {
-        return { ok: false, message: 'This timing review is no longer active.' };
+        return staleReviewResult();
       }
       await previewSession.play(request.startTime, request.endTime);
       return { ok: true };
@@ -468,7 +477,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   ): Promise<MediaTimingReviewWaveformResult> {
     const current = active;
     if (!current || request.reviewId !== current.payload.reviewId) {
-      return { ok: false, message: 'This timing review is no longer active.' };
+      return staleReviewResult();
     }
     if (
       !Number.isFinite(request.startTime) ||
@@ -484,7 +493,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     try {
       const window = await ensureWindow(current, request);
       if (active !== current) {
-        return { ok: false, message: 'This timing review is no longer active.' };
+        return staleReviewResult();
       }
       const peaks = await deps.generateWaveform({
         mediaPath: window?.media ?? current.waveformMedia,
@@ -506,7 +515,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   async function stopPreview(reviewId: string): Promise<MediaTimingReviewActionResult> {
     const current = active;
     if (!current || reviewId !== current.payload.reviewId) {
-      return { ok: false, message: 'This timing review is no longer active.' };
+      return staleReviewResult();
     }
     try {
       const previewSession = current.preview ? await current.preview.session : null;
@@ -523,7 +532,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   function resolveReview(request: MediaTimingReviewResolveRequest): MediaTimingReviewActionResult {
     const current = active;
     if (!current || request.reviewId !== current.payload.reviewId) {
-      return { ok: false, message: 'This timing review is no longer active.' };
+      return staleReviewResult();
     }
     if (request.decision.action === 'confirm') {
       const { startTime, endTime, text } = request.decision;

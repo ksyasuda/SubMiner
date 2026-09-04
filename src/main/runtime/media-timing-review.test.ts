@@ -549,14 +549,14 @@ test('media timing review rejects stale and out-of-range actions before allowing
 
   assert.deepEqual(
     await runtime.previewRange({ reviewId: 'stale-review', startTime: 10, endTime: 12 }),
-    { ok: false, message: 'This timing review is no longer active.' },
+    { ok: false, stale: true, message: 'This timing review is no longer active.' },
   );
   assert.deepEqual(
     runtime.resolveReview({
       reviewId: 'stale-review',
       decision: { action: 'confirm', startTime: 10, endTime: 12 },
     }),
-    { ok: false, message: 'This timing review is no longer active.' },
+    { ok: false, stale: true, message: 'This timing review is no longer active.' },
   );
   assert.deepEqual(
     runtime.resolveReview({

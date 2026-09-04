@@ -79,6 +79,8 @@ export interface MediaTimingReviewResolveRequest {
 export interface MediaTimingReviewActionResult {
   ok: boolean;
   message?: string;
+  /** The review this request targeted has already ended; the renderer should close. */
+  stale?: boolean;
 }
 
 export interface NotificationOptions {

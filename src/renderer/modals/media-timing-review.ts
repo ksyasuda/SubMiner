@@ -387,6 +387,10 @@ export function createMediaTimingReviewModal(
       ) {
         return;
       }
+      if (!result.ok && result.stale) {
+        closeResolvedReview();
+        return;
+      }
       const path = result.ok ? buildMediaTimingWaveformPath(result.peaks ?? []) : '';
       if (!path) {
         setWaveformState('unavailable');
@@ -707,11 +711,13 @@ export function createMediaTimingReviewModal(
         reviewId: payload.reviewId,
         decision,
       });
-      if (!result.ok) {
+      if (!result.ok && !result.stale) {
         setStatus(result.message ?? 'The timing review could not be resolved.', true);
         showEditor();
         return;
       }
+      // A stale review was already settled by main; keeping the modal up would leave
+      // controls that can never succeed over a live mpv window.
       closeResolvedReview();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), true);
@@ -757,6 +763,10 @@ export function createMediaTimingReviewModal(
         if (result.ok && !previewRequest.isInFlight() && !previewPlaying) {
           void window.electronAPI.stopMediaTimingReviewPreview(requestedReviewId).catch(() => {});
         }
+        return;
+      }
+      if (!result.ok && result.stale) {
+        closeResolvedReview();
         return;
       }
       if (!result.ok) {
