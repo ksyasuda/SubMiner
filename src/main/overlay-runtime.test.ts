@@ -828,6 +828,7 @@ test('modal fallback reveal skips showing window when content is not ready', asy
       setModalWindowBounds: () => {},
     },
     {
+      platform: 'darwin',
       scheduleRevealFallback: (callback) => {
         scheduledReveal = callback;
         return { scheduled: true } as never;
@@ -1362,4 +1363,63 @@ test('modal placement reconcile cancels stale retry ladder after a newer visible
     globalThis.setTimeout = originalSetTimeout;
     globalThis.clearTimeout = originalClearTimeout;
   }
+});
+
+test('Linux keeps the dedicated modal window unmapped until the renderer opens the modal, then hides the overlay before revealing it', () => {
+  const mainWindow = createMockWindow();
+  mainWindow.visible = true;
+  const modalWindow = createMockWindow();
+  const order: string[] = [];
+  const hideMain = mainWindow.hide;
+  mainWindow.hide = () => {
+    order.push('main:hide');
+    hideMain();
+  };
+  const showModal = modalWindow.show;
+  modalWindow.show = () => {
+    order.push('modal:show');
+    showModal();
+  };
+  let revealScheduled = false;
+  const runtime = createOverlayModalRuntimeService(
+    {
+      getMainWindow: () => mainWindow as never,
+      getModalWindow: () => modalWindow as never,
+      createModalWindow: () => modalWindow as never,
+      getModalGeometry: () => ({ x: 0, y: 0, width: 400, height: 300 }),
+      setModalWindowBounds: () => {},
+    },
+    {
+      platform: 'linux',
+      scheduleRevealFallback: () => {
+        revealScheduled = true;
+        return { scheduled: true } as never;
+      },
+      clearRevealFallback: () => {},
+    },
+  );
+
+  const open = () =>
+    runtime.sendToActiveOverlayWindow(
+      'media-timing-review:open',
+      { reviewId: 'review' },
+      { restoreOnModalClose: 'media-timing-review', preferModalWindow: true },
+    );
+
+  assert.equal(open(), true);
+  assert.deepEqual(modalWindow.sent, [['media-timing-review:open', { reviewId: 'review' }]]);
+  assert.equal(revealScheduled, false);
+  assert.equal(modalWindow.getShowCount(), 0);
+  assert.equal(mainWindow.getHideCount(), 0);
+
+  // The open retry must not map the window before the renderer answers either.
+  assert.equal(open(), true);
+  assert.equal(modalWindow.getShowCount(), 0);
+
+  runtime.notifyOverlayModalOpened('media-timing-review');
+
+  assert.deepEqual(order, ['main:hide', 'modal:show']);
+  assert.equal(mainWindow.isVisible(), false);
+  assert.equal(modalWindow.isVisible(), true);
+  assert.equal(modalWindow.ignoreMouseEvents, false);
 });

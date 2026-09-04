@@ -25,7 +25,9 @@ export async function openMediaTimingReviewModal(
     { waitForModalOpen: deps.waitForModalOpen, logWarn: deps.logWarn },
     {
       modal: MODAL,
-      timeoutMs: 1_500,
+      // The review renderer regularly needs more than the 1.5 s the other modals allow; a
+      // premature retry re-sends the payload and reloads the waveform for nothing.
+      timeoutMs: 4_000,
       retryWarning:
         'Media timing review did not acknowledge modal open; retrying the dedicated modal window.',
       sendOpen: () =>
