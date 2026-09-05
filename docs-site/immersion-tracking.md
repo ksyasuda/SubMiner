@@ -31,6 +31,12 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 
 The same immersion data powers the stats dashboard.
 
+The browser dashboard and in-app stats overlay both load from the local HTTP server.
+The server accepts loopback hosts only and rejects requests from other browser origins,
+including opaque origins such as `file://`. API clients without a browser origin can
+still use the local API. Mutation requests with a body must use `application/json`;
+bodyless deletion and Anki browse requests remain supported.
+
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand (it also opens the dashboard in your browser when `stats.autoOpenBrowser` is enabled; the default is `false`).
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.

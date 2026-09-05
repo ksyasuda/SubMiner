@@ -1,10 +1,9 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import * as path from 'path';
 import { createLogger } from '../../logger.js';
 import type { WindowGeometry } from '../../types.js';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
-  buildStatsWindowLoadFileOptions,
+  buildStatsWindowUrl,
   buildStatsWindowOptions,
   demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
@@ -207,8 +206,7 @@ export async function toggleStatsOverlay(options: StatsWindowOptions): Promise<v
       statsWindow?.setTitle(STATS_WINDOW_TITLE);
     });
 
-    const indexPath = path.join(options.staticDir, 'index.html');
-    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(apiBaseUrl));
+    statsWindow.loadURL(buildStatsWindowUrl(apiBaseUrl));
 
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);

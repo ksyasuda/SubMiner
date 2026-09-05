@@ -6,6 +6,7 @@ import type { AnilistRateLimiter } from './anilist/rate-limiter.js';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import type { RetimedSecondarySubtitleInput } from './secondary-subtitle-sidecar.js';
 import type { StatsServerMediaGenerator } from './stats-server/mining-support.js';
+import { enforceStatsRequestSafety } from './stats-server/request-safety.js';
 import {
   registerStatsAnalyticsRoutes,
   registerStatsIntegrationRoutes,
@@ -37,7 +38,10 @@ function toFetchRequest(req: IncomingMessage): Request {
     method,
     headers: toFetchHeaders(req.headers),
   };
-  if (method !== 'GET' && method !== 'HEAD') {
+  const hasBody =
+    req.headers['transfer-encoding'] !== undefined ||
+    Number(req.headers['content-length'] ?? 0) > 0;
+  if (method !== 'GET' && method !== 'HEAD' && hasBody) {
     init.body = Readable.toWeb(req) as BodyInit;
     init.duplex = 'half';
   }
@@ -156,6 +160,7 @@ export function createStatsApp(
   },
 ) {
   const app = new Hono();
+  app.use('*', enforceStatsRequestSafety);
   registerStatsAnalyticsRoutes(app, tracker, options);
   registerStatsLibraryRoutes(app, tracker, options);
   registerStatsIntegrationRoutes(app, tracker, options);

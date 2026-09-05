@@ -444,6 +444,73 @@ async function withFakeAnkiConnect<T>(
 }
 
 describe('stats server API routes', () => {
+  it('rejects untrusted mutation requests before merging anime', async () => {
+    let merges = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          merges += 1;
+          return { survivingAnimeId: 1, mergedAnimeIds: [2], movedVideos: 1 };
+        },
+      }),
+    );
+    const rejectedHeaders: Record<string, string>[] = [
+      { Origin: 'https://attacker.example', 'Content-Type': 'text/plain' },
+      { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      { Origin: 'null', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost:4321', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost/', 'Content-Type': 'application/json' },
+      { 'Sec-Fetch-Site': 'cross-site', 'Content-Type': 'application/json' },
+      { Host: 'attacker.example', 'Content-Type': 'application/json' },
+    ];
+    for (const headers of rejectedHeaders) {
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 403, JSON.stringify(headers));
+    }
+    assert.equal(merges, 0);
+    for (const origin of [undefined, 'http://localhost']) {
+      const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
+      if (origin) headers.set('Origin', origin);
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 200);
+    }
+    assert.equal(merges, 2);
+  });
+
+  it('requires JSON for mutation bodies and preserves bodyless deletion', async () => {
+    let deletions = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
+        },
+      }),
+    );
+    const invalid = await app.request('/api/stats/sessions/1', {
+      method: 'DELETE',
+      body: '{}',
+    });
+    assert.equal(invalid.status, 415);
+    assert.equal(deletions, 0);
+    const valid = await app.request('/api/stats/sessions/1', { method: 'DELETE' });
+    assert.equal(valid.status, 200);
+    assert.equal(deletions, 1);
+    const rebound = await app.request('http://attacker.example/api/stats/sessions/1', {
+      method: 'DELETE',
+      headers: { Origin: 'http://attacker.example' },
+    });
+    assert.equal(rebound.status, 403);
+    assert.equal(deletions, 1);
+  });
+
   it('GET /api/stats/overview returns overview data', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/overview');
@@ -1153,7 +1220,7 @@ describe('stats server API routes', () => {
       body: JSON.stringify({ dryRun: false, lookbackDays: null }),
     });
 
-    assert.equal(res.status, 415);
+    assert.equal(res.status, 403);
     assert.equal(cleanupCalls, 0);
   });
 
