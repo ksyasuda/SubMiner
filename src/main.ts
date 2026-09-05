@@ -49,10 +49,7 @@ import {
   clearLinuxMpvFullscreenOverlayRefreshTimeouts,
   updateLinuxMpvFullscreenOverlayRefreshBurst,
 } from './main/runtime/linux-mpv-fullscreen-overlay-refresh';
-import {
-  resolveLinuxVisibleOverlayWindowModeAction,
-  type LinuxVisibleOverlayWindowMode,
-} from './main/runtime/linux-visible-overlay-window-mode';
+import { createLinuxOverlayModeRuntime } from './main/runtime/linux-overlay-mode-runtime';
 import { shouldRunLinuxOverlayZOrderKeepAlive } from './main/runtime/linux-overlay-zorder-keepalive';
 import { focusMacOSOverlayWindow } from './main/runtime/macos-overlay-window-focus';
 import { restoreMacOSMpvFocusAfterModalClose } from './main/runtime/macos-modal-focus-handoff';
@@ -1982,11 +1979,27 @@ let lastObservedTimePos = 0;
 let lastObservedPrimarySubtitleTrackId: number | null = null;
 let cancelLinuxMpvFullscreenOverlayRefreshBurst: CancelLinuxMpvFullscreenOverlayRefreshBurst | null =
   null;
-let linuxVisibleOverlayWindowMode: LinuxVisibleOverlayWindowMode = 'managed';
-let linuxTrackedMpvFullscreen = false;
-let linuxTrackedMpvFullscreenChangedAtMs = 0;
-let linuxVisibleOverlayOwnerBindingKey: string | null = null;
-let linuxVisibleOverlayWindowModeSwitchToken = 0;
+const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime({
+  isEnabled: shouldRunLinuxOverlayZOrderKeepAlive,
+  isVisible: () => overlayManager.getVisibleOverlayVisible(),
+  getWindow: () => overlayManager.getMainWindow(),
+  clearWindow: () => overlayManager.setMainWindow(null),
+  createWindow: () => {
+    visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
+    createMainWindow();
+  },
+  refreshWindow: () => {
+    const trackedGeometry = overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
+    if (trackedGeometry) overlayManager.setOverlayWindowBounds(trackedGeometry);
+    overlayVisibilityRuntime.updateVisibleOverlayVisibility();
+    void ensureOverlayMpvSubtitlesHidden();
+    if (appState.currentSubText.trim()) {
+      subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
+    }
+  },
+  now: Date.now,
+  logDebug: (message) => logger.debug(message),
+});
 let subtitleSidebarRequestedOpen = false;
 const SEEK_THRESHOLD_SECONDS = 3;
 const EXPLICIT_SEEK_INTENT_TTL_MS = 2000;
@@ -2746,7 +2759,7 @@ const overlayVisibilityRuntime = createOverlayVisibilityRuntimeService(
     },
     hideNonNativeOverlayWhenTargetUnfocused: () =>
       shouldRunLinuxOverlayZOrderKeepAlive() &&
-      linuxVisibleOverlayWindowMode === 'fullscreen-override',
+      linuxOverlayModeRuntime.mode === 'fullscreen-override',
     resolveFallbackBounds: () => {
       const cursorPoint = screen.getCursorScreenPoint();
       const display = screen.getDisplayNearestPoint(cursorPoint);
@@ -2792,9 +2805,9 @@ const visibleOverlayInteractionRuntime = createVisibleOverlayInteractionRuntime(
   getBackendOverride: () => appState.backendOverride,
   getInitialArgs: () => appState.initialArgs,
   getOverlayRuntimeInitialized: () => appState.overlayRuntimeInitialized,
-  getLinuxVisibleOverlayWindowMode: () => linuxVisibleOverlayWindowMode,
+  getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
   setLinuxVisibleOverlayOwnerBindingKey: (key) => {
-    linuxVisibleOverlayOwnerBindingKey = key;
+    linuxOverlayModeRuntime.ownerBindingKey = key;
   },
   bindVisibleOverlayToTrackedX11Window: (window) =>
     overlayGeometryRuntime.bindVisibleOverlayToTrackedX11Window(window),
@@ -3989,6 +4002,7 @@ const {
     clearWindowsVisibleOverlayForegroundPollLoop: () =>
       visibleOverlayInteractionRuntime.clearWindowsVisibleOverlayForegroundPollLoop(),
     clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {
+      linuxOverlayModeRuntime.cancelPendingTransition();
       cancelLinuxMpvFullscreenOverlayRefreshBurst = null;
       clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     },
@@ -4709,7 +4723,7 @@ const {
           },
           overlayVisibilityRuntime,
           syncVisibleOverlayMpvFullscreenMode: (nextFullscreen) =>
-            syncLinuxVisibleOverlayMpvFullscreenMode(nextFullscreen),
+            linuxOverlayModeRuntime.sync(nextFullscreen),
           getOverlayInteractionActive: () =>
             visibleOverlayInteractionRuntime.getVisibleOverlayInteractionActive() ||
             visibleOverlayInteractionRuntime.getLinuxOverlayInputShapeActive(),
@@ -5021,14 +5035,14 @@ const overlayGeometryRuntime = createOverlayGeometryRuntime({
   getTrackedWindowNativeId: () => appState.windowTracker?.getTargetWindowNativeId?.(),
   getStatsOverlayVisible: () => appState.statsOverlayVisible,
   getOverlayForegroundSeparateWindows: () => getOverlayForegroundSeparateWindows(),
-  getLinuxVisibleOverlayWindowMode: () => linuxVisibleOverlayWindowMode,
-  getLinuxTrackedMpvFullscreen: () => linuxTrackedMpvFullscreen,
-  getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxTrackedMpvFullscreenChangedAtMs,
+  getLinuxVisibleOverlayWindowMode: () => linuxOverlayModeRuntime.mode,
+  getLinuxTrackedMpvFullscreen: () => linuxOverlayModeRuntime.fullscreen,
+  getLinuxTrackedMpvFullscreenChangedAtMs: () => linuxOverlayModeRuntime.fullscreenChangedAtMs,
   syncLinuxVisibleOverlayMpvFullscreenMode: (fullscreen) =>
-    syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen),
-  getLinuxVisibleOverlayOwnerBindingKey: () => linuxVisibleOverlayOwnerBindingKey,
+    linuxOverlayModeRuntime.sync(fullscreen),
+  getLinuxVisibleOverlayOwnerBindingKey: () => linuxOverlayModeRuntime.ownerBindingKey,
   setLinuxVisibleOverlayOwnerBindingKey: (key) => {
-    linuxVisibleOverlayOwnerBindingKey = key;
+    linuxOverlayModeRuntime.ownerBindingKey = key;
   },
   clearVisibleOverlayX11OwnerBinding: (window) =>
     visibleOverlayInteractionRuntime.clearVisibleOverlayX11OwnerBinding(window),
@@ -5111,85 +5125,6 @@ function createMainWindow(): BrowserWindow {
     }
   }
   return window;
-}
-
-function createLinuxVisibleOverlayWindowForCurrentMode(token: number, fullscreen: boolean): void {
-  if (token !== linuxVisibleOverlayWindowModeSwitchToken) {
-    return;
-  }
-  if (!overlayManager.getVisibleOverlayVisible()) {
-    return;
-  }
-  const existingWindow = overlayManager.getMainWindow();
-  if (existingWindow && !existingWindow.isDestroyed()) {
-    return;
-  }
-
-  visibleOverlayInteractionRuntime.resetVisibleOverlayInputState();
-  createMainWindow();
-  const trackedGeometry = overlayGeometryRuntime.getCurrentTrackedOverlayGeometry();
-  if (trackedGeometry) {
-    overlayManager.setOverlayWindowBounds(trackedGeometry);
-  }
-  overlayVisibilityRuntime.updateVisibleOverlayVisibility();
-  void ensureOverlayMpvSubtitlesHidden();
-  if (appState.currentSubText.trim()) {
-    subtitleProcessingController.refreshCurrentSubtitle(appState.currentSubText);
-  }
-  logger.debug(
-    `Switched Linux visible overlay window mode to ${linuxVisibleOverlayWindowMode} for mpv fullscreen=${fullscreen}`,
-  );
-}
-
-function syncLinuxVisibleOverlayMpvFullscreenMode(fullscreen: boolean): void {
-  if (!shouldRunLinuxOverlayZOrderKeepAlive()) {
-    return;
-  }
-  if (linuxTrackedMpvFullscreen !== fullscreen) {
-    linuxTrackedMpvFullscreenChangedAtMs = Date.now();
-  }
-  linuxTrackedMpvFullscreen = fullscreen;
-  const currentWindow = overlayManager.getMainWindow();
-  const hasLiveWindow = Boolean(currentWindow && !currentWindow.isDestroyed());
-  const action = resolveLinuxVisibleOverlayWindowModeAction({
-    currentMode: linuxVisibleOverlayWindowMode,
-    fullscreen,
-    hasLiveWindow,
-    visibleOverlayVisible: overlayManager.getVisibleOverlayVisible(),
-  });
-
-  linuxVisibleOverlayWindowMode = action.nextMode;
-  linuxVisibleOverlayOwnerBindingKey = null;
-  linuxVisibleOverlayWindowModeSwitchToken += 1;
-  const token = linuxVisibleOverlayWindowModeSwitchToken;
-  if (!action.shouldCreateWindow && !action.shouldDestroyCurrentWindow) {
-    return;
-  }
-
-  const previousWindow = currentWindow;
-  if (action.shouldDestroyCurrentWindow && previousWindow && !previousWindow.isDestroyed()) {
-    previousWindow.once('closed', () => {
-      if (overlayManager.getMainWindow() === previousWindow) {
-        overlayManager.setMainWindow(null);
-      }
-      if (action.createWindowTiming === 'after-current-destroyed') {
-        createLinuxVisibleOverlayWindowForCurrentMode(token, fullscreen);
-      }
-    });
-    previousWindow.hide();
-    previousWindow.destroy();
-  }
-
-  if (!action.shouldCreateWindow) {
-    logger.debug(
-      `Recorded Linux visible overlay window mode ${action.nextMode} for hidden mpv fullscreen=${fullscreen}`,
-    );
-    return;
-  }
-
-  if (action.createWindowTiming === 'now') {
-    createLinuxVisibleOverlayWindowForCurrentMode(token, fullscreen);
-  }
 }
 
 function initializeOverlayRuntime(): void {
@@ -6358,8 +6293,8 @@ const { createMainWindow: createMainWindowHandler, createModalWindow: createModa
       forwardTabToMpv: () => sendMpvCommandRuntime(appState.mpvClient, ['keypress', 'TAB']),
       getLinuxX11FullscreenOverlay: () =>
         shouldRunLinuxOverlayZOrderKeepAlive() &&
-        linuxTrackedMpvFullscreen &&
-        linuxVisibleOverlayWindowMode === 'fullscreen-override',
+        linuxOverlayModeRuntime.fullscreen &&
+        linuxOverlayModeRuntime.mode === 'fullscreen-override',
       onVisibleWindowBlurred: () =>
         visibleOverlayInteractionRuntime.scheduleVisibleOverlayBlurRefresh(),
       onVisibleWindowFocused: () =>

@@ -8,13 +8,10 @@ import {
   createBuildRestoreWindowsOnActivateMainDepsHandler,
   createBuildShouldRestoreWindowsOnActivateMainDepsHandler,
 } from '../app-lifecycle-main-activate';
-import { createBuildRegisterProtocolUrlHandlersMainDepsHandler } from '../protocol-url-handlers-main-deps';
 import { registerProtocolUrlHandlers } from '../protocol-url-handlers';
 import type { ComposerInputs, ComposerOutputs } from './contracts';
 
-type RegisterProtocolUrlHandlersMainDeps = Parameters<
-  typeof createBuildRegisterProtocolUrlHandlersMainDepsHandler
->[0];
+type RegisterProtocolUrlHandlersMainDeps = Parameters<typeof registerProtocolUrlHandlers>[0];
 type OnWillQuitCleanupDeps = Parameters<typeof createBuildOnWillQuitCleanupDepsHandler>[0];
 type ShouldRestoreWindowsOnActivateMainDeps = Parameters<
   typeof createBuildShouldRestoreWindowsOnActivateMainDepsHandler
@@ -40,10 +37,6 @@ export type StartupLifecycleComposerResult = ComposerOutputs<{
 export function composeStartupLifecycleHandlers(
   options: StartupLifecycleComposerOptions,
 ): StartupLifecycleComposerResult {
-  const registerProtocolUrlHandlersMainDeps = createBuildRegisterProtocolUrlHandlersMainDepsHandler(
-    options.registerProtocolUrlHandlersMainDeps,
-  )();
-
   const onWillQuitCleanupHandler = createOnWillQuitCleanupHandler(
     createBuildOnWillQuitCleanupDepsHandler(options.onWillQuitCleanupMainDeps)(),
   );
@@ -58,9 +51,9 @@ export function composeStartupLifecycleHandlers(
 
   return {
     registerProtocolUrlHandlers: () =>
-      registerProtocolUrlHandlers(registerProtocolUrlHandlersMainDeps),
-    onWillQuitCleanup: () => onWillQuitCleanupHandler(),
-    shouldRestoreWindowsOnActivate: () => shouldRestoreWindowsOnActivateHandler(),
-    restoreWindowsOnActivate: () => restoreWindowsOnActivateHandler(),
+      registerProtocolUrlHandlers(options.registerProtocolUrlHandlersMainDeps),
+    onWillQuitCleanup: onWillQuitCleanupHandler,
+    shouldRestoreWindowsOnActivate: shouldRestoreWindowsOnActivateHandler,
+    restoreWindowsOnActivate: restoreWindowsOnActivateHandler,
   };
 }
