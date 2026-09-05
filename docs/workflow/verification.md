@@ -49,7 +49,7 @@ bun run docs:build
 - Internal KB, `AGENTS.md`, or `.agents/skills/**` changes: `bun run test:docs:kb`
 - Config/schema/defaults: `bun run test:config`, then `bun run generate:config-example` if template/defaults changed
 - Launcher/plugin: `bun run test:launcher` or `bun run test:env`
-- Runtime-compat / compiled behavior: `bun run test:runtime:compat`
+- Runtime-compat / compiled behavior after `bun run build`: `bun run test:runtime:compat`
 - Stats dashboard UI: `bun run test:stats`
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Packaging: build the platform package, then run `bun run test:package <resources-directory>`.
@@ -66,6 +66,20 @@ bun run docs:build
 - Machine-readable output lands at `coverage/test-src/lcov.info`.
 - Every reusable quality-gate run uploads that LCOV file as the
   `coverage-test-src` artifact.
+
+## Compiled Runtime Smoke
+
+- `bun run test:smoke:dist` and its `test:runtime:compat` alias require an existing
+  full build and fail with the missing artifact paths when `dist/` or the stats UI
+  bundle is absent.
+- The check runs the emitted stats daemon under Electron's Node runtime. It opens
+  the production HTTP server, queries the overview endpoint through native
+  libsql-backed storage, shuts the daemon down, and verifies that the port and
+  ownership state are released.
+- The check also occupies the configured port, requires startup to fail without
+  stale ownership state, releases the conflict, and verifies a clean retry.
+- This is not a full Electron UI startup check. It does not require a display and
+  makes no claims about renderer, window, tray, or mpv behavior.
 
 ## Dependency Audit Policy
 
