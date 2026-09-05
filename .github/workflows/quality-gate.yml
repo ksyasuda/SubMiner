@@ -93,11 +93,19 @@ jobs:
           sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
           lua -v
 
-      - name: Test suite (source)
-        run: bun run test:fast
+      - name: Launcher unit and script suites
+        run: bun run test:launcher:unit:src && bun run test:scripts
 
       - name: Environment suite
         run: bun run test:env
+
+      - name: Upload launcher smoke artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-smoke
+          path: .tmp/launcher-smoke/**
+          if-no-files-found: ignore
 
       - name: Coverage suite (maintained source lane)
         run: bun run test:coverage:src
@@ -111,17 +119,6 @@ jobs:
 
       - name: Stats UI tests
         run: bun run test:stats
-
-      - name: Launcher smoke suite (source)
-        run: bun run test:launcher:smoke:src
-
-      - name: Upload launcher smoke artifacts (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: launcher-smoke
-          path: .tmp/launcher-smoke/**
-          if-no-files-found: ignore
 
       - name: Build (bundle)
         run: bun run build

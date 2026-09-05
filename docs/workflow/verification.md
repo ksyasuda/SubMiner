@@ -22,9 +22,15 @@ Read when: selecting the right verification lane for a change
   pull requests, stable tags, and prerelease tags. Keep common quality steps
   there instead of copying them into caller workflows.
 - The reusable gate installs Lua and runs `bun run test:env`, so the shipped mpv
-  plugin tests run for every pull request and tagged release.
+  plugin tests and launcher smoke run for every pull request and tagged release.
   Lua installation uses only the runner's Ubuntu package sources so unrelated
   third-party repository failures do not block the gate.
+- In the reusable gate, `test:coverage:src` is also the blocking execution of the
+  discovered `src/**` test lane. The coverage runner returns the failing test's
+  status, so CI does not rerun that lane through `test:fast`. Launcher unit and
+  script tests still run separately because they are outside the coverage lane.
+- Launcher smoke artifacts are uploaded after `test:env` fails. CI does not rerun
+  launcher smoke solely to collect the same artifacts.
 
 ## Default Handoff Gate
 
@@ -62,7 +68,11 @@ bun run docs:build
 
 ## Coverage Reporting
 
-- `bun run test:coverage:src` runs the maintained `test:src` lane through a sharded coverage runner: one Bun coverage process per test file, then merged LCOV output.
+- `bun run test:coverage:src` runs the same discovered `bun-src-full` membership as
+  `test:src` through a sharded coverage runner: one Bun coverage process per test
+  file, then merged LCOV output.
+- A failing coverage shard stops the runner with a nonzero status. Coverage is a
+  source test gate, not a report-only step.
 - Machine-readable output lands at `coverage/test-src/lcov.info`.
 - Every reusable quality-gate run uploads that LCOV file as the
   `coverage-test-src` artifact.

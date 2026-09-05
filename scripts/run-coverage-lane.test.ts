@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 
-import { mergeLcovReports, resolveCoverageDir } from './run-coverage-lane';
+import { mergeLcovReports, resolveCoverageDir, runCoverageLane } from './run-coverage-lane';
 
 test('mergeLcovReports combines duplicate source-file counters across shard outputs', () => {
   const merged = mergeLcovReports([
@@ -71,4 +73,34 @@ test('resolveCoverageDir keeps coverage output inside the repository', () => {
   );
   assert.throws(() => resolveCoverageDir(repoRoot, ['--coverage-dir', '../escape']));
   assert.throws(() => resolveCoverageDir(repoRoot, ['--coverage-dir', '/tmp/escape']));
+});
+
+test('runCoverageLane returns a failure when a discovered test fails', () => {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'subminer-coverage-failure-'));
+  try {
+    mkdirSync(join(repoRoot, 'src'));
+    writeFileSync(
+      join(repoRoot, 'src', 'failure.test.ts'),
+      [
+        "import assert from 'node:assert/strict';",
+        "import test from 'node:test';",
+        '',
+        "test('intentional coverage failure', () => {",
+        "  assert.fail('coverage runner must propagate this failure');",
+        '});',
+        '',
+      ].join('\n'),
+    );
+
+    assert.notEqual(
+      runCoverageLane({
+        repoRootDir: repoRoot,
+        argv: ['bun-src-full', '--coverage-dir', 'coverage/test-src'],
+        stdio: 'pipe',
+      }),
+      0,
+    );
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
 });
