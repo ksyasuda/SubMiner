@@ -175,7 +175,7 @@ Audio is extracted from the video file using the subtitle's start and end timest
     "mirrorMpvVolume": true,     // apply the current mpv volume level
     "reviewTiming": false,       // review and adjust timing before media generation
     "audioPadding": 0,           // optional seconds before and after subtitle timing
-    "maxMediaDuration": 30       // cap total duration in seconds
+    "maxMediaDuration": 30       // cap total duration in seconds; 0 disables the cap
   }
 }
 ```

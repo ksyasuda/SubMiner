@@ -160,6 +160,52 @@ test('manual clipboard subtitle update replaces audio in the configured field', 
   );
 });
 
+test('manual clipboard mining treats a zero media duration cap as unlimited', async () => {
+  const audioRanges: Array<{ start: number; end: number; padding: number | undefined }> = [];
+  const scenarios = [
+    { maxMediaDuration: 0, expectedEnd: 14 },
+    { maxMediaDuration: 1, expectedEnd: 13 },
+  ];
+
+  for (const scenario of scenarios) {
+    const { service } = createManualUpdateService({
+      getConfig: () =>
+        ({
+          deck: 'Mining',
+          fields: {
+            word: 'Expression',
+            sentence: 'Sentence',
+            audio: 'ExpressionAudio',
+          },
+          media: {
+            generateAudio: true,
+            generateImage: false,
+            audioPadding: 0.25,
+            maxMediaDuration: scenario.maxMediaDuration,
+          },
+          behavior: {},
+          ai: false,
+        }) as AnkiConnectConfig,
+      mediaGenerator: {
+        generateAudio: async (_path, start, end, padding) => {
+          audioRanges.push({ start, end, padding });
+          return Buffer.from('audio');
+        },
+        generateScreenshot: async () => null,
+        generateAnimatedImage: async () => null,
+      },
+    });
+
+    await service.updateLastAddedFromClipboard('字幕');
+
+    assert.deepEqual(audioRanges.at(-1), {
+      start: 12,
+      end: scenario.expectedEnd,
+      padding: 0.25,
+    });
+  }
+});
+
 test('manual clipboard word-card update uses configured fields with Lapis and Kiku enabled', async () => {
   const { service, updatedFields } = createManualUpdateService({
     getConfig: () =>

@@ -1762,6 +1762,60 @@ describe('stats server API routes', () => {
     });
   });
 
+  it('POST /api/stats/mine-card treats a zero media duration cap as unlimited', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      const audioRanges: Array<{ start: number; end: number; padding: number | undefined }> = [];
+      const scenarios = [
+        { maxMediaDuration: 0, expectedEnd: 12 },
+        { maxMediaDuration: 1, expectedEnd: 11 },
+      ];
+
+      for (const scenario of scenarios) {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => null,
+          createMediaGenerator: () => ({
+            generateAudio: async (_path, start, end, padding) => {
+              audioRanges.push({ start, end, padding });
+              return Buffer.from('audio');
+            },
+            generateScreenshot: async () => null,
+            generateAnimatedImage: async () => null,
+          }),
+          ankiConnectConfig: {
+            deck: 'Mining',
+            media: {
+              generateAudio: true,
+              generateImage: false,
+              audioPadding: 0.25,
+              maxMediaDuration: scenario.maxMediaDuration,
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 10_000,
+            endMs: 12_000,
+            sentence: '猫を見た',
+            word: '猫',
+          }),
+        });
+
+        assert.equal(res.status, 502);
+        assert.deepEqual(audioRanges.at(-1), {
+          start: 10,
+          end: scenario.expectedEnd,
+          padding: 0.25,
+        });
+      }
+    });
+  });
+
   it('POST /api/stats/mine-card requires a non-empty word in word mode', async () => {
     await withTempDir(async (dir) => {
       const sourcePath = path.join(dir, 'episode.mkv');
