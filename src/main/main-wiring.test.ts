@@ -433,11 +433,11 @@ test('warm tokenization release can signal readiness before the first subtitle a
 
 test('stats server Yomitan note creation honors configured Anki server override policy', () => {
   const source = readSource('src/main/runtime/stats-server-runtime.ts');
-  const startStatsServerBlock = source.match(
-    /statsServer = startStatsServer\(\{(?<body>[\s\S]*?)\n      \}\);/,
+  const statsServerConfigBlock = source.match(
+    /const buildStatsServerConfig[\s\S]*?return \{(?<body>[\s\S]*?)\n    \};\n  \};/,
   )?.groups?.body;
-  const addYomitanNoteBlock = startStatsServerBlock?.match(
-    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n        \},/,
+  const addYomitanNoteBlock = statsServerConfigBlock?.match(
+    /addYomitanNote:\s*async\s*\(word: string\)\s*=>\s*\{(?<body>[\s\S]*?)\n      \},/,
   )?.groups?.body;
 
   assert.ok(addYomitanNoteBlock);

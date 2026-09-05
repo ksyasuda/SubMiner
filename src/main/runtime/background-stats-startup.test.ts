@@ -24,10 +24,10 @@ function createDeps(
   return { deps, calls };
 }
 
-test('ensures background stats server and logs local startup', () => {
+test('ensures background stats server and logs local startup', async () => {
   const { deps, calls } = createDeps();
 
-  createEnsureBackgroundStatsServerHandler(deps)();
+  await createEnsureBackgroundStatsServerHandler(deps)();
 
   assert.ok(calls.includes('ensureBackgroundStatsServerStarted'));
   assert.ok(
@@ -35,7 +35,7 @@ test('ensures background stats server and logs local startup', () => {
   );
 });
 
-test('logs reuse when a background stats server is already running', () => {
+test('logs reuse when a background stats server is already running', async () => {
   const { deps, calls } = createDeps({
     ensureBackgroundStatsServerStarted: () => ({
       url: 'http://127.0.0.1:3888',
@@ -43,36 +43,53 @@ test('logs reuse when a background stats server is already running', () => {
     }),
   });
 
-  createEnsureBackgroundStatsServerHandler(deps)();
+  await createEnsureBackgroundStatsServerHandler(deps)();
 
   assert.ok(
     calls.some((value) => value.startsWith('info:') && /already running|reusing/i.test(value)),
   );
 });
 
-test('skips when stats.autoStartServer is disabled', () => {
+test('skips when stats.autoStartServer is disabled', async () => {
   const { deps, calls } = createDeps({ isStatsAutoStartEnabled: () => false });
 
-  createEnsureBackgroundStatsServerHandler(deps)();
+  await createEnsureBackgroundStatsServerHandler(deps)();
 
   assert.equal(calls.includes('ensureBackgroundStatsServerStarted'), false);
 });
 
-test('skips when immersion tracking is disabled', () => {
+test('skips when immersion tracking is disabled', async () => {
   const { deps, calls } = createDeps({ isImmersionTrackingEnabled: () => false });
 
-  createEnsureBackgroundStatsServerHandler(deps)();
+  await createEnsureBackgroundStatsServerHandler(deps)();
 
   assert.equal(calls.includes('ensureBackgroundStatsServerStarted'), false);
 });
 
-test('logs a warning instead of throwing when startup fails', () => {
+test('logs a warning instead of throwing when startup fails', async () => {
   const { deps, calls } = createDeps({
     ensureBackgroundStatsServerStarted: () => {
       throw new Error('port in use');
     },
   });
 
-  assert.doesNotThrow(() => createEnsureBackgroundStatsServerHandler(deps)());
+  await assert.doesNotReject(createEnsureBackgroundStatsServerHandler(deps)());
   assert.ok(calls.some((value) => value.startsWith('warn:')));
+});
+
+test('logs an asynchronously reported startup failure', async () => {
+  const { deps, calls } = createDeps({
+    ensureBackgroundStatsServerStarted: async () => {
+      await Promise.resolve();
+      throw new Error('address in use');
+    },
+  });
+
+  await createEnsureBackgroundStatsServerHandler(deps)();
+
+  assert.ok(calls.some((value) => value.startsWith('warn:')));
+  assert.equal(
+    calls.some((value) => value.startsWith('info:')),
+    false,
+  );
 });

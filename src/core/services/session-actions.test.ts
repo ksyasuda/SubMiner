@@ -6,7 +6,9 @@ import { dispatchSessionAction, type SessionActionExecutorDeps } from './session
 function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
   const calls: string[] = [];
   const deps: SessionActionExecutorDeps = {
-    toggleStatsOverlay: () => calls.push('stats'),
+    toggleStatsOverlay: () => {
+      calls.push('stats');
+    },
     toggleVisibleOverlay: () => calls.push('visible'),
     copyCurrentSubtitle: () => calls.push('copy'),
     copySubtitleCount: (count) => calls.push(`copy:${count}`),

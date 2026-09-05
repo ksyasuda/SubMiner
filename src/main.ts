@@ -421,6 +421,7 @@ import {
   writeStatsCliCommandResponse,
 } from './main/runtime/stats-cli-command';
 import { createStatsServerRuntime } from './main/runtime/stats-server-runtime';
+import { createForceQuitHandler } from './main/runtime/app-lifecycle-actions';
 import { resolveLegacyVocabularyPosFromTokens } from './core/services/immersion-tracker/legacy-vocabulary-pos';
 import { createAnilistUpdateQueue } from './core/services/anilist/anilist-update-queue';
 import {
@@ -1010,11 +1011,17 @@ function requestAppQuit(): void {
   destroyYomitanSettingsWindow(appState.yomitanSettingsWindow);
   appState.yomitanSettingsWindow = null;
   destroyStatsWindow();
-  stopStatsServer();
+  void stopStatsServer().catch((error: unknown) => {
+    logger.warn('Failed to stop stats server while quitting.', error);
+  });
   if (!forceQuitTimer) {
     forceQuitTimer = setTimeout(() => {
       logger.warn('App quit timed out; forcing process exit.');
-      app.exit(0);
+      createForceQuitHandler({
+        destroyImmersionTracker: () => appState.immersionTracker?.destroy(),
+        logError: (error) => logger.error('Failed to finalize stats before forced exit.', error),
+        exit: () => app.exit(0),
+      })();
     }, 2000);
   }
   app.quit();
@@ -4005,8 +4012,8 @@ const {
     },
     getSubtitleTimingTracker: () => appState.subtitleTimingTracker,
     getImmersionTracker: () => appState.immersionTracker,
+    stopStatsServer: () => stopStatsServer(),
     clearImmersionTracker: () => {
-      stopStatsServer();
       appState.statsServer = null;
       appState.immersionTracker = null;
     },
@@ -4095,7 +4102,9 @@ const immersionTrackerStartupMainDeps: Parameters<
     const trackerHasChanged =
       appState.immersionTracker !== null && appState.immersionTracker !== tracker;
     if (trackerHasChanged && appState.statsServer) {
-      stopStatsServer();
+      void stopStatsServer().catch((error: unknown) => {
+        logger.warn('Failed to stop stats server while replacing immersion tracker.', error);
+      });
       appState.statsServer = null;
     }
 
@@ -4106,7 +4115,9 @@ const immersionTrackerStartupMainDeps: Parameters<
       if (!appState.statsServer) {
         const config = configService.getConfig();
         if (config.stats.autoStartServer) {
-          ensureStatsServerStarted();
+          void ensureStatsServerStarted().catch((error: unknown) => {
+            logger.warn('Failed to auto-start stats server.', error);
+          });
         }
       }
 
@@ -4114,7 +4125,7 @@ const immersionTrackerStartupMainDeps: Parameters<
       registerStatsOverlayToggle({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted().url,
+        getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
         getToggleKey: () => configService.getConfig().stats.toggleKey,
         resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
@@ -4196,7 +4207,7 @@ const runStatsCliCommand = createRunStatsCliCommandHandler({
     await createMecabTokenizerAndCheck();
   },
   getImmersionTracker: () => appState.immersionTracker,
-  ensureStatsServerStarted: () => statsStartupRuntime.ensureStatsServerStarted().url,
+  ensureStatsServerStarted: async () => (await statsStartupRuntime.ensureStatsServerStarted()).url,
   ensureBackgroundStatsServerStarted: () =>
     statsStartupRuntime.ensureBackgroundStatsServerStarted(),
   stopBackgroundStatsServer: () => statsStartupRuntime.stopBackgroundStatsServer(),
@@ -5488,11 +5499,11 @@ const appendClipboardVideoToQueueHandler = createAppendClipboardVideoToQueueHand
 
 async function dispatchSessionAction(request: SessionActionDispatchRequest): Promise<void> {
   await dispatchSessionActionCore(request, {
-    toggleStatsOverlay: () =>
-      toggleStatsOverlayWindow({
+    toggleStatsOverlay: async () =>
+      await toggleStatsOverlayWindow({
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
-        getApiBaseUrl: () => ensureStatsServerStarted().url,
+        getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
         getToggleKey: () => configService.getConfig().stats.toggleKey,
         resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {

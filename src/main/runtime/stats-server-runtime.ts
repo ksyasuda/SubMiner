@@ -4,7 +4,7 @@ import {
   addYomitanNoteViaSearch,
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
 } from '../../core/services';
-import { startStatsServer } from '../../core/services/stats-server';
+import { startStatsServer, type StatsServer } from '../../core/services/stats-server';
 import { createLogger } from '../../logger';
 import type { ResolvedConfig } from '../../types/config';
 import type { AppState } from '../state';
@@ -25,12 +25,6 @@ export function isSelfOwnedBackgroundStatsDaemonState(state: {
   startedAtMs?: number;
 }): boolean {
   return state.pid === process.pid;
-}
-
-export function shouldClearAppStateStatsServerOnStop(options: {
-  hadStatsServer: boolean;
-}): boolean {
-  return options.hadStatsServer;
 }
 
 export interface StatsServerRuntimeDeps {
@@ -62,19 +56,27 @@ export interface StatsServerRuntimeDeps {
   isBackgroundStatsServerProcessAlive?: typeof defaultIsBackgroundStatsServerProcessAlive;
   verifyBackgroundStatsServerIdentity?: typeof defaultVerifyBackgroundStatsServerIdentity;
   killProcess?: (pid: number, signal: NodeJS.Signals) => void;
+  startServer?: typeof startStatsServer;
 }
 
 export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
-  stopStatsServer: () => void;
+  stopStatsServer: () => Promise<void>;
   ensureStatsServerStarted: ReturnType<typeof createEnsureStatsServerUrlHandler>;
-  ensureBackgroundStatsServerStarted: () => {
+  ensureBackgroundStatsServerStarted: () => Promise<{
     url: string;
     runningInCurrentProcess: boolean;
-  };
+  }>;
   stopBackgroundStatsServer: () => Promise<{ ok: boolean; stale: boolean }>;
 } {
-  let statsServer: ReturnType<typeof startStatsServer> | null = null;
+  type LocalStatsServerState =
+    | { kind: 'stopped' }
+    | { kind: 'starting'; token: symbol; promise: Promise<void> }
+    | { kind: 'running'; server: StatsServer }
+    | { kind: 'stopping'; token: symbol; promise: Promise<void> };
+
+  let localStatsServerState: LocalStatsServerState = { kind: 'stopped' };
   const statsDaemonStatePath = path.join(deps.userDataPath, 'stats-daemon.json');
+  const startServer = deps.startServer ?? startStatsServer;
   const readDaemonState =
     deps.readBackgroundStatsServerState ??
     ((statePath: string) => defaultReadBackgroundStatsServerState(statePath));
@@ -100,7 +102,7 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
       removeDaemonState(statsDaemonStatePath);
       return null;
     }
-    if (state.pid === process.pid && !statsServer) {
+    if (state.pid === process.pid && localStatsServerState.kind !== 'running') {
       removeDaemonState(statsDaemonStatePath);
       return null;
     }
@@ -118,73 +120,133 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
     }
   }
 
-  function stopStatsServer(): void {
-    if (!statsServer) {
-      return;
-    }
-    statsServer.close();
-    statsServer = null;
-    if (shouldClearAppStateStatsServerOnStop({ hadStatsServer: true })) {
-      deps.setAppStateStatsServer(null);
-    }
-    clearOwnedBackgroundStatsDaemonState();
-  }
-
-  const startLocalStatsServer = (): void => {
+  const buildStatsServerConfig = (): Parameters<typeof startStatsServer>[0] => {
     const tracker = deps.getImmersionTracker();
     if (!tracker) {
       throw new Error('Immersion tracker failed to initialize.');
     }
-    if (!statsServer) {
-      const yomitanDeps = {
-        getYomitanExt: () => deps.getYomitanExt(),
-        getYomitanSession: () => deps.getYomitanSession(),
-        getYomitanParserWindow: () => deps.getYomitanParserWindow(),
-        setYomitanParserWindow: (w: BrowserWindow | null) => {
-          deps.setYomitanParserWindow(w);
-        },
-        getYomitanParserReadyPromise: () => deps.getYomitanParserReadyPromise(),
-        setYomitanParserReadyPromise: (p: Promise<void> | null) => {
-          deps.setYomitanParserReadyPromise(p);
-        },
-        getYomitanParserInitPromise: () => deps.getYomitanParserInitPromise(),
-        setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
-          deps.setYomitanParserInitPromise(p);
-        },
-      };
-      const yomitanLogger = createLogger('main:yomitan-stats');
-      statsServer = startStatsServer({
-        port: deps.getResolvedConfig().stats.serverPort,
-        staticDir: deps.statsDistPath,
-        tracker,
-        knownWordCachePath: path.join(deps.userDataPath, 'known-words-cache.json'),
-        mpvSocketPath: deps.getMpvSocketPath(),
-        getAnkiConnectConfig: () => deps.getResolvedConfig().ankiConnect,
-        getYomitanAnkiDeckName: deps.getYomitanAnkiDeckName,
-        getSecondarySubtitleLanguages: () =>
-          deps.getResolvedConfig().secondarySub.secondarySubLanguages,
-        getStatsMiningAlassPath: () => deps.getResolvedConfig().subsync.alass_path,
-        anilistRateLimiter: deps.getAnilistRateLimiter(),
-        resolveAnkiNoteId: (noteId: number) => deps.resolveAnkiNoteId(noteId),
-        resolveSentenceSearchHeadwords: (term: string) => deps.resolveSentenceSearchHeadwords(term),
-        addYomitanNote: async (word: string) => {
-          const ankiConnectConfig = deps.getResolvedConfig().ankiConnect;
-          const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
-          await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
-            forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
-            deck: ankiConnectConfig.deck,
-          });
-          const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
-          if (result.noteId && result.duplicateNoteIds.length > 0) {
-            deps.trackDuplicateNoteIdsForNote(result.noteId, result.duplicateNoteIds);
-          }
-          return result.noteId;
-        },
-      });
-      deps.setAppStateStatsServer(statsServer);
-    }
-    deps.setAppStateStatsServer(statsServer);
+    const yomitanDeps = {
+      getYomitanExt: () => deps.getYomitanExt(),
+      getYomitanSession: () => deps.getYomitanSession(),
+      getYomitanParserWindow: () => deps.getYomitanParserWindow(),
+      setYomitanParserWindow: (w: BrowserWindow | null) => {
+        deps.setYomitanParserWindow(w);
+      },
+      getYomitanParserReadyPromise: () => deps.getYomitanParserReadyPromise(),
+      setYomitanParserReadyPromise: (p: Promise<void> | null) => {
+        deps.setYomitanParserReadyPromise(p);
+      },
+      getYomitanParserInitPromise: () => deps.getYomitanParserInitPromise(),
+      setYomitanParserInitPromise: (p: Promise<boolean> | null) => {
+        deps.setYomitanParserInitPromise(p);
+      },
+    };
+    const yomitanLogger = createLogger('main:yomitan-stats');
+    return {
+      port: deps.getResolvedConfig().stats.serverPort,
+      staticDir: deps.statsDistPath,
+      tracker,
+      knownWordCachePath: path.join(deps.userDataPath, 'known-words-cache.json'),
+      mpvSocketPath: deps.getMpvSocketPath(),
+      getAnkiConnectConfig: () => deps.getResolvedConfig().ankiConnect,
+      getYomitanAnkiDeckName: deps.getYomitanAnkiDeckName,
+      getSecondarySubtitleLanguages: () =>
+        deps.getResolvedConfig().secondarySub.secondarySubLanguages,
+      getStatsMiningAlassPath: () => deps.getResolvedConfig().subsync.alass_path,
+      anilistRateLimiter: deps.getAnilistRateLimiter(),
+      resolveAnkiNoteId: (noteId: number) => deps.resolveAnkiNoteId(noteId),
+      resolveSentenceSearchHeadwords: (term: string) => deps.resolveSentenceSearchHeadwords(term),
+      addYomitanNote: async (word: string) => {
+        const ankiConnectConfig = deps.getResolvedConfig().ankiConnect;
+        const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';
+        await syncYomitanDefaultAnkiServerCore(ankiUrl, yomitanDeps, yomitanLogger, {
+          forceOverride: shouldForceOverrideYomitanAnkiServer(ankiConnectConfig),
+          deck: ankiConnectConfig.deck,
+        });
+        const result = await addYomitanNoteViaSearch(word, yomitanDeps, yomitanLogger);
+        if (result.noteId && result.duplicateNoteIds.length > 0) {
+          deps.trackDuplicateNoteIdsForNote(result.noteId, result.duplicateNoteIds);
+        }
+        return result.noteId;
+      },
+    };
   };
+
+  const beginLocalStatsServerStartup = (): Promise<void> => {
+    const token = Symbol('stats-server-startup');
+    const promise = startServer(buildStatsServerConfig())
+      .then(async (server) => {
+        const state = localStatsServerState;
+        if (state.kind !== 'starting' || state.token !== token) {
+          await server.close();
+          throw new Error('Stats server startup was cancelled.');
+        }
+        localStatsServerState = { kind: 'running', server };
+        deps.setAppStateStatsServer(server);
+      })
+      .catch((error: unknown) => {
+        const state = localStatsServerState;
+        if (state.kind === 'starting' && state.token === token) {
+          localStatsServerState = { kind: 'stopped' };
+          deps.setAppStateStatsServer(null);
+        }
+        throw error;
+      });
+    localStatsServerState = { kind: 'starting', token, promise };
+    return promise;
+  };
+
+  const startLocalStatsServer = async (): Promise<void> => {
+    while (localStatsServerState.kind === 'stopping') {
+      await localStatsServerState.promise;
+    }
+    if (localStatsServerState.kind === 'running') {
+      deps.setAppStateStatsServer(localStatsServerState.server);
+      return;
+    }
+    if (localStatsServerState.kind === 'starting') {
+      await localStatsServerState.promise;
+      return;
+    }
+    await beginLocalStatsServerStartup();
+  };
+
+  function stopStatsServer(): Promise<void> {
+    const state = localStatsServerState;
+    if (state.kind === 'stopped') {
+      deps.setAppStateStatsServer(null);
+      clearOwnedBackgroundStatsDaemonState();
+      return Promise.resolve();
+    }
+    if (state.kind === 'stopping') {
+      return state.promise;
+    }
+
+    const token = Symbol('stats-server-shutdown');
+    const promise = Promise.resolve()
+      .then(async () => {
+        if (state.kind === 'starting') {
+          try {
+            await state.promise;
+          } catch {
+            // Startup owns cleanup of a server that finishes binding after cancellation.
+          }
+          return;
+        }
+        await state.server.close();
+      })
+      .finally(() => {
+        const current = localStatsServerState;
+        if (current.kind === 'stopping' && current.token === token) {
+          localStatsServerState = { kind: 'stopped' };
+        }
+        deps.setAppStateStatsServer(null);
+        clearOwnedBackgroundStatsDaemonState();
+      });
+    localStatsServerState = { kind: 'stopping', token, promise };
+    deps.setAppStateStatsServer(null);
+    return promise;
+  }
 
   const ensureStatsServerStarted = createEnsureStatsServerUrlHandler({
     currentPid: process.pid,
@@ -193,15 +255,15 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
       removeDaemonState(statsDaemonStatePath);
     },
     isProcessAlive: (pid) => isDaemonAlive(pid),
-    hasLocalStatsServer: () => statsServer !== null,
+    hasLocalStatsServer: () => localStatsServerState.kind === 'running',
     startLocalStatsServer,
     getConfiguredPort: () => deps.getResolvedConfig().stats.serverPort,
   });
 
-  const ensureBackgroundStatsServerStarted = (): {
+  const ensureBackgroundStatsServerStarted = async (): Promise<{
     url: string;
     runningInCurrentProcess: boolean;
-  } => {
+  }> => {
     const liveDaemon = readLiveBackgroundStatsDaemonState();
     if (liveDaemon && liveDaemon.pid !== process.pid) {
       return {
@@ -218,8 +280,11 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
     }
 
     const port = deps.getResolvedConfig().stats.serverPort;
-    const result = ensureStatsServerStarted();
+    const result = await ensureStatsServerStarted();
     if (result.source === 'local') {
+      if (localStatsServerState.kind !== 'running') {
+        throw new Error('Stats server startup was cancelled.');
+      }
       writeBackgroundStatsServerState(statsDaemonStatePath, {
         pid: process.pid,
         port,
@@ -232,12 +297,13 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
   const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
     const state = readDaemonState(statsDaemonStatePath);
     if (!state) {
-      removeDaemonState(statsDaemonStatePath);
-      return { ok: true, stale: true };
+      const hadLocalServer = localStatsServerState.kind !== 'stopped';
+      await stopStatsServer();
+      return { ok: true, stale: !hadLocalServer };
     }
     if (isSelfOwnedBackgroundStatsDaemonState(state)) {
-      removeDaemonState(statsDaemonStatePath);
-      return { ok: true, stale: true };
+      await stopStatsServer();
+      return { ok: true, stale: false };
     }
     if (!isDaemonAlive(state.pid)) {
       removeDaemonState(statsDaemonStatePath);

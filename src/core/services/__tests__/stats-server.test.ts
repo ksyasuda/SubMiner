@@ -5,7 +5,11 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { createStatsApp, startStatsServer } from '../stats-server.js';
+import {
+  createStatsApp,
+  startNodeHttpServer,
+  startStatsServerWithRuntime,
+} from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   clearRetimedSecondarySubtitleCache,
@@ -3995,102 +3999,133 @@ Aligned English subtitle
     assert.equal(ensureCalls, 1);
   });
 
-  it('starts the stats server with Bun.serve', () => {
-    type BunRuntime = {
-      Bun: {
-        serve: (options: { fetch: unknown; port: number; hostname: string }) => {
-          stop: () => void;
-        };
-      };
-    };
-
-    const bun = globalThis as typeof globalThis & BunRuntime;
-    const originalServe = bun.Bun.serve;
-    let servedWith: { fetch: unknown; port: number; hostname: string } | null = null;
+  it('starts and stops the stats server with Bun.serve', async () => {
+    const servedOptions: Array<{ fetch: unknown; port: number; hostname: string }> = [];
     let stopCalls = 0;
-
-    bun.Bun.serve = (options: { fetch: unknown; port: number; hostname: string }) => {
-      servedWith = options;
-      return {
-        stop: () => {
-          stopCalls += 1;
-        },
-      };
-    };
-
-    try {
-      const server = startStatsServer({
+    const server = await startStatsServerWithRuntime(
+      {
         port: 3210,
         staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-start-')),
         tracker: createMockTracker(),
-      });
+      },
+      {
+        bunServe: (options) => {
+          servedOptions.push(options);
+          return {
+            stop: () => {
+              stopCalls += 1;
+            },
+          };
+        },
+      },
+    );
 
-      if (servedWith === null) {
-        throw new Error('expected Bun.serve to be called');
-      }
-
-      const servedOptions = servedWith as {
-        fetch: unknown;
-        port: number;
-        hostname: string;
-      };
-      assert.equal(servedOptions.port, 3210);
-      assert.equal(servedOptions.hostname, '127.0.0.1');
-      assert.equal(typeof servedOptions.fetch, 'function');
-
-      server.close();
-      assert.equal(stopCalls, 1);
-    } finally {
-      bun.Bun.serve = originalServe;
+    const servedWith = servedOptions[0];
+    if (!servedWith) {
+      throw new Error('expected Bun.serve to be called');
     }
+
+    assert.equal(servedWith.port, 3210);
+    assert.equal(servedWith.hostname, '127.0.0.1');
+    assert.equal(typeof servedWith.fetch, 'function');
+
+    await Promise.all([server.close(), server.close()]);
+    assert.equal(stopCalls, 1);
   });
 
-  it('falls back to node:http when Bun.serve is unavailable', () => {
-    type BunRuntime = {
-      Bun: {
-        serve?: (options: { fetch: unknown; port: number; hostname: string }) => {
-          stop: () => void;
-        };
-      };
-    };
-
-    const bun = globalThis as typeof globalThis & BunRuntime;
-    const originalServe = bun.Bun.serve;
-    const originalCreateServer = http.createServer;
-    let listenedWith: { port: number; hostname: string } | null = null;
+  it('waits for node:http listening and converts startup errors into rejections', async () => {
+    const app = createStatsApp(createMockTracker());
+    const listeningServer = http.createServer();
     let closeCalls = 0;
-    bun.Bun.serve = undefined;
-    (
-      http as typeof http & {
-        createServer: typeof http.createServer;
-      }
-    ).createServer = (() =>
-      ({
-        listen: (port: number, hostname: string) => {
-          listenedWith = { port, hostname };
-        },
-        close: () => {
+    Object.defineProperties(listeningServer, {
+      listen: {
+        value: () => listeningServer,
+      },
+      close: {
+        value: (callback?: (error?: Error) => void) => {
           closeCalls += 1;
+          callback?.();
+          return listeningServer;
         },
-      }) as unknown as ReturnType<typeof http.createServer>) as typeof http.createServer;
+      },
+    });
+
+    let startupSettled = false;
+    const startup = startNodeHttpServer(
+      app,
+      {
+        port: 3210,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-events-')),
+        tracker: createMockTracker(),
+      },
+      () => listeningServer,
+    );
+    void startup.finally(() => {
+      startupSettled = true;
+    });
+    await Promise.resolve();
+    assert.equal(startupSettled, false);
+
+    listeningServer.emit('listening');
+    const handle = await startup;
+    await Promise.all([handle.close(), handle.close()]);
+    assert.equal(closeCalls, 1);
+
+    const failingServer = http.createServer();
+    Object.defineProperty(failingServer, 'listen', {
+      value: () => failingServer,
+    });
+    const failedStartup = startNodeHttpServer(
+      app,
+      {
+        port: 3210,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-error-')),
+        tracker: createMockTracker(),
+      },
+      () => failingServer,
+    );
+    failingServer.emit('error', Object.assign(new Error('address in use'), { code: 'EADDRINUSE' }));
+    await assert.rejects(
+      failedStartup,
+      (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE',
+    );
+  });
+
+  it('starts, rejects address conflicts, and stops through real node:http sockets', async () => {
+    const app = createStatsApp(createMockTracker());
+    const server = await startNodeHttpServer(app, {
+      port: 0,
+      staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
+      tracker: createMockTracker(),
+    });
+    await Promise.all([server.close(), server.close()]);
+
+    const blocker = http.createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.listen(0, '127.0.0.1', resolve);
+    });
+    const address = blocker.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('expected blocker to listen on a TCP port');
+    }
 
     try {
-      const server = startStatsServer({
-        port: 0,
-        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
-        tracker: createMockTracker(),
-      });
-
-      assert.deepEqual(listenedWith, { port: 0, hostname: '127.0.0.1' });
-      server.close();
-      assert.equal(closeCalls, 1);
+      await assert.rejects(
+        startNodeHttpServer(app, {
+          port: address.port,
+          staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-error-')),
+          tracker: createMockTracker(),
+        }),
+        (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE',
+      );
     } finally {
-      bun.Bun.serve = originalServe;
-      (
-        http as typeof http & {
-          createServer: typeof http.createServer;
-        }
-      ).createServer = originalCreateServer;
+      await new Promise<void>((resolve, reject) => {
+        blocker.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
     }
   });
 });

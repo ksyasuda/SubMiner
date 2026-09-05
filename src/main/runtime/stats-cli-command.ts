@@ -57,8 +57,10 @@ export function createRunStatsCliCommandHandler(deps: {
     }) => Promise<DuplicateSubtitleLineCleanupSummary>;
     rebuildLifetimeSummaries?: () => Promise<LifetimeRebuildSummary>;
   } | null;
-  ensureStatsServerStarted: () => string;
-  ensureBackgroundStatsServerStarted: () => BackgroundStatsStartResult;
+  ensureStatsServerStarted: () => Promise<string> | string;
+  ensureBackgroundStatsServerStarted: () =>
+    | Promise<BackgroundStatsStartResult>
+    | BackgroundStatsStartResult;
   stopBackgroundStatsServer: () => Promise<BackgroundStatsStopResult> | BackgroundStatsStopResult;
   openExternal: (url: string) => Promise<unknown>;
   writeResponse: (responsePath: string, payload: StatsCliCommandResponse) => void;
@@ -115,7 +117,7 @@ export function createRunStatsCliCommandHandler(deps: {
       }
 
       if (args.statsBackground) {
-        const result = deps.ensureBackgroundStatsServerStarted();
+        const result = await deps.ensureBackgroundStatsServerStarted();
         deps.logInfo(`Stats dashboard available at ${result.url}`);
         writeResponseSafe(args.statsResponsePath, { ok: true, url: result.url });
         if (!result.runningInCurrentProcess && source === 'initial') {
@@ -183,7 +185,7 @@ export function createRunStatsCliCommandHandler(deps: {
         return;
       }
 
-      const url = deps.ensureStatsServerStarted();
+      const url = await deps.ensureStatsServerStarted();
       if (config.stats.autoOpenBrowser !== false) {
         await deps.openExternal(url);
       }

@@ -127,7 +127,8 @@ const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
 const wordHelperScriptPath = path.join(__dirname, 'stats-word-helper.js');
 
 let tracker: ImmersionTrackerService | null = null;
-let statsServer: ReturnType<typeof startStatsServer> | null = null;
+let statsServer: Awaited<ReturnType<typeof startStatsServer>> | null = null;
+let shutdownPromise: Promise<void> | null = null;
 
 function writeFailureResponse(message: string): void {
   if (!responsePath) return;
@@ -147,25 +148,32 @@ function clearOwnedState(): void {
   }
 }
 
-function shutdown(code = 0): void {
-  try {
-    statsServer?.close();
-  } catch {
-    // ignore
-  }
-  statsServer = null;
-  try {
-    tracker?.destroy();
-  } catch {
-    // ignore
-  }
-  tracker = null;
-  clearOwnedState();
-  process.exit(code);
+function shutdown(code = 0): Promise<void> {
+  shutdownPromise ??= (async () => {
+    try {
+      await statsServer?.close();
+    } catch {
+      // ignore
+    }
+    statsServer = null;
+    try {
+      tracker?.destroy();
+    } catch {
+      // ignore
+    }
+    tracker = null;
+    clearOwnedState();
+    process.exit(code);
+  })();
+  return shutdownPromise;
 }
 
-process.on('SIGINT', () => shutdown(0));
-process.on('SIGTERM', () => shutdown(0));
+process.on('SIGINT', () => {
+  void shutdown(0);
+});
+process.on('SIGTERM', () => {
+  void shutdown(0);
+});
 
 async function main(): Promise<void> {
   try {
@@ -198,7 +206,7 @@ async function main(): Promise<void> {
       createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art')),
     );
 
-    statsServer = startStatsServer({
+    statsServer = await startStatsServer({
       port: config.stats.serverPort,
       staticDir: statsDistPath,
       tracker,
@@ -237,7 +245,7 @@ async function main(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     logger.error('Failed to start stats daemon', message);
     writeFailureResponse(message);
-    shutdown(1);
+    await shutdown(1);
   }
 }
 

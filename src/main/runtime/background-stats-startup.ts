@@ -1,18 +1,23 @@
 export interface EnsureBackgroundStatsServerDeps {
   isStatsAutoStartEnabled: () => boolean;
   isImmersionTrackingEnabled: () => boolean;
-  ensureBackgroundStatsServerStarted: () => {
-    url: string;
-    runningInCurrentProcess: boolean;
-  };
+  ensureBackgroundStatsServerStarted: () =>
+    | Promise<{
+        url: string;
+        runningInCurrentProcess: boolean;
+      }>
+    | {
+        url: string;
+        runningInCurrentProcess: boolean;
+      };
   logInfo: (message: string) => void;
   logWarn: (message: string, error?: unknown) => void;
 }
 
 export function createEnsureBackgroundStatsServerHandler(
   deps: EnsureBackgroundStatsServerDeps,
-): () => void {
-  return () => {
+): () => Promise<void> {
+  return async () => {
     if (!deps.isStatsAutoStartEnabled()) {
       deps.logInfo('Background start: stats.autoStartServer is disabled; skipping stats server.');
       return;
@@ -22,7 +27,7 @@ export function createEnsureBackgroundStatsServerHandler(
       return;
     }
     try {
-      const result = deps.ensureBackgroundStatsServerStarted();
+      const result = await deps.ensureBackgroundStatsServerStarted();
       deps.logInfo(
         result.runningInCurrentProcess
           ? `Background start: stats server started at ${result.url}.`

@@ -1,3 +1,19 @@
+export function createForceQuitHandler(deps: {
+  destroyImmersionTracker: () => void;
+  logError: (error: unknown) => void;
+  exit: () => void;
+}) {
+  return () => {
+    try {
+      deps.destroyImmersionTracker();
+    } catch (error) {
+      deps.logError(error);
+    } finally {
+      deps.exit();
+    }
+  };
+}
+
 export function createOnWillQuitCleanupHandler(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
@@ -18,6 +34,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyMpvSocket: () => void;
   clearReconnectTimer: () => void;
   destroySubtitleTimingTracker: () => void;
+  stopStatsServer: () => Promise<void> | void;
   destroyImmersionTracker: () => void;
   destroyAnkiIntegration: () => void;
   destroyAnilistSetupWindow: () => void;
@@ -36,7 +53,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
-  return (): Promise<void> => {
+  return async (): Promise<void> => {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
@@ -56,6 +73,14 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyMpvSocket();
     deps.clearReconnectTimer();
     deps.destroySubtitleTimingTracker();
+    let statsServerStopFailed = false;
+    let statsServerStopError: unknown;
+    try {
+      await deps.stopStatsServer();
+    } catch (error) {
+      statsServerStopFailed = true;
+      statsServerStopError = error;
+    }
     deps.destroyImmersionTracker();
     deps.destroyAnkiIntegration();
     deps.destroyAnilistSetupWindow();
@@ -79,7 +104,10 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.cleanupYoutubeMediaCache();
     deps.cleanupRemoteMediaWindows();
     deps.stopDiscordPresenceService();
-    return Promise.resolve(stopSyncAutoScheduler);
+    await stopSyncAutoScheduler;
+    if (statsServerStopFailed) {
+      throw statsServerStopError;
+    }
   };
 }
 
