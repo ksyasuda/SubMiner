@@ -400,7 +400,14 @@ export function handleCliCommand(
   }
 
   if (args.start && args.background) {
-    void deps.ensureBackgroundStatsServer?.();
+    runAsyncWithOsd(
+      async () => {
+        await deps.ensureBackgroundStatsServer?.();
+      },
+      deps,
+      'ensureBackgroundStatsServer',
+      'Stats server startup failed',
+    );
   }
 
   if (args.sessionAction) {
