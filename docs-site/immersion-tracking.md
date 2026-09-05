@@ -31,6 +31,11 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 
 The same immersion data powers the stats dashboard.
 
+Stats API resource IDs must be positive safe integers written as decimal digits.
+Malformed IDs and ID lists containing invalid entries return `400` before any mutation;
+bulk requests do not apply just the valid subset. Pagination limits keep their existing
+rounding and bounds.
+
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand (it also opens the dashboard in your browser when `stats.autoOpenBrowser` is enabled; the default is `false`).
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.

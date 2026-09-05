@@ -1004,6 +1004,23 @@ describe('stats server API routes', () => {
     assert.equal(seenLimit, 500);
   });
 
+  it('GET /api/stats/vocabulary floors fractional pagination limits', async () => {
+    let seenLimit = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        getVocabularyStats: async (limit?: number) => {
+          seenLimit = limit ?? 0;
+          return VOCABULARY_STATS;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/vocabulary?limit=12.9');
+
+    assert.equal(res.status, 200);
+    assert.equal(seenLimit, 12);
+  });
+
   it('GET /api/stats/vocabulary passes excludePos to tracker', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(
@@ -1351,7 +1368,7 @@ describe('stats server API routes', () => {
       }),
     );
 
-    for (const anilistId of [-1, 0, 1.5, '12', true, undefined]) {
+    for (const anilistId of [-1, 0, 1.5, 9_007_199_254_740_992, '12', true, undefined]) {
       const res = await app.request('/api/stats/anime/1/anilist', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1449,6 +1466,74 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
+  it('resource routes reject fractional ids before calling dependencies', async () => {
+    const dependencyCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      dependencyCalls.push('fetch');
+      return new Response('{}', { status: 200 });
+    };
+
+    try {
+      const app = createStatsApp(
+        createMockTracker({
+          getWordDetail: async () => {
+            dependencyCalls.push('getWordDetail');
+            return null;
+          },
+          getSessionEvents: async () => {
+            dependencyCalls.push('getSessionEvents');
+            return [];
+          },
+          getEpisodeSessions: async () => {
+            dependencyCalls.push('getEpisodeSessions');
+            return [];
+          },
+          getAnimeCoverArt: async () => {
+            dependencyCalls.push('getAnimeCoverArt');
+            return null;
+          },
+          ensureAnimeCoverArt: async () => {
+            dependencyCalls.push('ensureAnimeCoverArt');
+            return false;
+          },
+          setVideoWatched: async () => {
+            dependencyCalls.push('setVideoWatched');
+          },
+          reassignAnimeAnilist: async () => {
+            dependencyCalls.push('reassignAnimeAnilist');
+          },
+        }),
+      );
+
+      const responses = await Promise.all([
+        app.request('/api/stats/vocabulary/1.9/detail'),
+        app.request('/api/stats/sessions/1.9/events'),
+        app.request('/api/stats/episode/1.9/detail'),
+        app.request('/api/stats/anime/1.9/cover'),
+        app.request('/api/stats/media/1.9/watched', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"watched":true}',
+        }),
+        app.request('/api/stats/anime/1.9/anilist', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"anilistId":21858}',
+        }),
+        app.request('/api/stats/anki/browse?noteId=1.9', { method: 'POST' }),
+      ]);
+
+      assert.deepEqual(
+        responses.map((response) => response.status),
+        [400, 400, 400, 400, 400, 400, 400],
+      );
+      assert.deepEqual(dependencyCalls, []);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('POST /api/stats/covers batches stored cover art and backfills missing anime art in the background', async () => {
     let ensureCoverArtCalls = 0;
     const ensureAnimeCoverArtCalls: number[] = [];
@@ -1503,6 +1588,58 @@ describe('stats server API routes', () => {
     });
     assert.equal(ensureCoverArtCalls, 0);
     assert.deepEqual(ensureAnimeCoverArtCalls, [99999]);
+  });
+
+  it('JSON id lists reject malformed members before side effects', async () => {
+    const dependencyCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      dependencyCalls.push('fetch');
+      return new Response('{}', { status: 200 });
+    };
+
+    try {
+      const app = createStatsApp(
+        createMockTracker({
+          deleteSessions: async () => {
+            dependencyCalls.push('deleteSessions');
+          },
+          mergeAnime: async () => {
+            dependencyCalls.push('mergeAnime');
+            return { survivingAnimeId: 7, mergedAnimeIds: [], movedVideos: 0 };
+          },
+          getAnimeCoverArt: async () => {
+            dependencyCalls.push('getAnimeCoverArt');
+            return null;
+          },
+          ensureAnimeCoverArt: async () => {
+            dependencyCalls.push('ensureAnimeCoverArt');
+            return false;
+          },
+        }),
+      );
+      const request = async (path: string, body: string, method = 'POST'): Promise<Response> =>
+        await app.request(path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+
+      const responses = await Promise.all([
+        request('/api/stats/sessions', '{"sessionIds":[4,1.9,7]}', 'DELETE'),
+        request('/api/stats/anime/7/merge', '{"sourceAnimeIds":[8,"9"]}'),
+        request('/api/stats/covers', '{"animeIds":[1,1.9]}'),
+        request('/api/stats/anki/notesInfo', '{"noteIds":[1,1.9]}'),
+      ]);
+
+      assert.deepEqual(
+        responses.map((response) => response.status),
+        [400, 400, 400, 400],
+      );
+      assert.deepEqual(dependencyCalls, []);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('POST /api/stats/covers limits concurrent missing anime cover backfills', async () => {
@@ -3262,6 +3399,46 @@ Aligned English subtitle
     assert.equal(deleteCalls, 0);
   });
 
+  it('DELETE /api/stats/sessions rejects a partly invalid id list without deleting', async () => {
+    let deleteCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSessions: async () => {
+          deleteCalls += 1;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sessionIds":[4,1.9,7]}',
+    });
+
+    assert.equal(res.status, 400);
+    assert.equal(deleteCalls, 0);
+  });
+
+  it('DELETE /api/stats/sessions deduplicates valid ids', async () => {
+    let deletedSessionIds: number[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSessions: async (sessionIds: number[]) => {
+          deletedSessionIds = sessionIds;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sessionIds":[4,4,7]}',
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(deletedSessionIds, [4, 7]);
+  });
+
   it('DELETE /api/stats/anime/:animeId deletes the whole library entry', async () => {
     let deletedAnimeId: number | null = null;
     const app = createStatsApp(
@@ -3293,6 +3470,33 @@ Aligned English subtitle
 
     assert.equal(res.status, 400);
     assert.equal(deleteCalls, 0);
+  });
+
+  it('DELETE /api/stats/anime/:animeId rejects malformed anime ids before deleting', async () => {
+    let deletedAnimeId: number | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteAnime: async (animeId: number) => {
+          deletedAnimeId = animeId;
+        },
+      }),
+    );
+
+    for (const animeId of [
+      '1.9',
+      '1.0',
+      '1e2',
+      '9007199254740992',
+      '1%0A',
+      '%201',
+      '01',
+      '+1',
+      '0x1',
+    ]) {
+      const res = await app.request(`/api/stats/anime/${animeId}`, { method: 'DELETE' });
+      assert.equal(res.status, 400, `accepted malformed anime id: ${animeId}`);
+    }
+    assert.equal(deletedAnimeId, null);
   });
 
   it('POST /api/stats/anime/:animeId/merge folds the given entries into the target', async () => {

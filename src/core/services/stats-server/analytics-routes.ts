@@ -6,6 +6,7 @@ import {
   loadKnownWordsSet,
   parseEventTypesQuery,
   parseIntQuery,
+  parsePositiveId,
   parseTrendFillEmpty,
   parseTrendGroupBy,
   parseTrendRange,
@@ -83,8 +84,8 @@ export function registerStatsAnalyticsRoutes(
   });
 
   app.get('/api/stats/sessions/:id/timeline', async (c) => {
-    const id = parseIntQuery(c.req.param('id'), 0);
-    if (id <= 0) return c.json(statsJson('sessionTimeline', []), 400);
+    const id = parsePositiveId(c.req.param('id'));
+    if (id === null) return c.json(statsJson('sessionTimeline', []), 400);
     const rawLimit = c.req.query('limit');
     const limit = rawLimit === undefined ? undefined : parseIntQuery(rawLimit, 200, 1000);
     const timeline = await tracker.getSessionTimeline(id, limit);
@@ -92,8 +93,8 @@ export function registerStatsAnalyticsRoutes(
   });
 
   app.get('/api/stats/sessions/:id/events', async (c) => {
-    const id = parseIntQuery(c.req.param('id'), 0);
-    if (id <= 0) return c.json(statsJson('sessionEvents', []), 400);
+    const id = parsePositiveId(c.req.param('id'));
+    if (id === null) return c.json(statsJson('sessionEvents', []), 400);
     const limit = parseIntQuery(c.req.query('limit'), 500, 1000);
     const eventTypes = parseEventTypesQuery(c.req.query('types'));
     const events = await tracker.getSessionEvents(id, limit, eventTypes);
@@ -101,8 +102,8 @@ export function registerStatsAnalyticsRoutes(
   });
 
   app.get('/api/stats/sessions/:id/known-words-timeline', async (c) => {
-    const id = parseIntQuery(c.req.param('id'), 0);
-    if (id <= 0) return c.json(statsJson('sessionKnownWordsTimeline', []), 400);
+    const id = parsePositiveId(c.req.param('id'));
+    if (id === null) return c.json(statsJson('sessionKnownWordsTimeline', []), 400);
 
     const knownWordsSet = loadKnownWordsSet(options?.knownWordCachePath) ?? new Set<string>();
 

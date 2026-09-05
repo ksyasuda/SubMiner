@@ -8,12 +8,14 @@ import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildSentenceSearchOptions,
   enrichSessionsWithKnownWordMetrics,
+  isPositiveSafeInteger,
+  loadKnownWordsSet,
   parseBooleanQuery,
   parseDuplicateLineCleanupBody,
   parseExcludedWordsBody,
   parseIntQuery,
+  parsePositiveId,
   parsePositiveIdList,
-  loadKnownWordsSet,
 } from './route-support.js';
 
 export function registerStatsLibraryRoutes(
@@ -116,8 +118,8 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/vocabulary/:wordId/detail', async (c) => {
-    const wordId = parseIntQuery(c.req.param('wordId'), 0);
-    if (wordId <= 0) return c.body(null, 400);
+    const wordId = parsePositiveId(c.req.param('wordId'));
+    if (wordId === null) return c.body(null, 400);
     const detail = await tracker.getWordDetail(wordId);
     if (!detail) return c.body(null, 404);
     const animeAppearances = await tracker.getWordAnimeAppearances(wordId);
@@ -126,8 +128,8 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/kanji/:kanjiId/detail', async (c) => {
-    const kanjiId = parseIntQuery(c.req.param('kanjiId'), 0);
-    if (kanjiId <= 0) return c.body(null, 400);
+    const kanjiId = parsePositiveId(c.req.param('kanjiId'));
+    if (kanjiId === null) return c.body(null, 400);
     const detail = await tracker.getKanjiDetail(kanjiId);
     if (!detail) return c.body(null, 404);
     const animeAppearances = await tracker.getKanjiAnimeAppearances(kanjiId);
@@ -141,8 +143,8 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/media/:videoId', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.json(statsJson('error', null), 400);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.json(statsJson('error', null), 400);
     const [detail, rawSessions, rollups] = await Promise.all([
       tracker.getMediaDetail(videoId),
       tracker.getMediaSessions(videoId, 100),
@@ -167,16 +169,16 @@ export function registerStatsLibraryRoutes(
   });
 
   app.delete('/api/stats/anime/merge-recommendations/:recommendationId', async (c) => {
-    const recommendationId = parseIntQuery(c.req.param('recommendationId'), 0);
-    if (recommendationId <= 0) return c.body(null, 400);
+    const recommendationId = parsePositiveId(c.req.param('recommendationId'));
+    if (recommendationId === null) return c.body(null, 400);
     const dismissed = await tracker.dismissAnimeMergeRecommendation(recommendationId);
     if (!dismissed) return c.body(null, 404);
     return c.json(statsJson('dismissAnimeMergeRecommendation', { ok: true }));
   });
 
   app.get('/api/stats/anime/:animeId', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) return c.body(null, 400);
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
     const detail = await tracker.getAnimeDetail(animeId);
     if (!detail) return c.body(null, 404);
     const [episodes, anilistEntries] = await Promise.all([
@@ -187,22 +189,22 @@ export function registerStatsLibraryRoutes(
   });
 
   app.get('/api/stats/anime/:animeId/words', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    const animeId = parsePositiveId(c.req.param('animeId'));
     const limit = parseIntQuery(c.req.query('limit'), 50, 200);
-    if (animeId <= 0) return c.body(null, 400);
+    if (animeId === null) return c.body(null, 400);
     return c.json(statsJson('animeWords', await tracker.getAnimeWords(animeId, limit)));
   });
 
   app.get('/api/stats/anime/:animeId/rollups', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
+    const animeId = parsePositiveId(c.req.param('animeId'));
     const limit = parseIntQuery(c.req.query('limit'), 90, 365);
-    if (animeId <= 0) return c.body(null, 400);
+    if (animeId === null) return c.body(null, 400);
     return c.json(statsJson('animeRollups', await tracker.getAnimeDailyRollups(animeId, limit)));
   });
 
   app.patch('/api/stats/media/:videoId/watched', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.body(null, 400);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.body(null, 400);
     const body = await c.req.json().catch(() => null);
     const watched = typeof body?.watched === 'boolean' ? body.watched : true;
     await tracker.setVideoWatched(videoId, watched);
@@ -211,42 +213,40 @@ export function registerStatsLibraryRoutes(
 
   app.delete('/api/stats/sessions', async (c) => {
     const body = await c.req.json().catch(() => null);
-    const ids = Array.isArray(body?.sessionIds)
-      ? body.sessionIds.filter(
-          (id: unknown): id is number => Number.isSafeInteger(id) && (id as number) > 0,
-        )
-      : [];
-    if (ids.length === 0) return c.body(null, 400);
+    const ids = parsePositiveIdList(body?.sessionIds);
+    if (!ids || ids.length === 0) return c.body(null, 400);
     await tracker.deleteSessions(ids);
     return c.json(statsJson('deleteSessions', { ok: true }));
   });
 
   app.delete('/api/stats/sessions/:sessionId', async (c) => {
-    const sessionId = parseIntQuery(c.req.param('sessionId'), 0);
-    if (sessionId <= 0) return c.body(null, 400);
+    const sessionId = parsePositiveId(c.req.param('sessionId'));
+    if (sessionId === null) return c.body(null, 400);
     await tracker.deleteSession(sessionId);
     return c.json(statsJson('deleteSession', { ok: true }));
   });
 
   app.delete('/api/stats/media/:videoId', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.body(null, 400);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.body(null, 400);
     await tracker.deleteVideo(videoId);
     return c.json(statsJson('deleteVideo', { ok: true }));
   });
 
   app.delete('/api/stats/anime/:animeId', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) return c.body(null, 400);
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
     await tracker.deleteAnime(animeId);
     return c.json(statsJson('deleteAnime', { ok: true }));
   });
 
   app.post('/api/stats/anime/:animeId/merge', async (c) => {
-    const animeId = parseIntQuery(c.req.param('animeId'), 0);
-    if (animeId <= 0) return c.body(null, 400);
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
     const body = await c.req.json().catch(() => null);
-    const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
+    const parsedSourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds);
+    if (!parsedSourceAnimeIds) return c.body(null, 400);
+    const sourceAnimeIds = parsedSourceAnimeIds.filter((id) => id !== animeId);
     if (sourceAnimeIds.length === 0) return c.body(null, 400);
     let summary: Awaited<ReturnType<typeof tracker.mergeAnime>>;
     try {
@@ -271,11 +271,11 @@ export function registerStatsLibraryRoutes(
   });
 
   app.patch('/api/stats/media/:videoId/anime', async (c) => {
-    const videoId = parseIntQuery(c.req.param('videoId'), 0);
-    if (videoId <= 0) return c.body(null, 400);
+    const videoId = parsePositiveId(c.req.param('videoId'));
+    if (videoId === null) return c.body(null, 400);
     const body = await c.req.json().catch(() => null);
-    const animeId = Number.isSafeInteger(body?.animeId) ? (body.animeId as number) : 0;
-    if (animeId <= 0) return c.body(null, 400);
+    const animeId = body?.animeId;
+    if (!isPositiveSafeInteger(animeId)) return c.body(null, 400);
     try {
       const summary = await tracker.moveVideoToAnime(videoId, animeId);
       return c.json(
