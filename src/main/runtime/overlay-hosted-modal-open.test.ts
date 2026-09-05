@@ -1,6 +1,77 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { openOverlayHostedModal } from './overlay-hosted-modal-open';
+import { openOverlayHostedModal, retryOverlayModalOpen } from './overlay-hosted-modal-open';
+
+test('retryOverlayModalOpen skips the first send when already aborted', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const unexpectedCall = () => assert.fail('aborted open must not send or wait');
+  assert.equal(
+    await retryOverlayModalOpen(
+      { waitForModalOpen: unexpectedCall, logWarn: unexpectedCall },
+      {
+        modal: 'media-timing-review',
+        timeoutMs: 4_000,
+        retryWarning: 'retry',
+        sendOpen: unexpectedCall,
+        signal: controller.signal,
+      },
+    ),
+    false,
+  );
+});
+
+for (const abortOnWait of [1, 2]) {
+  test(`retryOverlayModalOpen rejects an acknowledgement aborted during wait ${abortOnWait}`, async () => {
+    const controller = new AbortController();
+    let waitCalls = 0;
+    let sendCalls = 0;
+    const opened = await retryOverlayModalOpen(
+      {
+        waitForModalOpen: async () => {
+          waitCalls += 1;
+          if (waitCalls === abortOnWait) {
+            controller.abort();
+            return true;
+          }
+          return false;
+        },
+        logWarn: () => {},
+      },
+      {
+        modal: 'media-timing-review',
+        timeoutMs: 4_000,
+        retryWarning: 'retry',
+        sendOpen: () => {
+          sendCalls += 1;
+          return true;
+        },
+        signal: controller.signal,
+      },
+    );
+    assert.equal(opened, false);
+    assert.equal(sendCalls, abortOnWait);
+    assert.equal(waitCalls, abortOnWait);
+  });
+}
+
+test('retryOverlayModalOpen still retries other modals without a signal', async () => {
+  let sendCalls = 0;
+  const opened = await retryOverlayModalOpen(
+    { waitForModalOpen: async () => sendCalls === 2, logWarn: () => {} },
+    {
+      modal: 'runtime-options',
+      timeoutMs: 1_500,
+      retryWarning: 'retry',
+      sendOpen: () => {
+        sendCalls += 1;
+        return true;
+      },
+    },
+  );
+  assert.equal(opened, true);
+  assert.equal(sendCalls, 2);
+});
 
 test('openOverlayHostedModal ensures overlay readiness before sending the open event', () => {
   const calls: string[] = [];

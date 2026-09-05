@@ -2965,7 +2965,8 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
       startTime: range.startTime,
       endTime: range.endTime,
     }),
-  openModal: (payload) => openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload),
+  openModal: (payload, signal) =>
+    openMediaTimingReviewModal(createOverlayHostedModalOpenDeps(), payload, signal),
   onPreviewEnded: (reviewId) => {
     // The review may live in either overlay window; the renderer ignores foreign review ids.
     for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
