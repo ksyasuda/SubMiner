@@ -191,7 +191,9 @@ async function fetchOverview(url, daemon) {
   let lastError = null;
   while (Date.now() < deadline) {
     try {
-      return await fetch(`${url}/api/stats/overview`);
+      return await fetch(`${url}/api/stats/overview`, {
+        signal: AbortSignal.timeout(START_TIMEOUT_MS),
+      });
     } catch (error) {
       lastError = error;
     }
@@ -228,6 +230,13 @@ async function runHealthyStartup(userDataPath, port, responseName) {
     assert.ok(Array.isArray(overview.sessions));
     assert.ok(Array.isArray(overview.rollups));
     assert.equal(typeof overview.hints, 'object');
+
+    const dashboard = await fetch(`${startup.url}/?overlay=1`, {
+      signal: AbortSignal.timeout(START_TIMEOUT_MS),
+    });
+    assert.equal(dashboard.status, 200);
+    assert.match(dashboard.headers.get('content-type') ?? '', /^text\/html\b/);
+    assert.match(await dashboard.text(), /id="root"/);
 
     assert.ok(existsSync(databasePath), 'The compiled tracker did not create its SQLite database.');
     assert.ok(
