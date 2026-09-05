@@ -32,6 +32,101 @@ test('media timing review is disabled by default and accepts a boolean override'
   assert.deepEqual(enabledContext.warnings, []);
 });
 
+test('invalid direct and field-grouping Anki values warn and keep defaults', () => {
+  const { context, warnings } = makeContext({
+    enabled: 'true',
+    url: 8765,
+    pollingRate: '3000',
+    deck: ['Mining'],
+    isKiku: {
+      enabled: 1,
+      fieldGrouping: 'sometimes',
+      deleteDuplicateInAuto: 'false',
+    },
+    isSenren: {
+      enabled: 'true',
+      fieldGrouping: false,
+      deleteDuplicateInAuto: 0,
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.enabled, DEFAULT_CONFIG.ankiConnect.enabled);
+  assert.equal(context.resolved.ankiConnect.url, DEFAULT_CONFIG.ankiConnect.url);
+  assert.equal(context.resolved.ankiConnect.pollingRate, DEFAULT_CONFIG.ankiConnect.pollingRate);
+  assert.equal(context.resolved.ankiConnect.deck, DEFAULT_CONFIG.ankiConnect.deck);
+  assert.deepEqual(context.resolved.ankiConnect.isKiku, DEFAULT_CONFIG.ankiConnect.isKiku);
+  assert.deepEqual(context.resolved.ankiConnect.isSenren, DEFAULT_CONFIG.ankiConnect.isSenren);
+  assert.deepEqual(
+    warnings.map((warning) => warning.path),
+    [
+      'ankiConnect.enabled',
+      'ankiConnect.url',
+      'ankiConnect.pollingRate',
+      'ankiConnect.deck',
+      'ankiConnect.isKiku.enabled',
+      'ankiConnect.isKiku.deleteDuplicateInAuto',
+      'ankiConnect.isKiku.fieldGrouping',
+      'ankiConnect.isSenren.enabled',
+      'ankiConnect.isSenren.deleteDuplicateInAuto',
+      'ankiConnect.isSenren.fieldGrouping',
+    ],
+  );
+});
+
+test('accepts valid direct and field-grouping Anki values', () => {
+  const { context, warnings } = makeContext({
+    enabled: false,
+    url: 'http://127.0.0.1:9876',
+    pollingRate: 750,
+    deck: 'Mining',
+    isKiku: {
+      enabled: true,
+      fieldGrouping: 'manual',
+      deleteDuplicateInAuto: false,
+    },
+    isSenren: {
+      enabled: false,
+      fieldGrouping: 'disabled',
+      deleteDuplicateInAuto: false,
+    },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(context.resolved.ankiConnect.enabled, false);
+  assert.equal(context.resolved.ankiConnect.url, 'http://127.0.0.1:9876');
+  assert.equal(context.resolved.ankiConnect.pollingRate, 750);
+  assert.equal(context.resolved.ankiConnect.deck, 'Mining');
+  assert.deepEqual(context.resolved.ankiConnect.isKiku, {
+    enabled: true,
+    fieldGrouping: 'manual',
+    deleteDuplicateInAuto: false,
+  });
+  assert.deepEqual(context.resolved.ankiConnect.isSenren, {
+    enabled: false,
+    fieldGrouping: 'disabled',
+    deleteDuplicateInAuto: false,
+  });
+  assert.deepEqual(warnings, []);
+});
+
+test('ignores unknown Anki keys without warning or admitting them to resolved config', () => {
+  const { context, warnings } = makeContext({
+    futureOption: { enabled: true },
+    isKiku: { futureGroupingOption: 'future' },
+    isSenren: { futureGroupingOption: 'future' },
+  });
+
+  applyAnkiConnectResolution(context);
+
+  assert.equal(Object.hasOwn(context.resolved.ankiConnect, 'futureOption'), false);
+  assert.equal(Object.hasOwn(context.resolved.ankiConnect.isKiku, 'futureGroupingOption'), false);
+  assert.equal(Object.hasOwn(context.resolved.ankiConnect.isSenren, 'futureGroupingOption'), false);
+  assert.deepEqual(warnings, []);
+});
+
 test('modern media duration accepts zero as the disabled cap sentinel', () => {
   const disabledCap = makeContext({ media: { maxMediaDuration: 0 } });
   applyAnkiConnectResolution(disabledCap.context);

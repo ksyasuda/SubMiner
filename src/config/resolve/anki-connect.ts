@@ -19,11 +19,11 @@ export function applyAnkiConnectResolution(context: ResolveContext): void {
   const media = isObject(ankiConnect.media) ? ankiConnect.media : {};
   const metadata = isObject(ankiConnect.metadata) ? ankiConnect.metadata : {};
 
-  initializeAnkiConnectResolution(context, ankiConnect);
+  initializeAnkiConnectResolution(context);
   applyAnkiModernResolution(context, ankiConnect, behavior, media);
   applyAnkiLegacyResolution(context, ankiConnect, behavior, fields, media, metadata);
   applyAnkiKnownWordsResolution(context, ankiConnect, behavior);
-  applyAnkiKikuResolution(context);
-  applyAnkiSenrenResolution(context);
+  applyAnkiKikuResolution(context, ankiConnect);
+  applyAnkiSenrenResolution(context, ankiConnect);
   applyAnkiLapisKikuResolution(context, ankiConnect);
 }
