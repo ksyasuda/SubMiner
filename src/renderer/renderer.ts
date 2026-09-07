@@ -40,6 +40,7 @@ import { createPlaylistBrowserModal } from './modals/playlist-browser.js';
 import { createSessionHelpModal } from './modals/session-help.js';
 import { createChangelogModal } from './modals/changelog.js';
 import { createSubtitleSidebarModal } from './modals/subtitle-sidebar.js';
+import { wireSubtitleSidebarSelection } from './modals/subtitle-sidebar-selection.js';
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
 import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
@@ -239,6 +240,8 @@ const subtitleSidebarModal = createSubtitleSidebarModal(ctx, {
     measurementReporter.emitNow();
   },
 });
+const disposeSubtitleSidebarSelection = wireSubtitleSidebarSelection(ctx);
+window.addEventListener('beforeunload', disposeSubtitleSidebarSelection, { once: true });
 const kikuModal = createKikuModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,

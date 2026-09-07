@@ -85,6 +85,35 @@ test('handleOverlayWindowBeforeInputEvent leaves modal Tab handling alone', () =
   assert.deepEqual(calls, []);
 });
 
+test('native Copy reaches the renderer before the current-subtitle fallback', () => {
+  for (const modifier of [{ control: true }, { meta: true }]) {
+    const handled = handleOverlayWindowBeforeInputEvent({
+      kind: 'visible',
+      windowVisible: true,
+      input: {
+        type: 'keyDown',
+        key: 'c',
+        code: 'KeyC',
+        isAutoRepeat: false,
+        isComposing: false,
+        shift: false,
+        control: false,
+        alt: false,
+        meta: false,
+        location: 0,
+        modifiers: [],
+        ...modifier,
+      },
+      preventDefault: () => assert.fail('Copy must reach Chromium'),
+      sendKeyboardModeToggleRequested: () => assert.fail('Unexpected mode toggle'),
+      sendLookupWindowToggleRequested: () => assert.fail('Unexpected lookup toggle'),
+      tryHandleOverlayShortcutLocalFallback: () => assert.fail('Renderer owns Copy'),
+      forwardTabToMpv: () => assert.fail('Unexpected mpv input'),
+    });
+    assert.equal(handled, false);
+  }
+});
+
 test('handleOverlayWindowBlurred skips visible overlay restacking after manual hide', () => {
   const calls: string[] = [];
 

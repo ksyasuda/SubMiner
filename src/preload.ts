@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
+import { clipboard, contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 import { resolveOverlayLayerFromArgv } from './preload-args';
 import type {
   SubtitleData,
@@ -301,6 +301,10 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarOpen),
   getSubtitleSidebarSnapshot: () =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSidebarSnapshot),
+  copySubtitleSidebarSelection: async (text: unknown) => {
+    if (typeof text !== 'string') throw new TypeError('Subtitle selection must be text.');
+    clipboard.writeText(text);
+  },
   getPlaybackPaused: (): Promise<boolean | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getPlaybackPaused),
   onSubtitleAss: (callback: (assText: string) => void) => {

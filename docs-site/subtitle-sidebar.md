@@ -16,6 +16,14 @@ For typeset ASS karaoke and animated signs, SubMiner collapses generated animati
 
 The sidebar only appears when a parsed cue list is available. External subtitle sources that SubMiner cannot parse (for example, embedded ASS tracks rendered directly by mpv) will not populate the sidebar.
 
+## Selecting and copying dialogue
+
+Drag across subtitle text to select an excerpt, including across multiple rows. Scroll to extend a selection through a longer conversation. `Ctrl/Cmd+C` or the **Copy** button copies the highlighted text in subtitle order, without timestamps. Partial first and last lines are preserved, with a blank line between subtitle cues.
+
+Dragging to select does not seek playback. Playback-following auto-scroll stops while you drag or have a selection, so the excerpt stays in view. Press `Escape` to clear the selection. An ordinary click with no selection still seeks to that cue.
+
+Selection survives playback updates and Yomitan popup dismissal. Changing media or subtitle sources, refreshing the cue list, or closing the sidebar clears it. Copying an excerpt does not require creating an Anki card.
+
 ## Layout Modes
 
 Two layout modes are available via `subtitleSidebar.layout`:
