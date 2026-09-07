@@ -138,6 +138,8 @@ Field names are matched against your Anki note type case-insensitively (an exact
 
 These mappings always control normal word-card enrichment, including Yomitan proxy/polling updates and manual clipboard updates. Enabling Lapis or Kiku does not replace the configured word-card sentence and audio fields with `Sentence` and `SentenceAudio`. The dedicated sentence-card and audio-card shortcuts still use those Lapis/Kiku field names.
 
+The audio field receives the sentence clip from the video, including when media timing review is enabled. In Settings, set the Anki audio field to your note type's sentence-audio field, such as `SentenceAudio`, and keep it separate from the field Yomitan uses for word pronunciation. If both write to the same field, SubMiner can overwrite the pronunciation audio. Changing the mapping affects future updates; existing cards need their word audio restored separately.
+
 Two related options live alongside `fields`: `ankiConnect.deck` (target deck; empty falls back as described above) and `ankiConnect.tags` (tags added to mined cards, default `["SubMiner"]`; set `[]` to disable tagging). The `miscInfo` content is controlled by `ankiConnect.metadata.pattern` (default `[SubMiner] %f (%t)`; tokens: `%f` filename, `%F` filename with extension, `%t` timestamp, `%T` timestamp with milliseconds, `<br>` newline).
 
 ### Minimal Config

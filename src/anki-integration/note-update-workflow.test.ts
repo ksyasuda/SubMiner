@@ -121,6 +121,51 @@ test('NoteUpdateWorkflow updates sentence field and emits notification', async (
   assert.equal(harness.notifications.length, 1);
 });
 
+for (const audioField of ['SentenceAudio', 'ContextAudio']) {
+  for (const action of ['confirm', 'use-original'] as const) {
+    test(`NoteUpdateWorkflow respects the configured ${audioField} field with ${action} timing`, async () => {
+      const harness = createWorkflowHarness();
+      harness.deps.getConfig = () => ({
+        fields: { sentence: 'Sentence', audio: audioField },
+        media: { generateAudio: true, generateImage: false },
+      });
+      harness.deps.client.notesInfo = async () => [
+        {
+          noteId: 42,
+          fields: {
+            Expression: { value: 'taberu' },
+            ExpressionAudio: { value: '[sound:word.mp3]' },
+            Sentence: { value: '' },
+            SentenceAudio: { value: '' },
+            ContextAudio: { value: '' },
+          },
+        },
+      ];
+      harness.deps.captureSubtitleMediaContext = () => ({
+        source: 'overlay',
+        text: 'subtitle-text',
+        startTime: 4,
+        endTime: 6,
+      });
+      harness.deps.reviewMediaTiming = async () => ({
+        action,
+        startTime: 4.2,
+        endTime: 5.8,
+      });
+      harness.deps.generateAudio = async () => Buffer.from('sentence audio');
+
+      await harness.workflow.execute(42);
+
+      assert.equal(harness.updates.length, 1);
+      assert.equal(harness.updates[0]?.fields.ExpressionAudio, undefined);
+      assert.deepEqual(harness.updates[0]?.fields, {
+        Sentence: 'subtitle-text',
+        [audioField]: '[sound:audio_1.mp3]',
+      });
+    });
+  }
+}
+
 test('NoteUpdateWorkflow uses configured fields for word-card enrichment with Lapis and Kiku enabled', async () => {
   const harness = createWorkflowHarness();
   harness.deps.getConfig = () => ({
