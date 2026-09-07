@@ -436,7 +436,10 @@ export function createKeyboardHandlers(
   }
 
   function clearNativeSubtitleSelection(): void {
-    window.getSelection()?.removeAllRanges();
+    const selection = window.getSelection();
+    if (!selection?.anchorNode || ctx.dom.subtitleRoot.contains(selection.anchorNode)) {
+      selection?.removeAllRanges();
+    }
     ctx.dom.subtitleRoot.classList.remove('has-selection');
   }
 

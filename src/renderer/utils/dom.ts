@@ -157,6 +157,7 @@ export type RendererDom = {
   subtitleSidebarModal: HTMLDivElement;
   subtitleSidebarContent: HTMLDivElement;
   subtitleSidebarClose: HTMLButtonElement;
+  subtitleSidebarCopy: HTMLButtonElement;
   subtitleSidebarStatus: HTMLDivElement;
   subtitleSidebarList: HTMLUListElement;
 
@@ -405,6 +406,7 @@ export function resolveRendererDom(): RendererDom {
     subtitleSidebarModal: getRequiredElement<HTMLDivElement>('subtitleSidebarModal'),
     subtitleSidebarContent: getRequiredElement<HTMLDivElement>('subtitleSidebarContent'),
     subtitleSidebarClose: getRequiredElement<HTMLButtonElement>('subtitleSidebarClose'),
+    subtitleSidebarCopy: getRequiredElement<HTMLButtonElement>('subtitleSidebarCopy'),
     subtitleSidebarStatus: getRequiredElement<HTMLDivElement>('subtitleSidebarStatus'),
     subtitleSidebarList: getRequiredElement<HTMLUListElement>('subtitleSidebarList'),
 

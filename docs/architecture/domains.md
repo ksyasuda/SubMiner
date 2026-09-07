@@ -37,6 +37,14 @@ Read when: you need to find the owner module for a behavior or test surface
 
 ## Shared Contract Entry Points
 
+The subtitle sidebar consumes parsed cues through `SubtitleSidebarSnapshot`. Its `sourceKey`
+identifies the media and subtitle source so renderer selections are invalidated on source changes,
+including changes whose cue text and timings are identical. Native selection and clean clipboard
+serialization live in `src/renderer/modals/subtitle-sidebar-selection.ts`. Electron lets standard
+Copy input reach the renderer, where sidebar selection takes priority over the live-subtitle binding.
+The preload bridge writes selections through Electron's clipboard API so copying does not depend
+on Chromium document focus or require activating the overlay window.
+
 - Config + app-state contracts: `src/types/config.ts`
 - Subtitle/token/media annotation contracts: `src/types/subtitle.ts`
 - Runtime/window/controller/Electron bridge contracts: `src/types/runtime.ts`

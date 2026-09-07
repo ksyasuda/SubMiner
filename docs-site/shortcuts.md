@@ -25,6 +25,8 @@ All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindi
 
 These work when the overlay window has focus.
 
+When text is selected in the [subtitle sidebar](./subtitle-sidebar.md#selecting-and-copying-dialogue), `Ctrl/Cmd+C` copies that selection without timestamps, taking priority over the current-subtitle action. `Escape` clears the sidebar selection.
+
 | Shortcut           | Action                                          | Config key                              |
 | ------------------ | ----------------------------------------------- | --------------------------------------- |
 | `Ctrl/Cmd+S`       | Mine current subtitle as sentence card          | `shortcuts.mineSentence`                |
