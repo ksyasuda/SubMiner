@@ -8,12 +8,15 @@ import test from 'node:test';
 import { build } from 'esbuild';
 
 // This check opens Electron and uses the clipboard. Keep it out of normal code-only lanes.
-test(
+const electronTest =
+  process.env.SUBMINER_ELECTRON_TESTS === '1' &&
+  (process.platform !== 'linux' || process.env.DISPLAY)
+    ? test
+    : test.skip;
+
+electronTest(
   'sidebar selection copies clean chronological text without seeking or losing context',
   {
-    skip:
-      process.env.SUBMINER_ELECTRON_TESTS !== '1' ||
-      (process.platform === 'linux' && !process.env.DISPLAY),
     timeout: 30_000,
   },
   async () => {
