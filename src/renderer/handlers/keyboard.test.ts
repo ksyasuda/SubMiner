@@ -1886,6 +1886,29 @@ test('keyboard mode: popup hidden after mode off clears stale selected token hig
   }
 });
 
+test('Yomitan popup dismissal and subtitle updates preserve selection outside the overlay subtitle', async () => {
+  const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
+  let cleared = false;
+  try {
+    Object.defineProperty(window, 'getSelection', {
+      configurable: true,
+      value: () => ({
+        anchorNode: {},
+        removeAllRanges: () => {
+          cleared = true;
+        },
+      }),
+    });
+    Object.assign(ctx.dom.subtitleRoot, { contains: () => false });
+    await handlers.setupMpvInputForwarding();
+    testGlobals.dispatchWindowEvent(YOMITAN_POPUP_HIDDEN_EVENT);
+    handlers.syncKeyboardTokenSelection();
+    assert.equal(cleared, false);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
 test('keyboard mode: closing lookup keeps controller selection but clears native text selection', async () => {
   const { ctx, handlers, testGlobals } = createKeyboardHandlerHarness();
 

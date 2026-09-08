@@ -1,14 +1,16 @@
 # Troubleshooting
 
-Common issues and how to resolve them. Most problems fall into one of a few buckets - the overlay shows but subtitles don't (see [MPV Connection](#mpv-connection)), cards aren't being created or come out empty (see [AnkiConnect](#ankiconnect)), or word lookups don't appear (see [Yomitan](#yomitan)). If an error message popped up on screen, search this page for the exact text - most headings below are quoted error strings.
+Almost everything that goes wrong lands in one of three places. The overlay shows but no subtitles arrive, which is [MPV Connection](#mpv-connection). Cards get created but come out empty, which is [AnkiConnect](#ankiconnect). Or hovering a word does nothing, which is [Yomitan](#yomitan).
 
-## MPV Connection
+If you got an error message on screen, search this page for its exact text. Most headings below are quoted error strings.
+
+## MPV connection
 
 **Overlay starts but shows no subtitles**
 
 SubMiner connects to mpv via a Unix socket (or named pipe on Windows). If the socket does not exist or the path does not match, the overlay will appear but subtitles will never arrive.
 
-- Ensure mpv is running with `--input-ipc-server=/tmp/subminer-socket`.
+- Check that mpv is running with `--input-ipc-server=/tmp/subminer-socket`.
 - If you use a custom socket path, set it in both your mpv config and SubMiner config (`mpv.socketPath`).
 - The `subminer` wrapper script sets the socket automatically when it launches mpv. If you launch mpv yourself, the `--input-ipc-server` flag is required.
 
@@ -18,7 +20,7 @@ If the overlay never appears at all, see [Playback Startup Flow](./architecture#
 
 **"Failed to parse MPV message"**
 
-Logged when a malformed JSON line arrives from the mpv socket. Usually harmless - SubMiner skips the bad line and continues. If it happens constantly, check that nothing else is writing to the same socket path.
+A malformed JSON line arrived from the mpv socket. SubMiner drops the line and keeps going, so a stray one is harmless. A constant stream of them means something else is writing to the same socket path.
 
 ## Updates
 
@@ -85,7 +87,7 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 
 **Overlay appears but clicks pass through / cannot interact**
 
-- Make sure you are hovering over subtitle text - the overlay only becomes interactive when the cursor is over a subtitle.
+- Hover directly over subtitle text. The overlay only takes pointer input while the cursor is over a subtitle.
 - On macOS/Windows: toggle the overlay off and back on (`Alt+Shift+O`) to re-enable pointer events.
 - On Linux: mouse event handling is unreliable in some Electron/compositor combinations. If clicks consistently fail, toggle the overlay off, click the underlying mpv window, then toggle it back on.
 
@@ -99,9 +101,9 @@ Shown when SubMiner tries to update a card that no longer exists, or when AnkiCo
 
 SubMiner positions the overlay by tracking the mpv window. If tracking fails:
 
-- Hyprland: Ensure `hyprctl` is available.
-- Sway: Ensure `swaymsg` is available.
-- X11: Ensure `xdotool` and `xwininfo` are installed.
+- Hyprland: `hyprctl` must be on `PATH`.
+- Sway: `swaymsg` must be on `PATH`.
+- X11: `xdotool` and `xwininfo` must be installed.
 
 If the overlay position is slightly off, right-click and drag on subtitle text to fine-tune the overlay subtitle offset.
 
@@ -124,12 +126,12 @@ If you installed from the AppImage and see this error, the package may be incomp
 
 **Yomitan lookup popup does not appear when hovering words or triggering lookup**
 
-- Verify Yomitan loaded successfully - check the terminal output for "Loaded Yomitan extension".
+- Look for "Loaded Yomitan extension" in the terminal output.
 - Yomitan requires dictionaries to be installed. Open Yomitan settings (`Alt+Shift+Y` or `SubMiner.AppImage --yomitan`) and confirm at least one dictionary is imported.
 - If `yomitan.externalProfilePath` is set, import/check dictionaries in the external app/profile instead. SubMiner treats that profile as read-only and does not open its own Yomitan settings window.
 - If the overlay shows subtitles but hover lookup never resolves on tokens, the tokenizer may have failed. See the MeCab section below.
 
-## MeCab / Tokenization
+## MeCab / tokenization
 
 **"MeCab not found on system"**
 
@@ -145,19 +147,19 @@ To install MeCab:
 
 Japanese word boundaries depend on Yomitan parser output. If segmentation seems wrong:
 
-- Verify Yomitan dictionaries are installed and active.
-- Note that CJK characters without spaces are segmented using parser heuristics, which is not always perfect.
+- Check that Yomitan dictionaries are installed and active.
+- Japanese text has no spaces, so the parser guesses word boundaries. It gets some of them wrong.
 
-## Character Dictionary
+## Character dictionary
 
 Character names from AniList are matched and highlighted in subtitles via the bundled Yomitan. See [Character Dictionary](/character-dictionary) for setup and the full troubleshooting list - the most common issues:
 
-- **Names not highlighting:** Confirm `subtitleStyle.nameMatchEnabled` is `true`, and that the current media resolved to an AniList entry (SubMiner needs a media ID to fetch characters). No AniList account or token is required - character data uses public GraphQL queries.
-- **Inline portraits missing:** Confirm `subtitleStyle.nameMatchImagesEnabled` is `true`. Portraits also require AniList to return an image and the download to succeed during snapshot generation.
+- **Names not highlighting:** Check that `subtitleStyle.nameMatchEnabled` is `true` and that the current media resolved to an AniList entry, since SubMiner needs a media ID to fetch characters. No AniList account or token is needed; character data comes from public GraphQL queries.
+- **Inline portraits missing:** Check that `subtitleStyle.nameMatchImagesEnabled` is `true`. AniList also has to return an image, and the download has to succeed while the snapshot is generated.
 - **Wrong characters showing:** Open the in-app manager (`Ctrl/Cmd+D`) and use **Override** to pin the correct AniList match for the series.
 - **Feature unavailable:** If `yomitan.externalProfilePath` is set, SubMiner runs in read-only external-profile mode and its character-dictionary features are disabled.
 
-## Media Generation
+## Media generation
 
 **"FFmpeg not found"**
 
@@ -193,7 +195,7 @@ This warning refers to the OS-registered shortcut `Alt+Shift+Y` (Yomitan setting
 
 Overlay-local shortcuts (Space, arrow keys, etc.) only work when the overlay window has focus. Click on the overlay or use `Alt+Shift+O` (with the overlay or mpv focused) to toggle it and give it focus.
 
-## Subtitle Timing
+## Subtitle timing
 
 **"Subtitle timing not found; copy again while playing"**
 
@@ -205,7 +207,7 @@ This OSD message appears when you try to mine a sentence but SubMiner has no tim
 
 Resume playback and wait for the next subtitle to appear, then try mining again.
 
-## Subtitle Sync (Subsync)
+## Subtitle sync (subsync)
 
 Both **alass** and **ffsubsync** are optional external dependencies. Subtitle syncing requires at least one of them to be installed.
 
@@ -229,8 +231,8 @@ Install ffsubsync or configure the path:
 
 If subtitle sync fails (the error message is prefixed with the engine name):
 
-- Ensure a reference is selected (alass needs either a second subtitle track or the local video file, and it cannot be the same track that is being retimed).
-- Check that `ffmpeg` is available (used to extract the internal subtitle track).
+- Select a reference. alass needs either a second subtitle track or the local video file, and it cannot be the track being retimed.
+- Check that `ffmpeg` is available, since it extracts the internal subtitle track.
 - Try running the sync tool manually to see detailed error output.
 - ffsubsync requires local files and cannot handle remote media streams (e.g., streaming URLs).
 
@@ -254,23 +256,23 @@ Most Linux distributions ship it already. See [TsukiHime Integration](/tsukihime
 
 The Jimaku API has rate limits. If you see 429 errors, wait for the retry duration shown in the OSD message and try again. If you have a Jimaku API key, set it in `jimaku.apiKey` or `jimaku.apiKeyCommand` to get higher rate limits.
 
-## Logging and App Mode
+## Logging and app mode
 
 - Default log output is `warn`.
 - Use `--log-level` for more/less output.
 - Use `--dev`/`--debug` only to force app/dev mode (for example to get dev behavior from the overlay/app); they do not change log verbosity.
 - You can combine both, for example `SubMiner.AppImage --start --dev --log-level debug`, when you need maximum diagnostics.
 
-## Performance and Resource Impact
+## Performance and resource impact
 
-### At a glance
+### Where the cost comes from
 
-- Baseline: `SubMiner --start` is usually lightweight for normal playback.
-- Common spikes come from:
-  - first subtitle parse/tokenization bursts
-  - media generation (`ffmpeg` audio/image and AVIF paths)
-  - media sync and subtitle tooling (`alass`, `ffsubsync`)
-  - `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
+Idle playback with the overlay up is cheap. The spikes come from:
+
+- first subtitle parse/tokenization bursts
+- media generation (`ffmpeg` audio/image and AVIF paths)
+- media sync and subtitle tooling (`alass`, `ffsubsync`)
+- `ankiConnect` enrichment (plus polling overhead when proxy mode is disabled)
 
 ### If playback feels sluggish
 
@@ -285,19 +287,16 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 2. Reduce rendering pressure:
 
 - lower `subtitleStyle.css["font-size"]`
-- keep overlay complexity minimal during heavy CPU periods
 
 3. Reduce media overhead:
 
-- keep `ankiConnect.media.imageType` set to `static` (avoid animated AVIF unless needed)
+- keep `ankiConnect.media.imageType` set to `static`, since animated AVIF encoding is the most expensive path
 - lower `ankiConnect.media.imageQuality`
 - reduce `ankiConnect.media.maxMediaDuration`
 
 4. Lower integration cost:
 
-- disable AI translation when not needed (`ankiConnect.ai.enabled: false`)
-- if needed, run immersion telemetry with lower duration expectations (`immersionTracking.enabled: false` for constrained sessions)
-- favor the default lightweight YouTube subtitle startup settings on low-resource systems
+- set `immersionTracking.enabled: false` to stop session logging and its database writes
 
 ### Practical low-impact profile
 
@@ -320,9 +319,6 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
       "imageType": "static",
       "imageQuality": 80,
       "maxMediaDuration": 12
-    },
-    "ai": {
-      "enabled": false
     }
   },
   "immersionTracking": {
@@ -338,12 +334,12 @@ The Jimaku API has rate limits. If you see 429 errors, wait for the retry durati
 - Keep the default `warn` level for normal use; raise to `info` or `debug` only for targeted diagnosis.
 - Reproduce once with `SubMiner.AppImage --start --log-level debug` and open DevTools (`y` then `d`) if freezes recur.
 
-## Platform-Specific
+## Platform-specific
 
 ### Linux
 
-- **Wayland (Hyprland/Sway only)**: Native Wayland support is limited to Hyprland and Sway. Window tracking uses compositor-specific commands (`hyprctl` / `swaymsg`). If these are not on `PATH`, tracking will fail silently. Other Wayland compositors (KDE Plasma, GNOME, …) are not supported natively - both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma-other-wayland-compositors)).
-- **X11 / Xwayland**: Requires `xdotool`, `xprop`, and `xwininfo`. If missing, the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway - both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
+- **Wayland (Hyprland/Sway only)**: Native Wayland support covers Hyprland and Sway only. Window tracking shells out to `hyprctl` or `swaymsg`; if neither is on `PATH`, tracking fails silently. Other Wayland compositors such as KDE Plasma and GNOME have no native backend - both mpv and SubMiner must run under X11 or Xwayland instead. On those sessions SubMiner forces XWayland automatically for itself and for every mpv it launches (see [KDE Plasma & other Wayland compositors](#kde-plasma-and-other-wayland-compositors)).
+- **X11 / Xwayland**: Needs `xdotool`, `xprop`, and `xwininfo`. Without them the overlay cannot track the mpv window position. This is the required backend for any Wayland compositor other than Hyprland or Sway - both mpv and SubMiner must be running under X11/Xwayland for window tracking _and_ for the overlay to stay above mpv (Wayland forbids clients from controlling window stacking). SubMiner uses a managed X11 overlay while mpv is windowed, switches to an override-redirect X11 overlay while tracked mpv is fullscreen, and hides/releases that overlay when another X11/Xwayland app takes focus. The visible overlay stays hidden until SubMiner has tracked mpv geometry, so startup should not create a display-sized fallback overlay while tokenization warms up.
 - **Tray icon missing**: SubMiner creates an Electron tray icon in `--background` mode, but Linux trays require a StatusNotifier/AppIndicator host. Hyprland does not provide one by itself; enable a tray in Waybar, Hyprpanel, or another panel. If Electron cannot register the tray, SubMiner logs a warning that mentions the missing tray host.
 - **Mouse passthrough**: On Linux X11/Xwayland, SubMiner uses `xdotool` to poll the cursor and only enables overlay input while the cursor is over subtitle or popup regions. Outside those regions, pointer input passes through to mpv. Native Wayland compositors other than Hyprland/Sway cannot provide the stacking control SubMiner needs.
 
@@ -401,7 +397,7 @@ SubMiner watches mpv's `fullscreen` property and refreshes the overlay geometry 
 
 For more details, see the Hyprland docs on [global keybinds](https://wiki.hypr.land/Configuring/Binds/#global-keybinds) and [window rules](https://wiki.hypr.land/Configuring/Window-Rules/).
 
-### KDE Plasma & other Wayland compositors
+### KDE Plasma and other Wayland compositors
 
 On any Wayland session that is not Hyprland or Sway (KDE Plasma, GNOME, and others), the overlay can only stay above mpv when both processes run under **XWayland** - the Wayland protocol forbids clients from controlling window stacking, so the overlay's "always on top" becomes a no-op on a native Wayland surface.
 
@@ -423,7 +419,7 @@ Requirements: `xdotool`, `xprop`, and `xwininfo` must be installed. SubMiner use
 This almost always means mpv came up as a **native Wayland** window that the XWayland overlay cannot cover. It happens when mpv is launched **manually** (your own command), because SubMiner can only force XWayland on the mpv processes it launches itself. Fix it one of these ways:
 
 - Launch playback through SubMiner (the `subminer` launcher or the tray), which forces XWayland for you, or
-- Force XWayland in your own mpv invocation, e.g. `mpv --gpu-context=x11vk,x11egl,x11 …`, or launch with `WAYLAND_DISPLAY= mpv …`, or set `gpu-context=x11vk` (Vulkan) / `gpu-context=x11egl` (OpenGL) in your `mpv.conf`.
+- Force XWayland in your own mpv command, for example `mpv --gpu-context=x11vk,x11egl,x11 <file>`. Launching with `WAYLAND_DISPLAY= mpv <file>` works too, as does setting `gpu-context=x11vk` (Vulkan) or `gpu-context=x11egl` (OpenGL) in your `mpv.conf`.
 
 To confirm mpv is on XWayland, `xdotool search --class mpv` should return a window id (a native Wayland mpv returns nothing).
 
@@ -436,7 +432,7 @@ SubMiner can only detect focus for X11/Xwayland windows in this mode. If a nativ
 - **Accessibility permission**: Required for window tracking. Grant it in System Settings > Privacy & Security > Accessibility.
 - **Gatekeeper**: If macOS blocks SubMiner, right-click the app and select "Open" to bypass the warning, or remove the quarantine attribute: `xattr -d com.apple.quarantine /path/to/SubMiner.app`
 
-## See Also
+## See also
 
 Feature-specific issues are covered in each feature's own page:
 

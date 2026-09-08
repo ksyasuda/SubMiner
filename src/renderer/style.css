@@ -3826,6 +3826,7 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 }
 
 .subtitle-sidebar-timestamp {
+  user-select: none;
   font-size: 0.72em;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -3848,6 +3849,8 @@ body.subtitle-sidebar-embedded-open #subtitleSidebarContent {
 }
 
 .subtitle-sidebar-text {
+  user-select: text;
+  cursor: text;
   white-space: pre-wrap;
   line-height: 1.5;
   font-size: 1em;

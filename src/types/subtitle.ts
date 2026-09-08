@@ -227,6 +227,7 @@ export interface SubtitleData {
 }
 
 export interface SubtitleSidebarSnapshot {
+  sourceKey: string | null;
   cues: SubtitleCue[];
   currentTimeSec?: number | null;
   currentSubtitle: {

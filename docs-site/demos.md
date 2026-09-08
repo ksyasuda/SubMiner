@@ -1,6 +1,8 @@
-# Feature Demos
+# Feature demos
 
-Short recordings of SubMiner's key features and integrations from real playback sessions. A few terms you'll see below: _Yomitan_ is the pop-up dictionary used for word lookups, _Jimaku_ is a community subtitle database, _alass_ and _ffsubsync_ are tools that retime subtitles to match the audio, _Jellyfin_ is a self-hosted media server, and a _texthooker_ is a web page that mirrors the current subtitle as selectable text for browser-based tools.
+Short recordings from real playback sessions.
+
+Some vocabulary for what follows. _Yomitan_ is the pop-up dictionary. _Jimaku_ is a community subtitle database. _alass_ and _ffsubsync_ retime subtitles against the audio. _Jellyfin_ is a self-hosted media server. A _texthooker_ is a web page that mirrors the current subtitle as selectable text so browser tools can read it.
 
 <script setup>
 import { withBase } from 'vitepress';
@@ -8,9 +10,9 @@ import { withBase } from 'vitepress';
 const v = '20260819-1';
 </script>
 
-## Anki Card Mining & Enrichment
+## Anki card mining and enrichment
 
-Mine vocabulary cards from Yomitan or directly from subtitle lines. SubMiner automatically attaches the sentence, a timing-accurate audio clip, a screenshot, and a translation.
+Mine a card from Yomitan or straight from a subtitle line. SubMiner attaches the sentence, an audio clip cut to the line timing, and a screenshot.
 
 <video controls playsinline preload="metadata" :poster="withBase(`/assets/minecard-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/minecard.webm?v=${v}`)" type="video/webm" />
@@ -20,9 +22,9 @@ Mine vocabulary cards from Yomitan or directly from subtitle lines. SubMiner aut
   </a>
 </video>
 
-## Subtitle Download & Sync
+## Subtitle download and sync
 
-Search and download subtitles from Jimaku, then retime them with alass or ffsubsync - all from within SubMiner.
+Search Jimaku, download a track, then retime it with alass or ffsubsync without leaving SubMiner.
 
 <!-- <video controls playsinline preload="metadata" :poster="withBase(`/assets/demos/subtitle-sync-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/demos/subtitle-sync.webm?v=${v}`)" type="video/webm" />
@@ -32,9 +34,9 @@ Search and download subtitles from Jimaku, then retime them with alass or ffsubs
 ::: info VIDEO COMING SOON
 :::
 
-## Jellyfin Integration
+## Jellyfin integration
 
-Browse your Jellyfin library, cast to devices, and launch playback directly from SubMiner. Watch progress syncs back to your Jellyfin server.
+Browse your Jellyfin library, cast to a device, and start playback from SubMiner. Watch progress goes back to the Jellyfin server.
 
 <!-- <video controls playsinline preload="metadata" :poster="withBase(`/assets/demos/jellyfin-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/demos/jellyfin.webm?v=${v}`)" type="video/webm" />
@@ -46,7 +48,7 @@ Browse your Jellyfin library, cast to devices, and launch playback directly from
 
 ## Texthooker
 
-Open subtitles in an external texthooker page for use with browser-based tools and extensions alongside the overlay.
+Mirror subtitles to an external texthooker page so browser extensions can read them while the overlay runs.
 
 <!-- <video controls playsinline preload="metadata" :poster="withBase(`/assets/demos/texthooker-poster.jpg?v=${v}`)">
   <source :src="withBase(`/assets/demos/texthooker.webm?v=${v}`)" type="video/webm" />

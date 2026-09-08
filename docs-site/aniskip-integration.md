@@ -1,8 +1,8 @@
-# AniSkip Integration
+# AniSkip integration
 
-SubMiner integrates with [AniSkip](https://aniskip.com) to automatically detect anime intro intervals and let you skip them with a single key press.
+SubMiner looks up anime intro timings from [AniSkip](https://aniskip.com) so you can jump past the OP with one key.
 
-Intro detection runs in the SubMiner app over the mpv IPC socket. It is available whenever the overlay is connected to mpv - not just at launch - and covers every local file loaded during an mpv session, including playlist advances.
+Intro detection runs in the SubMiner app over the mpv IPC socket. It works whenever the overlay is connected to mpv, not only at launch, and covers every local file loaded during the session including playlist advances.
 
 ## Setup
 
@@ -25,9 +25,9 @@ For best title and episode detection, install [`guessit`](https://github.com/gue
 python3 -m pip install --user guessit
 ```
 
-Without `guessit`, SubMiner falls back to an internal filename parser which handles most common naming conventions but may miss unusual formats.
+Without `guessit`, SubMiner falls back to its own filename parser. That handles the usual release naming, but unusual formats slip past it.
 
-## How It Works
+## How it works
 
 On each local file load:
 
@@ -39,15 +39,15 @@ On each local file load:
 
 When a custom key (other than `TAB` or `y-k`) is configured, the legacy `y-k` chord is also bound as a fallback skip trigger.
 
-Results are cached per file for the app session; only definitive "no intro found" results are cached, so transient lookup failures are retried on the next file load. Reload detection is also handled: if mpv reloads the same file, SubMiner re-applies the chapter markers without a new API lookup.
+Results are cached per file for the app session. Only a definitive "no intro found" is cached, so a failed lookup gets retried on the next load rather than sticking. If mpv reloads the same file, SubMiner re-applies the chapter markers without hitting the API again.
 
 ## Triggering from mpv
 
-You can trigger AniSkip actions from mpv script-messages:
+AniSkip actions are also reachable from mpv script-messages:
 
 | Command | Effect |
 | ------- | ------ |
 | `script-message subminer-skip-intro` | Skip to the intro end immediately (same as pressing the key) |
 | `script-message subminer-aniskip-refresh` | Force a fresh lookup for the current file, discarding any cached result |
 
-These are handled by the SubMiner app over the IPC socket.
+The SubMiner app handles both over the IPC socket.

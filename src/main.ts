@@ -5736,6 +5736,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
         const client = appState.mpvClient;
         if (!client?.connected) {
           return {
+            sourceKey: JSON.stringify([
+              appState.activeParsedSubtitleMediaPath,
+              appState.activeParsedSubtitleSource,
+            ]),
             cues: appState.activeParsedSubtitleCues,
             currentTimeSec,
             currentSubtitle,
@@ -5755,6 +5759,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           const videoPath = typeof videoPathRaw === 'string' ? videoPathRaw : '';
           if (!videoPath) {
             return {
+              sourceKey: JSON.stringify([
+                appState.activeParsedSubtitleMediaPath,
+                appState.activeParsedSubtitleSource,
+              ]),
               cues: appState.activeParsedSubtitleCues,
               currentTimeSec,
               currentSubtitle,
@@ -5769,6 +5777,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             })
           ) {
             return {
+              sourceKey: JSON.stringify([
+                appState.activeParsedSubtitleMediaPath,
+                appState.activeParsedSubtitleSource,
+              ]),
               cues: appState.activeParsedSubtitleCues,
               currentTimeSec,
               currentSubtitle,
@@ -5785,6 +5797,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           });
           if (!resolvedSource) {
             return {
+              sourceKey: JSON.stringify([
+                appState.activeParsedSubtitleMediaPath,
+                appState.activeParsedSubtitleSource,
+              ]),
               cues: appState.activeParsedSubtitleCues,
               currentTimeSec,
               currentSubtitle,
@@ -5795,6 +5811,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           try {
             if (appState.activeParsedSubtitleSource === resolvedSource.sourceKey) {
               return {
+                sourceKey: JSON.stringify([
+                  appState.activeParsedSubtitleMediaPath,
+                  appState.activeParsedSubtitleSource,
+                ]),
                 cues: appState.activeParsedSubtitleCues,
                 currentTimeSec,
                 currentSubtitle,
@@ -5808,6 +5828,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
             appState.activeParsedSubtitleSource = resolvedSource.sourceKey;
             appState.activeParsedSubtitleMediaPath = videoPath || null;
             return {
+              sourceKey: JSON.stringify([
+                appState.activeParsedSubtitleMediaPath,
+                appState.activeParsedSubtitleSource,
+              ]),
               cues,
               currentTimeSec,
               currentSubtitle,
@@ -5818,6 +5842,10 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
           }
         } catch {
           return {
+            sourceKey: JSON.stringify([
+              appState.activeParsedSubtitleMediaPath,
+              appState.activeParsedSubtitleSource,
+            ]),
             cues: appState.activeParsedSubtitleCues,
             currentTimeSec,
             currentSubtitle,

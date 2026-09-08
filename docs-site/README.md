@@ -1,4 +1,4 @@
-# SubMiner Docs
+# SubMiner docs
 
 In-repo VitePress documentation source for SubMiner.
 

@@ -468,6 +468,7 @@ export interface ElectronAPI {
   getCurrentSubtitleRaw: () => Promise<string>;
   getCurrentSubtitleAss: () => Promise<string>;
   getSubtitleSidebarSnapshot: () => Promise<SubtitleSidebarSnapshot>;
+  copySubtitleSidebarSelection: (text: string) => Promise<void>;
   getSubtitleSidebarOpen: () => Promise<boolean>;
   getPlaybackPaused: () => Promise<boolean | null>;
   onSubtitleAss: (callback: (assText: string) => void) => void;

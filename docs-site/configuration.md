@@ -8,11 +8,13 @@ outline: [2, 3]
 import { withBase } from 'vitepress';
 </script>
 
-SubMiner is configured through a single file (`config.jsonc`). Most settings are also editable from the in-app **Settings** window - you rarely need to edit the file by hand. This page is the full reference: it explains the Settings window, where the config file lives, and documents every option grouped by topic. New to SubMiner? The Quick Start below plus the [Settings window](#settings) cover everything most users need.
+One file, `config.jsonc`, holds everything. Most of it is also editable from the in-app **Settings** window, so hand-editing is rarely necessary.
 
-## Quick Start
+This page is the full reference. It covers the Settings window, where the config file lives, and every option grouped by topic. If you are just starting out, the Quick Start below and the [Settings window](#settings) are enough.
 
-For most users, start with this minimal configuration:
+## Quick start
+
+Start here:
 
 ```json
 {
@@ -35,11 +37,11 @@ For most users, start with this minimal configuration:
 
 Use the known-word deck map to choose which Anki decks and note fields feed the known-word cache.
 
-Then customize as needed using the sections below.
+Everything else is optional; the sections below cover it.
 
 ## Settings
 
-SubMiner includes a dedicated **Settings** window accessible from the tray menu, the app `--settings` flag, or launcher commands such as `subminer --settings` and `subminer settings`. It is the primary way to configure SubMiner - all changes are written directly to `config.jsonc`, so manual file editing is not required for most users.
+Open the **Settings** window from the tray menu, the app's `--settings` flag, or `subminer settings`. It writes straight to `config.jsonc`, so anything you change there is a normal config edit you can inspect afterward.
 
 The Settings window groups options by workflow instead of mirroring the raw config-file shape:
 
@@ -57,11 +59,11 @@ Each field still writes to its current `config.jsonc` path. For example, subtitl
 
 The Settings window preserves existing JSONC comments, trailing commas, and unrelated keys. Resetting a field removes the explicit config path so the built-in default applies.
 
-Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `ai.apiKeyCommand` when available.
+Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `jimaku.apiKeyCommand` when available.
 
 Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
 
-## Configuration File
+## Configuration file
 
 The Settings window writes to `config.jsonc` directly, so most users do not need to edit the file by hand. The config file and the option reference below are provided for advanced use, scripting, or cases where you prefer editing config directly.
 
@@ -95,7 +97,7 @@ For valid JSON/JSONC with invalid option values, SubMiner uses warn-and-fallback
 
 On macOS, these validation warnings also open a native dialog with full details (desktop notification banners can truncate long messages).
 
-### Hot-Reload Behavior
+### Hot-reload behavior
 
 SubMiner watches the active config file (`config.jsonc` or `config.json`) while running and applies supported updates automatically.
 
@@ -103,7 +105,7 @@ Hot-reloadable settings include subtitle appearance, sidebar controls, keybindin
 shortcuts, notifications, logging level, selected source-language preferences,
 Jimaku/Subsync settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
 stats keys (`stats.toggleKey`, `stats.markWatchedKey`), the secondary-subtitle default
-mode, and the Anki deck, known-word, N+1, field, sentence-card, AI, and Kiku options
+mode, and the Anki deck, known-word, N+1, field, sentence-card, and Kiku options
 listed in the reference tables below.
 
 When these values change, SubMiner applies them live. Invalid config edits are rejected and the previous valid runtime config remains active.
@@ -111,11 +113,10 @@ When these values change, SubMiner applies them live. Invalid config edits are r
 Restart-required changes:
 
 - Any other config sections still require restart.
-- Shared top-level `ai` provider settings still require restart.
 - AnkiConnect transport/proxy/media/tag fields still require restart unless listed above.
 - SubMiner shows an on-screen/system notification listing restart-required sections when they change.
 
-### Configuration Options Overview
+### Configuration options Overview
 
 The configuration file includes several main sections:
 
@@ -146,7 +147,6 @@ The configuration file includes several main sections:
 
 **Anki Integration**
 
-- [**Shared AI Provider**](#shared-ai-provider) - Canonical OpenAI-compatible provider config shared by Anki and YouTube subtitle fixing
 - [**AnkiConnect**](#ankiconnect) - Automatic Anki card creation with media
 - [**Kiku/Lapis Integration**](#kiku-lapis-integration) - Sentence cards and duplicate handling for Kiku/Lapis/Senren note types
 - [**N+1 Word Highlighting**](#n-1-word-highlighting) - Known-word cache and single-target highlighting
@@ -168,7 +168,7 @@ The configuration file includes several main sections:
 - [**Updates**](#updates) - Automatic update checks, notifications, and prerelease testing
 - [**Notifications**](#notifications) - Overlay notification placement
 
-## Core Settings
+## Core settings
 
 ### Logging
 
@@ -243,13 +243,13 @@ Configure where overlay notification cards appear:
 
 #### Notification history panel
 
-Every overlay notification shown during a session is also recorded in a notification history panel. Press `Ctrl/Cmd+N` (configurable via [`shortcuts.toggleNotificationHistory`](#shortcuts-configuration)) to toggle the panel; the binding works whether the overlay or mpv has focus. The panel slides in from the same edge the notifications use — left when `overlayPosition` is `"top-left"`, and right for `"top-right"` or `"top"` (centered). Character dictionary sync uses one live card but records each distinct phase in history. Each entry can be removed individually, or use **Clear** to empty the history. History is session-only and is not persisted across restarts.
+Every overlay notification shown during a session is also recorded in a notification history panel. Press `Ctrl/Cmd+N` (configurable via [`shortcuts.toggleNotificationHistory`](#shortcuts-configuration)) to toggle the panel; the binding works whether the overlay or mpv has focus. The panel slides in from the same edge the notifications use, so left when `overlayPosition` is `"top-left"` and right for `"top-right"` or `"top"` (centered). Character dictionary sync uses one live card but records each distinct phase in history. Each entry can be removed individually, or use **Clear** to empty the history. History is session-only and is not persisted across restarts.
 
 Startup tokenization, subtitle annotation, and character dictionary status follow the configured notification surface. When the surface is `"overlay"` or `"both"`, SubMiner queues those startup notifications until the overlay renderer is ready instead of falling back to mpv OSD. If loading and ready states both finish before the overlay can paint, the loading card is delivered first and then updates to ready shortly after. With `"both"`, character dictionary checking/building/importing/ready status also goes to system notifications; building and importing are only emitted when that work is actually needed. The bundled mpv plugin only shows its startup OSD messages when `ankiConnect.behavior.notificationType` is set to `"osd"` or `"osd-system"` in `config.jsonc`; AniSkip prompts and skip result messages are playback feedback and still route to overlay notifications when configured.
 
 The equivalent direct CLI command is `--playback-feedback <text>` (`playbackFeedback` internally). It sends that one non-empty feedback string through the same route controlled by `ankiConnect.behavior.notificationType`; it does not change the saved config.
 
-### Auto-Start Overlay
+### Auto-start overlay
 
 Control whether the overlay automatically becomes visible when it connects to mpv:
 
@@ -267,7 +267,7 @@ When you launch through the SubMiner app or the `subminer` wrapper, the launcher
 
 On Windows, packaged plugin installs also rewrite the plugin socket path to `\\.\pipe\subminer-socket`.
 
-### Startup Warmups
+### Startup warmups
 
 Control which startup warmups run in the background versus deferring to first real usage:
 
@@ -293,7 +293,7 @@ Control which startup warmups run in the background versus deferring to first re
 
 Defaults warm local tokenizer/dictionary work (`true` for `mecab`, `yomitanExtension`, and `subtitleDictionaries`) with `lowPowerMode: false`; Jellyfin remote session warmup is opt-in (`false` by default). Setting a warmup toggle to `false` defers that work until first usage.
 
-### WebSocket Server
+### WebSocket server
 
 The overlay includes a built-in WebSocket server that broadcasts plain subtitle text to connected clients for external processing.
 
@@ -357,9 +357,9 @@ See `config.example.jsonc` for detailed configuration options.
 | `launchAtStartup` | `true`, `false` | Start texthooker automatically with SubMiner startup (default: `false`) |
 | `openBrowser`     | `true`, `false` | Open browser tab when texthooker starts (default: `false`)              |
 
-## Subtitle Display
+## Subtitle display
 
-### Subtitle Style
+### Subtitle style
 
 Customize the appearance of primary and secondary subtitles:
 
@@ -457,7 +457,7 @@ Secondary subtitle styling lives in the secondary subtitle CSS object. Any CSS p
 
 **See `config.example.jsonc`** for the complete list of subtitle style configuration options.
 
-### Subtitle Sidebar
+### Subtitle sidebar
 
 Configure the parsed-subtitle sidebar modal.
 
@@ -519,7 +519,7 @@ For full details on layout modes, behavior, and the keyboard shortcut, see the [
 | `N4` | `#8bd5ca` | JLPT N4 underline color |
 | `N5` | `#8aadf4` | JLPT N5 underline color |
 
-### Subtitle Position
+### Subtitle position
 
 Set the initial vertical subtitle position (measured from the bottom of the screen):
 
@@ -537,7 +537,7 @@ Set the initial vertical subtitle position (measured from the bottom of the scre
 
 In the overlay, you can fine-tune subtitle position at runtime with `Right-click + drag` on subtitle text.
 
-### Secondary Subtitles
+### Secondary subtitles
 
 Display a second subtitle track (e.g., English alongside Japanese) in the overlay:
 
@@ -563,8 +563,6 @@ Secondary subtitles do **not** auto-load by default. To turn them on for local a
 
 These two settings apply to local and Jellyfin playback only. YouTube secondary selection is fixed to English and ignores them; see [YouTube Integration](/youtube-integration#secondary-subtitle-languages). `defaultMode` still controls how the loaded secondary bar is displayed in every case.
 
-Because the mined-card translation field is filled from the secondary subtitle when one is present, leaving `autoLoadSecondarySub` off means local-file cards fall back to AI translation (when configured) or the original sentence text.
-
 The secondary-subtitle language list also acts as the fallback secondary-language priority for managed startup subtitle selection on local playback and YouTube playback.
 
 **Display modes:**
@@ -575,7 +573,7 @@ The secondary-subtitle language list also acts as the fallback secondary-languag
 
 **See `config.example.jsonc`** for additional secondary subtitle configuration options.
 
-## Keyboard & Controls
+## Keyboard and controls
 
 ### Keybindings
 
@@ -641,7 +639,7 @@ Subtitle delay commands (`sub-delay`, `sub-step`) show a native mpv OSD notifica
 
 **See `config.example.jsonc`** for more keybinding examples and configuration options.
 
-### Shortcuts Configuration
+### Shortcuts configuration
 
 Customize or disable the overlay keyboard shortcuts:
 
@@ -702,7 +700,7 @@ Set any shortcut to `null` to disable it.
 
 Feature-dependent shortcuts/keybindings only run when their related integration is enabled. For example, Anki/Kiku shortcuts require `ankiConnect.enabled` (and Kiku-specific behavior where applicable), and Jellyfin remote startup behavior requires Jellyfin to be enabled.
 
-### Controller Support
+### Controller support
 
 SubMiner can read controllers through the Chrome Gamepad API and map them onto the existing keyboard-only overlay workflow.
 
@@ -818,7 +816,7 @@ If you update this controller documentation or the generated controller examples
 
 Tune `scrollPixelsPerSecond`, `horizontalJumpPixels`, deadzones, repeat timing, and profile `buttonIndices` to match your controller. See [config.example.jsonc](/config.example.jsonc) for the full generated comments for every controller field.
 
-### Manual Card Update Shortcuts
+### Manual card update shortcuts
 
 When automatic card updates are disabled, new cards are detected but not automatically updated. Use these keyboard shortcuts for manual control:
 
@@ -845,7 +843,7 @@ When automatic card updates are disabled, new cards are detected but not automat
 
 These shortcuts are only active when the overlay window is visible and automatically disabled when hidden.
 
-### Session Help Modal
+### Session help modal
 
 The session help modal opens from the overlay with `Ctrl/Cmd+/` by default. The mpv plugin also exposes it through the `y-h` chord. It shows the current session keybindings and color legend.
 
@@ -869,7 +867,7 @@ The list is generated at runtime from:
 
 When config hot-reload updates shortcut/keybinding/style values, close and reopen the help modal to refresh the displayed entries.
 
-### Runtime Option Palette
+### Runtime option palette
 
 Use the runtime options palette to toggle settings live while SubMiner is running. These changes are session-only and reset on restart.
 
@@ -889,39 +887,7 @@ Palette controls:
 - `Enter`: apply selected value
 - `Esc`: close
 
-## Anki Integration
-
-### Shared AI Provider
-
-This is the single, shared connection to an OpenAI-compatible LLM endpoint. Configure it **once** here at the top level, and SubMiner reuses it wherever AI is needed (Anki translation/enrichment and YouTube subtitle fixing). Per-feature toggles and prompt/model tweaks live in their own sections (for example `ankiConnect.ai` and `youtubeSubgen.ai`) and inherit this transport.
-
-```json
-{
-  "ai": {
-    "enabled": false,
-    "apiKey": "",
-    "apiKeyCommand": "",
-    "model": "openai/gpt-4o-mini",
-    "baseUrl": "https://openrouter.ai/api",
-    "requestTimeoutMs": 15000
-  }
-}
-```
-
-| Option             | Values               | Description                                                                          |
-| ------------------ | -------------------- | ------------------------------------------------------------------------------------ |
-| `ai.enabled`       | `true`, `false`      | Enable shared AI provider features (default: `false`)                                |
-| `apiKey`           | string               | Static API key for the shared provider                                               |
-| `apiKeyCommand`    | string               | Shell command used to resolve the API key (preferred over a plaintext `apiKey`)      |
-| `model`            | string               | Default model identifier requested from the provider (default: `openai/gpt-4o-mini`) |
-| `baseUrl`          | string (URL)         | OpenAI-compatible base URL (default: `https://openrouter.ai/api`)                    |
-| `systemPrompt`     | string               | Default system prompt sent with requests (default: a translation-engine prompt)      |
-| `requestTimeoutMs` | integer milliseconds | Shared request timeout (default: `15000`)                                            |
-
-SubMiner uses the shared provider for:
-
-- Anki translation/enrichment when Anki AI is enabled
-- YouTube generated-subtitle fixing when `youtubeSubgen.fixWithAi` is enabled (with optional `youtubeSubgen.ai.model` / `systemPrompt` overrides)
+## Anki integration
 
 ### AnkiConnect
 
@@ -943,16 +909,10 @@ Enable automatic Anki card creation and updates with media generation:
     "deck": "Learning::Japanese",
     "fields": {
       "word": "Expression",
-      "audio": "ExpressionAudio",
+      "audio": "SentenceAudio",
       "image": "Picture",
       "sentence": "Sentence",
-      "miscInfo": "MiscInfo",
-      "translation": "SelectionText"
-    },
-    "ai": {
-      "enabled": false,
-      "model": "",
-      "systemPrompt": ""
+      "miscInfo": "MiscInfo"
     },
     "media": {
       "generateAudio": true,
@@ -1010,14 +970,10 @@ This example is intentionally compact. The option table below documents availabl
 | `tags`                                            | array of strings                            | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                                                                                                   |
 | `ankiConnect.deck`                                | string                                      | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available. In Settings, this dropdown auto-fills and persists Yomitan's current mining deck when available. |
 | `fields.word`                                     | string                                      | Card field for mined word / expression text (default: `Expression`)                                                                                                                                                             |
-| `fields.audio`                                    | string                                      | Card field for audio files (default: `ExpressionAudio`)                                                                                                                                                                         |
+| `fields.audio`                                    | string                                      | Card field for the generated sentence audio clip (default: `ExpressionAudio`). Set this to a dedicated field such as `SentenceAudio` so it does not collide with the word audio Yomitan writes.                                  |
 | `fields.image`                                    | string                                      | Card field for images (default: `Picture`)                                                                                                                                                                                      |
 | `fields.sentence`                                 | string                                      | Card field for sentences (default: `Sentence`)                                                                                                                                                                                  |
 | `fields.miscInfo`                                 | string                                      | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                                                                                                       |
-| `fields.translation`                              | string                                      | Card field for sentence-card translation/back text (default: `SelectionText`)                                                                                                                                                   |
-| `ankiConnect.ai.enabled`                          | `true`, `false`                             | Use AI translation for sentence cards. Also auto-attempted when secondary subtitle is missing.                                                                                                                                  |
-| `ankiConnect.ai.model`                            | string                                      | Optional model override for Anki AI translation/enrichment flows.                                                                                                                                                               |
-| `ankiConnect.ai.systemPrompt`                     | string                                      | Optional system prompt override for Anki AI translation/enrichment flows.                                                                                                                                                       |
 | `media.generateAudio`                             | `true`, `false`                             | Generate audio clips from video (default: `true`)                                                                                                                                                                               |
 | `media.normalizeAudio`                            | `true`, `false`                             | Normalize generated sentence-audio loudness during media extraction (default: `true`). Set to `false` to keep raw source loudness. Changes apply live.                                                                          |
 | `media.mirrorMpvVolume`                           | `true`, `false`                             | Apply mpv's cubic software-volume curve to each generated sentence-audio clip (default: `true`). This ignores mpv's separate mute state, falls back to unity scaling if volume cannot be read, and applies changes live.        |
@@ -1056,10 +1012,7 @@ This example is intentionally compact. The option table below documents availabl
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
 | `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                     |
 
-`ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
-API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
-
-### Kiku/Lapis Integration
+### Kiku/Lapis integration
 
 SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [Lapis](https://github.com/donkuri/lapis) workflows, with note-type-specific behavior built into Anki settings.
 
@@ -1087,7 +1040,7 @@ SubMiner is intentionally built for [Kiku](https://kiku.youyoumu.my.id/) and [La
 - For [Senren](https://github.com/BrenoAqua/Senren) note types, enable `isSenren` instead of `isKiku`. Duplicate merges then use Senren's scene-switching markup (including grouped `miscInfo` entries), and `isSenren.fieldGrouping` supports the same three modes (default: `auto`). Kiku and Senren are mutually exclusive; if both are enabled, Kiku wins and Senren is turned off with a config warning.
 - `lapisKiku.wordCardKind` picks the card-type flag set on word cards; see [Word Card Type](#word-card-type). It is read only while `isLapis` or `isKiku` is enabled.
 
-### Word Card Type
+### Word card type
 
 When SubMiner fills the sentence on a mined word card - from Yomitan auto-enrichment, a manual clipboard update, or stats-dashboard word mining - it marks which card that note should generate. `ankiConnect.lapisKiku.wordCardKind` chooses the flag:
 
@@ -1101,7 +1054,7 @@ When SubMiner fills the sentence on a mined word card - from Yomitan auto-enrich
 
 The other card-type flags are cleared so a note never claims two card types at once. Notes are skipped when the note type has no field for the chosen flag, and when the note was already mined as a sentence or audio card. Cards created by Mine Sentence and Mine Audio keep their own flag regardless of this setting.
 
-### N+1 Word Highlighting
+### N+1 word highlighting
 
 When known-word highlighting is enabled, SubMiner builds a local cache of known words from Anki to highlight already learned tokens in subtitle rendering.
 
@@ -1138,7 +1091,7 @@ To refresh roughly once per day, set:
 }
 ```
 
-### Field Grouping Modes
+### Field grouping modes
 
 | Mode       | Behavior                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -1157,7 +1110,7 @@ When the manual merge popup opens, SubMiner pauses playback and closes any open 
 
 <a :href="withBase('/assets/kiku-integration.webm')" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 
-## External Integrations
+## External integrations
 
 ### Jimaku
 
@@ -1199,7 +1152,7 @@ The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift
 
 See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, language tabs, and troubleshooting.
 
-### Japanese Subtitle Generation
+### Japanese subtitle generation
 
 Open the standalone modal with `Ctrl+Shift+G`, configurable through `shortcuts.openSubtitleGeneration`, or use the subtitle sidebar button. See [shortcuts](/shortcuts) for the shared mpv and overlay keybindings.
 
@@ -1207,7 +1160,7 @@ Open the standalone modal with `Ctrl+Shift+G`, configurable through `shortcuts.o
 
 The generation modal offers an optional **Focus on spoken dialogue** checkbox and a separate Silero model download. Set `subtitleGeneration.vadModelPath` to a Silero GGML VAD model to make dialogue mode the default. `vadPath` overrides the speech detector executable. See [dialogue generation setup](/subtitle-generation#prioritizing-spoken-dialogue) for session behavior, the additional tool, and limitations.
 
-### Subtitle Sync
+### Subtitle sync
 
 Sync a subtitle track from the overlay picker using `alass` or `ffsubsync`. The picker lets you choose which track gets retimed (the active primary track by default) and, for alass, which reference it is aligned against (the secondary subtitle track by default). Both are **optional external tools** that must be installed separately and available on your `PATH` (or configured via the path options below).
 
@@ -1231,8 +1184,6 @@ Sync a subtitle track from the overlay picker using `alass` or `ffsubsync`. The 
 | `ffsubsync_path` | string path     | Path to `ffsubsync` executable. Empty falls back to `/usr/bin/ffsubsync`. `ffsubsync` must be installed separately.       |
 | `ffmpeg_path`    | string path     | Path to `ffmpeg` (used for internal subtitle extraction). Empty or `null` falls back to `/usr/bin/ffmpeg`.                |
 | `replace`        | `true`, `false` | When `true` (default), overwrite the active subtitle file on successful sync. When `false`, write `<name>_retimed.<ext>`. |
-
-Stats dashboard sentence mining also uses `alass_path` when available to align a local English sidecar against the local Japanese sidecar before filling the card translation field. This stats-only retime writes a temporary cached copy and never edits the original subtitle files.
 
 Default trigger is `Ctrl+Alt+S` via `shortcuts.triggerSubsync`.
 Customize it there, or set it to `null` to disable.
@@ -1397,7 +1348,7 @@ Jellyfin playback auto-launched through SubMiner loads the mpv plugin the same w
 
 When Jellyfin is enabled with a server URL and SubMiner is running, the tray menu also shows a `Jellyfin Discovery` checkbox. It starts or stops discovery for the current runtime session only and does not write config. Starting discovery still requires a valid stored or environment-provided Jellyfin auth session.
 
-### Discord Rich Presence
+### Discord rich presence
 
 Discord Rich Presence is enabled by default. SubMiner publishes a polished activity card that reflects current media title, playback state, and session timer unless you turn it off.
 
@@ -1444,7 +1395,7 @@ Troubleshooting:
 - If images do not render, confirm asset keys exactly match uploaded Discord asset names.
 - If Discord is closed/not installed/disconnects, SubMiner continues running and quietly skips presence updates.
 
-### Immersion Tracking
+### Immersion tracking
 
 Enable or disable local immersion analytics stored in SQLite for mined subtitles and media sessions. This data also powers the stats dashboard:
 
@@ -1518,7 +1469,7 @@ Set `dbPath` only if you want to relocate the database (for backup, syncing, or 
 
 See [Immersion Tracking Storage](/immersion-tracking) for schema details, query templates, dashboard access, retention/rollup behavior, backend portability notes, and the dedicated SQLite verification command.
 
-### Stats Dashboard
+### Stats dashboard
 
 Configure the local stats UI served from SubMiner and the in-app stats overlay toggle:
 
@@ -1549,7 +1500,7 @@ Usage notes:
 - The dashboard reads from the same immersion-tracking database, so keep `immersionTracking.enabled` on if you want data to appear.
 - The UI includes Overview, Library, Trends, Vocabulary, Search, and Sessions tabs.
 
-### MPV Launcher
+### MPV launcher
 
 Configure the mpv executable, profile, and window state for SubMiner-managed mpv launches (launcher playback, Windows `--launch-mpv`, and Jellyfin idle mpv startup):
 
@@ -1591,7 +1542,7 @@ Launch mode behavior:
 - **`maximized`** - mpv starts maximized via `--window-maximized=yes`, keeping taskbar access.
 - **`fullscreen`** - mpv starts in true fullscreen via `--fullscreen`.
 
-### YouTube Playback Settings
+### YouTube playback settings
 
 Set defaults used by managed subtitle auto-selection and the `subminer` launcher YouTube flow:
 
@@ -1635,6 +1586,6 @@ Track selection:
 
 These settings come from `config.jsonc` (or built-in defaults); there are no CLI flags or environment variables for subtitle language selection.
 
-#### YouTube Subtitle Generation (`youtubeSubgen`)
+#### YouTube subtitle generation (`youtubeSubgen`)
 
-An advanced, template-hidden section for Whisper-based YouTube subtitle generation: `whisperBin`, `whisperModel`, `whisperVadModel`, `whisperThreads` (default `4`), and `fixWithAi` (default `false`), which post-processes generated subtitles through the [Shared AI Provider](#shared-ai-provider) with optional `youtubeSubgen.ai.model` / `systemPrompt` overrides. These keys are accepted in `config.jsonc` but intentionally omitted from the generated template.
+An advanced, template-hidden section for Whisper-based YouTube subtitle generation: `whisperBin`, `whisperModel`, `whisperVadModel`, and `whisperThreads` (default `4`). These keys are accepted in `config.jsonc` but the generated template omits them.

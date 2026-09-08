@@ -1,12 +1,12 @@
-# Jellyfin Integration
+# Jellyfin integration
 
-[Jellyfin](https://jellyfin.org) is a free, self-hosted media server - think of it as your own private streaming service for video you own. If you keep your anime on a Jellyfin server, SubMiner can play episodes through mpv with the full mining overlay.
+[Jellyfin](https://jellyfin.org) is a free, self-hosted media server, a private streaming service for video you already own. If your anime lives on a Jellyfin server, SubMiner plays episodes from it through mpv with the mining overlay attached.
 
 ::: tip Who needs this?
-This page is only relevant if you already run (or have access to) a Jellyfin server. If you watch local files or YouTube, you can skip it. The in-app setup window (`subminer jellyfin`) is the easiest starting point.
+This page only matters if you already run a Jellyfin server or have access to one. Watching local files or YouTube? Skip it. Otherwise start with the in-app setup window (`subminer jellyfin`).
 :::
 
-SubMiner can act as a **cast-to-device target** for Jellyfin (similar to jellyfin-mpv-shim). Sign in once, turn on discovery, and SubMiner shows up in the "Play on…" / cast menu of any Jellyfin app - web, phone, or TV. Pick an episode, cast it to SubMiner, and it plays in SubMiner's mpv window with the full overlay and Yomitan click-to-lookup.
+SubMiner can register itself as a **cast-to-device target**, the way jellyfin-mpv-shim does. Sign in once, turn on discovery, and SubMiner appears in the "Play on" menu of any Jellyfin client, whether that is the web app, your phone, or a TV. Cast an episode and it opens in SubMiner's mpv window with the overlay and Yomitan lookup live.
 
 This is the recommended way to use Jellyfin with SubMiner. A terminal-only option is covered in [Launcher playback](#launcher-playback) at the end.
 
@@ -18,11 +18,11 @@ This is the recommended way to use Jellyfin with SubMiner. A terminal-only optio
 
 ## Quick start
 
-### 1. Start SubMiner
+### 1. start SubMiner
 
-Launch SubMiner so it's running in the system tray.
+Launch SubMiner and leave it in the system tray.
 
-### 2. Sign in to your server
+### 2. sign in to your server
 
 Open the tray menu and click **Configure Jellyfin**. In the window that opens, enter your **Server URL** (for example `http://127.0.0.1:8096`), **Username**, and **Password**, then click **Login**.
 
@@ -34,14 +34,14 @@ On success, SubMiner:
 
 Reopen this window any time to switch servers or **Logout**.
 
-### 3. Turn on discovery
+### 3. turn on discovery
 
 Discovery is what makes SubMiner appear as a cast target. Two ways to enable it:
 
 - **For the current session** - open the tray menu and tick **Jellyfin Discovery**. (This item appears once you've signed in.)
 - **Automatically on every launch** - already on by default. After your first sign-in, SubMiner auto-connects to Jellyfin at startup, so the cast target is ready without touching the tray. You can change this under [Settings](#settings).
 
-### 4. Cast from any Jellyfin app
+### 4. cast from any Jellyfin app
 
 In the Jellyfin web UI or mobile app, start playing something, open the **cast / "Play on"** menu, and pick your device - SubMiner appears there named after your computer's hostname. Playback opens in SubMiner.
 

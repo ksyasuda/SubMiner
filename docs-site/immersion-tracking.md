@@ -1,13 +1,13 @@
-# Immersion Tracking
+# Immersion tracking
 
-SubMiner can log your watching and mining activity to a local SQLite database, then surface it in the built-in stats dashboard. Tracking is enabled by default and can be turned off if you do not want local analytics.
+SubMiner logs your watching and mining activity to a local SQLite database and shows it in the built-in stats dashboard. Tracking is on by default; turn it off if you would rather not keep the data.
 
-"Immersion" here means time spent watching and reading native Japanese content. **All data stays on your computer** - nothing is uploaded anywhere. (SQLite is just a single-file database; you do not need to install or manage anything.)
+"Immersion" here means time spent watching and reading native Japanese content. **All of it stays on your machine.** Nothing is uploaded anywhere. SQLite is a single file on disk, so there is no database server to install or run.
 
-When enabled, SubMiner records per-session statistics (watch time, subtitle lines seen, words encountered, cards mined) and maintains exact lifetime summary tables plus daily/monthly rollups. You can view that data in SubMiner's stats UI or query the database directly with any SQLite tool.
+Each session records watch time, subtitle lines seen, words encountered, and cards mined. SubMiner also keeps exact lifetime summary tables and daily and monthly rollups. Read it through the stats UI, or point any SQLite tool at the file.
 
 ::: tip For most users
-Just leave tracking on and use the built-in [Stats Dashboard](#stats-dashboard). The retention, performance, SQL, and schema sections further down are reference material for advanced users who want to inspect or tune the database - you can safely skip them.
+Leave tracking on and use the [Stats Dashboard](#stats-dashboard). The retention, performance, SQL, and schema sections below are reference material for querying or tuning the database yourself. Skip them.
 :::
 
 Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_RATIO` (`85%`) value from `src/shared/watch-threshold.ts`.
@@ -25,9 +25,9 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 
 - Leave `dbPath` empty to use the default location (`immersion.sqlite` in SubMiner's app-data directory).
 - Set an explicit path to move the database (useful for backups, cloud syncing, or external tools).
-- To share stats and watch history between two machines, use [`subminer sync <host>`](/launcher-script#sync-between-machines) instead of file-level cloud sync — it merges both databases without one side overwriting the other.
+- To share stats and watch history between two machines, use [`subminer sync <host>`](/launcher-script#sync-between-machines) instead of file-level cloud sync. It merges both databases instead of letting one side overwrite the other.
 
-## Stats Dashboard
+## Stats dashboard
 
 The same immersion data powers the stats dashboard.
 
@@ -37,7 +37,7 @@ The same immersion data powers the stats dashboard.
 - Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables non-destructively (recomputed from per-episode history, so lifetime totals older than the session retention window are kept); `subminer stats cleanup --duplicate-lines` collapses repeated lines left behind by typeset subtitles (see [Repeated Line Cleanup](#repeated-line-cleanup)). `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
 - Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
 
-### Dashboard Tabs
+### Dashboard tabs
 
 #### Overview
 
@@ -70,7 +70,7 @@ Open a title and use **Delete Entry** in its header to remove a mistakenly track
 
 #### Trends
 
-Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (words/min, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts — all with configurable date ranges and grouping.
+Grouped into Activity (per-day/month watch time, cards, words, sessions), Cumulative Totals (running totals incl. new words seen and episodes), Efficiency (words/min, cards/hour, lookups per 100 words), Patterns (watch time by day of week and hour), and per-anime Library charts. Every chart takes a configurable date range and grouping.
 
 ![Stats Trends](/screenshots/stats-trends.png)
 
@@ -108,7 +108,7 @@ Stats server config lives under `stats`:
 - `markWatchedKey` toggles the watched state of the highlighted entry inside the stats dashboard.
 - `serverPort` controls the localhost dashboard URL.
 - `autoStartServer` starts the local stats HTTP server on launch once immersion tracking is active, or reuses the dedicated background stats server when one is already running. Background app launches (`subminer app`) start the stats server immediately, registering it so later launches reuse it instead of starting another one.
-- `autoOpenBrowser` controls whether `subminer stats` launches the dashboard URL in your browser after ensuring the server is running.
+- `autoOpenBrowser` decides whether `subminer stats` opens the dashboard URL in your browser once the server is up.
 - `subminer stats` forces the dashboard server to start even when `autoStartServer` is `false`.
 - `subminer stats -b` starts or reuses the dedicated background stats daemon and exits after startup acknowledgement.
 - The background stats daemon is separate from the normal SubMiner overlay app, so you can leave it running and still launch SubMiner later to watch or mine from video.
@@ -116,7 +116,7 @@ Stats server config lives under `stats`:
 - `subminer stats` fails with an error when `immersionTracking.enabled` is `false`.
 - `subminer stats cleanup` defaults to vocabulary cleanup, repairs stale `headword`, `reading`, and `part_of_speech` values, attempts best-effort MeCab backfill for legacy rows, and removes rows that still fail vocab filtering.
 
-## Mining Cards from the Stats Page
+## Mining cards from the stats page
 
 The Search tab and the Vocabulary tab's word detail panel both mine from subtitle lines in your viewing history. Search matches sentence text and media titles, and **Search by headword** is enabled by default so dictionary-form searches such as `知らない` can find tracked subtitle lines with inflected variants. Turn that toggle off for exact text/title matching only. Each line with a valid source file offers sentence-card mining; word/audio mining is available when the selected word or searched word appears in the sentence:
 
@@ -126,13 +126,13 @@ The Search tab and the Vocabulary tab's word detail panel both mine from subtitl
 
 All three modes respect your `ankiConnect` config: deck, model, field mappings, media settings (static vs AVIF, quality, dimensions), audio padding, metadata pattern, and tags. Media generation runs in parallel for faster card creation.
 
-Secondary subtitle text (typically English translations) is stored alongside primary subtitles during playback and can be used as the translation field when mining sentence cards from Search or vocabulary occurrences. The Search tab does not use that text for display or matching.
+Secondary subtitle text is stored alongside primary subtitles during playback, but the Search tab does not use it for display or matching.
 
-### Word Exclusion List
+### Word exclusion list
 
 The Vocabulary tab toolbar includes an **Exclusions** button for hiding words from all vocabulary views. Excluded words are stored in the immersion database, with older browser localStorage exclusions imported on first load after upgrade. They can be managed (restored or cleared) from the exclusion modal. Exclusions affect stat cards, charts, the frequency rank table, and the word list.
 
-### Repeated Line Cleanup
+### Repeated line cleanup
 
 Karaoke openings and animated signs are authored as one subtitle event per animation frame, all carrying the same text. Playback reports every one of those frames, so a single OP lyric could be recorded hundreds of times and dominate "Top Repeated Words".
 
@@ -162,7 +162,7 @@ The cleanup chains runs per line of text, so interleaved dual-line karaoke colla
 
 Runs never cross a session boundary, so rewatching an episode keeps both watches. Session telemetry (watch time, lines seen, tokens seen) and the rollups derived from it are left as recorded: they are cumulative samples taken during playback, and cannot be recomputed for sessions whose raw rows have since been pruned.
 
-## Retention Defaults
+## Retention defaults
 
 By default, SubMiner keeps all retention tables and raw data (`0` means keep all) while continuing daily/monthly rollup maintenance:
 
@@ -184,9 +184,9 @@ In practice:
 - Vocabulary and kanji totals are cumulative and not bounded by the raw session retention knobs.
 - New-word charts use their own permanent lexical daily rollups, which are not pruned by activity-rollup retention.
 
-## Storage / Performance Model
+## Storage / performance model
 
-The tracker is optimized for "keep everything" defaults:
+The defaults keep everything, and the schema is shaped around that:
 
 - Exact all-time totals live in dedicated lifetime summary tables (`imm_lifetime_global`, `imm_lifetime_anime`, `imm_lifetime_media`).
 - Ended-session totals are persisted onto `imm_sessions`, so most dashboard reads do not need to rescan raw telemetry.
@@ -195,7 +195,7 @@ The tracker is optimized for "keep everything" defaults:
 - Cover-art binaries are deduplicated through a shared blob store so episodes in the same series do not each carry duplicate image bytes.
 - Hot tables have dedicated indexes for session time ranges, telemetry sample windows, frequency-ranked vocabulary, and cover-art lookup keys.
 
-## Configurable Knobs
+## Configurable knobs
 
 All policy options live under `immersionTracking` in your config:
 
@@ -218,7 +218,7 @@ All policy options live under `immersionTracking` in your config:
 | `lifetimeSummaries.anime`      | Maintain per-anime lifetime totals                                 |
 | `lifetimeSummaries.media`      | Maintain per-media lifetime totals                                 |
 
-## Query Templates
+## Query templates
 
 ### Session timeline
 
@@ -316,7 +316,7 @@ ORDER BY rollup_month DESC, video_id DESC
 LIMIT ?;
 ```
 
-## Technical Details
+## Technical details
 
 - Write path is asynchronous and queue-backed. Hot paths (subtitle parsing, render, token flows) enqueue telemetry and never await SQLite writes.
 - Queue overflow policy: drop oldest queued writes, keep newest.
@@ -327,7 +327,7 @@ LIMIT ?;
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 - Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
-### Schema (v18)
+### Schema (v23)
 
 The exact schema version lives in `SCHEMA_VERSION` (`src/core/services/immersion-tracker/types.ts`) and is recorded in the `imm_schema_version` table.
 
@@ -335,6 +335,8 @@ Core tables:
 
 - `imm_videos` - video key/title/source metadata
 - `imm_anime` - anime/series metadata referenced by videos and lifetime tables
+- `imm_anime_title_aliases` - alternate titles that resolve to the same anime row
+- `imm_anime_merge_recommendations` - candidate duplicate-series merges surfaced in the dashboard
 - `imm_sessions` - session UUID, video reference, timing/status, final denormalized totals
 - `imm_session_telemetry` - high-frequency session aggregates over time
 - `imm_session_events` - event stream with compact numeric event types

@@ -1,20 +1,20 @@
-# Subtitle Annotations
+# Subtitle annotations
 
-SubMiner annotates subtitle tokens in real time as they appear in the overlay. Four annotation layers work together to surface useful context while you watch: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
+SubMiner annotates subtitle tokens as they appear in the overlay. There are four layers: **N+1 highlighting**, **character-name highlighting**, **frequency highlighting**, and **JLPT tagging**.
 
-All four are opt-in and configured under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne` in your config. They apply independently - you can enable any combination.
+All four are off by default and live under `subtitleStyle`, `ankiConnect.knownWords`, and `ankiConnect.nPlusOne`. They are independent, so any combination works.
 
 ::: tip Tokenization
-SubMiner's primary tokenizer is Yomitan itself - subtitle text is tokenized based entirely on the dictionaries you have installed in Yomitan. Installing many large dictionaries can increase noise and slow down lookups, so be selective about which dictionaries you install and their priority order.
+Yomitan is the tokenizer, so the dictionaries you installed there decide where word boundaries fall. Piling on large dictionaries adds noise and slows lookups. Be picky about which ones you install and what order you rank them in.
 :::
 
 Before any of those layers render, SubMiner strips annotation metadata from tokens that are usually just subtitle glue or annotation noise. Standalone particles, auxiliaries, adnominals, common explanatory endings like `んです` / `のだ`, merged trailing quote-particle forms like `...って`, auxiliary-stem grammar tails like `そうだ` (MeCab POS3 `助動詞語幹`), repeated kana interjections, and similar non-lexical helper tokens remain hoverable in the subtitle text, but they render as plain tokens without known-word, N+1, frequency, JLPT, or name-match annotation styling.
 
 Kanji vocabulary that MeCab labels `名詞/非自立`, such as `日` or `以外`, remains content for every annotation layer. The `非自立` exclusion only suppresses kana grammar nouns such as `こと` and `もの`.
 
-## N+1 Word Highlighting
+## N+1 word highlighting
 
-N+1 highlighting identifies sentences where you know every word except one, making them ideal mining targets. When enabled, SubMiner builds a local cache of your known vocabulary from Anki and highlights tokens accordingly.
+An N+1 sentence is one where you know every word but a single unknown. Those are the best mining targets, because the rest of the sentence gives you the context for free. SubMiner caches your known vocabulary from Anki and marks the lines that qualify.
 
 **How it works:**
 
@@ -43,9 +43,9 @@ Prefer expression/word fields for `ankiConnect.knownWords.decks`. Reading-only f
 Set `refreshMinutes` to `1440` (24 hours) for daily sync if your Anki collection is large.
 :::
 
-## Known-Word Maturity Highlighting
+## Known-word maturity highlighting
 
-Instead of one color for every known word, maturity highlighting tints each known token by the review state of its Anki cards (like asbplayer), giving an at-a-glance sense of how much of a line is solidly learned.
+Maturity highlighting tints each known token by the review state of its Anki cards instead of painting every known word the same color, so you can see how much of a line you actually have down. asbplayer does the same thing.
 
 **How it works:**
 
@@ -81,7 +81,7 @@ bun run verify-known-word-highlights:electron -- --input /path/to/episode.ja.srt
 
 It tokenizes every cue through the real Yomitan/MeCab pipeline with your live known-word cache, prints each line in your configured tier colors, and summarizes the tier counts. `--audit` re-derives each highlighted tier from live Anki card data (`notesInfo` + `cardsInfo` intervals) and lists any token whose color disagrees, with the note ids and intervals behind it. Electron locks the Yomitan profile, so quit SubMiner first or pass `--profile-copy` to run against a scratch copy. Other useful flags: `--refresh` (refresh the cache first), `--limit <n>`, `--quiet`, `--json`.
 
-## Character-Name Highlighting
+## Character-name highlighting
 
 Character-name matches are built from the active merged SubMiner character dictionary, which auto-syncs character data from AniList for your recently-watched titles. When the current AniList media ID is known, SubMiner ignores loaded entries from other titles for subtitle name matching and inline portraits. Matching names are highlighted in subtitles and become available for hover-driven Yomitan character profiles - portraits, roles, voice actors, and biographical detail.
 
@@ -102,9 +102,9 @@ Character-name matches are built from the active merged SubMiner character dicti
 
 For full details on dictionary generation, name variant expansion, auto-sync lifecycle, and configuration, see the dedicated [Character Dictionary](/character-dictionary) page.
 
-## Frequency Highlighting
+## Frequency highlighting
 
-Frequency highlighting colors tokens based on how common they are, using dictionary frequency rank data. This helps you spot high-value vocabulary at a glance. For each token, ranks from the installed Yomitan frequency dictionaries are consulted in priority order: the highest-priority dictionary that has the term wins, lower-priority dictionaries fill in terms it lacks, and occurrence-based dictionaries are skipped.
+Frequency highlighting colors tokens by how common the word is, so a rare word in an otherwise easy line stands out. Ranks come from your installed Yomitan frequency dictionaries, read in priority order. The highest-priority dictionary that has the term wins, lower-priority ones fill in terms it lacks, and occurrence-based dictionaries are skipped.
 
 **Modes:**
 
@@ -137,9 +137,9 @@ Frequency highlighting skips tokens that look like non-lexical noise (kana redup
 Frequency, JLPT, and N+1 metadata are only shown for tokens that survive the subtitle-annotation noise filter. Standalone grammar tokens like `は`, `です`, and `この` are intentionally left unannotated even if a dictionary can assign them metadata.
 :::
 
-## JLPT Tagging
+## JLPT tagging
 
-JLPT tagging adds colored underlines to tokens based on their JLPT level (N1–N5), giving you an at-a-glance sense of difficulty distribution in each subtitle line.
+JLPT tagging underlines each token in a color for its JLPT level (N1–N5), so the difficulty spread of a line is visible without reading it closely.
 
 **How it works:**
 
@@ -164,7 +164,7 @@ All colors are customizable via the `subtitleStyle.jlptColors` object.
 | `subtitleStyle.enableJlpt`         | `false`   | Enable JLPT underline styling |
 | `subtitleStyle.jlptColors.N1`–`N5` | see above | Per-level underline colors    |
 
-## Runtime Toggles
+## Runtime toggles
 
 These annotation layers can be toggled at runtime via the runtime options palette (`Ctrl/Cmd+Shift+O`) without restarting:
 
@@ -177,9 +177,9 @@ These annotation layers can be toggled at runtime via the runtime options palett
 
 (Character-name matching, `subtitleStyle.nameMatchEnabled`, is toggled through config or the Settings window, not the runtime palette.)
 
-Toggles only apply to new subtitle lines after the change - the currently displayed line is not re-tokenized in place.
+A toggle takes effect on the next subtitle line. SubMiner does not re-tokenize the line already on screen.
 
-## Rendering Priority
+## Rendering priority
 
 When multiple annotations apply to the same token, the visual priority is:
 

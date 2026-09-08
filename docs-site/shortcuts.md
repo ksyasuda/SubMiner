@@ -1,4 +1,4 @@
-# Keyboard Shortcuts
+# Keyboard shortcuts
 
 This page is the complete reference for every keystroke SubMiner responds to. If you are just getting started, focus on the **Mining Shortcuts** and **Overlay Controls** sections - those cover the day-to-day mining loop. The rest can wait until you need them.
 
@@ -10,7 +10,7 @@ A few terms used throughout:
 
 All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindings`. Set any shortcut to `null` to disable it.
 
-## App-Wide Shortcuts
+## App-wide shortcuts
 
 | Shortcut      | Action                 | Scope                                       | Configurable                           |
 | ------------- | ---------------------- | -------------------------------------------- | -------------------------------------- |
@@ -21,9 +21,11 @@ All shortcuts are configurable in `config.jsonc` under `shortcuts` and `keybindi
 `Alt+Shift+O` is dispatched by the overlay window and the mpv plugin, so it works from either surface without OS registration. Only `Alt+Shift+Y` is registered with the OS; if it conflicts with another application, that binding cannot be changed. All `shortcuts.*` keys hot-reload - no restart needed.
 :::
 
-## Mining Shortcuts
+## Mining shortcuts
 
 These work when the overlay window has focus.
+
+When text is selected in the [subtitle sidebar](./subtitle-sidebar.md#selecting-and-copying-dialogue), `Ctrl/Cmd+C` copies that selection without timestamps, taking priority over the current-subtitle action. `Escape` clears the sidebar selection.
 
 | Shortcut           | Action                                          | Config key                              |
 | ------------------ | ----------------------------------------------- | --------------------------------------- |
@@ -37,7 +39,7 @@ These work when the overlay window has focus.
 
 The multi-line shortcuts open a digit selector with a 3-second timeout (`shortcuts.multiCopyTimeoutMs`). Press `1`–`9` to select the total number of subtitle lines to combine, ending at the current line and moving backward through the subtitle timeline. The current line counts toward the selected total. When the shortcut starts from mpv, SubMiner focuses the visible overlay for that selector instead of reserving the number keys in the mpv plugin.
 
-## Overlay Controls
+## Overlay controls
 
 These control playback and subtitle display. They require overlay window focus.
 
@@ -73,7 +75,7 @@ On macOS managed playback, SubMiner disables mpv's menu-bar shortcuts so configu
 
 Mouse-hover playback behavior is configured separately from shortcuts: `subtitleStyle.autoPauseVideoOnHover` defaults to `true` (pause on subtitle hover, resume on leave).
 
-## Subtitle & Feature Shortcuts
+## Subtitle and feature shortcuts
 
 | Shortcut           | Action                                                   | Config key                                 |
 | ------------------ | -------------------------------------------------------- | ------------------------------------------ |
@@ -98,7 +100,7 @@ The stats toggle is handled inside the focused visible overlay window. It is con
 
 The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.
 
-## Controller Shortcuts
+## Controller shortcuts
 
 These overlay-local shortcuts open controller utilities for the Chrome Gamepad API integration.
 
@@ -109,7 +111,7 @@ These overlay-local shortcuts open controller utilities for the Chrome Gamepad A
 
 Controller input only drives the overlay while keyboard-only mode is enabled. The controller mapping and tuning live under the top-level `controller` config block; keyboard-only mode still works normally without a controller.
 
-## MPV Plugin Chords
+## MPV plugin chords
 
 When the mpv plugin is installed, all commands use a `y` chord prefix - press `y`, then the second key (the overlay-side chord times out after 1 second; the mpv plugin uses native mpv key sequences).
 
@@ -129,14 +131,14 @@ The bare `v` plugin binding intentionally overrides mpv's native primary subtitl
 
 When the overlay has focus, press `y` then `d` to toggle DevTools (debugging helper).
 
-## Drag-and-Drop
+## Drag-and-drop
 
 | Gesture                   | Action                                           |
 | ------------------------- | ------------------------------------------------ |
 | Drop file(s) onto overlay | Replace current mpv playlist with dropped files  |
 | `Shift` + drop file(s)    | Append all dropped files to current mpv playlist |
 
-## Customizing Shortcuts
+## Customizing shortcuts
 
 All `shortcuts.*` keys accept [Electron accelerator strings](https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts), for example `"CommandOrControl+D"`. Use `null` to disable a shortcut.
 

@@ -8,6 +8,10 @@ import { subtitleCueListSeekTime } from '../../core/services/subtitle-cue-naviga
 import type { ModalStateReader, RendererContext } from '../context';
 import { syncOverlayMouseIgnoreState } from '../overlay-mouse-ignore.js';
 import {
+  clearSubtitleSidebarSelection,
+  hasSubtitleSidebarSelection,
+} from './subtitle-sidebar-selection.js';
+import {
   YOMITAN_POPUP_HIDDEN_EVENT,
   YOMITAN_POPUP_SHOWN_EVENT,
   isYomitanPopupVisible,
@@ -213,6 +217,7 @@ export function createSubtitleSidebarModal(
   let subtitleSidebarYomitanPopupVisible = false;
   let subtitleSidebarPauseHeldByYomitanPopup = false;
   let lastSubtitleSidebarLookupCueIndex = -1;
+  let subtitleSourceKey: string | null = null;
 
   function restoreEmbeddedSidebarPassthrough(): void {
     syncOverlayMouseIgnoreState(ctx);
@@ -473,6 +478,8 @@ export function createSubtitleSidebarModal(
   ): void {
     if (
       !ctx.state.subtitleSidebarAutoScroll ||
+      ctx.dom.subtitleSidebarList.dataset?.selecting === 'true' ||
+      hasSubtitleSidebarSelection(ctx.dom.subtitleSidebarList) ||
       ctx.state.subtitleSidebarActiveCueIndex < 0 ||
       (!force && ctx.state.subtitleSidebarActiveCueIndex === previousActiveCueIndex) ||
       nowForUiTiming() < ctx.state.subtitleSidebarManualScrollUntilMs
@@ -569,8 +576,14 @@ export function createSubtitleSidebarModal(
 
   async function refreshSnapshot(): Promise<SubtitleSidebarSnapshot> {
     const snapshot = await window.electronAPI.getSubtitleSidebarSnapshot();
+    if (snapshot.sourceKey !== subtitleSourceKey) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
+      lastSubtitleSidebarLookupCueIndex = -1;
+      subtitleSourceKey = snapshot.sourceKey;
+    }
     applyConfig(snapshot);
     if (!snapshot.config.enabled) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       resumeSubtitleSidebarHoverPause();
       clearSidebarInteractionState();
       ctx.state.subtitleSidebarCues = [];
@@ -590,6 +603,7 @@ export function createSubtitleSidebarModal(
 
     const cuesChanged = !subtitleCueListsEqual(ctx.state.subtitleSidebarCues, snapshot.cues);
     if (cuesChanged) {
+      clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
       ctx.state.subtitleSidebarCues = snapshot.cues;
       if (ctx.state.subtitleSidebarModalOpen) {
         renderCueList();
@@ -674,6 +688,7 @@ export function createSubtitleSidebarModal(
     if (!ctx.state.subtitleSidebarModalOpen) {
       return;
     }
+    clearSubtitleSidebarSelection(ctx.dom.subtitleSidebarList);
     resumeSubtitleSidebarHoverPause();
     clearSidebarInteractionState();
     ctx.state.subtitleSidebarModalOpen = false;
@@ -714,6 +729,7 @@ export function createSubtitleSidebarModal(
       closeSubtitleSidebarModal();
     });
     ctx.dom.subtitleSidebarList.addEventListener('click', (event) => {
+      if (hasSubtitleSidebarSelection(ctx.dom.subtitleSidebarList)) return;
       const target = event.target;
       if (!(target instanceof Element)) {
         return;
