@@ -36,3 +36,19 @@ test('chunk stitching removes matching overlap cues but retains repeated dialogu
     { startTime: 21.4, endTime: 22, text: 'はい' },
   ]);
 });
+
+test('chunk stitching matches repeated text to the greatest overlap without leaving a duplicate', () => {
+  const cues = [
+    { startTime: 10, endTime: 14, text: 'はい' },
+    { startTime: 13, endTime: 20, text: 'はい' },
+  ];
+  appendSpeechChunkCues(cues, [
+    { startTime: 12, endTime: 21, text: 'はい' },
+    { startTime: 22, endTime: 23, text: 'はい' },
+  ]);
+  assert.deepEqual(cues, [
+    { startTime: 10, endTime: 14, text: 'はい' },
+    { startTime: 12, endTime: 21, text: 'はい' },
+    { startTime: 22, endTime: 23, text: 'はい' },
+  ]);
+});

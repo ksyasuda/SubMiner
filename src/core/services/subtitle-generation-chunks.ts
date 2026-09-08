@@ -44,18 +44,22 @@ export function appendSpeechChunkCues(cues: SubtitleCue[], incoming: readonly Su
   const matched = new Set<SubtitleCue>();
   for (const cue of incoming) {
     const text = cue.text.replace(/\s+/g, '');
-    const duplicate = cues.find((previous, index) => {
-      if (index >= previousCount || matched.has(previous)) return false;
+    let duplicate: SubtitleCue | undefined;
+    let greatestOverlap = 0;
+    for (const [index, previous] of cues.entries()) {
+      if (index >= previousCount) break;
+      if (matched.has(previous) || previous.text.replace(/\s+/g, '') !== text) continue;
       const overlap =
         Math.min(previous.endTime, cue.endTime) - Math.max(previous.startTime, cue.startTime);
       const shorterDuration = Math.min(
         previous.endTime - previous.startTime,
         cue.endTime - cue.startTime,
       );
-      return (
-        overlap > 0 && overlap >= shorterDuration / 2 && previous.text.replace(/\s+/g, '') === text
-      );
-    });
+      if (overlap > greatestOverlap && overlap >= shorterDuration / 2) {
+        duplicate = previous;
+        greatestOverlap = overlap;
+      }
+    }
     if (duplicate) {
       duplicate.startTime = Math.min(duplicate.startTime, cue.startTime);
       duplicate.endTime = Math.max(duplicate.endTime, cue.endTime);
