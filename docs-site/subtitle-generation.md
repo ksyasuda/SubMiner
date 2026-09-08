@@ -17,15 +17,17 @@ See the [generated configuration example](/config.example.jsonc) for current def
 
 ## Prioritizing spoken dialogue
 
-To focus on dialogue, check the optional **Prioritize dialogue** box in the generation modal. If the speech detection model is missing, click **Download Silero** to install it. This separate download uses the same progress, cancellation, and integrity checks as Whisper downloads. Checking the box never downloads automatically, and leaving it unchecked lets you generate without the Silero model.
+To focus on dialogue, check the optional **Focus on spoken dialogue** box in the generation modal. If the speech detection model is missing, click **Download speech detection model** to install it. This separate download uses the same progress, cancellation, and integrity checks as Whisper downloads. Checking the box never downloads automatically, and leaving it unchecked lets you generate without the Silero model.
 
 You also need whisper.cpp's [speech segment detector](https://github.com/ggml-org/whisper.cpp/tree/master/examples/vad-speech-segments). SubMiner downloads the model, not this executable. The detector is found as `whisper-vad-speech-segments` on `PATH`. Builds from the upstream source may name it `vad-speech-segments`; set `vadPath` in **Settings → Integrations → Japanese Subtitle Generation** when needed.
 
 The checkbox choice lasts for the current SubMiner session, including closing and reopening the modal. To make dialogue mode your default, set `vadModelPath` in Settings to a [Silero GGML VAD model](https://huggingface.co/ggml-org/whisper-vad/tree/main). The modal downloads `ggml-silero-v6.2.0.bin` into the same `models/whisper/` directory as managed Whisper models. An existing configured VAD path takes precedence and checks the box initially. Unchecking it temporarily disables dialogue mode without changing that path. Downloading the model alone does not enable dialogue mode.
 
-With speech detection configured, SubMiner transcribes short speech passages separately and restores each passage's position on the original audio timeline. It resets transcription context between passages and limits subtitle cues to the passage that produced them. A line cannot stretch across an omitted music break, and repeated dialogue in separate passages remains separate. Progress reports completed batches of dialogue passages.
+With speech detection configured, SubMiner transcribes short speech passages separately and restores each passage's position on the original audio timeline. Detection retains brief utterances and includes extra audio around speech to reduce clipped syllables. If the detector returns a long passage, SubMiner looks for quiet pauses near chunk boundaries. Adjacent chunks overlap slightly to provide context when speech continues through a cut. Matching subtitle cues in that overlap are combined; repeated dialogue at separate times remains separate.
 
-This mode prioritizes spoken dialogue over songs and background sounds. It can miss quiet speech or speech mixed with loud music, and recognition errors are still possible. Uncheck **Prioritize dialogue** to return to full-audio transcription for the session, or clear `vadModelPath` to change the default. A selected detector or model that fails stops generation with an error. Existing subtitles are preserved.
+SubMiner resets transcription context between passages and limits subtitle cues to the audio supplied for each chunk. A line cannot stretch across an omitted music break. Progress reports completed batches of dialogue passages. These adjustments do not replace Whisper's timestamp estimates or guarantee that every spoken line is recognized.
+
+This mode prioritizes spoken dialogue over songs and background sounds. It can miss quiet speech or speech mixed with loud music, and recognition errors are still possible. Uncheck **Focus on spoken dialogue** to return to full-audio transcription for the session, or clear `vadModelPath` to change the default. A selected detector or model that fails stops generation with an error. Existing subtitles are preserved.
 
 ## Choosing a model
 
@@ -38,9 +40,9 @@ A configured external Model Path takes precedence and hides the managed model pi
 ## From the overlay
 
 1. Open a local video in mpv and select its Japanese audio track.
-2. Press **Ctrl+Shift+G** to open the standalone generation modal. You can also click **Generate Japanese subtitles** in the subtitle sidebar. Neither an open sidebar nor an existing subtitle track is required.
+2. Press **Ctrl+Shift+G** to open the standalone generation modal. When the subtitle sidebar has no subtitle lines loaded, it also offers a **Generate Japanese subtitles** button. Neither an open sidebar nor an existing subtitle track is required for the shortcut.
 3. Choose a model and download it if prompted, or configure your existing model path in Settings and click **Check again**.
-4. Optionally check **Prioritize dialogue** and download Silero if prompted.
+4. Optionally check **Focus on spoken dialogue** and click **Download speech detection model** if prompted.
 5. Click **Generate subtitles**.
 
 The modal shows audio preparation, transcription, and saving progress. Percentages appear when the underlying tool reports them. **Cancel** stops the current operation. Closing the modal lets the job continue; reopening it shows the current progress or result.

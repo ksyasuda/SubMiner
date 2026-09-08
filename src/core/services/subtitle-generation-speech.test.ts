@@ -21,6 +21,24 @@ test('speech passages convert centiseconds, group nearby speech, and retain long
   );
 });
 
+test('speech passages retain long merged detector segments for pause-aware splitting', () => {
+  assert.deepEqual(
+    parseSpeechPassages(
+      [
+        'Detected 3 speech segments:',
+        'Speech segment 0: start = 33714.00, end = 36756.00',
+        'Speech segment 1: start = 40000.00, end = 46000.00',
+        'Speech segment 2: start = 50000.00, end = 50100.00',
+      ].join('\n'),
+    ),
+    [
+      { startSeconds: 337.14, endSeconds: 367.56 },
+      { startSeconds: 400, endSeconds: 460 },
+      { startSeconds: 500, endSeconds: 501 },
+    ],
+  );
+});
+
 test('speech detector distinguishes no speech from missing, malformed, or truncated output', () => {
   assert.deepEqual(parseSpeechPassages('Detected 0 speech segments:'), []);
   assert.deepEqual(
@@ -35,7 +53,6 @@ test('speech detector distinguishes no speech from missing, malformed, or trunca
     'Detected 1 speech segments:\nSpeech segment 1: start = 100.00, end = 200.00',
     'Detected 1 speech segments:\nSpeech segment 0: start = 200.00, end = 100.00',
     'Detected 1 speech segments:\nSpeech segment 0: start = NaN, end = 100.00',
-    'Detected 1 speech segments:\nSpeech segment 0: start = 0.00, end = 10000.00',
     'Detected 2 speech segments:\nSpeech segment 0: start = 0.00, end = 200.00\nSpeech segment 1: start = 100.00, end = 300.00',
   ])
     assert.throws(() => parseSpeechPassages(output), /Speech detector/);

@@ -3108,6 +3108,10 @@ iframe[id^='yomitan-popup'],
   font-size: 12px;
 }
 
+.subtitle-sidebar-body:has(.subtitle-sidebar-item) .subtitle-generation-open {
+  display: none;
+}
+
 .subsync-form {
   display: flex;
   flex-direction: column;

@@ -1205,7 +1205,7 @@ Open the standalone modal with `Ctrl+Shift+G`, configurable through `shortcuts.o
 
 `subtitleGeneration` configures local Japanese transcription for both the launcher and overlay. In **Settings → Integrations → Japanese Subtitle Generation**, set `modelPath` to an existing multilingual whisper.cpp GGML model, or leave it empty and choose a `managedModel` as the default. The generation modal lets you select another model for the current session, with download sizes and accuracy versus speed guidance. Downloads are explicit. Leave `whisperPath`, `ffmpegPath`, and `ffprobePath` empty to find the executables on `PATH`, or set them to override the executable paths. `threads` controls the CPU thread count. Settings apply to the next operation. See [subtitle generation](/subtitle-generation) for setup and behavior, and the [generated configuration example](/config.example.jsonc) for defaults.
 
-The generation modal offers an optional **Prioritize dialogue** checkbox and a separate Silero model download. Set `subtitleGeneration.vadModelPath` to a Silero GGML VAD model to make dialogue mode the default. `vadPath` overrides the speech detector executable. See [dialogue generation setup](/subtitle-generation#prioritizing-spoken-dialogue) for session behavior, the additional tool, and limitations.
+The generation modal offers an optional **Focus on spoken dialogue** checkbox and a separate Silero model download. Set `subtitleGeneration.vadModelPath` to a Silero GGML VAD model to make dialogue mode the default. `vadPath` overrides the speech detector executable. See [dialogue generation setup](/subtitle-generation#prioritizing-spoken-dialogue) for session behavior, the additional tool, and limitations.
 
 ### Subtitle Sync
 

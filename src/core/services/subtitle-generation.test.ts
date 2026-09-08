@@ -197,6 +197,48 @@ test('dialogue generation keeps separate speech passages on the media timeline',
     );
   }));
 
+test('dialogue generation uses quiet pauses and stitches overlapping chunks on the media timeline', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const vadModelPath = path.join(directory, 'vad.bin');
+    await writeFile(vadModelPath, 'speech detector model');
+    const vadPath = await executable(
+      directory,
+      'vad',
+      `const assert = require('node:assert/strict');
+const args = process.argv.slice(2);
+assert.equal(args[args.indexOf('--vad-min-speech-duration-ms') + 1], '100');
+assert.equal(args[args.indexOf('-vp') + 1], '350');
+process.stdout.write('Detected 1 speech segments:\\nSpeech segment 0: start = 1000.00, end = 4500.00\\n');`,
+    );
+    const ffmpegPath = await executable(
+      directory,
+      'pause-ffmpeg',
+      `const args = process.argv.slice(2);
+if (args.includes('-af')) {
+  process.stderr.write('[silencedetect] silence_end: 28.1 | silence_duration: 0.2\\n');
+} else {
+  require('node:fs').writeFileSync(args.at(-1), 'wav');
+}`,
+    );
+    const whisperPath = await executable(
+      directory,
+      'overlap-whisper',
+      `const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) if (args[i] === '-of') {
+  const time = args[i + 1].endsWith('speech-0')
+    ? '00:00:17,800 --> 00:00:18,250'
+    : '00:00:00,100 --> 00:00:00,650';
+  require('node:fs').writeFileSync(args[i + 1] + '.srt', '1\\n' + time + '\\nはい\\n');
+}`,
+    );
+    const output = await generateJapaneseSubtitles({
+      ...input,
+      config: { ...input.config, vadModelPath, vadPath, ffmpegPath, whisperPath },
+    });
+    assert.equal(await readFile(output, 'utf8'), '1\n00:00:30,300 --> 00:00:30,900\nはい\n');
+  }));
+
 test('no detected speech stops generation without transcribing the full audio', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);
@@ -288,10 +330,16 @@ test('process cancellation terminates work and bounds diagnostic output', () =>
     );
   }));
 
-test('download fails integrity verification and removes partial files', () =>
+test('download uses the pinned model revision and removes files that fail integrity', () =>
   fixture(async (directory) => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = Object.assign(async () => new Response('not a model'), originalFetch);
+    globalThis.fetch = Object.assign(async (request: string | URL | Request) => {
+      assert.equal(
+        request,
+        'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin',
+      );
+      return new Response('not a model');
+    }, originalFetch);
     try {
       await assert.rejects(
         downloadSubtitleGenerationModel({

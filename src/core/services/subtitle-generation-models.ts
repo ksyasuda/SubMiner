@@ -79,7 +79,7 @@ export async function downloadSubtitleGenerationModel(input: {
   if (current.kind === 'invalid') throw new Error(current.message);
   const model = getSubtitleGenerationModel(input.config.managedModel);
   return downloadSubtitleGenerationArtifact({
-    url: `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${input.config.managedModel}.bin`,
+    url: `https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-${input.config.managedModel}.bin`,
     size: model.size,
     sha256: model.sha256,
     destination: current.path,

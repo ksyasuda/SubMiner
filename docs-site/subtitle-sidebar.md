@@ -6,7 +6,7 @@ The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if y
 
 ## How It Works
 
-The **Generate Japanese subtitles** button opens [local subtitle generation](/subtitle-generation). You can use it even when the current video has no subtitle track.
+When the sidebar has no subtitle lines loaded, the **Generate Japanese subtitles** button opens [local subtitle generation](/subtitle-generation). The button hides once subtitle lines are loaded and stays hidden between lines. Press **Ctrl+Shift+G** to open generation at any time.
 
 When SubMiner parses the active subtitle source into a cue list, the sidebar becomes available. Toggle it with the `\` key (configurable via `subtitleSidebar.toggleKey`). While open:
 

@@ -26,9 +26,7 @@ export function parseSpeechPassages(output: string): SpeechPassage[] {
       !Number.isFinite(startSeconds) ||
       !Number.isFinite(endSeconds) ||
       endSeconds <= startSeconds ||
-      startSeconds < (passages.at(-1)?.endSeconds ?? 0) ||
-      // VAD can pass the requested split point while looking for a pause.
-      endSeconds - startSeconds > 30
+      startSeconds < (passages.at(-1)?.endSeconds ?? 0)
     ) {
       throw new Error('Speech detector returned unordered or invalid segment timing.');
     }

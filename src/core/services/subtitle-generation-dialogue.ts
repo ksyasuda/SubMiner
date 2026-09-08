@@ -14,6 +14,8 @@ import {
   SPEECH_PASSAGE_SECONDS,
 } from './subtitle-generation-speech';
 import type { SubtitleCue } from './subtitle-cue-parser';
+import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generation-chunks';
+import { findSpeechPauses } from './subtitle-generation-pauses';
 
 const PASSAGES_PER_BATCH = 16;
 
@@ -40,10 +42,12 @@ export async function transcribeSubtitleDialogue(input: {
       String(input.config.threads),
       '-vt',
       '0.3',
-      '-vsd',
+      '--vad-min-speech-duration-ms',
+      '100',
+      '--vad-min-silence-duration-ms',
       '500',
       '-vp',
-      '200',
+      '350',
       '-vmsd',
       String(SPEECH_PASSAGE_SECONDS),
       '-np',
@@ -55,8 +59,18 @@ export async function transcribeSubtitleDialogue(input: {
         segmentLines.push(line);
     },
   });
-  const passages = parseSpeechPassages(segmentLines.join('\n'));
-  if (passages.length === 0) throw new Error('No spoken dialogue detected.');
+  const detected = parseSpeechPassages(segmentLines.join('\n'));
+  if (detected.length === 0) throw new Error('No spoken dialogue detected.');
+  const pauses = detected.some(
+    (passage) => passage.endSeconds - passage.startSeconds > SPEECH_PASSAGE_SECONDS,
+  )
+    ? await findSpeechPauses({
+        ffmpegPath: input.config.ffmpegPath,
+        wavPath: input.wavPath,
+        signal: input.signal,
+      })
+    : [];
+  const passages = splitSpeechPassages(detected, pauses);
   const cues: SubtitleCue[] = [];
   for (let offset = 0; offset < passages.length; offset += PASSAGES_PER_BATCH) {
     const batch = passages.slice(offset, offset + PASSAGES_PER_BATCH).map((passage, index) => ({
@@ -113,7 +127,10 @@ export async function transcribeSubtitleDialogue(input: {
     });
     for (const { passage, base } of batch) {
       input.signal?.throwIfAborted();
-      cues.push(...speechPassageCues(await readFile(`${base}.srt`, 'utf8'), passage));
+      appendSpeechChunkCues(
+        cues,
+        speechPassageCues(await readFile(`${base}.srt`, 'utf8'), passage),
+      );
       await rm(`${base}.wav`);
     }
   }

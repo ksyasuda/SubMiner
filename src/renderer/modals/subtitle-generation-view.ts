@@ -12,7 +12,7 @@ export function describeGenerationVad(vad: SubtitleGenerationStatus['vad']) {
     text: !vad.enabled
       ? 'Optional. Generate from the full audio when unchecked.'
       : vad.model.kind === 'missing'
-        ? 'Download Silero to prioritize spoken dialogue.'
+        ? 'Download the speech detection model to focus on spoken dialogue.'
         : vad.model.kind === 'invalid'
           ? vad.model.message
           : vad.model.kind === 'external'

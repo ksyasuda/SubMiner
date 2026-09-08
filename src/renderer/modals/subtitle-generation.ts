@@ -90,7 +90,7 @@ export function createSubtitleGenerationModal(
       : !model?.ready
         ? 'Set up a speech model to continue.'
         : !vad?.ready
-          ? 'Download the speech detection model or uncheck Prioritize dialogue.'
+          ? 'Download the speech detection model or uncheck Focus on spoken dialogue.'
           : 'Ready when you are.';
     dom.media.textContent = snapshot?.mediaPath ?? 'Open a local media file in the player first.';
     dom.model.textContent = model?.text ?? 'Checking local models...';
@@ -111,7 +111,7 @@ export function createSubtitleGenerationModal(
     dom.vadEnabled.disabled = busy || checking || !snapshot;
     dom.vadModel.textContent = vad?.text ?? 'Checking speech detection...';
     dom.vadDownload.classList.toggle('hidden', !vad?.download);
-    dom.vadDownload.textContent = `Download Silero · ${formatSubtitleGenerationModelSize(SUBTITLE_GENERATION_VAD_MODEL.size)}`;
+    dom.vadDownload.textContent = `Download speech detection model · ${formatSubtitleGenerationModelSize(SUBTITLE_GENERATION_VAD_MODEL.size)}`;
     dom.vadDownload.disabled = busy || checking;
     dom.start.disabled = busy || checking || !model?.ready || !vad?.ready || !snapshot?.mediaPath;
     dom.refresh.disabled = busy || checking;

@@ -202,7 +202,7 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
           );
           if (vad.kind === 'missing')
             throw new Error(
-              'Download the optional speech detection model or turn off Prioritize dialogue.',
+              'Download the optional speech detection model or turn off Focus on spoken dialogue.',
             );
           if (vad.kind === 'invalid') throw new Error(vad.message);
         }
