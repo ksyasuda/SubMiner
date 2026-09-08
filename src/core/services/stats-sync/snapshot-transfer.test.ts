@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { createSnapshotTransfer } from './snapshot-transfer';
+import { createSnapshotTransfer, runRsync } from './snapshot-transfer';
 import { createTransferCache, transferCacheKey } from './transfer-cache';
 
 type TransferDeps = NonNullable<Parameters<typeof createSnapshotTransfer>[2]>;
@@ -76,6 +76,58 @@ test('failed rsync transfers report errors without silently retrying through scp
 });
 
 const hasRsync = process.platform !== 'win32' && spawnSync('rsync', ['--version']).status === 0;
+
+test(
+  'rsync forces SSH, preserves its environment, and fails on a process timeout',
+  { skip: process.platform === 'win32' },
+  () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-rsync-process-test-'));
+    const previousPath = process.env.PATH;
+    const previousRsh = process.env.RSYNC_RSH;
+    try {
+      process.env.PATH = `${dir}${path.delimiter}${previousPath ?? ''}`;
+      process.env.RSYNC_RSH = 'unexpected-transport';
+      const executable = path.join(dir, 'rsync');
+      fs.writeFileSync(
+        executable,
+        '#!/bin/sh\nprintf "%s\\n" "$@" "$RSYNC_RSH" "$RSYNC_OLD_ARGS"\n',
+        { mode: 0o700 },
+      );
+      const result = runRsync(['--version']);
+      assert.equal(result.status, 0);
+      assert.deepEqual(result.stdout.trim().split('\n'), [
+        '--rsh=ssh',
+        '--version',
+        'unexpected-transport',
+        '1',
+      ]);
+
+      fs.writeFileSync(executable, '#!/bin/sh\nexec /bin/sleep 5\n');
+      const transfer = createSnapshotTransfer(
+        'macbook',
+        'posix',
+        makeDeps({
+          runRsync: (args) => (args.includes('--version') ? commandResult() : runRsync(args, 50)),
+        }),
+      );
+      assert.throws(
+        () =>
+          transfer.copy({
+            direction: 'download',
+            localPath: '/local.sqlite',
+            remotePath: '/remote.sqlite',
+          }),
+        /rsync download timed out for macbook/,
+      );
+    } finally {
+      if (previousPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousPath;
+      if (previousRsh === undefined) delete process.env.RSYNC_RSH;
+      else process.env.RSYNC_RSH = previousRsh;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
 
 for (const direction of ['download', 'upload'] as const) {
   test(

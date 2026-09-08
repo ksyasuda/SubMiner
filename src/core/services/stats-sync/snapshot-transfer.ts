@@ -4,10 +4,12 @@ import { assertSafeSshHost, runScp, runSsh, shellQuote, type RemoteShellFlavor }
 
 const RSYNC_OPTIONS = ['--compress', '--checksum'];
 
-function runRsync(args: string[]) {
-  return spawnSync('rsync', args, {
+export function runRsync(args: string[], timeoutMs = 30 * 60_000) {
+  return spawnSync('rsync', ['--rsh=ssh', ...args], {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'pipe'],
+    timeout: timeoutMs,
+    killSignal: 'SIGKILL',
     // Quote remote paths ourselves for both modern rsync and macOS openrsync.
     env: { ...process.env, RSYNC_OLD_ARGS: '1' },
   });
@@ -71,6 +73,9 @@ export function createSnapshotTransfer(
       // Without --inplace, rsync replaces the staged basis only after the
       // reconstructed file passes its transfer checksum.
       const result = deps.runRsync([...RSYNC_OPTIONS, '--quiet', '--', from, to]);
+      if (result.error && 'code' in result.error && result.error.code === 'ETIMEDOUT') {
+        throw new Error(`rsync ${direction} timed out for ${host}`);
+      }
       if (result.error) throw new Error(`Failed to run rsync: ${result.error.message}`);
       if (result.status !== 0) {
         throw new Error(`rsync ${direction} failed for ${host}: ${result.stderr.trim()}`);
