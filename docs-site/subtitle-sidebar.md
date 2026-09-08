@@ -6,9 +6,12 @@ The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if y
 
 ## How It Works
 
+The **Generate Japanese subtitles** button opens [local subtitle generation](/subtitle-generation). You can use it even when the current video has no subtitle track.
+
 When SubMiner parses the active subtitle source into a cue list, the sidebar becomes available. Toggle it with the `\` key (configurable via `subtitleSidebar.toggleKey`). While open:
 
 - The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
+- Between subtitle lines, the sidebar follows playback to the next cue without jumping back to a cue at the start of the file.
 - Clicking any cue seeks mpv into that line. For overlapping ASS karaoke, SubMiner moves past the previous line's exit animation when the selected cue has enough time remaining.
 - The sidebar stays synchronized with the overlay - media transitions and subtitle source changes update both simultaneously.
 

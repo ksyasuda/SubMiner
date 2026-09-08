@@ -14,6 +14,7 @@ export function createKeyboardHandlers(
     handleRuntimeOptionsKeydown: (e: KeyboardEvent) => boolean;
     handleCharacterDictionaryKeydown: (e: KeyboardEvent) => boolean;
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
+    handleSubtitleGenerationKeydown?: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
     handleTsukihimeKeydown: (e: KeyboardEvent) => boolean;
@@ -1079,6 +1080,11 @@ export function createKeyboardHandlers(
     );
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (ctx.state.subtitleGenerationModalOpen) {
+        options.handleSubtitleGenerationKeydown?.(e);
+        return;
+      }
+
       if (ctx.state.mediaTimingReviewModalOpen) {
         options.handleMediaTimingReviewKeydown(e);
         return;

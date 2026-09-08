@@ -27,6 +27,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 - `src/main/` owns composition, runtime setup, IPC wiring, and app lifecycle adapters.
 - `src/main/boot/` owns boot-phase assembly seams so `src/main.ts` can stay focused on lifecycle coordination and startup-path selection.
 - `src/core/services/` owns focused runtime services plus pure or side-effect-bounded logic.
+- `src/core/services/subtitle-generation*.ts` shares local whisper.cpp transcription, safe model downloads, and progress between the launcher and Electron. Optional Silero detection groups short speech passages before transcription, decodes each independently, and restores original media timing without joining omitted gaps. `src/main/runtime/subtitle-generation-runtime.ts` owns the overlay job lifecycle and only loads completed subtitles into the same local media; `src/shared/subtitle-generation*.ts` owns configuration, the multilingual model catalog, and IPC contracts. The overlay runtime retains a session model selection, validates picker requests through IPC, and keeps external model paths authoritative.
 - `src/renderer/` owns overlay rendering and input behavior.
 - `src/config/` owns config definitions, defaults, loading, and resolution.
 - `src/types/` owns shared cross-runtime contracts via domain entrypoints; `src/types.ts` stays a compatibility barrel.

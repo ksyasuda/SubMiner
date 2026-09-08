@@ -44,6 +44,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openControllerDebug',
   'openJimaku',
   'openTsukihime',
+  'openSubtitleGeneration',
   'openYoutubePicker',
   'openPlaylistBrowser',
   'replayCurrentSubtitle',

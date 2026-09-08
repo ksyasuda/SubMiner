@@ -1,6 +1,61 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseCliPrograms, resolveTopLevelCommand } from './cli-parser-builder.js';
+import { SUBTITLE_GENERATION_MODELS } from '../../src/shared/subtitle-generation-model-catalog.js';
+
+test('generate-subs accepts all downloadable multilingual model variants', () => {
+  for (const { id } of SUBTITLE_GENERATION_MODELS) {
+    const { invocations } = parseCliPrograms(['generate-subs', '--model', id], 'subminer');
+    assert.equal(invocations.generateSubtitles?.managedModel, id);
+  }
+});
+
+test('generate-subs parses local generation options separately from YouTube options', () => {
+  const result = parseCliPrograms(
+    [
+      'generate-subs',
+      'episode.mkv',
+      '--download-model',
+      '--model',
+      'medium',
+      '--output',
+      'episode.ja.srt',
+      '--audio-stream',
+      '2',
+    ],
+    'subminer',
+  );
+  assert.deepEqual(result.invocations.generateSubtitles, {
+    mediaPath: 'episode.mkv',
+    downloadModel: true,
+    managedModel: 'medium',
+    modelPath: undefined,
+    outputPath: 'episode.ja.srt',
+    audioStreamIndex: 2,
+  });
+  assert.equal(
+    parseCliPrograms(['generate-subs'], 'subminer').invocations.generateSubtitles?.mediaPath,
+    undefined,
+  );
+  assert.equal(
+    parseCliPrograms(['generate-subs', '--model-path', '/models/ggml.bin'], 'subminer').invocations
+      .generateSubtitles?.modelPath,
+    '/models/ggml.bin',
+  );
+});
+
+test('generate-subs rejects conflicting models and malformed audio stream indices', () => {
+  for (const flags of [
+    ['--model', 'tiny.en'],
+    ['--model', 'small.en-q5_1'],
+    ['--model', 'toString'],
+    ['--audio-stream', '-1'],
+    ['--audio-stream', '1.5'],
+    ['--model-path', '/model.bin', '--download-model'],
+    ['--model-path', '/model.bin', '--model', 'small'],
+  ])
+    assert.throws(() => parseCliPrograms(['generate-subs', ...flags], 'subminer'), /Generation/);
+});
 
 test('resolveTopLevelCommand skips root options and finds the first command', () => {
   assert.deepEqual(resolveTopLevelCommand(['--backend', 'macos', 'config', 'show']), {

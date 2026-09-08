@@ -5,6 +5,7 @@ type ControllerInteractionModalState = {
   kikuModalOpen: boolean;
   runtimeOptionsModalOpen: boolean;
   subsyncModalOpen: boolean;
+  subtitleGenerationModalOpen?: boolean;
   youtubePickerModalOpen: boolean;
   sessionHelpModalOpen: boolean;
   subtitleSidebarModalOpen: boolean;
@@ -18,6 +19,7 @@ export function isControllerInteractionBlocked(state: ControllerInteractionModal
     state.kikuModalOpen ||
     state.runtimeOptionsModalOpen ||
     state.subsyncModalOpen ||
+    Boolean(state.subtitleGenerationModalOpen) ||
     state.youtubePickerModalOpen ||
     state.sessionHelpModalOpen
   );

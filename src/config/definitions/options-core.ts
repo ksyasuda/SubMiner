@@ -629,6 +629,12 @@ export function buildCoreConfigOptionRegistry(
       description: 'Accelerator that opens the session help / keybinding cheatsheet.',
     },
     {
+      path: 'shortcuts.openSubtitleGeneration',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openSubtitleGeneration,
+      description: 'Accelerator that opens the standalone Japanese subtitle generation modal.',
+    },
+    {
       path: 'shortcuts.openControllerSelect',
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openControllerSelect,

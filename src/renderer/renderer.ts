@@ -44,6 +44,7 @@ import { isControllerInteractionBlocked } from './controller-interaction-blockin
 import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
 import { createSubsyncModal } from './modals/subsync.js';
+import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
 import { createMediaTimingReviewModal } from './modals/media-timing-review.js';
 import { createPositioningController } from './positioning.js';
@@ -79,6 +80,12 @@ const ctx = {
 };
 
 const modalDescriptors = [
+  {
+    id: 'subtitle-generation',
+    isOpen: () => ctx.state.subtitleGenerationModalOpen,
+    close: () => subtitleGenerationModal.close(),
+    suppressesSubtitles: true,
+  },
   {
     id: 'controller-select',
     isOpen: () => ctx.state.controllerSelectModalOpen,
@@ -212,6 +219,10 @@ const subsyncModal = createSubsyncModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
 });
+const subtitleGenerationModal = createSubtitleGenerationModal(ctx, {
+  modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
 const controllerSelectModal = createControllerSelectModal(ctx, {
   modalStateReader: { isAnyModalOpen },
   syncSettingsModalSubtitleSuppression,
@@ -280,6 +291,7 @@ const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
+  handleSubtitleGenerationKeydown: subtitleGenerationModal.handleKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
   handleJimakuKeydown: jimakuModal.handleJimakuKeydown,
   handleTsukihimeKeydown: tsukihimeModal.handleTsukihimeKeydown,
@@ -532,6 +544,9 @@ const recovery = createRendererRecoveryController({
 registerRendererGlobalErrorHandlers(window, recovery);
 
 function registerModalOpenHandlers(): void {
+  window.electronAPI.onSubtitleGenerationOpen(() => {
+    runGuarded('subtitle-generation:open', () => subtitleGenerationModal.open());
+  });
   window.electronAPI.onOpenRuntimeOptions(() => {
     runGuarded('runtime-options:open', () => {
       runtimeOptionsModal.openRuntimeOptionsModal();
@@ -832,6 +847,7 @@ async function init(): Promise<void> {
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
   subsyncModal.wireDomEvents();
+  subtitleGenerationModal.wireDomEvents();
   controllerSelectModal.wireDomEvents();
   controllerDebugModal.wireDomEvents();
   sessionHelpModal.wireDomEvents();
@@ -839,6 +855,7 @@ async function init(): Promise<void> {
   subtitleSidebarModal.wireDomEvents();
   characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {
+    subtitleGenerationModal.dispose();
     subtitleSidebarModal.disposeDomEvents();
   });
 

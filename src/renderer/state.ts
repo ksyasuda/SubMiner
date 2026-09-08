@@ -87,6 +87,7 @@ export type RendererState = {
   characterDictionaryStatus: string;
 
   subsyncModalOpen: boolean;
+  subtitleGenerationModalOpen: boolean;
   subsyncSubtitleTracks: SubsyncSubtitleTrack[];
   subsyncSubmitting: boolean;
 
@@ -219,6 +220,7 @@ export function createRendererState(): RendererState {
     characterDictionaryStatus: '',
 
     subsyncModalOpen: false,
+    subtitleGenerationModalOpen: false,
     subsyncSubtitleTracks: [],
     subsyncSubmitting: false,
 

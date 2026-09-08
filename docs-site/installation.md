@@ -14,6 +14,10 @@ Only **mpv** is strictly required to run SubMiner. Everything else enhances the 
 
 Several entries below exist only for the `subminer` command-line launcher, which is Linux and macOS only. On Windows you launch playback with the **SubMiner mpv** shortcut instead, so you can ignore those rows.
 
+[Local Japanese subtitle generation](/subtitle-generation) additionally requires whisper.cpp's `whisper-cli`, FFmpeg, and `ffprobe`. Configure their executable paths in Settings if needed. SubMiner can download a speech model explicitly, or use your existing multilingual GGML model.
+
+Optional [dialogue-focused generation](/subtitle-generation#prioritizing-spoken-dialogue) also uses whisper.cpp's speech segment detector and a separate Silero GGML VAD model.
+
 | Dependency           | Status      | Platforms    | What it does                                                                                                                                                   |
 | -------------------- | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | mpv                  | Required    | All          | The video player SubMiner overlays on. Must support `--input-ipc-server`.                                                                                      |

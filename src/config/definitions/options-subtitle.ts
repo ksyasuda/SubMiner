@@ -1,10 +1,46 @@
 import { ResolvedConfig } from '../../types/config';
 import { ConfigOptionRegistryEntry } from './shared';
+import { SUBTITLE_GENERATION_MODELS } from '../../shared/subtitle-generation-model-catalog';
 
 export function buildSubtitleConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
 ): ConfigOptionRegistryEntry[] {
   return [
+    ...(
+      ['whisperPath', 'modelPath', 'ffmpegPath', 'ffprobePath', 'vadModelPath', 'vadPath'] as const
+    ).map((key) => ({
+      path: `subtitleGeneration.${key}`,
+      kind: 'string' as const,
+      defaultValue: defaultConfig.subtitleGeneration[key],
+      description: {
+        whisperPath:
+          'Optional path override for whisper.cpp. Leave empty to find whisper-cli on PATH.',
+        modelPath:
+          'Path to an existing multilingual whisper.cpp GGML model. Leave empty to use a SubMiner-managed model. A configured path always takes precedence.',
+        ffmpegPath:
+          'Optional FFmpeg path override for audio extraction. Leave empty to find ffmpeg on PATH.',
+        ffprobePath:
+          'Optional FFprobe path override for audio tracks and timing. Leave empty to find ffprobe on PATH.',
+        vadModelPath:
+          'Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation from separate speech passages. Leave empty to transcribe the full audio, including songs.',
+        vadPath:
+          'Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments on PATH.',
+      }[key],
+    })),
+    {
+      path: 'subtitleGeneration.managedModel',
+      kind: 'enum',
+      enumValues: SUBTITLE_GENERATION_MODELS.map((model) => model.id),
+      defaultValue: defaultConfig.subtitleGeneration.managedModel,
+      description:
+        'Multilingual whisper.cpp model to use when modelPath is empty. Download it explicitly from the generation modal or launcher.',
+    },
+    {
+      path: 'subtitleGeneration.threads',
+      kind: 'number',
+      defaultValue: defaultConfig.subtitleGeneration.threads,
+      description: 'Positive integer CPU thread count for whisper.cpp Japanese transcription.',
+    },
     {
       path: 'subtitleStyle.primaryDefaultMode',
       kind: 'enum',

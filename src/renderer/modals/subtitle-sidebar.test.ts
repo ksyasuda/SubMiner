@@ -113,6 +113,20 @@ test('findActiveSubtitleCueIndex prefers current subtitle timing over near-futur
   assert.equal(findActiveSubtitleCueIndex(cues, { text: 'previous', startTime: 231 }, 233, 0), 0);
 });
 
+test('findActiveSubtitleCueIndex follows playback through empty subtitle gaps', () => {
+  const cues = [
+    { startTime: 0, endTime: 2, text: 'first' },
+    { startTime: 100, endTime: 102, text: 'later' },
+    { startTime: 105, endTime: 107, text: 'next' },
+  ];
+
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'later', startTime: 100 }, 101, 1), 1);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: '', startTime: 0 }, 103, 1), 2);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'next', startTime: 105 }, 105, 2), 2);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: '', startTime: 0 }, 108, 2), -1);
+  assert.equal(findActiveSubtitleCueIndex(cues, { text: 'first', startTime: 0 }, 0, 2), 0);
+});
+
 test('subtitle sidebar mining context resolves selected row cue timing', () => {
   const globals = globalThis as typeof globalThis & {
     Element?: unknown;

@@ -2,6 +2,15 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
+    title: 'Japanese Subtitle Generation',
+    description: [
+      'Generate timed Japanese subtitles from local audio using whisper.cpp.',
+      'Configure an existing GGML model path or explicitly download a SubMiner-managed model.',
+    ],
+    notes: ['Hot-reload: settings apply to the next generation or model download.'],
+    key: 'subtitleGeneration',
+  },
+  {
     title: 'Visible Overlay Auto-Start',
     description: [
       'Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.',

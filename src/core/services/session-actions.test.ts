@@ -41,6 +41,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openControllerDebug: () => calls.push('controller-debug'),
     openJimaku: () => calls.push('jimaku'),
     openTsukihime: () => calls.push('tsukihime'),
+    openSubtitleGeneration: () => calls.push('subtitle-generation'),
     openYoutubeTrackPicker: () => {
       calls.push('youtube');
     },
@@ -84,4 +85,10 @@ test('dispatchSessionAction opens the character dictionary manager', async () =>
   await dispatchSessionAction({ actionId: 'openCharacterDictionaryManager' }, deps);
 
   assert.deepEqual(calls, ['character-dictionary-manager']);
+});
+
+test('dispatchSessionAction opens subtitle generation without opening the sidebar', async () => {
+  const { calls, deps } = createDeps();
+  await dispatchSessionAction({ actionId: 'openSubtitleGeneration' }, deps);
+  assert.deepEqual(calls, ['subtitle-generation']);
 });

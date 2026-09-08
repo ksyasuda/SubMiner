@@ -461,6 +461,9 @@ import {
 } from './main/early-single-instance';
 import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
+import { createSubtitleGenerationRuntime } from './main/runtime/subtitle-generation-runtime';
+import { registerSubtitleGenerationIpc } from './main/runtime/subtitle-generation-ipc';
+import { openSubtitleGenerationModal } from './main/runtime/subtitle-generation-open';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { createMainBootServices, type MainBootServicesResult } from './main/boot/services';
 import { handleCliCommandRuntimeServiceWithContext } from './main/cli-runtime';
@@ -2984,6 +2987,14 @@ function openTsukihimeOverlay(): void {
   );
 }
 
+function openSubtitleGenerationOverlay(): void {
+  openOverlayHostedModalWithOsd(
+    openSubtitleGenerationModal,
+    'Subtitle generation overlay unavailable.',
+    'Failed to open subtitle generation overlay.',
+  );
+}
+
 function openSessionHelpOverlay(): void {
   openOverlayHostedModalWithOsd(
     openSessionHelpModalRuntime,
@@ -5504,6 +5515,7 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openJimaku: () => openJimakuOverlay(),
     openTsukihime: () => openTsukihimeOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
+    openSubtitleGeneration: () => openSubtitleGenerationOverlay(),
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
     openControllerDebug: () => openControllerDebugOverlay(),
@@ -6600,3 +6612,25 @@ function setOverlayVisible(visible: boolean): void {
 }
 
 registerIpcRuntimeHandlers();
+const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
+  getConfig: () => configService.getConfig().subtitleGeneration,
+  getModelDirectory: () =>
+    path.join(path.dirname(configService.getConfigPath()), 'models', 'whisper'),
+  getMpvClient: () => appState.mpvClient,
+  onProgress: (progress) => {
+    for (const window of [overlayManager.getMainWindow(), overlayManager.getModalWindow()]) {
+      if (window && !window.isDestroyed())
+        window.webContents.send(IPC_CHANNELS.event.subtitleGenerationProgress, progress);
+    }
+  },
+});
+registerSubtitleGenerationIpc({
+  ipc: ipcMain,
+  isAllowedSender: (sender) =>
+    [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some(
+      (window) => window && !window.isDestroyed() && window.webContents === sender,
+    ),
+  runtime: subtitleGenerationRuntime,
+  openModal: () => openSubtitleGenerationModal(createOverlayHostedModalOpenDeps()),
+});
+app.on('before-quit', () => subtitleGenerationRuntime.cancel());

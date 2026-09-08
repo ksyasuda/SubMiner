@@ -7,6 +7,23 @@
 {
 
   // ==========================================
+  // Japanese Subtitle Generation
+  // Generate timed Japanese subtitles from local audio using whisper.cpp.
+  // Configure an existing GGML model path or explicitly download a SubMiner-managed model.
+  // Hot-reload: settings apply to the next generation or model download.
+  // ==========================================
+  "subtitleGeneration": {
+    "whisperPath": "", // Optional path override for whisper.cpp. Leave empty to find whisper-cli on PATH.
+    "modelPath": "", // Path to an existing multilingual whisper.cpp GGML model. Leave empty to use a SubMiner-managed model. A configured path always takes precedence.
+    "managedModel": "small", // Multilingual whisper.cpp model to use when modelPath is empty. Download it explicitly from the generation modal or launcher. Values: tiny | tiny-q5_1 | tiny-q8_0 | base | base-q5_1 | base-q8_0 | small | small-q5_1 | small-q8_0 | medium | medium-q5_0 | medium-q8_0 | large-v1 | large-v2 | large-v2-q5_0 | large-v2-q8_0 | large-v3 | large-v3-q5_0 | large-v3-turbo | large-v3-turbo-q5_0 | large-v3-turbo-q8_0
+    "threads": 4, // Positive integer CPU thread count for whisper.cpp Japanese transcription.
+    "ffmpegPath": "", // Optional FFmpeg path override for audio extraction. Leave empty to find ffmpeg on PATH.
+    "ffprobePath": "", // Optional FFprobe path override for audio tracks and timing. Leave empty to find ffprobe on PATH.
+    "vadModelPath": "", // Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation from separate speech passages. Leave empty to transcribe the full audio, including songs.
+    "vadPath": "" // Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments on PATH.
+  }, // Generate timed Japanese subtitles from local audio using whisper.cpp.
+
+  // ==========================================
   // Visible Overlay Auto-Start
   // Show the visible subtitle overlay automatically after managed mpv playback starts SubMiner.
   // SubMiner can still auto-start in the background when this is false.
@@ -206,6 +223,7 @@
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
     "openTsukihime": "Ctrl+Shift+T", // Accelerator that opens the TsukiHime subtitle search modal (configured secondary/Japanese primary tabs).
+    "openSubtitleGeneration": "Ctrl+Shift+G", // Accelerator that opens the standalone Japanese subtitle generation modal.
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.
     "openControllerDebug": "Alt+Shift+C", // Accelerator that opens the controller debug modal with live axis/button readouts.

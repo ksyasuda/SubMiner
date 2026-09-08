@@ -116,8 +116,12 @@ export function findActiveSubtitleCueIndex(
     return -1;
   }
 
+  // The mpv client maps cleared sub-start to zero. Empty text has no active cue timing.
   const hasCurrentTiming =
-    typeof current?.startTime === 'number' && Number.isFinite(current.startTime);
+    current !== null &&
+    normalizeCueText(current.text).length > 0 &&
+    typeof current.startTime === 'number' &&
+    Number.isFinite(current.startTime);
 
   if (hasCurrentTiming) {
     const timingMatch = cues.findIndex(

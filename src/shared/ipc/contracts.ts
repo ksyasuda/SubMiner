@@ -4,6 +4,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 export const OVERLAY_HOSTED_MODALS = [
   'runtime-options',
   'subsync',
+  'subtitle-generation',
   'jimaku',
   'tsukihime',
   'youtube-track-picker',
@@ -50,6 +51,14 @@ export const IPC_CHANNELS = {
     dispatchSessionAction: 'session-action:dispatch',
   },
   request: {
+    requestSubtitleGenerationOpen: 'subtitle-generation:open',
+    getSubtitleGenerationStatus: 'subtitle-generation:status',
+    startSubtitleGeneration: 'subtitle-generation:start',
+    selectSubtitleGenerationModel: 'subtitle-generation:select-model',
+    downloadSubtitleGenerationModel: 'subtitle-generation:download',
+    downloadSubtitleGenerationVadModel: 'subtitle-generation:download-vad',
+    setSubtitleGenerationVadEnabled: 'subtitle-generation:set-vad-enabled',
+    cancelSubtitleGeneration: 'subtitle-generation:cancel',
     getVisibleOverlayVisibility: 'get-visible-overlay-visibility',
     getCurrentSubtitle: 'get-current-subtitle',
     getCurrentSubtitleRaw: 'get-current-subtitle-raw',
@@ -132,6 +141,8 @@ export const IPC_CHANNELS = {
     mediaTimingReviewResolve: 'media-timing-review:resolve',
   },
   event: {
+    subtitleGenerationOpen: 'subtitle-generation:opened',
+    subtitleGenerationProgress: 'subtitle-generation:progress',
     subtitleSet: 'subtitle:set',
     overlayPointerRecoveryRequest: 'overlay:pointer-recovery-request',
     subtitleVisibility: 'mpv:subVisibility',

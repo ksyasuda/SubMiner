@@ -1054,7 +1054,7 @@ This example is intentionally compact. The option table below documents availabl
 | `metadata.pattern`                                | string                                      | Format pattern for metadata: `%f`=filename, `%F`=filename+ext, `%t`=time, `%T`=time with milliseconds, `<br>`=newline                                                                                                           |
 | `isLapis`                                         | object                                      | Lapis/shared sentence-card config: `{ enabled, sentenceCardModel }`. Sentence/audio field names are fixed to `Sentence` and `SentenceAudio`.                                                                                    |
 | `isKiku`                                          | object                                      | Kiku-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }` (shared sentence/audio/model settings are inherited from `isLapis`)                                                                                       |
-| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                      |
+| `isSenren`                                        | object                                      | Senren-only config: `{ enabled, fieldGrouping, deleteDuplicateInAuto }`. Merges duplicates using Senren's scene-switching markup. Mutually exclusive with `isKiku.enabled`.                                                     |
 
 `ankiConnect.ai` only controls feature-local enablement plus optional `model` / `systemPrompt` overrides.
 API key resolution, base URL, and timeout live under the shared top-level [`ai`](#shared-ai-provider) config.
@@ -1198,6 +1198,14 @@ TsukiHime subtitle search works out of the box and needs no account or API key. 
 The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift+T`; set to `null` to disable). The older `animetosho` section and `shortcuts.openAnimetosho` are still accepted as deprecated aliases, with the current names taking precedence when both are set.
 
 See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, language tabs, and troubleshooting.
+
+### Japanese Subtitle Generation
+
+Open the standalone modal with `Ctrl+Shift+G`, configurable through `shortcuts.openSubtitleGeneration`, or use the subtitle sidebar button. See [shortcuts](/shortcuts) for the shared mpv and overlay keybindings.
+
+`subtitleGeneration` configures local Japanese transcription for both the launcher and overlay. In **Settings → Integrations → Japanese Subtitle Generation**, set `modelPath` to an existing multilingual whisper.cpp GGML model, or leave it empty and choose a `managedModel` as the default. The generation modal lets you select another model for the current session, with download sizes and accuracy versus speed guidance. Downloads are explicit. Leave `whisperPath`, `ffmpegPath`, and `ffprobePath` empty to find the executables on `PATH`, or set them to override the executable paths. `threads` controls the CPU thread count. Settings apply to the next operation. See [subtitle generation](/subtitle-generation) for setup and behavior, and the [generated configuration example](/config.example.jsonc) for defaults.
+
+The generation modal offers an optional **Prioritize dialogue** checkbox and a separate Silero model download. Set `subtitleGeneration.vadModelPath` to a Silero GGML VAD model to make dialogue mode the default. `vadPath` overrides the speech detector executable. See [dialogue generation setup](/subtitle-generation#prioritizing-spoken-dialogue) for session behavior, the additional tool, and limitations.
 
 ### Subtitle Sync
 

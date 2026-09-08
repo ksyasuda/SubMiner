@@ -634,6 +634,126 @@
           </div>
         </div>
       </div>
+      <div
+        id="subtitleGenerationModal"
+        class="modal hidden"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="subtitleGenerationTitle"
+      >
+        <div class="modal-content subtitle-generation-content">
+          <div class="modal-header">
+            <div id="subtitleGenerationTitle" class="modal-title">Generate Japanese subtitles</div>
+            <button id="subtitleGenerationClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body subtitle-generation-body">
+            <p class="subtitle-generation-intro">
+              Turn the current audio track into timed Japanese subtitles. Audio stays on this
+              device.
+            </p>
+            <div class="subtitle-generation-detail">
+              <span class="subtitle-generation-label">Current media</span>
+              <div id="subtitleGenerationMedia">Checking current media...</div>
+            </div>
+            <div class="subtitle-generation-detail">
+              <span class="subtitle-generation-label">Speech model</span>
+              <div id="subtitleGenerationModel">Checking local models...</div>
+              <div
+                id="subtitleGenerationModelPicker"
+                class="subtitle-generation-model-picker hidden"
+              >
+                <label for="subtitleGenerationModelSelect">Model</label>
+                <select
+                  id="subtitleGenerationModelSelect"
+                  aria-describedby="subtitleGenerationModelDescription subtitleGenerationModelRecommendation"
+                ></select>
+                <p id="subtitleGenerationModelDescription" class="subtitle-generation-hint"></p>
+                <p id="subtitleGenerationModelRecommendation" class="subtitle-generation-hint">
+                  Start with small for a balance of accuracy and CPU time. Larger models need more
+                  memory; speed depends on your hardware. Sizes shown are downloads.
+                </p>
+                <p class="subtitle-generation-hint">
+                  This choice lasts for this SubMiner session. Set the default model in Settings.
+                </p>
+              </div>
+              <p class="subtitle-generation-hint">
+                Use your own model in Settings → Integrations → Japanese Subtitle Generation → Model
+                Path.
+              </p>
+              <button
+                id="subtitleGenerationDownload"
+                class="kiku-cancel-button hidden"
+                type="button"
+              >
+                Download model
+              </button>
+            </div>
+            <div class="subtitle-generation-detail">
+              <label class="subtitle-generation-vad-toggle" for="subtitleGenerationVadEnabled">
+                <input
+                  id="subtitleGenerationVadEnabled"
+                  type="checkbox"
+                  aria-describedby="subtitleGenerationVadHint"
+                />
+                Prioritize dialogue <span class="subtitle-generation-hint">Optional</span>
+              </label>
+              <div id="subtitleGenerationVadModel" class="subtitle-generation-hint"></div>
+              <p id="subtitleGenerationVadHint" class="subtitle-generation-hint">
+                Uses a small Silero model to transcribe separate speech passages. May skip songs,
+                quiet speech, and dialogue under music. Requires whisper.cpp's speech detector.
+              </p>
+              <p class="subtitle-generation-hint">
+                Applies for this session. Set VAD Model Path in Settings to enable it by default.
+              </p>
+              <button
+                id="subtitleGenerationVadDownload"
+                class="kiku-cancel-button hidden"
+                type="button"
+              >
+                Download Silero
+              </button>
+            </div>
+            <div id="subtitleGenerationActivity" class="subtitle-generation-activity hidden">
+              <div class="subtitle-generation-progress-heading">
+                <span id="subtitleGenerationStage">Preparing</span>
+                <span id="subtitleGenerationPercent"></span>
+              </div>
+              <progress
+                id="subtitleGenerationProgress"
+                max="100"
+                aria-label="Subtitle generation progress"
+              ></progress>
+            </div>
+            <div
+              id="subtitleGenerationStatus"
+              class="runtime-options-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="subtitle-generation-actions">
+              <button id="subtitleGenerationRefresh" class="kiku-cancel-button" type="button">
+                Check again
+              </button>
+              <button id="subtitleGenerationCancel" class="kiku-cancel-button hidden" type="button">
+                Cancel
+              </button>
+              <button
+                id="subtitleGenerationStart"
+                class="kiku-confirm-button"
+                type="button"
+                disabled
+              >
+                Generate subtitles
+              </button>
+            </div>
+            <p class="subtitle-generation-hint">
+              The generated SRT will be saved locally and loaded into the player. You can close this
+              window while it runs.
+            </p>
+          </div>
+        </div>
+      </div>
       <div id="subsyncModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content subsync-modal-content">
           <div class="modal-header">
@@ -734,6 +854,13 @@
             <button id="subtitleSidebarClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body subtitle-sidebar-body">
+            <button
+              id="subtitleGenerationOpen"
+              class="kiku-cancel-button subtitle-generation-open"
+              type="button"
+            >
+              Generate Japanese subtitles
+            </button>
             <div id="subtitleSidebarStatus" class="runtime-options-status"></div>
             <ul id="subtitleSidebarList" class="subtitle-sidebar-list"></ul>
           </div>

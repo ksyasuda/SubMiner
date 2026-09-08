@@ -159,6 +159,7 @@ subminer stats -b                       # start background stats daemon
 | `subminer stats rebuild` / `backfill`      | Rebuild or backfill rollup data                                                                   |
 | `subminer doctor`                          | Dependency + config + socket diagnostics (`--refresh-known-words` refreshes the known-word cache) |
 | `subminer settings`                        | Open the SubMiner settings window                                                                 |
+| `subminer generate-subs [video]`           | Generate [Japanese subtitles](/usage#generate-japanese-subtitles-locally) locally                 |
 | `subminer logs -e`                         | Export a sanitized local-date log ZIP and print its path                                          |
 | `subminer config path`                     | Print active config file path                                                                     |
 | `subminer config show`                     | Print active config contents                                                                      |

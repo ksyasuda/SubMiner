@@ -11,6 +11,12 @@ import type {
   MediaTimingReviewWaveformResult,
 } from './anki';
 import type { ChangelogSnapshot } from './changelog';
+import type { SubtitleGenerationProgress } from '../shared/subtitle-generation';
+import type { SubtitleGenerationModelId } from '../shared/subtitle-generation-model-catalog';
+import type {
+  SubtitleGenerationResult,
+  SubtitleGenerationStatus,
+} from '../shared/subtitle-generation-ipc';
 import type { ResolvedConfig, ShortcutsConfig } from './config';
 import type {
   CompiledSessionBinding,
@@ -430,6 +436,20 @@ export interface SessionNumericSelectionStartPayload {
 }
 
 export interface ElectronAPI {
+  requestSubtitleGenerationOpen: () => Promise<boolean>;
+  onSubtitleGenerationOpen: (callback: () => void) => void;
+  getSubtitleGenerationStatus: () => Promise<SubtitleGenerationStatus>;
+  selectSubtitleGenerationModel: (
+    model: SubtitleGenerationModelId,
+  ) => Promise<SubtitleGenerationStatus>;
+  startSubtitleGeneration: () => Promise<SubtitleGenerationResult>;
+  downloadSubtitleGenerationModel: () => Promise<SubtitleGenerationResult>;
+  downloadSubtitleGenerationVadModel: () => Promise<SubtitleGenerationResult>;
+  setSubtitleGenerationVadEnabled: (enabled: boolean) => Promise<SubtitleGenerationStatus>;
+  cancelSubtitleGeneration: () => Promise<void>;
+  onSubtitleGenerationProgress: (
+    callback: (progress: SubtitleGenerationProgress) => void,
+  ) => () => void;
   getOverlayLayer: () => 'visible' | 'modal' | null;
   getPathForFile: (file: File) => string;
   onSubtitle: (callback: (data: SubtitleData) => void) => void;
@@ -576,6 +596,7 @@ export interface ElectronAPI {
     modal:
       | 'runtime-options'
       | 'subsync'
+      | 'subtitle-generation'
       | 'jimaku'
       | 'tsukihime'
       | 'youtube-track-picker'
@@ -593,6 +614,7 @@ export interface ElectronAPI {
     modal:
       | 'runtime-options'
       | 'subsync'
+      | 'subtitle-generation'
       | 'jimaku'
       | 'tsukihime'
       | 'youtube-track-picker'
