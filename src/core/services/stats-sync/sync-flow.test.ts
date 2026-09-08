@@ -25,6 +25,7 @@ function makeContext(overrides: Partial<SyncFlowContext['args']> = {}): SyncFlow
       syncCheck: false,
       syncMakeTemp: false,
       syncRemoveTempPath: '',
+      syncTransferCacheKey: '',
       logLevel: 'warn',
       ...overrides,
     },
@@ -46,7 +47,8 @@ function makeDeps(overrides: Partial<SyncFlowDeps> = {}): SyncFlowDeps {
     assertSafeSshHost: () => {},
     detectRemoteShellFlavor: () => 'posix',
     resolveRemoteSubminerCommand: () => 'subminer',
-    runScp: () => {},
+    createSnapshotTransfer: () => ({ kind: 'scp', copy: () => {} }),
+    transferCache: { seed: () => {}, remember: () => {} },
     runSsh: () => ok(),
     canConnectUnixSocket: async () => false,
     realpathSync: (candidate) => candidate,
@@ -116,9 +118,9 @@ test('runSyncFlow dispatches snapshot, merge, host, and missing-target modes', a
       calls.push(`ssh:${command}`);
       return command.includes(' sync --make-temp') ? ok('/tmp/subminer-sync-remote\n') : ok();
     },
-    runScp: (from, to) => {
+    createSnapshotTransfer: scpTransfer((from, to) => {
       calls.push(`scp:${from}->${to}`);
-    },
+    }),
   });
 
   await runSyncFlow(
@@ -146,6 +148,19 @@ test('runSyncFlow dispatches snapshot, merge, host, and missing-target modes', a
   );
 });
 
+function scpTransfer(
+  copy: (from: string, to: string) => void,
+): SyncFlowDeps['createSnapshotTransfer'] {
+  return (host) => ({
+    kind: 'scp',
+    copy: ({ direction, localPath, remotePath }) => {
+      const remote = `${host}:${remotePath}`;
+      if (direction === 'download') copy(remote, localPath);
+      else copy(localPath, remote);
+    },
+  });
+}
+
 function makeHostDeps(calls: string[], overrides: Partial<SyncFlowDeps> = {}): SyncFlowDeps {
   return makeDeps({
     createDbSnapshot: (_dbPath, outPath) => {
@@ -164,10 +179,10 @@ function makeHostDeps(calls: string[], overrides: Partial<SyncFlowDeps> = {}): S
       if (command.includes(' sync --make-temp')) return ok('/tmp/subminer-sync-remote\n');
       return ok();
     },
-    runScp: (from, to) => {
+    createSnapshotTransfer: scpTransfer((from, to) => {
       calls.push(`scp:${from}->${to}`);
       if (!to.includes(':')) fs.writeFileSync(to, 'pulled');
-    },
+    }),
     ...overrides,
   });
 }
@@ -246,6 +261,128 @@ test('runHostSync pull only snapshots remotely and merges locally', async () => 
   assert.ok(calls.includes('local-merge'));
   assert.ok(!calls.some((call) => call.startsWith('snapshot:')));
   assert.ok(!calls.some((call) => call.includes(' sync --merge ')));
+});
+
+for (const direction of ['push', 'pull', 'both'] as const) {
+  test(`runHostSync ${direction} snapshots sources and maintains receiver caches`, async () => {
+    const calls: string[] = [];
+    const copies: string[] = [];
+    const cacheCalls: string[] = [];
+    await runSyncFlow(
+      makeContext({
+        syncDbPath: '/tmp/local.sqlite',
+        syncHost: 'media-box',
+        syncDirection: direction,
+      }),
+      makeHostDeps(calls, {
+        transferCache: {
+          seed: (key) => cacheCalls.push(`seed:${key}`),
+          remember: (key) => cacheCalls.push(`remember:${key}`),
+        },
+        createSnapshotTransfer: () => ({
+          kind: 'rsync',
+          copy: ({ direction: copyDirection, localPath, remotePath }) => {
+            assert.equal(
+              calls.some((call) => call.startsWith('snapshot:')),
+              direction !== 'pull',
+            );
+            assert.equal(
+              calls.some((call) => call.includes(' sync --snapshot ')),
+              direction !== 'push',
+            );
+            if (copyDirection === 'upload')
+              assert.equal(fs.readFileSync(localPath, 'utf8'), 'snapshot');
+            assert.equal(path.posix.basename(remotePath), 'snapshot.sqlite');
+            assert.equal(
+              path.posix.basename(path.posix.dirname(remotePath)),
+              copyDirection === 'upload' ? 'incoming' : 'subminer-sync-remote',
+            );
+            copies.push(copyDirection);
+          },
+        }),
+      }),
+    );
+    assert.deepEqual(
+      copies,
+      direction === 'both'
+        ? ['download', 'upload']
+        : direction === 'pull'
+          ? ['download']
+          : ['upload'],
+    );
+    assert.equal(calls.includes('local-merge'), direction !== 'push');
+    assert.equal(cacheCalls.length, direction === 'push' ? 0 : 2);
+    if (cacheCalls.length) assert.equal(cacheCalls[0]?.slice(5), cacheCalls[1]?.slice(9));
+    const remoteCacheCalls = calls.filter((call) => call.includes('--transfer-cache'));
+    assert.equal(remoteCacheCalls.length, direction === 'pull' ? 0 : 2);
+    if (remoteCacheCalls.length) {
+      assert.ok(remoteCacheCalls[0]?.includes('--make-temp'));
+      assert.ok(remoteCacheCalls[1]?.includes('--remove-temp'));
+      assert.equal(
+        remoteCacheCalls[0]?.split('--transfer-cache ')[1],
+        remoteCacheCalls[1]?.split('--transfer-cache ')[1],
+      );
+    }
+    assert.equal(
+      calls.some((call) => call.includes(' sync --merge ')),
+      direction !== 'pull',
+    );
+  });
+}
+
+test('runHostSync does not merge an incomplete transfer and removes its temp files', async () => {
+  const calls: string[] = [];
+  let localTmpDir = '';
+  await assert.rejects(
+    () =>
+      runSyncFlow(
+        makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+        makeHostDeps(calls, {
+          transferCache: {
+            seed: () => {},
+            remember: () => assert.fail('Failed sync must not update cache'),
+          },
+          mkdtempSync: (prefix) => {
+            localTmpDir = fs.mkdtempSync(prefix);
+            return localTmpDir;
+          },
+          createSnapshotTransfer: () => ({
+            kind: 'rsync',
+            copy: () => {
+              throw new Error('connection lost');
+            },
+          }),
+        }),
+      ),
+    /connection lost/,
+  );
+  assert.ok(!calls.includes('local-merge'));
+  assert.ok(!calls.some((call) => call.includes(' sync --merge ')));
+  assert.ok(calls.some((call) => call.includes(' sync --remove-temp ')));
+  assert.equal(fs.existsSync(localTmpDir), false);
+  assert.ok(
+    !calls.some((call) => call.includes('--remove-temp') && call.includes('--transfer-cache')),
+  );
+});
+
+test('runHostSync can exchange snapshots with peers lacking the cache helper', async () => {
+  const calls: string[] = [];
+  await runSyncFlow(
+    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+    makeHostDeps(calls, {
+      createSnapshotTransfer: () => ({ kind: 'rsync', copy: () => {} }),
+      runSsh: (_host, command) => {
+        calls.push(command);
+        if (command.includes('--transfer-cache'))
+          return { status: 2, stdout: '', stderr: 'Unknown sync option: --transfer-cache' };
+        return command.includes('--make-temp') ? ok('/tmp/subminer-sync-remote') : ok();
+      },
+    }),
+  );
+  assert.equal(calls.filter((call) => call.includes('--make-temp')).length, 2);
+  assert.ok(
+    calls.some((call) => call.includes('--remove-temp') && !call.includes('--transfer-cache')),
+  );
 });
 
 test('runSyncFlow --json emits NDJSON progress events and a final result', async () => {
@@ -436,10 +573,10 @@ test('runHostSync speaks Windows shells: app command, double quotes, temp protoc
       if (command.includes(' sync --make-temp')) return ok(`${winTemp}\r\n`);
       return ok();
     },
-    runScp: (from, to) => {
+    createSnapshotTransfer: scpTransfer((from, to) => {
       scpCalls.push(`${from}->${to}`);
       if (!to.includes(':')) fs.writeFileSync(to, 'pulled');
-    },
+    }),
   });
 
   await runSyncFlow(makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'win-box' }), deps);

@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { assertSafeSshHost, runScp, runSsh, shellQuote, type RemoteShellFlavor } from './ssh';
 
-const RSYNC_OPTIONS = ['--compress', '--checksum', '--fuzzy'];
+const RSYNC_OPTIONS = ['--compress', '--checksum'];
 
 function runRsync(args: string[]) {
   return spawnSync('rsync', args, {
@@ -29,9 +30,10 @@ export interface SnapshotTransfer {
 }
 
 /**
- * Reuse the receiving machine's snapshot as rsync's fuzzy basis. Transfers
- * always write a separate file; the basis remains available for the other
- * direction. Missing rsync and Windows endpoints use compressed scp.
+ * For rsync, both paths name snapshot.sqlite, with the destination inside an
+ * incoming/ directory seeded from the transfer cache. rsync creates incoming/
+ * when there is no cached basis and verifies the reconstructed file.
+ * Missing rsync and Windows endpoints use compressed scp with ordinary paths.
  */
 export function createSnapshotTransfer(
   host: string,
@@ -52,16 +54,23 @@ export function createSnapshotTransfer(
   return {
     kind: canUseRsync ? 'rsync' : 'scp',
     copy: ({ direction, localPath, remotePath }) => {
-      const remote = `${host}:${canUseRsync ? shellQuote(remotePath) : remotePath}`;
-      const endpoints = direction === 'download' ? [remote, localPath] : [localPath, remote];
+      // A directory destination lets rsync create incoming/ on either end,
+      // including peers running older SubMiner versions.
+      const local =
+        canUseRsync && direction === 'download' ? `${path.dirname(localPath)}/` : localPath;
+      const remoteTarget =
+        canUseRsync && direction === 'upload' ? `${path.posix.dirname(remotePath)}/` : remotePath;
+      const remote = `${host}:${canUseRsync ? shellQuote(remoteTarget) : remoteTarget}`;
+      const [from, to] =
+        direction === 'download' ? ([remote, local] as const) : ([local, remote] as const);
       if (!canUseRsync) {
-        deps.runScp(endpoints[0]!, endpoints[1]!);
+        deps.runScp(from, to);
         return;
       }
       // --checksum prevents a same-size, same-mtime snapshot being skipped.
-      // Avoid --inplace: neither a failed transfer nor a matching basis may
-      // modify the snapshot we still need to send in the opposite direction.
-      const result = deps.runRsync([...RSYNC_OPTIONS, '--quiet', '--', ...endpoints]);
+      // Without --inplace, rsync replaces the staged basis only after the
+      // reconstructed file passes its transfer checksum.
+      const result = deps.runRsync([...RSYNC_OPTIONS, '--quiet', '--', from, to]);
       if (result.error) throw new Error(`Failed to run rsync: ${result.error.message}`);
       if (result.status !== 0) {
         throw new Error(`rsync ${direction} failed for ${host}: ${result.stderr.trim()}`);

@@ -17,6 +17,7 @@ import {
   runSsh,
 } from '../core/services/stats-sync/ssh';
 import { createSnapshotTransfer } from '../core/services/stats-sync/snapshot-transfer';
+import { createTransferCache } from '../core/services/stats-sync/transfer-cache';
 import {
   ensureTrackerQuiescentFlow,
   runSyncFlow,
@@ -64,6 +65,7 @@ function buildSyncCliDeps(): SyncFlowDeps {
     detectRemoteShellFlavor,
     resolveRemoteSubminerCommand,
     createSnapshotTransfer,
+    transferCache: createTransferCache(),
     runSsh,
     canConnectUnixSocket: canConnectSocket,
     realpathSync: (candidate) => fs.realpathSync(candidate),
