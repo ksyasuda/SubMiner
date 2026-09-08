@@ -3,6 +3,7 @@ import path from 'node:path';
 import { formatMergeSummary } from './merge';
 import { quoteForRemoteShell } from './ssh';
 import type { RemoteRunResult, RemoteShellFlavor, RunSshOptions } from './ssh';
+import type { createSnapshotTransfer } from './snapshot-transfer';
 import {
   parseSyncProgressLine,
   type SyncMergeSummary,
@@ -31,7 +32,7 @@ export interface SyncFlowContext {
 }
 
 /**
- * Process/IO seams the sync flow needs stubbed in tests: SSH/scp, the DB
+ * Process/IO seams the sync flow needs stubbed in tests: SSH/transfers, the DB
  * snapshot/merge engine, filesystem, and progress/bookkeeping output. The
  * app's --sync-cli mode (src/main/sync-cli.ts) provides the only production
  * binding; pure helpers are imported directly.
@@ -51,7 +52,7 @@ export interface SyncFlowDeps {
     flavor: RemoteShellFlavor,
     runRemote?: (host: string, remoteCommand: string) => RemoteRunResult,
   ) => string;
-  runScp: (from: string, to: string) => void;
+  createSnapshotTransfer: typeof createSnapshotTransfer;
   runSsh: (host: string, remoteCommand: string, options?: RunSshOptions) => RemoteRunResult;
   canConnectUnixSocket: (socketPath: string) => Promise<boolean>;
   realpathSync: (candidate: string) => string;
@@ -309,6 +310,7 @@ export async function runHostSync(
 
   const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
   const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
+  const transfer = deps.createSnapshotTransfer(host, flavor);
   const quote = (value: string) => quoteForRemoteShell(flavor, value);
   if (args.logLevel === 'debug') {
     console.error(`Remote subminer command (${flavor}): ${remoteCmd}`);
@@ -332,7 +334,7 @@ export async function runHostSync(
     const forceFlag = args.syncForce ? ' --force' : '';
 
     const localSnapshot = path.join(localTmpDir, 'local.sqlite');
-    if (shouldPush) {
+    if (shouldPush || transfer.kind === 'rsync') {
       deps.consoleLog(`Snapshotting local database (${dbPath})...`);
       deps.emitEvent({
         type: 'stage',
@@ -343,7 +345,7 @@ export async function runHostSync(
     }
 
     const remoteSnapshot = `${remoteTmpDir}/snapshot.sqlite`;
-    if (shouldPull) {
+    if (shouldPull || transfer.kind === 'rsync') {
       deps.consoleLog(`Snapshotting ${host}...`);
       deps.emitEvent({ type: 'stage', stage: 'snapshot-remote', message: `Snapshotting ${host}` });
       const snapshotRun = deps.runSsh(
@@ -362,12 +364,12 @@ export async function runHostSync(
         stage: 'download',
         message: `Copying snapshot from ${host}`,
       });
-      deps.runScp(`${host}:${remoteSnapshot}`, pulledSnapshot);
+      transfer.copy({ direction: 'download', remotePath: remoteSnapshot, localPath: pulledSnapshot });
     }
     const incomingSnapshot = `${remoteTmpDir}/incoming.sqlite`;
     if (shouldPush) {
       deps.emitEvent({ type: 'stage', stage: 'upload', message: `Copying snapshot to ${host}` });
-      deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
+      transfer.copy({ direction: 'upload', localPath: localSnapshot, remotePath: incomingSnapshot });
     }
 
     if (shouldPull) {

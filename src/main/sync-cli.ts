@@ -14,9 +14,9 @@ import {
   assertSafeSshHost,
   detectRemoteShellFlavor,
   resolveRemoteSubminerCommand,
-  runScp,
   runSsh,
 } from '../core/services/stats-sync/ssh';
+import { createSnapshotTransfer } from '../core/services/stats-sync/snapshot-transfer';
 import {
   ensureTrackerQuiescentFlow,
   runSyncFlow,
@@ -63,7 +63,7 @@ function buildSyncCliDeps(): SyncFlowDeps {
     assertSafeSshHost,
     detectRemoteShellFlavor,
     resolveRemoteSubminerCommand,
-    runScp,
+    createSnapshotTransfer,
     runSsh,
     canConnectUnixSocket: canConnectSocket,
     realpathSync: (candidate) => fs.realpathSync(candidate),
