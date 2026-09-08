@@ -7,7 +7,7 @@ titleTemplate: Immersion Mining Workflow for MPV
 hero:
   name: SubMiner
   text: Immersion Mining for MPV
-  tagline: Watch media, mine vocabulary, and craft anki cards without leaving the scene.
+  tagline: Watch, look up a word, and get an Anki card with audio and a screenshot. Without pausing your show.
   image:
     src: /assets/SubMiner.png
     alt: SubMiner logo
@@ -24,63 +24,63 @@ features:
       src: /assets/mpv.svg
       alt: mpv icon
     title: Built for mpv
-    details: Tracks subtitles via mpv IPC in real time. Launch with the wrapper script or the mpv plugin - no external bridge needed.
+    details: Reads subtitle state over mpv's IPC socket. Launch with the wrapper script or the mpv plugin. There is no separate bridge process to run.
     link: /usage
     linkText: How it works
   - icon:
       src: /assets/yomitan-icon.svg
       alt: Yomitan logo
     title: Bundled Yomitan
-    details: Ships with a built-in Yomitan instance for instant word lookups and context-aware card creation directly from subtitle text.
+    details: A Yomitan instance is bundled and preconfigured. Hover a word in the subtitle overlay to look it up and mine it.
     link: /mining-workflow
     linkText: Mining workflow
   - icon:
       src: /assets/anki-card.svg
       alt: Anki card icon
-    title: Anki Card Enrichment
-    details: Auto-fills card fields with sentence, audio clip, screenshot, and translation so you can focus on learning.
+    title: Anki card enrichment
+    details: New cards get the subtitle line, an audio clip cut to the line timing, and a screenshot from that moment.
     link: /anki-integration
     linkText: Anki integration
   - icon:
       src: /assets/highlight.svg
       alt: Highlight icon
-    title: Reading Annotations
-    details: N+1 targeting, character-name matching, frequency highlighting, and JLPT tagging - all layered on subtitle text in real time.
+    title: Reading annotations
+    details: N+1 targeting, character-name matching, frequency highlighting, and JLPT tagging, drawn onto the subtitle line as it plays.
     link: /subtitle-annotations
     linkText: Annotation details
   - icon:
       src: /assets/video.svg
       alt: Video playback icon
-    title: YouTube Playback
-    details: Play YouTube URLs or ytsearch targets directly - SubMiner automatically selects and loads subtitles for the video.
+    title: YouTube playback
+    details: Pass a YouTube URL or a ytsearch target. SubMiner picks a subtitle track for the video and loads it.
     link: /usage#youtube-playback
     linkText: YouTube playback
   - icon:
       src: /assets/jellyfin.svg
       alt: Jellyfin icon
-    title: Jellyfin Integration
-    details: Browse your Jellyfin library, pick media interactively, and play through mpv with full subtitle and mining support.
+    title: Jellyfin integration
+    details: Browse your Jellyfin library from the overlay and play a title through mpv. Subtitles and mining work the same as with local files.
     link: /jellyfin-integration
     linkText: Jellyfin setup
   - icon:
       src: /assets/subtitle-download.svg
       alt: Subtitle download icon
-    title: Subtitle Download & Sync
-    details: Search and pull subtitles from Jimaku, then retime subtitles with alass or ffsubsync - all from the overlay.
+    title: Subtitle download and sync
+    details: Search Jimaku or TsukiHime and download a track, then retime it with alass or ffsubsync. Both run from the overlay.
     link: /jimaku-integration
     linkText: Jimaku integration
   - icon:
       src: /assets/tokenization.svg
       alt: Tracking chart icon
-    title: Stats Dashboard
-    details: Browse session history, streak calendars, vocabulary frequency, and per-series progress in a local dashboard - then mine cards straight from your viewing history.
+    title: Stats dashboard
+    details: A local dashboard with session history, streak calendars, word frequency, and per-series progress. You can mine cards from lines you already watched.
     link: /immersion-tracking
     linkText: Dashboard & tracking
   - icon:
       src: /assets/cross-platform.svg
       alt: Cross-platform icon
-    title: Cross-Platform
-    details: Runs on Linux (Hyprland, Sway, X11), macOS, and Windows with compositor-aware window positioning and platform-native integration.
+    title: Cross-platform
+    details: Runs on Linux (Hyprland, Sway, X11), macOS, and Windows. Overlay positioning is handled per compositor rather than assuming one window manager.
     link: /installation
     linkText: Platform setup
 ---
@@ -98,38 +98,38 @@ const demoAssetVersion = '20260819-1';
       <div class="workflow-step" style="animation-delay: 0ms">
         <div class="step-number">01</div>
         <div class="step-title">Start</div>
-        <div class="step-desc">Launch with the wrapper or existing mpv setup and keep subtitles in sync.</div>
+        <div class="step-desc">Launch through the wrapper, or from an mpv setup you already have.</div>
       </div>
       <div class="workflow-connector" aria-hidden="true"></div>
       <div class="workflow-step" style="animation-delay: 60ms">
         <div class="step-number">02</div>
         <div class="step-title">Lookup</div>
-        <div class="step-desc">Hover a token in the interactive overlay, then trigger Yomitan lookup to open context.</div>
+        <div class="step-desc">Hover a token in the overlay to open the Yomitan popup for that word.</div>
       </div>
       <div class="workflow-connector" aria-hidden="true"></div>
       <div class="workflow-step" style="animation-delay: 120ms">
         <div class="step-number">03</div>
         <div class="step-title">Mine</div>
-        <div class="step-desc">Create cards from Yomitan or mine sentence cards directly from subtitle lines.</div>
+        <div class="step-desc">Add the word from Yomitan, or mine the whole line as a sentence card.</div>
       </div>
       <div class="workflow-connector" aria-hidden="true"></div>
       <div class="workflow-step" style="animation-delay: 180ms">
         <div class="step-number">04</div>
         <div class="step-title">Enrich</div>
-        <div class="step-desc">Automatically attach timing-accurate audio, sentence text, and visual evidence.</div>
+        <div class="step-desc">SubMiner fills in the audio clip, the sentence, and a screenshot from that moment.</div>
       </div>
       <div class="workflow-connector" aria-hidden="true"></div>
       <div class="workflow-step" style="animation-delay: 240ms">
         <div class="step-number">05</div>
         <div class="step-title">Track</div>
-        <div class="step-desc">Open the stats dashboard to review sessions, vocabulary trends, and mine cards from past viewing history.</div>
+        <div class="step-desc">Review past sessions and word trends, and mine anything you missed the first time.</div>
       </div>
     </div>
   </section>
 
   <section class="demo-section">
     <h2>See it in action</h2>
-    <p>Subtitles, lookup flow, and card enrichment from a real playback session.</p>
+    <p>Recorded from an actual playback session: subtitle hover, lookup, and the card that comes out the other end.</p>
     <div class="demo-window">
       <div class="demo-window__bar">
         <span class="demo-window__dot"></span>

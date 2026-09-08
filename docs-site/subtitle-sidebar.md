@@ -1,20 +1,20 @@
-# Subtitle Sidebar
+# Subtitle sidebar
 
-The subtitle sidebar displays the full parsed cue list for the active subtitle file as a scrollable panel alongside mpv. It lets you review past and upcoming lines, click any cue to seek directly to that moment, and follow along without depending on the transient overlay subtitles.
+The subtitle sidebar puts the whole parsed cue list for the active subtitle file in a scrollable panel next to mpv. Scroll back through lines you already passed, look ahead at what is coming, and click any cue to seek straight to it. The overlay only ever shows the current line; the sidebar shows the rest.
 
 The sidebar is enabled by default. Set `subtitleSidebar.enabled` to `false` if you want to turn it off.
 
-## How It Works
+## How it works
 
 When SubMiner parses the active subtitle source into a cue list, the sidebar becomes available. Toggle it with the `\` key (configurable via `subtitleSidebar.toggleKey`). While open:
 
 - The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
 - Clicking any cue seeks mpv into that line. For overlapping ASS karaoke, SubMiner moves past the previous line's exit animation when the selected cue has enough time remaining.
-- The sidebar stays synchronized with the overlay - media transitions and subtitle source changes update both simultaneously.
+- The sidebar and the overlay share one cue list, so a media change or subtitle source switch updates both at once.
 
 For typeset ASS karaoke and animated signs, SubMiner collapses generated animation frames and repeated full-line color phases before they reach the sidebar. It recovers a clean complete line from a matching timed authoring comment or from full-line events surrounding generated fragments. Ordinary ASS comments, editor notes, alternate lines, repeated dialogue, and separately positioned signs remain distinct.
 
-The sidebar only appears when a parsed cue list is available. External subtitle sources that SubMiner cannot parse (for example, embedded ASS tracks rendered directly by mpv) will not populate the sidebar.
+The sidebar only opens when a parsed cue list exists. Subtitle sources SubMiner cannot parse, such as embedded ASS tracks that mpv renders itself, leave it empty.
 
 ## Selecting and copying dialogue
 
@@ -24,13 +24,13 @@ Dragging to select does not seek playback. Playback-following auto-scroll stops 
 
 Selection survives playback updates and Yomitan popup dismissal. Changing media or subtitle sources, refreshing the cue list, or closing the sidebar clears it. Copying an excerpt does not require creating an Anki card.
 
-## Layout Modes
+## Layout modes
 
 Two layout modes are available via `subtitleSidebar.layout`:
 
 **`overlay`** (default) - The sidebar floats over mpv as a panel. It does not affect the player window size or position.
 
-**`embedded`** - Reserves space on the right side of the player and shifts the video area to mimic a split-pane layout. Useful if you want the cue list visible without it covering the video. If you see unexpected positioning in your environment, switch back to `overlay` to isolate the issue.
+**`embedded`** - Reserves space on the right side of the player and shifts the video area over, giving you a split pane. Use this when you want the cue list up without it covering the video. Positioning depends on the compositor, so switch back to `overlay` if the geometry comes out wrong.
 
 ## Configuration
 
@@ -85,7 +85,7 @@ Styling lives under the `css` object, using CSS property names and CSS custom pr
 | `--subtitle-sidebar-active-background-color`| `rgba(138, 173, 244, 0.22)` | Active cue background color  |
 | `--subtitle-sidebar-hover-background-color` | `rgba(54, 58, 79, 0.84)`    | Hovered cue background color |
 
-## Keyboard Shortcut
+## Keyboard shortcut
 
 | Key | Action                  | Config key                     |
 | --- | ----------------------- | ------------------------------ |

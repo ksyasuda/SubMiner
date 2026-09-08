@@ -1,16 +1,16 @@
-# Jimaku Integration
+# Jimaku integration
 
-[Jimaku](https://jimaku.cc) is a community-driven subtitle repository for anime - a shared online library of subtitle files contributed by other learners. SubMiner integrates with the Jimaku API so you can search, browse, and download Japanese subtitle files directly from the overlay - no alt-tabbing or manual file management required. Downloaded subtitles are loaded into mpv immediately.
+[Jimaku](https://jimaku.cc) is a community subtitle repository for anime, built from files other learners uploaded. SubMiner talks to the Jimaku API, so you search, browse, and download Japanese subtitle files from inside the overlay. No alt-tabbing, no moving files around. A downloaded track loads into mpv right away.
 
 ::: tip Prerequisite: a free API key
 You need a Jimaku account and an API key (a personal access string) before this feature works. Create an account at [jimaku.cc](https://jimaku.cc), copy your key, and add it to your config as shown under [Configuration](#configuration) below. Without a key, the search modal will report "Jimaku API key not set."
 :::
 
-## How It Works
+## How it works
 
 The Jimaku integration runs through an in-overlay modal accessible via a keyboard shortcut (`Ctrl+Shift+J` by default).
 
-When you open the modal, SubMiner parses the current video filename to extract a title, season, and episode number. Common naming conventions are supported - `S01E03`, `1x03`, `E03`, and dash-separated episode numbers all work. If the filename yields a high-confidence match (title + episode), SubMiner auto-searches immediately.
+When you open the modal, SubMiner parses the current video filename to extract a title, season, and episode number. It handles `S01E03`, `1x03`, `E03`, and dash-separated episode numbers. If the filename yields a high-confidence match (title + episode), SubMiner auto-searches immediately.
 
 From there:
 
@@ -21,7 +21,7 @@ From there:
 
 If no files match the current episode filter, a "Show all files" button lets you broaden the search to all episodes for that entry.
 
-### Modal Keyboard Shortcuts
+### Modal keyboard shortcuts
 
 | Key | Action |
 | --- | --- |
@@ -64,7 +64,7 @@ The keyboard shortcut is configured separately under `shortcuts`:
 }
 ```
 
-### API Key
+### API key
 
 An API key is required to use the Jimaku integration. You can get one from [jimaku.cc](https://jimaku.cc). There are two ways to provide it:
 
@@ -73,7 +73,7 @@ An API key is required to use the Jimaku integration. You can get one from [jima
 
 If both are set, `apiKey` takes priority.
 
-## Filename Parsing
+## Filename parsing
 
 SubMiner extracts media info from the current video path to pre-fill the search fields. The parser handles:
 

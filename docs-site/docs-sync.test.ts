@@ -57,7 +57,19 @@ test('docs reflect current launcher and release surfaces', () => {
   expect(configurationContents).not.toContain('youtubeSubgen": {\n    "mode"');
   expect(configurationContents).not.toContain('youtubeSubgen.primarySubLanguages');
   expect(configurationContents).toContain('youtube.primarySubLanguages');
-  expect(configurationContents).toContain('### Shared AI Provider');
+  // The AI provider still exists in src/ai and ankiConnect.ai, but it is not
+  // exposed in the Settings window and is not documented for users. Keep the
+  // user-facing docs free of it so nobody configures a hidden surface.
+  expect(configurationContents).not.toContain('Shared AI Provider');
+  expect(configurationContents).not.toContain('ankiConnect.ai');
+  expect(ankiIntegrationContents).not.toContain('AI Translation');
+  // ankiConnect.fields.translation is a LEGACY_HIDDEN_CONFIG_PATHS key, so it
+  // must not be documented as a current setting.
+  expect(configurationContents).not.toContain('fields.translation');
+  expect(ankiIntegrationContents).not.toContain('SelectionText');
+  // fields.audio holds SubMiner's generated sentence audio; examples should not
+  // point it at the field Yomitan uses for word audio.
+  expect(ankiIntegrationContents).not.toContain('"audio": "ExpressionAudio"');
 
   expect(changelogContents).toContain('v0.5.1 (2026-03-09)');
 });

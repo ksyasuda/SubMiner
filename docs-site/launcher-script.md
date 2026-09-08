@@ -1,14 +1,14 @@
-# Launcher Script
+# Launcher script
 
-The `subminer` launcher is an all-in-one script that handles video selection, mpv startup, and overlay management. It is the recommended way to use SubMiner on Linux and macOS because it guarantees mpv is launched with the correct IPC socket and SubMiner defaults. It's a Bun script distributed as a release asset alongside the AppImage and DMG.
+The `subminer` launcher handles video selection, mpv startup, and overlay management in one script. Use it on Linux and macOS: it is the only path that guarantees mpv comes up with the right IPC socket and SubMiner's defaults. It is a Bun script, shipped as a release asset next to the AppImage and DMG.
 
 ::: tip Windows users
 On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup - double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.
 :::
 
-## Video Picker
+## Video picker
 
-When you run `subminer` without specifying a file, it opens an interactive video picker. By default it uses **fzf** in the terminal; pass `-R` to use **rofi** instead.
+Run `subminer` with no file and it opens an interactive picker. That is **fzf** in the terminal by default, or **rofi** with `-R`.
 
 ### fzf (default)
 
@@ -66,7 +66,7 @@ Override with the `SUBMINER_ROFI_THEME` environment variable:
 SUBMINER_ROFI_THEME=/path/to/custom-theme.rasi subminer -R
 ```
 
-## Watch History
+## Watch history
 
 `subminer -H` (or `--history`) browses your local watch history, sourced from the immersion tracker database. It works with both pickers: fzf by default, rofi with `-R -H`.
 
@@ -87,7 +87,7 @@ After an episode ends or you close mpv, the launcher returns to an action menu f
 
 Series whose directories are not currently accessible (e.g. an unmounted network share) are hidden from the list. Watch history requires the immersion tracker database (`immersionTracking.dbPath`, default `<config dir>/immersion.sqlite`), which SubMiner populates during playback.
 
-## Sync Between Machines
+## Sync between machines
 
 `subminer sync <host>` merges immersion stats and watch history between two machines over SSH, so both end up with the union of sessions, lifetime totals, vocabulary counts, daily/monthly charts, and `--history` entries. `<host>` is anything `ssh` accepts (`user@hostname` or an ssh config alias); SubMiner must be installed on both machines at the same version. The sync engine runs only inside the app (`SubMiner --sync-cli sync ...`): the sync window spawns it that way, `subminer sync` is a thin proxy that forwards to the installed app, and the remote side is found automatically whether it has the launcher or just the app. The command-line launcher is optional everywhere.
 
@@ -135,7 +135,7 @@ Unfinished sessions (a crash mid-playback) are skipped until the app finalizes t
 
 Hosts with **Auto-sync** enabled are synced in the background on a configurable interval (default every 60 minutes), including during active playback; results surface as overlay notifications. The unfinished playback session is skipped until a later sync sees it finalized. Host bookkeeping lives in `<config dir>/sync-hosts.json`.
 
-## Common Commands
+## Common commands
 
 ```bash
 subminer video.mkv                      # play a specific file (managed launches auto-start the visible overlay by default)

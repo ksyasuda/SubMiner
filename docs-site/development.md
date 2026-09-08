@@ -1,6 +1,6 @@
-# Building & Testing
+# Building and testing
 
-For internal architecture/workflow guidance, use `docs/README.md` at the repo root. This page stays focused on contributor-facing build and test commands.
+Architecture and workflow guidance lives in `docs/README.md` at the repo root. This page covers build and test commands only.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ make build-launcher
 
 `bun run build` includes the Yomitan build step. It builds the bundled Chrome extension directly from the `vendor/subminer-yomitan` submodule into `build/yomitan` using Bun.
 
-## Launcher Artifact Workflow
+## Launcher artifact workflow
 
 - Source of truth: `launcher/*.ts`
 - Generated output: `dist/launcher/subminer`
@@ -53,7 +53,7 @@ dist/launcher/subminer --help >/dev/null
 bash scripts/verify-generated-launcher.sh
 ```
 
-## Running Locally
+## Running locally
 
 ```bash
 bun run dev    # builds + launches with --start --dev
@@ -169,7 +169,7 @@ bun run format:check:src
 - `bun run format:check:src` checks the same scoped set without writing changes.
 - `bun run format` remains the broad repo-wide Prettier command; use it intentionally.
 
-## Config Generation
+## Config generation
 
 ```bash
 # Generate default config to ~/.config/SubMiner/config.jsonc (or %APPDATA%\SubMiner\config.jsonc on Windows)
@@ -184,7 +184,7 @@ Convenience wrappers still exist:
 - `make generate-config`
 - `make generate-example-config`
 
-## Documentation Site
+## Documentation site
 
 The docs site now lives in `docs-site/` inside the main repo.
 
@@ -200,7 +200,7 @@ bun run docs:test    # Docs regression tests
 
 Deployment: production docs are built with `bun run docs:build:versioned` and uploaded directly to Cloudflare Pages by the `docs-pages` GitHub Actions workflow using Wrangler (from `.tmp/docs-versioned-site`). Cloudflare's automatic Git-integration deployments are intentionally disabled - see `docs-site/README.md` for the deployment contract. Do not re-enable Pages build settings in the Cloudflare dashboard.
 
-## Makefile Reference
+## Makefile reference
 
 Run `make help` for a full list of targets. Key ones:
 
@@ -216,7 +216,7 @@ Run `make help` for a full list of targets. Key ones:
 | `make build-macos`          | Convenience wrapper for signed macOS packaging                    |
 | `make build-macos-unsigned` | Convenience wrapper for unsigned macOS packaging                  |
 
-## Contributor Notes
+## Contributor notes
 
 - To add/change a config default, edit the matching domain file in `src/config/definitions/defaults-*.ts`.
 - To add/change config option metadata, edit the matching domain file in `src/config/definitions/options-*.ts`.
@@ -228,7 +228,7 @@ Run `make help` for a full list of targets. Key ones:
 - Prefer direct inline deps objects in `src/main/` modules for simple pass-through wiring.
 - Add a helper/adapter service only when it performs meaningful adaptation, validation, or reuse (not identity mapping).
 
-## Environment Variables
+## Environment variables
 
 | Variable                           | Description                                                                    |
 | ---------------------------------- | ------------------------------------------------------------------------------ |

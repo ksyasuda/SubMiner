@@ -1,19 +1,19 @@
-# WebSocket / Texthooker API & Integration
+# WebSocket and texthooker API
 
-**Who this page is for:** developers and tinkerers who want to consume SubMiner's live subtitle stream from their own tools - a browser tab, an automation script, or another mpv plugin. If you just want subtitles in a browser tab for Yomitan, skip to [Texthooker Integration Guide](#texthooker-integration-guide); the rest is reference for building custom clients.
+This page is for people wiring SubMiner's live subtitle stream into their own tools: a browser tab, an automation script, another mpv plugin. If you only want subtitles in a browser tab for Yomitan, jump to [Texthooker Integration Guide](#texthooker-integration-guide). Everything else here is reference for building a client.
 
 A *texthooker* is a page/tool that receives the text currently on screen so a dictionary extension (like Yomitan) can look words up. SubMiner ships its own texthooker UI and also broadcasts subtitle text over local WebSockets that any client can connect to.
 
-SubMiner exposes a small set of local integration surfaces for browser tools, automation helpers, and mpv-driven workflows:
+SubMiner opens four local integration points:
 
 - **Subtitle WebSocket** at `ws://127.0.0.1:6677` by default for plain subtitle pushes.
 - **Annotation WebSocket** at `ws://127.0.0.1:6678` by default for token-aware clients.
 - **Texthooker HTTP UI** at `http://127.0.0.1:5174` by default for browser-based subtitle consumption.
 - **mpv plugin script messages** for in-player automation and extension.
 
-This page documents those integration points and shows how to build custom consumers around them.
+The rest of this page documents each one and shows how to build a consumer for it.
 
-## Quick Reference
+## Quick reference
 
 | Surface | Default | Purpose |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ This page documents those integration points and shows how to build custom consu
 | `texthooker` | `http://127.0.0.1:5174` | Local texthooker UI with injected websocket config |
 | mpv plugin | `script-message subminer-*` | Start/stop/toggle/status automation inside mpv |
 
-## Enable and Configure the Services
+## Enable and configure the services
 
 SubMiner's integration ports are configured in `config.jsonc`. All three services are **off by default** - the block below shows the values to set to turn them on.
 
@@ -52,9 +52,9 @@ SubMiner's integration ports are configured in `config.jsonc`. All three service
 
 If you use the [mpv plugin](/mpv-plugin), it can also start a texthooker-only helper process. The launcher derives the plugin's texthooker setting from your SubMiner config (`texthooker.launchAtStartup`) and injects it at runtime - there is no plugin config file to edit.
 
-## Developer API Documentation
+## Developer API documentation
 
-### 1. Subtitle WebSocket
+### 1. subtitle WebSocket
 
 Use the basic subtitle websocket when you only need the current subtitle line as plain text.
 
@@ -86,7 +86,7 @@ When a client connects, SubMiner immediately sends the latest subtitle payload i
 | `sentence` | string | Plain subtitle text with line breaks represented as `<br>`. No annotation spans or attributes. |
 | `tokens` | array | Always empty on the basic subtitle websocket. |
 
-### 2. Annotation WebSocket
+### 2. annotation WebSocket
 
 Use the annotation websocket for custom clients that want the same structured token payload the bundled texthooker UI consumes.
 
@@ -167,7 +167,7 @@ SubMiner also adds tooltip-friendly data attributes when available:
 
 If you need a fully custom UI, ignore `sentence` and render from `tokens` instead.
 
-## Texthooker Integration Guide
+## Texthooker integration guide
 
 ### When to use the bundled texthooker page
 
@@ -221,7 +221,7 @@ Here is a minimal browser client for the annotation stream:
 </script>
 ```
 
-### Build a custom Node client
+### Build a custom node client
 
 ```js
 import WebSocket from 'ws';
@@ -245,7 +245,7 @@ ws.on('message', (raw) => {
 - Reconnect on disconnect; SubMiner does not manage client reconnects for you.
 - Prefer `payload.text` for logging/automation and `payload.sentence` or `payload.tokens` for UI rendering.
 
-## Plugin Development
+## Plugin development
 
 SubMiner does **not** currently expose a general-purpose third-party plugin SDK inside the app itself. Today, the supported extension surfaces are:
 
@@ -309,7 +309,7 @@ Examples:
 - local vocabulary capture helper that writes interesting lines to a file
 - bridge service that forwards websocket events into your own workflow engine
 
-## Webhook Examples
+## Webhook examples
 
 SubMiner does **not** currently send outbound webhooks by itself. The supported pattern is to consume the websocket locally and relay events into another system.
 
@@ -342,7 +342,6 @@ ws.on('message', async (raw) => {
 - **n8n / Make / Zapier relay:** send each subtitle line into an automation workflow for logging, translation, or summarization.
 - **Discord / Slack notifier:** post only lines that contain unknown words or N+1 targets.
 - **Obsidian / Markdown capture:** append subtitle lines plus token metadata to a daily immersion note.
-- **Local LLM pipeline:** trigger a glossary, translation, or sentence-mining workflow whenever a new line arrives.
 
 ### Filtering example: only forward N+1 lines
 
@@ -365,7 +364,7 @@ ws.on('message', async (raw) => {
 });
 ```
 
-## Recommended Integration Combinations
+## Recommended integration combinations
 
 - **Browser Yomitan client:** `texthooker` + `annotationWebsocket`
 - **Custom dashboard:** `annotationWebsocket` only
@@ -373,7 +372,7 @@ ws.on('message', async (raw) => {
 - **mpv-side automation:** mpv plugin script messages + optional websocket relay
 - **Webhook-style workflows:** `annotationWebsocket` + your own local relay service
 
-## Related Pages
+## Related pages
 
 - [Configuration](/configuration#websocket-server)
 - [Mining Workflow - Texthooker](/mining-workflow#texthooker)

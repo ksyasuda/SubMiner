@@ -1,12 +1,12 @@
-# MPV Plugin
+# MPV plugin
 
-**What this is:** mpv is the video player SubMiner overlays subtitles on. The SubMiner mpv plugin is a small Lua script that runs _inside_ mpv and gives you in-player keybindings to control the SubMiner overlay (start/stop/toggle, skip intro, etc.) without leaving the player window.
+The SubMiner mpv plugin is a small Lua script that runs _inside_ mpv. It binds in-player keys for controlling the overlay, so start, stop, toggle, and skip-intro all work without leaving the player window.
 
-**Who needs this page:** Most users never touch the plugin directly - SubMiner-managed launches (the app, the `subminer` launcher, or the Windows shortcut) inject the bundled plugin automatically for that session, so there is nothing to install into mpv's global `scripts` directory. Read on if you launch mpv from another tool and want SubMiner's in-player controls, or you want to script mpv against SubMiner.
+Most people never touch it. Any SubMiner-managed launch, whether from the app, the `subminer` launcher, or the Windows shortcut, injects the bundled plugin for that session, and nothing lands in mpv's global `scripts` directory. Keep reading if you launch mpv from some other tool and still want the in-player controls, or you want to script mpv against SubMiner.
 
-The plugin ships as a modular Lua package under `plugin/subminer/` (entry point `main.lua`, which loads `init.lua` and sibling modules). Earlier releases shipped a single global `main.lua`; runtime loading replaces it.
+The plugin is a modular Lua package under `plugin/subminer/`. `main.lua` is the entry point and loads `init.lua` plus its sibling modules. Earlier releases installed a single global `main.lua`; runtime loading replaced that.
 
-## Runtime Loading
+## Runtime loading
 
 Launch mpv through the SubMiner app, the `subminer` launcher, or the packaged Windows SubMiner mpv shortcut. These paths pass mpv a bundled plugin path for that playback session only, leaving regular mpv playback untouched.
 
@@ -67,7 +67,7 @@ The AniSkip key is **not** a `y` chord and is not bound by the plugin: the SubMi
 
 The bare `v` binding is a forced mpv binding. It overrides mpv's default primary subtitle visibility toggle and routes the action to SubMiner's primary subtitle bar instead.
 
-## Shared Shortcuts (Session Bindings)
+## Shared shortcuts (session bindings)
 
 The `y-*` chords above are built into the plugin. Everything else you configure under [`shortcuts.*`](/shortcuts) - plus any custom [`keybindings`](/configuration) and the stats toggle/mark-watched keys - is **injected into mpv at runtime**, so the same shortcut works both inside mpv and in the SubMiner overlay. You do not edit any mpv config to enable them.
 
@@ -104,7 +104,7 @@ SubMiner:
 
 Select an item by pressing its number.
 
-## Binary Auto-Detection
+## Binary auto-detection
 
 When `binary_path` is empty, the plugin searches platform-specific locations:
 
@@ -131,7 +131,7 @@ A PowerShell system lookup runs first (running SubMiner process, registry App Pa
 
 On Windows the plugin also normalizes a Unix-style `socket_path` (`/tmp/subminer-socket`) to the named pipe `\\.\pipe\subminer-socket` at runtime.
 
-## Backend Detection
+## Backend detection
 
 When `backend=auto`, the plugin detects the window manager:
 
@@ -145,7 +145,7 @@ When `backend=auto`, the plugin detects the window manager:
 Native Wayland support is only available for Hyprland and Sway. If you use a different Wayland compositor, auto-detection will fall back to X11 - both mpv and SubMiner must be running under Xwayland, and `xdotool` and `xwininfo` must be installed.
 :::
 
-## Script Messages
+## Script messages
 
 The plugin can be controlled from other mpv scripts or the mpv command line using script messages:
 
@@ -189,7 +189,7 @@ For how the plugin's auto-start fits into the full launch sequence - including w
 - **MPV shutdown**: The plugin clears its hover/OSD/gate state on shutdown; the overlay app notices the closed IPC socket and shuts itself down.
 - **Texthooker**: When `texthooker_enabled=yes`, the plugin appends `--texthooker` to the overlay start command so the app starts the texthooker server alongside the overlay.
 
-## Using with the `subminer` Wrapper
+## Using with the `subminer` wrapper
 
 The `subminer` wrapper script handles mpv launch, socket setup, and overlay lifecycle automatically. You do not need the plugin if you always use the wrapper.
 
