@@ -83,14 +83,14 @@
     "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs"
   },
   "overrides": {
-    "@xmldom/xmldom": "0.8.13",
+    "@xmldom/xmldom": "0.8.15",
     "app-builder-lib": "26.15.3",
     "brace-expansion": "5.0.9",
     "electron-builder-squirrel-windows": "26.15.3",
     "fast-uri": "3.1.6",
     "form-data": "4.0.6",
     "ip-address": "10.2.0",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "lodash": "4.18.0",
     "minimatch": "10.2.5",
     "picomatch": "4.0.4",
