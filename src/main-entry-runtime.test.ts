@@ -585,24 +585,58 @@ test('shouldDetachBackgroundLaunch only for first background invocation', () => 
 
 test('configureEarlyAppPaths pins userData to canonical SubMiner config dir', () => {
   const calls: string[] = [];
-
-  const userDataPath = configureEarlyAppPaths(
-    {
-      setName: (name) => {
-        calls.push(`name:${name}`);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-paths-'));
+  const configDir = path.posix.join(tempDir, 'SubMiner');
+  try {
+    const userDataPath = configureEarlyAppPaths(
+      {
+        setName: (name) => {
+          calls.push(`name:${name}`);
+        },
+        setPath: (key, value) => {
+          calls.push(`path:${key}:${value}`);
+        },
       },
-      setPath: (key, value) => {
-        calls.push(`path:${key}:${value}`);
+      {
+        platform: 'linux',
+        homeDir: tempDir,
+        xdgConfigHome: tempDir,
+        existsSync: (candidate) =>
+          candidate === path.posix.join(tempDir, 'subminer', 'config.jsonc'),
       },
-    },
-    {
-      platform: 'linux',
-      homeDir: '/home/tester',
-      xdgConfigHome: '/tmp/xdg',
-      existsSync: (candidate) => candidate === '/tmp/xdg/subminer/config.jsonc',
-    },
-  );
+    );
 
-  assert.equal(userDataPath, '/tmp/xdg/SubMiner');
-  assert.deepEqual(calls, ['name:SubMiner', 'path:userData:/tmp/xdg/SubMiner']);
+    assert.equal(userDataPath, configDir);
+    assert.deepEqual(calls, ['name:SubMiner', `path:userData:${configDir}`]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('configureEarlyAppPaths creates a fresh macOS config directory before Electron uses it', () => {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-entry-first-launch-'));
+  const configDir = path.posix.join(homeDir, '.config', 'SubMiner');
+  try {
+    const app = {
+      setName: () => {},
+      setPath: (_key: 'userData', value: string) => {
+        assert.equal(value, configDir);
+        assert.equal(fs.statSync(value).isDirectory(), true);
+      },
+    };
+    const options = { platform: 'darwin', homeDir, xdgConfigHome: '' } satisfies Parameters<
+      typeof configureEarlyAppPaths
+    >[1];
+
+    assert.equal(fs.existsSync(path.join(homeDir, '.config')), false);
+    configureEarlyAppPaths(app, options);
+
+    const configPath = path.join(configDir, 'config.jsonc');
+    const existingConfig = '{"logging":{"level":"debug"}}\n';
+    fs.writeFileSync(configPath, existingConfig);
+    configureEarlyAppPaths(app, options);
+    assert.equal(fs.readFileSync(configPath, 'utf8'), existingConfig);
+  } finally {
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
 });

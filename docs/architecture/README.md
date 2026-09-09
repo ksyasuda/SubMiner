@@ -40,3 +40,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 - Composition over monoliths
 - Pure helpers where possible
 - Stable user behavior while internals evolve
+
+Startup resolves and creates the user-data directory in `src/main-entry-runtime.ts`
+before the entry process requests Electron's single-instance lock. Main-process
+config bootstrap then writes the default config only when no config file exists.
