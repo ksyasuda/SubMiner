@@ -23,6 +23,8 @@ Read when: selecting the right verification lane for a change
   there instead of copying them into caller workflows.
 - The reusable gate installs Lua and runs `bun run test:env`, so the shipped mpv
   plugin tests run for every pull request and tagged release.
+  Lua installation uses only the runner's Ubuntu package sources so unrelated
+  third-party repository failures do not block the gate.
 
 ## Default Handoff Gate
 
