@@ -24,7 +24,12 @@ test('quality gate checkout does not persist GitHub credentials', () => {
 
 test('quality gate installs Lua and runs the environment suite before coverage', () => {
   assert.match(qualityGateWorkflow, /name: Install Lua/);
-  assert.match(qualityGateWorkflow, /apt-get[^\n]* install -y lua5\.4/);
+  assert.match(
+    qualityGateWorkflow,
+    /apt_sources=\(-o Dir::Etc::sourcelist=sources\.list\.d\/ubuntu\.sources -o Dir::Etc::sourceparts=-\)/,
+  );
+  assert.match(qualityGateWorkflow, /apt-get\s+"\$\{apt_sources\[@\]\}"\s+update/);
+  assert.match(qualityGateWorkflow, /apt-get\s+"\$\{apt_sources\[@\]\}"\s+install\s+-y\s+lua5\.4/);
   assert.match(
     qualityGateWorkflow,
     /Test suite \(source\)\n\s*run: bun run test:fast\n\s*\n\s*- name: Environment suite\n\s*run: bun run test:env\n\s*\n\s*- name: Coverage suite \(maintained source lane\)/,
