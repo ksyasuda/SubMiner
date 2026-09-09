@@ -260,6 +260,8 @@ export function configureEarlyAppPaths(app: EarlyAppLike, options?: EarlyAppPath
     existsSync: options?.existsSync ?? fs.existsSync,
   });
 
+  // The entry process requests its singleton lock before main-process config bootstrap.
+  fs.mkdirSync(userDataPath, { recursive: true });
   app.setName(APP_NAME);
   app.setPath('userData', userDataPath);
 
