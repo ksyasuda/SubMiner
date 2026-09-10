@@ -23,8 +23,14 @@ jobs:
         with:
           bun-version: 1.3.5
 
-      - name: Verify native launcher bootstrap and runtime staging
-        run: bun test src/main/runtime/managed-launcher.test.ts src/main/runtime/windows-launcher-bootstrap.test.ts src/main/runtime/posix-launcher-bootstrap.test.ts
+      - name: Verify native runtime staging
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
+      - name: Verify Windows launcher bootstrap
+        run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
+
+      - name: Verify POSIX launcher bootstrap
+        run: bun test src/main/runtime/posix-launcher-bootstrap.test.ts
 
   quality-gate:
     runs-on: ubuntu-latest

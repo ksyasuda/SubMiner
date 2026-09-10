@@ -96,6 +96,7 @@ test('Windows bootstrap prepares once and forwards metacharacter arguments', asy
   const args = [
     'spaces here',
     '100%',
+    'p%TEMP%q',
     'bang!',
     'a&b',
     'x|y',

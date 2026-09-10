@@ -196,7 +196,10 @@ jobs:
           bun run build
 
       - name: Verify managed Windows launcher
-        run: bun test src/main/runtime/managed-launcher.test.ts src/main/runtime/windows-launcher-bootstrap.test.ts
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
+      - name: Verify Windows launcher bootstrap
+        run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
 
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned

@@ -230,7 +230,7 @@ test('Windows managed launcher forwards arguments without a system Bun', async (
   const snapshot = await installLauncher(options);
   assert.equal(snapshot.status, 'ready', snapshot.message ?? 'install failed');
   const { getRunCommand } = await import('./command-line-launcher-deps');
-  const args = ['spaces here', 'a&b', 'bang!z', '日本語'];
+  const args = ['spaces here', 'a&b', 'p%TEMP%q', 'bang!z', 'say "hi"', '日本語'];
   const result = await getRunCommand({})(snapshot.installPath!, args, { env: options.env });
   assert.equal(result.exitCode, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), args);
