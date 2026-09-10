@@ -305,3 +305,33 @@ test('Windows stages a new runtime version while the prior Bun executable is run
   assert.equal(fs.existsSync(path.dirname(first.bunPath)), false);
   assert.ok(fs.existsSync(expectedSecond.bunPath));
 });
+
+test('Windows cleanup removes an obsolete runtime with no Bun executable', (t) => {
+  if (process.platform !== 'win32') return;
+  const root = workspace(t);
+  const current = windowsManagedRuntimePaths({
+    platform: 'win32',
+    localAppData: root,
+    appVersion: '2.0.0',
+  });
+  const obsolete = windowsManagedRuntimePaths({
+    platform: 'win32',
+    localAppData: root,
+    appVersion: '1.0.0',
+  });
+  fs.mkdirSync(path.join(path.dirname(obsolete.bunPath), 'licenses'), { recursive: true });
+  fs.writeFileSync(
+    path.join(path.dirname(obsolete.bunPath), 'licenses', 'Bun-LICENSE.md'),
+    'license',
+  );
+  fs.mkdirSync(path.dirname(current.bunPath), { recursive: true });
+
+  cleanupOldWindowsManagedRuntimes({
+    platform: 'win32',
+    localAppData: root,
+    appVersion: '2.0.0',
+  });
+
+  assert.equal(fs.existsSync(path.dirname(obsolete.bunPath)), false);
+  assert.ok(fs.existsSync(path.dirname(current.bunPath)));
+});

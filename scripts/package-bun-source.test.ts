@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import {
+  downloadArchive,
   parseRegisteredRepositories,
   parseSourceManifest,
   validateBunPins,
@@ -11,6 +14,31 @@ import {
 const projectRoot = path.resolve(import.meta.dir, '..');
 
 describe('Bun corresponding-source manifest', () => {
+  test('removes partial downloads when placing a valid archive fails', async () => {
+    const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'subminer-bun-source-test-'));
+    try {
+      const payload = new Uint8Array([1, 2, 3]);
+      const source = {
+        name: 'fixture',
+        repository: 'example/fixture',
+        revision: 'a'.repeat(40),
+        sha256: createHash('sha256').update(payload).digest('hex'),
+      };
+      const archivePath = path.join(cacheDir, `${source.name}-${source.revision}.tar.gz`);
+      await expect(
+        downloadArchive(source, cacheDir, async () => {
+          await fs.mkdir(archivePath);
+          return { ok: true, status: 200, body: new Response(payload).body };
+        }),
+      ).rejects.toMatchObject({ syscall: 'rename' });
+
+      const entries = await fs.readdir(cacheDir);
+      expect(entries.filter((entry) => entry.includes('.download-'))).toEqual([]);
+    } finally {
+      await fs.rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
   test('pins the source to the revision reported by the distributed binary', async () => {
     const manifest = parseSourceManifest(
       JSON.parse(

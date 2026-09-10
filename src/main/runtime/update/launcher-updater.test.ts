@@ -160,7 +160,7 @@ test('app-managed wrappers are never overwritten by the standalone release scrip
 });
 
 test('GUI updates defer recognized standalone launcher migration to app startup', async () => {
-  let accessed = false;
+  const accessed: string[] = [];
   let downloaded = false;
   const result = await updateLauncherAtPath({
     launcherPath: '/home/tester/.local/bin/subminer',
@@ -174,8 +174,8 @@ test('GUI updates defer recognized standalone launcher migration to app startup'
     fs: {
       stat: async () => ({ isFile: () => true }),
       readFile: async () => Buffer.from('#!/bin/sh\n# SubMiner launcher\n'),
-      access: async () => {
-        accessed = true;
+      access: async (targetPath) => {
+        accessed.push(targetPath);
       },
       writeFile: async () => {},
       chmod: async () => {},
@@ -189,7 +189,7 @@ test('GUI updates defer recognized standalone launcher migration to app startup'
     path: '/home/tester/.local/bin/subminer',
     message: 'Launcher migration is deferred until the updated SubMiner app starts.',
   });
-  assert.equal(accessed, false);
+  assert.deepEqual(accessed, ['/home/tester/.local/bin/subminer', '/home/tester/.local/bin']);
   assert.equal(downloaded, false);
 });
 
@@ -213,9 +213,7 @@ test('release launcher updater propagates GUI migration deferral', async () => {
     fs: {
       stat: async () => ({ isFile: () => true }),
       readFile: async () => Buffer.from('#!/bin/sh\n# SubMiner launcher\n'),
-      access: async () => {
-        throw new Error('must not check writability before app startup');
-      },
+      access: async () => {},
       writeFile: async () => {},
       chmod: async () => {},
       rename: async () => {},
@@ -226,4 +224,37 @@ test('release launcher updater propagates GUI migration deferral', async () => {
   assert.equal(result.status, 'skipped');
   assert.match(result.message ?? '', /deferred until the updated SubMiner app starts/);
   assert.equal(downloaded, false);
+});
+
+test('GUI migration reports a protected launcher when its file or parent is not writable', async () => {
+  const launcherPath = '/usr/local/bin/subminer';
+  for (const protectedPath of [launcherPath, '/usr/local/bin']) {
+    const result = await updateLauncherAtPath({
+      launcherPath,
+      assetUrl: 'https://example.test/subminer',
+      expectedSha256: launcherHash,
+      deferRecognizedLauncherUpdate: true,
+      download: async () => {
+        throw new Error('Protected launchers must not download a replacement.');
+      },
+      fs: {
+        stat: async () => ({ isFile: () => true }),
+        readFile: async () => Buffer.from('#!/usr/bin/env bun\n// SubMiner launcher\n'),
+        access: async (targetPath) => {
+          if (targetPath === protectedPath) throw new Error('EACCES');
+        },
+        writeFile: async () => {
+          throw new Error('Protected launchers must not be written.');
+        },
+        chmod: async () => {},
+        rename: async () => {},
+        unlink: async () => {},
+      },
+    });
+    assert.equal(result.status, 'protected', protectedPath);
+    assert.equal(
+      result.command,
+      buildProtectedLauncherUpdateCommand('https://example.test/subminer', launcherPath),
+    );
+  }
 });

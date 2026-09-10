@@ -207,7 +207,7 @@ async function run(command, args, options = {}) {
   });
 }
 
-async function downloadArchive(source, cacheDir, fetchImpl) {
+export async function downloadArchive(source, cacheDir, fetchImpl) {
   const archivePath = path.join(cacheDir, `${source.name}-${source.revision}.tar.gz`);
   try {
     if ((await sha256File(archivePath)) === source.sha256) return archivePath;
@@ -218,22 +218,26 @@ async function downloadArchive(source, cacheDir, fetchImpl) {
 
   const url = `https://codeload.github.com/${source.repository}/tar.gz/${source.revision}`;
   const temporaryPath = `${archivePath}.download-${randomUUID()}`;
-  const response = await fetchImpl(url);
-  if (!response.ok || !response.body)
-    throw new Error(`Unable to download ${url}: HTTP ${response.status}`);
-  await pipeline(
-    Readable.fromWeb(response.body),
-    createWriteStream(temporaryPath, { flags: 'wx' }),
-  );
-  const actualSha256 = await sha256File(temporaryPath);
-  if (actualSha256 !== source.sha256) {
-    await fs.rm(temporaryPath, { force: true });
-    throw new Error(
-      `Source checksum mismatch for ${source.name}: expected ${source.sha256}, received ${actualSha256}.`,
+  try {
+    const response = await fetchImpl(url);
+    if (!response.ok || !response.body)
+      throw new Error(`Unable to download ${url}: HTTP ${response.status}`);
+    await pipeline(
+      Readable.fromWeb(response.body),
+      createWriteStream(temporaryPath, { flags: 'wx' }),
     );
+    const actualSha256 = await sha256File(temporaryPath);
+    if (actualSha256 !== source.sha256) {
+      throw new Error(
+        `Source checksum mismatch for ${source.name}: expected ${source.sha256}, received ${actualSha256}.`,
+      );
+    }
+    await fs.rename(temporaryPath, archivePath);
+    return archivePath;
+  } finally {
+    // Cleanup must not replace the original download, validation, or rename error.
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
   }
-  await fs.rename(temporaryPath, archivePath);
-  return archivePath;
 }
 
 async function materializeArchive(source, root, cacheDir, fetchImpl) {

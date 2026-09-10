@@ -112,21 +112,22 @@ export async function updateLauncherAtPath(options: {
       message: 'Existing executable does not look like a SubMiner launcher.',
     };
   }
-  if (options.deferRecognizedLauncherUpdate) {
-    return {
-      status: 'skipped',
-      path: options.launcherPath,
-      message: 'Launcher migration is deferred until the updated SubMiner app starts.',
-    };
-  }
-
   try {
     await fsDeps.access(options.launcherPath);
+    await fsDeps.access(path.dirname(options.launcherPath));
   } catch {
     return {
       status: 'protected',
       path: options.launcherPath,
       command: buildProtectedLauncherUpdateCommand(options.assetUrl, options.launcherPath),
+    };
+  }
+
+  if (options.deferRecognizedLauncherUpdate) {
+    return {
+      status: 'skipped',
+      path: options.launcherPath,
+      message: 'Launcher migration is deferred until the updated SubMiner app starts.',
     };
   }
 

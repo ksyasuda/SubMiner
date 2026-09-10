@@ -101,7 +101,7 @@ export function cleanupOldWindowsManagedRuntimes(
       if (!entry.isDirectory() || entry.name === path.win32.basename(paths.directory)) continue;
       const oldDirectory = path.win32.join(paths.rootDirectory, entry.name);
       try {
-        fs.rmSync(path.win32.join(oldDirectory, 'bun.exe'));
+        fs.rmSync(path.win32.join(oldDirectory, 'bun.exe'), { force: true });
       } catch {
         continue;
       }

@@ -1523,10 +1523,7 @@ const firstRunSetupService = createFirstRunSetupService({
   },
   installCommandLineLauncher: async () => {
     const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
-    const ok =
-      snapshot.status === 'ready' ||
-      snapshot.status === 'installed_bun_missing' ||
-      snapshot.status === 'not_on_path';
+    const ok = snapshot.status === 'ready' || snapshot.status === 'not_on_path';
     return {
       ok,
       installPath: snapshot.installPath,
