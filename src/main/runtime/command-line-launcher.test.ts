@@ -189,7 +189,7 @@ test('resolveLauncherInstallTarget prefers writable user bin on Linux', async ()
   assert.equal(target.installPath, '/home/tester/.local/bin/subminer');
 });
 
-test('resolveLauncherInstallTarget returns not_installable without writable PATH dirs', async () => {
+test('resolveLauncherInstallTarget offers a user bin without writable PATH dirs', async () => {
   const target = await resolveLauncherInstallTarget({
     platform: 'linux',
     homeDir: '/home/tester',
@@ -200,8 +200,9 @@ test('resolveLauncherInstallTarget returns not_installable without writable PATH
     },
   });
 
-  assert.equal(target.status, 'not_installable');
-  assert.equal(target.installPath, null);
+  assert.equal(target.status, 'not_installed');
+  assert.equal(target.installPath, '/home/tester/.local/bin/subminer');
+  assert.match(target.message ?? '', /export PATH=/);
 });
 
 test('resolveLauncherInstallTarget skips Homebrew bin for empty macOS manual installs', async () => {

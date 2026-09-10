@@ -191,7 +191,9 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppI
  && chmod +x ~/.local/bin/SubMiner.AppImage
 ```
 
-The AppImage is all you need. The optional `subminer` command-line launcher runs on [Bun](https://bun.sh), and first-run setup can install both for you. To grab it manually instead, install Bun first, then:
+The AppImage is all you need. First-run setup can install the optional `subminer` command-line launcher. That launcher uses Bun bundled with the AppImage, so you do not need Bun installed or on `PATH`.
+
+The separately downloaded `subminer` release asset is for standalone installs and still requires [Bun](https://bun.sh):
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \
@@ -223,14 +225,14 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. Launch & Set Up
 
-Run SubMiner and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher.
+Run the installed app and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher. It installs a wrapper that runs with the app's private Bun runtime.
 
 ```bash
 # Linux
-subminer app --setup
+~/.local/bin/SubMiner.AppImage --setup
 
-# macOS — open SubMiner.app, or:
-subminer app --setup
+# macOS
+open -a SubMiner --args --setup
 ```
 
 On **Windows**, just run `SubMiner.exe` and the setup will open automatically on first launch.

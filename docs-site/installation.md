@@ -14,7 +14,7 @@ Three steps to get started:
 
 Only **mpv** is strictly required. Everything else is optional, though you will want ffmpeg unless you are fine with cards that have no audio or screenshot.
 
-Some rows below matter only for the `subminer` command-line launcher, which is Linux and macOS only. On Windows you launch playback with the **SubMiner mpv** shortcut, so skip those.
+Some rows below matter only for the `subminer` command-line launcher's picker features. On Windows, the **SubMiner mpv** shortcut remains the recommended playback entry point.
 
 | Dependency           | Status      | Platforms    | What it does                                                                                                                                                   |
 | -------------------- | ----------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -205,13 +205,13 @@ There is no equivalent setting for ffmpeg: SubMiner invokes it by bare name when
 
 **Optional extras:** [MeCab for Windows](https://taku910.github.io/mecab/#download) with the UTF-8 dictionary improves annotation accuracy; it is not in any package manager, so install it from that page. `xz` is needed only for [TsukiHime](/tsukihime-integration) subtitle downloads and is not packaged by winget or Chocolatey, so use `scoop install main/xz` or download [XZ Utils](https://tukaani.org/xz/) and add its folder to `PATH`.
 
-The `subminer` command-line launcher and its picker tools (`fzf`, `rofi`, `chafa`, `ffmpegthumbnailer`) are Linux/macOS only; on Windows you use the **SubMiner mpv** shortcut instead.
+The launcher's picker tools (`fzf`, `rofi`, `chafa`, `ffmpegthumbnailer`) are for Linux and macOS. On Windows, use the **SubMiner mpv** shortcut for playback or install the optional `subminer` terminal wrapper during setup.
 
 ## 2. Install SubMiner
 
 ### Arch Linux (AUR) {#arch-aur}
 
-Install [`subminer-bin`](https://aur.archlinux.org/packages/subminer-bin) from the AUR. The package includes the SubMiner AppImage and the `subminer` launcher.
+Install [`subminer-bin`](https://aur.archlinux.org/packages/subminer-bin) from the AUR. The package includes the SubMiner AppImage and the standalone `subminer` launcher, which requires system Bun.
 
 ```bash
 paru -S subminer-bin
@@ -236,9 +236,9 @@ chmod +x ~/.local/bin/SubMiner.AppImage
 ```
 
 ::: tip Launcher install is optional
-First-run setup can install [Bun](https://bun.sh) and the `subminer` command-line launcher for you automatically. You don't need to download the launcher separately.
+First-run setup can install the `subminer` command-line launcher for you. It uses Bun bundled with the AppImage, so it does not need a separate Bun installation or a Bun entry on `PATH`.
 
-If you prefer to install it manually, see [manual launcher install](#manual-launcher-install-linux).
+The separately downloaded launcher is a standalone Bun script. See [manual launcher install](#manual-launcher-install-linux) if that is what you want.
 :::
 
 ### macOS (DMG) {#macos-dmg}
@@ -257,9 +257,9 @@ xattr -d com.apple.quarantine /Applications/SubMiner.app
 2. Enable SubMiner in the list (add it if it does not appear)
 
 ::: tip Launcher install is optional
-First-run setup can install [Bun](https://bun.sh) and the `subminer` command-line launcher for you automatically. You don't need to download the launcher separately.
+First-run setup can install the `subminer` command-line launcher for you. It uses Bun bundled inside `SubMiner.app`, so it does not need a separate Bun installation or a Bun entry on `PATH`.
 
-If you prefer to install it manually, see [manual launcher install](#manual-launcher-install-macos).
+The separately downloaded launcher is a standalone Bun script. See [manual launcher install](#manual-launcher-install-macos) if that is what you want.
 :::
 
 ### Windows (installer) {#windows-installer}
@@ -287,6 +287,8 @@ bun run build:appimage
 ```
 
 Bundled Yomitan is built during `bun run build`.
+
+Source and development commands use Bun installed on your system.
 
 </details>
 
@@ -344,10 +346,12 @@ The setup wizard walks you through:
 
 - **Config file** - auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
 - **Yomitan dictionaries** - import at least one dictionary so word lookups work
-- **Bun + `subminer` launcher** _(optional)_ - installs the command-line launcher into a writable PATH directory
+- **`subminer` launcher** _(optional)_ - installs a wrapper into a writable terminal PATH directory. The wrapper uses Bun packaged with the app.
 - **Windows shortcut** _(Windows only)_ - create a `SubMiner mpv` Start Menu/Desktop shortcut
 
-The `Finish setup` button requires a config file and at least one Yomitan dictionary. Bun and the launcher are optional and never block setup completion.
+The `Finish setup` button requires a config file and at least one Yomitan dictionary. The launcher is optional and never blocks setup completion.
+
+On Linux and macOS, setup selects a writable directory already on your terminal `PATH`. If it cannot find one, it creates `~/.local/bin` and shows the `export PATH=...` command to run. Add that command to your shell configuration yourself if you want it in future terminals. Setup never edits shell configuration files. On Windows, setup adds only the wrapper directory to the user `PATH`.
 
 > [!TIP]
 > You can re-open the setup wizard at any time with `subminer app --setup` or `SubMiner.AppImage --setup`.
@@ -396,9 +400,9 @@ subminer --update
 
 SubMiner verifies AppImage, launcher, and Linux support-asset downloads against `SHA256SUMS.txt`. On Linux those support assets include the launcher-managed runtime plugin copy under `SubMiner/plugin/subminer`, the rofi theme at `SubMiner/themes/subminer.rasi`, and the scoped Matroska thumbnailer registration under `SubMiner/thumbnailers`. If the binary is in a protected path, SubMiner shows the exact command to run rather than elevating itself.
 
-The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. On Linux it replaces the running `.AppImage` in place via `electron-updater` and refreshes the managed support assets from `subminer-assets.tar.gz`; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
+The tray "Check for Updates" entry installs the new app automatically on Linux, macOS, and Windows. Managed `subminer` wrappers update with the app and never replace themselves with the standalone release script. On Linux it replaces the running `.AppImage` in place via `electron-updater` and refreshes managed support assets from `subminer-assets.tar.gz`. The managed launcher payload refreshes when the updated app starts; AppImages managed by a system package (for example the AUR `/opt/SubMiner/SubMiner.AppImage`) are skipped so the package manager stays in charge.
 
-`subminer -u` also performs the AppImage, launcher, and managed support-asset updates directly from the launcher process, which is useful when SubMiner is not currently running.
+On Linux, `subminer -u` updates the AppImage and managed support assets directly, even when the app is not running. Standalone launchers also update their own script. A launcher installed by the desktop app refreshes its runtime and script when the updated app starts.
 
 ## How it all fits together
 
@@ -430,7 +434,7 @@ SubMiner injects the bundled mpv plugin at runtime, so there is nothing to insta
 
 ## Manual launcher install
 
-The `subminer` launcher uses a [Bun](https://bun.sh) shebang, so Bun must be installed. First-run setup can handle this automatically, but if you prefer to do it yourself:
+This section installs the standalone `subminer` release asset. It uses a [Bun](https://bun.sh) shebang, so Bun must be installed. A launcher installed from the desktop app does not need this setup.
 
 ### Linux {#manual-launcher-install-linux}
 
@@ -453,6 +457,8 @@ curl -fsSL https://bun.sh/install | bash
 sudo curl -fSL https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -o /usr/local/bin/subminer
 sudo chmod +x /usr/local/bin/subminer
 ```
+
+`make install` and the AUR package also install the standalone launcher, so they continue to require system Bun.
 
 ## Optional extras
 

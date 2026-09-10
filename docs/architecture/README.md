@@ -10,10 +10,12 @@ Read when: runtime ownership, composition boundaries, or layering questions
 SubMiner runs as three cooperating runtimes:
 
 - Electron desktop app in `src/`
-- Launcher CLI in `launcher/`
+- Launcher CLI in `launcher/`, with managed app-installed wrappers in `src/main/runtime/managed-launcher.ts`
 - mpv Lua plugin in `plugin/subminer/`
 
 The desktop app keeps `src/main.ts` as composition root and pushes behavior into small runtime/domain modules.
+
+Packaged apps include a private Bun runtime. First-run setup can install a managed `subminer` wrapper that invokes it by absolute path. macOS wrappers reference app resources. Windows stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime` so app updates can replace the bundle while a launcher is running; its wrapper still references the bundled launcher script. Linux stages a persistent runtime and launcher copy under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher` so an AppImage launcher survives after the AppImage exits. Desktop startup refreshes managed payloads after an app version change. Standalone launcher assets and development keep using system Bun.
 
 ## Read Next
 

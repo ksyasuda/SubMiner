@@ -194,6 +194,9 @@ jobs:
           bun install
           bun run build
 
+      - name: Verify managed Windows launcher
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned
 
@@ -276,6 +279,9 @@ jobs:
             assets/themes/subminer.rasi \
             assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
 
+      - name: Package Bun corresponding source
+        run: bun scripts/package-bun-source.mjs
+
       - name: Generate checksums
         run: |
           shopt -s nullglob
@@ -340,6 +346,7 @@ jobs:
             release/*.exe
             release/*.zip
             release/*.tar.gz
+            release/*.tar.gz.sha256
             release/latest*.yml
             release/*.blockmap
             release/SHA256SUMS.txt

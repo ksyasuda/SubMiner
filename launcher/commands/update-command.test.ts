@@ -148,3 +148,32 @@ test('runUpdateCommand keeps app-mediated update path on non-Linux', async () =>
     'remove:/tmp/subminer-update-test',
   ]);
 });
+
+test('managed launcher passes its wrapper to app updates, protecting signed resources', async () => {
+  const previous = process.env.SUBMINER_LAUNCHER_PATH;
+  process.env.SUBMINER_LAUNCHER_PATH = '/Users/tester/.local/bin/subminer';
+  try {
+    let forwarded: string[] = [];
+    await runUpdateCommand(
+      makeContext({
+        processAdapter: { ...makeContext().processAdapter, platform: () => 'darwin' },
+        scriptPath: '/Applications/SubMiner.app/Contents/Resources/launcher/subminer',
+        appPath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
+      }),
+      {
+        createTempDir: () => '/tmp/subminer-update-test',
+        joinPath: (...parts) => parts.join('/'),
+        runAppCommandCaptureOutput: (_app, args) => {
+          forwarded = args;
+          return { status: 0, stdout: '', stderr: '' };
+        },
+        waitForUpdateResponse: async () => ({ ok: true }),
+        removeDir: () => {},
+      },
+    );
+    assert.equal(forwarded[2], '/Users/tester/.local/bin/subminer');
+  } finally {
+    if (previous === undefined) delete process.env.SUBMINER_LAUNCHER_PATH;
+    else process.env.SUBMINER_LAUNCHER_PATH = previous;
+  }
+});

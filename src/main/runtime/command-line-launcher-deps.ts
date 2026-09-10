@@ -32,6 +32,8 @@ export type CommonOptions = FsDeps & {
   resourcesPath?: string;
   appExePath?: string;
   launcherResourcePath?: string;
+  bundledBunPath?: string;
+  appVersion?: string;
   runCommand?: RunCommand;
 };
 

@@ -1,6 +1,12 @@
 # Launcher script
 
-The `subminer` launcher handles video selection, mpv startup, and overlay management in one script. Use it on Linux and macOS: it is the only path that guarantees mpv comes up with the right IPC socket and SubMiner's defaults. It is a Bun script, shipped as a release asset next to the AppImage and DMG.
+The `subminer` launcher handles video selection, mpv startup, and overlay management in one script. It guarantees mpv starts with the right IPC socket and SubMiner defaults. On Windows, the **SubMiner mpv** shortcut remains the recommended playback entry point.
+
+When first-run setup installs the launcher from a packaged desktop app, it installs a small managed wrapper. The wrapper invokes that app's private Bun runtime by absolute path, so you do not need Bun installed or on `PATH`. Only the directory containing `subminer` needs to be on `PATH`.
+
+On macOS, the wrapper points at the installed app resources. Reinstall the launcher from setup after moving the app. On Windows, the wrapper runs a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime` while using the launcher script and app path from the installed app. Old runtime versions are removed when no running launcher is using them. On Linux, setup copies the launcher runtime and script to `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`; the wrapper keeps working after the AppImage closes. SubMiner refreshes managed payloads on the next app start after an app version change, and reinstalling the launcher refreshes them too.
+
+The separately downloaded `subminer` release asset is a standalone Bun script. It, `make install`, and the AUR package require system Bun.
 
 ::: tip Windows users
 On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup - double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.

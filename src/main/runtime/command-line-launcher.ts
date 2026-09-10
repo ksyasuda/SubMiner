@@ -2,6 +2,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  cleanupOldWindowsManagedRuntimes,
+  isManagedLauncher,
+  managedLauncherContent,
+  managedLauncherPaths,
+  shellQuote,
+  stageManagedLauncher,
+  windowsManagedRuntimePaths,
+} from './managed-launcher';
+import {
   accessSyncOf,
   envOf,
   existsSyncOf,
@@ -115,8 +124,13 @@ export function resolveBunInstallCommand(
 }
 
 export async function detectBun(options: CommonOptions = {}): Promise<BunSnapshot> {
-  const bunPath = findCommand('bun', options);
-  const installCommand = resolveBunInstallCommand(options);
+  const bundled = options.bundledBunPath;
+  const bunPath = bundled
+    ? existsSyncOf(options)(bundled)
+      ? bundled
+      : null
+    : findCommand('bun', options);
+  const installCommand = bundled ? null : resolveBunInstallCommand(options);
   if (!bunPath) {
     return {
       status: 'missing',
@@ -124,7 +138,9 @@ export async function detectBun(options: CommonOptions = {}): Promise<BunSnapsho
       version: null,
       installMethod: installMethodForCommand(installCommand),
       installCommand,
-      message: null,
+      message: bundled
+        ? 'The included launcher runtime is missing. Reinstall SubMiner to repair it.'
+        : null,
     };
   }
 
@@ -139,7 +155,7 @@ export async function detectBun(options: CommonOptions = {}): Promise<BunSnapsho
       version: result.stdout.trim() || null,
       installMethod: null,
       installCommand: null,
-      message: null,
+      message: bundled ? 'Included with SubMiner. No separate Bun installation is needed.' : null,
     };
   }
 
@@ -183,6 +199,21 @@ function collectPathDirs(options: CommonOptions): string[] {
   return dirs;
 }
 
+function preferredLauncherDirs(platform: NodeJS.Platform, homeDir: string): string[] {
+  return platform === 'darwin'
+    ? [
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        path.posix.join(homeDir, '.local', 'bin'),
+        path.posix.join(homeDir, 'bin'),
+      ]
+    : [
+        path.posix.join(homeDir, '.local', 'bin'),
+        path.posix.join(homeDir, 'bin'),
+        '/usr/local/bin',
+      ];
+}
+
 export async function resolveLauncherInstallTarget(
   options: CommonOptions & WindowsPathOptions = {},
 ): Promise<LauncherSnapshot> {
@@ -201,19 +232,7 @@ export async function resolveLauncherInstallTarget(
 
   const homeDir = options.homeDir ?? os.homedir();
   const pathDirs = collectPathDirs(options);
-  const preferred =
-    platform === 'darwin'
-      ? [
-          '/opt/homebrew/bin',
-          '/usr/local/bin',
-          path.posix.join(homeDir, '.local', 'bin'),
-          path.posix.join(homeDir, 'bin'),
-        ]
-      : [
-          path.posix.join(homeDir, '.local', 'bin'),
-          path.posix.join(homeDir, 'bin'),
-          '/usr/local/bin',
-        ];
+  const preferred = preferredLauncherDirs(platform, homeDir);
   const manualPreferred =
     platform === 'darwin'
       ? [
@@ -251,13 +270,15 @@ export async function resolveLauncherInstallTarget(
       isWritableDir(dir, options),
   );
   if (!selected) {
+    const pathDir = path.posix.join(homeDir, '.local', 'bin');
+    const installPath = path.posix.join(pathDir, 'subminer');
     return {
-      status: 'not_installable',
-      commandPath: null,
-      installPath: null,
-      pathDir: null,
+      status: existsSyncOf(options)(installPath) ? 'not_on_path' : 'not_installed',
+      commandPath: existsSyncOf(options)(installPath) ? installPath : null,
+      installPath,
+      pathDir,
       shadowedBy: null,
-      message: 'No writable directory was found on your command-line PATH.',
+      message: `Add ${pathDir} to your terminal PATH: export PATH=${shellQuote(pathDir)}:"$PATH". Save this in your shell configuration for future terminals.`,
     };
   }
   const installPath = path.posix.join(selected, 'subminer');
@@ -283,7 +304,40 @@ export async function detectLauncher(
   const launcherResourcePath = resolveLauncherResourcePath(options);
   const appExePath = options.appExePath ?? process.execPath;
 
-  if (platform === 'win32' && existsSyncOf(options)(expectedPath)) {
+  if (options.bundledBunPath && existsSyncOf(options)(expectedPath)) {
+    const content = String((options.readFileSync ?? fs.readFileSync)(expectedPath, 'utf8'));
+    if (!isManagedLauncher(content)) {
+      return {
+        ...target,
+        status: 'not_installed',
+        message: 'Reinstall the launcher to use the runtime included with SubMiner.',
+      };
+    }
+    const payload =
+      platform === 'linux'
+        ? managedLauncherPaths(options)
+        : {
+            bunPath:
+              platform === 'win32'
+                ? windowsManagedRuntimePaths(options).bunPath
+                : options.bundledBunPath,
+            scriptPath: launcherResourcePath,
+          };
+    if (
+      content !==
+      managedLauncherContent({
+        platform,
+        ...payload,
+        appPath: envOf(options).APPIMAGE ?? appExePath,
+      })
+    ) {
+      return {
+        ...target,
+        status: 'not_installed',
+        message: 'Reinstall the launcher to refresh its SubMiner location.',
+      };
+    }
+  } else if (platform === 'win32' && existsSyncOf(options)(expectedPath)) {
     const content = String((options.readFileSync ?? fs.readFileSync)(expectedPath, 'utf8'));
     if (!shimMatchesCurrentInstall(content, appExePath, launcherResourcePath)) {
       return {
@@ -305,26 +359,19 @@ export async function detectLauncher(
   }
   if (!existsSyncOf(options)(expectedPath))
     return { ...target, status: 'not_installed', commandPath: null };
-  if (!commandPath) {
-    return {
-      ...target,
-      status: 'not_on_path',
-      commandPath: expectedPath,
-      message: 'Launcher exists but its directory is not on PATH.',
-    };
-  }
-
   const bunSnapshot = options.bunSnapshot ?? (await detectBun(options));
   if (bunSnapshot.status !== 'ready') {
     return {
       ...target,
       status: 'installed_bun_missing',
       commandPath,
-      message: 'Launcher is installed, but Bun is missing. Install Bun, then open a new terminal.',
+      message: options.bundledBunPath
+        ? bunSnapshot.message
+        : 'Launcher is installed, but Bun is missing. Install Bun, then open a new terminal.',
     };
   }
 
-  const result = await getRunCommand(options)(commandPath, ['--help'], {
+  const result = await getRunCommand(options)(expectedPath, ['--help'], {
     timeoutMs: COMMAND_TIMEOUT_MS,
     env: envOf(options) as NodeJS.ProcessEnv,
   });
@@ -334,6 +381,16 @@ export async function detectLauncher(
       status: 'failed',
       commandPath,
       message: failureMessage(result, 'subminer --help failed'),
+    };
+  }
+  if (!commandPath) {
+    return {
+      ...target,
+      status: 'not_on_path',
+      commandPath: expectedPath,
+      message:
+        target.message ??
+        `Launcher installed. Add ${target.pathDir} to your terminal PATH: export PATH=${shellQuote(target.pathDir ?? '')}:"$PATH". Save this in your shell configuration for future terminals.`,
     };
   }
   return { ...target, status: 'ready', commandPath, message: null };
@@ -352,6 +409,49 @@ export async function installLauncher(
       status: 'failed',
       message: `Packaged launcher resource is missing: ${launcherResourcePath}`,
     };
+  }
+
+  if (options.bundledBunPath) {
+    const bun = await detectBun(options);
+    if (bun.status !== 'ready')
+      return {
+        ...target,
+        status: 'failed',
+        message: bun.message ?? 'The included launcher runtime failed to start.',
+      };
+    try {
+      const payload = stageManagedLauncher({
+        ...options,
+        bundledBunPath: options.bundledBunPath,
+        launcherResourcePath,
+        force: true,
+      });
+      (options.mkdirSync ?? fs.mkdirSync)(target.pathDir, { recursive: true });
+      (options.writeFileSync ?? fs.writeFileSync)(
+        target.installPath,
+        managedLauncherContent({
+          platform,
+          ...payload,
+          appPath: envOf(options).APPIMAGE ?? options.appExePath ?? process.execPath,
+        }),
+      );
+      (options.chmodSync ?? fs.chmodSync)(target.installPath, 0o755);
+      if (platform === 'win32') {
+        cleanupOldWindowsManagedRuntimes(options);
+        const nextPath = await appendWindowsUserPathDir(target.pathDir, options);
+        if (nextPath && options.env) {
+          options.env.PATH = nextPath;
+          options.env.Path = nextPath;
+        }
+      }
+      return await detectLauncher({ ...options, bunSnapshot: bun });
+    } catch (error) {
+      return {
+        ...target,
+        status: 'failed',
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   if (platform === 'win32') {
@@ -375,6 +475,8 @@ export async function installLauncher(
       };
     }
   } else {
+    if (!existsSyncOf(options)(target.pathDir))
+      (options.mkdirSync ?? fs.mkdirSync)(target.pathDir, { recursive: true });
     (options.copyFileSync ?? fs.copyFileSync)(launcherResourcePath, target.installPath);
     (options.chmodSync ?? fs.chmodSync)(target.installPath, 0o755);
   }
@@ -384,6 +486,7 @@ export async function installLauncher(
 export async function installBun(
   options: CommonOptions & WindowsPathOptions = {},
 ): Promise<BunSnapshot> {
+  if (options.bundledBunPath) return detectBun(options);
   const platform = platformOf(options);
   if (platform === 'win32') {
     const bunDir = defaultBunRepairPath(options);
@@ -453,6 +556,41 @@ export async function installBun(
         ? 'Bun installed, but this process cannot see it on PATH yet. Open a new terminal.'
         : 'Bun installed, but is not on PATH for this shell. Add ~/.bun/bin to PATH if needed.',
   };
+}
+
+export async function refreshManagedCommandLineLauncher(
+  options: CommonOptions & WindowsPathOptions,
+): Promise<void> {
+  if (!options.bundledBunPath) return;
+  const target = await resolveLauncherInstallTarget(options);
+  const platform = platformOf(options);
+  const candidates = new Set([
+    ...(target.installPath ? [target.installPath] : []),
+    ...(platform === 'win32'
+      ? []
+      : preferredLauncherDirs(platform, options.homeDir ?? os.homedir()).map((directory) =>
+          path.posix.join(directory, 'subminer'),
+        )),
+  ]);
+  const readFile = options.readFileSync ?? fs.readFileSync;
+  let payload: ReturnType<typeof stageManagedLauncher> | undefined;
+  for (const candidate of candidates) {
+    if (!existsSyncOf(options)(candidate)) continue;
+    const existing = String(readFile(candidate, 'utf8'));
+    if (!isManagedLauncher(existing)) continue;
+    payload ??= stageManagedLauncher({
+      ...options,
+      bundledBunPath: options.bundledBunPath,
+      launcherResourcePath: resolveLauncherResourcePath(options),
+    });
+    const content = managedLauncherContent({
+      platform,
+      ...payload,
+      appPath: envOf(options).APPIMAGE ?? options.appExePath ?? process.execPath,
+    });
+    if (existing !== content) (options.writeFileSync ?? fs.writeFileSync)(candidate, content);
+  }
+  if (platform === 'win32' && payload) cleanupOldWindowsManagedRuntimes(options);
 }
 
 export async function detectCommandLineLauncher(

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { GitHubRelease } from './release-assets';
 import { findReleaseAsset } from './release-assets';
+import { isManagedLauncher } from '../managed-launcher';
 
 type StatLike = {
   isFile: () => boolean;
@@ -96,6 +97,13 @@ export async function updateLauncherAtPath(options: {
   }
 
   const existing = await fsDeps.readFile(options.launcherPath);
+  if (isManagedLauncher(existing.toString())) {
+    return {
+      status: 'skipped',
+      path: options.launcherPath,
+      message: 'This launcher is updated with the SubMiner app.',
+    };
+  }
   if (!looksLikeSubminerLauncher(existing)) {
     return {
       status: 'skipped',

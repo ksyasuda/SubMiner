@@ -31,6 +31,11 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Tagged CI runs `bun scripts/package-bun-source.mjs` and must publish
+   `bun-v<version>-source.tar.gz` plus its `.sha256` file. The script
+   fails if Bun's CMake dependency pins, WebKit pin, source checksums, patch
+   inputs, or collected license files differ from
+   `build/bun-source-manifest.json`.
    When validating auto-update metadata, also run the relevant platform package
    build and confirm `release/` contains the generated updater metadata
    (`latest*.yml`) and blockmaps (`*.blockmap`).
@@ -54,6 +59,9 @@
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Prerelease CI also assembles and publishes the pinned Bun corresponding
+   source archive. A missing source repository or license file fails the
+   release instead of publishing only the executable.
    When validating packaged updater output, confirm the platform build writes
    `latest*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated

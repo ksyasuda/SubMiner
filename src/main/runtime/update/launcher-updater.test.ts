@@ -124,3 +124,38 @@ test('updateLauncherAtPath aborts on hash mismatch and suspicious launcher conte
   assert.equal(suspicious.status, 'skipped');
   assert.equal(mismatch.status, 'hash-mismatch');
 });
+
+test('app-managed wrappers are never overwritten by the standalone release script', async () => {
+  const { managedLauncherContent } = await import('../managed-launcher');
+  let downloaded = false;
+  const result = await updateLauncherAtPath({
+    launcherPath: '/home/tester/.local/bin/subminer',
+    assetUrl: 'https://example.test/subminer',
+    expectedSha256: launcherHash,
+    download: async () => {
+      downloaded = true;
+      return launcherBytes;
+    },
+    fs: {
+      stat: async () => ({ isFile: () => true }),
+      readFile: async () =>
+        managedLauncherContent({
+          platform: 'linux',
+          bunPath: '/private/bun',
+          scriptPath: '/private/subminer',
+          appPath: '/apps/SubMiner.AppImage',
+        }),
+      access: async () => {
+        throw new Error('must not modify wrapper');
+      },
+      writeFile: async () => {
+        throw new Error('must not modify wrapper');
+      },
+      chmod: async () => {},
+      rename: async () => {},
+      unlink: async () => {},
+    },
+  });
+  assert.equal(result.status, 'skipped');
+  assert.equal(downloaded, false);
+});

@@ -105,12 +105,17 @@ async function runDirectReleaseUpdate(
       appImagePath: request.appPath,
       downloadAsset,
     }),
-    updateLauncherFromRelease({
-      release,
-      sha256Sums,
-      launcherPath: request.launcherPath,
-      downloadAsset,
-    }),
+    process.env.SUBMINER_MANAGED_LAUNCHER === '1'
+      ? Promise.resolve({
+          status: 'skipped',
+          message: 'This launcher is updated with the SubMiner app.',
+        })
+      : updateLauncherFromRelease({
+          release,
+          sha256Sums,
+          launcherPath: request.launcherPath,
+          downloadAsset,
+        }),
     updateSupportAssetsFromRelease({
       release,
       sha256Sums,
@@ -203,6 +208,7 @@ export async function runUpdateCommand(
     return true;
   }
 
+  const launcherPath = path.resolve(process.env.SUBMINER_LAUNCHER_PATH ?? scriptPath);
   const tempDir = resolvedDeps.createTempDir('subminer-update-');
   const responsePath = resolvedDeps.joinPath(tempDir, 'response.json');
 
@@ -210,7 +216,7 @@ export async function runUpdateCommand(
     const result = resolvedDeps.runAppCommandCaptureOutput(appPath, [
       '--update',
       '--update-launcher-path',
-      scriptPath,
+      launcherPath,
       '--update-response-path',
       responsePath,
     ]);

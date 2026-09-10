@@ -311,8 +311,8 @@ test('buildFirstRunSetupHtml renders command-line launcher section and actions',
   });
 
   assert.match(html, /Command line launcher/);
-  assert.match(html, /Optional\. Setup can finish without Bun or the launcher\./);
-  assert.match(html, /Bun runtime/);
+  assert.match(html, /Optional\. Install the launcher to use SubMiner from your terminal\./);
+  assert.match(html, /Launcher runtime/);
   assert.match(html, /Failed/);
   assert.match(html, /bash -lc curl -fsSL https:\/\/bun\.com\/install \| bash/);
   assert.match(html, /Install Bun/);

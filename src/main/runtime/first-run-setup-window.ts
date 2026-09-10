@@ -143,7 +143,7 @@ function renderCommandLineLauncherSection(
         ].filter(Boolean)
       : [
           bun.installMethod ? `Method: ${bun.installMethod}` : null,
-          `Command: ${formatCommand(bun.installCommand)}`,
+          bun.installCommand ? `Command: ${formatCommand(bun.installCommand)}` : null,
           bun.message,
         ].filter(Boolean);
   const launcherMeta = [
@@ -152,24 +152,28 @@ function renderCommandLineLauncherSection(
     launcher.pathDir ? `PATH dir: ${launcher.pathDir}` : null,
     launcher.shadowedBy ? `Shadowed by: ${launcher.shadowedBy}` : null,
     launcher.message,
-    bun.status !== 'ready' ? 'Warning: subminer will not run until Bun is available.' : null,
+    bun.status !== 'ready'
+      ? 'The launcher runtime must be ready before installing the launcher.'
+      : null,
   ].filter(Boolean);
   const bunInstallButton =
-    bun.status === 'missing' || bun.status === 'failed'
+    bun.installCommand && (bun.status === 'missing' || bun.status === 'failed')
       ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
       : '';
-  const launcherButtonDisabled = launcher.status === 'not_installable' ? 'disabled' : '';
+  const launcherButtonDisabled =
+    launcher.status === 'not_installable' || bun.status !== 'ready' ? 'disabled' : '';
 
   return `
     <section class="setup-section">
       <div class="section-head">
         <h2>Command line launcher</h2>
-        <div class="meta">Optional. Setup can finish without Bun or the launcher.</div>
+        <div class="meta">Optional. Install the launcher to use SubMiner from your terminal.</div>
       </div>
       <div class="card block">
         <div class="card-head">
           <div>
-            <strong>Bun runtime</strong>
+            <strong>Launcher runtime</strong>
+            ${bun.message && bun.status === 'ready' ? `<div class="meta">${escapeHtml(bun.message)}</div>` : ''}
             ${bunMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
           </div>
           ${renderStatusBadge(getBunStatusLabel(bun.status), getToolTone(bun.status))}

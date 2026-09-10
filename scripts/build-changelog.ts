@@ -979,7 +979,7 @@ function renderReleaseNotes(
     '- Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`',
     '- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher',
     '',
-    'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',
+    "The launcher installed by desktop setup uses the app's bundled Bun runtime. Only the separately downloaded `subminer` script requires Bun installed on `PATH`.",
     '',
   ].join('\n');
 }

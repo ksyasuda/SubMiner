@@ -13,7 +13,22 @@ const {
 } = require('./electron-builder-after-pack.cjs') as {
   LINUX_FFMPEG_LIBRARY: string;
   MACOS_WINDOW_HELPER: string;
-  default: (context: { appOutDir: string; electronPlatformName: string }) => Promise<void>;
+  default: (
+    context: {
+      appOutDir: string;
+      arch?: number;
+      electronPlatformName: string;
+      packager?: { appInfo?: { productFilename?: string } };
+    },
+    deps?: {
+      stageBunRuntime?: (options: {
+        appOutDir: string;
+        platform: string;
+        arch: number | undefined;
+        productFilename: string;
+      }) => Promise<void>;
+    },
+  ) => Promise<void>;
   stageLinuxAppImageSharedLibrary: (context: {
     appOutDir: string;
     electronPlatformName: string;
@@ -152,6 +167,50 @@ test('afterPack propagates Linux staging failures', async () => {
       }),
       /Linux packaging requires libffmpeg\.so/,
     );
+  } finally {
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test('afterPack preserves Linux staging and forwards the electron-builder target to Bun staging', async () => {
+  const workspace = createWorkspace('subminer-after-pack-target');
+  const appOutDir = path.join(workspace, 'SubMiner-linux-arm64');
+  const sourceLibraryPath = path.join(appOutDir, LINUX_FFMPEG_LIBRARY);
+  const targetLibraryPath = path.join(appOutDir, 'usr', 'lib', LINUX_FFMPEG_LIBRARY);
+  let stagedOptions:
+    | {
+        appOutDir: string;
+        platform: string;
+        arch: number | undefined;
+        productFilename: string;
+      }
+    | undefined;
+
+  fs.mkdirSync(appOutDir, { recursive: true });
+  fs.writeFileSync(sourceLibraryPath, 'bundled ffmpeg', 'utf8');
+
+  try {
+    await afterPack(
+      {
+        appOutDir,
+        arch: 3,
+        electronPlatformName: 'linux',
+        packager: { appInfo: { productFilename: 'SubMiner Preview' } },
+      },
+      {
+        stageBunRuntime: async (options) => {
+          stagedOptions = options;
+        },
+      },
+    );
+
+    assert.deepEqual(stagedOptions, {
+      appOutDir,
+      platform: 'linux',
+      arch: 3,
+      productFilename: 'SubMiner Preview',
+    });
+    assert.equal(fs.readFileSync(targetLibraryPath, 'utf8'), 'bundled ffmpeg');
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

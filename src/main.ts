@@ -388,6 +388,7 @@ import {
   detectCommandLineLauncher,
   installBun as installCommandLineBun,
   installLauncher as installCommandLineLauncher,
+  refreshManagedCommandLineLauncher,
 } from './main/runtime/command-line-launcher';
 import {
   createWindowsMpvLaunchDeps,
@@ -1433,6 +1434,10 @@ const createCommandLineLauncherRuntimeOptions = () => ({
   cwd: process.cwd(),
   resourcesPath: process.resourcesPath,
   appExePath: process.execPath,
+  appVersion: app.getVersion(),
+  bundledBunPath: app.isPackaged
+    ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
+    : undefined,
 });
 const firstRunSetupService = createFirstRunSetupService({
   platform: process.platform,
@@ -1518,7 +1523,10 @@ const firstRunSetupService = createFirstRunSetupService({
   },
   installCommandLineLauncher: async () => {
     const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
-    const ok = snapshot.status === 'ready' || snapshot.status === 'installed_bun_missing';
+    const ok =
+      snapshot.status === 'ready' ||
+      snapshot.status === 'installed_bun_missing' ||
+      snapshot.status === 'not_on_path';
     return {
       ok,
       installPath: snapshot.installPath,
@@ -6249,6 +6257,11 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
+  void refreshManagedCommandLineLauncher(createCommandLineLauncherRuntimeOptions()).catch(
+    (error) => {
+      logger.warn('Failed to refresh the installed command-line launcher', error);
+    },
+  );
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }
