@@ -7,6 +7,25 @@ permissions:
   contents: read
 
 jobs:
+  launcher-runtime:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Verify native launcher bootstrap and runtime staging
+        run: bun test src/main/runtime/managed-launcher.test.ts src/main/runtime/windows-launcher-bootstrap.test.ts src/main/runtime/posix-launcher-bootstrap.test.ts
+
   quality-gate:
     runs-on: ubuntu-latest
     steps:
@@ -110,11 +129,11 @@ jobs:
       - name: Security audit
         run: bun audit --audit-level high
 
-      - name: Build Bun subminer wrapper
+      - name: Build launcher runtime artifacts
         run: make build-launcher
 
-      - name: Verify Bun subminer wrapper
-        run: dist/launcher/subminer --help >/dev/null
+      - name: Smoke launcher bundle
+        run: bun dist/launcher/subminer.js --help >/dev/null
 
       - name: Enforce generated launcher workflow
         run: bash scripts/verify-generated-launcher.sh

@@ -620,6 +620,8 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
     assert.match(prereleaseNotes, /## Highlights\n### Added\n- Polished: added entry\./);
     assert.match(prereleaseNotes, /### Fixed\n- Polished: fixed entry\./);
     assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
+    assert.match(prereleaseNotes, /Windows `subminer\.cmd` launcher/);
+    assert.match(prereleaseNotes, /Both launcher downloads use Bun included with the SubMiner app/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

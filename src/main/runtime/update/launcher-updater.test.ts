@@ -5,6 +5,7 @@ import {
   buildProtectedLauncherUpdateCommand,
   looksLikeSubminerLauncher,
   updateLauncherAtPath,
+  updateLauncherFromRelease,
 } from './launcher-updater';
 
 const launcherBytes = Buffer.from('#!/usr/bin/env bash\n# SubMiner launcher\nexec SubMiner "$@"\n');
@@ -141,8 +142,6 @@ test('app-managed wrappers are never overwritten by the standalone release scrip
       readFile: async () =>
         managedLauncherContent({
           platform: 'linux',
-          bunPath: '/private/bun',
-          scriptPath: '/private/subminer',
           appPath: '/apps/SubMiner.AppImage',
         }),
       access: async () => {
@@ -157,5 +156,74 @@ test('app-managed wrappers are never overwritten by the standalone release scrip
     },
   });
   assert.equal(result.status, 'skipped');
+  assert.equal(downloaded, false);
+});
+
+test('GUI updates defer recognized standalone launcher migration to app startup', async () => {
+  let accessed = false;
+  let downloaded = false;
+  const result = await updateLauncherAtPath({
+    launcherPath: '/home/tester/.local/bin/subminer',
+    assetUrl: 'https://example.test/subminer',
+    expectedSha256: launcherHash,
+    deferRecognizedLauncherUpdate: true,
+    download: async () => {
+      downloaded = true;
+      return launcherBytes;
+    },
+    fs: {
+      stat: async () => ({ isFile: () => true }),
+      readFile: async () => Buffer.from('#!/bin/sh\n# SubMiner launcher\n'),
+      access: async () => {
+        accessed = true;
+      },
+      writeFile: async () => {},
+      chmod: async () => {},
+      rename: async () => {},
+      unlink: async () => {},
+    },
+  });
+
+  assert.deepEqual(result, {
+    status: 'skipped',
+    path: '/home/tester/.local/bin/subminer',
+    message: 'Launcher migration is deferred until the updated SubMiner app starts.',
+  });
+  assert.equal(accessed, false);
+  assert.equal(downloaded, false);
+});
+
+test('release launcher updater propagates GUI migration deferral', async () => {
+  let downloaded = false;
+  const result = await updateLauncherFromRelease({
+    release: {
+      tag_name: 'v0.15.0',
+      prerelease: false,
+      draft: false,
+      assets: [{ name: 'subminer', browser_download_url: 'https://example.test/subminer' }],
+    },
+    sha256Sums: new Map([['subminer', launcherHash]]),
+    launcherPath: '/home/tester/.local/bin/subminer',
+    deferRecognizedLauncherUpdate: true,
+    exists: () => true,
+    downloadAsset: async () => {
+      downloaded = true;
+      return launcherBytes;
+    },
+    fs: {
+      stat: async () => ({ isFile: () => true }),
+      readFile: async () => Buffer.from('#!/bin/sh\n# SubMiner launcher\n'),
+      access: async () => {
+        throw new Error('must not check writability before app startup');
+      },
+      writeFile: async () => {},
+      chmod: async () => {},
+      rename: async () => {},
+      unlink: async () => {},
+    },
+  });
+
+  assert.equal(result.status, 'skipped');
+  assert.match(result.message ?? '', /deferred until the updated SubMiner app starts/);
   assert.equal(downloaded, false);
 });

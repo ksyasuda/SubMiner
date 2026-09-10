@@ -9,7 +9,6 @@ url='https://github.com/ksyasuda/SubMiner'
 license=('GPL-3.0-or-later')
 options=('!strip' '!debug')
 depends=(
-	'bun'
 	'fuse2'
 	'glibc'
 	'mpv'

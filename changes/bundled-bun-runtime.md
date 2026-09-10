@@ -1,4 +1,4 @@
-type: added
+type: changed
 area: launcher
 
-- Packaged apps now include Bun and can install a managed `subminer` launcher without requiring a separate Bun installation.
+- Made every installed and downloadable launcher use the Bun runtime included with SubMiner. Added a Windows `subminer.cmd` download, persistent private runtime caches for Linux and Windows, and migration for recognized legacy launchers.

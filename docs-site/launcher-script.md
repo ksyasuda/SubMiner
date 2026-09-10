@@ -2,11 +2,13 @@
 
 The `subminer` launcher handles video selection, mpv startup, and overlay management in one script. It guarantees mpv starts with the right IPC socket and SubMiner defaults. On Windows, the **SubMiner mpv** shortcut remains the recommended playback entry point.
 
-When first-run setup installs the launcher from a packaged desktop app, it installs a small managed wrapper. The wrapper invokes that app's private Bun runtime by absolute path, so you do not need Bun installed or on `PATH`. Only the directory containing `subminer` needs to be on `PATH`.
+The launcher is a small wrapper around the CLI bundled in the desktop app. It locates a normal SubMiner installation, or uses `SUBMINER_BINARY_PATH` when you set a custom executable. Linux also accepts `SUBMINER_APPIMAGE_PATH`. First-run setup records the selected app location for the wrapper. You do not need Bun installed or on `PATH`; only the directory containing `subminer` needs to be on `PATH`.
 
-On macOS, the wrapper points at the installed app resources. Reinstall the launcher from setup after moving the app. On Windows, the wrapper runs a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime` while using the launcher script and app path from the installed app. Old runtime versions are removed when no running launcher is using them. On Linux, setup copies the launcher runtime and script to `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`; the wrapper keeps working after the AppImage closes. SubMiner refreshes managed payloads on the next app start after an app version change, and reinstalling the launcher refreshes them too.
+On macOS, the wrapper runs Bun and the CLI directly from `SubMiner.app/Contents/Resources`. On Windows, `subminer.cmd` stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime/<version>` and runs the CLI from the current app. Keeping the executable outside the app avoids locking an updater-owned file while a launcher is running. Old runtime versions are removed when no running launcher is using them.
 
-The separately downloaded `subminer` release asset is a standalone Bun script. It, `make install`, and the AUR package require system Bun.
+On Linux, the first launch caches Bun and its matching CLI and license files under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`. Later launches make one `stat` call against the AppImage and run the cache without starting Electron. A missing cache or changed app fingerprint rebuilds it. App startup also refreshes the managed payload after an update.
+
+The downloaded `subminer` and `subminer.cmd` release assets use the same private runtime flow. Older launcher scripts that were installed before this change cannot update their own code retroactively and still need system Bun until the app migrates them at startup or you download a current wrapper.
 
 ::: tip Windows users
 On Windows, the recommended way to launch playback is the **SubMiner mpv** shortcut created during first-run setup - double-click it, drag a file onto it, or run `SubMiner.exe --launch-mpv` from a terminal. See [Windows mpv Shortcut](/usage#windows-mpv-shortcut) for details.

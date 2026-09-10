@@ -15,7 +15,7 @@ SubMiner runs as three cooperating runtimes:
 
 The desktop app keeps `src/main.ts` as composition root and pushes behavior into small runtime/domain modules.
 
-Packaged apps include a private Bun runtime. First-run setup can install a managed `subminer` wrapper that invokes it by absolute path. macOS wrappers reference app resources. Windows stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime` so app updates can replace the bundle while a launcher is running; its wrapper still references the bundled launcher script. Linux stages a persistent runtime and launcher copy under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher` so an AppImage launcher survives after the AppImage exits. Desktop startup refreshes managed payloads after an app version change. Standalone launcher assets and development keep using system Bun.
+Packaged apps include a private Bun runtime. Setup and release assets provide bootstrap wrappers generated from `src/main/runtime/*-launcher-bootstrap.ts`. macOS runs Bun and the CLI from app resources. Windows stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime/<version>` so a running launcher does not lock the updater-owned app executable. Linux stages Bun, the matching CLI, and licenses under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`. Its steady-state path performs one app `stat` and starts the cache without Electron. A missing cache or changed app fingerprint runs `launcher/prepare.cjs` through Electron's Node mode to refresh it. Desktop startup migrates recognized writable legacy JavaScript launchers and refreshes managed payloads after app changes. Development commands still use system Bun.
 
 ## Read Next
 

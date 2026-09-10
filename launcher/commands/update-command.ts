@@ -58,6 +58,7 @@ type UpdateCommandDeps = {
   ) => { status: number; stdout: string; stderr: string; error?: Error };
   waitForUpdateResponse: (responsePath: string) => Promise<UpdateCommandResponse>;
   removeDir: (targetPath: string) => void;
+  resolveRealPath: (targetPath: string) => string;
   runDirectReleaseUpdate: (
     request: DirectReleaseUpdateRequest,
   ) => Promise<DirectReleaseUpdateResult>;
@@ -98,30 +99,36 @@ async function runDirectReleaseUpdate(
       : new Map<string, string>();
   const downloadAsset = (url: string) => fetchReleaseAssetBuffer(fetchForUpdater, url);
 
-  const [appImage, launcher, supportAssets] = await Promise.all([
-    updateAppImageFromRelease({
+  const appImage = await updateAppImageFromRelease({
+    release,
+    sha256Sums,
+    appImagePath: request.appPath,
+    downloadAsset,
+  });
+  let launcher: DirectReleaseUpdateResult['launcher'];
+  if (appImage.status !== 'updated') {
+    launcher = {
+      status: 'skipped',
+      message: 'Launcher update requires a successful AppImage update first.',
+    };
+  } else if (process.env.SUBMINER_MANAGED_LAUNCHER === '1') {
+    launcher = {
+      status: 'skipped',
+      message: 'This launcher is updated with the SubMiner app.',
+    };
+  } else {
+    launcher = await updateLauncherFromRelease({
       release,
       sha256Sums,
-      appImagePath: request.appPath,
+      launcherPath: request.launcherPath,
       downloadAsset,
-    }),
-    process.env.SUBMINER_MANAGED_LAUNCHER === '1'
-      ? Promise.resolve({
-          status: 'skipped',
-          message: 'This launcher is updated with the SubMiner app.',
-        })
-      : updateLauncherFromRelease({
-          release,
-          sha256Sums,
-          launcherPath: request.launcherPath,
-          downloadAsset,
-        }),
-    updateSupportAssetsFromRelease({
-      release,
-      sha256Sums,
-      downloadAsset,
-    }),
-  ]);
+    });
+  }
+  const supportAssets = await updateSupportAssetsFromRelease({
+    release,
+    sha256Sums,
+    downloadAsset,
+  });
 
   return { appImage, launcher, supportAssets };
 }
@@ -178,6 +185,13 @@ const defaultDeps: UpdateCommandDeps = {
   removeDir: (targetPath) => {
     fs.rmSync(targetPath, { recursive: true, force: true });
   },
+  resolveRealPath: (targetPath) => {
+    try {
+      return fs.realpathSync(targetPath);
+    } catch {
+      return targetPath;
+    }
+  },
   runDirectReleaseUpdate,
   readMainConfig: readLauncherMainConfigObject,
   log: launcherLog,
@@ -194,12 +208,20 @@ export async function runUpdateCommand(
   }
 
   if (context.processAdapter.platform() === 'linux') {
+    const logLevel = args.logLevel ?? 'warn';
+    if (resolvedDeps.resolveRealPath(appPath) === '/opt/SubMiner/SubMiner.AppImage') {
+      resolvedDeps.log(
+        'warn',
+        logLevel,
+        'SubMiner is installed through subminer-bin. Update it with your AUR helper, for example: yay -S subminer-bin.',
+      );
+      return true;
+    }
     const result = await resolvedDeps.runDirectReleaseUpdate({
       appPath,
       launcherPath: scriptPath,
       channel: readUpdateChannel(resolvedDeps.readMainConfig()),
     });
-    const logLevel = args.logLevel ?? 'warn';
     logUpdateResult('AppImage', result.appImage, logLevel, resolvedDeps);
     logUpdateResult('Launcher', result.launcher, logLevel, resolvedDeps);
     for (const supportResult of result.supportAssets) {

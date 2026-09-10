@@ -977,9 +977,9 @@ function renderReleaseNotes(
     '- Linux: `SubMiner.AppImage`',
     '- macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`',
     '- Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`',
-    '- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher',
+    '- Optional extras: `subminer-assets.tar.gz`, the `subminer` launcher, and the Windows `subminer.cmd` launcher',
     '',
-    "The launcher installed by desktop setup uses the app's bundled Bun runtime. Only the separately downloaded `subminer` script requires Bun installed on `PATH`.",
+    'Both launcher downloads use Bun included with the SubMiner app. Download `subminer` on Linux or macOS and `subminer.cmd` on Windows.',
     '',
   ].join('\n');
 }

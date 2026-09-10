@@ -12,7 +12,7 @@ On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup
 
 That is the whole setup. The `subminer` launcher starts mpv, opens the IPC socket, and brings up the overlay.
 
-If you installed `subminer` from the packaged app's setup window, it uses the app's bundled Bun runtime. You only need the wrapper directory on your terminal `PATH`. The standalone release launcher, `make install`, and the AUR package still require system Bun.
+Every current launcher wrapper uses the Bun runtime included with the SubMiner app. This includes setup installs, release downloads, `make install`, and the AUR package. You only need the wrapper directory on your terminal `PATH`. Building SubMiner from source still requires Bun on the development machine.
 
 > [!IMPORTANT]
 > SubMiner requires the bundled Yomitan instance to have at least one dictionary imported for lookups to work.

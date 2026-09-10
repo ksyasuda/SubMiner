@@ -191,9 +191,9 @@ wget https://github.com/ksyasuda/SubMiner/releases/latest/download/SubMiner.AppI
  && chmod +x ~/.local/bin/SubMiner.AppImage
 ```
 
-The AppImage is all you need. First-run setup can install the optional `subminer` command-line launcher. That launcher uses Bun bundled with the AppImage, so you do not need Bun installed or on `PATH`.
+The AppImage is all you need. First-run setup can install the optional `subminer` command-line launcher. Every current launcher uses Bun included with the app, so you do not need Bun installed or on `PATH`.
 
-The separately downloaded `subminer` release asset is for standalone installs and still requires [Bun](https://bun.sh):
+You can also download the launcher wrapper directly:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer -O ~/.local/bin/subminer \
@@ -214,6 +214,8 @@ Download the latest DMG from [GitHub Releases](https://github.com/ksyasuda/SubMi
 
 Download and run the latest installer (`.exe`) from [GitHub Releases](https://github.com/ksyasuda/SubMiner/releases/latest).
 
+For terminal use, download `subminer.cmd`. It locates the installed app and uses its private Bun runtime.
+
 </details>
 
 <details>
@@ -225,7 +227,7 @@ See the [build-from-source guide](https://docs.subminer.moe/installation#from-so
 
 ### 2. Launch & Set Up
 
-Run the installed app and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher. It installs a wrapper that runs with the app's private Bun runtime.
+Run the installed app and the first-run setup wizard will guide you through importing Yomitan dictionaries and optionally installing the `subminer` command-line launcher. Setup records a custom app location when needed, and the wrapper runs with the app's private Bun runtime.
 
 ```bash
 # Linux

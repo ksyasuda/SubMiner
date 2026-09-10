@@ -59,10 +59,16 @@ test('packaged POSIX launcher works without Bun on PATH and survives AppImage un
     'console.log(JSON.stringify({args:process.argv.slice(2),app:process.env.SUBMINER_BINARY_PATH,managed:process.env.SUBMINER_MANAGED_LAUNCHER}));',
   );
   const appPath = path.join(root, 'SubMiner.AppImage');
+  fs.writeFileSync(appPath, '#!/bin/sh\nexit 73\n', { mode: 0o755 });
   const options = {
     platform: process.platform,
     homeDir: path.join(root, 'home'),
-    env: { PATH: bin, XDG_DATA_HOME: path.join(root, 'data'), APPIMAGE: appPath },
+    env: {
+      HOME: path.join(root, 'home'),
+      PATH: bin,
+      XDG_DATA_HOME: path.join(root, 'data'),
+      APPIMAGE: appPath,
+    },
     appExePath: path.join(resources, 'SubMiner'),
     appVersion: '1.0.0',
     bundledBunPath,
@@ -85,13 +91,20 @@ test('packaged POSIX launcher works without Bun on PATH and survives AppImage un
 test('setup can install into a new user bin despite an empty GUI PATH', async (t) => {
   if (process.platform === 'win32') return;
   const root = workspace(t);
-  const script = path.join(root, 'launcher');
+  const appPath = path.join(root, 'SubMiner.app', 'Contents', 'MacOS', 'SubMiner');
+  const resources = path.join(root, 'SubMiner.app', 'Contents', 'Resources');
+  fs.mkdirSync(path.dirname(appPath), { recursive: true });
+  fs.mkdirSync(path.join(resources, 'bun'), { recursive: true });
+  fs.mkdirSync(path.join(resources, 'launcher'), { recursive: true });
+  fs.writeFileSync(appPath, '#!/bin/sh\nexit 73\n', { mode: 0o755 });
+  fs.symlinkSync(process.execPath, path.join(resources, 'bun', 'bun'));
+  const script = path.join(resources, 'launcher', 'subminer.js');
   fs.writeFileSync(script, 'console.log("help");');
   const snapshot = await installLauncher({
     platform: 'darwin',
     homeDir: root,
     env: { PATH: '' },
-    appExePath: '/Applications/SubMiner.app/Contents/MacOS/SubMiner',
+    appExePath: appPath,
     bundledBunPath: process.execPath,
     launcherResourcePath: script,
   });
@@ -105,42 +118,58 @@ test('setup can install into a new user bin despite an empty GUI PATH', async (t
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('app upgrades refresh Linux managed payloads and leave standalone launchers alone', async (t) => {
+test('app upgrades refresh payloads, migrate legacy Bun launchers, and preserve custom scripts', async (t) => {
   if (process.platform !== 'linux') return;
   const root = workspace(t);
   const bin = path.join(root, 'bin');
   fs.mkdirSync(bin, { recursive: true });
   const script = path.join(root, 'resource');
   fs.writeFileSync(script, 'console.log("old");');
+  const appPath = path.join(root, 'SubMiner.AppImage');
+  fs.writeFileSync(appPath, '#!/bin/sh\nexit 73\n', { mode: 0o755 });
   const options = {
     platform: process.platform,
     homeDir: root,
-    env: { PATH: bin },
+    env: { HOME: root, PATH: bin },
     appVersion: '1',
-    appExePath: '/apps/SubMiner.AppImage',
+    appExePath: appPath,
     bundledBunPath: process.execPath,
     launcherResourcePath: script,
   };
   assert.equal((await installLauncher(options)).status, 'ready');
   fs.writeFileSync(script, 'console.log("new");');
-  await refreshManagedCommandLineLauncher({ ...options, env: { PATH: '' }, appVersion: '2' });
+  await refreshManagedCommandLineLauncher({
+    ...options,
+    env: { HOME: root, PATH: '' },
+    appVersion: '2',
+  });
   const payload = managedLauncherPaths(options);
   assert.equal(fs.readFileSync(payload.scriptPath, 'utf8'), 'console.log("new");');
-  fs.writeFileSync(path.join(bin, 'subminer'), '#!/bin/sh\necho standalone\n');
+  fs.writeFileSync(path.join(bin, 'subminer'), '#!/usr/bin/env bun\n// SubMiner launcher\n');
   await refreshManagedCommandLineLauncher({ ...options, appVersion: '3' });
-  assert.equal(fs.readFileSync(payload.versionPath, 'utf8'), '2');
+  assert.match(fs.readFileSync(path.join(bin, 'subminer'), 'utf8'), /SubMiner managed launcher/);
+  fs.writeFileSync(path.join(bin, 'subminer'), '#!/bin/sh\necho standalone\n');
+  await refreshManagedCommandLineLauncher({ ...options, appVersion: '4' });
+  assert.equal(fs.readFileSync(payload.versionPath, 'utf8'), '3');
 });
 
-test('Windows wrapper uses quoted absolute Bun and disables delayed expansion', () => {
+test('Windows wrapper discovers the configured app and its versioned private runtime', () => {
   const content = managedLauncherContent({
     platform: 'win32',
-    bunPath: 'C:\\Apps & Tools\\100%\\bun.exe',
-    scriptPath: 'C:\\Apps & Tools\\subminer',
-    appPath: 'C:\\Apps!\\SubMiner.exe',
+    appPath: 'C:\\Apps 100% !\\SubMiner.exe',
   });
   assert.ok(content.includes(MANAGED_LAUNCHER_MARKER));
   assert.ok(content.includes('setlocal DisableDelayedExpansion'));
-  assert.ok(content.includes('"C:\\Apps & Tools\\100%%\\bun.exe" "C:\\Apps & Tools\\subminer" %*'));
+  assert.ok(content.includes('set "SUBMINER_BINARY_PATH=C:\\Apps 100%% !\\SubMiner.exe"'));
+  assert.ok(content.includes('%SUBMINER_RESOURCES_PATH%\\launcher\\version'));
+  assert.ok(
+    content.includes(
+      'set "SUBMINER_BUN_PATH=%LOCALAPPDATA%\\SubMiner\\launcher-runtime\\%SUBMINER_APP_VERSION%\\bun.exe"',
+    ),
+  );
+  assert.ok(
+    content.includes('"%SUBMINER_BUN_PATH%" "%SUBMINER_RESOURCES_PATH%\\launcher\\subminer.js" %*'),
+  );
   assert.ok(content.includes('exit /b %errorlevel%'));
 });
 
@@ -178,14 +207,20 @@ test('Windows managed runtime path is absolute, versioned, and injectable', () =
 test('Windows managed launcher forwards arguments without a system Bun', async (t) => {
   if (process.platform !== 'win32') return;
   const root = workspace(t);
-  const script = path.join(root, 'script.js');
+  const appDirectory = path.join(root, 'Installed App');
+  const appPath = path.join(appDirectory, 'SubMiner.exe');
+  const launcherDirectory = path.join(appDirectory, 'resources', 'launcher');
+  const script = path.join(launcherDirectory, 'subminer.js');
+  fs.mkdirSync(launcherDirectory, { recursive: true });
+  fs.copyFileSync(process.execPath, appPath);
   fs.writeFileSync(script, 'console.log(JSON.stringify(process.argv.slice(2)));');
+  fs.writeFileSync(path.join(launcherDirectory, 'version'), '1.0.0');
   const options = {
     platform: process.platform,
-    env: { ...process.env, PATH: '' },
+    env: { ...process.env, PATH: '', LOCALAPPDATA: root },
     bundledBunPath: process.execPath,
     launcherResourcePath: script,
-    appExePath: path.join(root, 'SubMiner.exe'),
+    appExePath: appPath,
     appVersion: '1.0.0',
     localAppData: root,
     getUserPath: () => '',

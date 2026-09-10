@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { windowsLauncherBootstrapContent } from './windows-launcher-bootstrap';
+import { MANAGED_LAUNCHER_MARKER, posixLauncherBootstrapContent } from './posix-launcher-bootstrap';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +14,7 @@ import {
   type WindowsPathOptions,
 } from './command-line-launcher-deps';
 
-export const MANAGED_LAUNCHER_MARKER = 'SubMiner managed launcher (bundled runtime)';
+export { MANAGED_LAUNCHER_MARKER, shellQuote } from './posix-launcher-bootstrap';
 
 export function isManagedLauncher(content: string): boolean {
   const lines = content.split(/\r?\n/, 3);
@@ -21,43 +24,12 @@ export function isManagedLauncher(content: string): boolean {
   );
 }
 
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function windowsLiteral(value: string): string {
-  if (/["\r\n]/.test(value)) throw new Error('Launcher paths cannot contain quotes or newlines.');
-  return value.replaceAll('%', '%%');
-}
-
 export function managedLauncherContent(options: {
   platform: NodeJS.Platform;
-  bunPath: string;
-  scriptPath: string;
   appPath: string;
 }): string {
-  if (options.platform === 'win32') {
-    return [
-      '@echo off',
-      `rem ${MANAGED_LAUNCHER_MARKER}`,
-      'setlocal DisableDelayedExpansion',
-      'set "SUBMINER_MANAGED_LAUNCHER=1"',
-      'set "SUBMINER_LAUNCHER_PATH=%~f0"',
-      `set "SUBMINER_BINARY_PATH=${windowsLiteral(options.appPath)}"`,
-      `"${windowsLiteral(options.bunPath)}" "${windowsLiteral(options.scriptPath)}" %*`,
-      'exit /b %errorlevel%',
-      '',
-    ].join('\r\n');
-  }
-  return [
-    '#!/bin/sh',
-    `# ${MANAGED_LAUNCHER_MARKER}`,
-    'export SUBMINER_MANAGED_LAUNCHER=1',
-    'export SUBMINER_LAUNCHER_PATH="$0"',
-    `export SUBMINER_BINARY_PATH=${shellQuote(options.appPath)}`,
-    `exec ${shellQuote(options.bunPath)} ${shellQuote(options.scriptPath)} "$@"`,
-    '',
-  ].join('\n');
+  if (options.platform === 'win32') return windowsLauncherBootstrapContent(options.appPath);
+  return posixLauncherBootstrapContent(options.appPath);
 }
 
 export function managedLauncherPaths(options: CommonOptions) {
@@ -65,7 +37,7 @@ export function managedLauncherPaths(options: CommonOptions) {
   const platformPath = pathModuleFor(platform);
   const env = envOf(options);
   const home = options.homeDir ?? os.homedir();
-  const dataHome = env.XDG_DATA_HOME?.trim();
+  const dataHome = env.XDG_DATA_HOME;
   const directory = platformPath.join(
     dataHome && platformPath.isAbsolute(dataHome)
       ? dataHome
@@ -78,6 +50,8 @@ export function managedLauncherPaths(options: CommonOptions) {
     bunPath: platformPath.join(directory, 'bun'),
     scriptPath: platformPath.join(directory, 'subminer'),
     versionPath: platformPath.join(directory, 'version'),
+    fingerprintPath: platformPath.join(directory, 'fingerprint'),
+    appPathFile: platformPath.join(directory, 'app-path'),
   };
 }
 
@@ -203,10 +177,21 @@ export function stageManagedLauncher(
   const mkdir = options.mkdirSync ?? fs.mkdirSync;
   const chmod = options.chmodSync ?? fs.chmodSync;
   const version = options.appVersion ?? 'development';
+  const appPath = envOf(options).APPIMAGE ?? options.appExePath;
+  const fingerprint = appPath
+    ? execFileSync('stat', ['-Lc', '%d:%i:%s:%y:%z', '--', appPath], {
+        encoding: 'utf8',
+        env: { ...envOf(options), PATH: `/usr/bin:/bin:${envOf(options).PATH ?? ''}` },
+      }).trim()
+    : '';
   if (
     !options.force &&
     exists(paths.versionPath) &&
     read(paths.versionPath, 'utf8') === version &&
+    exists(paths.fingerprintPath) &&
+    read(paths.fingerprintPath, 'utf8') === `${fingerprint}\n` &&
+    exists(paths.appPathFile) &&
+    read(paths.appPathFile, 'utf8') === `${appPath ?? ''}\n` &&
     exists(paths.bunPath) &&
     exists(paths.scriptPath)
   )
@@ -222,7 +207,9 @@ export function stageManagedLauncher(
     if (exists(notices))
       fs.cpSync(notices, path.join(paths.directory, 'licenses'), { recursive: true });
     write(path.join(staging, 'version'), version);
-    for (const name of ['bun', 'subminer', 'version']) {
+    write(path.join(staging, 'app-path'), `${appPath ?? ''}\n`);
+    write(path.join(staging, 'fingerprint'), `${fingerprint}\n`);
+    for (const name of ['bun', 'subminer', 'version', 'app-path', 'fingerprint']) {
       fs.renameSync(path.join(staging, name), path.join(paths.directory, name));
     }
   } finally {

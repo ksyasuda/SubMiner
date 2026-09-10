@@ -83,6 +83,7 @@ export async function updateLauncherAtPath(options: {
   assetUrl: string;
   expectedSha256: string;
   download: () => Promise<Buffer>;
+  deferRecognizedLauncherUpdate?: boolean;
   fs?: LauncherUpdateFileSystem;
 }): Promise<LauncherUpdateResult> {
   const fsDeps = options.fs ?? defaultFs();
@@ -109,6 +110,13 @@ export async function updateLauncherAtPath(options: {
       status: 'skipped',
       path: options.launcherPath,
       message: 'Existing executable does not look like a SubMiner launcher.',
+    };
+  }
+  if (options.deferRecognizedLauncherUpdate) {
+    return {
+      status: 'skipped',
+      path: options.launcherPath,
+      message: 'Launcher migration is deferred until the updated SubMiner app starts.',
     };
   }
 
@@ -168,7 +176,9 @@ export async function updateLauncherFromRelease(options: {
   platform?: NodeJS.Platform;
   homeDir?: string;
   downloadAsset: (url: string) => Promise<Buffer>;
+  deferRecognizedLauncherUpdate?: boolean;
   exists?: (targetPath: string) => boolean;
+  fs?: LauncherUpdateFileSystem;
 }): Promise<LauncherUpdateResult> {
   if (!options.release) return { status: 'missing-asset', message: 'No release found.' };
   const asset = findReleaseAsset(options.release, 'subminer');
@@ -192,5 +202,7 @@ export async function updateLauncherFromRelease(options: {
     assetUrl: asset.browser_download_url,
     expectedSha256,
     download: () => options.downloadAsset(asset.browser_download_url),
+    deferRecognizedLauncherUpdate: options.deferRecognizedLauncherUpdate,
+    fs: options.fs,
   });
 }

@@ -5,10 +5,8 @@ import {
   cleanupOldWindowsManagedRuntimes,
   isManagedLauncher,
   managedLauncherContent,
-  managedLauncherPaths,
   shellQuote,
   stageManagedLauncher,
-  windowsManagedRuntimePaths,
 } from './managed-launcher';
 import {
   accessSyncOf,
@@ -174,9 +172,11 @@ export function resolveLauncherResourcePath(options: CommonOptions): string {
   if (options.launcherResourcePath) return options.launcherResourcePath;
   const resourcesPath =
     options.resourcesPath ?? (process as typeof process & { resourcesPath?: string }).resourcesPath;
-  const packaged = resourcesPath ? platformPath.join(resourcesPath, 'launcher', 'subminer') : null;
+  const packaged = resourcesPath
+    ? platformPath.join(resourcesPath, 'launcher', 'subminer.js')
+    : null;
   if (packaged && existsSyncOf(options)(packaged)) return packaged;
-  return platformPath.join(options.cwd ?? process.cwd(), 'dist', 'launcher', 'subminer');
+  return platformPath.join(options.cwd ?? process.cwd(), 'dist', 'launcher', 'subminer.js');
 }
 
 function isWritableDir(candidate: string, options: CommonOptions): boolean {
@@ -313,21 +313,10 @@ export async function detectLauncher(
         message: 'Reinstall the launcher to use the runtime included with SubMiner.',
       };
     }
-    const payload =
-      platform === 'linux'
-        ? managedLauncherPaths(options)
-        : {
-            bunPath:
-              platform === 'win32'
-                ? windowsManagedRuntimePaths(options).bunPath
-                : options.bundledBunPath,
-            scriptPath: launcherResourcePath,
-          };
     if (
       content !==
       managedLauncherContent({
         platform,
-        ...payload,
         appPath: envOf(options).APPIMAGE ?? appExePath,
       })
     ) {
@@ -420,7 +409,7 @@ export async function installLauncher(
         message: bun.message ?? 'The included launcher runtime failed to start.',
       };
     try {
-      const payload = stageManagedLauncher({
+      stageManagedLauncher({
         ...options,
         bundledBunPath: options.bundledBunPath,
         launcherResourcePath,
@@ -431,7 +420,6 @@ export async function installLauncher(
         target.installPath,
         managedLauncherContent({
           platform,
-          ...payload,
           appPath: envOf(options).APPIMAGE ?? options.appExePath ?? process.execPath,
         }),
       );
@@ -577,7 +565,23 @@ export async function refreshManagedCommandLineLauncher(
   for (const candidate of candidates) {
     if (!existsSyncOf(options)(candidate)) continue;
     const existing = String(readFile(candidate, 'utf8'));
-    if (!isManagedLauncher(existing)) continue;
+    const legacy =
+      (existing.startsWith('#!/usr/bin/env bun\n') &&
+        (existing.includes('SubMiner launcher') ||
+          existing.includes('Launch MPV with SubMiner'))) ||
+      (platform === 'win32' &&
+        existing ===
+          windowsShimContent(
+            options.appExePath ?? process.execPath,
+            resolveLauncherResourcePath(options).replace(/subminer\.js$/, 'subminer'),
+          ));
+    if (!isManagedLauncher(existing) && !legacy) continue;
+    if (!isWritableDir(pathModuleFor(platform).dirname(candidate), options)) continue;
+    try {
+      accessSyncOf(options)(candidate, fs.constants.W_OK);
+    } catch {
+      continue;
+    }
     payload ??= stageManagedLauncher({
       ...options,
       bundledBunPath: options.bundledBunPath,
@@ -585,7 +589,6 @@ export async function refreshManagedCommandLineLauncher(
     });
     const content = managedLauncherContent({
       platform,
-      ...payload,
       appPath: envOf(options).APPIMAGE ?? options.appExePath ?? process.execPath,
     });
     if (existing !== content) (options.writeFileSync ?? fs.writeFileSync)(candidate, content);

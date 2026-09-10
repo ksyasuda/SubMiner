@@ -79,6 +79,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
       sha256Sums: sums,
       launcherPath,
       downloadAsset: (url) => fetchReleaseAssetBuffer(fetchForUpdater, url),
+      deferRecognizedLauncherUpdate: true,
     });
     return runSupportAssetUpdatesForLauncherResult({
       launcherResult,
