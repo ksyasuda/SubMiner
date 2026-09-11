@@ -17,6 +17,9 @@ const SPECIAL_KEYS: Record<string, string> = {
   ArrowDown: 'DOWN',
 };
 const MPV_SPECIAL_KEYS = new Set(Object.values(SPECIAL_KEYS));
+// Leading command flags accepted by mpv's input/cmd.c, before the command name.
+const MPV_COMMAND_PREFIXES =
+  /^(?:(?:no-osd|osd-bar|osd-msg|osd-msg-bar|osd-auto|expand-properties|raw|repeatable|nonrepeatable|nonscalable|async|sync)\s+)+/;
 
 // Only single keyboard strokes are imported. Mouse input and sequences need
 // their own focus and conflict rules before they can be forwarded safely.
@@ -81,7 +84,7 @@ export function parseMpvInputBindingKeys(value: unknown): string[] {
       owner === 'subminer' ||
       (owner === undefined &&
         /^(?:script-binding\s+["']?subminer\/|script-message\s+["']?subminer-)/.test(
-          entry.cmd.trimStart(),
+          entry.cmd.trimStart().replace(MPV_COMMAND_PREFIXES, ''),
         ));
     const previous = bindings.get(key);
     // mpv's reported priority already ranks active non-weak bindings above weak

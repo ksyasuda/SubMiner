@@ -88,3 +88,18 @@ test('SubMiner ownership excludes only its script commands and respects explicit
     ['a', 'b', 'c', 'd'],
   );
 });
+
+test('SubMiner ownership recognizes leading mpv prefixes without matching command arguments', () => {
+  assert.deepEqual(
+    parseMpvInputBindingKeys([
+      { key: 'a', cmd: 'no-osd script-binding subminer/action', priority: 1 },
+      { key: 'b', cmd: '  repeatable\tasync raw script-binding "subminer/action"', priority: 1 },
+      { key: 'c', cmd: 'osd-msg-bar sync script-message subminer-toggle', priority: 1 },
+      { key: 'd', cmd: 'no-osd show-text "script-binding subminer/action"', priority: 1 },
+      { key: 'e', cmd: 'show-text "no-osd script-binding subminer/action"', priority: 1 },
+      { key: 'f', cmd: 'no-osd script-binding other/action', priority: 1 },
+      { key: 'g', cmd: 'no-osd script-binding subminer/action', owner: 'other', priority: 1 },
+    ]),
+    ['d', 'e', 'f', 'g'],
+  );
+});
