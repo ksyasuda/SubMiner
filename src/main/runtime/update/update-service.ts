@@ -7,6 +7,8 @@ import { compareSemverLike, parseReleaseVersion } from './release-assets';
 export interface UpdateState {
   lastAutomaticCheckAt?: number;
   lastNotifiedVersion?: string;
+  // Legacy launcher the last update left for the next app start to migrate.
+  pendingLauncherMigrationPath?: string;
 }
 
 export type UpdateCheckSource = 'manual' | 'automatic' | 'launcher';
@@ -54,7 +56,7 @@ export interface UpdateServiceDeps {
     launcherPath?: string,
     channel?: UpdateChannel,
     release?: GitHubRelease | null,
-  ) => Promise<{ status: string; command?: string }>;
+  ) => Promise<{ status: string; command?: string; path?: string; deferred?: boolean }>;
   showNoUpdateDialog: (version: string) => Promise<void>;
   showUpdateAvailableDialog: (version: string) => Promise<'update' | 'close'>;
   showUpdateFailedDialog: (message: string) => Promise<void>;
@@ -189,6 +191,9 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       if (launcherResult.status === 'protected' && launcherResult.command) {
         deps.log(`Launcher update requires manual command: ${launcherResult.command}`);
       }
+      if (launcherResult.deferred && launcherResult.path) {
+        await deps.writeState({ ...state, pendingLauncherMigrationPath: launcherResult.path });
+      }
 
       if (!appUpdateApplied) {
         await deps.showManualUpdateRequiredDialog(latest.version);
@@ -235,6 +240,18 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       }, pollIntervalMs);
     },
   };
+}
+
+// One-shot handoff: the path is cleared on read so a launcher the user replaced
+// with a custom script is not retried on every start.
+export async function takePendingLauncherMigrationPath(store: {
+  readState: () => Promise<UpdateState>;
+  writeState: (state: UpdateState) => Promise<void>;
+}): Promise<string | undefined> {
+  const { pendingLauncherMigrationPath, ...rest } = await store.readState();
+  if (!pendingLauncherMigrationPath) return undefined;
+  await store.writeState(rest);
+  return pendingLauncherMigrationPath;
 }
 
 export function createFileUpdateStateStore(statePath: string): {

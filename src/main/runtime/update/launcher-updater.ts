@@ -24,6 +24,8 @@ export interface LauncherUpdateResult {
   path?: string;
   command?: string;
   message?: string;
+  // Set when a writable legacy launcher was left for app startup to migrate.
+  deferred?: boolean;
 }
 
 export interface LauncherUpdateFileSystem {
@@ -128,6 +130,7 @@ export async function updateLauncherAtPath(options: {
       status: 'skipped',
       path: options.launcherPath,
       message: 'Launcher migration is deferred until the updated SubMiner app starts.',
+      deferred: true,
     };
   }
 

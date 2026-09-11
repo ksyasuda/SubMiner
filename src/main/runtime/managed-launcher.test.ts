@@ -148,9 +148,50 @@ test('app upgrades refresh payloads, migrate legacy Bun launchers, and preserve 
   fs.writeFileSync(path.join(bin, 'subminer'), '#!/usr/bin/env bun\n// SubMiner launcher\n');
   await refreshManagedCommandLineLauncher({ ...options, appVersion: '3' });
   assert.match(fs.readFileSync(path.join(bin, 'subminer'), 'utf8'), /SubMiner managed launcher/);
+  const deferred = path.join(root, 'custom', 'subminer');
+  fs.mkdirSync(path.dirname(deferred));
+  fs.writeFileSync(deferred, '#!/usr/bin/env bun\n// SubMiner launcher\n');
+  await refreshManagedCommandLineLauncher({
+    ...options,
+    appVersion: '3',
+    additionalLauncherPaths: [deferred],
+  });
+  assert.match(fs.readFileSync(deferred, 'utf8'), /SubMiner managed launcher/);
   fs.writeFileSync(path.join(bin, 'subminer'), '#!/bin/sh\necho standalone\n');
   await refreshManagedCommandLineLauncher({ ...options, appVersion: '4' });
   assert.equal(fs.readFileSync(payload.versionPath, 'utf8'), '3');
+});
+
+test('Windows startup never rewrites the batch launcher that started the app', async () => {
+  const programs = 'C:\\Users\\tester\\AppData\\Local\\Programs\\SubMiner';
+  const installPath = 'C:\\Users\\tester\\AppData\\Local\\SubMiner\\bin\\subminer.cmd';
+  const writes: string[] = [];
+  const options = {
+    platform: 'win32' as const,
+    localAppData: 'C:\\Users\\tester\\AppData\\Local',
+    appVersion: '1.2.3',
+    appExePath: `${programs}\\SubMiner.exe`,
+    bundledBunPath: `${programs}\\resources\\bun\\bun.exe`,
+    launcherResourcePath: `${programs}\\resources\\launcher\\subminer.js`,
+    existsSync: (candidate: string) => !candidate.includes('licenses'),
+    accessSync: () => {},
+    mkdirSync: () => undefined,
+    copyFileSync: () => {},
+    readFileSync: () =>
+      managedLauncherContent({ platform: 'win32', appPath: 'D:\\Old\\SubMiner.exe' }),
+    writeFileSync: (candidate: string) => {
+      writes.push(candidate);
+    },
+  };
+
+  await refreshManagedCommandLineLauncher({
+    ...options,
+    env: { SUBMINER_LAUNCHER_PATH: installPath.toUpperCase() },
+  });
+  assert.deepEqual(writes, []);
+
+  await refreshManagedCommandLineLauncher({ ...options, env: {} });
+  assert.deepEqual(writes, [installPath]);
 });
 
 test('Windows wrapper discovers the configured app and its versioned private runtime', () => {

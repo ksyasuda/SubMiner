@@ -188,6 +188,7 @@ test('GUI updates defer recognized standalone launcher migration to app startup'
     status: 'skipped',
     path: '/home/tester/.local/bin/subminer',
     message: 'Launcher migration is deferred until the updated SubMiner app starts.',
+    deferred: true,
   });
   assert.deepEqual(accessed, ['/home/tester/.local/bin/subminer', '/home/tester/.local/bin']);
   assert.equal(downloaded, false);

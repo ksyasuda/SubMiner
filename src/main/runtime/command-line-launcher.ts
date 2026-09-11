@@ -546,14 +546,26 @@ export async function installBun(
   };
 }
 
+// Runs at app startup. Migrates recognized launchers in the standard bin dirs,
+// the setup install target, and any paths a deferred update handed over.
 export async function refreshManagedCommandLineLauncher(
-  options: CommonOptions & WindowsPathOptions,
+  options: CommonOptions & WindowsPathOptions & { additionalLauncherPaths?: string[] },
 ): Promise<void> {
   if (!options.bundledBunPath) return;
   const target = await resolveLauncherInstallTarget(options);
   const platform = platformOf(options);
+  const platformPath = pathModuleFor(platform);
+  // cmd.exe reads a batch file incrementally while it runs, so the launcher that
+  // started this app is left alone until a later app start rewrites it.
+  const runningLauncherPath =
+    platform === 'win32' ? envOf(options).SUBMINER_LAUNCHER_PATH : undefined;
+  const isRunningLauncher = (candidate: string) =>
+    runningLauncherPath !== undefined &&
+    platformPath.normalize(candidate).toLowerCase() ===
+      platformPath.normalize(runningLauncherPath).toLowerCase();
   const candidates = new Set([
     ...(target.installPath ? [target.installPath] : []),
+    ...(options.additionalLauncherPaths ?? []),
     ...(platform === 'win32'
       ? []
       : preferredLauncherDirs(platform, options.homeDir ?? os.homedir()).map((directory) =>
@@ -563,7 +575,7 @@ export async function refreshManagedCommandLineLauncher(
   const readFile = options.readFileSync ?? fs.readFileSync;
   let payload: ReturnType<typeof stageManagedLauncher> | undefined;
   for (const candidate of candidates) {
-    if (!existsSyncOf(options)(candidate)) continue;
+    if (isRunningLauncher(candidate) || !existsSyncOf(options)(candidate)) continue;
     const existing = String(readFile(candidate, 'utf8'));
     const legacy =
       (existing.startsWith('#!/usr/bin/env bun\n') &&

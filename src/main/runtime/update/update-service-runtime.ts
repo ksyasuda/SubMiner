@@ -19,7 +19,11 @@ import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy
 import { updateLauncherFromRelease } from './launcher-updater';
 import { notifyUpdateAvailable } from './update-notifications';
 import { createUpdateDialogPresenter } from './update-dialogs';
-import { createFileUpdateStateStore, createUpdateService } from './update-service';
+import {
+  createFileUpdateStateStore,
+  createUpdateService,
+  takePendingLauncherMigrationPath,
+} from './update-service';
 import { updateSupportAssetsFromRelease } from './support-assets';
 import { runSupportAssetUpdatesForLauncherResult } from './update-support-assets-runtime';
 
@@ -38,6 +42,7 @@ export interface UpdateServiceRuntimeDeps {
 
 export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
   getUpdateService: () => ReturnType<typeof createUpdateService>;
+  takePendingLauncherMigrationPath: () => Promise<string | undefined>;
 } {
   const updateStateStore = createFileUpdateStateStore(
     path.join(deps.userDataPath, 'update-state.json'),
@@ -188,5 +193,8 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
     return updateService;
   }
 
-  return { getUpdateService };
+  return {
+    getUpdateService,
+    takePendingLauncherMigrationPath: () => takePendingLauncherMigrationPath(updateStateStore),
+  };
 }

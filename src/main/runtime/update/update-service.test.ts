@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy';
-import { createUpdateService, type UpdateServiceDeps, type UpdateState } from './update-service';
+import {
+  createUpdateService,
+  takePendingLauncherMigrationPath,
+  type UpdateServiceDeps,
+  type UpdateState,
+} from './update-service';
 
 function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
   let state: UpdateState = {};
@@ -487,4 +492,44 @@ test('manual update check keeps current prerelease builds on configured stable c
 
   assert.equal(result.status, 'up-to-date');
   assert.deepEqual(calls, ['app:stable', 'fetch:stable', 'no-update:0.15.0-beta.3']);
+});
+
+test('deferred launcher migration is persisted for the next app start', async () => {
+  const launcherPath = '/home/tester/.local/bin/subminer';
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+    fetchLatestStableRelease: async () => ({
+      tag_name: 'v0.15.0',
+      prerelease: false,
+      draft: false,
+      assets: [],
+    }),
+    showUpdateAvailableDialog: async () => 'update',
+    updateLauncher: async () => ({ status: 'skipped', path: launcherPath, deferred: true }),
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual', launcherPath });
+
+  assert.equal(result.status, 'updated');
+  assert.ok(
+    calls.includes(`state:${JSON.stringify({ pendingLauncherMigrationPath: launcherPath })}`),
+  );
+});
+
+test('takePendingLauncherMigrationPath hands the path over exactly once', async () => {
+  let state: UpdateState = {
+    lastNotifiedVersion: '0.15.0',
+    pendingLauncherMigrationPath: '/x/subminer',
+  };
+  const store = {
+    readState: async () => state,
+    writeState: async (nextState: UpdateState) => {
+      state = nextState;
+    },
+  };
+
+  assert.equal(await takePendingLauncherMigrationPath(store), '/x/subminer');
+  assert.deepEqual(state, { lastNotifiedVersion: '0.15.0' });
+  assert.equal(await takePendingLauncherMigrationPath(store), undefined);
 });

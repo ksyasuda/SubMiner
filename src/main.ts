@@ -5296,7 +5296,7 @@ const { getChangelogSnapshot } = createChangelogRuntime({
   logWarn: (message) => logger.warn(message),
 });
 
-const { getUpdateService } = createUpdateServiceRuntime({
+const { getUpdateService, takePendingLauncherMigrationPath } = createUpdateServiceRuntime({
   userDataPath: USER_DATA_PATH,
   getUpdatesConfig: () => configService.getConfig().updates,
   logInfo: (message) => logger.info(message),
@@ -6254,11 +6254,16 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
-  void refreshManagedCommandLineLauncher(createCommandLineLauncherRuntimeOptions()).catch(
-    (error) => {
+  void takePendingLauncherMigrationPath()
+    .then((pendingLauncherPath) =>
+      refreshManagedCommandLineLauncher({
+        ...createCommandLineLauncherRuntimeOptions(),
+        additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
+      }),
+    )
+    .catch((error) => {
       logger.warn('Failed to refresh the installed command-line launcher', error);
-    },
-  );
+    });
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }
