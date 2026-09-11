@@ -46,6 +46,6 @@ See the README and docs/installation guide for full setup steps.
 - Linux: `SubMiner.AppImage`
 - macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`
 - Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`
-- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher
+- Optional extras: `subminer-assets.tar.gz`, the `subminer` launcher, and the Windows `subminer.cmd` launcher
 
-Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.
+Both launcher downloads use Bun included with the SubMiner app. Download `subminer` on Linux or macOS and `subminer.cmd` on Windows.
