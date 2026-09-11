@@ -6254,16 +6254,15 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
-  void takePendingLauncherMigrationPath()
-    .then((pendingLauncherPath) =>
-      refreshManagedCommandLineLauncher({
-        ...createCommandLineLauncherRuntimeOptions(),
-        additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
-      }),
-    )
-    .catch((error) => {
-      logger.warn('Failed to refresh the installed command-line launcher', error);
+  void takePendingLauncherMigrationPath(async (pendingLauncherPath) => {
+    const acknowledgedPaths = await refreshManagedCommandLineLauncher({
+      ...createCommandLineLauncherRuntimeOptions(),
+      additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
     });
+    return pendingLauncherPath !== undefined && acknowledgedPaths.includes(pendingLauncherPath);
+  }).catch((error) => {
+    logger.warn('Failed to refresh the installed command-line launcher', error);
+  });
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }

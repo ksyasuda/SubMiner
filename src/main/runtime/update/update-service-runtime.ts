@@ -42,7 +42,9 @@ export interface UpdateServiceRuntimeDeps {
 
 export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
   getUpdateService: () => ReturnType<typeof createUpdateService>;
-  takePendingLauncherMigrationPath: () => Promise<string | undefined>;
+  takePendingLauncherMigrationPath: (
+    refresh: Parameters<typeof takePendingLauncherMigrationPath>[1],
+  ) => Promise<string | undefined>;
 } {
   const updateStateStore = createFileUpdateStateStore(
     path.join(deps.userDataPath, 'update-state.json'),
@@ -158,8 +160,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
       getConfig: () => deps.getUpdatesConfig(),
       getCurrentVersion: () => app.getVersion(),
       now: () => Date.now(),
-      readState: () => updateStateStore.readState(),
-      writeState: (state) => updateStateStore.writeState(state),
+      stateStore: updateStateStore,
       checkAppUpdate: (channel) => appUpdater.checkForUpdates(channel),
       shouldFetchReleaseMetadata: ({ request, appUpdate }) =>
         shouldFetchReleaseMetadataForPlatform(process.platform, appUpdate, request),
@@ -195,6 +196,7 @@ export function createUpdateServiceRuntime(deps: UpdateServiceRuntimeDeps): {
 
   return {
     getUpdateService,
-    takePendingLauncherMigrationPath: () => takePendingLauncherMigrationPath(updateStateStore),
+    takePendingLauncherMigrationPath: (refresh) =>
+      takePendingLauncherMigrationPath(updateStateStore, refresh),
   };
 }

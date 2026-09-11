@@ -548,10 +548,11 @@ export async function installBun(
 
 // Runs at app startup. Migrates recognized launchers in the standard bin dirs,
 // the setup install target, and any paths a deferred update handed over.
+// Returns paths that were refreshed or are no longer eligible for migration.
 export async function refreshManagedCommandLineLauncher(
   options: CommonOptions & WindowsPathOptions & { additionalLauncherPaths?: string[] },
-): Promise<void> {
-  if (!options.bundledBunPath) return;
+): Promise<string[]> {
+  if (!options.bundledBunPath) return [];
   const target = await resolveLauncherInstallTarget(options);
   const platform = platformOf(options);
   const platformPath = pathModuleFor(platform);
@@ -573,10 +574,20 @@ export async function refreshManagedCommandLineLauncher(
         )),
   ]);
   const readFile = options.readFileSync ?? fs.readFileSync;
+  const acknowledgedPaths: string[] = [];
   let payload: ReturnType<typeof stageManagedLauncher> | undefined;
   for (const candidate of candidates) {
-    if (isRunningLauncher(candidate) || !existsSyncOf(options)(candidate)) continue;
-    const existing = String(readFile(candidate, 'utf8'));
+    if (isRunningLauncher(candidate)) continue;
+    if (!existsSyncOf(options)(candidate)) {
+      acknowledgedPaths.push(candidate);
+      continue;
+    }
+    let existing: string;
+    try {
+      existing = String(readFile(candidate, 'utf8'));
+    } catch {
+      continue;
+    }
     const legacy =
       (existing.startsWith('#!/usr/bin/env bun\n') &&
         (existing.includes('SubMiner launcher') ||
@@ -587,7 +598,10 @@ export async function refreshManagedCommandLineLauncher(
             options.appExePath ?? process.execPath,
             resolveLauncherResourcePath(options).replace(/subminer\.js$/, 'subminer'),
           ));
-    if (!isManagedLauncher(existing) && !legacy) continue;
+    if (!isManagedLauncher(existing) && !legacy) {
+      acknowledgedPaths.push(candidate);
+      continue;
+    }
     if (!isWritableDir(pathModuleFor(platform).dirname(candidate), options)) continue;
     try {
       accessSyncOf(options)(candidate, fs.constants.W_OK);
@@ -604,8 +618,10 @@ export async function refreshManagedCommandLineLauncher(
       appPath: envOf(options).APPIMAGE ?? options.appExePath ?? process.execPath,
     });
     if (existing !== content) (options.writeFileSync ?? fs.writeFileSync)(candidate, content);
+    acknowledgedPaths.push(candidate);
   }
   if (platform === 'win32' && payload) cleanupOldWindowsManagedRuntimes(options);
+  return acknowledgedPaths;
 }
 
 export async function detectCommandLineLauncher(

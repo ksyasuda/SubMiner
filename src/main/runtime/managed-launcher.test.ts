@@ -5,6 +5,11 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import test from 'node:test';
 import {
+  createUpdateStateStore,
+  takePendingLauncherMigrationPath,
+  type UpdateState,
+} from './update/update-service';
+import {
   detectBun,
   installBun,
   installLauncher,
@@ -151,14 +156,22 @@ test('app upgrades refresh payloads, migrate legacy Bun launchers, and preserve 
   const deferred = path.join(root, 'custom', 'subminer');
   fs.mkdirSync(path.dirname(deferred));
   fs.writeFileSync(deferred, '#!/usr/bin/env bun\n// SubMiner launcher\n');
-  await refreshManagedCommandLineLauncher({
+  const unreadable = path.join(root, 'unreadable');
+  fs.mkdirSync(unreadable);
+  const acknowledged = await refreshManagedCommandLineLauncher({
     ...options,
     appVersion: '3',
-    additionalLauncherPaths: [deferred],
+    additionalLauncherPaths: [unreadable, deferred],
   });
+  assert.ok(!acknowledged.includes(unreadable));
+  assert.ok(acknowledged.includes(deferred));
   assert.match(fs.readFileSync(deferred, 'utf8'), /SubMiner managed launcher/);
   fs.writeFileSync(path.join(bin, 'subminer'), '#!/bin/sh\necho standalone\n');
-  await refreshManagedCommandLineLauncher({ ...options, appVersion: '4' });
+  const customAcknowledged = await refreshManagedCommandLineLauncher({
+    ...options,
+    appVersion: '4',
+  });
+  assert.ok(customAcknowledged.includes(path.join(bin, 'subminer')));
   assert.equal(fs.readFileSync(payload.versionPath, 'utf8'), '3');
 });
 
@@ -166,6 +179,13 @@ test('Windows startup never rewrites the batch launcher that started the app', a
   const programs = 'C:\\Users\\tester\\AppData\\Local\\Programs\\SubMiner';
   const installPath = 'C:\\Users\\tester\\AppData\\Local\\SubMiner\\bin\\subminer.cmd';
   const writes: string[] = [];
+  let state: UpdateState = { pendingLauncherMigrationPath: installPath };
+  const store = createUpdateStateStore({
+    readState: async () => state,
+    writeState: async (nextState) => {
+      state = nextState;
+    },
+  });
   const options = {
     platform: 'win32' as const,
     localAppData: 'C:\\Users\\tester\\AppData\\Local',
@@ -184,14 +204,28 @@ test('Windows startup never rewrites the batch launcher that started the app', a
     },
   };
 
-  await refreshManagedCommandLineLauncher({
-    ...options,
-    env: { SUBMINER_LAUNCHER_PATH: installPath.toUpperCase() },
+  await takePendingLauncherMigrationPath(store, async (pendingPath) => {
+    const acknowledged = await refreshManagedCommandLineLauncher({
+      ...options,
+      additionalLauncherPaths: pendingPath ? [pendingPath] : [],
+      env: { SUBMINER_LAUNCHER_PATH: installPath.toUpperCase() },
+    });
+    return pendingPath !== undefined && acknowledged.includes(pendingPath);
   });
   assert.deepEqual(writes, []);
+  assert.equal(state.pendingLauncherMigrationPath, installPath);
 
-  await refreshManagedCommandLineLauncher({ ...options, env: {} });
+  await takePendingLauncherMigrationPath(store, async (pendingPath) => {
+    const acknowledged = await refreshManagedCommandLineLauncher({
+      ...options,
+      additionalLauncherPaths: pendingPath ? [pendingPath] : [],
+      env: {},
+    });
+    assert.equal(state.pendingLauncherMigrationPath, installPath);
+    return pendingPath !== undefined && acknowledged.includes(pendingPath);
+  });
   assert.deepEqual(writes, [installPath]);
+  assert.equal(state.pendingLauncherMigrationPath, undefined);
 });
 
 test('Windows wrapper discovers the configured app and its versioned private runtime', () => {
