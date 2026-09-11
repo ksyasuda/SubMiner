@@ -378,6 +378,10 @@ windowrule = no_blur on, match:class SubMiner
 
 If you still see a solid background or visual artifacts instead of the mpv video underneath, the culprit is almost always a global opacity/blur rule applying to the overlay - the `opaque`/`opacity` and `no_blur` fields above override it.
 
+**Application Not Responding dialog covered by the overlay**
+
+SubMiner keeps visible Hyprland system dialogs above its windows on the same workspace when updating overlay placement. This lets you click the recovery dialog even while the overlay accepts mouse input. If the whole SubMiner process is frozen, use Hyprland's window-focus bindings to reach the dialog; SubMiner cannot update window order until it resumes.
+
 **Global shortcuts not working**
 
 On Hyprland, Electron cannot register global shortcuts on its own. You must explicitly pass keybindings to SubMiner using `pass` rules:
