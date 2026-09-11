@@ -83,6 +83,7 @@ export interface MainIpcRuntimeServiceDepsParams {
   getMecabTokenizer: IpcDepsRuntimeOptions['getMecabTokenizer'];
   handleMpvCommand: IpcDepsRuntimeOptions['handleMpvCommand'];
   getKeybindings: IpcDepsRuntimeOptions['getKeybindings'];
+  getMpvInputBindings?: IpcDepsRuntimeOptions['getMpvInputBindings'];
   getSessionBindings: IpcDepsRuntimeOptions['getSessionBindings'];
   getConfiguredShortcuts: IpcDepsRuntimeOptions['getConfiguredShortcuts'];
   dispatchSessionAction: IpcDepsRuntimeOptions['dispatchSessionAction'];
@@ -280,6 +281,7 @@ export function createMainIpcRuntimeServiceDeps(
     getMecabTokenizer: params.getMecabTokenizer,
     handleMpvCommand: params.handleMpvCommand,
     getKeybindings: params.getKeybindings,
+    getMpvInputBindings: params.getMpvInputBindings,
     getSessionBindings: params.getSessionBindings,
     getConfiguredShortcuts: params.getConfiguredShortcuts,
     dispatchSessionAction: params.dispatchSessionAction,

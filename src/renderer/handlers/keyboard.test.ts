@@ -6,6 +6,7 @@ import test from 'node:test';
 import { createKeyboardHandlers } from './keyboard.js';
 import { createRendererState } from '../state.js';
 import type { CompiledSessionBinding } from '../../types';
+import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import { DEFAULT_KEYBINDINGS, SPECIAL_COMMANDS } from '../../config/definitions';
 import { compileSessionBindings } from '../../core/services/session-bindings';
 import type { ConfiguredShortcuts } from '../../core/utils/shortcut-config';
@@ -115,6 +116,10 @@ function installKeyboardTestGlobals() {
   const sessionActions: Array<{ actionId: string; payload?: unknown }> = [];
   const interactionActivations: string[] = [];
   let sessionBindings: CompiledSessionBinding[] = [];
+  let getMpvInputBindings: () => Promise<MpvInputBindingsSnapshot> = async () => ({
+    keys: [],
+    blockedKeys: [],
+  });
   let getSessionBindingsImpl: () => Promise<CompiledSessionBinding[]> = async () => sessionBindings;
   let playbackPausedResponse: boolean | null = false;
   let statsToggleKey = 'Backquote';
@@ -238,6 +243,7 @@ function installKeyboardTestGlobals() {
       },
       electronAPI: {
         getKeybindings: async () => [],
+        getMpvInputBindings: () => getMpvInputBindings(),
         getSessionBindings: () => getSessionBindingsImpl(),
         getConfiguredShortcuts: async () => configuredShortcuts,
         sendMpvCommand: (command: Array<string | number>) => {
@@ -308,6 +314,7 @@ function installKeyboardTestGlobals() {
     altKey?: boolean;
     shiftKey?: boolean;
     repeat?: boolean;
+    target?: unknown;
   }): void {
     const listeners = documentListeners.get('keydown') ?? [];
     const keyboardEvent = {
@@ -319,7 +326,7 @@ function installKeyboardTestGlobals() {
       shiftKey: event.shiftKey ?? false,
       repeat: event.repeat ?? false,
       preventDefault: () => {},
-      target: null,
+      target: event.target ?? null,
     };
     for (const listener of listeners) {
       listener(keyboardEvent);
@@ -369,6 +376,7 @@ function installKeyboardTestGlobals() {
   }
 
   function restore() {
+    dispatchWindowEvent('beforeunload');
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
     Object.defineProperty(globalThis, 'MutationObserver', {
@@ -420,6 +428,9 @@ function installKeyboardTestGlobals() {
     },
     setConfiguredShortcuts: (value: typeof configuredShortcuts) => {
       configuredShortcuts = value;
+    },
+    setGetMpvInputBindings: (value: typeof getMpvInputBindings) => {
+      getMpvInputBindings = value;
     },
     setSessionBindings: (value: CompiledSessionBinding[]) => {
       sessionBindings = value;
@@ -2303,6 +2314,69 @@ test('mark-watched keybinding does not send mpv commands when no active session'
     assert.equal(testGlobals.markActiveVideoWatchedCalls() > 0, true);
     const newMpvCommands = testGlobals.mpvCommands.slice(beforeMpvCount);
     assert.deepEqual(newMpvCommands, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('discovered mpv keys only run after SubMiner controls and stay out of session help', async () => {
+  const { handlers, testGlobals, ctx } = createKeyboardHandlerHarness();
+  try {
+    testGlobals.setGetMpvInputBindings(async () => ({
+      keys: ['r', 'SPACE', 'y', 'v'],
+      blockedKeys: [],
+    }));
+    testGlobals.setSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Space',
+        key: { code: 'Space', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['cycle', 'pause'],
+      },
+    ]);
+    await handlers.setupMpvInputForwarding();
+    await wait(0);
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR' });
+    testGlobals.dispatchKeydown({ key: ' ', code: 'Space' });
+    assert.deepEqual(testGlobals.mpvCommands, [
+      ['keydown', 'r'],
+      ['cycle', 'pause'],
+    ]);
+    assert.equal(ctx.state.sessionBindings.length, 1);
+    testGlobals.dispatchWindowEvent('blur');
+    const before = testGlobals.mpvCommands.length;
+    ctx.state.playlistBrowserModalOpen = true;
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR' });
+    ctx.state.playlistBrowserModalOpen = false;
+    ctx.state.yomitanPopupVisible = true;
+    testGlobals.setPopupVisible(true);
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR' });
+    ctx.state.yomitanPopupVisible = false;
+    testGlobals.setPopupVisible(false);
+    testGlobals.dispatchKeydown({ key: 'r', code: 'KeyR', target: { closest: () => ({}) } });
+    assert.equal(testGlobals.mpvCommands.length, before);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('stalled mpv discovery does not delay configured overlay controls', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  try {
+    testGlobals.setGetMpvInputBindings(() => new Promise(() => {}));
+    testGlobals.setSessionBindings([
+      {
+        sourcePath: 'keybindings[0].key',
+        originalKey: 'Space',
+        key: { code: 'Space', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['cycle', 'pause'],
+      },
+    ]);
+    await handlers.setupMpvInputForwarding();
+    testGlobals.dispatchKeydown({ key: ' ', code: 'Space' });
+    assert.deepEqual(testGlobals.mpvCommands, [['cycle', 'pause']]);
   } finally {
     testGlobals.restore();
   }

@@ -1323,3 +1323,18 @@ test('registerIpcHandlers exposes character dictionary selection handlers', asyn
   assert.deepEqual(calls, [21355]);
   assert.deepEqual(searches, ['Re:ZERO']);
 });
+
+test('mpv discovery has its own request and does not change session bindings', async () => {
+  const { registrar, handlers } = createFakeIpcRegistrar();
+  const snapshot = { keys: ['r'], blockedKeys: [] };
+  registerIpcHandlers(
+    createRegisterIpcDeps({ getMpvInputBindings: async () => snapshot }),
+    registrar,
+  );
+  const discovery = handlers.handle.get(IPC_CHANNELS.request.getMpvInputBindings);
+  const session = handlers.handle.get(IPC_CHANNELS.request.getSessionBindings);
+  assert.ok(discovery);
+  assert.ok(session);
+  assert.deepEqual(await discovery({}), snapshot);
+  assert.deepEqual(await session({}), []);
+});

@@ -61,6 +61,7 @@ export const IPC_CHANNELS = {
     getSubtitleStyle: 'get-subtitle-style',
     getMecabStatus: 'get-mecab-status',
     getKeybindings: 'get-keybindings',
+    getMpvInputBindings: 'get-mpv-input-bindings',
     getSessionBindings: 'get-session-bindings',
     getConfigShortcuts: 'get-config-shortcuts',
     getStatsToggleKey: 'get-stats-toggle-key',

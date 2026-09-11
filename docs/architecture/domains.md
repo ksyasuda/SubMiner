@@ -39,6 +39,17 @@ Read when: you need to find the owner module for a behavior or test surface
 
 ## Shared Contract Entry Points
 
+Automatic mpv keyboard discovery uses the `get-mpv-input-bindings` IPC request and
+`MpvInputBindingsSnapshot` in `src/types/session-bindings.ts`.
+`src/main/runtime/mpv-input-bindings.ts` queries the connected player and preserves
+configured keys, including disabled entries. `src/shared/mpv-input-bindings.ts`
+validates discovered keys and translates browser input. The renderer's
+`handlers/mpv-input-forwarding.ts` keeps the session lookup, coalesces asynchronous
+refreshes, and releases held keys on blur or disposal. `handlers/keyboard.ts` runs
+this fallback after SubMiner controls and refreshes on startup, a delayed startup
+pass, focus, and binding reload. Discovery does not enter compiled session bindings,
+the plugin artifact, persistent config, or session help.
+
 The subtitle sidebar consumes parsed cues through `SubtitleSidebarSnapshot`. Its `sourceKey`
 identifies the media and subtitle source so renderer selections are invalidated on source changes,
 including changes whose cue text and timings are identical. Native selection and clean clipboard
