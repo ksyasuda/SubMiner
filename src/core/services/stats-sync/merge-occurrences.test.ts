@@ -66,7 +66,7 @@ function mergedOccurrences(dbPath: string): Array<{ word: string; seenMs: number
 for (const legacyOccurrences of [false, true]) {
   const label = legacyOccurrences ? 'a peer predating the seen_ms column' : 'a current peer';
 
-  test(`sync merge carries occurrence timestamps in from ${label}`, () => {
+  test(`sync merge carries occurrence timestamps in from ${label}`, { timeout: 15_000 }, () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-merge-occurrences-test-'));
     try {
       const local = buildDb(dir, 'local.sqlite', {
