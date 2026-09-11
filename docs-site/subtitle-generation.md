@@ -6,7 +6,7 @@ Generate Japanese SRT subtitles from a local video's audio using [whisper.cpp](h
 
 Install whisper.cpp's `whisper-cli` executable and FFmpeg, including `ffprobe`. SubMiner downloads models, not these executables. Leave `whisperPath`, `ffmpegPath`, and `ffprobePath` empty to find the executables on `PATH`. To use a specific installation, set a path override under **Settings → Integrations → Japanese Subtitle Generation**.
 
-The generation modal checks for these executables under **Local tools** and keeps **Generate subtitles** disabled until every required one is found, naming the missing executable and its setting. Model downloads stay available in the meantime. After installing a tool or changing a path, click **Check again**. The launcher runs the same check before any model download. Generation also confirms the destination directory is writable before extracting audio.
+The generation modal checks for these executables under **Local tools** and keeps **Generate subtitles** disabled until every required one is found, naming the missing executable and its setting. Model downloads stay available in the meantime. After installing a tool or changing a path, click **Check again**. The launcher runs the same check before any model download. Generation also confirms the destination directory grants write and search permissions before extracting audio.
 
 Choose one model source:
 

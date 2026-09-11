@@ -125,9 +125,9 @@ async function ensureAvailableOutput(outputPath: string): Promise<void> {
 }
 
 // Fail before extraction and transcription when the destination cannot take the file.
-async function ensureWritableDirectory(directory: string): Promise<void> {
+export async function ensureWritableDirectory(directory: string): Promise<void> {
   try {
-    await access(directory, constants.W_OK);
+    await access(directory, constants.W_OK | constants.X_OK);
   } catch {
     throw new Error(`Cannot save subtitles: ${directory} is not writable.`);
   }

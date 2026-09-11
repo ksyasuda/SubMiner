@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,6 +11,7 @@ import {
 } from '../../shared/subtitle-generation';
 import {
   downloadSubtitleGenerationModel,
+  ensureWritableDirectory,
   generateJapaneseSubtitles,
   resolveSubtitleGenerationModel,
 } from './subtitle-generation';
@@ -309,6 +311,25 @@ test('generation rejects remote media, missing models, and missing tools before 
     );
     await assert.rejects(readFile(input.callsPath), /ENOENT/);
   }));
+
+test(
+  'directory permission preflight rejects a write-only destination',
+  {
+    skip: process.platform === 'win32' || process.getuid?.() === 0,
+  },
+  () =>
+    fixture(async (directory) => {
+      const writeOnly = path.join(directory, 'write-only');
+      await mkdir(writeOnly);
+      try {
+        await chmod(writeOnly, 0o200);
+        await access(writeOnly, constants.W_OK);
+        await assert.rejects(ensureWritableDirectory(writeOnly), /write-only is not writable/);
+      } finally {
+        await chmod(writeOnly, 0o755);
+      }
+    }),
+);
 
 test(
   'generation rejects an unwritable destination before extracting audio',
