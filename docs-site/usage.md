@@ -12,6 +12,8 @@ On **Windows**, use the **SubMiner mpv** shortcut created during first-run setup
 
 That is the whole setup. The `subminer` launcher starts mpv, opens the IPC socket, and brings up the overlay.
 
+Every current launcher wrapper uses the Bun runtime included with the SubMiner app. This includes setup installs, release downloads, `make install`, and the AUR package. You only need the wrapper directory on your terminal `PATH`. Building SubMiner from source still requires Bun on the development machine.
+
 > [!IMPORTANT]
 > SubMiner requires the bundled Yomitan instance to have at least one dictionary imported for lookups to work.
 > See [Yomitan setup](#yomitan-setup) for details.
@@ -74,7 +76,7 @@ subminer app --setup              # Re-open first-run setup
 subminer -u                       # Check for updates
 ```
 
-On **Windows** there is no `subminer` launcher. Use the **SubMiner mpv** shortcut for playback (see [Windows mpv Shortcut](#windows-mpv-shortcut)), and run `SubMiner.exe` directly for everything else.
+On **Windows**, first-run setup can install the optional `subminer` terminal wrapper. Use the **SubMiner mpv** shortcut for playback (see [Windows mpv Shortcut](#windows-mpv-shortcut)), or use `subminer` and `SubMiner.exe` from a terminal.
 
 Two flags are worth knowing early:
 
@@ -212,6 +214,7 @@ Setup flow:
 - legacy plugin cleanup: remove detected older global SubMiner mpv plugin files if present (the bundled plugin is injected at runtime automatically)
 - Yomitan shortcut: open bundled Yomitan settings directly from the setup window
 - dictionary check: confirm at least one bundled Yomitan dictionary is present, unless an external Yomitan profile is configured
+- command line launcher: optionally install or reinstall the managed `subminer` wrapper. Reinstall it to migrate an older launcher or after moving a macOS or Windows app install.
 - Windows: optionally create or remove `SubMiner mpv` Start Menu/Desktop shortcuts (`SubMiner.exe --launch-mpv`)
 - Windows: optionally set `mpv.executablePath` if `mpv.exe` is not on `PATH`
 - refresh: re-check dictionary state without restarting

@@ -977,9 +977,12 @@ function renderReleaseNotes(
     '- Linux: `SubMiner.AppImage`',
     '- macOS: `SubMiner-*.dmg` and `SubMiner-*.zip`',
     '- Windows: `SubMiner-*.exe` and `SubMiner-*-win.zip`',
-    '- Optional extras: `subminer-assets.tar.gz` and the `subminer` launcher',
+    '- Optional extras: `subminer-assets.tar.gz`, the `subminer` launcher, and the Windows `subminer.cmd` launcher',
+    '- Bun corresponding source: `bun-v1.3.5-source.tar.gz` and its `.sha256` file',
     '',
-    'Note: the `subminer` wrapper script uses Bun (`#!/usr/bin/env bun`), so `bun` must be installed and on `PATH`.',
+    'Both launcher downloads use Bun included with the SubMiner app. Download `subminer` on Linux or macOS and `subminer.cmd` on Windows.',
+    '',
+    'The app bundles an unmodified Bun 1.3.5 runtime. Bun is MIT licensed and statically links JavaScriptCore (LGPL 2.0) and TinyCC (LGPL 2.1). License texts and third-party notices ship inside the app under `resources/bun/licenses`, and the source archive above contains the matching Bun, WebKit, and dependency sources for relinking.',
     '',
   ].join('\n');
 }

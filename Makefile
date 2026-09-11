@@ -160,14 +160,8 @@ build-macos-unsigned: deps
 	@bun run build:mac:unsigned
 
 build-launcher:
-	@printf '%s\n' "[INFO] Bundling launcher script"
-	@install -d "$(dir $(LAUNCHER_OUT))"
-	@bun build ./launcher/main.ts --target=bun --packages=bundle --outfile="$(LAUNCHER_OUT)"
-	@if ! head -1 "$(LAUNCHER_OUT)" | grep -q '^#!/usr/bin/env bun'; then \
-		{ printf '#!/usr/bin/env bun\n'; cat "$(LAUNCHER_OUT)"; } > "$(LAUNCHER_OUT).tmp" && mv "$(LAUNCHER_OUT).tmp" "$(LAUNCHER_OUT)"; \
-	fi
-	@chmod +x "$(LAUNCHER_OUT)"
-	@printf '%s\n' "[INFO] Launcher artifact: $(LAUNCHER_OUT)"
+	@printf '%s\n' "[INFO] Building launcher runtime artifacts"
+	@bun run build:launcher
 
 clean:
 	@printf '%s\n' "[INFO] Removing build artifacts"

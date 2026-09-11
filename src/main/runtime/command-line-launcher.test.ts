@@ -91,43 +91,54 @@ test('resolveBunInstallCommand prefers winget on Windows', () => {
 test('default runCommand preserves Windows cmd metacharacter args', async (t) => {
   if (process.platform !== 'win32') return;
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-cmd-args-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer cmd & 100% ! '));
   const scriptPath = path.join(tempDir, 'argv.cmd');
-  const outputPath = path.join(tempDir, 'argv.txt');
+  const argvScriptPath = path.join(tempDir, 'argv.js');
   t.after(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+  fs.writeFileSync(
+    argvScriptPath,
+    'process.stdout.write(JSON.stringify(process.argv.slice(2)));',
+    'utf8',
+  );
   fs.writeFileSync(
     scriptPath,
     [
       '@echo off',
       'setlocal DisableDelayedExpansion',
-      '> "%SUBMINER_ARGV_OUT%" (',
-      '  echo 1=%~1',
-      '  echo 2=%~2',
-      '  echo 3=%~3',
-      '  echo 4=%~4',
-      '  echo 5=%~5',
-      '  echo 6=%~6',
-      ')',
+      '"%SUBMINER_TEST_RUNTIME%" "%SUBMINER_ARGV_SCRIPT%" %*',
+      'exit /b %errorlevel%',
       '',
     ].join('\r\n'),
     'utf8',
   );
 
-  const result = await getRunCommand({})(
-    scriptPath,
-    ['plain', 'has space', 'a&b', 'x|y', 'p%PATH%q', 'bang!z'],
-    {
-      env: { ...process.env, SUBMINER_ARGV_OUT: outputPath },
+  const args = [
+    'plain',
+    'has space',
+    'a&b',
+    'x|y',
+    'p%TEMP%q',
+    'bang!z',
+    'caret^z',
+    '<left>',
+    'say "hi"',
+    'slash\\"quote',
+    'trailing\\',
+    '',
+    '日本語',
+  ];
+  const result = await getRunCommand({})(scriptPath, args, {
+    env: {
+      ...process.env,
+      SUBMINER_ARGV_SCRIPT: argvScriptPath,
+      SUBMINER_TEST_RUNTIME: process.execPath,
     },
-  );
+  });
 
   assert.equal(result.exitCode, 0, result.stderr);
-  assert.equal(
-    fs.readFileSync(outputPath, 'utf8'),
-    ['1=plain', '2=has space', '3=a&b', '4=x|y', '5=p%PATH%q', '6=bang!z', ''].join('\r\n'),
-  );
+  assert.deepEqual(JSON.parse(result.stdout), args);
 });
 
 test('resolveBunInstallCommand falls back to scoop on Windows before official installer', () => {
@@ -189,7 +200,7 @@ test('resolveLauncherInstallTarget prefers writable user bin on Linux', async ()
   assert.equal(target.installPath, '/home/tester/.local/bin/subminer');
 });
 
-test('resolveLauncherInstallTarget returns not_installable without writable PATH dirs', async () => {
+test('resolveLauncherInstallTarget offers a user bin without writable PATH dirs', async () => {
   const target = await resolveLauncherInstallTarget({
     platform: 'linux',
     homeDir: '/home/tester',
@@ -200,8 +211,9 @@ test('resolveLauncherInstallTarget returns not_installable without writable PATH
     },
   });
 
-  assert.equal(target.status, 'not_installable');
-  assert.equal(target.installPath, null);
+  assert.equal(target.status, 'not_installed');
+  assert.equal(target.installPath, '/home/tester/.local/bin/subminer');
+  assert.match(target.message ?? '', /export PATH=/);
 });
 
 test('resolveLauncherInstallTarget skips Homebrew bin for empty macOS manual installs', async () => {

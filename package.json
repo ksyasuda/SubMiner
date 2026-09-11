@@ -18,7 +18,7 @@
     "compare-yomitan-api:electron": "bun run build:yomitan && bun build scripts/compare-yomitan-api.ts --format=cjs --target=node --outfile dist/scripts/compare-yomitan-api.js --external electron && env -u ELECTRON_RUN_AS_NODE electron dist/scripts/compare-yomitan-api.js",
     "build:yomitan": "bun scripts/build-yomitan.mjs",
     "build:assets": "bun scripts/prepare-build-assets.mjs",
-    "build:launcher": "bun build ./launcher/main.ts --target=bun --packages=bundle --banner='#!/usr/bin/env bun' --outfile=dist/launcher/subminer",
+    "build:launcher": "bun run scripts/build-launcher.ts",
     "build:stats": "cd stats && bun run build",
     "dev:stats": "cd stats && bun run dev",
     "build": "bun run build:yomitan && bun run build:stats && tsc -p tsconfig.json && bun run build:renderer && bun run build:settings && bun run build:syncui && bun run build:launcher && bun run build:assets",
@@ -259,8 +259,15 @@
         "to": "plugin/subminer.conf"
       },
       {
-        "from": "dist/launcher/subminer",
-        "to": "launcher/subminer"
+        "from": "dist/launcher",
+        "to": "launcher",
+        "filter": [
+          "subminer",
+          "subminer.cmd",
+          "subminer.js",
+          "prepare.cjs",
+          "version"
+        ]
       },
       {
         "from": "CHANGELOG.md",
