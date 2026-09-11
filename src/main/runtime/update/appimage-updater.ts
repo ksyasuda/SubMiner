@@ -25,6 +25,7 @@ export interface AppImageUpdateResult {
 }
 
 export interface AppImageUpdateFileSystem {
+  realpath?: (targetPath: string) => Promise<string>;
   stat: (targetPath: string) => Promise<StatLike>;
   access: (targetPath: string) => Promise<void>;
   writeFile: (targetPath: string, data: Buffer) => Promise<void>;
@@ -39,6 +40,7 @@ function sha256(data: Buffer): string {
 
 function defaultFs(): AppImageUpdateFileSystem {
   return {
+    realpath: (targetPath) => fs.promises.realpath(targetPath),
     stat: (targetPath) => fs.promises.stat(targetPath),
     access: async (targetPath) => {
       await fs.promises.access(targetPath, fs.constants.W_OK);
@@ -105,6 +107,19 @@ export async function updateAppImageFromRelease(options: {
   }
 
   const fsDeps = options.fs ?? defaultFs();
+  let resolvedAppImagePath = options.appImagePath;
+  try {
+    resolvedAppImagePath = (await fsDeps.realpath?.(options.appImagePath)) ?? options.appImagePath;
+  } catch {
+    // stat below reports a missing or inaccessible path with the existing result shape.
+  }
+  if (resolvedAppImagePath === '/opt/SubMiner/SubMiner.AppImage') {
+    return {
+      status: 'skipped',
+      path: options.appImagePath,
+      message: 'This AppImage is managed by the subminer-bin system package.',
+    };
+  }
   let stat: StatLike;
   try {
     stat = await fsDeps.stat(options.appImagePath);

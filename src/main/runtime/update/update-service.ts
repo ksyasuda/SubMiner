@@ -7,6 +7,8 @@ import { compareSemverLike, parseReleaseVersion } from './release-assets';
 export interface UpdateState {
   lastAutomaticCheckAt?: number;
   lastNotifiedVersion?: string;
+  // Legacy launcher the last update left for the next app start to migrate.
+  pendingLauncherMigrationPath?: string;
 }
 
 export type UpdateCheckSource = 'manual' | 'automatic' | 'launcher';
@@ -41,8 +43,7 @@ export interface UpdateServiceDeps {
   getConfig: () => Required<UpdatesConfig>;
   getCurrentVersion: () => string;
   now: () => number;
-  readState: () => Promise<UpdateState>;
-  writeState: (state: UpdateState) => Promise<void>;
+  stateStore: ReturnType<typeof createUpdateStateStore>;
   checkAppUpdate: (channel: UpdateChannel) => Promise<AppUpdateMetadata>;
   shouldFetchReleaseMetadata?: (input: {
     request: UpdateCheckRequest;
@@ -54,7 +55,7 @@ export interface UpdateServiceDeps {
     launcherPath?: string,
     channel?: UpdateChannel,
     release?: GitHubRelease | null,
-  ) => Promise<{ status: string; command?: string }>;
+  ) => Promise<{ status: string; command?: string; path?: string; deferred?: boolean }>;
   showNoUpdateDialog: (version: string) => Promise<void>;
   showUpdateAvailableDialog: (version: string) => Promise<'update' | 'close'>;
   showUpdateFailedDialog: (message: string) => Promise<void>;
@@ -121,7 +122,7 @@ export function createUpdateService(deps: UpdateServiceDeps) {
     const now = deps.now();
     const config = deps.getConfig();
     const channel = config.channel;
-    const state = await deps.readState();
+    const state = await deps.stateStore.transaction((store) => store.readState());
     const isAutomatic = request.source === 'automatic';
 
     if (isAutomatic && !request.force && shouldSkipAutomaticCheck(config, state, now)) {
@@ -150,15 +151,18 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       const latest = getBestLatestVersion(currentVersion, appUpdate, release);
 
       if (isAutomatic) {
-        const nextState: UpdateState = {
-          ...state,
-          lastAutomaticCheckAt: now,
-        };
-        if (latest.available && state.lastNotifiedVersion !== latest.version) {
-          await deps.notifyUpdateAvailable(latest.version);
-          nextState.lastNotifiedVersion = latest.version;
-        }
-        await deps.writeState(nextState);
+        await deps.stateStore.transaction(async (store) => {
+          const currentState = await store.readState();
+          const nextState: UpdateState = {
+            ...currentState,
+            lastAutomaticCheckAt: now,
+          };
+          if (latest.available && currentState.lastNotifiedVersion !== latest.version) {
+            await deps.notifyUpdateAvailable(latest.version);
+            nextState.lastNotifiedVersion = latest.version;
+          }
+          await store.writeState(nextState);
+        });
       }
 
       if (!latest.available) {
@@ -188,6 +192,12 @@ export function createUpdateService(deps: UpdateServiceDeps) {
       const launcherResult = await deps.updateLauncher(request.launcherPath, channel, release);
       if (launcherResult.status === 'protected' && launcherResult.command) {
         deps.log(`Launcher update requires manual command: ${launcherResult.command}`);
+      }
+      if (launcherResult.deferred && launcherResult.path) {
+        const pendingLauncherMigrationPath = launcherResult.path;
+        await deps.stateStore.transaction(async (store) => {
+          await store.writeState({ ...(await store.readState()), pendingLauncherMigrationPath });
+        });
       }
 
       if (!appUpdateApplied) {
@@ -237,11 +247,41 @@ export function createUpdateService(deps: UpdateServiceDeps) {
   };
 }
 
-export function createFileUpdateStateStore(statePath: string): {
+// Keep the path until refresh acknowledges migration or an ineligible candidate.
+export async function takePendingLauncherMigrationPath(
+  stateStore: ReturnType<typeof createUpdateStateStore>,
+  refresh: (launcherPath: string | undefined) => Promise<boolean>,
+): Promise<string | undefined> {
+  return stateStore.transaction(async (store) => {
+    const { pendingLauncherMigrationPath, ...rest } = await store.readState();
+    const acknowledged = await refresh(pendingLauncherMigrationPath);
+    if (!pendingLauncherMigrationPath || !acknowledged) {
+      return undefined;
+    }
+    await store.writeState(rest);
+    return pendingLauncherMigrationPath;
+  });
+}
+
+export function createUpdateStateStore(store: {
   readState: () => Promise<UpdateState>;
   writeState: (state: UpdateState) => Promise<void>;
-} {
+}) {
+  let pending = Promise.resolve();
   return {
+    transaction<T>(operation: (stateStore: typeof store) => Promise<T>): Promise<T> {
+      const result = pending.then(() => operation(store));
+      pending = result.then(
+        () => {},
+        () => {},
+      );
+      return result;
+    },
+  };
+}
+
+export function createFileUpdateStateStore(statePath: string) {
+  return createUpdateStateStore({
     async readState(): Promise<UpdateState> {
       try {
         return JSON.parse(await fs.promises.readFile(statePath, 'utf8')) as UpdateState;
@@ -253,5 +293,5 @@ export function createFileUpdateStateStore(statePath: string): {
       await fs.promises.mkdir(path.dirname(statePath), { recursive: true });
       await fs.promises.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
     },
-  };
+  });
 }

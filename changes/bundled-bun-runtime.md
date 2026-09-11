@@ -1,0 +1,5 @@
+type: changed
+area: launcher
+
+- Made every installed and downloadable launcher use the Bun runtime included with SubMiner. Added a Windows `subminer.cmd` download, persistent private runtime caches for Linux and Windows, and migration for recognized legacy launchers. Deferred migrations survive overlapping update checks and remain pending when startup cannot safely refresh the launcher.
+- Simplified first-run setup to a single optional launcher control, with runtime repair guidance shown only when needed.

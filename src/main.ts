@@ -388,6 +388,7 @@ import {
   detectCommandLineLauncher,
   installBun as installCommandLineBun,
   installLauncher as installCommandLineLauncher,
+  refreshManagedCommandLineLauncher,
 } from './main/runtime/command-line-launcher';
 import {
   createWindowsMpvLaunchDeps,
@@ -1436,6 +1437,10 @@ const createCommandLineLauncherRuntimeOptions = () => ({
   cwd: process.cwd(),
   resourcesPath: process.resourcesPath,
   appExePath: process.execPath,
+  appVersion: app.getVersion(),
+  bundledBunPath: app.isPackaged
+    ? path.join(process.resourcesPath, 'bun', process.platform === 'win32' ? 'bun.exe' : 'bun')
+    : undefined,
 });
 const firstRunSetupService = createFirstRunSetupService({
   platform: process.platform,
@@ -1521,7 +1526,7 @@ const firstRunSetupService = createFirstRunSetupService({
   },
   installCommandLineLauncher: async () => {
     const snapshot = await installCommandLineLauncher(createCommandLineLauncherRuntimeOptions());
-    const ok = snapshot.status === 'ready' || snapshot.status === 'installed_bun_missing';
+    const ok = snapshot.status === 'ready' || snapshot.status === 'not_on_path';
     return {
       ok,
       installPath: snapshot.installPath,
@@ -5302,7 +5307,7 @@ const { getChangelogSnapshot } = createChangelogRuntime({
   logWarn: (message) => logger.warn(message),
 });
 
-const { getUpdateService } = createUpdateServiceRuntime({
+const { getUpdateService, takePendingLauncherMigrationPath } = createUpdateServiceRuntime({
   userDataPath: USER_DATA_PATH,
   getUpdatesConfig: () => configService.getConfig().updates,
   logInfo: (message) => logger.info(message),
@@ -6261,6 +6266,15 @@ const { runAndApplyStartupState } = composeHeadlessStartupHandlers<
 
 runAndApplyStartupState();
 void app.whenReady().then(() => {
+  void takePendingLauncherMigrationPath(async (pendingLauncherPath) => {
+    const acknowledgedPaths = await refreshManagedCommandLineLauncher({
+      ...createCommandLineLauncherRuntimeOptions(),
+      additionalLauncherPaths: pendingLauncherPath ? [pendingLauncherPath] : [],
+    });
+    return pendingLauncherPath !== undefined && acknowledgedPaths.includes(pendingLauncherPath);
+  }).catch((error) => {
+    logger.warn('Failed to refresh the installed command-line launcher', error);
+  });
   if (!shouldStartAutomaticUpdateChecks(appState.initialArgs)) {
     return;
   }

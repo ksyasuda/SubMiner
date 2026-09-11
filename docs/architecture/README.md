@@ -10,10 +10,14 @@ Read when: runtime ownership, composition boundaries, or layering questions
 SubMiner runs as three cooperating runtimes:
 
 - Electron desktop app in `src/`
-- Launcher CLI in `launcher/`
+- Launcher CLI in `launcher/`, with managed app-installed wrappers in `src/main/runtime/managed-launcher.ts`
 - mpv Lua plugin in `plugin/subminer/`
 
 The desktop app keeps `src/main.ts` as composition root and pushes behavior into small runtime/domain modules.
+
+Packaged apps include a private Bun runtime. Setup and release assets provide bootstrap wrappers generated from `src/main/runtime/*-launcher-bootstrap.ts`. macOS runs Bun and the CLI from app resources. Windows stages a versioned private Bun copy under `%LOCALAPPDATA%\SubMiner\launcher-runtime/<version>` so a running launcher does not lock the updater-owned app executable. Linux stages Bun, the matching CLI, and licenses under `${XDG_DATA_HOME:-~/.local/share}/SubMiner/launcher`. Its steady-state path performs one app `stat` and starts the cache without Electron. A missing cache or changed app fingerprint runs `launcher/prepare.cjs` through Electron's Node mode to refresh it. Desktop startup migrates recognized writable legacy JavaScript launchers and refreshes managed payloads after app changes. Development commands still use system Bun.
+
+Update checks and startup launcher migration share a serialized update-state store. Deferred launcher paths are acknowledged only after migration succeeds or the candidate is no longer eligible. Running Windows launchers and unreadable or unwritable candidates remain pending for a later startup.
 
 ## Read Next
 
@@ -41,3 +45,7 @@ The desktop app keeps `src/main.ts` as composition root and pushes behavior into
 - Composition over monoliths
 - Pure helpers where possible
 - Stable user behavior while internals evolve
+
+Startup resolves and creates the user-data directory in `src/main-entry-runtime.ts`
+before the entry process requests Electron's single-instance lock. Main-process
+config bootstrap then writes the default config only when no config file exists.

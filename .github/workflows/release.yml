@@ -194,6 +194,12 @@ jobs:
           bun install
           bun run build
 
+      - name: Verify managed Windows launcher
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
+      - name: Verify Windows launcher bootstrap
+        run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
+
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned
 
@@ -255,11 +261,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build Bun subminer wrapper
+      - name: Build launcher runtime artifacts
         run: make build-launcher
 
-      - name: Verify Bun subminer wrapper
-        run: dist/launcher/subminer --help >/dev/null
+      - name: Smoke launcher bundle
+        run: bun dist/launcher/subminer.js --help >/dev/null
 
       - name: Enforce generated launcher workflow
         run: bash scripts/verify-generated-launcher.sh
@@ -274,12 +280,16 @@ jobs:
             plugin/subminer \
             plugin/subminer.conf \
             assets/themes/subminer.rasi \
-            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
+            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer \
+            resources/bun/licenses
+
+      - name: Package Bun corresponding source
+        run: bun scripts/package-bun-source.mjs
 
       - name: Generate checksums
         run: |
           shopt -s nullglob
-          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer)
+          files=(release/*.AppImage release/*.dmg release/*.exe release/*.zip release/*.tar.gz release/latest*.yml release/*.blockmap dist/launcher/subminer dist/launcher/subminer.cmd)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No release artifacts found for checksum generation."
             exit 1
@@ -340,10 +350,12 @@ jobs:
             release/*.exe
             release/*.zip
             release/*.tar.gz
+            release/*.tar.gz.sha256
             release/latest*.yml
             release/*.blockmap
             release/SHA256SUMS.txt
             dist/launcher/subminer
+            dist/launcher/subminer.cmd
           )
 
           if [ "${#artifacts[@]}" -eq 0 ]; then

@@ -207,7 +207,7 @@ Run `make help` for a full list of targets. Key ones:
 | Target                      | Description                                                       |
 | --------------------------- | ----------------------------------------------------------------- |
 | `make build`                | Build platform package for detected OS                            |
-| `make build-launcher`       | Generate Bun launcher wrapper at `dist/launcher/subminer`         |
+| `make build-launcher`       | Generate launcher wrappers and CLI payload in `dist/launcher/`    |
 | `make install`              | Install platform artifacts (wrapper, theme, AppImage/app bundle)  |
 | `make deps`                 | Init submodules and install root/stats/texthooker-ui deps         |
 | `make pretty`               | Run scoped Prettier formatting for maintained source/config files |

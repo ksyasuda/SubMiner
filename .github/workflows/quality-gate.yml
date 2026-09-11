@@ -7,6 +7,31 @@ permissions:
   contents: read
 
 jobs:
+  launcher-runtime:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.5
+
+      - name: Verify native runtime staging
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
+      - name: Verify Windows launcher bootstrap
+        run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
+
+      - name: Verify POSIX launcher bootstrap
+        run: bun test src/main/runtime/posix-launcher-bootstrap.test.ts
+
   quality-gate:
     runs-on: ubuntu-latest
     steps:
@@ -60,8 +85,11 @@ jobs:
 
       - name: Install Lua
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.4
+          # Lua needs only Ubuntu sources; unrelated runner repositories can be unavailable.
+          test -f /etc/apt/sources.list.d/ubuntu.sources
+          apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
+          sudo apt-get "${apt_sources[@]}" update
+          sudo apt-get "${apt_sources[@]}" install -y lua5.4
           sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
           lua -v
 
@@ -107,11 +135,11 @@ jobs:
       - name: Security audit
         run: bun audit --audit-level high
 
-      - name: Build Bun subminer wrapper
+      - name: Build launcher runtime artifacts
         run: make build-launcher
 
-      - name: Verify Bun subminer wrapper
-        run: dist/launcher/subminer --help >/dev/null
+      - name: Smoke launcher bundle
+        run: bun dist/launcher/subminer.js --help >/dev/null
 
       - name: Enforce generated launcher workflow
         run: bash scripts/verify-generated-launcher.sh
