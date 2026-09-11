@@ -54,6 +54,20 @@ test('parseSyncCliTokens handles the temp-dir protocol modes', () => {
   );
 });
 
+test('transfer cache keys are restricted to temp helpers and cannot contain paths', () => {
+  const key = 'a'.repeat(64);
+  for (const mode of [['--make-temp'], ['--remove-temp', '/tmp/subminer-sync-x']]) {
+    const parsed = parseSyncCliTokens(['sync', ...mode, '--transfer-cache', key]);
+    assert.equal(parsed.kind, 'run');
+    if (parsed.kind === 'run') assert.equal(parsed.args.syncTransferCacheKey, key);
+    assert.equal(
+      parseSyncCliTokens(['sync', ...mode, '--transfer-cache', '../../bad']).kind,
+      'error',
+    );
+  }
+  assert.equal(parseSyncCliTokens(['sync', 'host', '--transfer-cache', key]).kind, 'error');
+});
+
 test('parseSyncCliTokens owns the sync CLI validation rules', () => {
   assert.equal(parseSyncCliTokens([]).kind, 'error');
   assert.equal(parseSyncCliTokens(['sync']).kind, 'error');

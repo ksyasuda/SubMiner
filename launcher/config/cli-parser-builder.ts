@@ -360,6 +360,7 @@ export function parseCliPrograms(
     .option('--json', 'Emit machine-readable NDJSON progress output')
     .option('--make-temp', 'Create a sync temp directory and print its path (used over SSH)')
     .option('--remove-temp <dir>', 'Remove a sync temp directory created by --make-temp')
+    .option('--transfer-cache <key>', 'Reuse/save a received snapshot with temp helpers (internal)')
     .option('--ui', 'Open the SubMiner sync window')
     .option('--log-level <level>', 'Log level')
     .action((rawHost: string | undefined, options: Record<string, unknown>) => {
@@ -381,6 +382,7 @@ export function parseCliPrograms(
           check ||
           makeTemp ||
           removeTemp ||
+          options.transferCache !== undefined ||
           options.remoteCmd !== undefined ||
           options.db !== undefined ||
           options.json === true ||
@@ -402,6 +404,8 @@ export function parseCliPrograms(
       if (merge) tokens.push('--merge', merge);
       if (makeTemp) tokens.push('--make-temp');
       if (removeTemp) tokens.push('--remove-temp', removeTemp);
+      if (typeof options.transferCache === 'string')
+        tokens.push('--transfer-cache', options.transferCache);
       if (push) tokens.push('--push');
       if (pull) tokens.push('--pull');
       if (check) tokens.push('--check');

@@ -74,7 +74,7 @@ function assertSafeScpEndpoint(endpoint: string): void {
 export function runScp(from: string, to: string): void {
   assertSafeScpEndpoint(from);
   assertSafeScpEndpoint(to);
-  const result = spawnSync('scp', ['-q', from, to], {
+  const result = spawnSync('scp', ['-C', '-q', from, to], {
     encoding: 'utf8',
     stdio: ['inherit', 'inherit', 'inherit'],
   });

@@ -191,6 +191,8 @@ The launcher groups related work under subcommands: `jellyfin` (aliased `jf`), `
 
 Every subcommand has its own help page, for example `subminer jellyfin -h`. See [Launcher Script - Subcommands](/launcher-script#subcommands) for the full table, and [Sync Between Machines](/launcher-script#sync-between-machines) for the SSH stats/history sync.
 
+Sync selects compressed transfers automatically and reuses cached snapshots when rsync is available. Its `--transfer-cache <key>` option belongs to the internal `--make-temp` / `--remove-temp` helpers; normal `subminer sync <host>` commands manage it for you. See [Sync Between Machines](/launcher-script#sync-between-machines) for cache storage and compatibility details.
+
 A _texthooker_ is a web page that displays the current subtitle line as selectable text, so browser-based dictionary extensions and other tools can read along with playback.
 
 ### First-run setup
