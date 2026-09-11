@@ -240,6 +240,12 @@ jobs:
             gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; size comparison will be skipped.'
           fi
 
+      - name: Verify managed Windows launcher
+        run: bun test src/main/runtime/managed-launcher.test.ts
+
+      - name: Verify Windows launcher bootstrap
+        run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
+
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned
 

@@ -94,6 +94,23 @@ test('parseCliPrograms lowers sync options into app-owned CLI tokens', () => {
   assert.deepEqual(removeTemp.invocations.syncCliTokens, ['--remove-temp', '/tmp/subminer-sync-x']);
 });
 
+test('parseCliPrograms forwards transfer cache keys with both sync temp helpers', () => {
+  const key = 'a'.repeat(64);
+  for (const helper of [['--make-temp'], ['--remove-temp', '/tmp/subminer-sync-x']]) {
+    const tokens = [...helper, '--transfer-cache', key];
+    const result = parseCliPrograms(['sync', ...tokens], 'subminer');
+    assert.equal(result.invocations.syncTriggered, true);
+    assert.deepEqual(result.invocations.syncCliTokens, tokens);
+  }
+});
+
+test('parseCliPrograms rejects sync --ui with --transfer-cache', () => {
+  assert.throws(
+    () => parseCliPrograms(['sync', '--ui', '--transfer-cache', 'a'.repeat(64)], 'subminer'),
+    { message: 'Sync --ui cannot be combined with other sync options.' },
+  );
+});
+
 test('parseCliPrograms leaves sync validation to the app parser', () => {
   // Invalid combinations are forwarded; the app's parseSyncCliTokens rejects them.
   const invalid = parseCliPrograms(['sync', 'media-box', '--push', '--pull'], 'subminer');

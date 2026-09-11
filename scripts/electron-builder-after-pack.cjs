@@ -86,16 +86,33 @@ async function verifyMacOSWindowHelper(
   return true;
 }
 
-async function afterPack(context) {
+async function stageBundledBunRuntime(context, deps = {}) {
+  const stageBunRuntime =
+    deps.stageBunRuntime ?? (await import('./stage-bun-runtime.mjs')).stageBunRuntime;
+  const productFilename = context.packager?.appInfo?.productFilename;
+  await stageBunRuntime({
+    appOutDir: context.appOutDir,
+    platform: context.electronPlatformName,
+    arch: context.arch,
+    productFilename:
+      typeof productFilename === 'string' && productFilename.trim()
+        ? productFilename.trim()
+        : 'SubMiner',
+  });
+}
+
+async function afterPack(context, deps = {}) {
   await stageLinuxAppImageSharedLibrary(context);
   await verifyMacOSWindowHelper(context);
-  await require('./package-audit.cjs').auditPackage(context);
+  await stageBundledBunRuntime(context, deps);
+  await (deps.auditPackage ?? require('./package-audit.cjs').auditPackage)(context);
 }
 
 module.exports = {
   LINUX_FFMPEG_LIBRARY,
   MACOS_WINDOW_HELPER,
   resolveMacOSAppBundlePath,
+  stageBundledBunRuntime,
   stageLinuxAppImageSharedLibrary,
   verifyMacOSWindowHelper,
   default: afterPack,

@@ -1,4 +1,5 @@
 import type { SyncFlowArgs } from './sync-flow';
+import { isTransferCacheKey } from './transfer-cache';
 
 export const SYNC_CLI_FLAG = '--sync-cli';
 
@@ -43,6 +44,7 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   let json = false;
   let makeTemp = false;
   let removeTemp = '';
+  let transferCacheKey = '';
   let remoteCmd = '';
   let dbPath = '';
   let logLevel = 'warn';
@@ -51,6 +53,7 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
     ['--snapshot', (value) => (snapshot = value.trim())],
     ['--merge', (value) => (merge = value.trim())],
     ['--remove-temp', (value) => (removeTemp = value.trim())],
+    ['--transfer-cache', (value) => (transferCacheKey = value.trim())],
     ['--remote-cmd', (value) => (remoteCmd = value.trim())],
     ['--db', (value) => (dbPath = value.trim())],
     ['--log-level', (value) => (logLevel = value.trim() || 'warn')],
@@ -93,6 +96,13 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
   }
 
   if (push && pull) return { kind: 'error', message: 'Sync --push and --pull cannot be combined.' };
+  if (transferCacheKey && (!isTransferCacheKey(transferCacheKey) || (!makeTemp && !removeTemp))) {
+    return {
+      kind: 'error',
+      message:
+        '--transfer-cache requires a 64-character lowercase hex key and --make-temp or --remove-temp.',
+    };
+  }
   if ((push || pull) && !host) {
     return { kind: 'error', message: 'Sync --push and --pull require a host.' };
   }
@@ -137,6 +147,7 @@ export function parseSyncCliTokens(tokens: readonly string[]): ParsedSyncCli {
       syncCheck: check,
       syncMakeTemp: makeTemp,
       syncRemoveTempPath: removeTemp,
+      syncTransferCacheKey: transferCacheKey,
       logLevel,
     },
   };
@@ -161,6 +172,7 @@ export function syncCliUsage(): string {
     '  --check              Test the SSH connection and remote SubMiner availability',
     '  --db <file>          Override the local stats database path',
     '  --remote-cmd <cmd>   SubMiner app or launcher command to run on the remote host',
+    '  --transfer-cache <key>  Reuse/save a received snapshot with temp helpers (internal)',
     '  -f, --force          Skip the running-app safety check',
     '  --json               Emit machine-readable NDJSON progress output',
     '  --log-level <level>  Log level',

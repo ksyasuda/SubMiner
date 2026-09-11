@@ -21,6 +21,8 @@ const parsedReleaseWorkflow = readWorkflow(releaseWorkflowPath);
 const parsedDocsPagesWorkflow = readWorkflow(docsPagesWorkflowPath);
 const makefilePath = resolve(__dirname, '../Makefile');
 const makefile = readFileSync(makefilePath, 'utf8');
+const buildLauncherPath = resolve(__dirname, '../scripts/build-launcher.ts');
+const buildLauncher = readFileSync(buildLauncherPath, 'utf8');
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   desktopName?: string;
@@ -37,6 +39,7 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
     extraResources?: Array<{
       from?: string;
       to?: string;
+      filter?: string[];
     }>;
     mac?: {
       artifactName?: string;
@@ -124,14 +127,14 @@ test('release workflow generates release notes from committed changelog output',
   assert.ok(!releaseWorkflow.includes('git log --pretty=format:"- %s"'));
 });
 
-test('release workflow includes the Windows installer in checksums and uploaded assets', () => {
+test('release workflow includes the Windows installer and both launcher wrappers in release assets', () => {
   assert.match(
     releaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer dist\/launcher\/subminer\.cmd\)/,
   );
   assert.match(
     releaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*dist\/launcher\/subminer[\s\S]*dist\/launcher\/subminer\.cmd[\s\S]*\)/,
   );
 });
 
@@ -170,15 +173,22 @@ test('top-level package metadata keeps Linux Electron runtime app identity canon
   assert.equal(packageJson.desktopName, 'SubMiner.desktop');
 });
 
-test('release packaging stages generated launcher as an app resource', () => {
-  assert.ok(
-    packageJson.build?.extraResources?.some(
-      (resource) =>
-        resource.from === 'dist/launcher/subminer' && resource.to === 'launcher/subminer',
-    ),
+test('release packaging stages only the generated launcher runtime artifacts', () => {
+  const launcherResource = packageJson.build?.extraResources?.find(
+    (resource) => resource.from === 'dist/launcher' && resource.to === 'launcher',
   );
+  assert.deepEqual(launcherResource?.filter, [
+    'subminer',
+    'subminer.cmd',
+    'subminer.js',
+    'prepare.cjs',
+    'version',
+  ]);
   assert.match(packageJson.scripts.build ?? '', /bun run build:launcher/);
-  assert.match(packageJson.scripts['build:launcher'] ?? '', /--banner='#!\/usr\/bin\/env bun'/);
+  assert.equal(packageJson.scripts['build:launcher'], 'bun run scripts/build-launcher.ts');
+  assert.match(buildLauncher, /banner: '#!\/usr\/bin\/env bun'/);
+  assert.match(buildLauncher, /posixLauncherBootstrapContent\(\)/);
+  assert.match(buildLauncher, /windowsLauncherBootstrapContent\(\)/);
 });
 
 test('release packaging does not reference removed Windows window helper script', () => {

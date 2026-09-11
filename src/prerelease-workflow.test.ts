@@ -149,14 +149,14 @@ test('release callers pass only the declared macOS signing secrets to packaging'
   }
 });
 
-test('prerelease workflow publishes the same release assets as the stable workflow', () => {
+test('prerelease workflow publishes both launcher wrappers with the platform packages', () => {
   assert.match(
     prereleaseWorkflow,
-    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer\)/,
+    /files=\(release\/\*\.AppImage release\/\*\.dmg release\/\*\.exe release\/\*\.zip release\/\*\.tar\.gz release\/latest\*\.yml release\/\*\.blockmap dist\/launcher\/subminer dist\/launcher\/subminer\.cmd\)/,
   );
   assert.match(
     prereleaseWorkflow,
-    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*\)/,
+    /artifacts=\([\s\S]*release\/\*\.exe[\s\S]*release\/latest\*\.yml[\s\S]*release\/\*\.blockmap[\s\S]*release\/SHA256SUMS\.txt[\s\S]*dist\/launcher\/subminer[\s\S]*dist\/launcher\/subminer\.cmd[\s\S]*\)/,
   );
 });
 

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { formatMergeSummary } from './merge';
 import { quoteForRemoteShell } from './ssh';
 import type { RemoteRunResult, RemoteShellFlavor, RunSshOptions } from './ssh';
+import type { createSnapshotTransfer } from './snapshot-transfer';
+import { transferCacheKey, type createTransferCache } from './transfer-cache';
 import {
   parseSyncProgressLine,
   type SyncMergeSummary,
@@ -22,6 +24,7 @@ export interface SyncFlowArgs {
   syncCheck: boolean;
   syncMakeTemp: boolean;
   syncRemoveTempPath: string;
+  syncTransferCacheKey: string;
   logLevel: string;
 }
 
@@ -31,7 +34,7 @@ export interface SyncFlowContext {
 }
 
 /**
- * Process/IO seams the sync flow needs stubbed in tests: SSH/scp, the DB
+ * Process/IO seams the sync flow needs stubbed in tests: SSH/transfers, the DB
  * snapshot/merge engine, filesystem, and progress/bookkeeping output. The
  * app's --sync-cli mode (src/main/sync-cli.ts) provides the only production
  * binding; pure helpers are imported directly.
@@ -51,7 +54,8 @@ export interface SyncFlowDeps {
     flavor: RemoteShellFlavor,
     runRemote?: (host: string, remoteCommand: string) => RemoteRunResult,
   ) => string;
-  runScp: (from: string, to: string) => void;
+  createSnapshotTransfer: typeof createSnapshotTransfer;
+  transferCache: ReturnType<typeof createTransferCache>;
   runSsh: (host: string, remoteCommand: string, options?: RunSshOptions) => RemoteRunResult;
   canConnectUnixSocket: (socketPath: string) => Promise<boolean>;
   realpathSync: (candidate: string) => string;
@@ -95,12 +99,17 @@ function assertRemovableSyncTempDir(target: string): string {
   return resolved;
 }
 
-function runMakeTempMode(deps: SyncFlowDeps): void {
-  deps.consoleLog(makeSyncTempDir(deps.mkdtempSync));
+function runMakeTempMode(context: SyncFlowContext, deps: SyncFlowDeps): void {
+  const dir = makeSyncTempDir(deps.mkdtempSync);
+  if (context.args.syncTransferCacheKey)
+    deps.transferCache.seed(context.args.syncTransferCacheKey, dir);
+  deps.consoleLog(dir);
 }
 
 function runRemoveTempMode(context: SyncFlowContext, deps: SyncFlowDeps): void {
   const target = assertRemovableSyncTempDir(context.args.syncRemoveTempPath);
+  if (context.args.syncTransferCacheKey)
+    deps.transferCache.remember(context.args.syncTransferCacheKey, target);
   deps.rmSync(target, { recursive: true, force: true });
 }
 
@@ -260,9 +269,10 @@ function cleanupRemote(
   remoteTmpDir: string,
   quote: (value: string) => string,
   deps: SyncFlowDeps,
+  cacheFlag = '',
 ): void {
   if (!path.posix.basename(remoteTmpDir).startsWith(SYNC_TEMP_PREFIX)) return;
-  deps.runSsh(host, `${remoteCmd} sync --remove-temp ${quote(remoteTmpDir)}`);
+  deps.runSsh(host, `${remoteCmd} sync --remove-temp ${quote(remoteTmpDir)}${cacheFlag}`);
 }
 
 /**
@@ -309,19 +319,37 @@ export async function runHostSync(
 
   const flavor = deps.detectRemoteShellFlavor(host, deps.runSsh);
   const remoteCmd = deps.resolveRemoteSubminerCommand(host, args.syncRemoteCmd || null, flavor);
+  const transfer = deps.createSnapshotTransfer(host, flavor);
   const quote = (value: string) => quoteForRemoteShell(flavor, value);
   if (args.logLevel === 'debug') {
     console.error(`Remote subminer command (${flavor}): ${remoteCmd}`);
   }
 
   const localTmpDir = makeSyncTempDir(deps.mkdtempSync);
+  const localCacheKey = transferCacheKey(`download\0${dbPath}\0${host}`);
+  const remoteCacheKey = transferCacheKey(`upload\0${os.hostname()}\0${dbPath}`);
+  let remoteCacheFlag = transfer.kind === 'rsync' ? ` --transfer-cache ${remoteCacheKey}` : '';
+  let syncSucceeded = false;
   let remoteTmpDir = '';
   let pulledSummary: SyncMergeSummary | null = null;
   try {
     // Signal failures by throwing (not fail(), which exits synchronously and
     // would skip the finally cleanup, leaking temp dirs holding snapshot data).
     // main().catch() reports the message the same way fail() would.
-    const mktemp = deps.runSsh(host, `${remoteCmd} sync --make-temp`);
+    if (transfer.kind === 'rsync' && shouldPull)
+      deps.transferCache.seed(localCacheKey, localTmpDir);
+    let mktemp = deps.runSsh(
+      host,
+      `${remoteCmd} sync --make-temp${shouldPush ? remoteCacheFlag : ''}`,
+    );
+    if (
+      mktemp.status !== 0 &&
+      (mktemp.stderr.includes('Unknown sync option: --transfer-cache') ||
+        mktemp.stderr.includes("error: unknown option '--transfer-cache'"))
+    ) {
+      remoteCacheFlag = '';
+      mktemp = deps.runSsh(host, `${remoteCmd} sync --make-temp`);
+    }
     remoteTmpDir = mktemp.status === 0 ? parseRemoteTempDir(mktemp.stdout) : '';
     if (!remoteTmpDir) {
       throw new Error(
@@ -331,7 +359,7 @@ export async function runHostSync(
 
     const forceFlag = args.syncForce ? ' --force' : '';
 
-    const localSnapshot = path.join(localTmpDir, 'local.sqlite');
+    const localSnapshot = path.join(localTmpDir, 'snapshot.sqlite');
     if (shouldPush) {
       deps.consoleLog(`Snapshotting local database (${dbPath})...`);
       deps.emitEvent({
@@ -355,19 +383,30 @@ export async function runHostSync(
       }
     }
 
-    const pulledSnapshot = path.join(localTmpDir, 'remote.sqlite');
+    const pulledSnapshot = path.join(
+      localTmpDir,
+      transfer.kind === 'rsync' ? 'incoming/snapshot.sqlite' : 'remote.sqlite',
+    );
     if (shouldPull) {
       deps.emitEvent({
         type: 'stage',
         stage: 'download',
         message: `Copying snapshot from ${host}`,
       });
-      deps.runScp(`${host}:${remoteSnapshot}`, pulledSnapshot);
+      transfer.copy({
+        direction: 'download',
+        remotePath: remoteSnapshot,
+        localPath: pulledSnapshot,
+      });
     }
-    const incomingSnapshot = `${remoteTmpDir}/incoming.sqlite`;
+    const incomingSnapshot = `${remoteTmpDir}/${transfer.kind === 'rsync' ? 'incoming/snapshot.sqlite' : 'incoming.sqlite'}`;
     if (shouldPush) {
       deps.emitEvent({ type: 'stage', stage: 'upload', message: `Copying snapshot to ${host}` });
-      deps.runScp(localSnapshot, `${host}:${incomingSnapshot}`);
+      transfer.copy({
+        direction: 'upload',
+        localPath: localSnapshot,
+        remotePath: incomingSnapshot,
+      });
     }
 
     if (shouldPull) {
@@ -416,6 +455,7 @@ export async function runHostSync(
       }
     }
 
+    syncSucceeded = true;
     deps.consoleLog('\nSync complete.');
     deps.recordHostSyncResult(host, 'success', formatHostSyncDetail(direction, pulledSummary));
   } catch (error) {
@@ -430,10 +470,19 @@ export async function runHostSync(
     }
     throw error;
   } finally {
+    if (syncSucceeded && transfer.kind === 'rsync' && shouldPull)
+      deps.transferCache.remember(localCacheKey, localTmpDir);
     deps.rmSync(localTmpDir, { recursive: true, force: true });
     if (remoteTmpDir) {
       try {
-        cleanupRemote(host, remoteCmd, remoteTmpDir, quote, deps);
+        cleanupRemote(
+          host,
+          remoteCmd,
+          remoteTmpDir,
+          quote,
+          deps,
+          syncSucceeded && shouldPush ? remoteCacheFlag : '',
+        );
       } catch {
         // best effort
       }
@@ -451,7 +500,7 @@ export async function runSyncFlow(
 
   try {
     if (args.syncMakeTemp) {
-      runMakeTempMode(deps);
+      runMakeTempMode(context, deps);
     } else if (args.syncRemoveTempPath) {
       runRemoveTempMode(context, deps);
     } else {

@@ -70,6 +70,7 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
     );
 
     assert.match(pkgbuild, /^pkgver=0\.6\.3$/m);
+    assert.doesNotMatch(pkgbuild, /^\s*'bun'$/m);
     assert.match(
       pkgbuild,
       /^\s*"subminer-\$\{pkgver\}::https:\/\/github\.com\/ksyasuda\/SubMiner\/releases\/download\/v\$\{pkgver\}\/subminer"$/m,
@@ -84,6 +85,7 @@ test('update-aur-package updates PKGBUILD and .SRCINFO without makepkg', () => {
     );
     assert.match(pkgbuild, /assets\/thumbnailers\/subminer-ffmpegthumbnailer\.thumbnailer/);
     assert.match(srcinfo, /^\tpkgver = 0\.6\.3$/m);
+    assert.doesNotMatch(srcinfo, /^\tdepends = bun$/m);
     assert.match(srcinfo, /^\tprovides = subminer=0\.6\.3$/m);
     assert.match(
       srcinfo,

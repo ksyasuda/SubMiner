@@ -73,6 +73,14 @@ files before signing and generating updater hashes, never from a signed app.
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Confirm `dist/launcher` contains only `subminer`, `subminer.cmd`,
+   `subminer.js`, `prepare.cjs`, and `version`. Release CI smoke-tests
+   `subminer.js` with Bun, then publishes both wrapper files and their checksums.
+   Tagged CI runs `bun scripts/package-bun-source.mjs` and must publish
+   `bun-v<version>-source.tar.gz` plus its `.sha256` file. The script
+   fails if Bun's CMake dependency pins, WebKit pin, source checksums, patch
+   inputs, or collected license files differ from
+   `build/bun-source-manifest.json`.
    When validating auto-update metadata, also run the relevant platform package
    build and confirm `release/` contains the generated updater metadata
    (`latest*.yml`) and blockmaps (`*.blockmap`).
@@ -96,6 +104,11 @@ files before signing and generating updater hashes, never from a signed app.
    `bun run test:fast`
    `bun run test:env`
    `bun run build`
+   Confirm both launcher wrappers and their checksums are included in the
+   prerelease assets.
+   Prerelease CI also assembles and publishes the pinned Bun corresponding
+   source archive. A missing source repository or license file fails the
+   release instead of publishing only the executable.
    When validating packaged updater output, confirm the platform build writes
    `latest*.yml` and `*.blockmap` files under `release/`.
 5. Commit the prerelease prep (package.json version bump + the generated
@@ -139,6 +152,7 @@ Notes:
 - AUR publish is best-effort: the workflow retries transient SSH clone/push failures, then warns and leaves the GitHub Release green if AUR still fails. Follow up with a manual `git push aur master` from the AUR checkout when needed.
 - Required GitHub Actions secret: `AUR_SSH_PRIVATE_KEY`. Add the matching public key to your AUR account before relying on the automation.
 - Release and prerelease workflows upload updater metadata (`latest*.yml`) and blockmaps (`*.blockmap`) alongside platform artifacts. Do not remove those files while `electron-updater` is enabled.
+- Release and prerelease workflows publish `subminer` for POSIX systems and `subminer.cmd` for Windows. Both locate a packaged app and use its private Bun runtime. Keep the corresponding-source archive named `bun-v1.3.5-source.tar.gz`.
 - macOS tray app updates use the standard `electron-updater`/Squirrel path. Keep `latest-mac.yml`, the macOS `SubMiner-<version>-mac.zip`, and ZIP blockmap published; Squirrel uses the ZIP payload even when the DMG remains the user-facing installer.
 - macOS update metadata and full ZIP downloads are routed through `/usr/bin/curl` before Squirrel installation to avoid Electron main-process network crashes on update checks.
 - Windows tray app updates use the standard `electron-updater`/NSIS path. Keep `latest.yml`, the Windows NSIS installer, and installer blockmap published; updater HTTP is routed through main-process fetch to avoid Electron main-process network crashes during update checks.

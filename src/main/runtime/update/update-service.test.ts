@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { shouldFetchReleaseMetadataForPlatform } from './release-metadata-policy';
-import { createUpdateService, type UpdateServiceDeps, type UpdateState } from './update-service';
+import {
+  createUpdateService,
+  createUpdateStateStore,
+  takePendingLauncherMigrationPath,
+  type UpdateServiceDeps,
+  type UpdateState,
+} from './update-service';
 
 function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
   let state: UpdateState = {};
@@ -15,11 +21,13 @@ function createDeps(overrides: Partial<UpdateServiceDeps> = {}) {
     }),
     getCurrentVersion: () => '0.14.0',
     now: () => 1_000_000,
-    readState: async () => state,
-    writeState: async (nextState) => {
-      state = nextState;
-      calls.push(`state:${JSON.stringify(nextState)}`);
-    },
+    stateStore: createUpdateStateStore({
+      readState: async () => state,
+      writeState: async (nextState) => {
+        state = nextState;
+        calls.push(`state:${JSON.stringify(nextState)}`);
+      },
+    }),
     checkAppUpdate: async () => ({ available: false, version: '0.14.0' }),
     fetchLatestStableRelease: async () => ({
       tag_name: 'v0.14.0',
@@ -286,7 +294,7 @@ test('concurrent update checks share one in-flight check', async () => {
   const first = service.checkForUpdates({ source: 'manual' });
   const second = service.checkForUpdates({ source: 'manual' });
 
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   resolveCheck({ available: false, version: '0.14.0' });
   await Promise.all([first, second]);
 
@@ -307,7 +315,7 @@ test('manual install request does not reuse in-flight manual check', async () =>
   const manualCheck = service.checkForUpdates({ source: 'manual' });
   const manualInstall = service.checkForUpdates({ source: 'manual', installWhenAvailable: true });
 
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(checkCount, 2);
   for (const resolve of resolveChecks) {
     resolve({ available: false, version: '0.14.0' });
@@ -315,26 +323,32 @@ test('manual install request does not reuse in-flight manual check', async () =>
   await Promise.all([manualCheck, manualInstall]);
 });
 
-test('manual update check does not reuse in-flight automatic check', async () => {
+test('manual update check does not reuse in-flight automatic check and preserves all state', async () => {
   let checkCount = 0;
   const resolveChecks: Array<(value: { available: boolean; version: string }) => void> = [];
-  const { deps } = createDeps({
+  const { deps, getState } = createDeps({
     checkAppUpdate: () =>
       new Promise((resolve) => {
         checkCount += 1;
         resolveChecks.push(resolve);
       }),
+    updateLauncher: async () => ({ status: 'skipped', path: '/x/subminer', deferred: true }),
   });
   const service = createUpdateService(deps);
   const automatic = service.checkForUpdates({ source: 'automatic', force: true });
-  const manual = service.checkForUpdates({ source: 'manual' });
+  const manual = service.checkForUpdates({ source: 'manual', installWhenAvailable: true });
 
-  await Promise.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(checkCount, 2);
   for (const resolve of resolveChecks) {
-    resolve({ available: false, version: '0.14.0' });
+    resolve({ available: true, version: '0.15.0' });
   }
   await Promise.all([automatic, manual]);
+  assert.deepEqual(getState(), {
+    pendingLauncherMigrationPath: '/x/subminer',
+    lastAutomaticCheckAt: 1_000_000,
+    lastNotifiedVersion: '0.15.0',
+  });
 });
 
 test('manual update check passes selected GitHub release to launcher update', async () => {
@@ -487,4 +501,86 @@ test('manual update check keeps current prerelease builds on configured stable c
 
   assert.equal(result.status, 'up-to-date');
   assert.deepEqual(calls, ['app:stable', 'fetch:stable', 'no-update:0.15.0-beta.3']);
+});
+
+test('deferred launcher migration is persisted for the next app start', async () => {
+  const launcherPath = '/home/tester/.local/bin/subminer';
+  const { deps, calls } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+    fetchLatestStableRelease: async () => ({
+      tag_name: 'v0.15.0',
+      prerelease: false,
+      draft: false,
+      assets: [],
+    }),
+    showUpdateAvailableDialog: async () => 'update',
+    updateLauncher: async () => ({ status: 'skipped', path: launcherPath, deferred: true }),
+  });
+  const service = createUpdateService(deps);
+
+  const result = await service.checkForUpdates({ source: 'manual', launcherPath });
+
+  assert.equal(result.status, 'updated');
+  assert.ok(
+    calls.includes(`state:${JSON.stringify({ pendingLauncherMigrationPath: launcherPath })}`),
+  );
+});
+
+test('takePendingLauncherMigrationPath hands the path over exactly once', async () => {
+  let state: UpdateState = {
+    lastNotifiedVersion: '0.15.0',
+    pendingLauncherMigrationPath: '/x/subminer',
+  };
+  const store = createUpdateStateStore({
+    readState: async () => state,
+    writeState: async (nextState: UpdateState) => {
+      state = nextState;
+    },
+  });
+
+  const refresh = async () => true;
+  assert.deepEqual(
+    await Promise.all([
+      takePendingLauncherMigrationPath(store, refresh),
+      takePendingLauncherMigrationPath(store, refresh),
+    ]),
+    ['/x/subminer', undefined],
+  );
+  assert.deepEqual(state, { lastNotifiedVersion: '0.15.0' });
+  assert.equal(await takePendingLauncherMigrationPath(store, refresh), undefined);
+});
+
+test('failed migration remains pending and acknowledgement preserves concurrent check state', async () => {
+  const { deps, getState, setState } = createDeps({
+    checkAppUpdate: async () => ({ available: true, version: '0.15.0' }),
+  });
+  setState({ pendingLauncherMigrationPath: '/x/subminer' });
+  await assert.rejects(
+    takePendingLauncherMigrationPath(deps.stateStore, async () => {
+      throw new Error('refresh failed');
+    }),
+    /refresh failed/,
+  );
+  assert.equal(getState().pendingLauncherMigrationPath, '/x/subminer');
+
+  const service = createUpdateService(deps);
+  const check = service.checkForUpdates({ source: 'automatic' });
+  await takePendingLauncherMigrationPath(deps.stateStore, async () => false);
+  await check;
+  assert.deepEqual(getState(), {
+    pendingLauncherMigrationPath: '/x/subminer',
+    lastAutomaticCheckAt: 1_000_000,
+    lastNotifiedVersion: '0.15.0',
+  });
+
+  const nextCheck = service.checkForUpdates({ source: 'automatic', force: true });
+  assert.equal(
+    await takePendingLauncherMigrationPath(deps.stateStore, async () => true),
+    '/x/subminer',
+  );
+  await nextCheck;
+  assert.deepEqual(getState(), {
+    lastAutomaticCheckAt: 1_000_000,
+    lastNotifiedVersion: '0.15.0',
+  });
 });
