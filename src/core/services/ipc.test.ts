@@ -1037,7 +1037,13 @@ test('registerIpcHandlers accepts per-controller profile config updates', async 
     },
   };
   await saveHandler({}, update);
-  assert.deepEqual(controllerSaves, [update]);
+  assert.deepEqual(controllerSaves, [
+    {
+      ...update,
+      // Validation uses a null prototype to safely store arbitrary profile IDs.
+      profiles: { __proto__: null, ...update.profiles },
+    },
+  ]);
 
   await assert.rejects(async () => {
     await saveHandler(

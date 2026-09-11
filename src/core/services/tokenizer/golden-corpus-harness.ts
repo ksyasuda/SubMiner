@@ -396,7 +396,8 @@ function createInjectedScriptVm(store: ReplayMessageStore): (script: string) => 
     Set,
     String,
   });
-  return async (script: string) => await vm.runInContext(script, context);
+  // Clone results into the host realm, matching Electron's process boundary.
+  return async (script: string) => structuredClone(await vm.runInContext(script, context));
 }
 
 export function createReplayTokenizerDeps(fixture: GoldenFixture): TokenizerServiceDeps {
