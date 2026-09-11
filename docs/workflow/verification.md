@@ -54,7 +54,7 @@ bun run docs:build
 - Build/release scripts (`scripts/**`): `bun run test:scripts`
 - Packaging: build the platform package, then run `bun run test:package <resources-directory>`.
   On headless Linux: `xvfb-run -a bun run test:package release/linux-unpacked/resources`.
-  Content checks and size budgets run inside electron-builder hooks. See the
+  Content checks and informational size reporting run inside electron-builder hooks. See the
   [release guide](../RELEASING.md#package-contents-and-size-checks) for size reports
   and the installed-app verification checklist.
 - Coverage for the maintained source lane: `bun run test:coverage:src`

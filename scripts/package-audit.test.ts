@@ -6,7 +6,7 @@ import test from 'node:test';
 import { createPackageFromStreams } from '@electron/asar';
 import { FileMatcher, getFileMatchers } from 'app-builder-lib/out/fileMatcher';
 import config from '../package.json';
-import { listAppFiles, listFiles, checkLimit, compareSizes } from './package-audit.cjs';
+import { listAppFiles, listFiles, compareSizes, verifyAppPath } from './package-audit.cjs';
 
 test('platform packaging preserves the runtime allowlist after builder normalizes global filters', () => {
   const root = process.cwd();
@@ -46,6 +46,10 @@ test('platform packaging preserves the runtime allowlist after builder normalize
       'docs-site/index.md',
       'dist/main.js.map',
       'dist/main.test.js',
+      'dist/nested/source.ts',
+      'dist/nested/__tests__/helper.js',
+      'stats/dist/nested/fixtures/data.json',
+      'vendor/texthooker-ui/docs/nested/component.tsx',
       'dist/launcher/subminer',
       'dist/settings/fonts/MPLUS1[wght].ttf',
       'vendor/subminer-yomitan/ext/manifest.json',
@@ -75,6 +79,9 @@ test('dependency filters keep only the target Windows Koffi binary', () => {
       assert(included('@libsql/win32-x64-msvc/index.node'));
       assert(!included('axios/dist/axios.js.map'));
       assert(!included('koffi/src/koffi/src/ffi.c'));
+      assert(!included('agent-base/src/index.ts'));
+      assert(!included('@discordjs/rest/dist/index.d.mts'));
+      assert(!included('example/lib/tests/helper.js'));
       for (const target of [
         'win32_x64',
         'win32_arm64',
@@ -90,6 +97,30 @@ test('dependency filters keep only the target Windows Koffi binary', () => {
       }
       assert.equal(included('koffi/index.js'), platform === 'win');
       assert.equal(included('koffi/LICENSE.txt'), platform === 'win');
+    }
+  }
+});
+
+test('content audit rejects development files beneath approved roots', () => {
+  for (const root of ['dist', 'stats/dist', 'vendor/texthooker-ui/docs', 'node_modules/example']) {
+    for (const suffix of [
+      'nested/source.ts',
+      'nested/component.tsx',
+      'nested/types.d.mts',
+      'nested/source.cts',
+      'nested/__tests__/helper.js',
+      'nested/tests/helper.js',
+      'nested/test/helper.js',
+      'nested/__fixtures__/data.json',
+      'nested/fixtures/data.json',
+      'nested/fixture/data.json',
+      'nested/component.spec.js',
+      'nested/component.test.cjs',
+    ]) {
+      assert.throws(() => verifyAppPath(`${root}/${suffix}`, 'linux', 'x64'), /Packaged/);
+    }
+    for (const suffix of ['nested/runtime.js', 'nested/style.css', 'nested/data.json']) {
+      assert.doesNotThrow(() => verifyAppPath(`${root}/${suffix}`, 'linux', 'x64'));
     }
   }
 });
@@ -122,8 +153,6 @@ test('archive inventory handles native files without counting them twice on disk
       listFiles(output).reduce((sum: number, entry: { bytes: number }) => sum + entry.bytes, 0),
       statSync(archive).size + 6,
     );
-    assert.throws(() => checkLimit(1024 * 1024 + 1, 1, 'fixture'), /exceeds/);
-    assert.doesNotThrow(() => checkLimit(1024 * 1024, 1, 'fixture'));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

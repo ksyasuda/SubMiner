@@ -4,10 +4,23 @@ export type WorkflowStep = {
   name?: string;
   run?: string;
   env?: Record<string, unknown>;
+  uses?: string;
+  with?: Record<string, unknown>;
 };
 
 export type ParsedWorkflow = {
-  jobs?: Record<string, { steps?: WorkflowStep[] } | undefined>;
+  on?: { workflow_call?: { secrets?: Record<string, { required?: boolean }> } };
+  jobs?: Record<
+    string,
+    | {
+        steps?: WorkflowStep[];
+        uses?: string;
+        needs?: string | string[];
+        permissions?: Record<string, string>;
+        secrets?: string | Record<string, string>;
+      }
+    | undefined
+  >;
 };
 
 // Workflow tests only ever run under `bun test`, which parses YAML natively.

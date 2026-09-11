@@ -2,6 +2,17 @@ name: Package release
 
 on:
   workflow_call:
+    secrets:
+      CSC_LINK:
+        required: true
+      CSC_KEY_PASSWORD:
+        required: true
+      APPLE_ID:
+        required: true
+      APPLE_APP_SPECIFIC_PASSWORD:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
 
 permissions:
   contents: read
@@ -53,7 +64,7 @@ jobs:
           mkdir -p .tmp/package-baseline
           previous=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft == false and .tag_name != env.GITHUB_REF_NAME)] | sort_by(.published_at) | last | .tag_name // empty')
           if [ -n "$previous" ]; then
-            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; absolute budgets still apply.'
+            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; size comparison will be skipped.'
           fi
 
       - name: Build AppImage
@@ -151,7 +162,7 @@ jobs:
           mkdir -p .tmp/package-baseline
           previous=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft == false and .tag_name != env.GITHUB_REF_NAME)] | sort_by(.published_at) | last | .tag_name // empty')
           if [ -n "$previous" ]; then
-            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; absolute budgets still apply.'
+            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; size comparison will be skipped.'
           fi
 
       - name: Build signed + notarized macOS artifacts
@@ -226,7 +237,7 @@ jobs:
           mkdir -p .tmp/package-baseline
           previous=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft == false and .tag_name != env.GITHUB_REF_NAME)] | sort_by(.published_at) | last | .tag_name // empty')
           if [ -n "$previous" ]; then
-            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; absolute budgets still apply.'
+            gh release download "$previous" --pattern 'package-size-*.json' --dir .tmp/package-baseline || echo 'Previous release has no package size reports; size comparison will be skipped.'
           fi
 
       - name: Build unsigned Windows artifacts

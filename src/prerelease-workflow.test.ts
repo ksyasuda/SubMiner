@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  executableRunLines,
   jobSteps,
   readWorkflow,
   stepRunsCommand,
@@ -17,6 +18,9 @@ const packageWorkflow = readFileSync(
   'utf8',
 );
 const parsedPrereleaseWorkflow = readWorkflow(prereleaseWorkflowPath);
+const parsedPackageWorkflow = readWorkflow(
+  resolve(__dirname, '../.github/workflows/package-release.yml'),
+);
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
   scripts: Record<string, string>;
@@ -46,15 +50,10 @@ test('prerelease workflow uses committed prerelease notes and never calls claude
 });
 
 test('prerelease delegates its quality gate instead of duplicating quality steps', () => {
-  assert.match(
-    prereleaseWorkflow,
-    /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
-  );
-  const qualityGateJob = prereleaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  package:)/)?.[0];
-  assert.ok(qualityGateJob);
-  assert.doesNotMatch(qualityGateJob, /oven-sh\/setup-bun/);
-  assert.doesNotMatch(qualityGateJob, /bun run test:coverage:src/);
-  assert.doesNotMatch(qualityGateJob, /bun run test:env/);
+  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.['quality-gate'], {
+    permissions: { contents: 'read' },
+    uses: './.github/workflows/quality-gate.yml',
+  });
 });
 
 test('prerelease workflow publishes GitHub prereleases and keeps them off latest', () => {
@@ -75,12 +74,79 @@ test('prerelease packaging workflows scope dependency caches by runner architect
 });
 
 test('prerelease workflow builds and uploads all release platforms', () => {
-  assert.match(packageWorkflow, /build-linux:/);
-  assert.match(packageWorkflow, /build-macos:/);
-  assert.match(packageWorkflow, /build-windows:/);
-  assert.match(packageWorkflow, /name: appimage/);
-  assert.match(packageWorkflow, /name: macos/);
-  assert.match(packageWorkflow, /name: windows/);
+  assert.deepEqual(Object.keys(parsedPrereleaseWorkflow.jobs ?? {}).sort(), [
+    'package',
+    'quality-gate',
+    'release',
+  ]);
+  assert.equal(
+    parsedPrereleaseWorkflow.jobs?.package?.uses,
+    './.github/workflows/package-release.yml',
+  );
+  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.package?.needs, ['quality-gate']);
+  assert.deepEqual(parsedPrereleaseWorkflow.jobs?.release?.needs, ['package']);
+  assert.deepEqual(Object.keys(parsedPackageWorkflow.jobs ?? {}).sort(), [
+    'build-linux',
+    'build-macos',
+    'build-windows',
+  ]);
+  for (const [job, name, paths] of [
+    ['build-linux', 'appimage', ['release/*.AppImage']],
+    ['build-macos', 'macos', ['release/*.dmg', 'release/*.zip']],
+    ['build-windows', 'windows', ['release/*.exe', 'release/*.zip']],
+  ] as const) {
+    const uploads = jobSteps(parsedPackageWorkflow, job).filter(
+      (step) => step.uses === 'actions/upload-artifact@v4',
+    );
+    assert.equal(uploads.length, 1);
+    const upload = uploads[0];
+    assert.ok(upload);
+    assert.equal(upload.with?.name, name);
+    assert.equal(upload.with?.['if-no-files-found'], 'error');
+    const uploadPath = upload.with?.path;
+    assert.ok(typeof uploadPath === 'string');
+    assert.deepEqual(uploadPath.trim().split('\n'), [
+      ...paths,
+      'release/latest*.yml',
+      'release/*.blockmap',
+      'release/package-size-*.json',
+    ]);
+    const download = jobSteps(parsedPrereleaseWorkflow, 'release').find(
+      (step) => step.uses === 'actions/download-artifact@v4' && step.with?.name === name,
+    );
+    assert.equal(download?.with?.path, 'release');
+  }
+  const steps = jobSteps(parsedPrereleaseWorkflow, 'release');
+  const checksum = steps.find((step) => step.name === 'Generate checksums');
+  const publish = steps.find((step) => step.name === 'Publish Prerelease');
+  assert.ok(checksum);
+  assert.ok(publish);
+  assert.ok(executableRunLines(checksum).includes('files+=(release/package-size-*.json)'));
+  assert.ok(executableRunLines(publish).includes('release/package-size-*.json'));
+});
+
+test('release callers pass only the declared macOS signing secrets to packaging', () => {
+  const secrets = [
+    'CSC_LINK',
+    'CSC_KEY_PASSWORD',
+    'APPLE_ID',
+    'APPLE_APP_SPECIFIC_PASSWORD',
+    'APPLE_TEAM_ID',
+  ];
+  assert.deepEqual(
+    parsedPackageWorkflow.on?.workflow_call?.secrets,
+    Object.fromEntries(secrets.map((name) => [name, { required: true }])),
+  );
+  for (const workflow of [
+    parsedPrereleaseWorkflow,
+    readWorkflow(resolve(__dirname, '../.github/workflows/release.yml')),
+  ]) {
+    assert.equal(workflow.jobs?.package?.uses, './.github/workflows/package-release.yml');
+    assert.deepEqual(
+      workflow.jobs?.package?.secrets,
+      Object.fromEntries(secrets.map((name) => [name, '${{ secrets.' + name + ' }}'])),
+    );
+  }
 });
 
 test('prerelease workflow publishes the same release assets as the stable workflow', () => {

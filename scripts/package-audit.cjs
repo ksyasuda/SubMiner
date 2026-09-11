@@ -3,7 +3,6 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const asar = require('@electron/asar');
 const { Arch } = require('builder-util');
-const limits = require('./package-size-limits.json');
 
 const MIB = 1024 * 1024;
 const currentReports = new Set();
@@ -60,14 +59,7 @@ function listAppFiles(archive) {
   });
 }
 
-function verifyContents(archive, resources, platform, arch) {
-  const entries = listAppFiles(archive);
-  const names = new Set(entries.map((entry) => entry.path));
-  for (const name of REQUIRED_APP_FILES) assert(names.has(name), `Missing app file: ${name}`);
-  for (const name of REQUIRED_RESOURCES) {
-    assert(fs.statSync(path.join(resources, name)).size > 0, `Empty resource: ${name}`);
-  }
-  assert(listFiles(path.join(resources, 'yomitan-jlpt-vocab')).length > 0, 'Missing JLPT data');
+function verifyAppPath(name, platform, arch) {
   const allowedRoots = new Set([
     'dist',
     'node_modules',
@@ -77,25 +69,40 @@ function verifyContents(archive, resources, platform, arch) {
     'LICENSE',
     'config.example.jsonc',
   ]);
-  for (const { path: name } of entries) {
-    assert(allowedRoots.has(name.split('/')[0]), `Unexpected app file: ${name}`);
-    assert(!name.endsWith('.map'), `Packaged source map: ${name}`);
-    assert(!/^dist\/.*\.test\./.test(name), `Packaged test: ${name}`);
-    assert(!/^dist\/(launcher|scripts)\//.test(name), `Duplicate helper: ${name}`);
-    assert(!/^dist\/(renderer|settings|syncui)\/fonts\//.test(name), `Duplicate font: ${name}`);
-    assert(!name.startsWith('stats/') || name.startsWith('stats/dist/'), `Stats source: ${name}`);
-    assert(
-      !name.startsWith('vendor/') || name.startsWith('vendor/texthooker-ui/docs/'),
-      `Vendor source: ${name}`,
-    );
-    if (name.startsWith('node_modules/koffi/')) {
-      assert.equal(platform, 'win32', `Koffi shipped on ${platform}`);
-      assert(!/^node_modules\/koffi\/(src|vendor|doc)\//.test(name), `Koffi build files: ${name}`);
-      if (name.endsWith('.node')) {
-        assert.equal(name, `node_modules/koffi/build/koffi/win32_${arch}/koffi.node`);
-      }
+  assert(allowedRoots.has(name.split('/')[0]), `Unexpected app file: ${name}`);
+  assert(!name.endsWith('.map'), `Packaged source map: ${name}`);
+  assert(!/\.(?:[cm]?ts|tsx)$/.test(name), `Packaged TypeScript: ${name}`);
+  assert(!/\.(?:test|spec)\./.test(name), `Packaged test: ${name}`);
+  assert(
+    !/(?:^|\/)(?:tests?|__tests__|fixtures?|__fixtures__)\//.test(name),
+    `Packaged test or fixture directory: ${name}`,
+  );
+  assert(!/^dist\/.*\.test\./.test(name), `Packaged test: ${name}`);
+  assert(!/^dist\/(launcher|scripts)\//.test(name), `Duplicate helper: ${name}`);
+  assert(!/^dist\/(renderer|settings|syncui)\/fonts\//.test(name), `Duplicate font: ${name}`);
+  assert(!name.startsWith('stats/') || name.startsWith('stats/dist/'), `Stats source: ${name}`);
+  assert(
+    !name.startsWith('vendor/') || name.startsWith('vendor/texthooker-ui/docs/'),
+    `Vendor source: ${name}`,
+  );
+  if (name.startsWith('node_modules/koffi/')) {
+    assert.equal(platform, 'win32', `Koffi shipped on ${platform}`);
+    assert(!/^node_modules\/koffi\/(src|vendor|doc)\//.test(name), `Koffi build files: ${name}`);
+    if (name.endsWith('.node')) {
+      assert.equal(name, `node_modules/koffi/build/koffi/win32_${arch}/koffi.node`);
     }
   }
+}
+
+function verifyContents(archive, resources, platform, arch) {
+  const entries = listAppFiles(archive);
+  const names = new Set(entries.map((entry) => entry.path));
+  for (const name of REQUIRED_APP_FILES) assert(names.has(name), `Missing app file: ${name}`);
+  for (const name of REQUIRED_RESOURCES) {
+    assert(fs.statSync(path.join(resources, name)).size > 0, `Empty resource: ${name}`);
+  }
+  assert(listFiles(path.join(resources, 'yomitan-jlpt-vocab')).length > 0, 'Missing JLPT data');
+  for (const { path: name } of entries) verifyAppPath(name, platform, arch);
   const libsqlPlatform = {
     linux: `linux-${arch}-gnu`,
     darwin: `darwin-${arch}`,
@@ -128,20 +135,10 @@ function verifyContents(archive, resources, platform, arch) {
   return entries;
 }
 
-function checkLimit(bytes, maxMiB, label) {
-  assert(Number.isFinite(maxMiB) && maxMiB > 0, `No size budget for ${label}`);
-  assert(
-    bytes <= maxMiB * MIB,
-    `${label}: ${(bytes / MIB).toFixed(2)} MiB exceeds ${maxMiB} MiB budget. Review the inventory before changing scripts/package-size-limits.json.`,
-  );
-}
-
 async function auditPackage(context) {
   const platform = context.electronPlatformName;
   const arch = Arch[context.arch];
   const key = `${platform}-${arch}`;
-  const budget = limits[key];
-  assert(budget, `Add reviewed package size limits for ${key}`);
   const appRoot =
     platform === 'darwin'
       ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
@@ -150,7 +147,6 @@ async function auditPackage(context) {
   const appFiles = verifyContents(path.join(resources, 'app.asar'), resources, platform, arch);
   const files = listFiles(appRoot);
   const unpackedBytes = files.reduce((sum, entry) => sum + entry.bytes, 0);
-  checkLimit(unpackedBytes, budget.unpackedMiB, `${key} unpacked`);
   const report = {
     version: context.packager.appInfo.version,
     platform,
@@ -174,7 +170,8 @@ async function auditPackage(context) {
 function artifactKind(name) {
   if (name.endsWith('-mac.zip')) return 'mac.zip';
   if (name.endsWith('-win.zip')) return 'win.zip';
-  return path.extname(name).slice(1);
+  const extension = path.extname(name).slice(1);
+  return ['AppImage', 'dmg', 'exe'].includes(extension) ? extension : undefined;
 }
 
 function compareSizes(report, previous) {
@@ -201,16 +198,13 @@ async function afterAllArtifactBuild(result) {
     const filename = path.basename(reportPath);
     const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
     const key = `${report.platform}-${report.arch}`;
-    const budget = limits[key];
     const files = listFiles(path.join(result.outDir, report.appDirectory));
     report.unpackedBytes = files.reduce((sum, entry) => sum + entry.bytes, 0);
     report.largestFiles = [...files].sort((a, b) => b.bytes - a.bytes).slice(0, 25);
-    checkLimit(report.unpackedBytes, budget.unpackedMiB, `${key} signed unpacked`);
     report.artifacts = result.artifactPaths.flatMap((file) => {
       const kind = artifactKind(file);
-      if (!(kind in budget.artifactsMiB)) return [];
+      if (!kind) return [];
       const bytes = fs.statSync(file).size;
-      checkLimit(bytes, budget.artifactsMiB[kind], `${key} ${kind}`);
       return [{ name: path.basename(file), kind, bytes }];
     });
     const previousPath = path.join(result.outDir, '..', '.tmp', 'package-baseline', filename);
@@ -241,9 +235,9 @@ async function afterAllArtifactBuild(result) {
 module.exports = {
   auditPackage,
   verifyContents,
+  verifyAppPath,
   listFiles,
   listAppFiles,
-  checkLimit,
   compareSizes,
   default: afterAllArtifactBuild,
 };

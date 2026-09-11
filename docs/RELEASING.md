@@ -14,12 +14,14 @@
 ## Package contents and size checks
 
 Stable and prerelease workflows share `.github/workflows/package-release.yml`.
+Both callers explicitly pass the five required macOS signing/notarization
+secrets; `GITHUB_TOKEN` remains automatically available to the reusable workflow.
 Each platform verifies its ASAR and external resources before signing, then
 measures the signed app and installers before upload. Missing runtime assets,
-foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps, and
-sizes above `scripts/package-size-limits.json` fail the build. New release
-architectures need reviewed budgets; current targets are Linux x64, macOS arm64,
-and Windows x64.
+foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps,
+TypeScript files, and nested test or fixture directories
+fail the build. Size measurements are informational and do not block releases.
+Current targets are Linux x64, macOS arm64, and Windows x64.
 
 The runtime allowlist includes `dist/`, `stats/dist/`, and
 `vendor/texthooker-ui/docs/` plus metadata, config example, and license. The
@@ -33,8 +35,8 @@ original M PLUS 1 TTF in `dist/fonts/`.
 files inside and outside ASAR, native binaries, and compressed artifact sizes.
 Framework symlinks are not counted twice. Reports are checksummed and published.
 CI downloads the preceding release's reports for comparison; older releases
-without reports skip comparison, but absolute budgets still apply. Review the
-inventory and reason for growth before raising a budget. An AppImage normally
+without reports skip comparison. Review the inventory and reason for growth
+when comparing releases. An AppImage normally
 runs compressed; its extracted size is a separate measurement.
 
 The shared workflow runs `bun run test:package <resources-directory>` with the

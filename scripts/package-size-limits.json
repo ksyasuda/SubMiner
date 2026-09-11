@@ -1,5 +1,0 @@
-{
-  "linux-x64": { "unpackedMiB": 410, "artifactsMiB": { "AppImage": 170 } },
-  "darwin-arm64": { "unpackedMiB": 370, "artifactsMiB": { "dmg": 160, "mac.zip": 160 } },
-  "win32-x64": { "unpackedMiB": 450, "artifactsMiB": { "exe": 140, "win.zip": 185 } }
-}

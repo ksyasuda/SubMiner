@@ -81,7 +81,7 @@
     "build:mac:zip": "bun run build && electron-builder --mac zip --publish never",
     "build:win": "bun run build && electron-builder --win nsis zip --publish never",
     "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs",
-    "test:package": "node scripts/run-package-smoke.mjs"
+    "test:package": "bun scripts/run-package-smoke.mjs"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
@@ -218,9 +218,9 @@
       "config.example.jsonc",
       "LICENSE",
       "!**/*.map",
-      "!dist/**/*.d.ts",
-      "!dist/**/*.test.*",
-      "!dist/**/__tests__{,/**/*}",
+      "!**/*.{ts,tsx,mts,cts}",
+      "!**/*.{test,spec}.*",
+      "!**/{test,tests,__tests__,fixture,fixtures,__fixtures__}{,/**/*}",
       "!dist/launcher{,/**/*}",
       "!dist/scripts{,/**/*}",
       "!dist/{renderer,settings,syncui}/fonts{,/**/*}",
