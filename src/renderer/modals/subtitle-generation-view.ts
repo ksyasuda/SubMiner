@@ -1,8 +1,21 @@
-import type {
-  SubtitleGenerationModelStatus,
-  SubtitleGenerationProgress,
+import {
+  missingSubtitleGenerationTools,
+  type SubtitleGenerationModelStatus,
+  type SubtitleGenerationProgress,
+  type SubtitleGenerationTools,
 } from '../../shared/subtitle-generation';
 import type { SubtitleGenerationStatus } from '../../shared/subtitle-generation-ipc';
+
+export function describeGenerationTools(tools: SubtitleGenerationTools) {
+  const missing = missingSubtitleGenerationTools(tools);
+  if (missing.length > 0) return { ready: false, text: missing.join(' ') };
+  return {
+    ready: true,
+    text: tools.vad
+      ? 'whisper.cpp, its speech detector, and FFmpeg are installed.'
+      : 'whisper.cpp and FFmpeg are installed.',
+  };
+}
 
 export function describeGenerationVad(vad: SubtitleGenerationStatus['vad']) {
   const model = describeGenerationModel(vad.model);

@@ -2,6 +2,7 @@ import type {
   SubtitleGenerationConfig,
   SubtitleGenerationModelStatus,
   SubtitleGenerationProgress,
+  SubtitleGenerationTools,
 } from './subtitle-generation';
 
 export type SubtitleGenerationResult =
@@ -11,6 +12,7 @@ export type SubtitleGenerationResult =
 export interface SubtitleGenerationStatus {
   model: SubtitleGenerationModelStatus;
   vad: { enabled: boolean; model: SubtitleGenerationModelStatus };
+  tools: SubtitleGenerationTools;
   managedModel: SubtitleGenerationConfig['managedModel'];
   externalModelPath: string | null;
   mediaPath: string | null;

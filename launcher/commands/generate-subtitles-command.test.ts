@@ -32,6 +32,12 @@ function fixture(argv: string[] = ['generate-subs', '/media/episode.mkv']) {
     readConfig: () => ({ subtitleGeneration: { modelPath: '/models/external.bin' } }),
     configPath: () => '/settings/SubMiner/config.jsonc',
     resolveModel: async () => ({ kind: 'external', path: '/models/external.bin' }),
+    resolveTools: async () => ({
+      ffmpeg: { kind: 'found', path: '/usr/bin/ffmpeg' },
+      ffprobe: { kind: 'found', path: '/usr/bin/ffprobe' },
+      whisper: { kind: 'found', path: '/usr/bin/whisper-cli' },
+      vad: null,
+    }),
     downloadModel: async () => {
       throw new Error('Unexpected model download');
     },
@@ -90,6 +96,22 @@ test('launcher uses the shared core and selected mpv audio then loads the genera
   assert.match(f.output.join(''), /50%/);
   assert.match(f.output.join(''), /Saved Japanese subtitles/);
   assert.equal(f.detached(), true);
+});
+
+test('launcher reports a missing executable before downloading a model', async () => {
+  const f = fixture(['generate-subs', '/media/episode.mkv', '--download-model']);
+  f.deps.resolveModel = async () => ({ kind: 'missing', path: '/models/missing.bin' });
+  f.deps.resolveTools = async () => ({
+    ffmpeg: { kind: 'found', path: '/usr/bin/ffmpeg' },
+    ffprobe: { kind: 'found', path: '/usr/bin/ffprobe' },
+    whisper: { kind: 'missing', message: 'whisper-cli was not found on PATH.' },
+    vad: null,
+  });
+  await assert.rejects(
+    runGenerateSubtitlesCommand(f.context, f.deps),
+    /whisper-cli was not found on PATH/,
+  );
+  assert.equal(f.generations.length, 0);
 });
 
 test('launcher never downloads a model without the explicit option', async () => {

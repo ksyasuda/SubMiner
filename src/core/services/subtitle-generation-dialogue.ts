@@ -7,6 +7,7 @@ import type {
 } from '../../shared/subtitle-generation';
 import { expandSubtitleGenerationPath } from './subtitle-generation-files';
 import { runSubtitleGenerationProcess } from './subtitle-generation-process';
+import type { SubtitleGenerationToolPaths } from './subtitle-generation-tools';
 import { formatTimestamp } from './subtitle-generation-srt';
 import {
   parseSpeechPassages,
@@ -21,6 +22,7 @@ const PASSAGES_PER_BATCH = 16;
 
 export async function transcribeSubtitleDialogue(input: {
   config: SubtitleGenerationConfig;
+  tools: SubtitleGenerationToolPaths & { vad: string };
   modelPath: string;
   wavPath: string;
   directory: string;
@@ -32,7 +34,7 @@ export async function transcribeSubtitleDialogue(input: {
   input.onProgress?.({ stage: 'transcribe', percent: 0, message: 'Finding spoken dialogue...' });
   const segmentLines: string[] = [];
   await runSubtitleGenerationProcess({
-    command: input.config.vadPath.trim() || 'whisper-vad-speech-segments',
+    command: input.tools.vad,
     args: [
       '-f',
       input.wavPath,
@@ -65,7 +67,7 @@ export async function transcribeSubtitleDialogue(input: {
     (passage) => passage.endSeconds - passage.startSeconds > SPEECH_PASSAGE_SECONDS,
   )
     ? await findSpeechPauses({
-        ffmpegPath: input.config.ffmpegPath,
+        ffmpegPath: input.tools.ffmpeg,
         wavPath: input.wavPath,
         signal: input.signal,
       })
@@ -84,7 +86,7 @@ export async function transcribeSubtitleDialogue(input: {
     });
     for (const { passage, base } of batch) {
       await runSubtitleGenerationProcess({
-        command: input.config.ffmpegPath.trim() || 'ffmpeg',
+        command: input.tools.ffmpeg,
         args: [
           '-nostdin',
           '-hide_banner',
@@ -109,7 +111,7 @@ export async function transcribeSubtitleDialogue(input: {
     }
     // One model load per batch, with independent text context and timestamps for every passage.
     await runSubtitleGenerationProcess({
-      command: input.config.whisperPath.trim() || 'whisper-cli',
+      command: input.tools.whisper,
       args: [
         '-m',
         input.modelPath,

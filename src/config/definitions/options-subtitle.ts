@@ -24,7 +24,7 @@ export function buildSubtitleConfigOptionRegistry(
         vadModelPath:
           'Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation from separate speech passages. Leave empty to transcribe the full audio, including songs.',
         vadPath:
-          'Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments on PATH.',
+          'Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments or vad-speech-segments on PATH.',
       }[key],
     })),
     {

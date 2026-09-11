@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type {
@@ -10,11 +11,16 @@ import { runSubtitleGenerationProcess } from './subtitle-generation-process';
 import { publishSubtitleGenerationFile } from './subtitle-generation-files';
 import { formatTimestamp } from './subtitle-generation-srt';
 import { transcribeSubtitleDialogue } from './subtitle-generation-dialogue';
+import {
+  requireSubtitleGenerationTools,
+  resolveSubtitleGenerationTools,
+} from './subtitle-generation-tools';
 
 export {
   downloadSubtitleGenerationModel,
   resolveSubtitleGenerationModel,
 } from './subtitle-generation-models';
+export { resolveSubtitleGenerationTools } from './subtitle-generation-tools';
 
 function numericTime(value: unknown): number | undefined {
   if (typeof value !== 'number' && typeof value !== 'string') return undefined;
@@ -118,6 +124,15 @@ async function ensureAvailableOutput(outputPath: string): Promise<void> {
   throw new Error(`Subtitle output already exists: ${outputPath}`);
 }
 
+// Fail before extraction and transcription when the destination cannot take the file.
+async function ensureWritableDirectory(directory: string): Promise<void> {
+  try {
+    await access(directory, constants.W_OK);
+  } catch {
+    throw new Error(`Cannot save subtitles: ${directory} is not writable.`);
+  }
+}
+
 async function writeSubtitles(input: {
   mediaPath: string;
   outputPath?: string;
@@ -170,15 +185,19 @@ export async function generateJapaneseSubtitles(input: {
   if (!(await stat(mediaPath)).isFile())
     throw new Error('Subtitle generation requires a local media file.');
   if (input.outputPath) await ensureAvailableOutput(path.resolve(input.outputPath));
+  await ensureWritableDirectory(
+    input.outputPath ? path.dirname(path.resolve(input.outputPath)) : path.dirname(mediaPath),
+  );
   const model = await resolveSubtitleGenerationModel(input.config, input.modelDirectory);
   if (model.kind === 'missing')
     throw new Error(
       'No Whisper model found. Download a model or configure an existing model path.',
     );
   if (model.kind === 'invalid') throw new Error(model.message);
+  const tools = requireSubtitleGenerationTools(await resolveSubtitleGenerationTools(input.config));
   input.onProgress?.({ stage: 'extract', message: 'Inspecting audio tracks...' });
   const probe = await runSubtitleGenerationProcess({
-    command: input.config.ffprobePath.trim() || 'ffprobe',
+    command: tools.ffprobe,
     args: [
       '-v',
       'error',
@@ -197,7 +216,7 @@ export async function generateJapaneseSubtitles(input: {
     const subtitleBase = path.join(temporaryDirectory, 'subtitles');
     input.onProgress?.({ stage: 'extract', percent: 0, message: 'Extracting audio...' });
     await runSubtitleGenerationProcess({
-      command: input.config.ffmpegPath.trim() || 'ffmpeg',
+      command: tools.ffmpeg,
       args: [
         '-nostdin',
         '-hide_banner',
@@ -239,9 +258,10 @@ export async function generateJapaneseSubtitles(input: {
       message: 'Generating Japanese subtitles...',
     });
     let srt: string;
-    if (input.config.vadModelPath.trim()) {
+    if (tools.vad !== null) {
       srt = await transcribeSubtitleDialogue({
         config: input.config,
+        tools: { ...tools, vad: tools.vad },
         modelPath: model.path,
         wavPath,
         directory: temporaryDirectory,
@@ -250,7 +270,7 @@ export async function generateJapaneseSubtitles(input: {
       });
     } else {
       await runSubtitleGenerationProcess({
-        command: input.config.whisperPath.trim() || 'whisper-cli',
+        command: tools.whisper,
         args: [
           '-m',
           model.path,

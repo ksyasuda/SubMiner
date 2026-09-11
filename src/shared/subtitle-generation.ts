@@ -37,6 +37,24 @@ export type SubtitleGenerationModelStatus =
   | { kind: 'missing'; path: string }
   | { kind: 'invalid'; path: string; message: string };
 
+export type SubtitleGenerationToolStatus =
+  | { kind: 'found'; path: string }
+  | { kind: 'missing'; message: string };
+
+/** Executables generation depends on. `vad` is null unless dialogue mode is on. */
+export interface SubtitleGenerationTools {
+  ffmpeg: SubtitleGenerationToolStatus;
+  ffprobe: SubtitleGenerationToolStatus;
+  whisper: SubtitleGenerationToolStatus;
+  vad: SubtitleGenerationToolStatus | null;
+}
+
+export function missingSubtitleGenerationTools(tools: SubtitleGenerationTools): string[] {
+  return [tools.ffmpeg, tools.ffprobe, tools.whisper, tools.vad].flatMap((tool) =>
+    tool?.kind === 'missing' ? [tool.message] : [],
+  );
+}
+
 export function resolveSubtitleGenerationConfig(
   value: unknown,
   onWarning?: (key: string, value: unknown, message: string) => void,

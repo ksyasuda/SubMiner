@@ -48,7 +48,13 @@ export function runSubtitleGenerationProcess(input: {
     }
     child.once('error', (error) => {
       cleanup();
-      reject(new Error(`Could not run ${input.command}: ${error.message}`));
+      reject(
+        new Error(
+          'code' in error && error.code === 'ENOENT'
+            ? `${input.command} was not found. Install it or set its path under subtitleGeneration in Settings.`
+            : `Could not run ${input.command}: ${error.message}`,
+        ),
+      );
     });
     child.once('close', (code) => {
       cleanup();

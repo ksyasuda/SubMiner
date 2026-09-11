@@ -6,6 +6,8 @@ Generate Japanese SRT subtitles from a local video's audio using [whisper.cpp](h
 
 Install whisper.cpp's `whisper-cli` executable and FFmpeg, including `ffprobe`. SubMiner downloads models, not these executables. Leave `whisperPath`, `ffmpegPath`, and `ffprobePath` empty to find the executables on `PATH`. To use a specific installation, set a path override under **Settings → Integrations → Japanese Subtitle Generation**.
 
+The generation modal checks for these executables under **Local tools** and keeps **Generate subtitles** disabled until every required one is found, naming the missing executable and its setting. Model downloads stay available in the meantime. After installing a tool or changing a path, click **Check again**. The launcher runs the same check before any model download. Generation also confirms the destination directory is writable before extracting audio.
+
 Choose one model source:
 
 - Set `subtitleGeneration.modelPath` to an existing **multilingual whisper.cpp GGML `.bin` model**. Python Whisper checkpoints and English-only models are not suitable for Japanese transcription.
@@ -19,7 +21,7 @@ See the [generated configuration example](/config.example.jsonc) for current def
 
 To focus on dialogue, check the optional **Focus on spoken dialogue** box in the generation modal. If the speech detection model is missing, click **Download speech detection model** to install it. This separate download uses the same progress, cancellation, and integrity checks as Whisper downloads. Checking the box never downloads automatically, and leaving it unchecked lets you generate without the Silero model.
 
-You also need whisper.cpp's [speech segment detector](https://github.com/ggml-org/whisper.cpp/tree/master/examples/vad-speech-segments). SubMiner downloads the model, not this executable. The detector is found as `whisper-vad-speech-segments` on `PATH`. Builds from the upstream source may name it `vad-speech-segments`; set `vadPath` in **Settings → Integrations → Japanese Subtitle Generation** when needed.
+You also need whisper.cpp's [speech segment detector](https://github.com/ggml-org/whisper.cpp/tree/master/examples/vad-speech-segments). SubMiner downloads the model, not this executable. The detector is found as `whisper-vad-speech-segments` or, for builds from the upstream source, `vad-speech-segments` on `PATH`. Set `vadPath` in **Settings → Integrations → Japanese Subtitle Generation** for any other location. With **Focus on spoken dialogue** checked, the modal's **Local tools** check requires the detector too.
 
 The checkbox choice lasts for the current SubMiner session, including closing and reopening the modal. To make dialogue mode your default, set `vadModelPath` in Settings to a [Silero GGML VAD model](https://huggingface.co/ggml-org/whisper-vad/tree/main). The modal downloads `ggml-silero-v6.2.0.bin` into the same `models/whisper/` directory as managed Whisper models. An existing configured VAD path takes precedence and checks the box initially. Unchecking it temporarily disables dialogue mode without changing that path. Downloading the model alone does not enable dialogue mode.
 

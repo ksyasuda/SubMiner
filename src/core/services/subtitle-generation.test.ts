@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -277,7 +277,7 @@ test('empty executable paths find tools on PATH and explicit overrides take prec
           ...input,
           config: { ...config, ffprobePath: path.join(directory, 'missing-override') },
         }),
-        /Could not run .*missing-override/,
+        /missing-override \(subtitleGeneration\.ffprobePath\) is not an executable file/,
       );
     } finally {
       if (previousPath === undefined) delete process.env.PATH;
@@ -285,7 +285,7 @@ test('empty executable paths find tools on PATH and explicit overrides take prec
     }
   }));
 
-test('generation rejects remote media and missing models before starting a subprocess', () =>
+test('generation rejects remote media, missing models, and missing tools before starting a subprocess', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);
     await assert.rejects(
@@ -296,8 +296,41 @@ test('generation rejects remote media and missing models before starting a subpr
       generateJapaneseSubtitles({ ...input, config: { ...input.config, modelPath: '' } }),
       /No Whisper model found/,
     );
+    await assert.rejects(
+      generateJapaneseSubtitles({
+        ...input,
+        config: {
+          ...input.config,
+          vadModelPath: path.join(directory, 'vad.bin'),
+          vadPath: path.join(directory, 'missing-detector'),
+        },
+      }),
+      /missing-detector \(subtitleGeneration\.vadPath\) is not an executable file/,
+    );
     await assert.rejects(readFile(input.callsPath), /ENOENT/);
   }));
+
+test(
+  'generation rejects an unwritable destination before extracting audio',
+  {
+    skip: process.platform === 'win32' || process.getuid?.() === 0,
+  },
+  () =>
+    fixture(async (directory) => {
+      const input = await generationFixture(directory);
+      const readOnly = path.join(directory, 'read-only');
+      await mkdir(readOnly, { mode: 0o555 });
+      try {
+        await assert.rejects(
+          generateJapaneseSubtitles({ ...input, outputPath: path.join(readOnly, 'out.srt') }),
+          /read-only is not writable/,
+        );
+        await assert.rejects(readFile(input.callsPath), /ENOENT/);
+      } finally {
+        await chmod(readOnly, 0o755);
+      }
+    }),
+);
 
 test('process cancellation terminates work and bounds diagnostic output', () =>
   fixture(async (directory) => {

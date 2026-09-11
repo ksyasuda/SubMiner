@@ -9,6 +9,7 @@ import {
   downloadSubtitleGenerationModel,
   generateJapaneseSubtitles,
   resolveSubtitleGenerationModel,
+  resolveSubtitleGenerationTools,
 } from '../../core/services/subtitle-generation';
 import type {
   SubtitleGenerationConfig,
@@ -33,6 +34,7 @@ export interface SubtitleGenerationRuntimeDeps {
   generate?: typeof generateJapaneseSubtitles;
   download?: typeof downloadSubtitleGenerationModel;
   resolveModel?: typeof resolveSubtitleGenerationModel;
+  resolveTools?: typeof resolveSubtitleGenerationTools;
   downloadVad?: typeof downloadSubtitleGenerationVadModel;
   resolveVadModel?: typeof resolveSubtitleGenerationVadModel;
 }
@@ -139,6 +141,8 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
           deps.getModelDirectory(),
         ),
       },
+      // Session toggles decide whether the speech detector executable is required.
+      tools: await (deps.resolveTools ?? resolveSubtitleGenerationTools)(config),
       managedModel: config.managedModel,
       externalModelPath: config.modelPath.trim() || null,
       mediaPath,

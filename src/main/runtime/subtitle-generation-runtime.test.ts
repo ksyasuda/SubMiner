@@ -24,6 +24,12 @@ function fixture(overrides: Partial<SubtitleGenerationRuntimeDeps> = {}) {
     getMpvClient: () => client,
     onProgress: () => {},
     resolveModel: async () => ({ kind: 'external', path: '/models/local.bin' }),
+    resolveTools: async (config) => ({
+      ffmpeg: { kind: 'found', path: '/usr/bin/ffmpeg' },
+      ffprobe: { kind: 'found', path: '/usr/bin/ffprobe' },
+      whisper: { kind: 'found', path: '/usr/bin/whisper-cli' },
+      vad: config.vadModelPath ? { kind: 'found', path: '/usr/bin/vad' } : null,
+    }),
     generate: async () => '/video/episode.ja.generated.srt',
     ...overrides,
   });
@@ -174,6 +180,15 @@ test('external model paths prevent managed selection, including unreadable overr
   });
   assert.equal((await runtime.getStatus()).externalModelPath, '/missing/external.bin');
   await assert.rejects(runtime.selectModel('medium'), /Clear Model Path/);
+});
+
+test('status reports the speech detector only while dialogue mode is on', async () => {
+  const { runtime } = fixture({
+    resolveVadModel: async () => ({ kind: 'managed', path: '/models/ggml-silero-v6.2.0.bin' }),
+  });
+  assert.equal((await runtime.getStatus()).tools.vad, null);
+  await runtime.setVadEnabled(true);
+  assert.deepEqual((await runtime.getStatus()).tools.vad, { kind: 'found', path: '/usr/bin/vad' });
 });
 
 test('speech detection is optional and downloading alone does not enable it', async () => {

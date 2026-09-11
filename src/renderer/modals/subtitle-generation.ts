@@ -16,6 +16,7 @@ import { createModalFocusGuard } from './modal-focus-guard';
 import {
   describeGenerationModel,
   describeGenerationProgress,
+  describeGenerationTools,
   describeGenerationVad,
 } from './subtitle-generation-view';
 import { SUBTITLE_GENERATION_VAD_MODEL } from '../../shared/subtitle-generation-vad-model';
@@ -38,6 +39,7 @@ export function createSubtitleGenerationModal(
     close: element('subtitleGenerationClose', HTMLButtonElement),
     open: element('subtitleGenerationOpen', HTMLButtonElement),
     media: element('subtitleGenerationMedia', HTMLDivElement),
+    tools: element('subtitleGenerationTools', HTMLDivElement),
     model: element('subtitleGenerationModel', HTMLDivElement),
     modelPicker: element('subtitleGenerationModelPicker', HTMLDivElement),
     modelSelect: element('subtitleGenerationModelSelect', HTMLSelectElement),
@@ -85,14 +87,18 @@ export function createSubtitleGenerationModal(
     const busy = pending || Boolean(snapshot?.running);
     const model = snapshot ? describeGenerationModel(snapshot.model) : null;
     const vad = snapshot ? describeGenerationVad(snapshot.vad) : null;
+    const tools = snapshot ? describeGenerationTools(snapshot.tools) : null;
     const readyMessage = !snapshot?.mediaPath
       ? 'Open local media to generate subtitles.'
-      : !model?.ready
-        ? 'Set up a speech model to continue.'
-        : !vad?.ready
-          ? 'Download the speech detection model or uncheck Focus on spoken dialogue.'
-          : 'Ready when you are.';
+      : !tools?.ready
+        ? 'Install the missing tools or set their paths in Settings, then click Check again.'
+        : !model?.ready
+          ? 'Set up a speech model to continue.'
+          : !vad?.ready
+            ? 'Download the speech detection model or uncheck Focus on spoken dialogue.'
+            : 'Ready when you are.';
     dom.media.textContent = snapshot?.mediaPath ?? 'Open a local media file in the player first.';
+    dom.tools.textContent = tools?.text ?? 'Checking local tools...';
     dom.model.textContent = model?.text ?? 'Checking local models...';
     dom.modelPicker.classList.toggle('hidden', !snapshot || Boolean(snapshot.externalModelPath));
     dom.modelSelect.disabled = busy || checking || !snapshot || Boolean(snapshot.externalModelPath);
@@ -113,7 +119,8 @@ export function createSubtitleGenerationModal(
     dom.vadDownload.classList.toggle('hidden', !vad?.download);
     dom.vadDownload.textContent = `Download speech detection model · ${formatSubtitleGenerationModelSize(SUBTITLE_GENERATION_VAD_MODEL.size)}`;
     dom.vadDownload.disabled = busy || checking;
-    dom.start.disabled = busy || checking || !model?.ready || !vad?.ready || !snapshot?.mediaPath;
+    dom.start.disabled =
+      busy || checking || !tools?.ready || !model?.ready || !vad?.ready || !snapshot?.mediaPath;
     dom.refresh.disabled = busy || checking;
     dom.cancel.classList.toggle('hidden', !busy);
     dom.cancel.disabled = cancelling;
@@ -166,12 +173,13 @@ export function createSubtitleGenerationModal(
     if (pending || snapshot?.running || checking || !snapshot) return;
     const model = describeGenerationModel(snapshot.model);
     const vad = describeGenerationVad(snapshot.vad);
+    const tools = describeGenerationTools(snapshot.tools);
     if (
       action === 'download'
         ? !model.download
         : action === 'download-vad'
           ? !vad.download
-          : !model.ready || !vad.ready || !snapshot.mediaPath
+          : !tools.ready || !model.ready || !vad.ready || !snapshot.mediaPath
     )
       return;
     pending = true;

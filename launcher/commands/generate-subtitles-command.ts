@@ -5,7 +5,9 @@ import {
   downloadSubtitleGenerationModel,
   generateJapaneseSubtitles,
   resolveSubtitleGenerationModel,
+  resolveSubtitleGenerationTools,
 } from '../../src/core/services/subtitle-generation.js';
+import { requireSubtitleGenerationTools } from '../../src/core/services/subtitle-generation-tools.js';
 import {
   resolveSubtitleGenerationConfig,
   type SubtitleGenerationProgress,
@@ -26,6 +28,7 @@ interface GenerationCommandDeps {
   readConfig: typeof readLauncherMainConfigObject;
   configPath: typeof resolveLauncherMainConfigPath;
   resolveModel: typeof resolveSubtitleGenerationModel;
+  resolveTools: typeof resolveSubtitleGenerationTools;
   downloadModel: typeof downloadSubtitleGenerationModel;
   generate: typeof generateJapaneseSubtitles;
   mpvCommand: typeof sendMpvCommandWithResponse;
@@ -36,6 +39,7 @@ const defaultDeps: GenerationCommandDeps = {
   readConfig: readLauncherMainConfigObject,
   configPath: resolveLauncherMainConfigPath,
   resolveModel: resolveSubtitleGenerationModel,
+  resolveTools: resolveSubtitleGenerationTools,
   downloadModel: downloadSubtitleGenerationModel,
   generate: generateJapaneseSubtitles,
   mpvCommand: sendMpvCommandWithResponse,
@@ -162,6 +166,8 @@ export async function runGenerateSubtitlesCommand(
         ? await readMpvAudioStream(context.mpvSocketPath, deps.mpvCommand)
         : undefined);
     const onProgress = createGenerationProgressReporter(write);
+    // Missing executables fail here, before any model download starts.
+    requireSubtitleGenerationTools(await deps.resolveTools(config));
     const model = await deps.resolveModel(config, modelDirectory);
     if (model.kind === 'invalid') throw new Error(model.message);
     if (model.kind === 'missing') {

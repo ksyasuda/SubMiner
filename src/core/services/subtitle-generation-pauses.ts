@@ -8,7 +8,7 @@ export async function findSpeechPauses(input: {
 }): Promise<number[]> {
   const pauses: number[] = [];
   await runSubtitleGenerationProcess({
-    command: input.ffmpegPath.trim() || 'ffmpeg',
+    command: input.ffmpegPath,
     args: [
       '-nostdin',
       '-hide_banner',

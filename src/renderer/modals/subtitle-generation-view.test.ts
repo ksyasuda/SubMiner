@@ -3,8 +3,32 @@ import test from 'node:test';
 import {
   describeGenerationModel,
   describeGenerationProgress,
+  describeGenerationTools,
   describeGenerationVad,
 } from './subtitle-generation-view';
+
+test('missing tools block generation and list every install instruction', () => {
+  const found = { kind: 'found', path: '/usr/bin/tool' } as const;
+  assert.deepEqual(
+    describeGenerationTools({ ffmpeg: found, ffprobe: found, whisper: found, vad: null }),
+    {
+      ready: true,
+      text: 'whisper.cpp and FFmpeg are installed.',
+    },
+  );
+  assert.deepEqual(
+    describeGenerationTools({
+      ffmpeg: { kind: 'missing', message: 'ffmpeg was not found on PATH.' },
+      ffprobe: found,
+      whisper: found,
+      vad: { kind: 'missing', message: 'whisper-vad-speech-segments was not found on PATH.' },
+    }),
+    {
+      ready: false,
+      text: 'ffmpeg was not found on PATH. whisper-vad-speech-segments was not found on PATH.',
+    },
+  );
+});
 
 test('only a missing managed model offers a download', () => {
   assert.deepEqual(describeGenerationModel({ kind: 'missing', path: '/models/small.bin' }), {
