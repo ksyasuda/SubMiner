@@ -1,4 +1,4 @@
 type: docs
 area: launcher
 
-- Documented private-runtime launcher installation, custom app locations, legacy launcher migration, and package-managed updates.
+- Documented private-runtime launcher installation, simplified first-run setup, custom app locations, legacy launcher migration, and package-managed updates.

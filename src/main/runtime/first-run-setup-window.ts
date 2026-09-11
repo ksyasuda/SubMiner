@@ -1,9 +1,5 @@
 import { getFirstRunSetupCompletionMessage } from './first-run-setup-service';
-import type {
-  BunSnapshot,
-  CommandLineLauncherSnapshot,
-  LauncherSnapshot,
-} from './command-line-launcher';
+import type { CommandLineLauncherSnapshot, LauncherSnapshot } from './command-line-launcher';
 
 type FocusableWindowLike = {
   focus: () => void;
@@ -74,29 +70,12 @@ function renderStatusBadge(value: string, tone: 'ready' | 'warn' | 'muted' | 'da
   return `<span class="badge ${tone}">${escapeHtml(value)}</span>`;
 }
 
-function formatCommand(command: string[] | null): string {
-  return command?.join(' ') ?? 'No install command detected';
-}
-
-function getBunStatusLabel(status: BunSnapshot['status']): string {
-  switch (status) {
-    case 'ready':
-      return 'Ready';
-    case 'installing':
-      return 'Installing';
-    case 'failed':
-      return 'Failed';
-    case 'missing':
-      return 'Missing';
-  }
-}
-
 function getLauncherStatusLabel(status: LauncherSnapshot['status']): string {
   switch (status) {
     case 'ready':
       return 'Ready';
     case 'installed_bun_missing':
-      return 'Installed, Bun missing';
+      return 'Unavailable';
     case 'not_installed':
       return 'Not installed';
     case 'not_on_path':
@@ -108,13 +87,6 @@ function getLauncherStatusLabel(status: LauncherSnapshot['status']): string {
     case 'failed':
       return 'Failed';
   }
-}
-
-function getToolTone(status: BunSnapshot['status']): 'ready' | 'warn' | 'muted' | 'danger' {
-  if (status === 'ready') return 'ready';
-  if (status === 'failed') return 'danger';
-  if (status === 'installing') return 'muted';
-  return 'warn';
 }
 
 function getLauncherTone(
@@ -135,31 +107,18 @@ function renderCommandLineLauncherSection(
 
   const bun = commandLineLauncher.bun;
   const launcher = commandLineLauncher.launcher;
-  const bunMeta =
-    bun.status === 'ready'
-      ? [
-          bun.commandPath ? `Path: ${bun.commandPath}` : null,
-          bun.version ? `Version: ${bun.version}` : null,
-        ].filter(Boolean)
-      : [
-          bun.installMethod ? `Method: ${bun.installMethod}` : null,
-          bun.installCommand ? `Command: ${formatCommand(bun.installCommand)}` : null,
-          bun.message,
-        ].filter(Boolean);
+  const runtimeUnavailable = bun.status !== 'ready';
+  const launcherStatus = runtimeUnavailable ? 'failed' : launcher.status;
+  const runtimeError = bun.installCommand
+    ? "The launcher runtime is unavailable. Install the project's Bun dependency, then refresh."
+    : 'The launcher runtime is unavailable. Reinstall SubMiner to repair it.';
   const launcherMeta = [
     launcher.commandPath ? `Command: ${launcher.commandPath}` : null,
     launcher.installPath ? `Install target: ${launcher.installPath}` : null,
     launcher.pathDir ? `PATH dir: ${launcher.pathDir}` : null,
     launcher.shadowedBy ? `Shadowed by: ${launcher.shadowedBy}` : null,
-    launcher.message,
-    bun.status !== 'ready'
-      ? 'The launcher runtime must be ready before installing the launcher.'
-      : null,
+    runtimeUnavailable ? runtimeError : launcher.message,
   ].filter(Boolean);
-  const bunInstallButton =
-    bun.installCommand && (bun.status === 'missing' || bun.status === 'failed')
-      ? `<button onclick="window.location.href='subminer://first-run-setup?action=install-bun'">Install Bun</button>`
-      : '';
   const launcherButtonDisabled =
     launcher.status === 'not_installable' || bun.status !== 'ready' ? 'disabled' : '';
 
@@ -172,27 +131,13 @@ function renderCommandLineLauncherSection(
       <div class="card block">
         <div class="card-head">
           <div>
-            <strong>Launcher runtime</strong>
-            ${bun.message && bun.status === 'ready' ? `<div class="meta">${escapeHtml(bun.message)}</div>` : ''}
-            ${bunMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
-          </div>
-          ${renderStatusBadge(getBunStatusLabel(bun.status), getToolTone(bun.status))}
-        </div>
-        <div class="inline-actions">
-          ${bunInstallButton}
-          <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
-        </div>
-      </div>
-      <div class="card block">
-        <div class="card-head">
-          <div>
             <strong>SubMiner launcher</strong>
             ${launcherMeta.map((line) => `<div class="meta">${escapeHtml(String(line))}</div>`).join('')}
           </div>
-          ${renderStatusBadge(getLauncherStatusLabel(launcher.status), getLauncherTone(launcher.status))}
+          ${renderStatusBadge(getLauncherStatusLabel(launcherStatus), getLauncherTone(launcherStatus))}
         </div>
         <div class="inline-actions">
-          <button ${launcherButtonDisabled} onclick="window.location.href='subminer://first-run-setup?action=install-command-line-launcher'">Install launcher</button>
+          <button ${launcherButtonDisabled} onclick="window.location.href='subminer://first-run-setup?action=install-command-line-launcher'">Install command-line launcher</button>
           <button class="ghost" onclick="window.location.href='subminer://first-run-setup?action=refresh'">Refresh</button>
         </div>
       </div>

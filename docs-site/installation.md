@@ -343,7 +343,7 @@ The setup wizard walks you through:
 
 - **Config file** - auto-created at `~/.config/SubMiner/config.jsonc` (Linux/macOS) or `%APPDATA%\SubMiner\config.jsonc` (Windows)
 - **Yomitan dictionaries** - import at least one dictionary so word lookups work
-- **`subminer` launcher** _(optional)_ - installs a wrapper into a writable terminal PATH directory. The wrapper uses Bun packaged with the app.
+- **`subminer` launcher** _(optional)_ - installs a wrapper into a writable terminal PATH directory. The wrapper uses Bun packaged with the app, with no separate runtime setup. If the included runtime is unavailable, the launcher controls show an error asking you to reinstall SubMiner.
 - **Windows shortcut** _(Windows only)_ - create a `SubMiner mpv` Start Menu/Desktop shortcut
 
 The `Finish setup` button requires a config file and at least one Yomitan dictionary. The launcher is optional and never blocks setup completion.
