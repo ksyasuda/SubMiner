@@ -280,7 +280,8 @@ jobs:
             plugin/subminer \
             plugin/subminer.conf \
             assets/themes/subminer.rasi \
-            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer
+            assets/thumbnailers/subminer-ffmpegthumbnailer.thumbnailer \
+            resources/bun/licenses
 
       - name: Package Bun corresponding source
         run: bun scripts/package-bun-source.mjs

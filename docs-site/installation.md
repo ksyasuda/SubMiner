@@ -322,6 +322,10 @@ bun run build:win
 
 </details>
 
+### Bundled Bun runtime {#bundled-bun-runtime}
+
+Every package includes an unmodified copy of Bun 1.3.5 that runs the command-line launcher. Bun is MIT licensed and statically links JavaScriptCore under LGPL 2.0 and TinyCC under LGPL 2.1. The license texts, third-party notices, and a `SOURCE.md` describing the corresponding source ship inside the app under `resources/bun/licenses` (`SubMiner.app/Contents/Resources/bun/licenses` on macOS). Each GitHub release also publishes `bun-v1.3.5-source.tar.gz` with the matching Bun, WebKit, and dependency sources and instructions for rebuilding Bun against a modified JavaScriptCore.
+
 ## 3. Launch and first-run setup
 
 Launch SubMiner and the setup wizard opens on its own:
@@ -459,7 +463,7 @@ Launchers installed before the private-runtime change may still be bundled JavaS
 
 ### Linux support assets
 
-SubMiner ships the Linux rofi theme, scoped Matroska thumbnailer registration, and launcher-managed runtime plugin copy in `subminer-assets.tar.gz`:
+SubMiner ships the Linux rofi theme, scoped Matroska thumbnailer registration, launcher-managed runtime plugin copy, and the bundled Bun license notices in `subminer-assets.tar.gz`:
 
 ```bash
 wget https://github.com/ksyasuda/SubMiner/releases/latest/download/subminer-assets.tar.gz -O /tmp/subminer-assets.tar.gz

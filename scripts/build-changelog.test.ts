@@ -622,6 +622,8 @@ test('writePrereleaseNotesForVersion writes cumulative beta notes without mutati
     assert.match(prereleaseNotes, /## Installation\n\nSee the README and docs\/installation guide/);
     assert.match(prereleaseNotes, /Windows `subminer\.cmd` launcher/);
     assert.match(prereleaseNotes, /Both launcher downloads use Bun included with the SubMiner app/);
+    assert.match(prereleaseNotes, /Bun corresponding source: `bun-v1\.3\.5-source\.tar\.gz`/);
+    assert.match(prereleaseNotes, /statically links JavaScriptCore \(LGPL 2\.0\)/);
   } finally {
     fs.rmSync(workspace, { recursive: true, force: true });
   }

@@ -266,6 +266,7 @@ SubMiner builds on the work of these open-source projects:
 | [Anacreon-Script](https://github.com/friedrich-de/Anacreon-Script)                          | Inspiration for the mining workflow                                     |
 | [asbplayer](https://github.com/killergerbah/asbplayer)                                      | Inspiration for subtitle sidebar and logic for YouTube subtitle parsing |
 | [Bee's Character Dictionary](https://github.com/bee-san/Japanese_Character_Name_Dictionary) | Character name recognition in subtitles                                 |
+| [Bun](https://github.com/oven-sh/bun)                                                       | Bundled runtime for the `subminer` command-line launcher                |
 | [GameSentenceMiner](https://github.com/bpwhelan/GameSentenceMiner)                          | Inspiration for Electron overlay with Yomitan integration               |
 | [jellyfin-mpv-shim](https://github.com/jellyfin/jellyfin-mpv-shim)                          | Jellyfin integration                                                    |
 | [Jimaku.cc](https://jimaku.cc)                                                              | Japanese subtitle search and downloads                                  |
@@ -275,4 +276,6 @@ SubMiner builds on the work of these open-source projects:
 
 ## License
 
-[GNU General Public License v3.0](LICENSE)
+SubMiner is released under the [GNU General Public License v3.0](LICENSE).
+
+Release packages also bundle an unmodified copy of [Bun](https://github.com/oven-sh/bun), which is MIT licensed and statically links JavaScriptCore (LGPL 2.0) and TinyCC (LGPL 2.1). Its license texts and third-party notices ship inside the app under `resources/bun/licenses`, and each release publishes `bun-v1.3.5-source.tar.gz` with the corresponding source. See [Bundled Bun runtime](https://docs.subminer.moe/installation#bundled-bun-runtime).
