@@ -12,6 +12,10 @@ import {
 
 const prereleaseWorkflowPath = resolve(__dirname, '../.github/workflows/prerelease.yml');
 const prereleaseWorkflow = readFileSync(prereleaseWorkflowPath, 'utf8').replace(/\r\n/g, '\n');
+const packageWorkflow = readFileSync(
+  resolve(__dirname, '../.github/workflows/package-release.yml'),
+  'utf8',
+);
 const parsedPrereleaseWorkflow = readWorkflow(prereleaseWorkflowPath);
 const packageJsonPath = resolve(__dirname, '../package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as {
@@ -46,7 +50,7 @@ test('prerelease delegates its quality gate instead of duplicating quality steps
     prereleaseWorkflow,
     /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
   );
-  const qualityGateJob = prereleaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
+  const qualityGateJob = prereleaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  package:)/)?.[0];
   assert.ok(qualityGateJob);
   assert.doesNotMatch(qualityGateJob, /oven-sh\/setup-bun/);
   assert.doesNotMatch(qualityGateJob, /bun run test:coverage:src/);
@@ -60,10 +64,10 @@ test('prerelease workflow publishes GitHub prereleases and keeps them off latest
 });
 
 test('prerelease packaging workflows scope dependency caches by runner architecture', () => {
-  const archScopedCacheKeyMatches = prereleaseWorkflow.match(
+  const archScopedCacheKeyMatches = (prereleaseWorkflow + packageWorkflow).match(
     /key:\s*\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
   );
-  const archScopedRestoreKeyMatches = prereleaseWorkflow.match(
+  const archScopedRestoreKeyMatches = (prereleaseWorkflow + packageWorkflow).match(
     /\${{\s*runner\.os\s*}}-\${{\s*runner\.arch\s*}}-bun-/g,
   );
   assert.equal(archScopedCacheKeyMatches?.length, 4);
@@ -71,12 +75,12 @@ test('prerelease packaging workflows scope dependency caches by runner architect
 });
 
 test('prerelease workflow builds and uploads all release platforms', () => {
-  assert.match(prereleaseWorkflow, /build-linux:/);
-  assert.match(prereleaseWorkflow, /build-macos:/);
-  assert.match(prereleaseWorkflow, /build-windows:/);
-  assert.match(prereleaseWorkflow, /name: appimage/);
-  assert.match(prereleaseWorkflow, /name: macos/);
-  assert.match(prereleaseWorkflow, /name: windows/);
+  assert.match(packageWorkflow, /build-linux:/);
+  assert.match(packageWorkflow, /build-macos:/);
+  assert.match(packageWorkflow, /build-windows:/);
+  assert.match(packageWorkflow, /name: appimage/);
+  assert.match(packageWorkflow, /name: macos/);
+  assert.match(packageWorkflow, /name: windows/);
 });
 
 test('prerelease workflow publishes the same release assets as the stable workflow', () => {

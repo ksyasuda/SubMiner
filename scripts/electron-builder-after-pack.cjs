@@ -89,6 +89,7 @@ async function verifyMacOSWindowHelper(
 async function afterPack(context) {
   await stageLinuxAppImageSharedLibrary(context);
   await verifyMacOSWindowHelper(context);
+  await require('./package-audit.cjs').auditPackage(context);
 }
 
 module.exports = {
