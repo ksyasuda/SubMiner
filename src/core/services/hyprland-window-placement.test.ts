@@ -156,6 +156,107 @@ test('buildHyprlandPlacementDispatches does not pin already floating overlay win
   );
 });
 
+test('Hyprland placement keeps a recovery dialog above the input-catching overlay', () => {
+  for (const configProvider of ['hyprlang', 'lua']) {
+    for (const retryBounds of [false, true]) {
+      // Bottom to top, as when Hyprland opens its recovery dialog over playback.
+      const stack = ['0xmpv', '0xoverlay', '0xdialog'];
+      const clients = [
+        {
+          address: '0xoverlay',
+          pid: 456,
+          title: 'SubMiner Overlay',
+          floating: true,
+          workspace: { id: 1 },
+          at: [10, 20],
+          size: [100, 100],
+        },
+        {
+          address: '0xdialog',
+          class: 'hyprland-dialog',
+          mapped: true,
+          hidden: false,
+          workspace: { id: 1 },
+        },
+      ];
+      let clientReads = 0;
+      const status = ensureHyprlandWindowFloatingByTitleWithStatus({
+        title: 'SubMiner Overlay',
+        platform: 'linux',
+        env: { HYPRLAND_INSTANCE_SIGNATURE: 'abc' },
+        pid: 456,
+        bounds: retryBounds ? { x: 0, y: 0, width: 1280, height: 720 } : undefined,
+        execFileSync: (_command, args) => {
+          if (args.join(' ') === '-j clients') {
+            clientReads += 1;
+            return JSON.stringify(clients);
+          }
+          if (args.join(' ') === '-j status') return JSON.stringify({ configProvider });
+          if (args.join(' ').match(/alterzorder|alter_zorder/)) {
+            const address = args.join(' ').match(/address:(0x\w+)/)?.[1];
+            assert.ok(address);
+            stack.splice(stack.indexOf(address), 1);
+            stack.push(address);
+          }
+          return '';
+        },
+      });
+      assert.equal(status.dispatched, true);
+      assert.equal(clientReads, retryBounds ? 2 : 1);
+      assert.deepEqual(stack, ['0xmpv', '0xoverlay', '0xdialog'], configProvider);
+    }
+  }
+});
+
+test('Hyprland placement only promotes mapped dialogs on the placed window workspace', () => {
+  const calls: string[] = [];
+  const dialog = {
+    class: 'hyprland-dialog',
+    mapped: true,
+    hidden: false,
+    workspace: { id: 1 },
+  };
+  const clients = [
+    {
+      address: '0xoverlay',
+      pid: 456,
+      title: 'SubMiner Overlay',
+      floating: true,
+      workspace: { id: 1 },
+    },
+    { ...dialog, address: '0xhidden', hidden: true },
+    { ...dialog, address: '0xunmapped', mapped: false },
+    { ...dialog, address: '0xother', workspace: { id: 2 } },
+    { ...dialog, address: '0xordinary', class: 'terminal' },
+    { ...dialog, address: '0xinitial', class: '', initialClass: 'hyprland-dialog' },
+  ];
+  for (const promote of [true, false]) {
+    calls.length = 0;
+    ensureHyprlandWindowFloatingByTitleWithStatus({
+      title: 'SubMiner Overlay',
+      platform: 'linux',
+      env: { HYPRLAND_INSTANCE_SIGNATURE: 'abc' },
+      pid: 456,
+      promote,
+      execFileSync: (_command, args) => {
+        if (args.join(' ') === '-j clients') return JSON.stringify(clients);
+        if (args.join(' ') === '-j status') return JSON.stringify({ configProvider: 'hyprlang' });
+        calls.push(args.join(' '));
+        return '';
+      },
+    });
+    assert.deepEqual(
+      calls,
+      promote
+        ? [
+            'dispatch alterzorder top,address:0xoverlay',
+            'dispatch alterzorder top,address:0xinitial',
+          ]
+        : [],
+    );
+  }
+});
+
 test('buildHyprlandPlacementDispatches can update placement without raising z-order', () => {
   const buildDispatches = buildHyprlandPlacementDispatches as (
     client: Parameters<typeof buildHyprlandPlacementDispatches>[0],
