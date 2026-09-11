@@ -365,24 +365,49 @@ test('runHostSync does not merge an incomplete transfer and removes its temp fil
   );
 });
 
-test('runHostSync can exchange snapshots with peers lacking the cache helper', async () => {
+for (const stderr of [
+  'Unknown sync option: --transfer-cache',
+  "error: unknown option '--transfer-cache'\n\nUsage: subminer sync [options] [host]",
+]) {
+  test(`runHostSync falls back when the peer reports ${stderr.split('\n')[0]}`, async () => {
+    const calls: string[] = [];
+    await runSyncFlow(
+      makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+      makeHostDeps(calls, {
+        createSnapshotTransfer: () => ({ kind: 'rsync', copy: () => {} }),
+        runSsh: (_host, command) => {
+          calls.push(command);
+          if (command.includes('--transfer-cache')) return { status: 2, stdout: '', stderr };
+          return command.includes('--make-temp') ? ok('/tmp/subminer-sync-remote') : ok();
+        },
+      }),
+    );
+    assert.equal(calls.filter((call) => call.includes('--make-temp')).length, 2);
+    assert.ok(
+      calls.some((call) => call.includes('--remove-temp') && !call.includes('--transfer-cache')),
+    );
+  });
+}
+
+test('runHostSync does not retry unrelated remote temp failures', async () => {
   const calls: string[] = [];
-  await runSyncFlow(
-    makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
-    makeHostDeps(calls, {
-      createSnapshotTransfer: () => ({ kind: 'rsync', copy: () => {} }),
-      runSsh: (_host, command) => {
-        calls.push(command);
-        if (command.includes('--transfer-cache'))
-          return { status: 2, stdout: '', stderr: 'Unknown sync option: --transfer-cache' };
-        return command.includes('--make-temp') ? ok('/tmp/subminer-sync-remote') : ok();
-      },
-    }),
+  await assert.rejects(
+    runSyncFlow(
+      makeContext({ syncDbPath: '/tmp/local.sqlite', syncHost: 'media-box' }),
+      makeHostDeps(calls, {
+        createSnapshotTransfer: () => ({
+          kind: 'rsync',
+          copy: () => assert.fail('Must not transfer'),
+        }),
+        runSsh: (_host, command) => {
+          calls.push(command);
+          return { status: 1, stdout: '', stderr: 'Permission denied' };
+        },
+      }),
+    ),
+    /Could not create a temporary directory on media-box.*\nPermission denied/,
   );
-  assert.equal(calls.filter((call) => call.includes('--make-temp')).length, 2);
-  assert.ok(
-    calls.some((call) => call.includes('--remove-temp') && !call.includes('--transfer-cache')),
-  );
+  assert.equal(calls.filter((call) => call.includes('--make-temp')).length, 1);
 });
 
 test('runSyncFlow --json emits NDJSON progress events and a final result', async () => {

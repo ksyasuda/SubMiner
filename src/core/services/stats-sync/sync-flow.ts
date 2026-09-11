@@ -342,7 +342,11 @@ export async function runHostSync(
       host,
       `${remoteCmd} sync --make-temp${shouldPush ? remoteCacheFlag : ''}`,
     );
-    if (mktemp.status !== 0 && mktemp.stderr.includes('Unknown sync option: --transfer-cache')) {
+    if (
+      mktemp.status !== 0 &&
+      (mktemp.stderr.includes('Unknown sync option: --transfer-cache') ||
+        mktemp.stderr.includes("error: unknown option '--transfer-cache'"))
+    ) {
       remoteCacheFlag = '';
       mktemp = deps.runSsh(host, `${remoteCmd} sync --make-temp`);
     }
