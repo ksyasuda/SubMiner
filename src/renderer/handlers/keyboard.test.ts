@@ -91,6 +91,7 @@ function createEmptyShortcuts(): ConfiguredShortcuts {
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,
@@ -1574,6 +1575,28 @@ test('session binding: Ctrl+Alt+S dispatches subsync action locally', async () =
 
     assert.deepEqual(testGlobals.sessionActions, [
       { actionId: 'triggerSubsync', payload: undefined },
+    ]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('session binding: Ctrl+Shift+G dispatches subtitle generation with the sidebar closed', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openSubtitleGeneration',
+        originalKey: 'Ctrl+Shift+G',
+        key: { code: 'KeyG', modifiers: ['ctrl', 'shift'] },
+        actionType: 'session-action',
+        actionId: 'openSubtitleGeneration',
+      },
+    ]);
+    testGlobals.dispatchKeydown({ key: 'G', code: 'KeyG', ctrlKey: true, shiftKey: true });
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'openSubtitleGeneration', payload: undefined },
     ]);
   } finally {
     testGlobals.restore();

@@ -1,4 +1,9 @@
 import { Command } from 'commander';
+import type { Args } from '../types.js';
+import {
+  isSubtitleGenerationModelId,
+  SUBTITLE_GENERATION_MODELS,
+} from '../../src/shared/subtitle-generation-model-catalog.js';
 
 export interface JellyfinInvocation {
   action?: string;
@@ -20,6 +25,7 @@ export interface CommandActionInvocation {
 }
 
 export interface CliInvocations {
+  generateSubtitles?: Args['generateSubtitles'];
   jellyfinInvocation: JellyfinInvocation | null;
   configInvocation: CommandActionInvocation | null;
   settingsInvocation: CommandActionInvocation | null;
@@ -118,6 +124,7 @@ function getTopLevelCommand(argv: string[]): { name: string; index: number } | n
     'mpv',
     'logs',
     'dictionary',
+    'generate-subs',
     'dict',
     'stats',
     'sync',
@@ -199,6 +206,7 @@ export function parseCliPrograms(
   let texthookerOpenBrowser = false;
   let doctorTriggered = false;
   let texthookerTriggered = false;
+  let generateSubtitles: Args['generateSubtitles'];
 
   const commandProgram = new Command();
   commandProgram
@@ -222,6 +230,50 @@ export function parseCliPrograms(
     .exitOverride()
     .argument('[target]', 'file, directory, or URL');
   applyRootOptions(rootProgram);
+
+  commandProgram
+    .command('generate-subs')
+    .description('Generate Japanese subtitles locally with whisper.cpp')
+    .argument('[video]', 'Local media file, or the current mpv file if omitted')
+    .option('--download-model', 'Download the selected managed model if missing')
+    .option('--model-path <path>', 'Use an existing whisper.cpp model file')
+    .option(
+      '--model <name>',
+      `Managed model: ${SUBTITLE_GENERATION_MODELS.map((model) => model.id).join(', ')}`,
+    )
+    .option('--output <path>', 'Save subtitles to this SRT path')
+    .option('--audio-stream <index>', 'Absolute audio stream index from ffprobe')
+    .action((mediaPath: string | undefined, options: Record<string, unknown>) => {
+      const model = options.model;
+      if (model !== undefined && !isSubtitleGenerationModelId(model)) {
+        throw new Error(
+          `Generation --model must be one of: ${SUBTITLE_GENERATION_MODELS.map((entry) => entry.id).join(', ')}.`,
+        );
+      }
+      if (
+        options.modelPath !== undefined &&
+        (model !== undefined || options.downloadModel === true)
+      ) {
+        throw new Error(
+          'Generation --model-path cannot be combined with --model or --download-model.',
+        );
+      }
+      let audioStreamIndex: number | undefined;
+      if (typeof options.audioStream === 'string') {
+        audioStreamIndex = Number(options.audioStream);
+        if (!/^\d+$/.test(options.audioStream) || !Number.isSafeInteger(audioStreamIndex)) {
+          throw new Error('Generation --audio-stream must be a non-negative integer stream index.');
+        }
+      }
+      generateSubtitles = {
+        mediaPath,
+        downloadModel: options.downloadModel === true,
+        modelPath: typeof options.modelPath === 'string' ? options.modelPath : undefined,
+        managedModel: model,
+        outputPath: typeof options.output === 'string' ? options.output : undefined,
+        audioStreamIndex,
+      };
+    });
 
   commandProgram
     .command('jellyfin')
@@ -511,6 +563,7 @@ export function parseCliPrograms(
     options: selectedProgram.opts<Record<string, unknown>>(),
     rootTarget: rootProgram.processedArgs[0],
     invocations: {
+      generateSubtitles,
       jellyfinInvocation,
       configInvocation,
       settingsInvocation,

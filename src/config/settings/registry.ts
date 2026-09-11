@@ -448,6 +448,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('subsync.')) {
     return { category: 'integrations', section: topSection(path) };
   }
+  if (path.startsWith('subtitleGeneration.')) {
+    return { category: 'integrations', section: 'Japanese Subtitle Generation' };
+  }
   if (path === 'stats.toggleKey' || path === 'stats.markWatchedKey') {
     return { category: 'input', section: 'Overlay Shortcuts' };
   }
@@ -620,6 +623,7 @@ function subsectionForPath(path: string): string | undefined {
       leaf === 'openRuntimeOptions' ||
       leaf === 'openJimaku' ||
       leaf === 'openTsukihime' ||
+      leaf === 'openSubtitleGeneration' ||
       leaf === 'openSessionHelp' ||
       leaf === 'openControllerSelect' ||
       leaf === 'openControllerDebug'
@@ -728,7 +732,8 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     pathStartsWith(path, 'notifications') ||
     path === 'youtube.primarySubLanguages' ||
     pathStartsWith(path, 'jimaku') ||
-    pathStartsWith(path, 'subsync')
+    pathStartsWith(path, 'subsync') ||
+    pathStartsWith(path, 'subtitleGeneration')
   ) {
     return 'hot-reload';
   }

@@ -56,6 +56,7 @@ const SESSION_SHORTCUT_ACTIONS: Array<{
   { key: 'openRuntimeOptions', actionId: 'openRuntimeOptions' },
   { key: 'openJimaku', actionId: 'openJimaku' },
   { key: 'openTsukihime', actionId: 'openTsukihime' },
+  { key: 'openSubtitleGeneration', actionId: 'openSubtitleGeneration' },
   { key: 'openSessionHelp', actionId: 'openSessionHelp' },
   { key: 'openControllerSelect', actionId: 'openControllerSelect' },
   { key: 'openControllerDebug', actionId: 'openControllerDebug' },

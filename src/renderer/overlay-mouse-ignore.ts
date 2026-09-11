@@ -11,6 +11,7 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
     state.kikuModalOpen ||
     state.runtimeOptionsModalOpen ||
     state.subsyncModalOpen ||
+    state.subtitleGenerationModalOpen ||
     state.sessionHelpModalOpen,
   );
 }

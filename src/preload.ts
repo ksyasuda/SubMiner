@@ -76,8 +76,10 @@ import type {
   MediaTimingReviewWaveformRequest,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
+import type { SubtitleGenerationProgress } from './shared/subtitle-generation';
 
 const overlayLayer = resolveOverlayLayerFromArgv(process.argv);
+const onSubtitleGenerationOpen = createQueuedIpcListener(IPC_CHANNELS.event.subtitleGenerationOpen);
 
 type EmptyListener = () => void;
 type PayloadedListener<T> = (payload: T) => void;
@@ -261,6 +263,28 @@ const onSecondarySubtitleModeEvent = createLatestValueIpcListenerWithPayload<Sec
 );
 
 const electronAPI: ElectronAPI = {
+  requestSubtitleGenerationOpen: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.requestSubtitleGenerationOpen),
+  onSubtitleGenerationOpen,
+  getSubtitleGenerationStatus: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleGenerationStatus),
+  selectSubtitleGenerationModel: (model) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.selectSubtitleGenerationModel, model),
+  startSubtitleGeneration: () => ipcRenderer.invoke(IPC_CHANNELS.request.startSubtitleGeneration),
+  downloadSubtitleGenerationModel: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.downloadSubtitleGenerationModel),
+  downloadSubtitleGenerationVadModel: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.downloadSubtitleGenerationVadModel),
+  setSubtitleGenerationVadEnabled: (enabled) =>
+    ipcRenderer.invoke(IPC_CHANNELS.request.setSubtitleGenerationVadEnabled, enabled),
+  cancelSubtitleGeneration: () => ipcRenderer.invoke(IPC_CHANNELS.request.cancelSubtitleGeneration),
+  onSubtitleGenerationProgress: (callback) => {
+    const listener = (_event: IpcRendererEvent, progress: SubtitleGenerationProgress) =>
+      callback(progress);
+    ipcRenderer.on(IPC_CHANNELS.event.subtitleGenerationProgress, listener);
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.event.subtitleGenerationProgress, listener);
+  },
   getOverlayLayer: () => overlayLayer,
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   onSubtitle: (callback: (data: SubtitleData) => void) => {

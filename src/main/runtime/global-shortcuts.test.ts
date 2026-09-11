@@ -24,6 +24,7 @@ function createShortcuts(): ConfiguredShortcuts {
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
     openControllerDebug: null,

@@ -237,6 +237,7 @@ export function applyCoreDomainConfig(context: ResolveContext): void {
       'openRuntimeOptions',
       'openJimaku',
       'openTsukihime',
+      'openSubtitleGeneration',
       'openSessionHelp',
       'openControllerSelect',
       'openControllerDebug',

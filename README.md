@@ -91,6 +91,10 @@ Browse sibling episode files and the active mpv queue in one overlay modal. Open
     <td>Search and download Japanese subtitles</td>
   </tr>
   <tr>
+    <td><b>Local Subtitle Generation</b></td>
+    <td>Generate Japanese subtitles from local audio in a standalone modal (<code>Ctrl+Shift+G</code>), the sidebar button, or launcher, with progress and optional managed model downloads. Requires whisper.cpp and FFmpeg. Optional Silero speech detection prioritizes dialogue in separately timed passages. <a href="https://docs.subminer.moe/main/subtitle-generation">Setup guide</a></td>
+  </tr>
+  <tr>
     <td><b>TsukiHime</b></td>
     <td>Search and download subtitles extracted from anime releases, with Japanese and secondary-language tabs (<code>Ctrl+Shift+T</code>) — no API key, requires <code>xz</code> on your <code>PATH</code></td>
   </tr>

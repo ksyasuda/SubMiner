@@ -72,6 +72,7 @@ subminer https://youtu.be/...     # Play a YouTube URL
 subminer stats                    # Open the immersion stats dashboard
 subminer doctor                   # Check dependencies, config, and the mpv socket
 subminer settings                 # Open the SubMiner settings window
+subminer generate-subs video.mkv   # Generate Japanese subtitles from local audio
 subminer app --setup              # Re-open first-run setup
 subminer -u                       # Check for updates
 ```
@@ -82,6 +83,40 @@ Two flags are worth knowing early:
 
 - `-a/--args` passes extra arguments straight to mpv, for example `subminer --args "--ao=alsa --volume=80" video.mkv`.
 - `--log-level debug` turns on verbose logging when something is not working.
+
+### Generate Japanese subtitles locally
+
+`generate-subs` transcribes local audio with whisper.cpp, saves a timed Japanese SRT file,
+and loads it into mpv if that same media file is still playing, clearing the previous subtitle
+delay. It also works with no running
+SubMiner app or mpv instance when you provide a file path. Omit the path to use the current
+mpv file and selected audio track.
+
+```bash
+subminer generate-subs video.mkv --download-model
+subminer generate-subs video.mkv --model-path ~/models/ggml-medium.bin
+subminer generate-subs --model medium --download-model
+subminer generate-subs video.mkv --audio-stream 2 --output ~/Subs/video.ja.srt
+```
+
+Install `whisper-cli` from whisper.cpp, `ffmpeg`, and `ffprobe`, or configure their paths in
+`subtitleGeneration.whisperPath`, `subtitleGeneration.ffmpegPath`, and `subtitleGeneration.ffprobePath`.
+Set `subtitleGeneration.modelPath` in settings to reuse an existing whisper.cpp model.
+With no external path, SubMiner uses `subtitleGeneration.managedModel` and stores downloaded
+models under `models/whisper` beside its config file. `--model` selects an official multilingual model, including available quantized variants, for
+this invocation and overrides a configured external model path. Run `subminer generate-subs --help`
+for accepted names. See [model selection](/subtitle-generation#choosing-a-model) for accuracy and speed guidance.
+
+Downloads only happen when you pass `--download-model` or choose the download action in the
+generation modal. The launcher reports each stage and percentages when available. Press Ctrl+C
+to cancel. `--audio-stream` takes an absolute ffprobe stream index. When you provide a file
+path without that flag, generation uses a Japanese audio track when tagged, falling back
+to the first audio track. With no file path, mpv must have an identifiable selected audio
+track, or you must provide `--audio-stream`.
+
+Generated files include Whisper's native timing. Speech recognition can make mistakes,
+especially over music or overlapping dialogue, so check the wording before mining. Existing
+output files are preserved. See [configuration](/configuration) for the generation settings.
 
 <details>
 <summary><b>Less common launcher commands</b></summary>

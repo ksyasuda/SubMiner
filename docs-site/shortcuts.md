@@ -84,6 +84,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl/Cmd+Shift+O` | Open runtime options palette                             | `shortcuts.openRuntimeOptions`             |
 | `Ctrl/Cmd+/`       | Open session help modal                                  | `shortcuts.openSessionHelp`                |
 | `Ctrl+Shift+J`     | Open Jimaku subtitle search modal                        | `shortcuts.openJimaku`                     |
+| `Ctrl+Shift+G`     | Open Japanese subtitle generation modal                 | `shortcuts.openSubtitleGeneration`         |
 | `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)       | `shortcuts.openTsukihime`                 |
 | `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
 | `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
