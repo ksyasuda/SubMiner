@@ -80,7 +80,8 @@
     "build:mac:unsigned": "bun run build && env -u APPLE_ID -u APPLE_APP_SPECIFIC_PASSWORD -u APPLE_TEAM_ID -u CSC_LINK -u CSC_KEY_PASSWORD CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --publish never",
     "build:mac:zip": "bun run build && electron-builder --mac zip --publish never",
     "build:win": "bun run build && electron-builder --win nsis zip --publish never",
-    "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs"
+    "build:win:unsigned": "bun run build && node scripts/build-win-unsigned.mjs",
+    "test:package": "bun scripts/run-package-smoke.mjs"
   },
   "overrides": {
     "@xmldom/xmldom": "0.8.15",
@@ -124,15 +125,16 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",
     "electron": "42.6.0",
     "electron-builder": "26.15.3",
-    "undici": "7.29.0",
     "esbuild": "^0.25.12",
     "eslint": "^10.8.0",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "undici": "7.29.0"
   },
   "build": {
     "appId": "com.sudacode.SubMiner",
@@ -159,6 +161,10 @@
       "category": "AudioVideo",
       "executableArgs": [
         "--background"
+      ],
+      "files": [
+        "package.json",
+        "!node_modules/koffi{,/**/*}"
       ]
     },
     "mac": {
@@ -177,6 +183,10 @@
           "from": "dist/scripts/get-mpv-window-macos",
           "to": "scripts/get-mpv-window-macos"
         }
+      ],
+      "files": [
+        "package.json",
+        "!node_modules/koffi{,/**/*}"
       ]
     },
     "dmg": {
@@ -188,7 +198,11 @@
         "nsis",
         "zip"
       ],
-      "icon": "assets/SubMiner.ico"
+      "icon": "assets/SubMiner.ico",
+      "files": [
+        "package.json",
+        "!node_modules/koffi/build/koffi/!(win32_${arch}){,/**/*}"
+      ]
     },
     "nsis": {
       "artifactName": "SubMiner-${version}.${ext}",
@@ -198,43 +212,19 @@
       "include": "build/installer.nsh"
     },
     "files": [
-      "**/*",
-      "!assets{,/**/*}",
-      "!src{,/**/*}",
-      "!launcher{,/**/*}",
-      "!docs{,/**/*}",
-      "!tests{,/**/*}",
-      "!packaging{,/**/*}",
-      "!README.md",
-      "!CHANGELOG.md",
-      "!AGENTS.md",
-      "!CLAUDE.md",
-      "!stats/src{,/**/*}",
-      "!stats/index.html",
-      "!stats/public{,/**/*}",
-      "!stats/package.json",
-      "!stats/tsconfig.json",
-      "!stats/vite.config.ts",
-      "!docs-site{,/**/*}",
-      "!changes{,/**/*}",
-      "!.tmp{,/**/*}",
-      "!release-*{,/**/*}",
-      "!dist/**/*.map",
-      "!dist/**/*.test.*",
-      "!dist/**/__tests__{,/**/*}",
-      "!scripts/**/*.test.*",
-      "!plugin{,/**/*}",
-      "!vendor/subminer-yomitan{,/**/*}",
-      "!vendor/yomitan-jlpt-vocab{,/**/*}",
-      "!vendor/texthooker-ui/src{,/**/*}",
-      "!vendor/texthooker-ui/node_modules{,/**/*}",
-      "!vendor/texthooker-ui/.svelte-kit{,/**/*}",
-      "!vendor/texthooker-ui/.vscode{,/**/*}",
-      "!vendor/texthooker-ui/public{,/**/*}",
-      "!vendor/texthooker-ui/README.md",
-      "!vendor/texthooker-ui/package.json",
-      "!vendor/texthooker-ui/package-lock.json",
-      "!vendor/texthooker-ui/tsconfig*.json",
+      "dist/**/*",
+      "stats/dist/**/*",
+      "vendor/texthooker-ui/docs/**/*",
+      "config.example.jsonc",
+      "LICENSE",
+      "!**/*.map",
+      "!**/*.{ts,tsx,mts,cts}",
+      "!**/*.{test,spec}.*",
+      "!**/{test,tests,__tests__,fixture,fixtures,__fixtures__}{,/**/*}",
+      "!dist/launcher{,/**/*}",
+      "!dist/scripts{,/**/*}",
+      "!dist/{renderer,settings,syncui}/fonts{,/**/*}",
+      "!node_modules/koffi/{src,vendor,doc}{,/**/*}",
       "!node_modules/@libsql/linux-x64-musl{,/**/*}"
     ],
     "extraResources": [
@@ -248,7 +238,13 @@
       },
       {
         "from": "assets",
-        "to": "assets"
+        "to": "assets",
+        "filter": [
+          "SubMiner*.png",
+          "SubMiner.ico",
+          "themes/**/*",
+          "thumbnailers/**/*"
+        ]
       },
       {
         "from": "plugin/subminer",
@@ -273,7 +269,8 @@
         "from": "CHANGELOG.md",
         "to": "CHANGELOG.md"
       }
-    ]
+    ],
+    "afterAllArtifactBuild": "scripts/package-audit.cjs"
   },
   "patchedDependencies": {
     "@discordjs/rest@2.6.1": "patches/@discordjs%2Frest@2.6.1.patch"

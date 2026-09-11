@@ -21,6 +21,7 @@ const {
       packager?: { appInfo?: { productFilename?: string } };
     },
     deps?: {
+      auditPackage?: (context: { appOutDir: string }) => Promise<void>;
       stageBunRuntime?: (options: {
         appOutDir: string;
         platform: string;
@@ -172,11 +173,12 @@ test('afterPack propagates Linux staging failures', async () => {
   }
 });
 
-test('afterPack preserves Linux staging and forwards the electron-builder target to Bun staging', async () => {
+test('afterPack stages Linux and Bun runtime assets before auditing the package', async () => {
   const workspace = createWorkspace('subminer-after-pack-target');
   const appOutDir = path.join(workspace, 'SubMiner-linux-arm64');
   const sourceLibraryPath = path.join(appOutDir, LINUX_FFMPEG_LIBRARY);
   const targetLibraryPath = path.join(appOutDir, 'usr', 'lib', LINUX_FFMPEG_LIBRARY);
+  const operations: string[] = [];
   let stagedOptions:
     | {
         appOutDir: string;
@@ -200,10 +202,17 @@ test('afterPack preserves Linux staging and forwards the electron-builder target
       {
         stageBunRuntime: async (options) => {
           stagedOptions = options;
+          operations.push('stage-bun');
+        },
+        auditPackage: async (context) => {
+          assert.equal(context.appOutDir, appOutDir);
+          assert.equal(fs.readFileSync(targetLibraryPath, 'utf8'), 'bundled ffmpeg');
+          operations.push('audit');
         },
       },
     );
 
+    assert.deepEqual(operations, ['stage-bun', 'audit']);
     assert.deepEqual(stagedOptions, {
       appOutDir,
       platform: 'linux',

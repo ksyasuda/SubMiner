@@ -105,6 +105,7 @@ async function afterPack(context, deps = {}) {
   await stageLinuxAppImageSharedLibrary(context);
   await verifyMacOSWindowHelper(context);
   await stageBundledBunRuntime(context, deps);
+  await (deps.auditPackage ?? require('./package-audit.cjs').auditPackage)(context);
 }
 
 module.exports = {

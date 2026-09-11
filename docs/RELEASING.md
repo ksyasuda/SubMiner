@@ -11,6 +11,48 @@
   `ANTHROPIC_API_KEY` works. Install from <https://claude.com/claude-code> if
   you don't already have it.
 
+## Package contents and size checks
+
+Stable and prerelease workflows share `.github/workflows/package-release.yml`.
+Both callers explicitly pass the five required macOS signing/notarization
+secrets; `GITHUB_TOKEN` remains automatically available to the reusable workflow.
+Each platform verifies its ASAR and external resources before signing, then
+measures the signed app and installers before upload. Missing runtime assets,
+foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps,
+TypeScript files, and nested test or fixture directories
+fail the build. Size measurements are informational and do not block releases.
+Current targets are Linux x64, macOS arm64, and Windows x64.
+
+The runtime allowlist includes `dist/`, `stats/dist/`, and
+`vendor/texthooker-ui/docs/` plus metadata, config example, and license. The
+texthooker `docs/` directory is its built UI. Keep the positive `package.json`
+pattern in platform `files` lists: electron-builder otherwise treats an
+exclusion-only platform list as a separate include-all matcher. Windows keeps
+only its target Koffi binary; other platforms omit Koffi. Desktop UIs share the
+original M PLUS 1 TTF in `dist/fonts/`.
+
+`release/package-size-<platform>-<arch>.json` reports unpacked bytes, largest
+files inside and outside ASAR, native binaries, and compressed artifact sizes.
+Framework symlinks are not counted twice. Reports are checksummed and published.
+CI downloads the preceding release's reports for comparison; older releases
+without reports skip comparison. Review the inventory and reason for growth
+when comparing releases. An AppImage normally
+runs compressed; its extracted size is a separate measurement.
+
+The shared workflow runs `bun run test:package <resources-directory>` with the
+pinned Electron runtime and temporary user data. On headless Linux, prefix it
+with `xvfb-run -a`. This checks packaged SQLite, Windows FFI loading/polling,
+texthooker serving, Yomitan loading, UI assets, and Japanese font loading.
+Standalone pages lack app IPC handlers and can log related errors; this check
+does not replace an installed app session.
+
+Before shipping packaging changes, check each platform's installed app:
+startup and mpv tracking, dictionary lookup and stroke orders, settings/sync UI,
+stats persistence, sentence mining with AnkiConnect, and updating from the prior
+release. Preserve Electron locales, graphics fallbacks, codecs, dictionaries,
+license notices, updater metadata, blockmaps, and the macOS updater ZIP. Trim
+files before signing and generating updater hashes, never from a signed app.
+
 ## Stable Release
 
 1. Confirm `main` is green: `gh run list --workflow CI --limit 5`.

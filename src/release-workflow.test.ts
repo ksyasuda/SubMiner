@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  jobSteps,
   readWorkflow,
   stepsMissingEnvDeclaration,
   templateExpressionsInRunBodies,
@@ -10,6 +11,10 @@ import {
 
 const releaseWorkflowPath = resolve(__dirname, '../.github/workflows/release.yml');
 const releaseWorkflow = readFileSync(releaseWorkflowPath, 'utf8');
+const packageWorkflow = readFileSync(
+  resolve(__dirname, '../.github/workflows/package-release.yml'),
+  'utf8',
+);
 const docsPagesWorkflowPath = resolve(__dirname, '../.github/workflows/docs-pages.yml');
 const docsPagesWorkflow = readFileSync(docsPagesWorkflowPath, 'utf8');
 const parsedReleaseWorkflow = readWorkflow(releaseWorkflowPath);
@@ -96,20 +101,25 @@ test('release delegates its quality gate instead of duplicating quality steps', 
     releaseWorkflow,
     /quality-gate:\s*\n\s*permissions:\s*\n\s*contents: read\s*\n\s*uses: \.\/\.github\/workflows\/quality-gate\.yml/,
   );
-  const qualityGateJob = releaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  build-linux:)/)?.[0];
+  const qualityGateJob = releaseWorkflow.match(/quality-gate:[\s\S]*?(?=\n  package:)/)?.[0];
   assert.ok(qualityGateJob);
   assert.doesNotMatch(qualityGateJob, /oven-sh\/setup-bun/);
   assert.doesNotMatch(qualityGateJob, /bun run test:coverage:src/);
   assert.doesNotMatch(qualityGateJob, /bun run test:env/);
 });
 
-test('release build jobs install and cache stats dependencies before packaging', () => {
-  assert.match(releaseWorkflow, /build-linux:[\s\S]*stats\/node_modules/);
-  assert.match(releaseWorkflow, /build-macos:[\s\S]*stats\/node_modules/);
-  assert.match(releaseWorkflow, /build-windows:[\s\S]*stats\/node_modules/);
-  assert.match(releaseWorkflow, /build-linux:[\s\S]*cd stats && bun install --frozen-lockfile/);
-  assert.match(releaseWorkflow, /build-macos:[\s\S]*cd stats && bun install --frozen-lockfile/);
-  assert.match(releaseWorkflow, /build-windows:[\s\S]*cd stats && bun install --frozen-lockfile/);
+test('each release build job installs stats dependencies before packaging', () => {
+  const workflow = readWorkflow(resolve(__dirname, '../.github/workflows/package-release.yml'));
+  for (const job of ['build-linux', 'build-macos', 'build-windows']) {
+    const steps = jobSteps(workflow, job);
+    const install = steps.findIndex((step) =>
+      step.run?.includes('cd stats && bun install --frozen-lockfile'),
+    );
+    const build = steps.findIndex((step) =>
+      /bun run build:(appimage|mac|win)/.test(step.run ?? ''),
+    );
+    assert(install >= 0 && build > install, `${job} must install stats before packaging`);
+  }
 });
 
 test('release workflow generates release notes from committed changelog output', () => {
@@ -163,42 +173,6 @@ test('top-level package metadata keeps Linux Electron runtime app identity canon
   assert.equal(packageJson.desktopName, 'SubMiner.desktop');
 });
 
-test('release packaging keeps default file inclusion and excludes large source-only trees explicitly', () => {
-  const files = packageJson.build?.files ?? [];
-  assert.ok(files.includes('**/*'));
-  assert.ok(files.includes('!src{,/**/*}'));
-  assert.ok(files.includes('!launcher{,/**/*}'));
-  assert.ok(files.includes('!stats/src{,/**/*}'));
-  assert.ok(files.includes('!.tmp{,/**/*}'));
-  assert.ok(files.includes('!release-*{,/**/*}'));
-  assert.ok(files.includes('!vendor/subminer-yomitan{,/**/*}'));
-  assert.ok(files.includes('!vendor/texthooker-ui/src{,/**/*}'));
-  assert.ok(files.includes('!assets{,/**/*}'));
-  assert.ok(files.includes('!plugin{,/**/*}'));
-  assert.ok(files.includes('!vendor/yomitan-jlpt-vocab{,/**/*}'));
-  assert.ok(files.includes('!docs{,/**/*}'));
-  assert.ok(files.includes('!tests{,/**/*}'));
-  assert.ok(files.includes('!packaging{,/**/*}'));
-  assert.ok(files.includes('!README.md'));
-  assert.ok(files.includes('!CHANGELOG.md'));
-  assert.ok(files.includes('!AGENTS.md'));
-  assert.ok(files.includes('!CLAUDE.md'));
-  assert.ok(files.includes('!stats/public{,/**/*}'));
-  assert.ok(files.includes('!stats/package.json'));
-  assert.ok(files.includes('!stats/tsconfig.json'));
-  assert.ok(files.includes('!stats/vite.config.ts'));
-  assert.ok(files.includes('!dist/**/*.map'));
-  assert.ok(files.includes('!dist/**/*.test.*'));
-  assert.ok(files.includes('!dist/**/__tests__{,/**/*}'));
-  assert.ok(files.includes('!scripts/**/*.test.*'));
-  assert.ok(files.includes('!vendor/texthooker-ui/public{,/**/*}'));
-  assert.ok(files.includes('!vendor/texthooker-ui/.vscode{,/**/*}'));
-  assert.ok(files.includes('!vendor/texthooker-ui/README.md'));
-  assert.ok(files.includes('!vendor/texthooker-ui/package.json'));
-  assert.ok(files.includes('!vendor/texthooker-ui/tsconfig*.json'));
-  assert.ok(files.includes('!node_modules/@libsql/linux-x64-musl{,/**/*}'));
-});
-
 test('release packaging stages only the generated launcher runtime artifacts', () => {
   const launcherResource = packageJson.build?.extraResources?.find(
     (resource) => resource.from === 'dist/launcher' && resource.to === 'launcher',
@@ -239,12 +213,12 @@ test('config example generation runs directly from source without unrelated bund
 });
 
 test('windows release workflow publishes unsigned artifacts directly without SignPath', () => {
-  assert.match(releaseWorkflow, /Build unsigned Windows artifacts/);
-  assert.match(releaseWorkflow, /run: bun run build:win:unsigned/);
-  assert.match(releaseWorkflow, /name: windows/);
-  assert.match(releaseWorkflow, /path: \|\n\s+release\/\*\.exe\n\s+release\/\*\.zip/);
-  assert.ok(!releaseWorkflow.includes('signpath/github-action-submit-signing-request'));
-  assert.ok(!releaseWorkflow.includes('SIGNPATH_'));
+  assert.match(packageWorkflow, /Build unsigned Windows artifacts/);
+  assert.match(packageWorkflow, /run: bun run build:win:unsigned/);
+  assert.match(packageWorkflow, /name: windows/);
+  assert.match(packageWorkflow, /path: \|\n\s+release\/\*\.exe\n\s+release\/\*\.zip/);
+  assert.ok(!packageWorkflow.includes('signpath/github-action-submit-signing-request'));
+  assert.ok(!packageWorkflow.includes('SIGNPATH_'));
 });
 
 test('release artifact names are distinct before upload', () => {
@@ -305,4 +279,22 @@ test('release and docs workflows keep tag-derived values out of shell bodies', (
   // The docs tag guard must test the shell variable, not an interpolated value
   // that would be substituted into the condition before the shell reads it.
   assert.match(docsPagesWorkflow, /if \[\[ ! "\$TAG_NAME" =~/);
+});
+
+test('stable and prerelease builds use the same packaging gate', () => {
+  const prerelease = readFileSync(
+    resolve(__dirname, '../.github/workflows/prerelease.yml'),
+    'utf8',
+  );
+  for (const workflow of [releaseWorkflow, prerelease]) {
+    assert.match(workflow, /uses: \.\/\.github\/workflows\/package-release\.yml/);
+    assert.match(workflow, /needs: \[package\]/);
+    assert.match(workflow, /release\/package-size-\*\.json/);
+  }
+  assert.deepEqual(
+    templateExpressionsInRunBodies(
+      readWorkflow(resolve(__dirname, '../.github/workflows/package-release.yml')),
+    ),
+    [],
+  );
 });
