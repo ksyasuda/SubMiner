@@ -169,3 +169,20 @@ The `keybindings` array overrides or extends the overlay's built-in key handling
 Mouse keybinding names are `MBTN_LEFT`, `MBTN_MID`, `MBTN_RIGHT`, `MBTN_BACK`, and `MBTN_FORWARD`.
 
 Both `shortcuts`, `keybindings`, and `subtitleSidebar` are [hot-reloadable](/configuration#hot-reload-behavior) - changes take effect without restarting SubMiner.
+
+### Automatic mpv bindings
+
+The overlay also discovers supported single-key keyboard bindings from the connected mpv session,
+including `input.conf`, mpv defaults, and loaded scripts. When SubMiner does not handle a
+key, it forwards the key to mpv to run the current binding. SubMiner shortcuts and
+configured bindings take precedence, including entries explicitly disabled with
+`"command": null`. Text entry, overlay menus, and Yomitan popups do not forward these
+fallback keys.
+
+Discovery runs in the background at startup, again after a short delay for scripts,
+when the overlay regains focus, and when SubMiner's binding configuration reloads.
+Bindings added later may require refocusing the overlay. Imported bindings stay in
+memory for the session and do not appear in SubMiner's help menu or modify its config.
+Supported keys include characters, common navigation keys, and F1 through F24, with
+modifiers. Mouse bindings, keypad-specific and media keys, key sequences, and full
+navigation of interactive mpv script menus are not imported. If discovery is unavailable, SubMiner's configured controls keep working.

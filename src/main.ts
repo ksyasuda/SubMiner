@@ -33,6 +33,7 @@ import {
 } from 'electron';
 import { applyControllerConfigUpdate } from './main/controller-config-update.js';
 import { openPlaylistBrowser as openPlaylistBrowserRuntime } from './main/runtime/playlist-browser-open';
+import { readMpvInputBindings } from './main/runtime/mpv-input-bindings';
 import { createAniSkipRuntime } from './main/runtime/aniskip-runtime';
 import { resolveAniSkipMetadataForFile } from './main/runtime/aniskip-metadata';
 import { createDiscordRpcClient } from './main/runtime/discord-rpc-client.js';
@@ -5859,6 +5860,17 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
+      getMpvInputBindings: () =>
+        readMpvInputBindings({
+          getMpvClient: () => appState.mpvClient,
+          getConfiguredKeybindings: () => configService.getConfig().keybindings ?? [],
+          platform:
+            process.platform === 'darwin'
+              ? 'darwin'
+              : process.platform === 'win32'
+                ? 'win32'
+                : 'linux',
+        }),
       getSessionBindings: () => appState.sessionBindings,
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       dispatchSessionAction: (request) => dispatchSessionAction(request),

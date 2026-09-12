@@ -350,6 +350,7 @@ const electronAPI: ElectronAPI = {
 
   getKeybindings: (): Promise<Keybinding[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getKeybindings),
+  getMpvInputBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getMpvInputBindings),
   getSessionBindings: () => ipcRenderer.invoke(IPC_CHANNELS.request.getSessionBindings),
   getConfiguredShortcuts: (): Promise<Required<ShortcutsConfig>> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getConfigShortcuts),

@@ -1,4 +1,5 @@
 import electron from 'electron';
+import type { MpvInputBindingsSnapshot } from '../../types/session-bindings';
 import type { BrowserWindow as ElectronBrowserWindow, IpcMainEvent } from 'electron';
 import type {
   ChangelogSnapshot,
@@ -89,6 +90,7 @@ export interface IpcServiceDeps {
   setMecabEnabled: (enabled: boolean) => void;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings?: () => CompiledSessionBinding[];
   getConfiguredShortcuts: () => unknown;
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
@@ -344,6 +346,7 @@ export interface IpcDepsRuntimeOptions {
   getMecabTokenizer: () => MecabTokenizerLike | null;
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
+  getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings?: () => CompiledSessionBinding[];
   getConfiguredShortcuts: () => unknown;
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
@@ -438,6 +441,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     },
     handleMpvCommand: options.handleMpvCommand,
     getKeybindings: options.getKeybindings,
+    getMpvInputBindings: options.getMpvInputBindings,
     getSessionBindings: options.getSessionBindings ?? (() => []),
     getConfiguredShortcuts: options.getConfiguredShortcuts,
     dispatchSessionAction: options.dispatchSessionAction ?? (async () => {}),
@@ -767,6 +771,10 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
 
   ipc.handle(IPC_CHANNELS.request.getKeybindings, () => {
     return deps.getKeybindings();
+  });
+
+  ipc.handle(IPC_CHANNELS.request.getMpvInputBindings, () => {
+    return deps.getMpvInputBindings?.() ?? { keys: [], blockedKeys: [] };
   });
 
   ipc.handle(IPC_CHANNELS.request.getSessionBindings, () => {

@@ -635,6 +635,11 @@ See `config.example.jsonc` for detailed configuration options and more examples.
 
 **Supported commands:** Any valid mpv JSON IPC command array (`["cycle", "pause"]`, `["seek", 5]`, `["script-binding", "..."]`, etc.)
 
+Supported, unclaimed single-key keyboard bindings from the connected mpv session are also available
+in the overlay automatically. Configured SubMiner bindings, including `null` entries,
+take precedence. See [mpv binding discovery](/shortcuts#automatic-mpv-bindings) for session refresh
+behavior and limitations.
+
 Subtitle delay commands (`sub-delay`, `sub-step`) show a native mpv OSD notification after the command runs. Subtitle-position and subtitle-track proxy commands (`sub-pos`, `sid`, `secondary-sid`) show playback feedback through the configured notification surface.
 
 **See `config.example.jsonc`** for more keybinding examples and configuration options.

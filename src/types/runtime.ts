@@ -1,3 +1,4 @@
+import type { MpvInputBindingsSnapshot } from './session-bindings';
 import type {
   KikuFieldGroupingChoice,
   KikuFieldGroupingRequestData,
@@ -462,6 +463,7 @@ export interface ElectronAPI {
   setMecabEnabled: (enabled: boolean) => void;
   sendMpvCommand: (command: (string | number)[]) => void;
   getKeybindings: () => Promise<Keybinding[]>;
+  getMpvInputBindings: () => Promise<MpvInputBindingsSnapshot>;
   getSessionBindings: () => Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => Promise<Required<ShortcutsConfig>>;
   dispatchSessionAction: (

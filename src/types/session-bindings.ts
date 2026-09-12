@@ -34,6 +34,11 @@ export interface SessionKeySpec {
   modifiers: SessionKeyModifier[];
 }
 
+export interface MpvInputBindingsSnapshot {
+  keys: string[];
+  blockedKeys: SessionKeySpec[];
+}
+
 export interface SessionBindingWarning {
   kind: 'unsupported' | 'conflict' | 'deprecated-config';
   path: string;
