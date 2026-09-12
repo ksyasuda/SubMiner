@@ -64,6 +64,10 @@ make dev-watch                                # watch TS + renderer and launch E
 make dev-watch-macos                          # same as dev-watch, forcing --backend macos
 ```
 
+Development and debug launches use a separate `SubMiner-dev` profile so runtime experiments cannot modify the installed app's configuration or Yomitan dictionaries. To intentionally use the production profile for a development launch, set `SUBMINER_USE_PRODUCTION_PROFILE=1`. Use that override only after backing up the profile.
+
+Always launch source builds through `bun run dev` or `bun run electron`. SubMiner refuses to load its profile when the running Electron major differs from the version pinned by the repository.
+
 For mpv-plugin-driven testing without exporting `SUBMINER_BINARY_PATH` each run, set a one-time
 dev binary path with `mpv.subminerBinaryPath` in your SubMiner config. The launcher injects it into
 the mpv plugin at runtime:

@@ -37,6 +37,7 @@ export function buildOverlayWindowOptions(
     paintWhenInitiallyHidden: true,
     backgroundColor: '#00000000',
     frame: false,
+    ...(platform === 'linux' ? { roundedCorners: false } : {}),
     alwaysOnTop: shouldStartAlwaysOnTop,
     skipTaskbar: true,
     resizable: shouldAllowCompositorResize,
