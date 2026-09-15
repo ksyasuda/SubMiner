@@ -22,7 +22,7 @@ export function buildSubtitleConfigOptionRegistry(
         ffprobePath:
           'Optional FFprobe path override for audio tracks and timing. Leave empty to find ffprobe on PATH.',
         vadModelPath:
-          'Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation from separate speech passages. Leave empty to transcribe the full audio, including songs.',
+          'Path to a whisper.cpp Silero VAD model. Enables dialogue-focused generation while retaining uncertain audible sections, which may include songs. Leave empty to transcribe the full audio.',
         vadPath:
           'Optional speech detector executable override. With vadModelPath configured, leave empty to find whisper-vad-speech-segments or vad-speech-segments on PATH.',
       }[key],

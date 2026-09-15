@@ -2,14 +2,17 @@ import type { SubtitleCue } from './subtitle-cue-parser';
 import { SPEECH_PASSAGE_SECONDS, type SpeechPassage } from './subtitle-generation-speech';
 
 const CHUNK_CONTEXT_SECONDS = 0.25;
+const WHISPER_WINDOW_SECONDS = 30;
 const PAUSE_SEARCH_SECONDS = 5;
 
-// Prefer a quiet pause near the end of each chunk. Context stays inside detected speech.
+// Prefer a quiet pause near the end of each chunk. Context stays inside retained audio.
 export function splitSpeechPassages(
   passages: readonly SpeechPassage[],
   pauses: readonly number[] = [],
 ): SpeechPassage[] {
   return passages.flatMap((passage) => {
+    if (passage.endSeconds - passage.startSeconds <= WHISPER_WINDOW_SECONDS)
+      return [{ ...passage }];
     const chunks: SpeechPassage[] = [];
     let boundary = passage.startSeconds;
     while (boundary < passage.endSeconds) {
@@ -43,12 +46,13 @@ export function appendSpeechChunkCues(cues: SubtitleCue[], incoming: readonly Su
   const previousCount = cues.length;
   const matched = new Set<SubtitleCue>();
   for (const cue of incoming) {
-    const text = cue.text.replace(/\s+/g, '');
+    const text = cue.text.replace(/[\s\p{P}]+/gu, '');
     let duplicate: SubtitleCue | undefined;
     let greatestOverlap = 0;
     for (const [index, previous] of cues.entries()) {
       if (index >= previousCount) break;
-      if (matched.has(previous) || previous.text.replace(/\s+/g, '') !== text) continue;
+      if (!text || matched.has(previous) || previous.text.replace(/[\s\p{P}]+/gu, '') !== text)
+        continue;
       const overlap =
         Math.min(previous.endTime, cue.endTime) - Math.max(previous.startTime, cue.startTime);
       const shorterDuration = Math.min(

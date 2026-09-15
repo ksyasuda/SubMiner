@@ -49,7 +49,7 @@ export function parseSpeechPassages(output: string): SpeechPassage[] {
   return grouped;
 }
 
-// Clamp to the audio actually supplied to Whisper. A cue cannot cross an omitted music break.
+// Clamp to the audio actually supplied to Whisper. A cue cannot cross an omitted gap.
 export function speechPassageCues(srt: string, passage: SpeechPassage): SubtitleCue[] {
   const duration = passage.endSeconds - passage.startSeconds;
   const cues = parseSrtCues(srt);

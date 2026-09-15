@@ -708,8 +708,8 @@
               </label>
               <div id="subtitleGenerationVadModel" class="subtitle-generation-hint"></div>
               <p id="subtitleGenerationVadHint" class="subtitle-generation-hint">
-                Uses a small Silero model to transcribe separate speech passages. May skip songs,
-                quiet speech, and dialogue under music. Requires whisper.cpp's speech detector.
+                Keeps uncertain audio to avoid losing dialogue under music. Songs may also be
+                transcribed. Requires whisper.cpp's speech detector.
               </p>
               <p class="subtitle-generation-hint">
                 Applies for this session. Set VAD Model Path in Settings to enable it by default.

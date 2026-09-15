@@ -23,6 +23,23 @@ test('uninterrupted speech retains overlapping context without crossing omitted 
   ]);
 });
 
+test('speech fitting one Whisper window stays intact instead of cutting a sentence at 20 seconds', () => {
+  const passage = { startSeconds: 251.71, endSeconds: 275.01 };
+  assert.deepEqual(splitSpeechPassages([passage], [271.327]), [passage]);
+});
+
+test('chunk stitching ignores punctuation differences without merging separate repetitions', () => {
+  const cues = [{ startTime: 19.7, endTime: 21.2, text: 'ありがとう' }];
+  appendSpeechChunkCues(cues, [
+    { startTime: 19.8, endTime: 21.3, text: 'ありがとう。' },
+    { startTime: 22, endTime: 23, text: 'ありがとう！' },
+  ]);
+  assert.deepEqual(cues, [
+    { startTime: 19.7, endTime: 21.3, text: 'ありがとう' },
+    { startTime: 22, endTime: 23, text: 'ありがとう！' },
+  ]);
+});
+
 test('chunk stitching removes matching overlap cues but retains repeated dialogue', () => {
   const cues = [{ startTime: 19.7, endTime: 20.2, text: 'はい' }];
   appendSpeechChunkCues(cues, [

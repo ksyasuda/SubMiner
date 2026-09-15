@@ -54,7 +54,15 @@ async function generationFixture(directory: string) {
   const ffmpegPath = await executable(
     directory,
     'ffmpeg',
-    `${record}\nrequire('node:fs').writeFileSync(process.argv.at(-1), 'wav'); process.stdout.write('out_time_'); setTimeout(() => process.stdout.write('us=10000000\\nprogress=end\\n'), 10);`,
+    `${record}
+if (process.argv.at(-1) === '-') {
+  process.stderr.write('[silencedetect] silence_end: 25 | silence_duration: 25\\n');
+  process.stdout.write('out_time_us=25000000\\nprogress=end\\n');
+} else {
+  require('node:fs').writeFileSync(process.argv.at(-1), 'wav');
+  process.stdout.write('out_time_');
+  setTimeout(() => process.stdout.write('us=10000000\\nprogress=end\\n'), 10);
+}`,
   );
   const whisperPath = await executable(
     directory,
@@ -217,7 +225,10 @@ process.stdout.write('Detected 1 speech segments:\\nSpeech segment 0: start = 10
       directory,
       'pause-ffmpeg',
       `const args = process.argv.slice(2);
-if (args.includes('-af')) {
+if (args.includes('silencedetect=noise=-50dB:d=0.5')) {
+  process.stderr.write('[silencedetect] silence_end: 45 | silence_duration: 45\\n');
+  process.stdout.write('out_time_us=45000000\\n');
+} else if (args.includes('-af')) {
   process.stderr.write('[silencedetect] silence_end: 28.1 | silence_duration: 0.2\\n');
 } else {
   require('node:fs').writeFileSync(args.at(-1), 'wav');
@@ -241,7 +252,7 @@ for (let i = 0; i < args.length; i++) if (args[i] === '-of') {
     assert.equal(await readFile(output, 'utf8'), '1\n00:00:30,300 --> 00:00:30,900\nはい\n');
   }));
 
-test('no detected speech stops generation without transcribing the full audio', () =>
+test('silent audio with no detected speech stops generation without transcription', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);
     const vadModelPath = path.join(directory, 'vad.bin');
@@ -255,11 +266,39 @@ test('no detected speech stops generation without transcribing the full audio', 
       generateJapaneseSubtitles({ ...input, config: { ...input.config, vadModelPath, vadPath } }),
       /No spoken dialogue detected/,
     );
-    assert.equal((await readFile(input.callsPath, 'utf8')).trim().split('\n').length, 2);
+    assert.equal((await readFile(input.callsPath, 'utf8')).trim().split('\n').length, 3);
     assert.deepEqual(
       (await readdir(directory)).filter((file) => file.endsWith('.srt')),
       [],
     );
+  }));
+
+test('dialogue generation retains audible audio rejected by VAD', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const vadModelPath = path.join(directory, 'vad.bin');
+    await writeFile(vadModelPath, 'speech detector model');
+    const vadPath = await executable(
+      directory,
+      'vad',
+      "process.stdout.write('Detected 0 speech segments:\\n');",
+    );
+    const ffmpegPath = await executable(
+      directory,
+      'audible-ffmpeg',
+      `
+const args = process.argv.slice(2);
+if (args.at(-1) === '-') {
+  process.stdout.write('out_time_us=19000000\\nprogress=end\\n');
+} else {
+  require('node:fs').writeFileSync(args.at(-1), 'wav');
+}`,
+    );
+    const output = await generateJapaneseSubtitles({
+      ...input,
+      config: { ...input.config, vadModelPath, vadPath, ffmpegPath },
+    });
+    assert.match(await readFile(output, 'utf8'), /00:00:03,500 --> 00:00:04,500\nこんにちは/);
   }));
 
 test('empty executable paths find tools on PATH and explicit overrides take precedence', () =>

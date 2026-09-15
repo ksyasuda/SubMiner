@@ -17,6 +17,7 @@ import {
 import type { SubtitleCue } from './subtitle-cue-parser';
 import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generation-chunks';
 import { findSpeechPauses } from './subtitle-generation-pauses';
+import { findAudiblePassages, mergeSpeechPassages } from './subtitle-generation-coverage';
 
 const PASSAGES_PER_BATCH = 16;
 
@@ -61,7 +62,14 @@ export async function transcribeSubtitleDialogue(input: {
         segmentLines.push(line);
     },
   });
-  const detected = parseSpeechPassages(segmentLines.join('\n'));
+  const speech = parseSpeechPassages(segmentLines.join('\n'));
+  input.onProgress?.({ stage: 'transcribe', percent: 0, message: 'Checking audio coverage...' });
+  const audible = await findAudiblePassages({
+    ffmpegPath: input.tools.ffmpeg,
+    wavPath: input.wavPath,
+    signal: input.signal,
+  });
+  const detected = mergeSpeechPassages([...speech, ...audible]);
   if (detected.length === 0) throw new Error('No spoken dialogue detected.');
   const pauses = detected.some(
     (passage) => passage.endSeconds - passage.startSeconds > SPEECH_PASSAGE_SECONDS,
