@@ -1,5 +1,7 @@
 import type { ElectronAPI, SubtitleSidebarSnapshot } from '../../types';
 import { SUBTITLE_DEFAULT_CONFIG } from '../../config/definitions/defaults-subtitle';
+import { CORE_DEFAULT_CONFIG } from '../../config/definitions/defaults-core';
+import { createKeyboardHandlers } from '../handlers/keyboard';
 import { createRendererState } from '../state';
 import { resolveRendererDom } from '../utils/dom';
 import { resolvePlatformInfo } from '../utils/platform';
@@ -37,6 +39,18 @@ export async function setup() {
   Object.defineProperty(window, 'electronAPI', {
     value: {
       getSubtitleSidebarSnapshot: async () => snapshot,
+      getSessionBindings: async () => [
+        {
+          sourcePath: 'keybindings[0].key',
+          originalKey: 'Space',
+          key: { code: 'Space', modifiers: [] },
+          actionType: 'mpv-command',
+          command: ['cycle', 'pause'],
+        },
+      ],
+      getConfiguredShortcuts: async () => CORE_DEFAULT_CONFIG.shortcuts,
+      getStatsToggleKey: async () => 'Backquote',
+      getMarkWatchedKey: async () => '',
       copySubtitleSidebarSelection: async (text) => {
         if (!('copyTestSelection' in window) || typeof window.copyTestSelection !== 'function')
           throw new Error('Missing test clipboard bridge');
@@ -50,6 +64,10 @@ export async function setup() {
     } satisfies Pick<
       ElectronAPI,
       | 'getSubtitleSidebarSnapshot'
+      | 'getSessionBindings'
+      | 'getConfiguredShortcuts'
+      | 'getStatsToggleKey'
+      | 'getMarkWatchedKey'
       | 'copySubtitleSidebarSelection'
       | 'getOverlayLayer'
       | 'sendMpvCommand'
@@ -66,6 +84,24 @@ export async function setup() {
   });
   modal.wireDomEvents();
   wireSubtitleSidebarSelection(ctx);
+  const keyboard = createKeyboardHandlers(ctx, {
+    handleRuntimeOptionsKeydown: () => false,
+    handleCharacterDictionaryKeydown: () => false,
+    handleSubsyncKeydown: () => false,
+    handleKikuKeydown: () => false,
+    handleJimakuKeydown: () => false,
+    handleTsukihimeKeydown: () => false,
+    handleYoutubePickerKeydown: () => false,
+    handleMediaTimingReviewKeydown: () => false,
+    handlePlaylistBrowserKeydown: () => false,
+    handleControllerSelectKeydown: () => false,
+    handleControllerDebugKeydown: () => false,
+    handleSessionHelpKeydown: () => false,
+    handleChangelogKeydown: () => false,
+    openSessionHelpModal: () => {},
+    getPlaybackPaused: async () => false,
+  });
+  await keyboard.setupMpvInputForwarding();
   await modal.openSubtitleSidebarModal();
   const list = ctx.dom.subtitleSidebarList;
   list.style.height = '180px';
@@ -90,6 +126,9 @@ export async function setup() {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') fallbackCopies += 1;
   });
   return {
+    takeCommands: () => commands.splice(0),
+    cueFocused: () => document.activeElement?.matches('.subtitle-sidebar-item') ?? false,
+    focusCue: () => list.querySelector<HTMLElement>('.subtitle-sidebar-item')?.focus(),
     select,
     selected: () => getSubtitleSidebarSelection(list),
     buttonVisible: () => !ctx.dom.subtitleSidebarCopy.hidden,

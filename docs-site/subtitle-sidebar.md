@@ -10,6 +10,7 @@ When SubMiner parses the active subtitle source into a cue list, the sidebar bec
 
 - The active cue is highlighted and kept in view as playback advances (when `autoScroll` is `true`).
 - Clicking any cue seeks mpv into that line. For overlapping ASS karaoke, SubMiner moves past the previous line's exit animation when the selected cue has enough time remaining.
+- Clicking to seek releases row focus. `Enter` seeks a keyboard-focused cue; `Space` keeps its configured playback action, normally pause/resume, without seeking back to a row.
 - The sidebar and the overlay share one cue list, so a media change or subtitle source switch updates both at once.
 
 For typeset ASS karaoke and animated signs, SubMiner collapses generated animation frames and repeated full-line color phases before they reach the sidebar. It recovers a clean complete line from a matching timed authoring comment or from full-line events surrounding generated fragments. Ordinary ASS comments, editor notes, alternate lines, repeated dialogue, and separately positioned signs remain distinct.

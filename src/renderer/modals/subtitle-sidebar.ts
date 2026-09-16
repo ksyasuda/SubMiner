@@ -515,7 +515,7 @@ export function createSubtitleSidebarModal(
       row.setAttribute('role', 'button');
       row.setAttribute('aria-label', getCueRowLabel(cue));
       row.addEventListener('keydown', (event: KeyboardEvent) => {
-        if (event.key !== 'Enter' && event.key !== ' ') {
+        if (event.key !== 'Enter') {
           return;
         }
         event.preventDefault();
@@ -742,6 +742,7 @@ export function createSubtitleSidebarModal(
       if (!cue) {
         return;
       }
+      row.blur();
       seekToCue(cue);
     });
     ctx.dom.subtitleSidebarList.addEventListener('wheel', () => {

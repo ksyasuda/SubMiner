@@ -67,7 +67,10 @@ app.whenReady().then(async () => {
     kind: 'visible', windowVisible: true, input,
     preventDefault: () => event.preventDefault(),
     sendKeyboardModeToggleRequested() {}, sendLookupWindowToggleRequested() {}, forwardTabToMpv() {},
-    tryHandleOverlayShortcutLocalFallback() { intercepted++; return true; },
+    tryHandleOverlayShortcutLocalFallback(input) {
+      if (input.key.toLowerCase() !== 'c') return false;
+      intercepted++; return true;
+    },
   }));
   await window.loadFile(${JSON.stringify(join(dir, 'index.html'))});
   const run = (code) => window.webContents.executeJavaScript(code, true);
@@ -86,6 +89,22 @@ app.whenReady().then(async () => {
     await new Promise(resolve => setTimeout(resolve, 100));
     await run('checks.clear()');
     const [start, end] = await run('checks.dragPoints()');
+    await run('checks.takeCommands()');
+    window.webContents.sendInputEvent({ type: 'mouseDown', ...start, button: 'left', clickCount: 1 });
+    window.webContents.sendInputEvent({ type: 'mouseUp', ...start, button: 'left', clickCount: 1 });
+    assert.deepEqual(await run('checks.takeCommands()'), [['seek', 0.08, 'absolute+exact']]);
+    assert.equal(await run('checks.cueFocused()'), false, 'Click-to-seek releases row focus');
+    assert.equal(await run('checks.selected()'), null);
+    const pressKey = async (keyCode) => {
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode });
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode });
+      return run('checks.takeCommands()');
+    };
+    assert.deepEqual(await pressKey('Space'), [['cycle', 'pause']]);
+    await run('checks.focusCue()');
+    assert.deepEqual(await pressKey('Space'), [['cycle', 'pause']]);
+    assert.deepEqual(await pressKey('Enter'), [['seek', 0.08, 'absolute+exact']]);
+    assert.equal(await run('checks.cueFocused()'), true, 'Keyboard activation keeps row focus');
     window.webContents.sendInputEvent({ type: 'mouseDown', ...start, button: 'left', clickCount: 1 });
     window.webContents.sendInputEvent({ type: 'mouseMove', ...end, button: 'left' });
     window.webContents.sendInputEvent({ type: 'mouseUp', ...end, button: 'left', clickCount: 1 });

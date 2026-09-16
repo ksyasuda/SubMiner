@@ -375,7 +375,7 @@ test('subtitle sidebar modal opens from snapshot and clicking cue seeks playback
   }
 });
 
-test('subtitle sidebar rows support keyboard activation', async () => {
+test('subtitle sidebar rows seek with Enter and leave Space to playback shortcuts', async () => {
   const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
   const previousWindow = globals.window;
   const previousDocument = globals.document;
@@ -470,6 +470,18 @@ test('subtitle sidebar rows support keyboard activation', async () => {
     const firstRow = cueList.children[0]!;
     const keydownListeners = firstRow.listeners.get('keydown') ?? [];
     assert.equal(keydownListeners.length > 0, true);
+
+    mpvCommands.length = 0;
+    let spacePrevented = false;
+    keydownListeners[0]!({
+      key: ' ',
+      preventDefault: () => {
+        spacePrevented = true;
+      },
+    });
+
+    assert.deepEqual(mpvCommands, []);
+    assert.equal(spacePrevented, false);
 
     keydownListeners[0]!({
       key: 'Enter',

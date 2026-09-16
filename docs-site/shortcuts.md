@@ -99,6 +99,8 @@ The stats toggle is handled inside the focused visible overlay window. It is con
 
 The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.
 
+In the sidebar, `Enter` seeks the keyboard-focused cue. `Space` keeps its configured playback action, normally pause/resume, even when a cue has focus.
+
 ## Controller shortcuts
 
 These overlay-local shortcuts open controller utilities for the Chrome Gamepad API integration.
