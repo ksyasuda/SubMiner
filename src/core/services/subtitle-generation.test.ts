@@ -182,7 +182,7 @@ test('explicit audio stream and output path are respected without overwriting ex
     );
   }));
 
-test('dialogue generation keeps separate speech passages on the media timeline', () =>
+test('dialogue generation isolates Whisper state between passages and preserves media timing', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);
     const vadModelPath = path.join(directory, 'vad.bin');
@@ -195,7 +195,13 @@ test('dialogue generation keeps separate speech passages on the media timeline',
     const whisperPath = await executable(
       directory,
       'dialogue-whisper',
-      "const args=process.argv.slice(2); for(let i=0;i<args.length;i++) if(args[i]==='-of') require('node:fs').writeFileSync(args[i+1]+'.srt', '1\\n00:00:00,000 --> 00:01:39,000\\nはい\\n');",
+      `const args = process.argv.slice(2);
+let files = 0;
+for (let i = 0; i < args.length; i++) if (args[i] === '-of') {
+  // Reproduce a decoder that degenerates when reused for another audio file.
+  const text = files++ === 0 ? 'はい' : 'お' + 'ぉ'.repeat(40) + 'ぇ'.repeat(178);
+  require('node:fs').writeFileSync(args[i + 1] + '.srt', '1\\n00:00:00,000 --> 00:01:39,000\\n' + text + '\\n');
+}`,
     );
     const output = await generateJapaneseSubtitles({
       ...input,

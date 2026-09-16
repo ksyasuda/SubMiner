@@ -19,8 +19,6 @@ import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generatio
 import { findSpeechPauses } from './subtitle-generation-pauses';
 import { findAudiblePassages, mergeSpeechPassages } from './subtitle-generation-coverage';
 
-const PASSAGES_PER_BATCH = 16;
-
 export async function transcribeSubtitleDialogue(input: {
   config: SubtitleGenerationConfig;
   tools: SubtitleGenerationToolPaths & { vad: string };
@@ -80,44 +78,44 @@ export async function transcribeSubtitleDialogue(input: {
         signal: input.signal,
       })
     : [];
-  const passages = splitSpeechPassages(detected, pauses);
+  const passages = splitSpeechPassages(
+    detected,
+    pauses,
+    speech.map((passage) => passage.startSeconds),
+  );
   const cues: SubtitleCue[] = [];
-  for (let offset = 0; offset < passages.length; offset += PASSAGES_PER_BATCH) {
-    const batch = passages.slice(offset, offset + PASSAGES_PER_BATCH).map((passage, index) => ({
-      passage,
-      base: path.join(input.directory, `speech-${offset + index}`),
-    }));
+  for (const [index, passage] of passages.entries()) {
+    const base = path.join(input.directory, `speech-${index}`);
     input.onProgress?.({
       stage: 'transcribe',
-      percent: Math.floor((offset / passages.length) * 100),
-      message: `Transcribing dialogue passages ${offset + 1}-${offset + batch.length} of ${passages.length}...`,
+      percent: Math.floor((index / passages.length) * 100),
+      message: `Transcribing dialogue passage ${index + 1} of ${passages.length}...`,
     });
-    for (const { passage, base } of batch) {
-      await runSubtitleGenerationProcess({
-        command: input.tools.ffmpeg,
-        args: [
-          '-nostdin',
-          '-hide_banner',
-          '-loglevel',
-          'error',
-          '-ss',
-          String(passage.startSeconds),
-          '-i',
-          input.wavPath,
-          '-t',
-          String(passage.endSeconds - passage.startSeconds),
-          '-ac',
-          '1',
-          '-ar',
-          '16000',
-          '-c:a',
-          'pcm_s16le',
-          `${base}.wav`,
-        ],
-        signal: input.signal,
-      });
-    }
-    // One model load per batch, with independent text context and timestamps for every passage.
+    await runSubtitleGenerationProcess({
+      command: input.tools.ffmpeg,
+      args: [
+        '-nostdin',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-ss',
+        String(passage.startSeconds),
+        '-i',
+        input.wavPath,
+        '-t',
+        String(passage.endSeconds - passage.startSeconds),
+        '-ac',
+        '1',
+        '-ar',
+        '16000',
+        '-c:a',
+        'pcm_s16le',
+        `${base}.wav`,
+      ],
+      signal: input.signal,
+    });
+    // -mc 0 limits text context, but does not isolate decoder state across input files.
+    // A fresh process prevents earlier passages from corrupting later transcriptions.
     await runSubtitleGenerationProcess({
       command: input.tools.whisper,
       args: [
@@ -131,18 +129,16 @@ export async function transcribeSubtitleDialogue(input: {
         '0',
         '-sns',
         '-osrt',
-        ...batch.flatMap(({ base }) => ['-f', `${base}.wav`, '-of', base]),
+        '-f',
+        `${base}.wav`,
+        '-of',
+        base,
       ],
       signal: input.signal,
     });
-    for (const { passage, base } of batch) {
-      input.signal?.throwIfAborted();
-      appendSpeechChunkCues(
-        cues,
-        speechPassageCues(await readFile(`${base}.srt`, 'utf8'), passage),
-      );
-      await rm(`${base}.wav`);
-    }
+    input.signal?.throwIfAborted();
+    appendSpeechChunkCues(cues, speechPassageCues(await readFile(`${base}.srt`, 'utf8'), passage));
+    await rm(`${base}.wav`);
   }
   if (cues.length === 0) throw new Error('Whisper recognized no dialogue in the detected speech.');
   return cues

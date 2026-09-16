@@ -5,10 +5,11 @@ const CHUNK_CONTEXT_SECONDS = 0.25;
 const WHISPER_WINDOW_SECONDS = 30;
 const PAUSE_SEARCH_SECONDS = 5;
 
-// Prefer a quiet pause near the end of each chunk. Context stays inside retained audio.
+// Prefer detected speech starts, then quiet pauses. Context stays inside retained audio.
 export function splitSpeechPassages(
   passages: readonly SpeechPassage[],
   pauses: readonly number[] = [],
+  speechStarts: readonly number[] = [],
 ): SpeechPassage[] {
   return passages.flatMap((passage) => {
     if (passage.endSeconds - passage.startSeconds <= WHISPER_WINDOW_SECONDS)
@@ -19,6 +20,19 @@ export function splitSpeechPassages(
       const target = boundary + SPEECH_PASSAGE_SECONDS;
       let end = Math.min(target, passage.endSeconds);
       if (target < passage.endSeconds) {
+        // Starting in a long quiet lead-in can make Whisper place the next line
+        // several seconds early. A nearby VAD start gives the next chunk an anchor.
+        let nearestSpeechStart: number | undefined;
+        for (const time of speechStarts) {
+          if (
+            time >= target - PAUSE_SEARCH_SECONDS &&
+            time <= target + PAUSE_SEARCH_SECONDS &&
+            time < passage.endSeconds &&
+            (nearestSpeechStart === undefined ||
+              Math.abs(time - target) < Math.abs(nearestSpeechStart - target))
+          )
+            nearestSpeechStart = time;
+        }
         let latestPause: number | undefined;
         for (const time of pauses) {
           if (
@@ -28,7 +42,7 @@ export function splitSpeechPassages(
           )
             latestPause = time;
         }
-        if (latestPause !== undefined) end = latestPause;
+        end = nearestSpeechStart ?? latestPause ?? end;
       }
       chunks.push({
         startSeconds: Math.max(passage.startSeconds, boundary - CHUNK_CONTEXT_SECONDS),

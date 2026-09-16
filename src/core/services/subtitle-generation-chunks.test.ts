@@ -2,6 +2,42 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generation-chunks';
 
+test('long coverage cuts at nearby speech starts instead of leaving a quiet lead-in', () => {
+  const chunks = splitSpeechPassages(
+    [{ startSeconds: 544.418, endSeconds: 581.581 }],
+    [563.928],
+    [555.07, 567.23, 579.91],
+  );
+  assert.deepEqual(chunks, [
+    { startSeconds: 544.418, endSeconds: 567.48 },
+    { startSeconds: 566.98, endSeconds: 581.581 },
+  ]);
+});
+
+test('short audible passages stay intact even with several detected speech starts', () => {
+  assert.deepEqual(
+    splitSpeechPassages(
+      [{ startSeconds: 876.897, endSeconds: 897.812 }],
+      [],
+      [876.9, 881.15, 893.95, 897.99],
+    ),
+    [{ startSeconds: 876.897, endSeconds: 897.812 }],
+  );
+});
+
+test('speech anchors outside retained coverage cannot extend a chunk across a silent gap', () => {
+  const chunks = splitSpeechPassages(
+    [{ startSeconds: 100, endSeconds: 142 }],
+    [118],
+    [90, 142, 144],
+  );
+  assert.deepEqual(chunks, [
+    { startSeconds: 100, endSeconds: 118.25 },
+    { startSeconds: 117.75, endSeconds: 138.25 },
+    { startSeconds: 137.75, endSeconds: 142 },
+  ]);
+});
+
 test('long speech splits near a pause with context on both sides and no lost audio', () => {
   assert.deepEqual(splitSpeechPassages([{ startSeconds: 100, endSeconds: 145 }], [105, 118, 137]), [
     { startSeconds: 100, endSeconds: 118.25 },
