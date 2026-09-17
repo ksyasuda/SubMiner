@@ -6,7 +6,7 @@ import {
   createShouldRestoreWindowsOnActivateHandler,
 } from './app-lifecycle-actions';
 
-test('on will quit cleanup handler runs all cleanup steps', () => {
+test('on will quit cleanup handler runs all cleanup steps', async () => {
   const calls: string[] = [];
   const cleanup = createOnWillQuitCleanupHandler({
     destroyTray: () => calls.push('destroy-tray'),
@@ -32,7 +32,9 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     destroyMpvSocket: () => calls.push('destroy-socket'),
     clearReconnectTimer: () => calls.push('clear-reconnect'),
     destroySubtitleTimingTracker: () => calls.push('destroy-subtitle-tracker'),
-    destroyImmersionTracker: () => calls.push('destroy-immersion'),
+    destroyImmersionTracker: () => {
+      calls.push('destroy-immersion');
+    },
     destroyAnkiIntegration: () => calls.push('destroy-anki'),
     destroyAnilistSetupWindow: () => calls.push('destroy-anilist-window'),
     clearAnilistSetupWindow: () => calls.push('clear-anilist-window'),
@@ -51,7 +53,7 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
     stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
   });
 
-  cleanup();
+  await cleanup();
   assert.equal(calls.length, 36);
   assert.equal(calls[0], 'destroy-tray');
   assert.equal(calls[calls.length - 1], 'stop-discord-presence');
@@ -65,57 +67,79 @@ test('on will quit cleanup handler runs all cleanup steps', () => {
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
 });
 
-test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', () => {
-  const calls: string[] = [];
-  const cleanup = createOnWillQuitCleanupHandler({
-    destroyTray: () => {},
-    stopConfigHotReload: () => {},
-    restorePreviousSecondarySubVisibility: () => {},
-    restoreMpvSubVisibility: () => {},
-    unregisterAllGlobalShortcuts: () => {},
-    stopSubtitleWebsocket: () => {},
-    stopTexthookerService: () => {},
-    stopSyncAutoScheduler: () => {},
-    clearWindowsVisibleOverlayForegroundPollLoop: () => {},
-    clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
-    destroyMainOverlayWindow: () => {},
-    destroyModalOverlayWindow: () => {},
-    destroyYomitanParserWindow: () => {},
-    clearYomitanParserState: () => {},
-    stopWindowTracker: () => {},
-    flushMpvLog: () => {},
-    destroyMpvSocket: () => {},
-    clearReconnectTimer: () => {},
-    destroySubtitleTimingTracker: () => {},
-    destroyImmersionTracker: () => {},
-    destroyAnkiIntegration: () => {},
-    destroyAnilistSetupWindow: () => {},
-    clearAnilistSetupWindow: () => {},
-    destroyJellyfinSetupWindow: () => {},
-    clearJellyfinSetupWindow: () => {},
-    destroyFirstRunSetupWindow: () => {},
-    clearFirstRunSetupWindow: () => {},
-    destroyYomitanSettingsWindow: () => {},
-    clearYomitanSettingsWindow: () => {},
-    stopJellyfinRemoteSession: () => {
-      calls.push('stop-jellyfin-remote');
-      throw new Error('stop failed');
-    },
-    cleanupInternalSubtitleTrackCache: () => calls.push('cleanup-internal-subtitles'),
-    cleanupYoutubeSubtitleTempDirs: () => calls.push('cleanup-youtube-subtitles'),
-    cleanupYoutubeMediaCache: () => calls.push('cleanup-youtube-media'),
-    cleanupRemoteMediaWindows: () => calls.push('cleanup-remote-media-windows'),
-    cleanupJellyfinSubtitleCache: () => calls.push('cleanup-jellyfin-subtitles'),
-    stopDiscordPresenceService: () => calls.push('stop-discord-presence'),
-  });
+for (const failedStep of [
+  'stop-jellyfin-remote',
+  'cleanup-jellyfin-subtitles',
+  'cleanup-internal-subtitles',
+  'cleanup-youtube-subtitles',
+  'cleanup-youtube-media',
+  'cleanup-remote-media-windows',
+  'stop-discord-presence',
+  'stop-sync-auto-scheduler',
+]) {
+  test(`on will quit cleanup finishes every independent step after ${failedStep} fails`, async () => {
+    const calls: string[] = [];
+    const firstError = new Error(`${failedStep} failed`);
+    const recordCleanup = (step: string): void => {
+      calls.push(step);
+      if (step === failedStep) throw firstError;
+      if (calls.includes(failedStep)) throw new Error(`${step} also failed`);
+    };
+    const cleanup = createOnWillQuitCleanupHandler({
+      destroyTray: () => {},
+      stopConfigHotReload: () => {},
+      restorePreviousSecondarySubVisibility: () => {},
+      restoreMpvSubVisibility: () => {},
+      unregisterAllGlobalShortcuts: () => {},
+      stopSubtitleWebsocket: () => {},
+      stopTexthookerService: () => {},
+      stopSyncAutoScheduler: async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        recordCleanup('stop-sync-auto-scheduler');
+      },
+      clearWindowsVisibleOverlayForegroundPollLoop: () => {},
+      clearLinuxMpvFullscreenOverlayRefreshTimeouts: () => {},
+      destroyMainOverlayWindow: () => {},
+      destroyModalOverlayWindow: () => {},
+      destroyYomitanParserWindow: () => {},
+      clearYomitanParserState: () => {},
+      stopWindowTracker: () => {},
+      flushMpvLog: () => {},
+      destroyMpvSocket: () => {},
+      clearReconnectTimer: () => {},
+      destroySubtitleTimingTracker: () => {},
+      destroyImmersionTracker: () => {},
+      destroyAnkiIntegration: () => {},
+      destroyAnilistSetupWindow: () => {},
+      clearAnilistSetupWindow: () => {},
+      destroyJellyfinSetupWindow: () => {},
+      clearJellyfinSetupWindow: () => {},
+      destroyFirstRunSetupWindow: () => {},
+      clearFirstRunSetupWindow: () => {},
+      destroyYomitanSettingsWindow: () => {},
+      clearYomitanSettingsWindow: () => {},
+      stopJellyfinRemoteSession: () => recordCleanup('stop-jellyfin-remote'),
+      cleanupInternalSubtitleTrackCache: () => recordCleanup('cleanup-internal-subtitles'),
+      cleanupYoutubeSubtitleTempDirs: () => recordCleanup('cleanup-youtube-subtitles'),
+      cleanupYoutubeMediaCache: () => recordCleanup('cleanup-youtube-media'),
+      cleanupRemoteMediaWindows: () => recordCleanup('cleanup-remote-media-windows'),
+      cleanupJellyfinSubtitleCache: () => recordCleanup('cleanup-jellyfin-subtitles'),
+      stopDiscordPresenceService: () => recordCleanup('stop-discord-presence'),
+    });
 
-  assert.throws(() => cleanup(), /stop failed/);
-  assert.deepEqual(calls, [
-    'stop-jellyfin-remote',
-    'cleanup-jellyfin-subtitles',
-    'cleanup-internal-subtitles',
-  ]);
-});
+    await assert.rejects(cleanup(), (error) => error === firstError);
+    assert.deepEqual(calls, [
+      'stop-jellyfin-remote',
+      'cleanup-jellyfin-subtitles',
+      'cleanup-internal-subtitles',
+      'cleanup-youtube-subtitles',
+      'cleanup-youtube-media',
+      'cleanup-remote-media-windows',
+      'stop-discord-presence',
+      'stop-sync-auto-scheduler',
+    ]);
+  });
+}
 
 test('should restore windows on activate requires initialized runtime and no windows', () => {
   let initialized = false;

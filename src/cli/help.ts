@@ -81,6 +81,7 @@ ${B}Jellyfin${R}
 
 ${B}Stats sync${R}
   --sync-window                  Open the stats sync window
+  --anime                        Open the anime browser
   --sync-cli sync ${D}[host] [opts]${R}   Headless stats sync ${D}(same commands as "subminer sync";${R}
                                  ${D}run SubMiner --sync-cli --help for details)${R}
 

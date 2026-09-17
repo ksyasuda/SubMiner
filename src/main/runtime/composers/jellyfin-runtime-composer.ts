@@ -130,6 +130,9 @@ export type JellyfinRuntimeComposerOptions = ComposerInputs<{
 export type JellyfinRuntimeComposerResult = ComposerOutputs<{
   getResolvedJellyfinConfig: ReturnType<typeof createGetResolvedJellyfinConfigHandler>;
   getJellyfinClientInfo: ReturnType<typeof createGetJellyfinClientInfoHandler>;
+  ensureMpvConnectedForPlayback: ReturnType<
+    typeof createEnsureMpvConnectedForJellyfinPlaybackHandler
+  >;
   reportJellyfinRemoteProgress: ReturnType<
     typeof composeJellyfinRemoteHandlers
   >['reportJellyfinRemoteProgress'];
@@ -297,6 +300,9 @@ export function composeJellyfinRuntimeHandlers(
   return {
     getResolvedJellyfinConfig,
     getJellyfinClientInfo,
+    // Shared so other playback sources (the anime browser) reuse the same
+    // auto-launch in-flight guard instead of racing a second mpv launch.
+    ensureMpvConnectedForPlayback: ensureMpvConnectedForJellyfinPlayback,
     reportJellyfinRemoteProgress,
     reportJellyfinRemoteStopped,
     handleJellyfinRemotePlay,

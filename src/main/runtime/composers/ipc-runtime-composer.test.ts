@@ -14,6 +14,7 @@ test('composeIpcRuntimeHandlers returns callable IPC handlers and registration b
       openTsukihime: () => {},
       openYoutubeTrackPicker: () => {},
       openPlaylistBrowser: () => {},
+      openAnimeBrowser: () => {},
       cycleRuntimeOption: () => ({ ok: true }),
       showMpvOsd: () => {},
       replayCurrentSubtitle: () => {},

@@ -120,6 +120,45 @@ const SEASONAL_FORMAT_PRIORITY = ['TV', 'TV_SHORT', 'ONA'];
 const MAX_SEQUEL_HOPS = 12;
 
 /**
+ * A split-cour continuation adds sequel hops without adding a season, so the
+ * walk needs room for more hops than the season number alone implies.
+ */
+const MAX_SEQUEL_STEPS = 24;
+
+/**
+ * Markers AniList appends when one broadcast season is listed as several
+ * entries. Anchored to the end so a numbered *work* ("JoJo no Kimyou na Bouken
+ * Part 5: Ougon no Kaze") is not mistaken for a continuation — those carry a
+ * subtitle after the number and really are separate seasons.
+ */
+const PART_MARKER_PATTERNS: RegExp[] = [
+  /\bpart\s*(?:\d{1,2}|i{1,3}|iv|v)\s*$/i,
+  /\bcour\s*\d{1,2}\s*$/i,
+  /\b\d{1,2}(?:st|nd|rd|th)\s+(?:part|cour)\s*$/i,
+  /\b(?:second|final)\s+(?:part|cour)\s*$/i,
+  /\s*第\s*\d{1,2}\s*(?:部|クール)\s*$/,
+];
+
+function normalizeTitle(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Comparison key that ignores punctuation.
+ *
+ * AniList spells the same name differently across a franchise's own entries —
+ * "BLEACH: Thousand-Year Blood War" against the synonym "BLEACH: Thousand Year
+ * Blood War Part 2" — so an exact string compare misses the continuation.
+ */
+function titleMatchKey(value: string): string {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/**
  * Drops season markers a release name carries but AniList titles never do,
  * so "Some Show Season 3" and "Some Show S3" both search as "Some Show".
  */
@@ -130,6 +169,50 @@ export function stripSeasonSuffix(title: string): string {
     .replace(/\bs\d{1,2}\b/gi, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+/**
+ * Splits a trailing part/cour marker off a title.
+ *
+ * "Mushoku Tensei: Jobless Reincarnation Season 2 Part 2" is the back half of
+ * season 2, not season 3 — AniList lists it as its own SEQUEL of the front
+ * half, which is what used to make every split-cour franchise resolve one
+ * season short.
+ */
+export function splitPartMarker(title: string): { base: string; hasPart: boolean } {
+  const trimmed = title.trim();
+  for (const pattern of PART_MARKER_PATTERNS) {
+    const match = trimmed.match(pattern);
+    if (!match || match.index === undefined) continue;
+    const base = normalizeTitle(trimmed.slice(0, match.index));
+    if (!base) continue;
+    return { base, hasPart: true };
+  }
+  return { base: normalizeTitle(trimmed), hasPart: false };
+}
+
+/**
+ * Whether `next` continues `current`'s season rather than starting a new one.
+ *
+ * The marker is required, not just a matching base title: a sequel that repeats
+ * its predecessor's name exactly is a new season that AniList simply did not
+ * number, and skipping it would undercount in the other direction.
+ */
+function isSeasonContinuation(current: AnilistSeasonMedia, next: AnilistSeasonMedia): boolean {
+  const parts = mediaTitles(next)
+    .map((title) => splitPartMarker(title))
+    .filter((part) => part.hasPart);
+  if (parts.length === 0) return false;
+
+  // Both the full title and its own stripped base, so a "Part 3" can be matched
+  // against a season the walk only ever saw as its "Part 2".
+  const currentKeys = new Set(
+    mediaTitles(current).flatMap((title) => [
+      titleMatchKey(title),
+      titleMatchKey(splitPartMarker(title).base),
+    ]),
+  );
+  return parts.some((part) => currentKeys.has(titleMatchKey(part.base)));
 }
 
 function mediaTitles(media: AnilistSeasonMedia): string[] {
@@ -253,16 +336,21 @@ async function walkSequelChain(
   season: number,
   deps: ResolveAnilistSeasonMediaDeps,
 ): Promise<AnilistSeasonMedia | null> {
-  // Walking fewer hops than requested would land on the wrong season and report it as
+  // Advancing fewer seasons than requested would land on the wrong one and report it as
   // resolved, so refuse instead and let the caller fall through to its guarded fallback.
-  const hops = season - 1;
-  if (hops > MAX_SEQUEL_HOPS) {
+  const targetAdvances = season - 1;
+  if (targetAdvances > MAX_SEQUEL_HOPS) {
     return null;
   }
   const visited = new Set<number>([anchor.id]);
   let current = anchor;
+  // The last entry that counted as a season. Continuations are compared against
+  // this rather than against `current`, so a special sitting between a season
+  // and its second cour cannot hide the link between them.
+  let seasonStart = anchor;
+  let advances = 0;
 
-  for (let hop = 0; hop < hops; hop += 1) {
+  for (let step = 0; step < MAX_SEQUEL_STEPS && advances < targetAdvances; step += 1) {
     // Transport errors propagate: a failed hop must not be mistaken for "no sequel exists".
     const response = await deps.execute<AnilistSeasonRelationsResponse>(
       ANILIST_SEASON_RELATIONS_QUERY,
@@ -299,11 +387,25 @@ async function walkSequelChain(
       return a.id - b.id;
     });
 
-    current = sequels[0]!;
+    const next = sequels[0]!;
+    // Two kinds of hop move along the chain without moving to the next season:
+    // the back half of a split cour, which is its own SEQUEL entry, and a
+    // special or OVA, which is not a season at all. Both are still traversed,
+    // because the rest of the franchise hangs off them.
+    if (isSeasonalFormat(next) && !isSeasonContinuation(seasonStart, next)) {
+      advances += 1;
+      seasonStart = next;
+    }
+    current = next;
     visited.add(current.id);
   }
 
-  return current.id === anchor.id ? null : current;
+  if (advances < targetAdvances) {
+    return null;
+  }
+  // seasonStart, not current: it is the entry the season count landed on, and
+  // it is always a seasonal format because only those advance the count.
+  return seasonStart.id === anchor.id ? null : seasonStart;
 }
 
 /**
@@ -326,13 +428,31 @@ export function pickByAirOrder(
       stripSeasonSuffix(candidate).includes(anchorBase),
     );
   });
-  if (franchise.length < season) return null;
+
+  // Drop the back halves of split-cour seasons, which are separate entries here
+  // but not separate seasons — counting them shifts every later season index.
+  // The comparison excludes the entry's own titles: a localized synonym often
+  // spells a season as "<season> Part 1", which would otherwise delete the very
+  // season it names.
+  const seasons = franchise.filter((entry) => {
+    if (entry.id === anchor.id) return true;
+    const otherKeys = new Set(
+      franchise
+        .filter((other) => other.id !== entry.id)
+        .flatMap((other) => mediaTitles(other).map((title) => titleMatchKey(title))),
+    );
+    return !mediaTitles(entry).some((title) => {
+      const part = splitPartMarker(title);
+      return part.hasPart && otherKeys.has(titleMatchKey(part.base));
+    });
+  });
+  if (seasons.length < season) return null;
 
   // Ordering by air date is only meaningful when every entry has one: an unknown year
   // would sort last and shift the season index while still reporting a resolved match.
-  if (franchise.some((entry) => airYear(entry) === null)) return null;
+  if (seasons.some((entry) => airYear(entry) === null)) return null;
 
-  const ordered = [...franchise].sort((a, b) => {
+  const ordered = [...seasons].sort((a, b) => {
     const yearDelta = (airYear(a) ?? 0) - (airYear(b) ?? 0);
     if (yearDelta !== 0) return yearDelta;
     return a.id - b.id;
@@ -407,6 +527,14 @@ export async function resolveAnilistSeasonMedia(
     );
   }
 
+  // The chain failed for transport reasons rather than because the season is absent, so
+  // nothing was learned about the franchise's shape. Surface it and let the caller retry:
+  // the air-order fallback is for a chain that answered and had no edge to follow, and
+  // running it here would turn a rate limit into a confident wrong season.
+  if (chainError) {
+    throw chainError;
+  }
+
   const viaAirOrder = pickByAirOrder(anchor, season, media);
   if (viaAirOrder) {
     deps.logInfo?.(
@@ -420,12 +548,6 @@ export async function resolveAnilistSeasonMedia(
       true,
       exactMatchFor(viaAirOrder),
     );
-  }
-
-  // The chain failed for transport reasons rather than because the season is absent;
-  // surface that so callers retry instead of reporting an unresolvable season.
-  if (chainError) {
-    throw chainError;
   }
 
   deps.logInfo?.(

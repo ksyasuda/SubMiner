@@ -1,0 +1,336 @@
+/* ---------- source settings ---------- */
+
+.settings {
+  /* A tab panel owns the whole content region; only one is ever visible. */
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 18px;
+  background: var(--panel-elevated);
+}
+
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.settings-note {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field-summary {
+  font-size: 11px;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.field-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.field-state {
+  font-size: 11px;
+  color: var(--faint);
+  min-height: 14px;
+}
+
+.field-state[data-tone='ok'] {
+  color: var(--ok);
+}
+
+.field-state[data-tone='error'] {
+  color: var(--danger);
+}
+
+/* ---------- extensions panel ---------- */
+
+.repo-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.repo-add .text-input {
+  flex: 1 1 auto;
+}
+
+.repo-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--faint);
+  max-width: 78ch;
+}
+
+.repo-hint code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.ext-group-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ext-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ext-group-heading .ext-group-title {
+  margin-bottom: 0;
+}
+
+.ext-update-all {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+/* A rule between the groups, but not above the first one. */
+.ext-list + .ext-group-title,
+.ext-list + .ext-group-heading {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.ext-group-count {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.ext-group-count:empty {
+  display: none;
+}
+
+.lang-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lang-filter:not(:empty) {
+  margin-bottom: 10px;
+}
+
+.lang-chip {
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--ctp-crust);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.lang-chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.lang-chip.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.lang-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ext-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ext-list:not(:empty) {
+  margin-bottom: 14px;
+}
+
+.ext-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--ctp-crust);
+}
+
+.ext-row.is-error {
+  border-color: rgba(237, 135, 150, 0.45);
+}
+
+/*
+ * Avatar for an extension row. The monogram is the box's own text, so it shows
+ * while the icon loads and stays put when a repository publishes none; a loaded
+ * icon covers it.
+ */
+.ext-icon {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--ctp-surface0);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--faint);
+  overflow: hidden;
+}
+
+/* A loaded icon replaces the monogram; transparent PNGs must not show it. */
+.ext-icon.has-icon {
+  border-color: transparent;
+  background: transparent;
+  color: transparent;
+}
+
+.ext-icon-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+}
+
+.ext-icon.has-icon .ext-icon-img {
+  opacity: 1;
+}
+
+.ext-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ext-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ext-row.is-error .ext-sub {
+  color: var(--danger);
+  white-space: normal;
+}
+
+.ext-tag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ext-tag.installed {
+  border-color: rgba(166, 218, 149, 0.4);
+  color: var(--ok);
+}
+
+.ext-tag.default {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ext-tag.nsfw {
+  border-color: rgba(237, 135, 150, 0.4);
+  color: var(--danger);
+}
+
+.ext-row .ghost-button,
+.ext-row .primary-button {
+  flex: none;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.ext-empty {
+  padding: 14px 2px;
+  font-size: 13px;
+  color: var(--muted);
+}

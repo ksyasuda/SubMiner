@@ -1,0 +1,295 @@
+import type {
+  AnimeBrowserPlayRequest,
+  AnimeBrowserQueueEntry,
+  AnimeBrowserQueueState,
+} from '../../types/anime-browser';
+import type {
+  PreparedAnimeBrowserPlayback,
+  PrepareAnimeBrowserPlaybackResult,
+} from './anime-browser-playback';
+
+interface MpvPlaylistEntry {
+  id?: unknown;
+  filename?: unknown;
+  current?: unknown;
+  playing?: unknown;
+}
+
+interface QueueItem {
+  request: AnimeBrowserPlayRequest;
+  active: boolean;
+  playback: PreparedAnimeBrowserPlayback | null;
+  playlistId: number | null;
+}
+
+export interface AnimeBrowserQueueDeps {
+  prepareEpisode: (request: AnimeBrowserPlayRequest) => Promise<PrepareAnimeBrowserPlaybackResult>;
+  appendEpisode: (playback: PreparedAnimeBrowserPlayback) => void;
+  activateEpisode: (playback: PreparedAnimeBrowserPlayback) => Promise<void>;
+  discardEpisode: (playback: PreparedAnimeBrowserPlayback) => Promise<void>;
+  /** Re-arm the plugin's managed-track startup behavior for the next file. */
+  armNextEpisode: () => void;
+  /** Subscribe to mpv's active path, which changes on automatic and manual playlist navigation. */
+  onPlaybackPathChange?: (listener: (path: string) => void) => () => void;
+  readMpvProperty?: (name: string) => Promise<unknown>;
+  sendMpvCommand: (command: Array<string | number>) => void;
+  onQueueState?: (state: AnimeBrowserQueueState) => void;
+  showMpvOsd?: (message: string) => void;
+  log: (message: string) => void;
+}
+
+/**
+ * Resolved anime episodes that are also real mpv playlist entries.
+ *
+ * Resolution begins on the Queue click. Appends are serialized in click order,
+ * even when a later source resolves first, and mpv itself owns next/previous
+ * navigation from then on. The app only watches path changes to attach cached
+ * external tracks and publish the browser's queue state.
+ */
+export function createAnimeBrowserQueue(deps: AnimeBrowserQueueDeps) {
+  let items: QueueItem[] = [];
+  let lastError: string | null = null;
+  let advances = 0;
+  let lastStarted: AnimeBrowserQueueEntry | null = null;
+  let unsubscribePathChange: (() => void) | null = null;
+  let appendTail = Promise.resolve();
+
+  function state(): AnimeBrowserQueueState {
+    return {
+      entries: items.filter((item) => item.active).map((item) => item.request),
+      lastError,
+      advances,
+      lastStarted,
+    };
+  }
+
+  function publish(): AnimeBrowserQueueState {
+    const next = state();
+    deps.onQueueState?.(next);
+    return next;
+  }
+
+  function arm(): void {
+    if (!items.some((item) => item.active)) return;
+    unsubscribePathChange?.();
+    unsubscribePathChange = deps.onPlaybackPathChange?.(handlePathChange) ?? null;
+    deps.armNextEpisode();
+  }
+
+  function disarm(): void {
+    unsubscribePathChange?.();
+    unsubscribePathChange = null;
+  }
+
+  function keyOf(entry: { sourceId: string; episodeUrl: string }): string {
+    return `${entry.sourceId}\0${entry.episodeUrl}`;
+  }
+
+  function activeItem(item: QueueItem): boolean {
+    return item.active && items.includes(item);
+  }
+
+  function removeItem(item: QueueItem): void {
+    item.active = false;
+    items = items.filter((candidate) => candidate !== item);
+    if (items.length === 0) disarm();
+  }
+
+  function reportFailure(item: QueueItem, error: string): AnimeBrowserQueueState {
+    removeItem(item);
+    lastError = `${item.request.episodeName}: ${error}`;
+    deps.log(`[anime-browser] queued episode could not be prepared: ${lastError}`);
+    deps.showMpvOsd?.(`Queue stopped - ${lastError}`);
+    return publish();
+  }
+
+  async function readPlaylist(): Promise<MpvPlaylistEntry[]> {
+    if (!deps.readMpvProperty) return [];
+    try {
+      const value = await deps.readMpvProperty('playlist');
+      return Array.isArray(value) ? (value as MpvPlaylistEntry[]) : [];
+    } catch (error) {
+      deps.log(`[anime-browser] could not read mpv playlist: ${describeError(error)}`);
+      return [];
+    }
+  }
+
+  async function capturePlaylistId(item: QueueItem): Promise<void> {
+    if (!item.playback || !activeItem(item)) return;
+    const playlist = await readPlaylist();
+    if (!activeItem(item)) return;
+    const match = [...playlist]
+      .reverse()
+      .find((entry) => entry.filename === item.playback?.stream.url && isPlaylistId(entry.id));
+    item.playlistId = match && isPlaylistId(match.id) ? match.id : null;
+  }
+
+  function handlePathChange(path: string): void {
+    const item = items.find(
+      (candidate) => candidate.active && candidate.playback?.stream.url === path,
+    );
+    if (!item?.playback) {
+      // A manually selected non-queue file may have consumed the plugin flag.
+      if (items.some((candidate) => candidate.active && candidate.playback)) {
+        deps.armNextEpisode();
+      }
+      return;
+    }
+
+    const playback = item.playback;
+    removeItem(item);
+    lastError = null;
+    advances += 1;
+    lastStarted = item.request;
+    publish();
+    void deps.activateEpisode(playback).catch((error) => {
+      lastError = `${item.request.episodeName}: ${describeError(error)}`;
+      deps.log(`[anime-browser] queued episode track setup failed: ${lastError}`);
+      publish();
+    });
+    if (items.length > 0) arm();
+  }
+
+  async function removePlaylistItem(item: QueueItem): Promise<void> {
+    const playback = item.playback;
+    if (!playback) return;
+    const playlist = await readPlaylist();
+    const index = playlist.findIndex((entry) => playlistEntryMatches(item, entry));
+    const entry = index >= 0 ? playlist[index] : null;
+    if (entry?.current === true || entry?.playing === true) {
+      // mpv won the race and began this item before the dequeue request landed.
+      // It is no longer queued, but its prepared tracks still belong to it.
+      await deps.activateEpisode(playback);
+      return;
+    }
+    if (index >= 0) deps.sendMpvCommand(['playlist-remove', index]);
+    await deps.discardEpisode(playback);
+  }
+
+  function playlistEntryMatches(item: QueueItem, entry: MpvPlaylistEntry): boolean {
+    if (!item.playback) return false;
+    return item.playlistId !== null
+      ? entry.id === item.playlistId
+      : entry.filename === item.playback.stream.url;
+  }
+
+  async function clear(): Promise<AnimeBrowserQueueState> {
+    const removed = items.filter((item) => item.active);
+    for (const item of removed) item.active = false;
+    items = [];
+    lastError = null;
+    disarm();
+    const next = publish();
+
+    const playlist = await readPlaylist();
+    const started = new Set<PreparedAnimeBrowserPlayback>();
+    const indexes = playlist.flatMap((entry, index) => {
+      const item = removed.find((candidate) => playlistEntryMatches(candidate, entry));
+      if (!item?.playback) return [];
+      if (entry.current === true || entry.playing === true) {
+        started.add(item.playback);
+        return [];
+      }
+      return [index];
+    });
+    for (const index of indexes.reverse()) deps.sendMpvCommand(['playlist-remove', index]);
+    await Promise.all(
+      removed.flatMap((item) => {
+        if (!item.playback) return [];
+        return [
+          started.has(item.playback)
+            ? deps.activateEpisode(item.playback)
+            : deps.discardEpisode(item.playback),
+        ];
+      }),
+    );
+    return next;
+  }
+
+  return {
+    getState: state,
+
+    async enqueue(request: AnimeBrowserPlayRequest): Promise<AnimeBrowserQueueState> {
+      if (!request.sourceId || !request.episodeUrl) {
+        throw new Error('That episode cannot be queued.');
+      }
+      if (items.some((item) => item.active && keyOf(item.request) === keyOf(request))) {
+        return state();
+      }
+
+      const item: QueueItem = {
+        request,
+        active: true,
+        playback: null,
+        playlistId: null,
+      };
+      items = [...items, item];
+      lastError = null;
+      publish();
+
+      // Start the expensive source request now. Only the append waits for the
+      // preceding click, so slow sources cannot reverse playlist order.
+      const preparation = deps.prepareEpisode(request);
+      const settle = appendTail.then(async (): Promise<AnimeBrowserQueueState> => {
+        let result: PrepareAnimeBrowserPlaybackResult;
+        try {
+          result = await preparation;
+        } catch (error) {
+          return activeItem(item) ? reportFailure(item, describeError(error)) : state();
+        }
+        if (!result.ok) {
+          return activeItem(item) ? reportFailure(item, result.error) : state();
+        }
+        if (!activeItem(item)) {
+          await deps.discardEpisode(result.playback);
+          return state();
+        }
+
+        item.playback = result.playback;
+        deps.appendEpisode(result.playback);
+        arm();
+        await capturePlaylistId(item);
+        return state();
+      });
+      appendTail = settle.then(
+        () => undefined,
+        () => undefined,
+      );
+      return await settle;
+    },
+
+    async dequeue(sourceId: string, episodeUrl: string): Promise<AnimeBrowserQueueState> {
+      const item = items.find(
+        (candidate) =>
+          candidate.active && keyOf(candidate.request) === keyOf({ sourceId, episodeUrl }),
+      );
+      if (!item) return state();
+      removeItem(item);
+      lastError = null;
+      const next = publish();
+      await removePlaylistItem(item);
+      return next;
+    },
+
+    clear,
+
+    /** Rebind path observation when playback moved to a replacement mpv client. */
+    handlePlaybackStarted(): void {
+      arm();
+    },
+
+    async dispose(): Promise<void> {
+      await clear();
+    },
+  };
+}
+
+export type AnimeBrowserQueue = ReturnType<typeof createAnimeBrowserQueue>;
+
+function isPlaylistId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value);
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

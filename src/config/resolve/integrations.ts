@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { MPV_LAUNCH_MODE_VALUES, parseMpvLaunchMode } from '../../shared/mpv-launch-mode';
 import { ResolveContext } from './context';
 import { asBoolean, asNumber, asString, isObject } from './shared';
+import { isValidRepoUrl } from '../../anime-bridge/extension-repo';
 
 function normalizeExternalProfilePath(value: string): string {
   const trimmed = value.trim();
@@ -341,6 +342,82 @@ export function applyIntegrationConfig(context: ResolveContext): void {
     }
   } else if (src.mpv !== undefined) {
     warn('mpv', src.mpv, resolved.mpv, 'Expected object.');
+  }
+
+  if (isObject(src.anime)) {
+    const autoOpenJimaku = asBoolean(src.anime.autoOpenJimaku);
+    if (autoOpenJimaku !== undefined) {
+      resolved.anime.autoOpenJimaku = autoOpenJimaku;
+    } else if (src.anime.autoOpenJimaku !== undefined) {
+      warn(
+        'anime.autoOpenJimaku',
+        src.anime.autoOpenJimaku,
+        resolved.anime.autoOpenJimaku,
+        'Expected boolean.',
+      );
+    }
+
+    const extensionsDir = asString(src.anime.extensionsDir);
+    if (extensionsDir !== undefined) {
+      resolved.anime.extensionsDir = normalizeExternalProfilePath(extensionsDir);
+    } else if (src.anime.extensionsDir !== undefined) {
+      warn(
+        'anime.extensionsDir',
+        src.anime.extensionsDir,
+        resolved.anime.extensionsDir,
+        'Expected string.',
+      );
+    }
+
+    const bridgeDir = asString(src.anime.bridgeDir);
+    if (bridgeDir !== undefined) {
+      resolved.anime.bridgeDir = normalizeExternalProfilePath(bridgeDir);
+    } else if (src.anime.bridgeDir !== undefined) {
+      warn('anime.bridgeDir', src.anime.bridgeDir, resolved.anime.bridgeDir, 'Expected string.');
+    }
+
+    const preferredQuality = asString(src.anime.preferredQuality);
+    if (preferredQuality !== undefined) {
+      resolved.anime.preferredQuality = preferredQuality.trim();
+    } else if (src.anime.preferredQuality !== undefined) {
+      warn(
+        'anime.preferredQuality',
+        src.anime.preferredQuality,
+        resolved.anime.preferredQuality,
+        'Expected string.',
+      );
+    }
+
+    const defaultSource = asString(src.anime.defaultSource);
+    if (defaultSource !== undefined) {
+      resolved.anime.defaultSource = defaultSource.trim();
+    } else if (src.anime.defaultSource !== undefined) {
+      warn(
+        'anime.defaultSource',
+        src.anime.defaultSource,
+        resolved.anime.defaultSource,
+        'Expected string.',
+      );
+    }
+
+    if (Array.isArray(src.anime.repos)) {
+      const repos: string[] = [];
+      for (const entry of src.anime.repos) {
+        const url = asString(entry)?.trim();
+        // Rejecting here rather than at fetch time keeps a bad entry from
+        // silently doing nothing, and blocks plain http downgrades.
+        if (url !== undefined && isValidRepoUrl(url)) {
+          if (!repos.includes(url)) repos.push(url);
+        } else {
+          warn('anime.repos[]', entry, null, 'Expected an https URL to a .json index file.');
+        }
+      }
+      resolved.anime.repos = repos;
+    } else if (src.anime.repos !== undefined) {
+      warn('anime.repos', src.anime.repos, resolved.anime.repos, 'Expected array of strings.');
+    }
+  } else if (src.anime !== undefined) {
+    warn('anime', src.anime, resolved.anime, 'Expected object.');
   }
 
   if (isObject(src.jellyfin)) {

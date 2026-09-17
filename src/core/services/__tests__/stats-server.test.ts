@@ -2076,7 +2076,7 @@ describe('stats server API routes', () => {
 Stale English subtitle
 `;
       fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(alassPath, 'fake alass');
+      fs.writeFileSync(alassPath, 'fake alass', { mode: 0o755 });
       fs.writeFileSync(
         japanesePath,
         `1
@@ -2136,7 +2136,7 @@ Aligned English subtitle
       const englishPath = path.join(dir, 'episode.en.srt');
       const alassPath = path.join(dir, 'alass-cli');
       fs.writeFileSync(sourcePath, 'fake media');
-      fs.writeFileSync(alassPath, 'fake alass');
+      fs.writeFileSync(alassPath, 'fake alass', { mode: 0o755 });
       fs.writeFileSync(
         japanesePath,
         `1

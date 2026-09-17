@@ -54,6 +54,7 @@ export type CliCommandContextFactoryDeps = {
   openYomitanSettings: () => void;
   openConfigSettingsWindow: () => void;
   openSyncUiWindow: () => void;
+  openAnimeBrowserWindow: () => void;
   cycleSecondarySubMode: () => void;
   openRuntimeOptionsPalette: () => void;
   printHelp: () => void;
@@ -136,6 +137,7 @@ export function createCliCommandContext(
     openYomitanSettings: deps.openYomitanSettings,
     openConfigSettingsWindow: deps.openConfigSettingsWindow,
     openSyncUiWindow: deps.openSyncUiWindow,
+    openAnimeBrowserWindow: deps.openAnimeBrowserWindow,
     cycleSecondarySubMode: deps.cycleSecondarySubMode,
     openRuntimeOptionsPalette: deps.openRuntimeOptionsPalette,
     printHelp: deps.printHelp,

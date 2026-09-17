@@ -98,6 +98,7 @@ export interface AnkiJimakuIpcRuntimeOptions {
         error: { error: string; code?: number; retryAfter?: number };
       }
   >;
+  onJimakuSubtitleLoaded?: () => void;
 }
 
 const logger = createLogger('main:anki-jimaku');
@@ -289,6 +290,7 @@ export function registerAnkiJimakuIpcRuntime(
       const mpvClient = options.getMpvClient();
       if (mpvClient && mpvClient.connected) {
         mpvClient.send({ command: ['sub-add', pathToSubtitle, 'select'] });
+        options.onJimakuSubtitleLoaded?.();
       }
     },
     onDownloadedSecondarySubtitle: async (pathToSubtitle) => {

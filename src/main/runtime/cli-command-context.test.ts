@@ -59,6 +59,7 @@ function createDeps() {
       openYomitanSettings: () => {},
       openConfigSettingsWindow: () => {},
       openSyncUiWindow: () => {},
+      openAnimeBrowserWindow: () => {},
       cycleSecondarySubMode: () => {},
       openRuntimeOptionsPalette: () => {},
       printHelp: () => {},

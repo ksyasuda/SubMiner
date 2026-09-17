@@ -57,6 +57,7 @@ function createArgs(): Args {
     logsExport: false,
     version: false,
     settings: false,
+    animeBrowser: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,

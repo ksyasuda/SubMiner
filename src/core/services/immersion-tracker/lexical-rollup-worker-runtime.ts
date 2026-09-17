@@ -35,6 +35,7 @@ export function resolveLexicalRollupWorkerPath(): string | null {
 export class LexicalRollupWorkerRuntime {
   private readonly activeWorkers = new Set<WorkerHandle>();
   private destroyed = false;
+  private destroyTask: Promise<void> | null = null;
 
   constructor(private readonly options: LexicalRollupWorkerRuntimeOptions = {}) {}
 
@@ -106,12 +107,15 @@ export class LexicalRollupWorkerRuntime {
     });
   }
 
-  destroy(): void {
-    if (this.destroyed) return;
+  destroy(): void | Promise<void> {
+    if (this.destroyed) return this.destroyTask ?? undefined;
     this.destroyed = true;
-    for (const worker of this.activeWorkers) {
-      void worker.terminate().catch(() => undefined);
-    }
+    const activeWorkers = [...this.activeWorkers];
     this.activeWorkers.clear();
+    if (activeWorkers.length === 0) return;
+    this.destroyTask = Promise.all(
+      activeWorkers.map((worker) => worker.terminate().catch(() => undefined)),
+    ).then(() => undefined);
+    return this.destroyTask;
   }
 }

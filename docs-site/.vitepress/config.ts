@@ -368,6 +368,7 @@ const sidebar: DefaultTheme.SidebarItem[] = [
       { text: 'Anki', link: '/anki-integration' },
       { text: 'Jellyfin', link: '/jellyfin-integration' },
       { text: 'YouTube', link: '/youtube-integration' },
+      { text: 'Anime Browser', link: '/anime-browser' },
       { text: 'Jimaku', link: '/jimaku-integration' },
       { text: 'Subtitle Generation', link: '/subtitle-generation' },
       { text: 'TsukiHime', link: '/tsukihime-integration' },

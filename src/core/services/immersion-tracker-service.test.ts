@@ -617,6 +617,63 @@ test('tracker starts the injected lexical rollup backfill when it is pending', a
   }
 });
 
+test('destroy drains queued telemetry and events after lexical backfill stops', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  let releaseBackfill = (): void => {};
+  const heldBackfill = new Promise<void>((resolve) => {
+    releaseBackfill = resolve;
+  });
+
+  try {
+    const setupDb = new Database(dbPath);
+    const { ensureSchema } = await import('./immersion-tracker/storage');
+    ensureSchema(setupDb);
+    setupDb
+      .prepare(
+        `UPDATE imm_rollup_state SET state_value = '0' WHERE state_key = 'lexical_daily_rollups_version'`,
+      )
+      .run();
+    setupDb.close();
+
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor(
+      { dbPath, policy: { batchSize: 1, flushIntervalMs: 60_000 } },
+      {
+        runLexicalRollupBackfillTask: async () => heldBackfill,
+        destroyLexicalRollupBackfillRunner: () => {
+          releaseBackfill();
+        },
+      },
+    );
+    tracker.handleMediaChange('/tmp/destroy-backfill.mkv', 'Destroy Backfill');
+    tracker.recordCardsMined(1);
+    tracker.recordLookup(true);
+
+    const destroyTask = tracker.destroy();
+    assert.ok(destroyTask instanceof Promise);
+    await destroyTask;
+
+    const db = new Database(dbPath);
+    try {
+      const eventCount = db.prepare('SELECT COUNT(*) AS total FROM imm_session_events').get() as {
+        total: number;
+      };
+      const telemetryCount = db
+        .prepare('SELECT COUNT(*) AS total FROM imm_session_telemetry')
+        .get() as { total: number };
+      assert.equal(eventCount.total, 2);
+      assert.equal(telemetryCount.total, 2);
+    } finally {
+      db.close();
+    }
+  } finally {
+    releaseBackfill();
+    await tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('tracker runs startup session-rollup maintenance before lexical backfill locks writes', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;
@@ -5139,6 +5196,119 @@ test('ensureAnimeCoverArt fetches art via the latest video of the anime', async 
     const missing = await tracker.ensureAnimeCoverArt(999);
     assert.equal(missing, false);
     assert.deepEqual(fetchedVideoIds, [2]);
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
+test('anime browser streams group by series instead of by the proxy file extension', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+
+    // Two different shows, each behind the strip proxy. Without the metadata
+    // recorded up front the only readable part of either URL is ".m3u8", which
+    // is what used to collapse them into one series.
+    tracker.recordStreamPlaybackMetadata({
+      mediaPath: 'http://127.0.0.1:41234/video/9f2c1b7a.m3u8',
+      statsPath: 'animebrowser://9001/%2Fanime%2Fmushoku/%2Fwatch%2Fep-4',
+      displayTitle: 'Mushoku Tensei: Jobless Reincarnation S03E04',
+      seriesTitle: 'Mushoku Tensei: Jobless Reincarnation',
+      seasonNumber: 3,
+      episodeNumber: 4,
+    });
+    tracker.handleMediaChange(
+      'http://127.0.0.1:41234/video/9f2c1b7a.m3u8',
+      'Mushoku Tensei: Jobless Reincarnation S03E04',
+    );
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange(null, null);
+
+    tracker.recordStreamPlaybackMetadata({
+      mediaPath: 'http://127.0.0.1:41234/video/33ab90ff.m3u8',
+      statsPath: 'animebrowser://9001/%2Fanime%2Fsnafu/%2Fwatch%2Fep-10',
+      displayTitle: 'My Teen Romantic Comedy SNAFU Climax! E10 - Gallantly',
+      seriesTitle: 'My Teen Romantic Comedy SNAFU Climax!',
+      seasonNumber: null,
+      episodeNumber: 10,
+    });
+    tracker.handleMediaChange(
+      'http://127.0.0.1:41234/video/33ab90ff.m3u8',
+      'My Teen Romantic Comedy SNAFU Climax! E10 - Gallantly',
+    );
+    await waitForPendingAnimeMetadata(tracker);
+    tracker.handleMediaChange(null, null);
+
+    // The same episode again: a fresh proxy port and token, which must not mint
+    // a second video row.
+    tracker.recordStreamPlaybackMetadata({
+      mediaPath: 'http://127.0.0.1:55555/video/ffff0000.m3u8',
+      statsPath: 'animebrowser://9001/%2Fanime%2Fmushoku/%2Fwatch%2Fep-4',
+      displayTitle: 'Mushoku Tensei: Jobless Reincarnation S03E04',
+      seriesTitle: 'Mushoku Tensei: Jobless Reincarnation',
+      seasonNumber: 3,
+      episodeNumber: 4,
+    });
+    tracker.handleMediaChange(
+      'http://127.0.0.1:55555/video/ffff0000.m3u8',
+      'Mushoku Tensei: Jobless Reincarnation S03E04',
+    );
+    await waitForPendingAnimeMetadata(tracker);
+
+    const privateApi = tracker as unknown as { db: DatabaseSync };
+    const rows = privateApi.db
+      .prepare(
+        `
+          SELECT
+            v.source_url,
+            v.canonical_title AS video_title,
+            v.parsed_title,
+            v.parsed_season,
+            v.parsed_episode,
+            v.parser_source,
+            a.canonical_title AS anime_title
+          FROM imm_videos v
+          JOIN imm_anime a ON a.anime_id = v.anime_id
+          ORDER BY v.video_id
+        `,
+      )
+      .all() as Array<{
+      source_url: string | null;
+      video_title: string;
+      parsed_title: string | null;
+      parsed_season: number | null;
+      parsed_episode: number | null;
+      parser_source: string | null;
+      anime_title: string;
+    }>;
+
+    // Two episodes, three playbacks: the rewatch reused its row.
+    assert.equal(rows.length, 2);
+    assert.equal(new Set(rows.map((row) => row.anime_title)).size, 2);
+    assert.equal(
+      rows.some((row) => row.anime_title.toLowerCase().includes('m3u8')),
+      false,
+    );
+
+    const mushoku = rows.find((row) => row.parsed_title?.startsWith('Mushoku'));
+    assert.ok(mushoku);
+    assert.equal(mushoku.source_url, 'animebrowser://9001/%2Fanime%2Fmushoku/%2Fwatch%2Fep-4');
+    assert.equal(mushoku.video_title, 'Mushoku Tensei: Jobless Reincarnation S03E04');
+    assert.equal(mushoku.parsed_title, 'Mushoku Tensei: Jobless Reincarnation');
+    assert.equal(mushoku.parsed_season, 3);
+    assert.equal(mushoku.parsed_episode, 4);
+    assert.equal(mushoku.parser_source, 'anime-browser');
+    assert.equal(mushoku.anime_title, 'Mushoku Tensei: Jobless Reincarnation Season 3');
+
+    const snafu = rows.find((row) => row.parsed_title?.startsWith('My Teen'));
+    assert.ok(snafu);
+    assert.equal(snafu.parsed_episode, 10);
+    assert.equal(snafu.parsed_season, null);
+    assert.equal(snafu.anime_title, 'My Teen Romantic Comedy SNAFU Climax!');
   } finally {
     tracker?.destroy();
     cleanupDbPath(dbPath);

@@ -139,6 +139,7 @@ export interface MpvIpcClientEventMap {
   'subtitle-metrics-change': { patch: Partial<MpvSubtitleRenderMetrics> };
   'secondary-subtitle-visibility': { visible: boolean };
   'client-message': { args: string[] };
+  'end-file': { reason: string; fileError: string | null };
 }
 
 type MpvIpcClientEventName = keyof MpvIpcClientEventMap;
@@ -522,6 +523,9 @@ export class MpvIpcClient implements MpvClient {
       requestAppQuit: () => this.deps.requestAppQuit?.(),
       emitClientMessage: (payload) => {
         this.emit('client-message', payload);
+      },
+      emitEndFile: (payload) => {
+        this.emit('end-file', payload);
       },
     };
   }

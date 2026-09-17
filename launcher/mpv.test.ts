@@ -627,6 +627,7 @@ function makeArgs(overrides: Partial<Args> = {}): Args {
     logsExport: false,
     version: false,
     settings: false,
+    animeBrowser: false,
     configPath: false,
     configShow: false,
     mpvIdle: false,

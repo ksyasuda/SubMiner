@@ -26,6 +26,7 @@ export type SessionActionId =
   | 'openSubtitleGeneration'
   | 'openYoutubePicker'
   | 'openPlaylistBrowser'
+  | 'openAnimeBrowser'
   | 'replayCurrentSubtitle'
   | 'playNextSubtitle'
   | 'cycleRuntimeOption';

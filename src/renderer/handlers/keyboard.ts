@@ -22,6 +22,7 @@ export function createKeyboardHandlers(
     handleYoutubePickerKeydown: (e: KeyboardEvent) => boolean;
     handleMediaTimingReviewKeydown: (e: KeyboardEvent) => boolean;
     handlePlaylistBrowserKeydown: (e: KeyboardEvent) => boolean;
+    handleAnimeBrowserKeydown?: (e: KeyboardEvent) => boolean;
     handleControllerSelectKeydown: (e: KeyboardEvent) => boolean;
     handleControllerDebugKeydown: (e: KeyboardEvent) => boolean;
     handleSessionHelpKeydown: (e: KeyboardEvent) => boolean;
@@ -1127,6 +1128,12 @@ export function createKeyboardHandlers(
 
       if (ctx.state.playlistBrowserModalOpen) {
         if (options.handlePlaylistBrowserKeydown(e)) {
+          return;
+        }
+      }
+
+      if (ctx.state.animeBrowserModalOpen) {
+        if (options.handleAnimeBrowserKeydown?.(e)) {
           return;
         }
       }

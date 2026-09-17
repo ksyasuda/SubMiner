@@ -32,7 +32,7 @@ export type StartupLifecycleComposerOptions = ComposerInputs<{
 
 export type StartupLifecycleComposerResult = ComposerOutputs<{
   registerProtocolUrlHandlers: () => void;
-  onWillQuitCleanup: () => void;
+  onWillQuitCleanup: () => Promise<void>;
   shouldRestoreWindowsOnActivate: () => boolean;
   restoreWindowsOnActivate: () => void;
 }>;

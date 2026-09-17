@@ -32,6 +32,7 @@ import {
   applySessionLifetimeSummary,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
+  rebuildLifetimeSummariesInTransaction,
   recomputeLifetimeAnimeFromMedia,
   recomputeLifetimeGlobalFromSummaries,
   repairLifetimeSummariesFromMedia,
@@ -109,6 +110,10 @@ import {
   type DuplicateSubtitleLineCleanupOptions,
   type DuplicateSubtitleLineCleanupSummary,
 } from './immersion-tracker/duplicate-line-cleanup';
+import {
+  getVideoIdByVideoKey,
+  getWatchStateByVideoKeys,
+} from './immersion-tracker/query-watch-state';
 import { repairJellyfinStreamVideoLinks } from './immersion-tracker/jellyfin-link-repair';
 import {
   dismissAnimeMergeRecommendation,
@@ -349,6 +354,40 @@ export interface JellyfinPlaybackMetadataInput {
   itemId: string;
 }
 
+/**
+ * An episode the anime browser is about to stream.
+ *
+ * Reported up front for the same reason the Jellyfin variant is: the stream URL
+ * mpv sees is a per-playback proxy address ending in `.m3u8`, so a session
+ * started from it alone lands in a series named after the file extension.
+ */
+export interface StreamPlaybackMetadataInput {
+  /** The URL handed to mpv; recorded as an alias of `statsPath`. */
+  mediaPath: string;
+  /** Stable per-episode identity. Survives the proxy port and token changing. */
+  statsPath: string;
+  displayTitle: string;
+  seriesTitle: string;
+  seasonNumber: number | null;
+  episodeNumber: number | null;
+}
+
+/** What a caller needs to show "already watched" against a streamed episode. */
+export interface StreamWatchState {
+  /** Set once a session passed the completion threshold, or marked by hand. */
+  watched: boolean;
+  /** Start of the most recent session, or null when it was never played. */
+  lastWatchedMs: number | null;
+  sessionCount: number;
+}
+
+/**
+ * Parser sources that are recorded before playback starts. A video carrying one
+ * already has better metadata than filename guessing could produce, so the
+ * guess is skipped rather than allowed to overwrite it.
+ */
+const PREPLAYBACK_PARSER_SOURCES = new Set(['jellyfin', 'anime-browser']);
+
 function normalizeMetadataInt(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
 }
@@ -382,7 +421,7 @@ function deleteSearchParamsCaseInsensitive(searchParams: URLSearchParams, names:
   }
 }
 
-function buildJellyfinMediaPathAliasCandidates(mediaPath: string): string[] {
+function buildMediaPathAliasCandidates(mediaPath: string): string[] {
   const candidates = new Set<string>([mediaPath]);
   try {
     const parsed = new URL(mediaPath);
@@ -424,7 +463,7 @@ export class ImmersionTrackerService {
   private readonly vocabularySummariesInFlight = new Map<string, Promise<VocabularyStatsSummary>>();
   private readonly destroyVocabularySummaryRunner: () => void;
   private readonly runLexicalRollupBackfillTask: () => Promise<void>;
-  private readonly destroyLexicalRollupBackfillRunner: () => void;
+  private readonly destroyLexicalRollupBackfillRunner: () => void | Promise<void>;
   private readonly deleteMaintenanceScheduler: DeleteMaintenanceScheduler;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
@@ -433,6 +472,9 @@ export class ImmersionTrackerService {
   private preserveWriteQueueUntilDrained = false;
   private lastVacuumMs = 0;
   private isDestroyed = false;
+  private isDestroying = false;
+  private lexicalRollupBackfillTask: Promise<void> | null = null;
+  private destroyTask: Promise<void> | null = null;
   private sessionState: SessionState | null = null;
   private currentVideoKey = '';
   private currentMediaPathOrUrl = '';
@@ -456,7 +498,7 @@ export class ImmersionTrackerService {
       runVocabularySummaryTask?: RunVocabularySummaryTask;
       destroyVocabularySummaryRunner?: () => void;
       runLexicalRollupBackfillTask?: (dbPath: string) => Promise<void>;
-      destroyLexicalRollupBackfillRunner?: () => void;
+      destroyLexicalRollupBackfillRunner?: () => void | Promise<void>;
     } = {},
   ) {
     this.dbPath = options.dbPath;
@@ -596,8 +638,10 @@ export class ImmersionTrackerService {
     this.scheduleFlush();
   }
 
-  destroy(): void {
+  destroy(): void | Promise<void> {
+    if (this.destroyTask) return this.destroyTask;
     if (this.isDestroyed) return;
+    this.isDestroying = true;
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -606,13 +650,29 @@ export class ImmersionTrackerService {
       clearInterval(this.maintenanceTimer);
       this.maintenanceTimer = null;
     }
-    this.finalizeActiveSession();
-    this.isDestroyed = true;
-    this.deleteMaintenanceScheduler.destroy();
-    this.destroyDeleteMaintenanceRunner();
-    this.destroyVocabularySummaryRunner();
-    this.destroyLexicalRollupBackfillRunner();
-    this.db.close();
+    const stopLexicalBackfill = this.destroyLexicalRollupBackfillRunner();
+    const pendingLexicalBackfill = this.lexicalRollupBackfillTask;
+    const finish = (): void => {
+      this.finalizeActiveSession();
+      this.requireWriteQueueDrained('destroying immersion tracker');
+      this.isDestroyed = true;
+      this.deleteMaintenanceScheduler.destroy();
+      this.destroyDeleteMaintenanceRunner();
+      this.destroyVocabularySummaryRunner();
+      this.db.close();
+    };
+
+    if (!stopLexicalBackfill && !pendingLexicalBackfill) {
+      finish();
+      return;
+    }
+
+    this.destroyTask = (async () => {
+      await stopLexicalBackfill;
+      await pendingLexicalBackfill;
+      finish();
+    })();
+    return this.destroyTask;
   }
 
   async getSessionSummaries(limit = 50): Promise<SessionSummaryQueryRow[]> {
@@ -845,6 +905,88 @@ export class ImmersionTrackerService {
     markVideoWatched(this.db, videoId, watched);
   }
 
+  /**
+   * Set the watch mark on streamed episodes by hand.
+   *
+   * Marking watched creates the video row when the episode was never played, so
+   * a series watched elsewhere can be caught up on; the row carries the same
+   * series/season/episode metadata playback would have recorded. Both library
+   * views join the lifetime tables, so a row created this way stays out of the
+   * stats lists until it is actually watched.
+   *
+   * Clearing a mark never creates anything: with no row there is nothing to
+   * clear.
+   */
+  async setStreamWatchState(
+    episodes: StreamPlaybackMetadataInput[],
+    watched: boolean,
+  ): Promise<number> {
+    let changed = 0;
+    // Every row this creates would otherwise rebuild the lifetime summaries on
+    // its own, and a season's worth of episodes arrives in one call.
+    let needsLifetimeRebuild = false;
+    // A half-applied batch would leave rows created without their marks, so the
+    // whole span of episodes and the summary rebuild land together or not at all.
+    let clearedActiveVideo = false;
+
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const episode of episodes) {
+        const statsPath = normalizeMediaPath(episode.statsPath);
+        if (!statsPath) continue;
+        if (watched) {
+          this.recordStreamPlaybackMetadata(episode, { deferLifetimeRebuild: true });
+        }
+
+        const videoId = getVideoIdByVideoKey(this.db, buildVideoKey(statsPath, SOURCE_TYPE_REMOTE));
+        if (videoId === null) continue;
+        markVideoWatched(this.db, videoId, watched);
+        needsLifetimeRebuild = true;
+        changed += 1;
+
+        if (!watched && this.sessionState?.videoId === videoId) clearedActiveVideo = true;
+      }
+
+      if (needsLifetimeRebuild) rebuildLifetimeSummariesInTransaction(this.db);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+
+    // Clearing the mark on what is playing right now would otherwise be undone
+    // the moment the session passes the completion threshold again. Set after the
+    // commit, so a rolled back clear does not suppress the automatic mark.
+    if (clearedActiveVideo && this.sessionState) this.sessionState.markedWatched = true;
+    return changed;
+  }
+
+  /**
+   * Watch state for streamed episodes, keyed by the stats path the anime
+   * browser derives for each one. Paths never played are absent from the map,
+   * so a caller can treat "missing" as unwatched without a probe per episode.
+   */
+  async getStreamWatchState(statsPaths: string[]): Promise<Map<string, StreamWatchState>> {
+    const byKey = new Map<string, string>();
+    for (const path of statsPaths) {
+      const normalized = normalizeMediaPath(path);
+      if (!normalized) continue;
+      byKey.set(buildVideoKey(normalized, SOURCE_TYPE_REMOTE), normalized);
+    }
+
+    const state = new Map<string, StreamWatchState>();
+    for (const row of getWatchStateByVideoKeys(this.db, [...byKey.keys()])) {
+      const statsPath = byKey.get(row.videoKey);
+      if (!statsPath) continue;
+      state.set(statsPath, {
+        watched: row.watched,
+        lastWatchedMs: row.lastWatchedMs,
+        sessionCount: row.sessionCount,
+      });
+    }
+    return state;
+  }
+
   async markActiveVideoWatched(): Promise<boolean> {
     if (!this.sessionState) return false;
     markVideoWatched(this.db, this.sessionState.videoId, true);
@@ -989,7 +1131,7 @@ export class ImmersionTrackerService {
     this.requireWriteQueueDrained('lexical rollup backfill');
     this.preserveWriteQueueUntilDrained = true;
     this.setWriteLock('lexical-rollup-backfill', true);
-    void this.runLexicalRollupBackfillTask()
+    const task = this.runLexicalRollupBackfillTask()
       .catch((error: unknown) => {
         this.logger.warn(
           'Lexical daily rollup backfill failed; it will retry on next startup',
@@ -999,8 +1141,10 @@ export class ImmersionTrackerService {
       .finally(() => {
         this.setWriteLock('lexical-rollup-backfill', false);
         if (this.queue.length === 0) this.preserveWriteQueueUntilDrained = false;
-        else if (!this.isDestroyed) this.scheduleFlush(0);
+        else if (!this.isDestroyed && !this.isDestroying) this.scheduleFlush(0);
+        if (this.lexicalRollupBackfillTask === task) this.lexicalRollupBackfillTask = null;
       });
+    this.lexicalRollupBackfillTask = task;
   }
 
   async reassignAnimeAnilist(
@@ -1514,15 +1658,11 @@ export class ImmersionTrackerService {
     if (!rawPath) {
       return;
     }
-    const normalizedPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
-    for (const alias of buildJellyfinMediaPathAliasCandidates(rawPath)) {
-      this.mediaPathAliases.set(alias, normalizedPath);
-    }
-
+    const statsPath = buildJellyfinStatsMediaPath(rawPath, metadata.itemId);
     const displayTitle =
       normalizeText(metadata.displayTitle) ||
       normalizeText(metadata.itemTitle) ||
-      deriveCanonicalTitle(normalizedPath);
+      deriveCanonicalTitle(statsPath);
     const itemTitle = normalizeText(metadata.itemTitle) || displayTitle;
     const seriesTitle = normalizeText(metadata.seriesTitle);
     const libraryTitle = seriesTitle || itemTitle;
@@ -1532,55 +1672,132 @@ export class ImmersionTrackerService {
       return;
     }
 
+    this.recordPrePlaybackMetadata({
+      statsPath,
+      aliases: buildMediaPathAliasCandidates(rawPath),
+      displayTitle,
+      libraryTitle,
+      seasonNumber,
+      episodeNumber,
+      parserSource: 'jellyfin',
+      metadataJson: JSON.stringify({
+        source: 'jellyfin',
+        itemId: normalizeText(metadata.itemId) || null,
+        itemTitle,
+        seriesTitle: seriesTitle || null,
+        displayTitle,
+        seasonNumber,
+        episodeNumber,
+      }),
+    });
+  }
+
+  /** Returns whether the lifetime summaries still need rebuilding; see
+   * `recordPrePlaybackMetadata` for why a batch defers that. */
+  recordStreamPlaybackMetadata(
+    metadata: StreamPlaybackMetadataInput,
+    options: { deferLifetimeRebuild?: boolean } = {},
+  ): boolean {
+    const rawPath = normalizeMediaPath(metadata.mediaPath);
+    const statsPath = normalizeMediaPath(metadata.statsPath) || rawPath;
+    if (!statsPath) {
+      return false;
+    }
+    const seriesTitle = normalizeText(metadata.seriesTitle);
+    const displayTitle =
+      normalizeText(metadata.displayTitle) || seriesTitle || deriveCanonicalTitle(statsPath);
+    const libraryTitle = seriesTitle || displayTitle;
+    if (!libraryTitle) {
+      return false;
+    }
+    const seasonNumber = normalizeMetadataInt(metadata.seasonNumber);
+    const episodeNumber = normalizeMetadataInt(metadata.episodeNumber);
+
+    return this.recordPrePlaybackMetadata({
+      deferLifetimeRebuild: options.deferLifetimeRebuild,
+      statsPath,
+      aliases: rawPath ? buildMediaPathAliasCandidates(rawPath) : [],
+      displayTitle,
+      libraryTitle,
+      seasonNumber,
+      episodeNumber,
+      parserSource: 'anime-browser',
+      metadataJson: JSON.stringify({
+        source: 'anime-browser',
+        seriesTitle: seriesTitle || null,
+        displayTitle,
+        seasonNumber,
+        episodeNumber,
+      }),
+    });
+  }
+
+  /**
+   * Creates the video row and its series link ahead of playback, so the session
+   * mpv's path change starts already belongs to the right anime.
+   *
+   * Returns whether the lifetime summaries need rebuilding. A new row always
+   * does, so a caller recording a batch passes `deferLifetimeRebuild` and
+   * rebuilds once at the end rather than once per episode.
+   */
+  private recordPrePlaybackMetadata(params: {
+    statsPath: string;
+    aliases: string[];
+    displayTitle: string;
+    libraryTitle: string;
+    seasonNumber: number | null;
+    episodeNumber: number | null;
+    parserSource: string;
+    metadataJson: string;
+    deferLifetimeRebuild?: boolean;
+  }): boolean {
+    for (const alias of params.aliases) {
+      this.mediaPathAliases.set(alias, params.statsPath);
+    }
+
     const videoId = getOrCreateVideoRecord(
       this.db,
-      buildVideoKey(normalizedPath, SOURCE_TYPE_REMOTE),
+      buildVideoKey(params.statsPath, SOURCE_TYPE_REMOTE),
       {
-        canonicalTitle: displayTitle,
+        canonicalTitle: params.displayTitle,
         sourcePath: null,
-        sourceUrl: normalizedPath,
+        sourceUrl: params.statsPath,
         sourceType: SOURCE_TYPE_REMOTE,
       },
     );
     const previousLink = this.db
       .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { animeId: number | null } | null;
-    const metadataJson = JSON.stringify({
-      source: 'jellyfin',
-      itemId: normalizeText(metadata.itemId) || null,
-      itemTitle,
-      seriesTitle: seriesTitle || null,
-      displayTitle,
-      seasonNumber,
-      episodeNumber,
-    });
     const animeId =
       getManualAnimeAssignment(this.db, videoId) ??
       getOrCreateAnimeRecord(this.db, {
-        parsedTitle: libraryTitle,
-        canonicalTitle: libraryTitle,
-        seasonScope: seasonNumber,
+        parsedTitle: params.libraryTitle,
+        canonicalTitle: params.libraryTitle,
+        seasonScope: params.seasonNumber,
         anilistId: null,
         titleRomaji: null,
         titleEnglish: null,
         titleNative: null,
-        metadataJson,
+        metadataJson: params.metadataJson,
       });
     linkVideoToAnimeRecord(this.db, videoId, {
       animeId,
       parsedBasename: null,
-      parsedTitle: libraryTitle,
-      parsedSeason: seasonNumber,
-      parsedEpisode: episodeNumber,
-      parserSource: 'jellyfin',
+      parsedTitle: params.libraryTitle,
+      parsedSeason: params.seasonNumber,
+      parsedEpisode: params.episodeNumber,
+      parserSource: params.parserSource,
       parserConfidence: 1,
-      parseMetadataJson: metadataJson,
+      parseMetadataJson: params.metadataJson,
     });
 
     const hasLifetimeMedia = Boolean(
       this.db.prepare('SELECT 1 FROM imm_lifetime_media WHERE video_id = ?').get(videoId),
     );
-    if (hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId)) {
+    const needsRebuild = Boolean(
+      hasLifetimeMedia || (previousLink && previousLink.animeId !== animeId),
+    );
+    if (needsRebuild && !params.deferLifetimeRebuild) {
       // Playback-time relink: only the old and new anime are affected, so
       // recompute just those from the media ledger instead of a full repair.
       const affectedAnimeIds = new Set<number>([animeId]);
@@ -1597,19 +1814,20 @@ export class ImmersionTrackerService {
         throw error;
       }
     }
+    return needsRebuild;
   }
 
-  private hasJellyfinMetadata(videoId: number): boolean {
+  private hasPrePlaybackMetadata(videoId: number): boolean {
     const row = this.db
       .prepare('SELECT parser_source AS parserSource FROM imm_videos WHERE video_id = ?')
       .get(videoId) as { parserSource: string | null } | null;
-    return row?.parserSource === 'jellyfin';
+    return row?.parserSource !== null && PREPLAYBACK_PARSER_SOURCES.has(row?.parserSource ?? '');
   }
 
   handleMediaChange(mediaPath: string | null, mediaTitle: string | null): void {
     const rawPath = normalizeMediaPath(mediaPath);
     const normalizedPath =
-      buildJellyfinMediaPathAliasCandidates(rawPath)
+      buildMediaPathAliasCandidates(rawPath)
         .map((alias) => this.mediaPathAliases.get(alias))
         .find((alias): alias is string => Boolean(alias)) ?? rawPath;
     const normalizedTitle = normalizeText(mediaTitle);
@@ -1659,7 +1877,7 @@ export class ImmersionTrackerService {
     if (youtubeVideoId) {
       void this.ensureYouTubeCoverArt(sessionInfo.videoId, normalizedPath, youtubeVideoId);
       this.captureYoutubeMetadataAsync(sessionInfo.videoId, normalizedPath);
-    } else if (!this.hasJellyfinMetadata(sessionInfo.videoId)) {
+    } else if (!this.hasPrePlaybackMetadata(sessionInfo.videoId)) {
       this.captureAnimeMetadataAsync(sessionInfo.videoId, normalizedPath, normalizedTitle || null);
     }
     if (!youtubeVideoId) {

@@ -150,6 +150,7 @@ export interface AnkiJimakuIpcRuntimeServiceDepsParams {
   resolveJimakuApiKey: AnkiJimakuIpcRuntimeOptions['resolveJimakuApiKey'];
   isRemoteMediaPath: AnkiJimakuIpcRuntimeOptions['isRemoteMediaPath'];
   downloadToFile: AnkiJimakuIpcRuntimeOptions['downloadToFile'];
+  onJimakuSubtitleLoaded?: AnkiJimakuIpcRuntimeOptions['onJimakuSubtitleLoaded'];
 }
 
 export interface CliCommandRuntimeServiceDepsParams {
@@ -218,6 +219,7 @@ export interface CliCommandRuntimeServiceDepsParams {
     openYomitanSettings: CliCommandDepsRuntimeOptions['ui']['openYomitanSettings'];
     openConfigSettingsWindow: CliCommandDepsRuntimeOptions['ui']['openConfigSettingsWindow'];
     openSyncUiWindow: CliCommandDepsRuntimeOptions['ui']['openSyncUiWindow'];
+    openAnimeBrowserWindow: CliCommandDepsRuntimeOptions['ui']['openAnimeBrowserWindow'];
     cycleSecondarySubMode: CliCommandDepsRuntimeOptions['ui']['cycleSecondarySubMode'];
     openRuntimeOptionsPalette: CliCommandDepsRuntimeOptions['ui']['openRuntimeOptionsPalette'];
     printHelp: CliCommandDepsRuntimeOptions['ui']['printHelp'];
@@ -239,6 +241,7 @@ export interface MpvCommandRuntimeServiceDepsParams {
   openTsukihime: HandleMpvCommandFromIpcOptions['openTsukihime'];
   openYoutubeTrackPicker: HandleMpvCommandFromIpcOptions['openYoutubeTrackPicker'];
   openPlaylistBrowser: HandleMpvCommandFromIpcOptions['openPlaylistBrowser'];
+  openAnimeBrowser: HandleMpvCommandFromIpcOptions['openAnimeBrowser'];
   showMpvOsd: HandleMpvCommandFromIpcOptions['showMpvOsd'];
   showRawMpvOsd?: HandleMpvCommandFromIpcOptions['showRawMpvOsd'];
   showPlaybackFeedback?: HandleMpvCommandFromIpcOptions['showPlaybackFeedback'];
@@ -358,6 +361,9 @@ export function createAnkiJimakuIpcRuntimeServiceDeps(
     resolveJimakuApiKey: params.resolveJimakuApiKey,
     isRemoteMediaPath: params.isRemoteMediaPath,
     downloadToFile: params.downloadToFile,
+    ...(params.onJimakuSubtitleLoaded
+      ? { onJimakuSubtitleLoaded: params.onJimakuSubtitleLoaded }
+      : {}),
   };
 }
 
@@ -430,6 +436,7 @@ export function createCliCommandRuntimeServiceDeps(
       openYomitanSettings: params.ui.openYomitanSettings,
       openConfigSettingsWindow: params.ui.openConfigSettingsWindow,
       openSyncUiWindow: params.ui.openSyncUiWindow,
+      openAnimeBrowserWindow: params.ui.openAnimeBrowserWindow,
       cycleSecondarySubMode: params.ui.cycleSecondarySubMode,
       openRuntimeOptionsPalette: params.ui.openRuntimeOptionsPalette,
       printHelp: params.ui.printHelp,
@@ -454,6 +461,7 @@ export function createMpvCommandRuntimeServiceDeps(
     openTsukihime: params.openTsukihime,
     openYoutubeTrackPicker: params.openYoutubeTrackPicker,
     openPlaylistBrowser: params.openPlaylistBrowser,
+    openAnimeBrowser: params.openAnimeBrowser,
     runtimeOptionsCycle: params.runtimeOptionsCycle,
     showMpvOsd: params.showMpvOsd,
     showRawMpvOsd: params.showRawMpvOsd,

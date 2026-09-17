@@ -4,6 +4,7 @@ import type {
   MessageBoxSyncOptions,
 } from 'electron';
 import type { WindowGeometry } from '../../types';
+import { isDockIconRetained } from './dock-icon-visibility';
 
 const DEFAULT_STATS_WINDOW_WIDTH = 900;
 const DEFAULT_STATS_WINDOW_HEIGHT = 700;
@@ -125,7 +126,10 @@ export function promoteStatsWindowLevel(
 ): void {
   if (platform === 'darwin') {
     window.setAlwaysOnTop(true, 'screen-saver', 2);
-    window.setVisibleOnAllWorkspaces?.(true, { visibleOnFullScreen: true });
+    window.setVisibleOnAllWorkspaces?.(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: isDockIconRetained(),
+    });
     window.setFullScreenable?.(false);
     window.moveTop();
     return;

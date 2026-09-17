@@ -153,6 +153,7 @@ export interface AppState {
   firstRunSetupWindow: BrowserWindow | null;
   configSettingsWindow: BrowserWindow | null;
   syncUiWindow: BrowserWindow | null;
+  animeBrowserWindow: BrowserWindow | null;
   yomitanParserReadyPromise: Promise<void> | null;
   yomitanParserInitPromise: Promise<boolean> | null;
   mpvClient: MpvIpcClient | null;
@@ -240,6 +241,7 @@ export function createAppState(values: AppStateInitialValues): AppState {
     firstRunSetupWindow: null,
     configSettingsWindow: null,
     syncUiWindow: null,
+    animeBrowserWindow: null,
     yomitanParserReadyPromise: null,
     yomitanParserInitPromise: null,
     mpvClient: null,

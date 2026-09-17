@@ -6,6 +6,7 @@ import {
   ANILIST_SEASON_SEARCH_QUERY,
   pickByAirOrder,
   resolveAnilistSeasonMedia,
+  splitPartMarker,
   stripSeasonSuffix,
   type AnilistSeasonMedia,
 } from './season-resolver';
@@ -377,4 +378,330 @@ test('air-order fallback declines when a franchise entry has no air year', async
   assert.equal(result?.id, 1);
   assert.equal(result?.seasonResolved, false);
   assert.equal(result?.via, 'anchor');
+});
+
+/**
+ * Real AniList payloads for Mushoku Tensei, whose sequel chain interleaves
+ * split-cour continuations with real seasons:
+ * S1 -> "Cour 2" -> S2 -> "Season 2 Part 2" -> S3.
+ */
+const MUSHOKU_SEARCH: AnilistSeasonMedia[] = [
+  {
+    id: 108465,
+    episodes: 11,
+    format: 'TV',
+    seasonYear: 2021,
+    title: {
+      romaji: 'Mushoku Tensei: Isekai Ittara Honki Dasu',
+      english: 'Mushoku Tensei: Jobless Reincarnation',
+      native: null,
+    },
+  },
+  {
+    id: 127720,
+    episodes: 12,
+    format: 'TV',
+    seasonYear: 2021,
+    title: {
+      romaji: 'Mushoku Tensei: Isekai Ittara Honki Dasu Part 2',
+      english: 'Mushoku Tensei: Jobless Reincarnation Cour 2',
+      native: null,
+    },
+  },
+  {
+    id: 146065,
+    episodes: 13,
+    format: 'TV',
+    seasonYear: 2023,
+    title: {
+      romaji: 'Mushoku Tensei II: Isekai Ittara Honki Dasu',
+      english: 'Mushoku Tensei: Jobless Reincarnation Season 2',
+      native: null,
+    },
+  },
+  {
+    id: 166873,
+    episodes: 12,
+    format: 'TV',
+    seasonYear: 2024,
+    title: {
+      romaji: 'Mushoku Tensei II: Isekai Ittara Honki Dasu Part 2',
+      english: 'Mushoku Tensei: Jobless Reincarnation Season 2 Part 2',
+      native: null,
+    },
+  },
+  {
+    id: 178789,
+    episodes: 14,
+    format: 'TV',
+    seasonYear: 2026,
+    title: {
+      romaji: 'Mushoku Tensei III: Isekai Ittara Honki Dasu',
+      english: 'Mushoku Tensei: Jobless Reincarnation Season 3',
+      native: null,
+    },
+  },
+];
+
+const MUSHOKU_RELATIONS: Record<
+  number,
+  Array<{ relationType: string; node: AnilistSeasonMedia }>
+> = {
+  108465: [{ relationType: 'SEQUEL', node: MUSHOKU_SEARCH[1]! }],
+  127720: [{ relationType: 'SEQUEL', node: MUSHOKU_SEARCH[2]! }],
+  146065: [{ relationType: 'SEQUEL', node: MUSHOKU_SEARCH[3]! }],
+  166873: [{ relationType: 'SEQUEL', node: MUSHOKU_SEARCH[4]! }],
+};
+
+test('splitPartMarker separates a split-cour marker from the season title', () => {
+  assert.deepEqual(splitPartMarker('Mushoku Tensei: Jobless Reincarnation Season 2 Part 2'), {
+    base: 'mushoku tensei: jobless reincarnation season 2',
+    hasPart: true,
+  });
+  assert.deepEqual(splitPartMarker('Mushoku Tensei: Jobless Reincarnation Cour 2'), {
+    base: 'mushoku tensei: jobless reincarnation',
+    hasPart: true,
+  });
+  assert.deepEqual(splitPartMarker('Attack on Titan Final Season Part 3'), {
+    base: 'attack on titan final season',
+    hasPart: true,
+  });
+  assert.deepEqual(splitPartMarker('進撃の巨人 第2部'), { base: '進撃の巨人', hasPart: true });
+});
+
+test('splitPartMarker leaves a numbered work alone', () => {
+  // The number is followed by a subtitle, so it names the work, not a cour.
+  assert.deepEqual(splitPartMarker('JoJo no Kimyou na Bouken Part 5: Ougon no Kaze'), {
+    base: 'jojo no kimyou na bouken part 5: ougon no kaze',
+    hasPart: false,
+  });
+  assert.deepEqual(splitPartMarker('Mushoku Tensei: Jobless Reincarnation Season 3'), {
+    base: 'mushoku tensei: jobless reincarnation season 3',
+    hasPart: false,
+  });
+});
+
+test('a split-cour continuation does not consume a season step', async () => {
+  const { execute, relationLookups } = createExecutor(MUSHOKU_SEARCH, MUSHOKU_RELATIONS);
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'Mushoku Tensei: Jobless Reincarnation', season: 3, episode: 4 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 178789);
+  assert.equal(result?.title, 'Mushoku Tensei: Jobless Reincarnation Season 3');
+  assert.equal(result?.seasonResolved, true);
+  assert.equal(result?.via, 'sequel-chain');
+  // Four hops for three seasons: two of them were cour continuations.
+  assert.deepEqual(relationLookups, [108465, 127720, 146065, 166873]);
+});
+
+test('season 2 stops at the front half rather than its second cour', async () => {
+  const { execute } = createExecutor(MUSHOKU_SEARCH, MUSHOKU_RELATIONS);
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'Mushoku Tensei: Jobless Reincarnation', season: 2, episode: 1 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 146065);
+  assert.equal(result?.seasonResolved, true);
+});
+
+test('air-order fallback skips split-cour entries too', () => {
+  const anchor = MUSHOKU_SEARCH[0]!;
+  assert.equal(pickByAirOrder(anchor, 2, MUSHOKU_SEARCH)?.id, 146065);
+  assert.equal(pickByAirOrder(anchor, 3, MUSHOKU_SEARCH)?.id, 178789);
+  // Only three real seasons exist, so a fourth must not fall out of the list.
+  assert.equal(pickByAirOrder(anchor, 4, MUSHOKU_SEARCH), null);
+});
+
+test('a sequel that repeats its predecessor name is still a new season', async () => {
+  // No part marker, so the identical title must not be read as a continuation.
+  const search: AnilistSeasonMedia[] = [
+    {
+      id: 1,
+      episodes: 12,
+      format: 'TV',
+      seasonYear: 2020,
+      title: { romaji: 'Same Name Show', english: 'Same Name Show', native: null },
+    },
+    {
+      id: 2,
+      episodes: 12,
+      format: 'TV',
+      seasonYear: 2022,
+      title: { romaji: 'Same Name Show', english: 'Same Name Show', native: null },
+    },
+  ];
+  const { execute } = createExecutor(search, {
+    1: [{ relationType: 'SEQUEL', node: search[1]! }],
+  });
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'Same Name Show', season: 2, episode: 3 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 2);
+  assert.equal(result?.seasonResolved, true);
+});
+
+/**
+ * Real AniList payloads for Bleach TYBW, whose cours are titled with their own
+ * arc names — the part markers live only in localized synonyms, and the English
+ * title hyphenates "Thousand-Year" while those synonyms do not.
+ */
+const BLEACH_SEARCH: AnilistSeasonMedia[] = [
+  {
+    id: 116674,
+    episodes: 13,
+    format: 'TV',
+    seasonYear: 2022,
+    synonyms: ['BLEACH TYBW'],
+    title: {
+      romaji: 'BLEACH: Sennen Kessen-hen',
+      english: 'BLEACH: Thousand-Year Blood War',
+      native: 'BLEACH 千年血戦篇',
+    },
+  },
+  {
+    id: 159322,
+    episodes: 13,
+    format: 'TV',
+    seasonYear: 2023,
+    synonyms: [
+      'BLEACH: Thousand Year Blood War Part 2',
+      'BLEACH 千年血戦篇 第2クール',
+      'BLEACH TYBW',
+    ],
+    title: {
+      romaji: 'BLEACH: Sennen Kessen-hen - Ketsubetsu-tan',
+      english: 'BLEACH: Thousand-Year Blood War - The Separation',
+      native: 'BLEACH 千年血戦篇-訣別譚-',
+    },
+  },
+];
+
+test('a cour marked only in a synonym, and spelled without the hyphen, still counts as one', async () => {
+  const { execute } = createExecutor(BLEACH_SEARCH, {
+    116674: [{ relationType: 'SEQUEL', node: BLEACH_SEARCH[1]! }],
+  });
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'BLEACH: Thousand-Year Blood War', season: 2, episode: 1 },
+    { execute },
+  );
+
+  // The only sequel is cour 2 of the same season, so there is no season 2 to
+  // find — reporting that beats confidently returning the wrong arc.
+  assert.equal(result?.seasonResolved, false);
+  assert.notEqual(result?.id, 159322);
+});
+
+test('splitPartMarker reads the Japanese cour marker', () => {
+  assert.deepEqual(splitPartMarker('BLEACH 千年血戦篇 第2クール'), {
+    base: 'bleach 千年血戦篇',
+    hasPart: true,
+  });
+});
+
+/** Dr. STONE routes its sequel chain through a one-episode special. */
+const DR_STONE_SEARCH: AnilistSeasonMedia[] = [
+  {
+    id: 105333,
+    episodes: 24,
+    format: 'TV',
+    seasonYear: 2019,
+    title: { romaji: 'Dr. STONE', english: 'Dr. STONE', native: null },
+  },
+  {
+    id: 113936,
+    episodes: 11,
+    format: 'TV',
+    seasonYear: 2021,
+    title: { romaji: 'Dr. STONE: STONE WARS', english: 'Dr. STONE: STONE WARS', native: null },
+  },
+  {
+    id: 142876,
+    episodes: 1,
+    format: 'SPECIAL',
+    seasonYear: 2022,
+    title: {
+      romaji: 'Dr. STONE: Ryuusui',
+      english: 'Dr. STONE Special Episode – RYUSUI',
+      native: null,
+    },
+  },
+  {
+    id: 131518,
+    episodes: 11,
+    format: 'TV',
+    seasonYear: 2023,
+    title: { romaji: 'Dr. STONE: NEW WORLD', english: 'Dr. STONE New World', native: null },
+  },
+];
+
+test('a special in the sequel chain is walked through but does not count as a season', async () => {
+  const { execute } = createExecutor(DR_STONE_SEARCH, {
+    105333: [{ relationType: 'SEQUEL', node: DR_STONE_SEARCH[1]! }],
+    113936: [{ relationType: 'SEQUEL', node: DR_STONE_SEARCH[2]! }],
+    142876: [{ relationType: 'SEQUEL', node: DR_STONE_SEARCH[3]! }],
+  });
+  const result = await resolveAnilistSeasonMedia(
+    { title: 'Dr. STONE', season: 3, episode: 1 },
+    { execute },
+  );
+
+  assert.equal(result?.id, 131518);
+  assert.equal(result?.title, 'Dr. STONE New World');
+  assert.equal(result?.seasonResolved, true);
+});
+
+test('air-order fallback keeps a season whose own synonym spells it as a part', () => {
+  // AniList carries "…Season 3 Part 1" as a localized synonym *of season 3*.
+  const search: AnilistSeasonMedia[] = [
+    {
+      id: 1,
+      episodes: 25,
+      format: 'TV',
+      seasonYear: 2013,
+      title: { romaji: 'Some Titans', english: 'Some Titans', native: null },
+    },
+    {
+      id: 2,
+      episodes: 12,
+      format: 'TV',
+      seasonYear: 2017,
+      title: { romaji: 'Some Titans Season 2', english: 'Some Titans Season 2', native: null },
+    },
+    {
+      id: 3,
+      episodes: 12,
+      format: 'TV',
+      seasonYear: 2018,
+      synonyms: ['Some Titans Season 3 Part 1'],
+      title: { romaji: 'Some Titans Season 3', english: 'Some Titans Season 3', native: null },
+    },
+  ];
+
+  assert.equal(pickByAirOrder(search[0]!, 3, search)?.id, 3);
+});
+
+test('a transport failure mid-walk is surfaced instead of guessed around', async () => {
+  const { execute } = createExecutor(MUSHOKU_SEARCH, MUSHOKU_RELATIONS);
+  const failing = async <T>(query: string, variables: Record<string, unknown>): Promise<T> => {
+    if (query === ANILIST_SEASON_RELATIONS_QUERY) {
+      throw new Error('Too Many Requests.');
+    }
+    return execute<T>(query, variables);
+  };
+
+  // Air order could answer here, but it would be answering from a franchise
+  // picture the failed walk never confirmed.
+  await assert.rejects(
+    () =>
+      resolveAnilistSeasonMedia(
+        { title: 'Mushoku Tensei: Jobless Reincarnation', season: 3, episode: 4 },
+        { execute: failing },
+      ),
+    /Too Many Requests/,
+  );
 });

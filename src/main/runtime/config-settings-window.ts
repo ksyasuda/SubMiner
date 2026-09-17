@@ -13,6 +13,9 @@ export interface OpenConfigSettingsWindowDeps<TWindow extends ConfigSettingsWind
   createSettingsWindow(): TWindow;
   settingsHtmlPath: string;
   promoteSettingsWindowAboveOverlay?: (window: TWindow) => void;
+  // macOS only: showing/focusing a window does not activate a background app, so the window
+  // opens behind whatever is frontmost. See activateMacOSApp.
+  activateApp?: () => void;
   onClosed?: () => void;
   log?: (message: string) => void;
 }
@@ -23,6 +26,9 @@ export function createOpenConfigSettingsWindowHandler<TWindow extends ConfigSett
   return () => {
     const showAndFocus = (window: TWindow): void => {
       window.show();
+      // Activate the app before focusing: the window can only become key once the app itself
+      // is frontmost.
+      deps.activateApp?.();
       window.focus();
       deps.promoteSettingsWindowAboveOverlay?.(window);
     };

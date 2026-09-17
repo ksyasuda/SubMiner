@@ -16,6 +16,10 @@ type AppCommandDeps = {
     appPath: string,
     logLevel: LauncherCommandContext['args']['logLevel'],
   ) => void;
+  launchAnimeBrowserDetached: (
+    appPath: string,
+    logLevel: LauncherCommandContext['args']['logLevel'],
+  ) => void;
 };
 
 const defaultAppCommandDeps: AppCommandDeps = {
@@ -23,6 +27,8 @@ const defaultAppCommandDeps: AppCommandDeps = {
   launchSyncUiDetached: (appPath, logLevel) =>
     launchAppCommandDetached(appPath, ['--sync-window'], logLevel, 'sync-ui'),
   launchAppBackgroundDetached,
+  launchAnimeBrowserDetached: (appPath, logLevel) =>
+    launchAppCommandDetached(appPath, ['--anime'], logLevel, 'anime'),
 };
 
 export function runAppPassthroughCommand(
@@ -35,6 +41,11 @@ export function runAppPassthroughCommand(
   }
   if (args.settings) {
     deps.runAppCommandWithInherit(appPath, ['--settings']);
+    return true;
+  }
+  if (args.animeBrowser) {
+    // Detached: the browser window is long-lived and owns the bridge process.
+    deps.launchAnimeBrowserDetached(appPath, args.logLevel);
     return true;
   }
   if (args.syncUi) {

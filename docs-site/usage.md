@@ -72,6 +72,7 @@ subminer https://youtu.be/...     # Play a YouTube URL
 subminer stats                    # Open the immersion stats dashboard
 subminer doctor                   # Check dependencies, config, and the mpv socket
 subminer settings                 # Open the SubMiner settings window
+subminer anime                    # Open the anime browser window
 subminer generate-subs video.mkv   # Generate Japanese subtitles from local audio
 subminer app --setup              # Re-open first-run setup
 subminer -u                       # Check for updates
@@ -172,6 +173,7 @@ SubMiner.AppImage --open-tsukihime        # Open TsukiHime subtitle search
 SubMiner.AppImage --yomitan               # Open Yomitan settings
 SubMiner.AppImage --settings              # Open the SubMiner settings window
 SubMiner.AppImage --jellyfin              # Open the Jellyfin setup window
+SubMiner.AppImage --anime                 # Open the anime browser window
 SubMiner.AppImage --dictionary            # Generate a character dictionary ZIP
 SubMiner.AppImage --start --dev           # Enable app/dev mode
 SubMiner.AppImage --start --log-level debug  # Verbose logging without dev mode

@@ -15,6 +15,7 @@ import {
   type HyprlandPlacementStatus,
 } from './hyprland-window-placement';
 import { buildOverlayWindowOptions, OVERLAY_WINDOW_TITLES } from './overlay-window-options';
+import { isDockIconRetained } from './dock-icon-visibility';
 import { normalizeOverlayWindowBoundsForPlatform } from './overlay-window-bounds';
 import {
   OVERLAY_WINDOW_CONTENT_READY_FLAG,
@@ -79,10 +80,41 @@ export function updateOverlayWindowBounds(
   });
 }
 
+// ready-to-show is the primary content-ready signal, but it never fires when the
+// page navigates while the window is hidden: an explicit hide() ends the
+// paintWhenInitiallyHidden grace, the hidden widget stops producing frames, and
+// the new document never paints. The Yomitan content-script reload right after
+// startup hits exactly that, and content-ready gates showing the window, so
+// without a fallback the overlay deadlocks behind the "Overlay loading" OSD.
+export const OVERLAY_CONTENT_READY_FALLBACK_DELAY_MS = 1500;
+
+export function scheduleOverlayContentReadyFallback(deps: {
+  isContentReady: () => boolean;
+  isDestroyed: () => boolean;
+  markContentReady: () => void;
+  setTimeoutFn?: (callback: () => void, delayMs: number) => unknown;
+  delayMs?: number;
+}): void {
+  const setTimeoutFn =
+    deps.setTimeoutFn ??
+    ((callback: () => void, delayMs: number): unknown => setTimeout(callback, delayMs));
+  setTimeoutFn(() => {
+    if (deps.isContentReady() || deps.isDestroyed()) {
+      return;
+    }
+    deps.markContentReady();
+  }, deps.delayMs ?? OVERLAY_CONTENT_READY_FALLBACK_DELAY_MS);
+}
+
 export function ensureOverlayWindowLevel(window: BrowserWindow): void {
   if (process.platform === 'darwin') {
     window.setAlwaysOnTop(true, 'screen-saver', 1);
-    window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    // While a regular window (anime browser, ...) holds the Dock icon, skip the
+    // accessory process transform so the app stays in the Dock and Cmd+Tab.
+    window.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+      skipTransformProcessType: isDockIconRetained(),
+    });
     window.setFullScreenable(false);
     window.moveTop();
     return;
@@ -149,6 +181,17 @@ export function createOverlayWindow(
     logger.error('Page failed to load:', errorCode, errorDescription, validatedURL);
   });
 
+  const markContentReady = (): void => {
+    if (isOverlayWindowContentReady(window)) {
+      return;
+    }
+    overlayWindowContentReady.add(window);
+    (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
+      OVERLAY_WINDOW_CONTENT_READY_FLAG
+    ] = true;
+    options.onWindowContentReady?.();
+  };
+
   window.webContents.on('did-finish-load', () => {
     (window as BrowserWindow & { [OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG]?: boolean })[
       OVERLAY_WINDOW_DOCUMENT_LOADED_FLAG
@@ -156,6 +199,11 @@ export function createOverlayWindow(
     window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
     options.onRuntimeOptionsChanged();
     options.onWindowDidFinishLoad?.();
+    scheduleOverlayContentReadyFallback({
+      isContentReady: () => isOverlayWindowContentReady(window),
+      isDestroyed: () => window.isDestroyed(),
+      markContentReady,
+    });
   });
 
   window.webContents.on('did-start-loading', () => {
@@ -169,13 +217,7 @@ export function createOverlayWindow(
     window.setTitle(OVERLAY_WINDOW_TITLES[kind]);
   });
 
-  window.once('ready-to-show', () => {
-    overlayWindowContentReady.add(window);
-    (window as BrowserWindow & { [OVERLAY_WINDOW_CONTENT_READY_FLAG]?: boolean })[
-      OVERLAY_WINDOW_CONTENT_READY_FLAG
-    ] = true;
-    options.onWindowContentReady?.();
-  });
+  window.once('ready-to-show', markContentReady);
 
   if (kind === 'visible') {
     window.webContents.on('devtools-opened', () => {

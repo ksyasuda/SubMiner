@@ -47,6 +47,7 @@ const SESSION_ACTION_IDS: SessionActionId[] = [
   'openSubtitleGeneration',
   'openYoutubePicker',
   'openPlaylistBrowser',
+  'openAnimeBrowser',
   'replayCurrentSubtitle',
   'playNextSubtitle',
   'cycleRuntimeOption',

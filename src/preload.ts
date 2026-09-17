@@ -76,6 +76,7 @@ import type {
   MediaTimingReviewWaveformRequest,
 } from './types';
 import { IPC_CHANNELS } from './shared/ipc/contracts';
+import { createAnimeBrowserAPI } from './preload-anime-browser-api';
 import type { SubtitleGenerationProgress } from './shared/subtitle-generation';
 
 const overlayLayer = resolveOverlayLayerFromArgv(process.argv);
@@ -175,6 +176,8 @@ function createLatestValueIpcListenerWithPayload<T>(
 const onOpenRuntimeOptionsEvent = createQueuedIpcListener(IPC_CHANNELS.event.runtimeOptionsOpen);
 const onOpenSessionHelpEvent = createQueuedIpcListener(IPC_CHANNELS.event.sessionHelpOpen);
 const onOpenChangelogEvent = createQueuedIpcListener(IPC_CHANNELS.event.changelogOpen);
+const onOpenAnimeBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.animeBrowserOpen);
+const onCloseAnimeBrowserEvent = createQueuedIpcListener(IPC_CHANNELS.event.animeBrowserClose);
 const onOpenCharacterDictionaryManagerEvent = createQueuedIpcListener(
   IPC_CHANNELS.event.characterDictionaryManagerOpen,
 );
@@ -494,6 +497,8 @@ const electronAPI: ElectronAPI = {
   onOpenRuntimeOptions: onOpenRuntimeOptionsEvent,
   onOpenSessionHelp: onOpenSessionHelpEvent,
   onOpenChangelog: onOpenChangelogEvent,
+  onOpenAnimeBrowser: onOpenAnimeBrowserEvent,
+  onCloseAnimeBrowser: onCloseAnimeBrowserEvent,
   getChangelogSnapshot: (options?: { refresh?: boolean }): Promise<ChangelogSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getChangelogSnapshot, options),
   onOpenControllerSelect: onOpenControllerSelectEvent,
@@ -585,3 +590,4 @@ const electronAPI: ElectronAPI = {
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+contextBridge.exposeInMainWorld('animeBrowserAPI', createAnimeBrowserAPI(ipcRenderer));

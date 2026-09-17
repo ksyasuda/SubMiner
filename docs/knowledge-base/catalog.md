@@ -11,7 +11,7 @@ Read when: finding internal docs or checking verification status
 | --- | --- | --- | --- | --- |
 | KB home | `docs/README.md` | active | 2026-05-23 | internal entrypoint |
 | Architecture index | `docs/architecture/README.md` | active | 2026-05-23 | top-level runtime map |
-| Domain ownership | `docs/architecture/domains.md` | active | 2026-05-23 | runtime and feature ownership |
+| Domain ownership | `docs/architecture/domains.md` | active | 2026-08-02 | runtime and feature ownership |
 | Layering rules | `docs/architecture/layering.md` | active | 2026-05-23 | dependency direction and smells |
 | Subtitle overlay priming | `docs/architecture/subtitle-overlay-priming.md` | active | 2026-06-01 | visible-overlay subtitle startup flow |
 | KB rules | `docs/knowledge-base/README.md` | active | 2026-05-23 | maintenance policy |
