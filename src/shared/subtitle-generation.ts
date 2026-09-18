@@ -41,6 +41,16 @@ export type SubtitleGenerationToolStatus =
   | { kind: 'found'; path: string }
   | { kind: 'missing'; message: string };
 
+export type SubtitleGenerationAcceleration =
+  | { kind: 'nvidia-cuda'; gpuName: string }
+  | { kind: 'unavailable' };
+
+export function recommendedSubtitleGenerationModel(acceleration: SubtitleGenerationAcceleration) {
+  return acceleration.kind === 'nvidia-cuda'
+    ? 'large-v3-turbo'
+    : RECOMMENDED_SUBTITLE_GENERATION_MODEL;
+}
+
 /** Executables generation depends on. `vad` is null unless dialogue mode is on. */
 export interface SubtitleGenerationTools {
   ffmpeg: SubtitleGenerationToolStatus;

@@ -1,7 +1,6 @@
 import type { SubtitleGenerationProgress } from '../../shared/subtitle-generation';
 import {
   SUBTITLE_GENERATION_MODELS,
-  RECOMMENDED_SUBTITLE_GENERATION_MODEL,
   formatSubtitleGenerationModelSize,
   getSubtitleGenerationModel,
   isSubtitleGenerationModelId,
@@ -16,6 +15,7 @@ import { createModalFocusGuard } from './modal-focus-guard';
 import {
   describeGenerationModel,
   describeGenerationProgress,
+  describeGenerationRecommendation,
   describeGenerationTools,
   describeGenerationVad,
 } from './subtitle-generation-view';
@@ -70,8 +70,7 @@ export function createSubtitleGenerationModal(
   for (const model of SUBTITLE_GENERATION_MODELS) {
     const option = document.createElement('option');
     option.value = model.id;
-    const recommended = model.id === RECOMMENDED_SUBTITLE_GENERATION_MODEL ? ' (recommended)' : '';
-    option.textContent = `${model.id}${recommended} · ${formatSubtitleGenerationModelSize(model.size)}`;
+    option.textContent = `${model.id} · ${formatSubtitleGenerationModelSize(model.size)}`;
     dom.modelSelect.append(option);
   }
 
@@ -103,10 +102,15 @@ export function createSubtitleGenerationModal(
     dom.modelPicker.classList.toggle('hidden', !snapshot || Boolean(snapshot.externalModelPath));
     dom.modelSelect.disabled = busy || checking || !snapshot || Boolean(snapshot.externalModelPath);
     if (snapshot) {
+      const recommendation = describeGenerationRecommendation(snapshot.acceleration);
+      for (const option of dom.modelSelect.options) {
+        if (!isSubtitleGenerationModelId(option.value)) continue;
+        const model = getSubtitleGenerationModel(option.value);
+        const recommended = model.id === recommendation.model ? ' (recommended)' : '';
+        option.textContent = `${model.id}${recommended} · ${formatSubtitleGenerationModelSize(model.size)}`;
+      }
       dom.modelSelect.value = snapshot.managedModel;
-      dom.modelDescription.textContent = getSubtitleGenerationModel(
-        snapshot.managedModel,
-      ).description;
+      dom.modelDescription.textContent = `${getSubtitleGenerationModel(snapshot.managedModel).description} ${recommendation.text}`;
     }
     dom.download.classList.toggle('hidden', !model?.download);
     dom.download.textContent = snapshot

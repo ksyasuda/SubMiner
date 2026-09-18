@@ -1,10 +1,22 @@
 import {
   missingSubtitleGenerationTools,
+  recommendedSubtitleGenerationModel,
+  type SubtitleGenerationAcceleration,
   type SubtitleGenerationModelStatus,
   type SubtitleGenerationProgress,
   type SubtitleGenerationTools,
 } from '../../shared/subtitle-generation';
 import type { SubtitleGenerationStatus } from '../../shared/subtitle-generation-ipc';
+
+export function describeGenerationRecommendation(acceleration: SubtitleGenerationAcceleration) {
+  return {
+    model: recommendedSubtitleGenerationModel(acceleration),
+    text:
+      acceleration.kind === 'nvidia-cuda'
+        ? `NVIDIA CUDA is available with ${acceleration.gpuName}. large-v3-turbo is recommended.`
+        : 'NVIDIA CUDA acceleration was not confirmed. small is recommended.',
+  };
+}
 
 export function describeGenerationTools(tools: SubtitleGenerationTools) {
   const missing = missingSubtitleGenerationTools(tools);

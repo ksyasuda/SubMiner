@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { detectSubtitleGenerationAcceleration } from '../../core/services/subtitle-generation-acceleration';
 import { SUBTITLE_GENERATION_VAD_MODEL } from '../../shared/subtitle-generation-vad-model';
 import {
   downloadSubtitleGenerationVadModel,
@@ -35,6 +36,7 @@ export interface SubtitleGenerationRuntimeDeps {
   download?: typeof downloadSubtitleGenerationModel;
   resolveModel?: typeof resolveSubtitleGenerationModel;
   resolveTools?: typeof resolveSubtitleGenerationTools;
+  detectAcceleration?: typeof detectSubtitleGenerationAcceleration;
   downloadVad?: typeof downloadSubtitleGenerationVadModel;
   resolveVadModel?: typeof resolveSubtitleGenerationVadModel;
 }
@@ -80,6 +82,13 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
   let lastResult: SubtitleGenerationResult | null = null;
   let selectedModel: SubtitleGenerationModelId | null = null;
   let vadEnabled: boolean | null = null;
+  let accelerationCheck:
+    | {
+        path: string;
+        expires: number;
+        result: ReturnType<typeof detectSubtitleGenerationAcceleration>;
+      }
+    | undefined;
   function getConfig(): SubtitleGenerationConfig {
     const config = deps.getConfig();
     return {
@@ -127,6 +136,20 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
 
   async function getStatus(): Promise<SubtitleGenerationStatus> {
     const config = getConfig();
+    const tools = await (deps.resolveTools ?? resolveSubtitleGenerationTools)(config);
+    const whisperPath = tools.whisper.kind === 'found' ? tools.whisper.path : '';
+    if (
+      !accelerationCheck ||
+      accelerationCheck.path !== whisperPath ||
+      (!controller && Date.now() >= accelerationCheck.expires)
+    ) {
+      accelerationCheck = {
+        path: whisperPath,
+        expires: Date.now() + 30_000,
+        result: (deps.detectAcceleration ?? detectSubtitleGenerationAcceleration)(tools.whisper),
+      };
+    }
+    const acceleration = await accelerationCheck.result;
     const model = await (deps.resolveModel ?? resolveSubtitleGenerationModel)(
       config,
       deps.getModelDirectory(),
@@ -142,7 +165,8 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
         ),
       },
       // Session toggles decide whether the speech detector executable is required.
-      tools: await (deps.resolveTools ?? resolveSubtitleGenerationTools)(config),
+      tools,
+      acceleration,
       managedModel: config.managedModel,
       externalModelPath: config.modelPath.trim() || null,
       mediaPath,

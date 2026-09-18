@@ -45,7 +45,7 @@ const MODEL_CATALOG = {
     id: 'small',
     size: 487601967,
     sha256: '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b',
-    description: 'Recommended starting point for accuracy and processing time.',
+    description: 'Balances accuracy and processing time with modest memory requirements.',
   },
   'small-q5_1': {
     id: 'small-q5_1',

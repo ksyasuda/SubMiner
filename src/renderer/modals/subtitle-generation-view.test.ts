@@ -3,9 +3,24 @@ import test from 'node:test';
 import {
   describeGenerationModel,
   describeGenerationProgress,
+  describeGenerationRecommendation,
   describeGenerationTools,
   describeGenerationVad,
 } from './subtitle-generation-view';
+
+test('only confirmed NVIDIA CUDA support recommends turbo', () => {
+  assert.deepEqual(describeGenerationRecommendation({ kind: 'unavailable' }), {
+    model: 'small',
+    text: 'NVIDIA CUDA acceleration was not confirmed. small is recommended.',
+  });
+  assert.deepEqual(
+    describeGenerationRecommendation({ kind: 'nvidia-cuda', gpuName: 'NVIDIA RTX 5070 Ti' }),
+    {
+      model: 'large-v3-turbo',
+      text: 'NVIDIA CUDA is available with NVIDIA RTX 5070 Ti. large-v3-turbo is recommended.',
+    },
+  );
+});
 
 test('missing tools block generation and list every install instruction', () => {
   const found = { kind: 'found', path: '/usr/bin/tool' } as const;
