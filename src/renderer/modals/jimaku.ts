@@ -307,9 +307,13 @@ export function createJimakuModal(
     resetJimakuLists();
     renderTabs();
 
+    // Media info can resolve after the user already closed the modal or
+    // started their own search; a stale reply must not touch the inputs.
+    const generation = searchGeneration;
     window.electronAPI
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
+        if (generation !== searchGeneration) return;
         ctx.dom.jimakuTitleInput.value = info.title || '';
         ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : '';
         ctx.dom.jimakuEpisodeInput.value = info.episode ? String(info.episode) : '';
@@ -324,6 +328,7 @@ export function createJimakuModal(
         }
       })
       .catch(() => {
+        if (generation !== searchGeneration) return;
         setJimakuStatus('Failed to load media info.', true);
       });
   }

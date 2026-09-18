@@ -488,3 +488,88 @@ test('a slow files reply for a previously selected entry is ignored', async () =
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
   }
 });
+
+test('media info arriving after the modal closed does not fill inputs or search', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  let resolveMediaInfo!: (info: unknown) => void;
+  let searchCalls = 0;
+  const electronAPI = {
+    getJimakuMediaInfo: () =>
+      new Promise((resolve) => {
+        resolveMediaInfo = resolve;
+      }),
+    jimakuSearchEntries: async () => {
+      searchCalls += 1;
+      return { ok: true, data: [] };
+    },
+    notifyOverlayModalClosed: () => {},
+  } as unknown as ElectronAPI;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { electronAPI },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      activeElement: null,
+      createElement: () => createElementStub(),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    const titleInput = { value: '' };
+    const status = { textContent: '', style: { color: '' } };
+
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList() },
+        jimakuModal: { classList: createClassList(['hidden']), setAttribute: () => {} },
+        jimakuTitleInput: titleInput,
+        jimakuSeasonInput: { value: '' },
+        jimakuEpisodeInput: { value: '' },
+        jimakuSearchButton: { addEventListener: () => {} },
+        jimakuCloseButton: { addEventListener: () => {} },
+        jimakuStatus: status,
+        jimakuEntriesSection: { classList: createClassList(['hidden']) },
+        jimakuEntriesList: createListStub(),
+        jimakuFilesSection: { classList: createClassList(['hidden']) },
+        jimakuFilesList: createListStub(),
+        jimakuBroadenButton: { classList: createClassList(['hidden']), addEventListener: () => {} },
+        jimakuTabAnimeButton: { classList: createClassList(['active']), setAttribute: () => {} },
+        jimakuTabLiveActionButton: { classList: createClassList(), setAttribute: () => {} },
+      },
+      state,
+    };
+
+    const jimakuModal = createJimakuModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    jimakuModal.openJimakuModal();
+    await flushAsyncWork();
+    jimakuModal.closeJimakuModal();
+
+    resolveMediaInfo({
+      title: 'Shinzanmono',
+      season: 1,
+      episode: 3,
+      confidence: 'high',
+      filename: 'Shinzanmono S01E03.mkv',
+      rawTitle: 'Shinzanmono S01E03',
+    });
+    await flushAsyncWork();
+
+    assert.equal(titleInput.value, '');
+    assert.equal(searchCalls, 0);
+    assert.equal(status.textContent, 'Loading media info...');
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
