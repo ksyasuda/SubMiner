@@ -27,6 +27,36 @@ function createLogger() {
   };
 }
 
+test('anilist retry queue migrates stream keys and rejects URL-derived searches', () => {
+  const queueFile = createTempQueueFile();
+  const loggerState = createLogger();
+  const key = 'https://example.com/Videos/item/stream?api_key=test-secret::2';
+  fs.writeFileSync(
+    queueFile,
+    JSON.stringify({
+      pending: [
+        {
+          key,
+          title: 'My Anime',
+          episode: 2,
+          createdAt: 1,
+          attemptCount: 0,
+          nextAttemptAt: 1,
+          lastError: null,
+        },
+      ],
+      deadLetter: [],
+    }),
+  );
+  const queue = createAnilistUpdateQueue(queueFile, loggerState.logger);
+  assert.equal(queue.nextReady()?.key, 'jellyfin://example.com/item/item::2');
+  assert.equal(fs.readFileSync(queueFile, 'utf8').includes('test-secret'), false);
+  queue.enqueue('unsafe', 'stream?api_key=test-secret', 3);
+  assert.equal(queue.getSnapshot().pending, 1);
+  queue.markSuccess(key);
+  assert.equal(queue.getSnapshot().pending, 0);
+});
+
 test('anilist update queue enqueues, snapshots, and dequeues success', () => {
   const queueFile = createTempQueueFile();
   const loggerState = createLogger();

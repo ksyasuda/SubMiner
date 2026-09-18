@@ -120,6 +120,21 @@ test('MpvIpcClient emits fullscreen property changes', async () => {
   assert.deepEqual(events, [{ fullscreen: true }]);
 });
 
+test('MpvIpcClient ignores URL-derived titles without replacing known metadata', async () => {
+  const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  const titles: Array<string | null> = [];
+  client.on('media-title-change', ({ title }) => titles.push(title));
+  for (const data of [
+    'My Anime S01E02',
+    'https://example.com/stream?api_key=test-secret',
+    'stream?api_key=test-secret',
+  ]) {
+    await invokeHandleMessage(client, { event: 'property-change', name: 'media-title', data });
+  }
+  assert.equal(client.currentMediaTitle, 'My Anime S01E02');
+  assert.deepEqual(titles, ['My Anime S01E02']);
+});
+
 test('MpvIpcClient clears cached media title when media path changes', async () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
 

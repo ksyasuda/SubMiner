@@ -257,6 +257,23 @@ function repairLeakedJellyfinVideoParseMetadata(
   return updated.changes;
 }
 
+function repairLeakedJellyfinAnimeParseMetadata(
+  db: DatabaseSync,
+  currentTimestamp: string,
+): number {
+  const updated = db
+    .prepare(
+      `
+    UPDATE imm_anime
+    SET metadata_json = NULL, LAST_UPDATE_DATE = ?
+    WHERE metadata_json LIKE '%api_key=%'
+       OR lower(metadata_json) LIKE '%api key%'
+  `,
+    )
+    .run(currentTimestamp);
+  return updated.changes;
+}
+
 export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRepairSummary {
   const candidates = db
     .prepare(
@@ -290,7 +307,8 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
     const currentTimestamp = toDbTimestamp(nowMs());
     const repaired =
       repairLeakedJellyfinAnimeTitles(db, currentTimestamp) +
-      repairLeakedJellyfinVideoParseMetadata(db, currentTimestamp);
+      repairLeakedJellyfinVideoParseMetadata(db, currentTimestamp) +
+      repairLeakedJellyfinAnimeParseMetadata(db, currentTimestamp);
     summary.repaired += repaired;
     return summary;
   }
@@ -422,6 +440,7 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
     }
     summary.repaired += repairLeakedJellyfinAnimeTitles(db, currentTimestamp);
     summary.repaired += repairLeakedJellyfinVideoParseMetadata(db, currentTimestamp);
+    summary.repaired += repairLeakedJellyfinAnimeParseMetadata(db, currentTimestamp);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');

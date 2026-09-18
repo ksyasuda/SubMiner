@@ -116,6 +116,27 @@ function createExecutor(
   return { execute, searches, relationLookups };
 }
 
+test('AniList refuses URL-derived search titles before making a request', async () => {
+  let requests = 0;
+  for (const title of [
+    'https://example.com/stream?api_key=test-secret',
+    'stream?static=true&api_key=test-secret',
+    'stream static true api key test secret',
+  ]) {
+    const result = await resolveAnilistSeasonMedia(
+      { title },
+      {
+        execute: async () => {
+          requests += 1;
+          throw new Error('must not send URL-derived searches');
+        },
+      },
+    );
+    assert.equal(result, null);
+  }
+  assert.equal(requests, 0);
+});
+
 test('stripSeasonSuffix drops release-name season markers', () => {
   assert.equal(stripSeasonSuffix('Some Show Season 3'), 'Some Show');
   assert.equal(stripSeasonSuffix('Some Show S3'), 'Some Show');

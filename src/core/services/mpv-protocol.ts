@@ -1,4 +1,5 @@
 import { MpvSubtitleRenderMetrics } from '../../types';
+import { sanitizeMediaTitle } from '../../shared/media-identity';
 
 export type MpvMessage = {
   event?: string;
@@ -334,8 +335,10 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.name === 'fullscreen') {
       deps.emitFullscreenChange({ fullscreen: asBoolean(msg.data, false) });
     } else if (msg.name === 'media-title') {
+      const title = typeof msg.data === 'string' ? sanitizeMediaTitle(msg.data) : null;
+      if (typeof msg.data === 'string' && msg.data.trim() && !title) return;
       deps.emitMediaTitleChange({
-        title: typeof msg.data === 'string' ? msg.data.trim() : null,
+        title,
       });
     } else if (msg.name === 'path') {
       const path = (msg.data as string) || '';

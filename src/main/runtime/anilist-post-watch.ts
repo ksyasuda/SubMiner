@@ -1,4 +1,5 @@
 import { isYoutubeMediaPath } from './youtube-playback';
+import { toMediaIdentityPath } from '../../shared/media-identity';
 
 type AnilistGuess = {
   title: string;
@@ -32,7 +33,7 @@ type AnilistDurationProbeOptions = {
 };
 
 export function buildAnilistAttemptKey(mediaKey: string, episode: number): string {
-  return `${mediaKey}::${episode}`;
+  return `${toMediaIdentityPath(mediaKey)}::${episode}`;
 }
 
 export function rememberAnilistAttemptedUpdateKey(

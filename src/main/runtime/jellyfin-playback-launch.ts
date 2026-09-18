@@ -221,11 +221,12 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     });
     deps.setLastProgressAtMs(0);
     deps.sendMpvCommand(['script-message', 'subminer-managed-subtitles-loading']);
+    // Set mpv's title before loadfile can emit a URL-derived media-title event.
+    deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
     deps.sendMpvCommand(['loadfile', playbackUrl, 'replace', -1, loadfileOptions]);
     if (params.setQuitOnDisconnectArm !== false) {
       deps.armQuitOnDisconnect();
     }
-    deps.sendMpvCommand(['set_property', 'force-media-title', plan.title]);
 
     await awaitBestEffortPlaybackHook(() =>
       deps.preloadExternalSubtitles({

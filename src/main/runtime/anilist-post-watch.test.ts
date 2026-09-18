@@ -9,6 +9,10 @@ import {
 
 test('buildAnilistAttemptKey formats media and episode', () => {
   assert.equal(buildAnilistAttemptKey('/tmp/video.mkv', 3), '/tmp/video.mkv::3');
+  assert.equal(
+    buildAnilistAttemptKey('https://example.com/Videos/item/stream?api_key=test-secret', 3),
+    'jellyfin://example.com/item/item::3',
+  );
 });
 
 test('rememberAnilistAttemptedUpdateKey evicts oldest beyond max size', () => {

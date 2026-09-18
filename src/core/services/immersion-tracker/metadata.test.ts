@@ -147,6 +147,25 @@ test('getLocalVideoMetadata derives title and falls back to null hash on read er
   assert.equal(hashFallbackMetadata.hashSha256, null);
 });
 
+test('stream stats parsing preserves display titles and never persists transport credentials', async () => {
+  const targets: string[] = [];
+  const parsed = await guessAnimeVideoMetadata(
+    'https://jellyfin.example/Videos/item/stream?api_key=test-secret',
+    'Fate/stay night S01E02',
+    {
+      runGuessit: async (target) => {
+        targets.push(target);
+        return JSON.stringify({ title: 'Fate/stay night', season: 1, episode: 2 });
+      },
+    },
+  );
+  assert.deepEqual(targets, ['Fate/stay night S01E02']);
+  assert.equal(parsed?.parsedBasename, 'Fate/stay night S01E02');
+  assert.equal(parsed?.parsedTitle, 'Fate/stay night');
+  assert.equal(JSON.stringify(parsed).includes('test-secret'), false);
+  assert.equal(JSON.stringify(parsed).includes('/stream'), false);
+});
+
 test('guessAnimeVideoMetadata uses guessit basename output first when available', async () => {
   const seenTargets: string[] = [];
   const parsed = await guessAnimeVideoMetadata(

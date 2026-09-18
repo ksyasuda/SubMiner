@@ -1527,3 +1527,21 @@ test('AnkiIntegration.formatMiscInfoPattern avoids leaking Jellyfin api_key quer
   assert.equal(result, '[SubMiner] [Jellyfin/direct] Bocchi the Rock! - S01E02 (00:07:06)');
   assert.equal(result.includes('api_key='), false);
 });
+
+test('Anki metadata rejects a credential-bearing media title before metadata arrives', () => {
+  const integration = new AnkiIntegration(
+    { metadata: { pattern: '[SubMiner] %f | %F (%t)' } } as never,
+    {} as never,
+    {
+      currentVideoPath: 'https://jellyfin.example/Videos/item/stream?api_key=test-secret',
+      currentMediaTitle: 'stream?static=true&api_key=test-secret',
+      currentTimePos: 426,
+      send: () => true,
+    } as never,
+  );
+  const privateApi = integration as unknown as {
+    formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  };
+  const result = privateApi.formatMiscInfoPattern('stream?api_key=test-secret', 426);
+  assert.equal(result, '[SubMiner] Unknown media | Unknown media (00:07:06)');
+});

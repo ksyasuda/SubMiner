@@ -103,6 +103,7 @@ test('playback handler drives mpv commands and playback state', async () => {
     ['set_property', 'sub-visibility', 'no'],
     ['set_property', 'secondary-sub-visibility', 'no'],
     ['script-message', 'subminer-managed-subtitles-loading'],
+    ['set_property', 'force-media-title', 'Episode 1'],
     [
       'loadfile',
       'https://stream.example/video.m3u8',
@@ -110,7 +111,6 @@ test('playback handler drives mpv commands and playback state', async () => {
       -1,
       'sid=no,secondary-sid=no,sub-auto=no,sub-visibility=no,secondary-sub-visibility=no,start=1.2',
     ],
-    ['set_property', 'force-media-title', 'Episode 1'],
   ]);
   assert.equal(scheduled.length, 0);
   assert.equal(
@@ -437,6 +437,8 @@ test('playback handler publishes Jellyfin title before loading tokenized stream 
   assert.ok(titleIndex >= 0);
   assert.ok(loadIndex >= 0);
   assert.ok(titleIndex < loadIndex);
+  const mpvTitleIndex = timeline.indexOf('cmd:set_property:force-media-title');
+  assert.ok(mpvTitleIndex >= 0 && mpvTitleIndex < loadIndex);
   assert.equal(timeline[titleIndex]?.includes('api_key'), false);
 });
 
