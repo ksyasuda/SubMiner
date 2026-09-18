@@ -37,7 +37,7 @@ When generating for the video currently open in mpv, SubMiner automatically look
 
 The selected reference appears in generation progress. SubMiner reads its timestamps, including the active primary or secondary track's subtitle delay, and uses nearby cue starts to guide cuts in long audio passages. Short passages stay intact. The reference works with or without **Focus on spoken dialogue**. With that option enabled, reference starts take priority over VAD starts when choosing a nearby cut; VAD still helps identify speech. Audio outside reference cues remains eligible for transcription, and Whisper still supplies the Japanese text and final timestamps. The reference is assumed to be timed for the playing video; this does not automatically sync a mistimed reference.
 
-Unreadable or empty references are skipped in favor of another eligible loaded track. If none can be read, generation uses its normal audio timing. The launcher uses loaded references only when its input matches the video currently open in mpv; standalone generation keeps its existing behavior. It captures reference tracks and delays together with the initial audio selection, before checking or downloading a model.
+Unreadable or empty references are skipped in favor of another eligible loaded track. If none can be read, generation uses its normal audio timing. The launcher uses loaded references only when its input matches the video currently open in mpv; standalone generation keeps its existing behavior. It captures reference tracks and delays together with the initial audio selection, before checking or downloading a model. When relying on mpv's selected audio, it stops and asks you to retry if the media changes or cannot be verified during capture.
 
 ## Choosing a model
 

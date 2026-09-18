@@ -168,8 +168,6 @@ export async function runGenerateSubtitlesCommand(
           .mpvCommand(context.mpvSocketPath, ['get_property', 'track-list'], 1000)
           .catch(() => null)
       : null;
-    const audioStreamIndex =
-      options.audioStreamIndex ?? (!options.mediaPath ? selectedMpvAudioStream(tracks) : undefined);
     let references: SubtitleGenerationReference[] = [];
     if (matchesCurrentMedia) {
       const candidates = await readSubtitleGenerationReferences(tracks, (name) =>
@@ -179,7 +177,13 @@ export async function runGenerateSubtitlesCommand(
         () => null,
       );
       if (stillPlaying && sameFile(stillPlaying, mediaPath)) references = candidates;
+      else if (!options.mediaPath && options.audioStreamIndex === undefined)
+        throw new Error(
+          'The current mpv media changed or could not be verified while reading tracks. Run generate-subs again.',
+        );
     }
+    const audioStreamIndex =
+      options.audioStreamIndex ?? (!options.mediaPath ? selectedMpvAudioStream(tracks) : undefined);
     const onProgress = createGenerationProgressReporter(write);
     // Missing executables fail here, before any model download starts.
     requireSubtitleGenerationTools(await deps.resolveTools(config));

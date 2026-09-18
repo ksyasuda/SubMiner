@@ -148,12 +148,15 @@ test('explicit playing file leaves audio selection to the generator but inspects
 
 test('launcher does not load generated subtitles after mpv switches files', async () => {
   const f = fixture(['generate-subs']);
-  let pathRequests = 0;
+  let changed = false;
   f.deps.mpvCommand = async (_socket, command) => {
     f.commands.push(command);
-    if (command[1] === 'path')
-      return ++pathRequests === 1 ? '/media/episode.mkv' : '/media/next.mkv';
+    if (command[1] === 'path') return changed ? '/media/next.mkv' : '/media/episode.mkv';
     return [{ type: 'audio', selected: true, 'ff-index': 2 }];
+  };
+  f.deps.generate = async () => {
+    changed = true;
+    return '/media/episode.ja.srt';
   };
   await runGenerateSubtitlesCommand(f.context, f.deps);
   assert.equal(
@@ -161,6 +164,57 @@ test('launcher does not load generated subtitles after mpv switches files', asyn
     false,
   );
   assert.match(f.output.join(''), /Saved Japanese subtitles/);
+});
+
+test('current mpv generation rejects tracks when playback changes during capture', async () => {
+  for (const nextMedia of ['/media/next.mkv', null]) {
+    const f = fixture(['generate-subs']);
+    let media: string | null = '/media/episode.mkv';
+    let modelChecks = 0;
+    f.deps.mpvCommand = async (_socket, command) => {
+      if (command[1] === 'path') return media;
+      if (command[1] === 'track-list') {
+        media = nextMedia;
+        return [{ type: 'audio', selected: true, 'ff-index': 99 }];
+      }
+      return undefined;
+    };
+    f.deps.resolveModel = async () => {
+      modelChecks += 1;
+      return { kind: 'external', path: '/models/model.bin' };
+    };
+    await assert.rejects(
+      runGenerateSubtitlesCommand(f.context, f.deps),
+      /mpv media.*Run generate-subs again/,
+    );
+    assert.equal(f.generations.length, 0);
+    assert.equal(modelChecks, 0);
+  }
+});
+
+test('explicit media or audio stream remains usable when the mpv snapshot changes', async () => {
+  for (const options of [['/media/episode.mkv'], ['--audio-stream', '7']]) {
+    const f = fixture(['generate-subs', ...options]);
+    let media = '/media/episode.mkv';
+    f.deps.mpvCommand = async (_socket, command) => {
+      if (command[1] === 'path') return media;
+      if (command[1] === 'track-list') {
+        media = '/media/next.mkv';
+        return [
+          { type: 'audio', selected: true, 'ff-index': 99 },
+          { type: 'sub', lang: 'eng', 'ff-index': 100 },
+        ];
+      }
+      return undefined;
+    };
+    await runGenerateSubtitlesCommand(f.context, f.deps);
+    assert.equal(f.generations[0]?.mediaPath, '/media/episode.mkv');
+    assert.equal(
+      f.generations[0]?.audioStreamIndex,
+      options[0] === '--audio-stream' ? 7 : undefined,
+    );
+    assert.deepEqual(f.generations[0]?.references, []);
+  }
 });
 
 test('launcher captures loaded external references only for the matching media', async () => {
