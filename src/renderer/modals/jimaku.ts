@@ -22,7 +22,12 @@ export function createJimakuModal(
       : 'rgba(255, 255, 255, 0.8)';
   }
 
+  // Bumped whenever the lists are reset (new search, tab switch, open, close)
+  // so any in-flight entries or files reply for the old state is discarded.
+  let searchGeneration = 0;
+
   function resetJimakuLists(): void {
+    searchGeneration += 1;
     ctx.state.jimakuEntries = [];
     ctx.state.jimakuFiles = [];
     ctx.state.selectedEntryIndex = 0;
@@ -150,9 +155,6 @@ export function createJimakuModal(
     return { query: title, episode: Number.isFinite(episode) ? episode : null };
   }
 
-  // Bumped per search so a slow reply cannot overwrite a newer search's results.
-  let searchRequestId = 0;
-
   async function performJimakuSearch(): Promise<void> {
     const { query, episode } = getSearchQuery();
     if (!query) {
@@ -165,12 +167,11 @@ export function createJimakuModal(
     ctx.state.currentEpisodeFilter = episode;
 
     const category = ctx.state.jimakuActiveTab;
-    searchRequestId += 1;
-    const requestId = searchRequestId;
+    const generation = searchGeneration;
     const response: JimakuApiResponse<JimakuEntry[]> = await window.electronAPI.jimakuSearchEntries(
       { query, category },
     );
-    if (requestId !== searchRequestId) return;
+    if (generation !== searchGeneration) return;
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
@@ -206,12 +207,15 @@ export function createJimakuModal(
     ctx.dom.jimakuFilesList.innerHTML = '';
     ctx.dom.jimakuFilesSection.classList.add('hidden');
 
+    const generation = searchGeneration;
     const response: JimakuApiResponse<JimakuFileEntry[]> = await window.electronAPI.jimakuListFiles(
       {
         entryId,
         episode,
       },
     );
+    // The user may have picked another entry or reset the modal meanwhile.
+    if (generation !== searchGeneration || ctx.state.currentEntryId !== entryId) return;
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
