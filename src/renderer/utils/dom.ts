@@ -21,6 +21,8 @@ export type RendererDom = {
   jimakuFilesSection: HTMLDivElement;
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
+  jimakuTabAnimeButton: HTMLButtonElement;
+  jimakuTabLiveActionButton: HTMLButtonElement;
 
   tsukihimeModal: HTMLDivElement;
   tsukihimeTitleInput: HTMLInputElement;
@@ -218,6 +220,8 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesSection: getRequiredElement<HTMLDivElement>('jimakuFilesSection'),
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
+    jimakuTabAnimeButton: getRequiredElement<HTMLButtonElement>('jimakuTabAnime'),
+    jimakuTabLiveActionButton: getRequiredElement<HTMLButtonElement>('jimakuTabLiveAction'),
 
     tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
     tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),

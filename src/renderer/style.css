@@ -819,12 +819,14 @@ body:focus-visible,
   grid-template-columns: 1fr 120px auto;
 }
 
+.jimaku-tabs,
 .tsukihime-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
+.jimaku-tab,
 .tsukihime-tab {
   min-width: 0;
   min-height: 34px;
@@ -842,6 +844,8 @@ body:focus-visible,
   text-overflow: ellipsis;
 }
 
+.jimaku-tab:hover,
+.jimaku-tab:focus-visible,
 .tsukihime-tab:hover,
 .tsukihime-tab:focus-visible {
   border-color: rgba(138, 173, 244, 0.48);
@@ -849,6 +853,7 @@ body:focus-visible,
   outline: none;
 }
 
+.jimaku-tab.active,
 .tsukihime-tab.active {
   border-color: rgba(238, 212, 159, 0.62);
   background: rgba(238, 212, 159, 0.16);

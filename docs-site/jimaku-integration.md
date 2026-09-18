@@ -1,6 +1,6 @@
 # Jimaku integration
 
-[Jimaku](https://jimaku.cc) is a community subtitle repository for anime, built from files other learners uploaded. SubMiner talks to the Jimaku API, so you search, browse, and download Japanese subtitle files from inside the overlay. No alt-tabbing, no moving files around. A downloaded track loads into mpv right away.
+[Jimaku](https://jimaku.cc) is a community subtitle repository for anime and Japanese live action, built from files other learners uploaded. SubMiner talks to the Jimaku API, so you search, browse, and download Japanese subtitle files from inside the overlay. No alt-tabbing, no moving files around. A downloaded track loads into mpv right away.
 
 ::: tip Prerequisite: a free API key
 You need a Jimaku account and an API key (a personal access string) before this feature works. Create an account at [jimaku.cc](https://jimaku.cc), copy your key, and add it to your config as shown under [Configuration](#configuration) below. Without a key, the search modal will report "Jimaku API key not set."
@@ -14,21 +14,23 @@ When you open the modal, SubMiner parses the current video filename to extract a
 
 From there:
 
-1. **Search** - SubMiner queries the Jimaku API with the parsed title. Results appear as a list of anime entries (Japanese and English names).
-2. **Browse entries** - Select an entry to load its available subtitle files, filtered by episode if one was detected.
-3. **Browse files** - Files show name, size, and last-modified date. If a language preference is configured, files are sorted accordingly (e.g., Japanese-tagged files first).
-4. **Download** - Selecting a file downloads it to the same directory as the video (or a temp directory for remote/streamed media) and loads it into mpv as a new subtitle track.
+1. **Pick a catalogue** - The **Anime** and **Live action** tabs at the top of the modal choose which Jimaku catalogue to search. Switching tabs re-runs the current search. The choice persists until SubMiner restarts.
+2. **Search** - SubMiner queries the Jimaku API with the parsed title. Results appear as a list of entries (Japanese and English names).
+3. **Browse entries** - Select an entry to load its available subtitle files, filtered by episode if one was detected.
+4. **Browse files** - Files show name, size, and last-modified date. If a language preference is configured, files are sorted accordingly (e.g., Japanese-tagged files first).
+5. **Download** - Selecting a file downloads it to the same directory as the video (or a temp directory for remote/streamed media) and loads it into mpv as a new subtitle track.
 
 If no files match the current episode filter, a "Show all files" button lets you broaden the search to all episodes for that entry.
 
 ### Modal keyboard shortcuts
 
-| Key | Action |
-| --- | --- |
-| `Enter` (in text field) | Search |
-| `Enter` (in list) | Select entry / download file |
-| `Arrow Up` / `Arrow Down` | Navigate entries or files |
-| `Escape` | Close modal |
+| Key                          | Action                                        |
+| ---------------------------- | --------------------------------------------- |
+| `Enter` (in text field)      | Search                                        |
+| `Enter` (in list)            | Select entry / download file                  |
+| `Arrow Up` / `Arrow Down`    | Navigate entries or files                     |
+| `Arrow Left` / `Arrow Right` | Switch between the Anime and Live action tabs |
+| `Escape`                     | Close modal                                   |
 
 ## Configuration
 
@@ -41,26 +43,26 @@ Add a `jimaku` section to your `config.jsonc`:
     "apiKeyCommand": "cat ~/.jimaku_key",
     "apiBaseUrl": "https://jimaku.cc",
     "languagePreference": "ja",
-    "maxEntryResults": 10
-  }
+    "maxEntryResults": 10,
+  },
 }
 ```
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `jimaku.apiKey` | `string` | - | Jimaku API key (plaintext). Mutually exclusive with `apiKeyCommand`. |
-| `jimaku.apiKeyCommand` | `string` | - | Shell command that prints the API key to stdout. Useful for secret managers (e.g., `pass jimaku/api-key`). |
-| `jimaku.apiBaseUrl` | `string` | `"https://jimaku.cc"` | Base URL for the Jimaku API. Only change this if using a mirror or local instance. |
-| `jimaku.languagePreference` | `"ja"` \| `"en"` \| `"none"` | `"ja"` | Sort subtitle files by language tag. `"ja"` pushes Japanese-tagged files to the top; `"en"` does the same for English. `"none"` preserves the API order. |
-| `jimaku.maxEntryResults` | `number` | `10` | Maximum number of anime entries returned per search. |
+| Option                      | Type                         | Default               | Description                                                                                                                                              |
+| --------------------------- | ---------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `jimaku.apiKey`             | `string`                     | -                     | Jimaku API key (plaintext). Mutually exclusive with `apiKeyCommand`.                                                                                     |
+| `jimaku.apiKeyCommand`      | `string`                     | -                     | Shell command that prints the API key to stdout. Useful for secret managers (e.g., `pass jimaku/api-key`).                                               |
+| `jimaku.apiBaseUrl`         | `string`                     | `"https://jimaku.cc"` | Base URL for the Jimaku API. Only change this if using a mirror or local instance.                                                                       |
+| `jimaku.languagePreference` | `"ja"` \| `"en"` \| `"none"` | `"ja"`                | Sort subtitle files by language tag. `"ja"` pushes Japanese-tagged files to the top; `"en"` does the same for English. `"none"` preserves the API order. |
+| `jimaku.maxEntryResults`    | `number`                     | `10`                  | Maximum number of entries returned per search.                                                                                                           |
 
 The keyboard shortcut is configured separately under `shortcuts`:
 
 ```jsonc
 {
   "shortcuts": {
-    "openJimaku": "Ctrl+Shift+J"
-  }
+    "openJimaku": "Ctrl+Shift+J",
+  },
 }
 ```
 

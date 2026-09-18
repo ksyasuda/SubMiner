@@ -86,10 +86,30 @@
             <button id="jimakuClose" class="modal-close" type="button">Close</button>
           </div>
           <div class="modal-body">
+            <div class="jimaku-tabs" role="tablist">
+              <button
+                id="jimakuTabAnime"
+                class="jimaku-tab active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
+                Anime
+              </button>
+              <button
+                id="jimakuTabLiveAction"
+                class="jimaku-tab"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Live action
+              </button>
+            </div>
             <div class="jimaku-form">
               <label class="jimaku-field">
                 <span>Title</span>
-                <input id="jimakuTitle" type="text" placeholder="Anime title" />
+                <input id="jimakuTitle" type="text" placeholder="Title" />
               </label>
               <label class="jimaku-field">
                 <span>Season</span>

@@ -119,6 +119,8 @@ test('successful Jimaku subtitle selection closes modal', async () => {
           classList: jimakuBroadenButtonClassList,
           addEventListener: () => {},
         },
+        jimakuTabAnimeButton: { classList: createClassList(['active']), setAttribute: () => {} },
+        jimakuTabLiveActionButton: { classList: createClassList(), setAttribute: () => {} },
       },
       state,
     };
@@ -142,6 +144,177 @@ test('successful Jimaku subtitle selection closes modal', async () => {
     assert.equal(jimakuModalClassList.contains('hidden'), true);
     assert.equal(overlayClassList.contains('interactive'), false);
     assert.deepEqual(modalCloseNotifications, ['jimaku']);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('switching to the Live action tab re-runs the search with the live action category', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  const searchQueries: Array<{ query: string; category?: string }> = [];
+  const electronAPI = {
+    jimakuSearchEntries: async (query: { query: string; category?: string }) => {
+      searchQueries.push(query);
+      return { ok: true, data: [] };
+    },
+  } as unknown as ElectronAPI;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { electronAPI },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      activeElement: null,
+      createElement: () => createElementStub(),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    state.jimakuModalOpen = true;
+    const animeTabClassList = createClassList(['active']);
+    const liveActionTabClassList = createClassList();
+    const status = { textContent: '', style: { color: '' } };
+
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList(['interactive']) },
+        jimakuModal: { classList: createClassList(), setAttribute: () => {} },
+        jimakuTitleInput: { value: 'Shinzanmono' },
+        jimakuSeasonInput: { value: '' },
+        jimakuEpisodeInput: { value: '3' },
+        jimakuSearchButton: { addEventListener: () => {} },
+        jimakuCloseButton: { addEventListener: () => {} },
+        jimakuStatus: status,
+        jimakuEntriesSection: { classList: createClassList(['hidden']) },
+        jimakuEntriesList: createListStub(),
+        jimakuFilesSection: { classList: createClassList(['hidden']) },
+        jimakuFilesList: createListStub(),
+        jimakuBroadenButton: { classList: createClassList(['hidden']), addEventListener: () => {} },
+        jimakuTabAnimeButton: { classList: animeTabClassList, setAttribute: () => {} },
+        jimakuTabLiveActionButton: { classList: liveActionTabClassList, setAttribute: () => {} },
+      },
+      state,
+    };
+
+    const jimakuModal = createJimakuModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    jimakuModal.handleJimakuKeydown({
+      key: 'ArrowRight',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    await flushAsyncWork();
+
+    assert.equal(state.jimakuActiveTab, 'liveAction');
+    assert.equal(liveActionTabClassList.contains('active'), true);
+    assert.equal(animeTabClassList.contains('active'), false);
+    assert.deepEqual(searchQueries, [{ query: 'Shinzanmono', category: 'liveAction' }]);
+    assert.equal(status.textContent, 'No live action entries found. Try the Anime tab.');
+
+    // Same tab again is a no-op: no duplicate request.
+    jimakuModal.handleJimakuKeydown({
+      key: 'ArrowRight',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    await flushAsyncWork();
+    assert.equal(searchQueries.length, 1);
+  } finally {
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
+  }
+});
+
+test('a slow reply from a superseded search does not overwrite the newer results', async () => {
+  const globals = globalThis as typeof globalThis & { window?: unknown; document?: unknown };
+  const previousWindow = globals.window;
+  const previousDocument = globals.document;
+
+  const pending: Array<(entries: unknown[]) => void> = [];
+  const electronAPI = {
+    jimakuSearchEntries: () =>
+      new Promise((resolve) => {
+        pending.push((entries) => resolve({ ok: true, data: entries }));
+      }),
+    jimakuListFiles: async () => ({ ok: true, data: [] }),
+  } as unknown as ElectronAPI;
+
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { electronAPI },
+  });
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      activeElement: null,
+      createElement: () => createElementStub(),
+    },
+  });
+
+  try {
+    const state = createRendererState();
+    state.jimakuModalOpen = true;
+
+    const ctx = {
+      dom: {
+        overlay: { classList: createClassList(['interactive']) },
+        jimakuModal: { classList: createClassList(), setAttribute: () => {} },
+        jimakuTitleInput: { value: 'Shinzanmono' },
+        jimakuSeasonInput: { value: '' },
+        jimakuEpisodeInput: { value: '' },
+        jimakuSearchButton: { addEventListener: () => {} },
+        jimakuCloseButton: { addEventListener: () => {} },
+        jimakuStatus: { textContent: '', style: { color: '' } },
+        jimakuEntriesSection: { classList: createClassList(['hidden']) },
+        jimakuEntriesList: createListStub(),
+        jimakuFilesSection: { classList: createClassList(['hidden']) },
+        jimakuFilesList: createListStub(),
+        jimakuBroadenButton: { classList: createClassList(['hidden']), addEventListener: () => {} },
+        jimakuTabAnimeButton: { classList: createClassList(['active']), setAttribute: () => {} },
+        jimakuTabLiveActionButton: { classList: createClassList(), setAttribute: () => {} },
+      },
+      state,
+    };
+
+    const jimakuModal = createJimakuModal(ctx as never, {
+      modalStateReader: { isAnyModalOpen: () => false },
+      syncSettingsModalSubtitleSuppression: () => {},
+    });
+
+    // Anime -> Live action -> Anime, all before any reply arrives.
+    jimakuModal.handleJimakuKeydown({
+      key: 'ArrowRight',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    jimakuModal.handleJimakuKeydown({
+      key: 'ArrowLeft',
+      preventDefault: () => {},
+    } as KeyboardEvent);
+    await flushAsyncWork();
+    assert.equal(pending.length, 2);
+
+    // The stale live action reply lands after the newer anime search was issued.
+    pending[0]!([{ id: 1, name: 'Stale live action entry' }]);
+    await flushAsyncWork();
+    assert.equal(state.jimakuEntries.length, 0);
+
+    pending[1]!([
+      { id: 2, name: 'Anime A' },
+      { id: 3, name: 'Anime B' },
+    ]);
+    await flushAsyncWork();
+    assert.deepEqual(
+      state.jimakuEntries.map((entry) => entry.id),
+      [2, 3],
+    );
   } finally {
     Object.defineProperty(globalThis, 'window', { configurable: true, value: previousWindow });
     Object.defineProperty(globalThis, 'document', { configurable: true, value: previousDocument });
