@@ -220,6 +220,69 @@ test('explicit managed model overrides external config and downloads before gene
   assert.equal(f.generations.length, 1);
 });
 
+test('audio and subtitle timing use the initial mpv snapshot across model setup', async () => {
+  for (const changeDuring of ['resolve', 'download']) {
+    const f = fixture(['generate-subs', '--download-model']);
+    let changed = false;
+    let trackReads = 0;
+    f.deps.mpvCommand = async (_socket, command) => {
+      if (command[1] === 'path') return '/media/episode.mkv';
+      if (command[1] === 'track-list') {
+        trackReads += 1;
+        return [
+          { type: 'audio', selected: true, 'ff-index': changed ? 3 : 2 },
+          { type: 'sub', id: 1, title: 'English Full', lang: 'eng', 'ff-index': changed ? 5 : 4 },
+        ];
+      }
+      if (command[1] === 'sid') return 1;
+      if (command[1] === 'sub-delay') return changed ? 9 : 1.5;
+      return undefined;
+    };
+    f.deps.resolveModel = async () => {
+      if (changeDuring === 'resolve') changed = true;
+      return { kind: 'missing', path: '/models/model.bin' };
+    };
+    f.deps.downloadModel = async () => {
+      changed = true;
+      return '/models/model.bin';
+    };
+    await runGenerateSubtitlesCommand(f.context, f.deps);
+    assert.equal(f.generations[0]?.audioStreamIndex, 2);
+    assert.deepEqual(f.generations[0]?.references, [
+      {
+        label: 'English Full',
+        delaySeconds: 1.5,
+        source: { kind: 'embedded', streamIndex: 4 },
+      },
+    ]);
+    assert.equal(trackReads, 1);
+  }
+});
+
+test('explicit audio stream bypasses mpv audio selection while retaining subtitle references', async () => {
+  const f = fixture(['generate-subs', '--audio-stream', '7']);
+  f.deps.mpvCommand = async (_socket, command) => {
+    if (command[1] === 'path') return '/media/episode.mkv';
+    if (command[1] === 'track-list')
+      return [
+        { type: 'audio', selected: true, external: true, 'ff-index': 0 },
+        { type: 'sub', id: 2, title: 'English Full', lang: 'eng', 'ff-index': 4 },
+      ];
+    if (command[1] === 'secondary-sid') return 2;
+    if (command[1] === 'secondary-sub-delay') return -0.5;
+    return undefined;
+  };
+  await runGenerateSubtitlesCommand(f.context, f.deps);
+  assert.equal(f.generations[0]?.audioStreamIndex, 7);
+  assert.deepEqual(f.generations[0]?.references, [
+    {
+      label: 'English Full',
+      delaySeconds: -0.5,
+      source: { kind: 'embedded', streamIndex: 4 },
+    },
+  ]);
+});
+
 test('generation can run standalone and never loads subtitles into another video', async () => {
   for (const playing of [null, '/media/different.mkv']) {
     const f = fixture();
