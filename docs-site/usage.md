@@ -92,6 +92,10 @@ delay. It also works with no running
 SubMiner app or mpv instance when you provide a file path. Omit the path to use the current
 mpv file and selected audio track.
 
+When the input matches the current mpv file, generation automatically uses an eligible embedded
+or loaded external subtitle track as a timing reference, preferring English dialogue and skipping
+tracks marked as signs, songs, or forced. See [timing references](/subtitle-generation#using-loaded-subtitles-as-timing-references).
+
 ```bash
 subminer generate-subs video.mkv --download-model
 subminer generate-subs video.mkv --model-path ~/models/ggml-medium.bin

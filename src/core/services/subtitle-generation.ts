@@ -12,6 +12,10 @@ import { publishSubtitleGenerationFile } from './subtitle-generation-files';
 import { formatTimestamp } from './subtitle-generation-srt';
 import { transcribeSubtitleDialogue } from './subtitle-generation-dialogue';
 import {
+  loadSubtitleGenerationReference,
+  type SubtitleGenerationReference,
+} from './subtitle-generation-reference';
+import {
   requireSubtitleGenerationTools,
   resolveSubtitleGenerationTools,
 } from './subtitle-generation-tools';
@@ -174,6 +178,7 @@ export async function generateJapaneseSubtitles(input: {
   modelDirectory: string;
   mediaPath: string;
   audioStreamIndex?: number;
+  references?: readonly SubtitleGenerationReference[];
   outputPath?: string;
   onProgress?: (progress: SubtitleGenerationProgress) => void;
   signal?: AbortSignal;
@@ -257,11 +262,21 @@ export async function generateJapaneseSubtitles(input: {
       percent: 0,
       message: 'Generating Japanese subtitles...',
     });
+    const referenceStarts = await loadSubtitleGenerationReference({
+      references: input.references ?? [],
+      mediaPath,
+      ffmpegPath: tools.ffmpeg,
+      directory: temporaryDirectory,
+      audioOffset: audio.offset,
+      onProgress: input.onProgress,
+      signal: input.signal,
+    });
     let srt: string;
-    if (tools.vad !== null) {
+    if (tools.vad !== null || referenceStarts.length > 0) {
       srt = await transcribeSubtitleDialogue({
         config: input.config,
-        tools: { ...tools, vad: tools.vad },
+        tools,
+        referenceStarts,
         modelPath: model.path,
         wavPath,
         directory: temporaryDirectory,

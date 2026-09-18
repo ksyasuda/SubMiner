@@ -2,6 +2,24 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generation-chunks';
 
+test('reference starts guide long cuts ahead of VAD without dropping unreferenced audio', () => {
+  const chunks = splitSpeechPassages(
+    [{ startSeconds: 0, endSeconds: 70 }],
+    [18],
+    [19],
+    [22, 43, 200],
+  );
+  assert.deepEqual(chunks, [
+    { startSeconds: 0, endSeconds: 22.25 },
+    { startSeconds: 21.75, endSeconds: 43.25 },
+    { startSeconds: 42.75, endSeconds: 63.25 },
+    { startSeconds: 62.75, endSeconds: 70 },
+  ]);
+  assert.deepEqual(splitSpeechPassages([{ startSeconds: 0, endSeconds: 25 }], [], [], [10, 20]), [
+    { startSeconds: 0, endSeconds: 25 },
+  ]);
+});
+
 test('long coverage cuts at nearby speech starts instead of leaving a quiet lead-in', () => {
   const chunks = splitSpeechPassages(
     [{ startSeconds: 544.418, endSeconds: 581.581 }],

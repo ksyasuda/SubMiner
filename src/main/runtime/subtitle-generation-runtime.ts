@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readSubtitleGenerationReferences } from '../../core/services/subtitle-generation-reference';
 import { detectSubtitleGenerationAcceleration } from '../../core/services/subtitle-generation-acceleration';
 import { SUBTITLE_GENERATION_VAD_MODEL } from '../../shared/subtitle-generation-vad-model';
 import {
@@ -238,7 +239,11 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
         const mediaPath = await currentLocalMedia(client);
         if (!client || !mediaPath)
           throw new Error('Open a local video or audio file in mpv first.');
-        const audioStreamIndex = selectedAudioIndex(await client.requestProperty('track-list'));
+        const tracks = await client.requestProperty('track-list');
+        const audioStreamIndex = selectedAudioIndex(tracks);
+        const references = await readSubtitleGenerationReferences(tracks, (name) =>
+          client.requestProperty(name),
+        );
         if ((await currentLocalMedia(client)) !== mediaPath)
           throw new Error('The current media changed. Start generation again.');
         signal.throwIfAborted();
@@ -247,6 +252,7 @@ export function createSubtitleGenerationRuntime(deps: SubtitleGenerationRuntimeD
           modelDirectory: deps.getModelDirectory(),
           mediaPath,
           audioStreamIndex,
+          references,
           onProgress: report,
           signal,
         });

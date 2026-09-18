@@ -136,13 +136,13 @@ test('current mpv generation requires an identifiable selected audio track', asy
   }
 });
 
-test('explicit local file leaves Japanese track selection to the shared generator', async () => {
+test('explicit playing file leaves audio selection to the generator but inspects subtitle references', async () => {
   const f = fixture();
   await runGenerateSubtitlesCommand(f.context, f.deps);
   assert.equal(f.generations[0]?.audioStreamIndex, undefined);
   assert.equal(
     f.commands.some((command) => command[1] === 'track-list'),
-    false,
+    true,
   );
 });
 
@@ -161,6 +161,35 @@ test('launcher does not load generated subtitles after mpv switches files', asyn
     false,
   );
   assert.match(f.output.join(''), /Saved Japanese subtitles/);
+});
+
+test('launcher captures loaded external references only for the matching media', async () => {
+  for (const matching of [true, false]) {
+    const f = fixture();
+    f.deps.mpvCommand = async (_socket, command) => {
+      if (command[1] === 'path') return matching ? '/media/episode.mkv' : '/media/other.mkv';
+      if (command[1] === 'working-directory') return '/mpv';
+      if (command[1] === 'track-list')
+        return [
+          { type: 'sub', external: true, 'external-filename': 'episode.en.signs.ass' },
+          { type: 'sub', external: true, 'external-filename': 'episode.en.srt' },
+        ];
+      return undefined;
+    };
+    await runGenerateSubtitlesCommand(f.context, f.deps);
+    assert.deepEqual(
+      f.generations[0]?.references,
+      matching
+        ? [
+            {
+              label: 'episode.en.srt',
+              delaySeconds: 0,
+              source: { kind: 'external', path: '/mpv/episode.en.srt' },
+            },
+          ]
+        : [],
+    );
+  }
 });
 
 test('explicit managed model overrides external config and downloads before generation', async () => {

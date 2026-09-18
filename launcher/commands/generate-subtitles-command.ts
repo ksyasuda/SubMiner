@@ -9,6 +9,10 @@ import {
 } from '../../src/core/services/subtitle-generation.js';
 import { requireSubtitleGenerationTools } from '../../src/core/services/subtitle-generation-tools.js';
 import {
+  readSubtitleGenerationReferences,
+  type SubtitleGenerationReference,
+} from '../../src/core/services/subtitle-generation-reference.js';
+import {
   resolveSubtitleGenerationConfig,
   type SubtitleGenerationProgress,
 } from '../../src/shared/subtitle-generation.js';
@@ -178,11 +182,29 @@ export async function runGenerateSubtitlesCommand(
       }
       await deps.downloadModel({ config, modelDirectory, onProgress, signal: controller.signal });
     }
+    // Snapshot tracks immediately before generation, after any lengthy model download.
+    const referenceMedia = await readMpvMedia(context.mpvSocketPath, deps.mpvCommand).catch(
+      () => null,
+    );
+    let references: SubtitleGenerationReference[] = [];
+    if (referenceMedia && sameFile(referenceMedia, mediaPath)) {
+      const tracks = await deps
+        .mpvCommand(context.mpvSocketPath, ['get_property', 'track-list'], 1000)
+        .catch(() => null);
+      const candidates = await readSubtitleGenerationReferences(tracks, (name) =>
+        deps.mpvCommand(context.mpvSocketPath, ['get_property', name], 1000),
+      );
+      const stillPlaying = await readMpvMedia(context.mpvSocketPath, deps.mpvCommand).catch(
+        () => null,
+      );
+      if (stillPlaying && sameFile(stillPlaying, mediaPath)) references = candidates;
+    }
     const outputPath = await deps.generate({
       config,
       modelDirectory,
       mediaPath,
       audioStreamIndex,
+      references,
       outputPath: options.outputPath
         ? path.resolve(resolvePathMaybe(options.outputPath))
         : undefined,

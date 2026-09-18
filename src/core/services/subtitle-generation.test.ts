@@ -95,6 +95,52 @@ test('config parser accepts supported models and rejects unsafe threads and wron
   assert.deepEqual(warnings, ['whisperPath', 'threads']);
 });
 
+test('generation uses reference cuts with and without VAD while preserving media offsets', () =>
+  fixture(async (directory) => {
+    const input = await generationFixture(directory);
+    const ffmpegPath = await executable(
+      directory,
+      'reference-ffmpeg',
+      `
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+fs.appendFileSync(${JSON.stringify(input.callsPath)}, JSON.stringify(args) + '\\n');
+if (args.includes('-c:s')) {
+  fs.writeFileSync(args.at(-1), '1\\n00:00:24,500 --> 00:00:26,500\\nHello\\n\\n2\\n00:00:45,500 --> 00:00:47,500\\nWorld\\n');
+} else if (args.at(-1) === '-') {
+  process.stdout.write('out_time_us=70000000\\nprogress=end\\n');
+} else fs.writeFileSync(args.at(-1), 'wav');
+`,
+    );
+    const vadPath = await executable(
+      directory,
+      'reference-vad',
+      "process.stdout.write('Detected 1 speech segments:\\nSpeech segment 0: start = 0.000, end = 7000.000\\n');",
+    );
+    const vadModelPath = path.join(directory, 'vad.bin');
+    await writeFile(vadModelPath, 'model');
+    for (const vad of [false, true]) {
+      await writeFile(input.callsPath, '');
+      const output = await generateJapaneseSubtitles({
+        ...input,
+        config: { ...input.config, ffmpegPath, vadPath, vadModelPath: vad ? vadModelPath : '' },
+        references: [
+          { label: 'English Full', delaySeconds: 0, source: { kind: 'embedded', streamIndex: 5 } },
+        ],
+      });
+      const calls: string[][] = (await readFile(input.callsPath, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line));
+      const clips = calls.filter((args) => args.includes('-ss'));
+      assert.equal(clips[0]?.[clips[0].indexOf('-t') + 1], '22.25');
+      assert.equal(clips[1]?.[clips[1].indexOf('-ss') + 1], '21.75');
+      const srt = await readFile(output, 'utf8');
+      assert.match(srt, /00:00:03,500 --> 00:00:04,500/);
+      assert.match(srt, /00:00:25,250 --> 00:00:26,250/);
+    }
+  }));
+
 test('external model path wins and invalid external models never fall back to download', () =>
   fixture(async (directory) => {
     const input = await generationFixture(directory);

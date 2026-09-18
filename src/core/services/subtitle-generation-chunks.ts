@@ -5,11 +5,12 @@ const CHUNK_CONTEXT_SECONDS = 0.25;
 const WHISPER_WINDOW_SECONDS = 30;
 const PAUSE_SEARCH_SECONDS = 5;
 
-// Prefer detected speech starts, then quiet pauses. Context stays inside retained audio.
+// Prefer subtitle timing hints, then detected speech starts and quiet pauses.
 export function splitSpeechPassages(
   passages: readonly SpeechPassage[],
   pauses: readonly number[] = [],
   speechStarts: readonly number[] = [],
+  referenceStarts: readonly number[] = [],
 ): SpeechPassage[] {
   return passages.flatMap((passage) => {
     if (passage.endSeconds - passage.startSeconds <= WHISPER_WINDOW_SECONDS)
@@ -22,17 +23,19 @@ export function splitSpeechPassages(
       if (target < passage.endSeconds) {
         // Starting in a long quiet lead-in can make Whisper place the next line
         // several seconds early. A nearby VAD start gives the next chunk an anchor.
-        let nearestSpeechStart: number | undefined;
-        for (const time of speechStarts) {
-          if (
-            time >= target - PAUSE_SEARCH_SECONDS &&
-            time <= target + PAUSE_SEARCH_SECONDS &&
-            time < passage.endSeconds &&
-            (nearestSpeechStart === undefined ||
-              Math.abs(time - target) < Math.abs(nearestSpeechStart - target))
-          )
-            nearestSpeechStart = time;
-        }
+        const nearestStart = (starts: readonly number[]): number | undefined => {
+          let nearest: number | undefined;
+          for (const time of starts) {
+            if (
+              time >= target - PAUSE_SEARCH_SECONDS &&
+              time <= target + PAUSE_SEARCH_SECONDS &&
+              time < passage.endSeconds &&
+              (nearest === undefined || Math.abs(time - target) < Math.abs(nearest - target))
+            )
+              nearest = time;
+          }
+          return nearest;
+        };
         let latestPause: number | undefined;
         for (const time of pauses) {
           if (
@@ -42,7 +45,7 @@ export function splitSpeechPassages(
           )
             latestPause = time;
         }
-        end = nearestSpeechStart ?? latestPause ?? end;
+        end = nearestStart(referenceStarts) ?? nearestStart(speechStarts) ?? latestPause ?? end;
       }
       chunks.push({
         startSeconds: Math.max(passage.startSeconds, boundary - CHUNK_CONTEXT_SECONDS),

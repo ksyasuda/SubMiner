@@ -13,6 +13,7 @@ import {
   parseSpeechPassages,
   speechPassageCues,
   SPEECH_PASSAGE_SECONDS,
+  type SpeechPassage,
 } from './subtitle-generation-speech';
 import type { SubtitleCue } from './subtitle-cue-parser';
 import { appendSpeechChunkCues, splitSpeechPassages } from './subtitle-generation-chunks';
@@ -21,46 +22,50 @@ import { findAudiblePassages, mergeSpeechPassages } from './subtitle-generation-
 
 export async function transcribeSubtitleDialogue(input: {
   config: SubtitleGenerationConfig;
-  tools: SubtitleGenerationToolPaths & { vad: string };
+  tools: SubtitleGenerationToolPaths;
+  referenceStarts?: readonly number[];
   modelPath: string;
   wavPath: string;
   directory: string;
   onProgress?: (progress: SubtitleGenerationProgress) => void;
   signal?: AbortSignal;
 }): Promise<string> {
-  const vadModelPath = expandSubtitleGenerationPath(input.config.vadModelPath);
-  await access(vadModelPath, constants.R_OK);
-  input.onProgress?.({ stage: 'transcribe', percent: 0, message: 'Finding spoken dialogue...' });
-  const segmentLines: string[] = [];
-  await runSubtitleGenerationProcess({
-    command: input.tools.vad,
-    args: [
-      '-f',
-      input.wavPath,
-      '-vm',
-      vadModelPath,
-      '-t',
-      String(input.config.threads),
-      '-vt',
-      '0.3',
-      '--vad-min-speech-duration-ms',
-      '100',
-      '--vad-min-silence-duration-ms',
-      '500',
-      '-vp',
-      '350',
-      '-vmsd',
-      String(SPEECH_PASSAGE_SECONDS),
-      '-np',
-    ],
-    signal: input.signal,
-    // Capture structured result lines separately from the bounded process log.
-    onLine: (line) => {
-      if (line.startsWith('Detected ') || line.startsWith('Speech segment '))
-        segmentLines.push(line);
-    },
-  });
-  const speech = parseSpeechPassages(segmentLines.join('\n'));
+  let speech: SpeechPassage[] = [];
+  if (input.tools.vad !== null) {
+    const vadModelPath = expandSubtitleGenerationPath(input.config.vadModelPath);
+    await access(vadModelPath, constants.R_OK);
+    input.onProgress?.({ stage: 'transcribe', percent: 0, message: 'Finding spoken dialogue...' });
+    const segmentLines: string[] = [];
+    await runSubtitleGenerationProcess({
+      command: input.tools.vad,
+      args: [
+        '-f',
+        input.wavPath,
+        '-vm',
+        vadModelPath,
+        '-t',
+        String(input.config.threads),
+        '-vt',
+        '0.3',
+        '--vad-min-speech-duration-ms',
+        '100',
+        '--vad-min-silence-duration-ms',
+        '500',
+        '-vp',
+        '350',
+        '-vmsd',
+        String(SPEECH_PASSAGE_SECONDS),
+        '-np',
+      ],
+      signal: input.signal,
+      // Capture structured result lines separately from the bounded process log.
+      onLine: (line) => {
+        if (line.startsWith('Detected ') || line.startsWith('Speech segment '))
+          segmentLines.push(line);
+      },
+    });
+    speech = parseSpeechPassages(segmentLines.join('\n'));
+  }
   input.onProgress?.({ stage: 'transcribe', percent: 0, message: 'Checking audio coverage...' });
   const audible = await findAudiblePassages({
     ffmpegPath: input.tools.ffmpeg,
@@ -82,6 +87,7 @@ export async function transcribeSubtitleDialogue(input: {
     detected,
     pauses,
     speech.map((passage) => passage.startSeconds),
+    input.referenceStarts,
   );
   const cues: SubtitleCue[] = [];
   for (const [index, passage] of passages.entries()) {

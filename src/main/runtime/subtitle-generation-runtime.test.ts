@@ -72,6 +72,27 @@ test('generation preserves the output without attaching it to a different video'
   assert.deepEqual(subject.commands, []);
 });
 
+test('generation selects loaded dialogue references and excludes the signs track', async () => {
+  const subject = fixture({
+    generate: async (input) => {
+      assert.deepEqual(input.references, [
+        { label: 'English Full', delaySeconds: 0, source: { kind: 'embedded', streamIndex: 5 } },
+      ]);
+      return '/video/generated.srt';
+    },
+  });
+  const request = subject.client.requestProperty;
+  subject.client.requestProperty = async (name) =>
+    name === 'track-list'
+      ? [
+          { type: 'audio', selected: true, 'ff-index': 3 },
+          { type: 'sub', lang: 'eng', title: 'Signs & Songs', 'ff-index': 4 },
+          { type: 'sub', lang: 'eng', title: 'English Full', 'ff-index': 5 },
+        ]
+      : request(name);
+  assert.equal((await subject.runtime.start()).ok, true);
+});
+
 test('mpv load failure still reports where the generated subtitles were saved', async () => {
   const subject = fixture();
   subject.client.request = async () => ({ error: 'loading failed' });
