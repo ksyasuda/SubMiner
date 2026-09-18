@@ -3162,6 +3162,53 @@ test('startup clears leaked parser metadata on safely titled anime without chang
   }
 });
 
+test('Jellyfin metadata cleanup requires both an API key and a stream marker', async () => {
+  const dbPath = makeDbPath();
+  let tracker: ImmersionTrackerService | null = null;
+  try {
+    const Ctor = await loadTrackerCtor();
+    tracker = new Ctor({ dbPath });
+    const db = (tracker as unknown as { db: DatabaseSync }).db;
+    const timestamp = toDbTimestamp(trackerNowMs());
+    const cases = [
+      { filename: 'stream?api_key=secret', leaked: true },
+      { filename: '/STREAM?API_KEY=secret', leaked: true },
+      { filename: '/Videos/item?api_key=secret', leaked: true },
+      { filename: 'MediaSourceId=item api key secret', leaked: true },
+      { filename: 'An API Key Story', leaked: false },
+      { filename: 'api_key=ordinary-metadata', leaked: false },
+      { filename: 'stream?quality=high', leaked: false },
+      { filename: '/Videos/item', leaked: false },
+      { filename: 'MediaSourceId=item', leaked: false },
+    ];
+    for (const [index, entry] of cases.entries()) {
+      db.prepare(
+        `
+        INSERT INTO imm_anime (
+          normalized_title_key, canonical_title, metadata_json, CREATED_DATE, LAST_UPDATE_DATE
+        ) VALUES (?, ?, ?, ?, ?)
+      `,
+      ).run(
+        `show-${index}`,
+        `Show ${index}`,
+        JSON.stringify({ filename: entry.filename }),
+        timestamp,
+        timestamp,
+      );
+    }
+    repairJellyfinStreamVideoLinks(db);
+    assert.deepEqual(
+      db.prepare('SELECT metadata_json FROM imm_anime ORDER BY anime_id').all(),
+      cases.map(({ filename, leaked }) => ({
+        metadata_json: leaked ? null : JSON.stringify({ filename }),
+      })),
+    );
+  } finally {
+    tracker?.destroy();
+    cleanupDbPath(dbPath);
+  }
+});
+
 test('Jellyfin link repair removes merged leaked anime rows and sanitizes orphan video titles', async () => {
   const dbPath = makeDbPath();
   let tracker: ImmersionTrackerService | null = null;

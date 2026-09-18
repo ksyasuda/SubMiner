@@ -57,6 +57,8 @@ From then on, pause / resume / seek / stop and audio or subtitle track changes y
 - **Japanese subtitles are auto-selected,** preferring Jellyfin's default and embedded tracks over external sidecar files when several match.
 - **Downloaded subtitles keep their original timing.** SubMiner removes Jellyfin's server-selected subtitle stream from the mpv load URL, suppresses the mpv plugin's one-shot subtitle auto-selection and overlay auto-start for managed Jellyfin loads, stages the subtitle files exposed by Jellyfin without letting mpv auto-switch between tracks, resets mpv's subtitle delay to zero, then selects the Japanese track. SubMiner does not compare Japanese and English cue timelines or save an inferred delay.
 
+On startup, SubMiner clears cached anime parser metadata containing both API-key text and Jellyfin stream markers. Metadata containing only one of these is preserved.
+
 ## Settings
 
 All Jellyfin options live under **Settings → Integrations → Jellyfin** (open settings from the tray's **Open SubMiner Settings**). The ones that matter for casting:

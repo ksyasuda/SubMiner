@@ -266,8 +266,15 @@ function repairLeakedJellyfinAnimeParseMetadata(
       `
     UPDATE imm_anime
     SET metadata_json = NULL, LAST_UPDATE_DATE = ?
-    WHERE metadata_json LIKE '%api_key=%'
-       OR lower(metadata_json) LIKE '%api key%'
+    WHERE (
+      metadata_json LIKE '%api_key=%'
+      OR lower(metadata_json) LIKE '%api key%'
+    ) AND (
+      lower(metadata_json) LIKE '%stream?%'
+      OR lower(metadata_json) LIKE '%/stream?%'
+      OR lower(metadata_json) LIKE '%/videos/%'
+      OR lower(metadata_json) LIKE '%mediasourceid%'
+    )
   `,
     )
     .run(currentTimestamp);

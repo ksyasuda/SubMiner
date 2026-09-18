@@ -47,6 +47,8 @@ The update flow:
 
 Failed AniList updates are persisted to a retry queue on disk and retried with exponential backoff.
 
+Updates are skipped if the media path cannot produce a safe, nonempty identity. Invalid entries are discarded when loading or adding to the retry queue.
+
 | Parameter        | Value      |
 | ---------------- | ---------- |
 | Initial backoff  | 30 seconds |

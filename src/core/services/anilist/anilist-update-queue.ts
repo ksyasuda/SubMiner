@@ -4,7 +4,9 @@ import { sanitizeMediaTitle, toMediaIdentityPath } from '../../../shared/media-i
 
 function normalizeAnilistRetryKey(key: string): string {
   const parts = key.match(/^(.*)::(\d+)$/s);
-  return parts ? `${toMediaIdentityPath(parts[1] ?? '')}::${parts[2]}` : toMediaIdentityPath(key);
+  const identity = toMediaIdentityPath(parts ? (parts[1] ?? '') : key);
+  if (!identity) return '';
+  return parts ? `${identity}::${parts[2]}` : identity;
 }
 
 const INITIAL_BACKOFF_MS = 30_000;
@@ -113,6 +115,7 @@ export function createAnilistUpdateQueue(
         )
         .filter((item) => sanitizeMediaTitle(item.title) !== null)
         .map((item) => ({ ...item, key: normalizeAnilistRetryKey(item.key) }))
+        .filter((item) => item.key !== '')
         .slice(0, MAX_ITEMS);
       deadLetter = parsedDeadLetter
         .filter(
@@ -130,6 +133,7 @@ export function createAnilistUpdateQueue(
         )
         .filter((item) => sanitizeMediaTitle(item.title) !== null)
         .map((item) => ({ ...item, key: normalizeAnilistRetryKey(item.key) }))
+        .filter((item) => item.key !== '')
         .slice(0, MAX_ITEMS);
       if (JSON.stringify({ pending, deadLetter }) !== JSON.stringify(parsed)) persist();
     } catch (error) {
@@ -149,6 +153,7 @@ export function createAnilistUpdateQueue(
     ): void {
       if (!sanitizeMediaTitle(title)) return;
       key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const existing =
         pending.find((item) => item.key === key) || deadLetter.find((item) => item.key === key);
       if (existing) {
@@ -179,6 +184,7 @@ export function createAnilistUpdateQueue(
 
     markSuccess(key: string): void {
       key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const before = pending.length;
       pending = pending.filter((item) => item.key !== key);
       if (pending.length !== before) {
@@ -188,6 +194,7 @@ export function createAnilistUpdateQueue(
 
     markFailure(key: string, reason: string, nowMs: number = Date.now()): void {
       key = normalizeAnilistRetryKey(key);
+      if (!key) return;
       const item = pending.find((candidate) => candidate.key === key);
       if (!item) {
         return;
