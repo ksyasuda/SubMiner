@@ -246,6 +246,8 @@ export interface SubtitleMiningContext {
   capturedAtMs?: number;
   /** Explicit generator padding. Confirmed timing-review ranges set this to zero. */
   mediaPaddingSeconds?: number;
+  /** Independent still screenshot selected during media timing review. */
+  screenshotTime?: number;
 }
 
 export interface SubtitleHoverTokenPayload {

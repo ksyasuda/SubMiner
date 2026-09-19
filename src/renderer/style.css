@@ -1347,7 +1347,7 @@ body:focus-visible,
 
 .media-timing-review-content {
   width: min(720px, calc(100vw - 32px));
-  max-height: min(700px, calc(100vh - 32px));
+  max-height: min(900px, calc(100vh - 32px));
   overflow: auto;
   gap: 0;
   padding: 0;
@@ -1423,6 +1423,86 @@ body:focus-visible,
 
 .media-timing-review-editor {
   padding: 14px 20px 18px;
+}
+
+.media-timing-frame-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--ctp-surface1);
+  border-radius: 10px;
+  background: var(--ctp-mantle);
+}
+
+.media-timing-frame-picker.hidden {
+  display: none;
+}
+.media-timing-frame-image-shell {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--ctp-crust);
+}
+.media-timing-frame-image-shell img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.media-timing-frame-picker[aria-busy='true'] img {
+  opacity: 0.55;
+}
+.media-timing-frame-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.media-timing-frame-heading output {
+  color: var(--ctp-teal);
+  font-variant-numeric: tabular-nums;
+}
+.media-timing-frame-controls input {
+  width: 100%;
+  margin: 12px 0;
+  accent-color: var(--ctp-teal);
+}
+.media-timing-frame-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.media-timing-frame-buttons button {
+  padding: 5px 8px;
+  border: 1px solid var(--ctp-surface2);
+  border-radius: 6px;
+  background: var(--ctp-surface0);
+  color: var(--ctp-text);
+  font-size: 11px;
+  cursor: pointer;
+}
+.media-timing-frame-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.media-timing-frame-controls p {
+  margin: 8px 0 0;
+  min-height: 2.6em;
+  color: var(--ctp-subtext0);
+  font-size: 11px;
+}
+@media (max-width: 520px) {
+  .media-timing-frame-picker {
+    grid-template-columns: 1fr;
+  }
+  .media-timing-frame-image-shell {
+    max-height: 180px;
+  }
 }
 
 .media-timing-review-sentence-header {

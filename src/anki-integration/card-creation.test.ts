@@ -290,6 +290,9 @@ test('CardCreationService keeps updating after recordCardsMinedCallback throws',
 });
 
 test('CardCreationService uses stream-open-filename for remote media generation', async () => {
+  let reviewing = false;
+  const audioRanges: number[][] = [];
+  const imageTimes: number[] = [];
   const audioPaths: string[] = [];
   const imagePaths: string[] = [];
   const recordMediaPath = (mediaInput: MediaInput): string =>
@@ -319,6 +322,10 @@ test('CardCreationService uses stream-open-filename for remote media generation'
         behavior: {},
         ai: false,
       }) as AnkiConnectConfig,
+    reviewMediaTiming: async () =>
+      reviewing
+        ? { action: 'confirm', startTime: 0.2, endTime: 0.8, screenshotTime: 3.125 }
+        : { action: 'use-original' },
     getAiConfig: () => ({}),
     getTimingTracker: () => ({}) as never,
     getMpvClient: () =>
@@ -349,16 +356,18 @@ test('CardCreationService uses stream-open-filename for remote media generation'
       ],
       updateNoteFields: async () => undefined,
       storeMediaFile: async () => undefined,
-      findNotes: async () => [],
+      findNotes: async () => [42],
       retrieveMediaFile: async () => '',
       deleteNotes: async () => undefined,
     },
     mediaGenerator: {
-      generateAudio: async (path) => {
+      generateAudio: async (path, start, end, padding) => {
+        audioRanges.push([start, end, padding ?? -1]);
         audioPaths.push(recordMediaPath(path));
         return Buffer.from('audio');
       },
-      generateScreenshot: async (path) => {
+      generateScreenshot: async (path, timestamp) => {
+        imageTimes.push(timestamp);
         imagePaths.push(recordMediaPath(path));
         return Buffer.from('image');
       },
@@ -406,6 +415,14 @@ test('CardCreationService uses stream-open-filename for remote media generation'
   assert.equal(created, true);
   assert.deepEqual(audioPaths, [audioUrl]);
   assert.deepEqual(imagePaths, [videoUrl]);
+  reviewing = true;
+  assert.equal(await service.createSentenceCard('テスト', 0, 1), true);
+  assert.deepEqual(audioRanges.at(-1), [0.2, 0.8, 0]);
+  assert.equal(imageTimes.at(-1), 3.125);
+  await service.markLastCardAsAudioCard();
+  assert.equal(imageTimes.length, 3);
+  assert.deepEqual(audioRanges.at(-1), [0.2, 0.8, 0]);
+  assert.equal(imageTimes.at(-1), 3.125);
 });
 
 test('CardCreationService does not use mpv stream indexes for ready cached YouTube media', async () => {

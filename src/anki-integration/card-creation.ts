@@ -536,6 +536,7 @@ export class CardCreationService {
               endTime,
               animatedLeadInSeconds,
               exactReviewedRange,
+              timingDecision.action === 'confirm' ? timingDecision.screenshotTime : undefined,
             );
 
             const imageField = this.deps.getConfig().fields?.image;
@@ -796,6 +797,9 @@ export class CardCreationService {
             generateImage,
             volumeScale,
             ...(exactReviewedRange ? { mediaPaddingSeconds: 0 } : {}),
+            ...(timingDecision.action === 'confirm' && timingDecision.screenshotTime !== undefined
+              ? { screenshotTime: timingDecision.screenshotTime }
+              : {}),
           });
           await this.deps.showNotification(noteId, label, 'media queued');
           return true;
@@ -840,6 +844,7 @@ export class CardCreationService {
               endTime,
               0,
               exactReviewedRange,
+              timingDecision.action === 'confirm' ? timingDecision.screenshotTime : undefined,
             );
 
             const imageField = config.fields?.image;
@@ -922,15 +927,16 @@ export class CardCreationService {
     endTime: number,
     animatedLeadInSeconds = 0,
     exactReviewedRange = false,
+    screenshotTime?: number,
   ): Promise<Buffer | null> {
     const mpvClient = this.deps.getMpvClient();
     if (!mpvClient) {
       return null;
     }
 
-    const timestamp = exactReviewedRange
-      ? startTime + (endTime - startTime) / 2
-      : mpvClient.currentTimePos || 0;
+    const timestamp =
+      screenshotTime ??
+      (exactReviewedRange ? startTime + (endTime - startTime) / 2 : mpvClient.currentTimePos || 0);
 
     if (this.deps.getConfig().media?.imageType === 'avif') {
       let imageStart = startTime;

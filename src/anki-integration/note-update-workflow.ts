@@ -253,6 +253,9 @@ export class NoteUpdateWorkflow {
             startTime: timingDecision.startTime,
             endTime: timingDecision.endTime,
             mediaPaddingSeconds: 0,
+            ...(timingDecision.screenshotTime !== undefined
+              ? { screenshotTime: timingDecision.screenshotTime }
+              : {}),
           };
         } else if (timingDecision.action === 'skip-media') {
           skipMedia = true;
