@@ -1,6 +1,6 @@
 import type { MediaKind } from '../../../shared/media-kind';
 
-export const SCHEMA_VERSION = 24;
+export const SCHEMA_VERSION = 25;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;

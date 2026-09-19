@@ -31,6 +31,7 @@ const SYNC_SCHEMA_OBJECTS = [
   'imm_lifetime_applied_sessions',
   'imm_stats_excluded_words',
   'idx_anime_normalized_title',
+  'idx_anime_kind_title',
   'idx_anime_anilist_id',
   'idx_videos_anime_id',
   'idx_sessions_video_started',

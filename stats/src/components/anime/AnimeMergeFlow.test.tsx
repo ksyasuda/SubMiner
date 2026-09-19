@@ -69,7 +69,9 @@ function findButton(container: Element, label: string): HTMLElement {
 
 /** Library cards only expose aria-pressed while selection mode is on. */
 function cardButtons(container: Element): HTMLButtonElement[] {
-  return [...container.querySelectorAll('.grid button[aria-pressed]')] as unknown as HTMLButtonElement[];
+  return [
+    ...container.querySelectorAll('.grid button[aria-pressed]'),
+  ] as unknown as HTMLButtonElement[];
 }
 
 function mergeButton(container: Element): HTMLButtonElement {

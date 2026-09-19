@@ -55,7 +55,7 @@ When older stats already grouped multiple seasons under one series entry, SubMin
 
 Jellyfin stream URLs are normalized to stable item links before stats titles are shown, so playback query parameters are not displayed in the dashboard.
 
-When YouTube channel metadata is available, the Library tab groups videos by creator/channel. Use **All Titles**, **Anime**, or **YouTube** above the grid to filter the library. Channel pages show tracked videos and their stats without AniList controls. Existing channel entries are classified as YouTube automatically on startup, preserving viewing history and manual video assignments. Channels are excluded from anime metadata matching, season repair, and duplicate recommendations.
+When YouTube channel metadata is available, the Library tab groups videos by creator/channel. Use **All Titles**, **Anime**, or **YouTube** above the grid to filter the library. Channel pages show tracked videos and their stats without AniList controls. Existing channel entries are classified as YouTube automatically on startup, preserving viewing history and manual video assignments. Anime and YouTube entries with the same normalized title remain separate, including during stats sync. Channels are excluded from anime metadata matching, season repair, and duplicate recommendations.
 
 A library entry is identified by its parsed title plus any detected season, so the same show can end up on several cards when releases disagree about the title or omit the season tag. Two fixes are available:
 
