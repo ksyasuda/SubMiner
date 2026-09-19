@@ -6,6 +6,7 @@ import { confirmAnimeDelete, setDeleteConfirmPresenter } from '../../lib/delete-
 import type { AnimeDetailData } from '../../types/stats';
 
 const DETAIL: AnimeDetailData['detail'] = {
+  mediaKind: 'anime',
   animeId: 3,
   canonicalTitle: 'Project Radio Noise Season 2',
   anilistId: 20661,
@@ -68,4 +69,17 @@ test('confirmAnimeDelete spells out how much data the entry deletion removes', a
   assert.match(seen[0] ?? '', /1 episode\b/);
   assert.match(seen[1] ?? '', /3 episodes/);
   assert.match(seen[0] ?? '', /every session and stat/);
+});
+
+test('YouTube channel headers show videos and omit all AniList controls', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeHeader
+      detail={{ ...DETAIL, mediaKind: 'youtube' }}
+      anilistEntries={[{ anilistId: 20661, titleRomaji: null, titleEnglish: null, season: null }]}
+      onChangeAnilist={() => {}}
+    />,
+  );
+  assert.match(markup, /YouTube channel/);
+  assert.match(markup, /video/);
+  assert.doesNotMatch(markup, /AniList|anilist\.co|episode/);
 });

@@ -12,7 +12,7 @@ export const IMMERSION_DB_FIXTURE_DDL = `
   );
   CREATE TABLE imm_anime(
     anime_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    normalized_title_key TEXT NOT NULL UNIQUE,
+    normalized_title_key TEXT NOT NULL,
     canonical_title TEXT NOT NULL,
     anilist_id INTEGER UNIQUE,
     title_romaji TEXT,
@@ -22,8 +22,10 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     description TEXT,
     metadata_json TEXT,
     CREATED_DATE TEXT,
-    LAST_UPDATE_DATE TEXT
+    LAST_UPDATE_DATE TEXT,
+    media_kind TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube'))
   );
+  CREATE UNIQUE INDEX idx_anime_kind_title ON imm_anime(media_kind, normalized_title_key);
   CREATE TABLE imm_videos(
     video_id INTEGER PRIMARY KEY AUTOINCREMENT,
     video_key TEXT NOT NULL UNIQUE,

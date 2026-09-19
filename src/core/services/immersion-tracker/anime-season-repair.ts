@@ -134,7 +134,7 @@ function getAnimeRow(db: DatabaseSync, animeId: number): AnimeRow | null {
           episodes_total,
           description
         FROM imm_anime
-        WHERE anime_id = ?
+        WHERE anime_id = ? AND media_kind = 'anime'
       `,
     )
     .get(animeId) as AnimeRow | null;
@@ -335,7 +335,8 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
           SELECT a.anime_id AS animeId
           FROM imm_anime a
           JOIN imm_videos v ON v.anime_id = a.anime_id
-          WHERE v.parsed_title IS NOT NULL
+          WHERE a.media_kind = 'anime'
+            AND v.parsed_title IS NOT NULL
             AND TRIM(v.parsed_title) != ''
             AND v.parsed_season IS NOT NULL
             AND v.parsed_season > 0
@@ -372,6 +373,11 @@ export function resolveAnimeAnilistConflict(
   anilistId: number,
   options: AnimeAnilistConflictOptions = {},
 ): AnimeSeasonRepairSummary {
+  if (!getAnimeRow(db, targetAnimeId)) {
+    const summary = emptySummary();
+    summary.anilistAssignmentBlocked = true;
+    return summary;
+  }
   const conflict = db
     .prepare(
       `
@@ -387,6 +393,11 @@ export function resolveAnimeAnilistConflict(
     return emptySummary();
   }
 
+  if (!getAnimeRow(db, conflict.animeId)) {
+    const summary = emptySummary();
+    summary.anilistAssignmentBlocked = true;
+    return summary;
+  }
   return runInTransaction(db, () => {
     const targetRow = getAnimeRow(db, targetAnimeId);
     if (

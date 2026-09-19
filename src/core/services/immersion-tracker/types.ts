@@ -1,4 +1,6 @@
-export const SCHEMA_VERSION = 23;
+import type { MediaKind } from '../../../shared/media-kind';
+
+export const SCHEMA_VERSION = 25;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -518,6 +520,7 @@ export interface YoutubeVideoMetadata {
 }
 
 export interface AnimeLibraryRow {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
@@ -531,6 +534,7 @@ export interface AnimeLibraryRow {
 }
 
 export interface AnimeDetailRow {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;

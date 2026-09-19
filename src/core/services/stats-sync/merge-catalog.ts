@@ -2,6 +2,7 @@ import { selectAll, selectOne, type SqlRow, type SyncDb } from './libsql-driver'
 import { insertRow, tableExists, type SyncMergeSummary } from './shared';
 
 const ANIME_COPY_COLUMNS = [
+  'media_kind',
   'normalized_title_key',
   'canonical_title',
   'anilist_id',
@@ -98,11 +99,28 @@ export function mergeAnime(
   summary: SyncMergeSummary,
 ): Map<number, number> {
   const map = new Map<number, number>();
-  const byAnilist = local.query('SELECT anime_id FROM imm_anime WHERE anilist_id = ?');
-  const byTitleKey = local.query('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?');
+  const byAnilist = local.query(
+    "SELECT anime_id FROM imm_anime WHERE anilist_id = ? AND media_kind = 'anime'",
+  );
+  const byTitleKey = local.query(
+    'SELECT anime_id FROM imm_anime WHERE normalized_title_key = ? AND media_kind = ?',
+  );
+  // A pre-classification channel can be repaired, but a genuine anime sharing
+  // its title must remain a separate entry.
+  const legacyChannel = local.query(`SELECT anime_id FROM imm_anime
+    WHERE normalized_title_key = ? AND media_kind = 'anime' AND (
+      normalized_title_key LIKE 'youtube channel %'
+      OR CASE WHEN json_valid(metadata_json)
+        THEN json_extract(metadata_json, '$.source') = 'youtube-channel' ELSE 0 END
+    )`);
+  const releaseChannelAnilistId = local.query(
+    "UPDATE imm_anime SET anilist_id = NULL WHERE media_kind = 'youtube' AND anilist_id = ?",
+  );
   const fillMissing = local.query(
     `UPDATE imm_anime
      SET
+       media_kind = ?,
+       anilist_id = CASE WHEN ? = 'youtube' THEN NULL ELSE anilist_id END,
        title_romaji = COALESCE(title_romaji, ?),
        title_english = COALESCE(title_english, ?),
        title_native = COALESCE(title_native, ?),
@@ -116,12 +134,24 @@ export function mergeAnime(
     `SELECT anime_id, ${ANIME_COPY_COLUMNS.join(', ')} FROM imm_anime`,
   )) {
     const remoteId = Number(row.anime_id);
-    const existing = ((row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
-      byTitleKey.get(row.normalized_title_key)) as SqlRow | undefined;
+    if (row.media_kind === 'anime' && row.anilist_id !== null) {
+      // AniList identifiers belong to anime, including when an older peer
+      // incorrectly attached one to a channel.
+      releaseChannelAnilistId.run(row.anilist_id);
+    }
+    const existing = ((row.media_kind === 'anime' && row.anilist_id !== null
+      ? byAnilist.get(row.anilist_id)
+      : undefined) ??
+      byTitleKey.get(row.normalized_title_key, row.media_kind) ??
+      (row.media_kind === 'youtube' ? legacyChannel.get(row.normalized_title_key) : undefined)) as
+      | SqlRow
+      | undefined;
     if (existing) {
       const localId = Number(existing.anime_id);
       map.set(remoteId, localId);
       fillMissing.run(
+        row.media_kind,
+        row.media_kind,
         row.title_romaji,
         row.title_english,
         row.title_native,
@@ -133,7 +163,9 @@ export function mergeAnime(
     }
     // No local row matched by anilist_id (checked first in `existing` above)
     // or title key, so the remote anilist_id — if any — is free to insert as-is.
-    const values = ANIME_COPY_COLUMNS.map((column) => row[column]);
+    const values = ANIME_COPY_COLUMNS.map((column) =>
+      column === 'anilist_id' && row.media_kind !== 'anime' ? null : row[column],
+    );
     map.set(remoteId, insertRow(local, 'imm_anime', ANIME_COPY_COLUMNS, values));
     summary.animeAdded += 1;
   }

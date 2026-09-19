@@ -1,3 +1,4 @@
+import type { MediaKind } from '../../../shared/media-kind';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
@@ -24,6 +25,7 @@ export interface TrackerPreparedStatements {
 }
 
 export interface AnimeRecordInput {
+  mediaKind?: MediaKind;
   parsedTitle: string;
   canonicalTitle: string;
   seasonScope?: number | null;
@@ -569,6 +571,8 @@ function ensureSubtitleLineEventIndex(db: DatabaseSync): void {
 }
 
 export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput): number {
+  const mediaKind = input.mediaKind ?? 'anime';
+  const anilistId = mediaKind === 'anime' ? input.anilistId : null;
   const seasonScope = normalizeSeasonScope(input.seasonScope);
   const identityTitle = buildSeasonScopedAnimeTitle(input.parsedTitle, seasonScope);
   const canonicalTitle =
@@ -580,17 +584,23 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
   }
 
   const byAnilistId =
-    input.anilistId !== null
-      ? (db.prepare('SELECT anime_id FROM imm_anime WHERE anilist_id = ?').get(input.anilistId) as {
+    anilistId !== null
+      ? (db
+          .prepare("SELECT anime_id FROM imm_anime WHERE anilist_id = ? AND media_kind = 'anime'")
+          .get(anilistId) as {
           anime_id: number;
         } | null)
       : null;
   const byNormalizedTitle = db
-    .prepare('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?')
-    .get(normalizedTitleKey) as { anime_id: number } | null;
+    .prepare('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ? AND media_kind = ?')
+    .get(normalizedTitleKey, mediaKind) as { anime_id: number } | null;
   const byTitleAlias = db
-    .prepare('SELECT anime_id FROM imm_anime_title_aliases WHERE normalized_title_key = ?')
-    .get(normalizedTitleKey) as { anime_id: number } | null;
+    .prepare(
+      `SELECT a.anime_id FROM imm_anime_title_aliases AS alias
+      JOIN imm_anime AS a ON a.anime_id = alias.anime_id
+      WHERE alias.normalized_title_key = ? AND a.media_kind = ?`,
+    )
+    .get(normalizedTitleKey, mediaKind) as { anime_id: number } | null;
   const existing = byAnilistId ?? byNormalizedTitle ?? byTitleAlias;
   if (existing?.anime_id) {
     // An alias remembers an intentionally merged-away spelling. Reusing it
@@ -600,8 +610,9 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       `
         UPDATE imm_anime
         SET
+          media_kind = COALESCE(?, media_kind),
           canonical_title = COALESCE(NULLIF(?, ''), canonical_title),
-          anilist_id = COALESCE(?, anilist_id),
+          anilist_id = CASE WHEN ? = 'youtube' THEN NULL ELSE COALESCE(?, anilist_id) END,
           title_romaji = COALESCE(?, title_romaji),
           title_english = COALESCE(?, title_english),
           title_native = COALESCE(?, title_native),
@@ -610,8 +621,10 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
+      byAnilistId || byNormalizedTitle ? (input.mediaKind ?? null) : null,
       canonicalTitleUpdate,
-      input.anilistId,
+      mediaKind,
+      anilistId,
       input.titleRomaji,
       input.titleEnglish,
       input.titleNative,
@@ -627,6 +640,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
     .prepare(
       `
         INSERT INTO imm_anime(
+          media_kind,
           normalized_title_key,
           canonical_title,
           anilist_id,
@@ -636,13 +650,14 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
           metadata_json,
           CREATED_DATE,
           LAST_UPDATE_DATE
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
     .run(
+      input.mediaKind ?? 'anime',
       normalizedTitleKey,
       canonicalTitle,
-      input.anilistId,
+      anilistId,
       input.titleRomaji,
       input.titleEnglish,
       input.titleNative,
@@ -803,6 +818,7 @@ export function linkYoutubeVideoToAnimeRecord(
   }
 
   const animeId = getOrCreateAnimeRecord(db, {
+    mediaKind: 'youtube',
     parsedTitle: identity.parsedTitle,
     canonicalTitle: identity.canonicalTitle,
     anilistId: null,
@@ -875,6 +891,70 @@ function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
   }
 }
 
+// SQLite cannot drop a table-level UNIQUE constraint. Rebuild with IDs intact
+// and foreign keys disabled so dependent history and manual assignments survive.
+function migrateAnimeTitleUniqueness(db: DatabaseSync): void {
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'imm_anime'").get() as {
+    sql: string;
+  };
+  if (/normalized_title_key TEXT NOT NULL UNIQUE/i.test(schema.sql)) {
+    const foreignKeys = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
+    const sequence = db
+      .prepare("SELECT seq FROM sqlite_sequence WHERE name = 'imm_anime'")
+      .get() as { seq: number } | null;
+    db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      db.exec('BEGIN IMMEDIATE');
+      db.exec(
+        schema.sql
+          .replace(
+            /CREATE TABLE (?:IF NOT EXISTS )?["`]?imm_anime["`]?/i,
+            'CREATE TABLE imm_anime_new',
+          )
+          .replace(
+            /normalized_title_key TEXT NOT NULL UNIQUE/i,
+            'normalized_title_key TEXT NOT NULL',
+          ),
+      );
+      db.exec(`INSERT INTO imm_anime_new SELECT * FROM imm_anime;
+        DROP TABLE imm_anime;
+        ALTER TABLE imm_anime_new RENAME TO imm_anime;`);
+      if (sequence) {
+        db.prepare("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'imm_anime'").run(
+          sequence.seq,
+        );
+      }
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    } finally {
+      db.exec(`PRAGMA foreign_keys = ${foreignKeys.foreign_keys}`);
+    }
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_kind_title
+    ON imm_anime(media_kind, normalized_title_key)`);
+}
+
+// Older builds can create channel rows with the default anime kind even after
+// the schema upgrade. Repair classification on every startup without moving videos.
+function classifyYoutubeChannels(db: DatabaseSync): void {
+  db.exec(`
+    UPDATE imm_anime
+    SET media_kind = 'youtube', anilist_id = NULL
+    WHERE media_kind = 'anime'
+      AND NOT EXISTS (SELECT 1 FROM imm_anime AS channel
+        WHERE channel.media_kind = 'youtube'
+          AND channel.normalized_title_key = imm_anime.normalized_title_key)
+      AND (
+        normalized_title_key LIKE 'youtube channel %'
+        OR CASE WHEN json_valid(metadata_json)
+           THEN json_extract(metadata_json, '$.source') = 'youtube-channel'
+           ELSE 0 END
+      )
+  `);
+}
+
 export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_schema_version (
@@ -897,6 +977,7 @@ export function ensureSchema(db: DatabaseSync): void {
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
+    classifyYoutubeChannels(db);
     ensureLexicalDailyRollupTables(db);
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
@@ -908,7 +989,7 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_anime(
       anime_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      normalized_title_key TEXT NOT NULL UNIQUE,
+      normalized_title_key TEXT NOT NULL,
       canonical_title TEXT NOT NULL,
       anilist_id INTEGER UNIQUE,
       title_romaji TEXT,
@@ -921,6 +1002,12 @@ export function ensureSchema(db: DatabaseSync): void {
       LAST_UPDATE_DATE TEXT
     );
   `);
+  addColumnIfMissing(
+    db,
+    'imm_anime',
+    'media_kind',
+    "TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube'))",
+  );
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_videos(
       video_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1464,6 +1551,8 @@ export function ensureSchema(db: DatabaseSync): void {
     );
   }
 
+  migrateAnimeTitleUniqueness(db);
+  classifyYoutubeChannels(db);
   migrateSessionEventTimestampsToText(db);
 
   ensureLexicalDailyRollupTables(db);

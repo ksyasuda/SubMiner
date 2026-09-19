@@ -1,3 +1,4 @@
+import type { MediaKind } from '../shared/media-kind';
 export interface SessionSummary {
   sessionId: number;
   canonicalTitle: string | null;
@@ -240,6 +241,7 @@ export const EventType = {
 export type EventType = (typeof EventType)[keyof typeof EventType];
 
 export interface AnimeLibraryItem {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
@@ -261,6 +263,7 @@ export interface AnilistEntry {
 
 export interface AnimeDetailData {
   detail: {
+    mediaKind: MediaKind;
     animeId: number;
     canonicalTitle: string;
     anilistId: number | null;

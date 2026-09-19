@@ -37,6 +37,7 @@ export function AnimeHeader({
   onDeleteAnime,
   isDeletingAnime = false,
 }: AnimeHeaderProps) {
+  const isYoutube = detail.mediaKind === 'youtube';
   const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative].filter(
     (t): t is string => t != null && t !== detail.canonicalTitle,
   );
@@ -61,33 +62,36 @@ export function AnimeHeader({
           </div>
         )}
         <div className="text-sm text-ctp-subtext0 mt-2">
-          {detail.episodeCount} episode{detail.episodeCount !== 1 ? 's' : ''}
+          {isYoutube ? 'YouTube channel · ' : ''}
+          {detail.episodeCount} {isYoutube ? 'video' : 'episode'}
+          {detail.episodeCount !== 1 ? 's' : ''}
         </div>
         <div className="flex flex-wrap gap-1.5 mt-2">
-          {anilistEntries.length > 0 ? (
-            hasMultipleEntries ? (
-              anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
-            ) : (
+          {!isYoutube &&
+            (anilistEntries.length > 0 ? (
+              hasMultipleEntries ? (
+                anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
+              ) : (
+                <a
+                  href={`https://anilist.co/anime/${anilistEntries[0]!.anilistId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
+                >
+                  View on AniList <span className="text-[10px]">{'\u2197'}</span>
+                </a>
+              )
+            ) : detail.anilistId ? (
               <a
-                href={`https://anilist.co/anime/${anilistEntries[0]!.anilistId}`}
+                href={`https://anilist.co/anime/${detail.anilistId}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
               >
                 View on AniList <span className="text-[10px]">{'\u2197'}</span>
               </a>
-            )
-          ) : detail.anilistId ? (
-            <a
-              href={`https://anilist.co/anime/${detail.anilistId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
-            >
-              View on AniList <span className="text-[10px]">{'\u2197'}</span>
-            </a>
-          ) : null}
-          {onChangeAnilist && (
+            ) : null)}
+          {!isYoutube && onChangeAnilist && (
             <button
               type="button"
               onClick={onChangeAnilist}

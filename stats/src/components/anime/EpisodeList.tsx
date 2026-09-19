@@ -17,6 +17,7 @@ const HOVER_REVEALED =
 
 interface EpisodeListProps {
   episodes: AnimeEpisode[];
+  isYoutube?: boolean;
   /** Entry these episodes currently belong to; excluded from the move picker. */
   animeId?: number;
   onEpisodeDeleted?: () => void;
@@ -27,6 +28,7 @@ interface EpisodeListProps {
 
 export function EpisodeList({
   episodes: initialEpisodes,
+  isYoutube = false,
   animeId,
   onEpisodeDeleted,
   onEpisodeMoved,
@@ -90,7 +92,7 @@ export function EpisodeList({
   return (
     <div className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-ctp-text">Episodes</h3>
+        <h3 className="text-sm font-semibold text-ctp-text">{isYoutube ? 'Videos' : 'Episodes'}</h3>
         <span className="text-xs text-ctp-overlay2">
           {watchedCount}/{episodes.length} watched
         </span>
@@ -178,7 +180,7 @@ export function EpisodeList({
                               onOpenDetail(ep.videoId);
                             }}
                             className="px-2 py-1 rounded border border-ctp-surface2 text-[11px] text-ctp-blue hover:border-ctp-blue/50 hover:bg-ctp-blue/10 transition-colors"
-                            title="Open episode details"
+                            title={isYoutube ? 'Open video details' : 'Open episode details'}
                           >
                             Details
                           </button>
@@ -218,8 +220,8 @@ export function EpisodeList({
                             void handleDeleteEpisode(ep.videoId, ep.canonicalTitle);
                           }}
                           className={`w-5 h-5 rounded border border-ctp-surface2 text-transparent hover:border-ctp-red/50 hover:text-ctp-red focus-visible:text-ctp-red hover:bg-ctp-red/10 transition-colors text-xs flex items-center justify-center ${HOVER_REVEALED}`}
-                          title="Delete episode"
-                          aria-label="Delete episode"
+                          title={isYoutube ? 'Delete video' : 'Delete episode'}
+                          aria-label={isYoutube ? 'Delete video' : 'Delete episode'}
                         >
                           {'\u2715'}
                         </button>
