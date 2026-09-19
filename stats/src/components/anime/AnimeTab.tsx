@@ -13,12 +13,19 @@ import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { DuplicateReviewStrip } from './DuplicateReviewStrip';
 
 type SortKey = 'lastWatched' | 'watchTime' | 'cards' | 'episodes';
+type KindFilter = 'all' | 'anime' | 'live_action';
 
 const GRID_CLASSES: Record<LibraryCardSize, string> = {
   sm: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
   md: 'grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9',
   lg: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7',
 };
+
+const KIND_OPTIONS: { key: KindFilter; label: string }[] = [
+  { key: 'all', label: 'All Titles' },
+  { key: 'anime', label: 'Anime' },
+  { key: 'live_action', label: 'Live Action' },
+];
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'lastWatched', label: 'Last Watched' },
@@ -68,6 +75,7 @@ export function AnimeTab({
   } = useAnimeLibrary();
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
     readLibraryCardSizePreference(
       getLibraryCardSizeStorage(typeof window === 'undefined' ? null : window),
@@ -108,13 +116,14 @@ export function AnimeTab({
   }, [initialAnimeId, onClearInitialAnime]);
 
   const filtered = useMemo(() => {
+    const byKind = kindFilter === 'all' ? anime : anime.filter((a) => a.mediaKind === kindFilter);
     const base = search.trim()
-      ? anime.filter((a) => a.canonicalTitle.toLowerCase().includes(search.toLowerCase()))
-      : anime;
+      ? byKind.filter((a) => a.canonicalTitle.toLowerCase().includes(search.toLowerCase()))
+      : byKind;
     return sortAnime(base, sortKey);
-  }, [anime, search, sortKey]);
+  }, [anime, search, sortKey, kindFilter]);
 
-  const totalMs = anime.reduce((sum, a) => sum + a.totalActiveMs, 0);
+  const totalMs = filtered.reduce((sum, a) => sum + a.totalActiveMs, 0);
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
@@ -163,6 +172,18 @@ export function AnimeTab({
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
         />
+        <select
+          value={kindFilter}
+          onChange={(e) => setKindFilter(e.target.value as KindFilter)}
+          aria-label="Filter by media kind"
+          className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
+        >
+          {KIND_OPTIONS.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
         <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
@@ -257,6 +278,11 @@ export function AnimeTab({
           ))}
         </div>
       )}
+
+      <p className="text-[11px] text-ctp-overlay2 pt-2">
+        Cover art and synopses come from AniList and TMDB. This product uses the TMDB API but is not
+        endorsed or certified by TMDB.
+      </p>
 
       {showMergeDialog && mergeEntries.length >= 2 && (
         <AnimeMergeDialog

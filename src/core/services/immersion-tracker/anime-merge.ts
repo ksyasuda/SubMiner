@@ -30,6 +30,9 @@ interface AnimeMetadataRow {
   title_native: string | null;
   episodes_total: number | null;
   description: string | null;
+  media_kind: string;
+  tmdb_id: number | null;
+  tmdb_type: string | null;
 }
 
 function emptyMergeSummary(survivingAnimeId: number): AnimeMergeSummary {
@@ -52,7 +55,8 @@ function readAnimeMetadata(db: DatabaseSync, animeId: number): AnimeMetadataRow 
   return (db
     .prepare(
       `
-        SELECT normalized_title_key, anilist_id, title_romaji, title_english, title_native, episodes_total, description
+        SELECT normalized_title_key, anilist_id, title_romaji, title_english, title_native, episodes_total, description,
+               media_kind, tmdb_id, tmdb_type
         FROM imm_anime
         WHERE anime_id = ?
       `,
@@ -131,6 +135,12 @@ function absorbAnimeMetadata(
         title_native = COALESCE(title_native, ?),
         episodes_total = COALESCE(episodes_total, ?),
         description = COALESCE(description, ?),
+        tmdb_id = COALESCE(tmdb_id, ?),
+        tmdb_type = CASE WHEN tmdb_id IS NULL THEN ? ELSE tmdb_type END,
+        media_kind = CASE
+          WHEN anilist_id IS NULL AND tmdb_id IS NULL AND ? IS NOT NULL THEN ?
+          ELSE media_kind
+        END,
         LAST_UPDATE_DATE = ?
       WHERE anime_id = ?
     `,
@@ -141,6 +151,10 @@ function absorbAnimeMetadata(
     source.title_native,
     source.episodes_total,
     source.description,
+    source.tmdb_id,
+    source.tmdb_type,
+    source.tmdb_id,
+    source.media_kind,
     updatedAt,
     targetAnimeId,
   );
@@ -163,6 +177,18 @@ export function mergeAnimeRecordsInTransaction(
   const summary = emptyMergeSummary(targetAnimeId);
   if (!animeExists(db, targetAnimeId)) {
     return summary;
+  }
+
+  // Validate the whole group before moving anything, including when the
+  // unlinked target would inherit conflicting providers from two sources.
+  const metadata = [targetAnimeId, ...new Set(sourceAnimeIds)].map((id) =>
+    readAnimeMetadata(db, id),
+  );
+  if (
+    metadata.some((row) => row?.anilist_id != null) &&
+    metadata.some((row) => row?.tmdb_id != null)
+  ) {
+    throw new Error('Cannot merge AniList and TMDB library entries');
   }
 
   const updatedAt = toDbTimestamp(nowMs());

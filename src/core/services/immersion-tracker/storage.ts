@@ -916,11 +916,18 @@ export function ensureSchema(db: DatabaseSync): void {
       title_native TEXT,
       episodes_total INTEGER,
       description TEXT,
+      media_kind TEXT NOT NULL DEFAULT 'anime',
+      tmdb_id INTEGER,
+      tmdb_type TEXT,
       metadata_json TEXT,
       CREATED_DATE TEXT,
       LAST_UPDATE_DATE TEXT
     );
   `);
+  // Schema 24: live-action entries carry a TMDB link instead of an AniList id.
+  addColumnIfMissing(db, 'imm_anime', 'media_kind', "TEXT NOT NULL DEFAULT 'anime'");
+  addColumnIfMissing(db, 'imm_anime', 'tmdb_id', 'INTEGER');
+  addColumnIfMissing(db, 'imm_anime', 'tmdb_type', 'TEXT');
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_videos(
       video_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1477,6 +1484,10 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_anime_anilist_id
     ON imm_anime(anilist_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_anime_tmdb_id
+    ON imm_anime(tmdb_id, tmdb_type)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_videos_anime_id

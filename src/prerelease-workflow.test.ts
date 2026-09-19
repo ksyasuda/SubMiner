@@ -125,18 +125,21 @@ test('prerelease workflow builds and uploads all release platforms', () => {
   assert.ok(executableRunLines(publish).includes('release/package-size-*.json'));
 });
 
-test('release callers pass only the declared macOS signing secrets to packaging', () => {
-  const secrets = [
+test('release callers pass only the declared packaging secrets', () => {
+  const signingSecrets = [
     'CSC_LINK',
     'CSC_KEY_PASSWORD',
     'APPLE_ID',
     'APPLE_APP_SPECIFIC_PASSWORD',
     'APPLE_TEAM_ID',
   ];
-  assert.deepEqual(
-    parsedPackageWorkflow.on?.workflow_call?.secrets,
-    Object.fromEntries(secrets.map((name) => [name, { required: true }])),
-  );
+  // The bundled TMDB key is optional: artifacts stay valid without it and
+  // users fall back to their own tmdb.apiKey.
+  const optionalSecrets = ['SUBMINER_TMDB_API_KEY'];
+  assert.deepEqual(parsedPackageWorkflow.on?.workflow_call?.secrets, {
+    ...Object.fromEntries(signingSecrets.map((name) => [name, { required: true }])),
+    ...Object.fromEntries(optionalSecrets.map((name) => [name, { required: false }])),
+  });
   for (const workflow of [
     parsedPrereleaseWorkflow,
     readWorkflow(resolve(__dirname, '../.github/workflows/release.yml')),
@@ -144,7 +147,12 @@ test('release callers pass only the declared macOS signing secrets to packaging'
     assert.equal(workflow.jobs?.package?.uses, './.github/workflows/package-release.yml');
     assert.deepEqual(
       workflow.jobs?.package?.secrets,
-      Object.fromEntries(secrets.map((name) => [name, '${{ secrets.' + name + ' }}'])),
+      Object.fromEntries(
+        [...signingSecrets, ...optionalSecrets].map((name) => [
+          name,
+          '${{ secrets.' + name + ' }}',
+        ]),
+      ),
     );
   }
 });

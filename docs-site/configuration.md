@@ -156,6 +156,7 @@ The configuration file includes several main sections:
 
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**TsukiHime**](#tsukihime) - Multi-language subtitle search and download
+- [**TMDB**](#tmdb) - Posters and synopses for live-action dramas and movies in the stats Library
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile
@@ -975,7 +976,7 @@ This example is intentionally compact. The option table below documents availabl
 | `tags`                                            | array of strings                            | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                                                                                                   |
 | `ankiConnect.deck`                                | string                                      | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available. In Settings, this dropdown auto-fills and persists Yomitan's current mining deck when available. |
 | `fields.word`                                     | string                                      | Card field for mined word / expression text (default: `Expression`)                                                                                                                                                             |
-| `fields.audio`                                    | string                                      | Card field for the generated sentence audio clip (default: `ExpressionAudio`). Set this to a dedicated field such as `SentenceAudio` so it does not collide with the word audio Yomitan writes.                                  |
+| `fields.audio`                                    | string                                      | Card field for the generated sentence audio clip (default: `ExpressionAudio`). Set this to a dedicated field such as `SentenceAudio` so it does not collide with the word audio Yomitan writes.                                 |
 | `fields.image`                                    | string                                      | Card field for images (default: `Picture`)                                                                                                                                                                                      |
 | `fields.sentence`                                 | string                                      | Card field for sentences (default: `Sentence`)                                                                                                                                                                                  |
 | `fields.miscInfo`                                 | string                                      | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                                                                                                       |
@@ -1156,6 +1157,32 @@ TsukiHime subtitle search works out of the box and needs no account or API key. 
 The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift+T`; set to `null` to disable). The older `animetosho` section and `shortcuts.openAnimetosho` are still accepted as deprecated aliases, with the current names taking precedence when both are set.
 
 See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, language tabs, and troubleshooting.
+
+### TMDB
+
+TMDB (The Movie Database) supplies posters, synopses, and show grouping for live-action dramas and movies in the stats [Library](/immersion-tracking#library). AniList only covers anime, so TMDB is what gives live-action titles a cover and a description.
+
+Release builds ship with a project TMDB key, so nothing needs to be configured. Set your own key to use your own quota, or when running SubMiner from source, where no key is bundled. Create one for free under **Settings > API** on [themoviedb.org](https://www.themoviedb.org/settings/api); either the short API key or the long "API Read Access Token" works.
+
+```json
+{
+  "tmdb": {
+    "apiKey": "",
+    "apiKeyCommand": "cat ~/.tmdb_key"
+  }
+}
+```
+
+| Option               | Values | Description                                                                                        |
+| -------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `tmdb.apiKey`        | string | Your own TMDB API key or read access token; overrides the bundled key (default: empty)             |
+| `tmdb.apiKeyCommand` | string | Shell command that prints the key to stdout, used instead of `apiKey` to keep it out of the config |
+
+Successful `apiKeyCommand` output is cached for the running client until `tmdb.apiKey` or `tmdb.apiKeyCommand` changes. Failed or empty command output uses the bundled key when available and waits 30 seconds before the next request can retry the command. Changing either credential setting resets this cooldown.
+
+Changes apply to the next TMDB request without a restart.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ### Japanese subtitle generation
 

@@ -33,6 +33,7 @@ import {
   applySessionLifetimeSummary,
   reconcileStaleActiveSessions,
   rebuildLifetimeSummaries as rebuildLifetimeSummaryTables,
+  rebuildLifetimeSummariesInTransaction,
   recomputeLifetimeAnimeFromMedia,
   recomputeLifetimeGlobalFromSummaries,
   repairLifetimeSummariesFromMedia,
@@ -90,6 +91,7 @@ import {
 } from './immersion-tracker/query-library';
 import {
   cleanupVocabularyStats,
+  clearAnimeCoverArt,
   getVideoDurationMs,
   markVideoWatched,
   upsertCoverArt,
@@ -115,7 +117,7 @@ import {
   dismissAnimeMergeRecommendation,
   getAnimeMergeRecommendations,
   repairLegacySeasonlessAnimeRows,
-  resolveAnimeAnilistConflict,
+  resolveAnimeAnilistConflictInTransaction,
   type AnimeMergeRecommendation,
 } from './immersion-tracker/anime-season-repair';
 import {
@@ -124,6 +126,11 @@ import {
   type AnimeMergeSummary,
   type VideoMoveSummary,
 } from './immersion-tracker/anime-merge';
+import {
+  linkAnimeToTmdbTitleInTransaction,
+  type LiveActionLinkResult,
+  type LiveActionTitleInput,
+} from './immersion-tracker/live-action-link';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -818,6 +825,10 @@ export class ImmersionTrackerService {
     return getAnimeDetail(this.db, animeId);
   }
 
+  async hasAnime(animeId: number): Promise<boolean> {
+    return Boolean(this.db.prepare('SELECT 1 FROM imm_anime WHERE anime_id = ?').get(animeId));
+  }
+
   async getAnimeEpisodes(animeId: number): Promise<AnimeEpisodeRow[]> {
     return getAnimeEpisodes(this.db, animeId);
   }
@@ -1016,19 +1027,31 @@ export class ImmersionTrackerService {
       coverUrl?: string | null;
     },
   ): Promise<void> {
+    const coverBlob = await this.downloadReplacementCover(info.coverUrl);
     this.requireWriteQueueDrained('reassigning an AniList entry');
-    // The user is acting on this entry, so it is the one that survives when
-    // another row already claims the same AniList id.
-    const repair = resolveAnimeAnilistConflict(this.db, animeId, info.anilistId, {
-      survivor: 'target',
-      matchConfidence: 'manual',
-    });
-    if (repair.anilistAssignmentBlocked) return;
-    this.db
-      .prepare(
-        `
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db
+        .prepare('UPDATE imm_anime SET tmdb_id = NULL, tmdb_type = NULL WHERE anime_id = ?')
+        .run(animeId);
+      // The user is acting on this entry, so it is the one that survives when
+      // another row already claims the same AniList id.
+      const repair = resolveAnimeAnilistConflictInTransaction(this.db, animeId, info.anilistId, {
+        survivor: 'target',
+        matchConfidence: 'manual',
+      });
+      if (repair.anilistAssignmentBlocked) {
+        this.db.exec('ROLLBACK');
+        return;
+      }
+      this.db
+        .prepare(
+          `
       UPDATE imm_anime
       SET anilist_id = ?,
+          media_kind = 'anime',
+          tmdb_id = NULL,
+          tmdb_type = NULL,
           title_romaji = COALESCE(?, title_romaji),
           title_english = COALESCE(?, title_english),
           title_native = COALESCE(?, title_native),
@@ -1037,46 +1060,32 @@ export class ImmersionTrackerService {
           LAST_UPDATE_DATE = ?
       WHERE anime_id = ?
     `,
-      )
-      .run(
-        info.anilistId,
-        info.titleRomaji ?? null,
-        info.titleEnglish ?? null,
-        info.titleNative ?? null,
-        info.episodesTotal ?? null,
-        info.description !== undefined ? 1 : 0,
-        info.description ?? null,
-        nowMs(),
-        animeId,
-      );
-    // Empty lifetime tables still need the retained-session bootstrap. Once a
-    // media ledger exists, only the redistributed and explicitly edited anime
-    // can have changed.
-    if (shouldBackfillLifetimeSummaries(this.db)) {
-      repairLifetimeSummariesFromMedia(this.db);
-    } else {
-      const affectedAnimeIds = new Set(repair.affectedAnimeIds);
-      affectedAnimeIds.add(animeId);
-      recomputeLifetimeAnimeFromMedia(this.db, [...affectedAnimeIds]);
-      recomputeLifetimeGlobalFromSummaries(this.db);
-    }
-
-    // Update cover art for all videos in this anime
-    if (info.coverUrl) {
-      const videos = this.db
-        .prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
-        .all(animeId) as Array<{ video_id: number }>;
-      let coverBlob: Buffer | null = null;
-      try {
-        const res = await fetch(info.coverUrl);
-        if (res.ok) {
-          coverBlob = Buffer.from(await res.arrayBuffer());
-        }
-      } catch {
-        /* ignore */
+        )
+        .run(
+          info.anilistId,
+          info.titleRomaji ?? null,
+          info.titleEnglish ?? null,
+          info.titleNative ?? null,
+          info.episodesTotal ?? null,
+          info.description !== undefined ? 1 : 0,
+          info.description ?? null,
+          nowMs(),
+          animeId,
+        );
+      // Empty lifetime tables still need the retained-session bootstrap. Once a
+      // media ledger exists, only the redistributed and explicitly edited anime
+      // can have changed.
+      if (shouldBackfillLifetimeSummaries(this.db)) {
+        rebuildLifetimeSummariesInTransaction(this.db);
+      } else {
+        const affectedAnimeIds = new Set(repair.affectedAnimeIds);
+        affectedAnimeIds.add(animeId);
+        recomputeLifetimeAnimeFromMedia(this.db, [...affectedAnimeIds]);
+        recomputeLifetimeGlobalFromSummaries(this.db);
       }
-      for (const v of videos) {
-        upsertCoverArt(this.db, v.video_id, {
+
+      if (info.coverUrl) {
+        this.applyCoverArtToAnimeVideos(animeId, {
           anilistId: info.anilistId,
           coverUrl: info.coverUrl,
           coverBlob,
@@ -1084,7 +1093,85 @@ export class ImmersionTrackerService {
           titleEnglish: info.titleEnglish ?? null,
           episodesTotal: info.episodesTotal ?? null,
         });
+      } else {
+        clearAnimeCoverArt(this.db, animeId);
       }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  /**
+   * Link a library entry to a TMDB title chosen in the dashboard. Every other
+   * entry pointing at the same title is folded into this one, and its poster
+   * replaces the art of every episode.
+   */
+  async reassignAnimeTmdb(
+    animeId: number,
+    details: LiveActionTitleInput & { posterUrl: string | null },
+  ): Promise<LiveActionLinkResult> {
+    const coverBlob = await this.downloadReplacementCover(details.posterUrl);
+    this.requireWriteQueueDrained('linking a TMDB title');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = linkAnimeToTmdbTitleInTransaction(this.db, animeId, details, {
+        mode: 'manual',
+      });
+      if (details.posterUrl) {
+        this.applyCoverArtToAnimeVideos(result.animeId, {
+          anilistId: null,
+          coverUrl: details.posterUrl,
+          coverBlob,
+          titleRomaji: null,
+          titleEnglish: details.titleEnglish,
+          episodesTotal: details.episodesTotal,
+        });
+      } else {
+        // The user chose this title deliberately, so art from the previous link
+        // must not keep standing in for it.
+        clearAnimeCoverArt(this.db, result.animeId);
+      }
+      this.db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  private async downloadReplacementCover(url: string | null | undefined): Promise<Buffer | null> {
+    if (!url) return null;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Cover download failed: ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  /** Stores the downloaded replacement against every episode of the entry. */
+  private applyCoverArtToAnimeVideos(
+    animeId: number,
+    art: {
+      anilistId: number | null;
+      coverUrl: string;
+      coverBlob: Buffer | null;
+      titleRomaji: string | null;
+      titleEnglish: string | null;
+      episodesTotal: number | null;
+    },
+  ): void {
+    const videos = this.db
+      .prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
+      .all(animeId) as Array<{ video_id: number }>;
+    for (const v of videos) {
+      upsertCoverArt(this.db, v.video_id, {
+        anilistId: art.anilistId,
+        coverUrl: art.coverUrl,
+        coverBlob: art.coverBlob,
+        titleRomaji: art.titleRomaji,
+        titleEnglish: art.titleEnglish,
+        episodesTotal: art.episodesTotal,
+      });
     }
   }
 

@@ -10,6 +10,9 @@ const ANIME_COPY_COLUMNS = [
   'title_native',
   'episodes_total',
   'description',
+  'media_kind',
+  'tmdb_id',
+  'tmdb_type',
   'metadata_json',
   'CREATED_DATE',
   'LAST_UPDATE_DATE',
@@ -99,7 +102,15 @@ export function mergeAnime(
 ): Map<number, number> {
   const map = new Map<number, number>();
   const byAnilist = local.query('SELECT anime_id FROM imm_anime WHERE anilist_id = ?');
-  const byTitleKey = local.query('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?');
+  const byTmdb = local.query(
+    'SELECT anime_id FROM imm_anime WHERE tmdb_id = ? AND tmdb_type = ? ORDER BY anime_id LIMIT 1',
+  );
+  const byTitleKey = local.query(
+    `SELECT anime_id, anilist_id, tmdb_id, tmdb_type FROM imm_anime WHERE normalized_title_key = ?`,
+  );
+  // A TMDB link only fills in when the local row is unlinked: a row already
+  // pinned to AniList stays anime, and vice versa, so the two link kinds never
+  // coexist on one entry.
   const fillMissing = local.query(
     `UPDATE imm_anime
      SET
@@ -107,7 +118,13 @@ export function mergeAnime(
        title_english = COALESCE(title_english, ?),
        title_native = COALESCE(title_native, ?),
        episodes_total = COALESCE(episodes_total, ?),
-       description = COALESCE(description, ?)
+       description = COALESCE(description, ?),
+       tmdb_id = CASE WHEN anilist_id IS NULL THEN COALESCE(tmdb_id, ?) ELSE tmdb_id END,
+       tmdb_type = CASE WHEN anilist_id IS NULL AND tmdb_id IS NULL THEN ? ELSE tmdb_type END,
+       media_kind = CASE
+         WHEN anilist_id IS NULL AND tmdb_id IS NULL AND ? IS NOT NULL THEN ?
+         ELSE media_kind
+       END
      WHERE anime_id = ?`,
   );
 
@@ -116,8 +133,21 @@ export function mergeAnime(
     `SELECT anime_id, ${ANIME_COPY_COLUMNS.join(', ')} FROM imm_anime`,
   )) {
     const remoteId = Number(row.anime_id);
+    const titleMatch = byTitleKey.get(row.normalized_title_key) as SqlRow | undefined;
+    const compatibleTitleMatch =
+      titleMatch &&
+      ((titleMatch.anilist_id === null && titleMatch.tmdb_id === null) ||
+        (row.anilist_id === null && row.tmdb_id === null) ||
+        (titleMatch.tmdb_id === null &&
+          row.tmdb_id === null &&
+          titleMatch.anilist_id === row.anilist_id) ||
+        (titleMatch.anilist_id === null &&
+          row.anilist_id === null &&
+          titleMatch.tmdb_id === row.tmdb_id &&
+          titleMatch.tmdb_type === row.tmdb_type));
     const existing = ((row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
-      byTitleKey.get(row.normalized_title_key)) as SqlRow | undefined;
+      (row.tmdb_id !== null ? byTmdb.get(row.tmdb_id, row.tmdb_type) : undefined) ??
+      (compatibleTitleMatch ? titleMatch : undefined)) as SqlRow | undefined;
     if (existing) {
       const localId = Number(existing.anime_id);
       map.set(remoteId, localId);
@@ -127,13 +157,22 @@ export function mergeAnime(
         row.title_native,
         row.episodes_total,
         row.description,
+        row.tmdb_id,
+        row.tmdb_type,
+        row.tmdb_id,
+        row.media_kind,
         localId,
       );
       continue;
     }
-    // No local row matched by anilist_id (checked first in `existing` above)
-    // or title key, so the remote anilist_id — if any — is free to insert as-is.
-    const values = ANIME_COPY_COLUMNS.map((column) => row[column]);
+    // Conflicting providers can share a title, but the stored title key is unique.
+    let titleKey = row.normalized_title_key;
+    for (let suffix = 1; byTitleKey.get(titleKey); suffix += 1) {
+      titleKey = `${row.normalized_title_key}:sync:${suffix}`;
+    }
+    const values = ANIME_COPY_COLUMNS.map((column) =>
+      column === 'normalized_title_key' ? titleKey : row[column],
+    );
     map.set(remoteId, insertRow(local, 'imm_anime', ANIME_COPY_COLUMNS, values));
     summary.animeAdded += 1;
   }

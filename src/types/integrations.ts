@@ -287,3 +287,9 @@ export interface TsukihimeConfig {
   apiBaseUrl?: string;
   maxSearchResults?: number;
 }
+
+/** TMDB (The Movie Database) access for live-action drama and movie metadata. */
+export interface TmdbConfig {
+  apiKey?: string;
+  apiKeyCommand?: string;
+}

@@ -307,6 +307,7 @@ function createMockTracker(
     getKanjiOccurrences: async () => OCCURRENCES,
     getAnimeLibrary: async () => ANIME_LIBRARY,
     getAnimeDetail: async (animeId: number) => (animeId === 1 ? ANIME_DETAIL : null),
+    hasAnime: async (animeId: number) => animeId === 1,
     getAnimeEpisodes: async () => ANIME_EPISODES,
     getAnimeAnilistEntries: async () => [],
     getAnimeWords: async () => ANIME_WORDS,
@@ -3835,4 +3836,52 @@ Aligned English subtitle
       ).createServer = originalCreateServer;
     }
   });
+});
+
+it('TMDB reassignment returns 404 for a missing library entry before fetching details', async () => {
+  const assignments: number[] = [];
+  let fetches = 0;
+  const app = createStatsApp(
+    createMockTracker({
+      reassignAnimeTmdb: async (animeId: number) => {
+        assignments.push(animeId);
+        return { animeId, mergedAnimeIds: [] };
+      },
+    }),
+    {
+      tmdbClient: {
+        search: async () => [],
+        getDetails: async () => {
+          fetches += 1;
+          return {
+            tmdbId: 12,
+            tmdbType: 'tv',
+            titleEnglish: 'Drama',
+            titleNative: null,
+            description: null,
+            posterUrl: null,
+            episodesTotal: 10,
+            year: null,
+            originalLanguage: 'ja',
+            isAnimation: false,
+            allTitles: ['Drama'],
+          };
+        },
+      },
+    },
+  );
+  const request = (animeId: number) =>
+    app.request(`/api/stats/anime/${animeId}/tmdb`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdbId: 12, tmdbType: 'tv' }),
+    });
+  assert.equal((await request(99999)).status, 404);
+  assert.equal(fetches, 0);
+  assert.deepEqual(assignments, []);
+  const response = await request(1);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(fetches, 1);
+  assert.deepEqual(assignments, [1]);
 });

@@ -429,6 +429,9 @@ import {
 } from './core/services/anilist/anilist-updater';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
+import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
+import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
+import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
 import { createAnilistTokenStore } from './core/services/anilist/anilist-token-store';
@@ -962,6 +965,8 @@ const reportFatalError = createFatalErrorReporter({
 
 let forceQuitTimer: ReturnType<typeof setTimeout> | null = null;
 const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+// Release builds stage a project TMDB key next to the compiled main process.
+const bundledTmdbApiKey = readBundledTmdbApiKey(__dirname);
 const statsPreloadPath = path.join(__dirname, 'preload-stats.js');
 const statsServerRuntime = createStatsServerRuntime({
   userDataPath: USER_DATA_PATH,
@@ -988,6 +993,7 @@ const statsServerRuntime = createStatsServerRuntime({
   },
   getYomitanAnkiDeckName: () => getCurrentYomitanAnkiDeckNameForRuntime(),
   getAnilistRateLimiter: () => anilistRateLimiter,
+  getBundledTmdbApiKey: () => bundledTmdbApiKey,
   resolveAnkiNoteId: (noteId) => appState.ankiIntegration?.resolveCurrentNoteId(noteId) ?? noteId,
   trackDuplicateNoteIdsForNote: (noteId, duplicateNoteIds) => {
     appState.ankiIntegration?.trackDuplicateNoteIdsForNote(noteId, duplicateNoteIds);
@@ -1680,6 +1686,17 @@ const anilistRateLimiter = createAnilistRateLimiter();
 const statsCoverArtFetcher = createCoverArtFetcher(
   anilistRateLimiter,
   createLogger('main:stats-cover-art'),
+  {
+    liveAction: createLiveActionMetadataResolver(
+      createTmdbClient({
+        resolveApiKey: createTmdbApiKeyResolver(
+          () => configService.getConfig().tmdb,
+          () => bundledTmdbApiKey,
+        ),
+      }),
+      createLogger('main:tmdb'),
+    ),
+  },
 );
 const anilistStateRuntime = createAnilistStateRuntime(buildAnilistStateRuntimeMainDepsHandler());
 const configDerivedRuntime = createConfigDerivedRuntime(buildConfigDerivedRuntimeMainDepsHandler());

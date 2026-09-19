@@ -7,6 +7,7 @@ import { AnimeHeader } from './AnimeHeader';
 import { EpisodeList } from './EpisodeList';
 import { AnimeWordList } from './AnimeWordList';
 import { AnilistSelector } from './AnilistSelector';
+import { TmdbSelector } from './TmdbSelector';
 import { AnimeOverviewStats } from './AnimeOverviewStats';
 import { CHART_THEME } from '../../lib/chart-theme';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -156,6 +157,7 @@ export function AnimeDetailView({
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
+  const [showTmdbSelector, setShowTmdbSelector] = useState(false);
   const [coverRetryToken, setCoverRetryToken] = useState(0);
   const [isDeletingAnime, setIsDeletingAnime] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -219,6 +221,7 @@ export function AnimeDetailView({
         anilistEntries={anilistEntries ?? []}
         coverRetryToken={coverRetryToken}
         onChangeAnilist={() => setShowAnilistSelector(true)}
+        onChangeTmdb={() => setShowTmdbSelector(true)}
         onDeleteAnime={() => void handleDeleteAnime()}
         isDeletingAnime={isDeletingAnime}
       />
@@ -244,6 +247,19 @@ export function AnimeDetailView({
           onClose={() => setShowAnilistSelector(false)}
           onLinked={() => {
             setShowAnilistSelector(false);
+            setCoverRetryToken((value) => value + 1);
+            reload();
+            onAnilistRelinked?.();
+          }}
+        />
+      )}
+      {showTmdbSelector && (
+        <TmdbSelector
+          animeId={animeId}
+          initialQuery={detail.canonicalTitle}
+          onClose={() => setShowTmdbSelector(false)}
+          onLinked={() => {
+            setShowTmdbSelector(false);
             setCoverRetryToken((value) => value + 1);
             reload();
             onAnilistRelinked?.();

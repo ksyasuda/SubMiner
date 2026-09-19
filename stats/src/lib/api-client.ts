@@ -15,6 +15,7 @@ import type {
   StatsMergeAnimeResponse,
   StatsMoveVideoRequest,
   StatsMoveVideoResponse,
+  StatsTmdbAssignment,
   StatsTrendGroupBy,
   StatsTrendRange,
   StatsVideoWatchedRequest,
@@ -254,6 +255,15 @@ export const apiClient = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(info),
+    });
+  },
+  searchTmdb: (query: string) =>
+    fetchJson('tmdbSearch', `/api/stats/tmdb/search?q=${encodeURIComponent(query)}`),
+  reassignAnimeTmdb: async (animeId: number, info: StatsTmdbAssignment): Promise<void> => {
+    await fetchResponse(`/api/stats/anime/${animeId}/tmdb`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(info satisfies StatsTmdbAssignment),
     });
   },
   mineCard: async (params: StatsMineCardParams): Promise<StatsMineCardResponse> => {
