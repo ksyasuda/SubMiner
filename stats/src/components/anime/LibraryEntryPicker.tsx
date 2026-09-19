@@ -144,7 +144,7 @@ export function LibraryEntryPicker({
               <AnimeCoverImage
                 animeId={entry.animeId}
                 title={entry.canonicalTitle}
-                coverRetryToken={entry.anilistId ?? 0}
+                coverRetryToken={entry.anilistId ?? entry.tmdbId ?? 0}
                 className="w-10 h-14 rounded shrink-0"
               />
               <div className="min-w-0 flex-1">

@@ -20,6 +20,9 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     title_native TEXT,
     episodes_total INTEGER,
     description TEXT,
+    media_kind TEXT NOT NULL DEFAULT 'anime',
+    tmdb_id INTEGER,
+    tmdb_type TEXT,
     metadata_json TEXT,
     CREATED_DATE TEXT,
     LAST_UPDATE_DATE TEXT

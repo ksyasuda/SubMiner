@@ -10,6 +10,9 @@ const ANIME_COPY_COLUMNS = [
   'title_native',
   'episodes_total',
   'description',
+  'media_kind',
+  'tmdb_id',
+  'tmdb_type',
   'metadata_json',
   'CREATED_DATE',
   'LAST_UPDATE_DATE',
@@ -99,7 +102,13 @@ export function mergeAnime(
 ): Map<number, number> {
   const map = new Map<number, number>();
   const byAnilist = local.query('SELECT anime_id FROM imm_anime WHERE anilist_id = ?');
+  const byTmdb = local.query(
+    'SELECT anime_id FROM imm_anime WHERE tmdb_id = ? AND tmdb_type = ? ORDER BY anime_id LIMIT 1',
+  );
   const byTitleKey = local.query('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?');
+  // A TMDB link only fills in when the local row is unlinked: a row already
+  // pinned to AniList stays anime, and vice versa, so the two link kinds never
+  // coexist on one entry.
   const fillMissing = local.query(
     `UPDATE imm_anime
      SET
@@ -107,7 +116,13 @@ export function mergeAnime(
        title_english = COALESCE(title_english, ?),
        title_native = COALESCE(title_native, ?),
        episodes_total = COALESCE(episodes_total, ?),
-       description = COALESCE(description, ?)
+       description = COALESCE(description, ?),
+       tmdb_id = CASE WHEN anilist_id IS NULL THEN COALESCE(tmdb_id, ?) ELSE tmdb_id END,
+       tmdb_type = CASE WHEN anilist_id IS NULL AND tmdb_id IS NULL THEN ? ELSE tmdb_type END,
+       media_kind = CASE
+         WHEN anilist_id IS NULL AND tmdb_id IS NULL AND ? IS NOT NULL THEN ?
+         ELSE media_kind
+       END
      WHERE anime_id = ?`,
   );
 
@@ -117,6 +132,7 @@ export function mergeAnime(
   )) {
     const remoteId = Number(row.anime_id);
     const existing = ((row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
+      (row.tmdb_id !== null ? byTmdb.get(row.tmdb_id, row.tmdb_type) : undefined) ??
       byTitleKey.get(row.normalized_title_key)) as SqlRow | undefined;
     if (existing) {
       const localId = Number(existing.anime_id);
@@ -127,6 +143,10 @@ export function mergeAnime(
         row.title_native,
         row.episodes_total,
         row.description,
+        row.tmdb_id,
+        row.tmdb_type,
+        row.tmdb_id,
+        row.media_kind,
         localId,
       );
       continue;

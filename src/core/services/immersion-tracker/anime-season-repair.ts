@@ -335,7 +335,8 @@ export function repairLegacySeasonlessAnimeRows(db: DatabaseSync): AnimeSeasonRe
           SELECT a.anime_id AS animeId
           FROM imm_anime a
           JOIN imm_videos v ON v.anime_id = a.anime_id
-          WHERE v.parsed_title IS NOT NULL
+          WHERE a.media_kind != 'live_action'
+            AND v.parsed_title IS NOT NULL
             AND TRIM(v.parsed_title) != ''
             AND v.parsed_season IS NOT NULL
             AND v.parsed_season > 0

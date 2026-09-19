@@ -90,6 +90,7 @@ import {
 } from './immersion-tracker/query-library';
 import {
   cleanupVocabularyStats,
+  clearAnimeCoverArt,
   getVideoDurationMs,
   markVideoWatched,
   upsertCoverArt,
@@ -124,6 +125,11 @@ import {
   type AnimeMergeSummary,
   type VideoMoveSummary,
 } from './immersion-tracker/anime-merge';
+import {
+  linkAnimeToTmdbTitle,
+  type LiveActionLinkResult,
+  type LiveActionTitleInput,
+} from './immersion-tracker/live-action-link';
 import {
   buildVideoKey,
   deriveCanonicalTitle,
@@ -1029,6 +1035,9 @@ export class ImmersionTrackerService {
         `
       UPDATE imm_anime
       SET anilist_id = ?,
+          media_kind = 'anime',
+          tmdb_id = NULL,
+          tmdb_type = NULL,
           title_romaji = COALESCE(?, title_romaji),
           title_english = COALESCE(?, title_english),
           title_native = COALESCE(?, title_native),
@@ -1061,30 +1070,76 @@ export class ImmersionTrackerService {
       recomputeLifetimeGlobalFromSummaries(this.db);
     }
 
-    // Update cover art for all videos in this anime
     if (info.coverUrl) {
-      const videos = this.db
-        .prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
-        .all(animeId) as Array<{ video_id: number }>;
-      let coverBlob: Buffer | null = null;
-      try {
-        const res = await fetch(info.coverUrl);
-        if (res.ok) {
-          coverBlob = Buffer.from(await res.arrayBuffer());
-        }
-      } catch {
-        /* ignore */
+      await this.applyCoverArtToAnimeVideos(animeId, {
+        anilistId: info.anilistId,
+        coverUrl: info.coverUrl,
+        titleRomaji: info.titleRomaji ?? null,
+        titleEnglish: info.titleEnglish ?? null,
+        episodesTotal: info.episodesTotal ?? null,
+      });
+    }
+  }
+
+  /**
+   * Link a library entry to a TMDB title chosen in the dashboard. Every other
+   * entry pointing at the same title is folded into this one, and its poster
+   * replaces the art of every episode.
+   */
+  async reassignAnimeTmdb(
+    animeId: number,
+    details: LiveActionTitleInput & { posterUrl: string | null },
+  ): Promise<LiveActionLinkResult> {
+    this.requireWriteQueueDrained('linking a TMDB title');
+    const result = linkAnimeToTmdbTitle(this.db, animeId, details, { mode: 'manual' });
+    if (details.posterUrl) {
+      await this.applyCoverArtToAnimeVideos(result.animeId, {
+        anilistId: null,
+        coverUrl: details.posterUrl,
+        titleRomaji: null,
+        titleEnglish: details.titleEnglish,
+        episodesTotal: details.episodesTotal,
+      });
+    } else {
+      // The user chose this title deliberately, so art from the previous link
+      // must not keep standing in for it.
+      clearAnimeCoverArt(this.db, result.animeId);
+    }
+    return result;
+  }
+
+  /** Downloads one cover and stores it against every episode of the entry. */
+  private async applyCoverArtToAnimeVideos(
+    animeId: number,
+    art: {
+      anilistId: number | null;
+      coverUrl: string;
+      titleRomaji: string | null;
+      titleEnglish: string | null;
+      episodesTotal: number | null;
+    },
+  ): Promise<void> {
+    const videos = this.db
+      .prepare('SELECT video_id FROM imm_videos WHERE anime_id = ?')
+      .all(animeId) as Array<{ video_id: number }>;
+    let coverBlob: Buffer | null = null;
+    try {
+      const res = await fetch(art.coverUrl);
+      if (res.ok) {
+        coverBlob = Buffer.from(await res.arrayBuffer());
       }
-      for (const v of videos) {
-        upsertCoverArt(this.db, v.video_id, {
-          anilistId: info.anilistId,
-          coverUrl: info.coverUrl,
-          coverBlob,
-          titleRomaji: info.titleRomaji ?? null,
-          titleEnglish: info.titleEnglish ?? null,
-          episodesTotal: info.episodesTotal ?? null,
-        });
-      }
+    } catch {
+      /* ignore */
+    }
+    for (const v of videos) {
+      upsertCoverArt(this.db, v.video_id, {
+        anilistId: art.anilistId,
+        coverUrl: art.coverUrl,
+        coverBlob,
+        titleRomaji: art.titleRomaji,
+        titleEnglish: art.titleEnglish,
+        episodesTotal: art.episodesTotal,
+      });
     }
   }
 

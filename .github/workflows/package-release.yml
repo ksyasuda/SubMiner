@@ -13,6 +13,9 @@ on:
         required: true
       APPLE_TEAM_ID:
         required: true
+      # Project TMDB key baked into release artifacts; builds stay valid without it.
+      SUBMINER_TMDB_API_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -69,6 +72,8 @@ jobs:
 
       - name: Build AppImage
         run: bun run build:appimage
+        env:
+          SUBMINER_TMDB_API_KEY: ${{ secrets.SUBMINER_TMDB_API_KEY }}
 
       - name: Build unversioned AppImage
         run: |
@@ -168,6 +173,7 @@ jobs:
       - name: Build signed + notarized macOS artifacts
         run: bun run build:mac
         env:
+          SUBMINER_TMDB_API_KEY: ${{ secrets.SUBMINER_TMDB_API_KEY }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -248,6 +254,8 @@ jobs:
 
       - name: Build unsigned Windows artifacts
         run: bun run build:win:unsigned
+        env:
+          SUBMINER_TMDB_API_KEY: ${{ secrets.SUBMINER_TMDB_API_KEY }}
 
       - name: Smoke packaged runtime assets
         shell: bash

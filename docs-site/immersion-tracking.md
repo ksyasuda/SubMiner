@@ -53,6 +53,8 @@ Local files and Jellyfin items with detected season numbers are split into seaso
 
 When older stats already grouped multiple seasons under one series entry, SubMiner moves parsed episodes into the season-specific entries on startup and rebuilds the affected summaries.
 
+**Live-action dramas and movies.** Anime covers come from AniList, which has no live-action titles. A title that AniList cannot match is looked up on [TMDB](/configuration#tmdb) instead (release builds bundle a key; source builds need your own): only a Japanese-language, non-animated result whose known titles match the parsed filename exactly is accepted, and it supplies the poster, synopsis, English and Japanese titles, and episode count. If nothing matches automatically, open the title and use **Link to TMDB** to search and pick it by hand. A TMDB show spans all of its seasons, so entries that resolve to the same TMDB title are merged into one card regardless of the season folder they came from, and the merged season titles are remembered so later episodes land on the same card. The **All Titles** filter above the grid narrows the Library to anime or live action, and a title's detail view shows whether it is a drama or a movie. Linking a title to AniList again turns it back into an anime entry.
+
 Jellyfin stream URLs are normalized to stable item links before stats titles are shown, so playback query parameters are not displayed in the dashboard.
 
 When YouTube channel metadata is available, the Library tab groups videos by creator/channel and treats each tracked video as an episode-like entry inside that channel section.
@@ -327,14 +329,14 @@ LIMIT ?;
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 - Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
-### Schema (v23)
+### Schema (v24)
 
 The exact schema version lives in `SCHEMA_VERSION` (`src/core/services/immersion-tracker/types.ts`) and is recorded in the `imm_schema_version` table.
 
 Core tables:
 
 - `imm_videos` - video key/title/source metadata
-- `imm_anime` - anime/series metadata referenced by videos and lifetime tables
+- `imm_anime` - series metadata referenced by videos and lifetime tables, including the media kind (`anime` or `live_action`) and the AniList or TMDB link
 - `imm_anime_title_aliases` - alternate titles that resolve to the same anime row
 - `imm_anime_merge_recommendations` - candidate duplicate-series merges surfaced in the dashboard
 - `imm_sessions` - session UUID, video reference, timing/status, final denormalized totals

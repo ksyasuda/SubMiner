@@ -165,6 +165,14 @@ const INTEGRATION_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
     key: 'tsukihime',
   },
   {
+    title: 'TMDB',
+    description: [
+      'TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.',
+    ],
+    notes: ['Hot-reload: TMDB changes apply to the next TMDB request.'],
+    key: 'tmdb',
+  },
+  {
     title: 'YouTube Playback Settings',
     description: [
       'Defaults for managed subtitle language preferences and YouTube subtitle loading.',

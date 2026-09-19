@@ -1,4 +1,6 @@
-export const SCHEMA_VERSION = 23;
+import type { MediaKind, TmdbMediaType } from '../../../shared/media-kind';
+
+export const SCHEMA_VERSION = 24;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -521,6 +523,9 @@ export interface AnimeLibraryRow {
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
+  mediaKind: MediaKind;
+  tmdbId: number | null;
+  tmdbType: TmdbMediaType | null;
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
@@ -534,6 +539,9 @@ export interface AnimeDetailRow {
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
+  mediaKind: MediaKind;
+  tmdbId: number | null;
+  tmdbType: TmdbMediaType | null;
   titleRomaji: string | null;
   titleEnglish: string | null;
   titleNative: string | null;

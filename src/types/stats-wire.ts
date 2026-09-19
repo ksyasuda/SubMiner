@@ -1,3 +1,5 @@
+import type { MediaKind, TmdbMediaType } from '../shared/media-kind';
+
 export interface SessionSummary {
   sessionId: number;
   canonicalTitle: string | null;
@@ -243,6 +245,9 @@ export interface AnimeLibraryItem {
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
+  mediaKind: MediaKind;
+  tmdbId: number | null;
+  tmdbType: TmdbMediaType | null;
   totalSessions: number;
   totalActiveMs: number;
   totalCards: number;
@@ -264,6 +269,9 @@ export interface AnimeDetailData {
     animeId: number;
     canonicalTitle: string;
     anilistId: number | null;
+    mediaKind: MediaKind;
+    tmdbId: number | null;
+    tmdbType: TmdbMediaType | null;
     titleRomaji: string | null;
     titleEnglish: string | null;
     titleNative: string | null;
