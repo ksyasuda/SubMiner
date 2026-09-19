@@ -6,6 +6,7 @@ import type { StatsTmdbSearchResult } from '../../../types/stats-http-contract';
 export const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
 const TMDB_POSTER_BASE_URL = 'https://image.tmdb.org/t/p/w500';
 const REQUEST_TIMEOUT_MS = 8_000;
+const API_KEY_COMMAND_RETRY_MS = 30_000;
 const ANIMATION_GENRE_ID = 16;
 
 export type TmdbSearchResult = StatsTmdbSearchResult;
@@ -92,6 +93,7 @@ export function createTmdbApiKeyResolver(
         apiKey: string | undefined;
         apiKeyCommand: string | undefined;
         pending: Promise<string | null> | null;
+        retryAfterMs: number;
       }
     | undefined;
 
@@ -102,15 +104,26 @@ export function createTmdbApiKeyResolver(
       state.apiKey !== config?.apiKey ||
       state.apiKeyCommand !== config?.apiKeyCommand
     ) {
-      state = { apiKey: config?.apiKey, apiKeyCommand: config?.apiKeyCommand, pending: null };
+      state = {
+        apiKey: config?.apiKey,
+        apiKeyCommand: config?.apiKeyCommand,
+        pending: null,
+        retryAfterMs: 0,
+      };
     }
     const current = state;
     const literal = current.apiKey?.trim();
     if (literal) return literal;
     if (!current.apiKeyCommand?.trim()) return getBundledKey();
-    current.pending ??= resolveTmdbApiKey(current);
+    if (Date.now() < current.retryAfterMs) return getBundledKey();
+    current.pending ??= resolveTmdbApiKey(current).then((key) => {
+      if (!key) {
+        current.retryAfterMs = Date.now() + API_KEY_COMMAND_RETRY_MS;
+        current.pending = null;
+      }
+      return key;
+    });
     const key = await current.pending;
-    if (!key) current.pending = null;
     return key ?? getBundledKey();
   };
 }

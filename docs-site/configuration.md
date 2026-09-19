@@ -1178,7 +1178,7 @@ Release builds ship with a project TMDB key, so nothing needs to be configured. 
 | `tmdb.apiKey`        | string | Your own TMDB API key or read access token; overrides the bundled key (default: empty)             |
 | `tmdb.apiKeyCommand` | string | Shell command that prints the key to stdout, used instead of `apiKey` to keep it out of the config |
 
-Successful `apiKeyCommand` output is cached for the running client until `tmdb.apiKey` or `tmdb.apiKeyCommand` changes. Failed or empty command output is retried on the next request.
+Successful `apiKeyCommand` output is cached for the running client until `tmdb.apiKey` or `tmdb.apiKeyCommand` changes. Failed or empty command output uses the bundled key when available and waits 30 seconds before the next request can retry the command. Changing either credential setting resets this cooldown.
 
 Changes apply to the next TMDB request without a restart.
 

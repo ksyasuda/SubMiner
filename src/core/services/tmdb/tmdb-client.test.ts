@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -10,6 +10,22 @@ import {
   createTmdbApiKeyResolver,
   resolveTmdbApiKey,
 } from './tmdb-client.js';
+
+function commandFixture(t: TestContext) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer tmdb command-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let nextId = 0;
+  const quotePath = (value: string) =>
+    `"${process.platform === 'win32' ? value : value.replace(/["\\$`]/g, '\\$&')}"`;
+  return {
+    dir,
+    command(source: string): string {
+      const script = path.join(dir, `credential-${nextId++}.cjs`);
+      fs.writeFileSync(script, source);
+      return `${quotePath(process.execPath)} ${quotePath(script)}`;
+    },
+  };
+}
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -28,22 +44,37 @@ function captureFetch(handler: (url: URL, init?: RequestInit) => Response) {
   return { calls, fetchImpl };
 }
 
-test('resolveTmdbApiKey prefers the literal key and trims it', async () => {
-  assert.equal(await resolveTmdbApiKey({ apiKey: '  abc  ', apiKeyCommand: 'echo nope' }), 'abc');
+test('resolveTmdbApiKey prefers the literal key and trims it', async (t) => {
+  const { command } = commandFixture(t);
+  assert.equal(
+    await resolveTmdbApiKey({ apiKey: '  abc  ', apiKeyCommand: command('process.exit(3)') }),
+    'abc',
+  );
   assert.equal(await resolveTmdbApiKey({ apiKey: '', apiKeyCommand: '' }), null);
   assert.equal(await resolveTmdbApiKey(undefined), null);
 });
 
-test('resolveTmdbApiKey runs apiKeyCommand when no literal key is set', async () => {
-  assert.equal(await resolveTmdbApiKey({ apiKeyCommand: 'printf " from-cmd "' }), 'from-cmd');
-  assert.equal(await resolveTmdbApiKey({ apiKeyCommand: 'exit 3' }), null);
+test('resolveTmdbApiKey runs apiKeyCommand when no literal key is set', async (t) => {
+  const { command } = commandFixture(t);
+  assert.equal(
+    await resolveTmdbApiKey({ apiKeyCommand: command('process.stdout.write(" from-cmd ")') }),
+    'from-cmd',
+  );
+  assert.equal(await resolveTmdbApiKey({ apiKeyCommand: command('process.exit(3)') }), null);
 });
 
-test('resolveTmdbApiKey falls back to the bundled key only when the user set nothing usable', async () => {
+test('resolveTmdbApiKey falls back to the bundled key only when the user set nothing usable', async (t) => {
+  const { command } = commandFixture(t);
   assert.equal(await resolveTmdbApiKey({}, 'bundled'), 'bundled');
   assert.equal(await resolveTmdbApiKey({ apiKey: 'mine' }, 'bundled'), 'mine');
-  assert.equal(await resolveTmdbApiKey({ apiKeyCommand: 'printf mine' }, 'bundled'), 'mine');
-  assert.equal(await resolveTmdbApiKey({ apiKeyCommand: 'exit 3' }, 'bundled'), 'bundled');
+  assert.equal(
+    await resolveTmdbApiKey({ apiKeyCommand: command('process.stdout.write("mine")') }, 'bundled'),
+    'mine',
+  );
+  assert.equal(
+    await resolveTmdbApiKey({ apiKeyCommand: command('process.exit(3)') }, 'bundled'),
+    'bundled',
+  );
 });
 
 test('search rejects without a key and never touches the network', async () => {
@@ -205,11 +236,17 @@ test('getDetails returns null for an unknown id', async () => {
   assert.equal(await client.getDetails('tv', 1), null);
 });
 
-test('client reuses command output across requests and invalidates it when either setting changes', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tmdb-command-'));
-  const counter = path.join(dir, 'calls');
-  const command = `printf x >> '${counter}'; printf command-key`;
-  let config: TmdbConfig = { apiKeyCommand: command };
+test('client reuses command output across requests and invalidates it when either setting changes', async (t) => {
+  const fixture = commandFixture(t);
+  const counter = path.join(fixture.dir, 'calls');
+  const createCommand = (key: string) =>
+    fixture.command(`
+    const fs = require('node:fs');
+    const path = require('node:path');
+    fs.appendFileSync(path.join(__dirname, 'calls'), 'x');
+    process.stdout.write(${JSON.stringify(key)});
+  `);
+  let config: TmdbConfig = { apiKeyCommand: createCommand('command-key') };
   const { calls, fetchImpl } = captureFetch(() => jsonResponse({ results: [] }));
   const client = createTmdbClient({
     resolveApiKey: createTmdbApiKeyResolver(
@@ -218,39 +255,81 @@ test('client reuses command output across requests and invalidates it when eithe
     ),
     fetch: fetchImpl,
   });
-  try {
-    await Promise.all([client.search('a'), client.search('b')]);
-    await client.getDetails('tv', 1);
-    assert.equal(fs.readFileSync(counter, 'utf8'), 'x');
-    assert.ok(calls.every(({ url }) => url.searchParams.get('api_key') === 'command-key'));
-    config = { ...config, apiKey: 'literal' };
-    await client.search('c');
-    assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'literal');
-    config = { ...config, apiKey: '' };
-    await client.search('d');
-    assert.equal(fs.readFileSync(counter, 'utf8'), 'xx');
-    config = { apiKeyCommand: command.replace('command-key', 'new-key') };
-    await client.search('e');
-    assert.equal(fs.readFileSync(counter, 'utf8'), 'xxx');
-    assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'new-key');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  await Promise.all([client.search('a'), client.search('b')]);
+  await client.getDetails('tv', 1);
+  assert.equal(fs.readFileSync(counter, 'utf8'), 'x');
+  assert.ok(calls.every(({ url }) => url.searchParams.get('api_key') === 'command-key'));
+  config = { ...config, apiKey: 'literal' };
+  await client.search('c');
+  assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'literal');
+  config = { ...config, apiKey: '' };
+  await client.search('d');
+  assert.equal(fs.readFileSync(counter, 'utf8'), 'xx');
+  config = { apiKeyCommand: createCommand('new-key') };
+  await client.search('e');
+  assert.equal(fs.readFileSync(counter, 'utf8'), 'xxx');
+  assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'new-key');
 });
 
-test('failed commands retry instead of caching the bundled fallback', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tmdb-retry-'));
-  const marker = path.join(dir, 'ready');
-  const resolve = createTmdbApiKeyResolver(
-    () => ({
-      apiKeyCommand: `if [ -f '${marker}' ]; then printf recovered; else touch '${marker}'; exit 1; fi`,
-    }),
-    () => 'bundled',
-  );
-  try {
+for (const failure of ['error', 'empty'] as const) {
+  test(`${failure} command output uses a bounded cooldown before retrying`, async (t) => {
+    const fixture = commandFixture(t);
+    const counter = path.join(fixture.dir, 'calls');
+    const command = fixture.command(`
+      const fs = require('node:fs');
+      const path = require('node:path');
+      const counter = path.join(__dirname, 'calls');
+      fs.appendFileSync(counter, 'x');
+      if (fs.readFileSync(counter, 'utf8').length === 1) process.exit(${failure === 'error' ? 1 : 0});
+      process.stdout.write('recovered');
+    `);
+    let now = 1000;
+    const originalNow = Date.now;
+    Date.now = () => now;
+    t.after(() => {
+      Date.now = originalNow;
+    });
+    let bundledKey: string | null = 'bundled';
+    const resolve = createTmdbApiKeyResolver(
+      () => ({ apiKeyCommand: command }),
+      () => bundledKey,
+    );
+    assert.deepEqual(await Promise.all([resolve(), resolve()]), ['bundled', 'bundled']);
+    now += 29_999;
     assert.equal(await resolve(), 'bundled');
+    bundledKey = null;
+    assert.equal(await resolve(), null);
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'x');
+    now += 1;
     assert.equal(await resolve(), 'recovered');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+    assert.equal(await resolve(), 'recovered');
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'xx');
+  });
+}
+
+for (const setting of ['apiKey', 'apiKeyCommand'] as const) {
+  test(`changing ${setting} clears a failed command cooldown`, async (t) => {
+    const fixture = commandFixture(t);
+    const counter = path.join(fixture.dir, 'calls');
+    const source = `
+      const fs = require('node:fs');
+      const path = require('node:path');
+      fs.appendFileSync(path.join(__dirname, 'calls'), 'x');
+      process.exit(1);
+    `;
+    let config: TmdbConfig = { apiKeyCommand: fixture.command(source) };
+    const resolve = createTmdbApiKeyResolver(
+      () => config,
+      () => 'bundled',
+    );
+    assert.equal(await resolve(), 'bundled');
+    assert.equal(await resolve(), 'bundled');
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'x');
+    config =
+      setting === 'apiKey'
+        ? { ...config, apiKey: ' ' }
+        : { apiKeyCommand: fixture.command(source) };
+    assert.equal(await resolve(), 'bundled');
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'xx');
+  });
+}

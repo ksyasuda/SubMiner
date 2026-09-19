@@ -282,3 +282,25 @@ for (const mode of ['manual', 'auto'] as const) {
     });
   });
 }
+
+for (const mode of ['manual', 'auto'] as const) {
+  test(`${mode} TMDB linking refreshes completion totals without merging records`, () => {
+    withDb((db) => {
+      insertAnime(db, 1, 'Hanzawa Naoki');
+      insertEpisode(db, 1, 1, 1);
+      const completed = () =>
+        (
+          db
+            .prepare('SELECT anime_completed AS count FROM imm_lifetime_global WHERE global_id = 1')
+            .get() as { count: number }
+        ).count;
+      assert.equal(completed(), 0);
+      const result = linkAnimeToTmdbTitle(db, 1, { ...HANZAWA, episodesTotal: 1 }, { mode });
+      assert.deepEqual(result.mergedAnimeIds, []);
+      assert.equal(completed(), 1);
+      linkAnimeToTmdbTitle(db, 1, { ...HANZAWA, episodesTotal: 2 }, { mode: 'manual' });
+      assert.equal(completed(), 0);
+      assert.equal(animeCount(db), 1);
+    });
+  });
+}

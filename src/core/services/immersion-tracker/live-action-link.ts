@@ -158,7 +158,7 @@ export function linkAnimeToTmdbTitleInTransaction(
       survivor,
     );
   }
-  if (mergedAnimeIds.length > 0) recomputeLifetimeAnimeAggregatesInTransaction(db);
+  recomputeLifetimeAnimeAggregatesInTransaction(db);
   return { animeId: survivor, mergedAnimeIds };
 }
 
