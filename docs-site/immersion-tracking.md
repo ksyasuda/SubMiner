@@ -327,14 +327,14 @@ LIMIT ?;
 - Large-table reads are index-backed for `sample_ms`, session time windows, frequency-ranked words/kanji, and cover-art identity lookups.
 - Workload-dependent tuning knobs remain at defaults unless you change them: `cache_size`, `mmap_size`, `temp_store`, `auto_vacuum`.
 
-### Schema (v23)
+### Schema (v24)
 
 The exact schema version lives in `SCHEMA_VERSION` (`src/core/services/immersion-tracker/types.ts`) and is recorded in the `imm_schema_version` table.
 
 Core tables:
 
 - `imm_videos` - video key/title/source metadata
-- `imm_anime` - anime/series metadata referenced by videos and lifetime tables
+- `imm_anime` - anime/series or YouTube channel metadata (`media_kind`) referenced by videos and lifetime tables
 - `imm_anime_title_aliases` - alternate titles that resolve to the same anime row
 - `imm_anime_merge_recommendations` - candidate duplicate-series merges surfaced in the dashboard
 - `imm_sessions` - session UUID, video reference, timing/status, final denormalized totals
