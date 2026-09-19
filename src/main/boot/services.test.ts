@@ -138,3 +138,56 @@ test('createMainBootServices builds boot-phase service bundle', () => {
   assert.deepEqual(calls, ['mkdir:/tmp/subminer-config', 'exit:7']);
   assert.equal(setPathValue, '/tmp/subminer-config');
 });
+
+test('createMainBootServices honors the profile selected by the early entrypoint', () => {
+  const services = createMainBootServices({
+    platform: 'linux',
+    argv: ['electron', '.', '--dev'],
+    configDir: '/tmp/SubMiner-dev',
+    appDataDir: undefined,
+    xdgConfigHome: undefined,
+    homeDir: '/home/tester',
+    defaultMpvLogFile: '/tmp/default.log',
+    envMpvLog: undefined,
+    defaultTexthookerPort: 5174,
+    getDefaultSocketPath: () => '/tmp/subminer.sock',
+    resolveConfigDir: () => {
+      throw new Error('early profile should be authoritative');
+    },
+    existsSync: () => false,
+    mkdirSync: () => {},
+    joinPath: (...parts) => parts.join('/'),
+    app: {
+      setPath: () => {},
+      quit: () => {},
+      exit: () => {},
+      on: () => ({}),
+      whenReady: async () => {},
+    },
+    shouldBypassSingleInstanceLock: () => false,
+    requestSingleInstanceLockEarly: () => true,
+    registerSecondInstanceHandlerEarly: () => {},
+    onConfigStartupParseError: () => {},
+    createConfigService: (configDir) => ({ configDir }),
+    createAnilistTokenStore: (targetPath) => ({ targetPath }),
+    createJellyfinTokenStore: (targetPath) => ({ targetPath }),
+    createAnilistUpdateQueue: (targetPath) => ({ targetPath }),
+    createSubtitleWebSocket: (payloadMode) => ({ payloadMode }),
+    createLogger: () => ({ warn: () => {}, info: () => {}, error: () => {} }),
+    createMainRuntimeRegistry: () => ({}),
+    createOverlayManager: () => ({ getMainWindow: () => null, getModalWindow: () => null }),
+    createOverlayModalInputState: () => ({
+      getModalInputExclusive: () => false,
+      handleModalInputStateChange: () => {},
+    }),
+    createOverlayContentMeasurementStore: () => ({}),
+    getSyncOverlayShortcutsForModal: () => () => {},
+    getSyncOverlayVisibilityForModal: () => () => {},
+    createOverlayModalRuntime: () => ({}),
+    createAppState: (input) => input,
+  });
+
+  assert.equal(services.configDir, '/tmp/SubMiner-dev');
+  assert.equal(services.userDataPath, '/tmp/SubMiner-dev');
+  assert.deepEqual(services.configService, { configDir: '/tmp/SubMiner-dev' });
+});
