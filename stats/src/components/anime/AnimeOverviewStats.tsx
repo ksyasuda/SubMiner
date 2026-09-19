@@ -53,19 +53,19 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
           label="Watch Time"
           value={formatDuration(detail.totalActiveMs)}
           color="text-ctp-blue"
-          tooltip="Total active watch time for this anime"
+          tooltip="Total active watch time for this title"
         />
         <Metric
           label="Sessions"
           value={String(detail.totalSessions)}
           color="text-ctp-peach"
-          tooltip="Number of immersion sessions on this anime"
+          tooltip="Number of immersion sessions on this title"
         />
         <Metric
-          label="Episodes"
+          label={detail.mediaKind === 'youtube' ? 'Videos' : 'Episodes'}
           value={String(detail.episodeCount)}
           color="text-ctp-yellow"
-          tooltip="Number of completed episodes for this anime"
+          tooltip={`Number of tracked ${detail.mediaKind === 'youtube' ? 'videos' : 'episodes'} for this title`}
         />
         <Metric
           label="Words Seen"
@@ -81,7 +81,7 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
           label="Cards Mined"
           value={formatNumber(detail.totalCards)}
           color="text-ctp-cards-mined"
-          tooltip="Anki cards created from subtitle lines in this anime"
+          tooltip="Anki cards created from subtitle lines in this title"
         />
         <Metric
           label="Lookups"
@@ -109,7 +109,7 @@ export function AnimeOverviewStats({ detail, knownWordsSummary }: AnimeOverviewS
             label="Known Words"
             value={`${knownPct}%`}
             color="text-ctp-green"
-            tooltip={`${formatNumber(knownWordsSummary!.knownWordCount)} known out of ${formatNumber(knownWordsSummary!.totalUniqueWords)} unique words in this anime`}
+            tooltip={`${formatNumber(knownWordsSummary!.knownWordCount)} known out of ${formatNumber(knownWordsSummary!.totalUniqueWords)} unique words in this title`}
           />
         ) : (
           <Metric

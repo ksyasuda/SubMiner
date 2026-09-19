@@ -98,3 +98,37 @@ for (const legacyOccurrences of [false, true]) {
     }
   });
 }
+
+test('sync preserves the YouTube media kind when adding a channel', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-youtube-'));
+  try {
+    const localPath = buildDb(dir, 'local.sqlite', {
+      word: '猫',
+      seenMs: BASE_MS,
+      legacyOccurrences: false,
+    });
+    const remotePath = buildDb(dir, 'remote.sqlite', {
+      word: '犬',
+      seenMs: BASE_MS,
+      legacyOccurrences: false,
+    });
+    const remote = new Database(remotePath);
+    remote.exec("UPDATE imm_anime SET media_kind = 'youtube'");
+    remote.close();
+    mergeSnapshotIntoDb(localPath, remotePath);
+    const local = new Database(localPath);
+    try {
+      const row = local
+        .prepare(
+          "SELECT media_kind FROM imm_anime WHERE normalized_title_key = 'key-remote.sqlite'",
+        )
+        .get();
+      assert.ok(row && typeof row === 'object' && 'media_kind' in row);
+      assert.equal(row.media_kind, 'youtube');
+    } finally {
+      local.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

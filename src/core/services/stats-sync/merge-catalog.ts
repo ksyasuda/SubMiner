@@ -2,6 +2,7 @@ import { selectAll, selectOne, type SqlRow, type SyncDb } from './libsql-driver'
 import { insertRow, tableExists, type SyncMergeSummary } from './shared';
 
 const ANIME_COPY_COLUMNS = [
+  'media_kind',
   'normalized_title_key',
   'canonical_title',
   'anilist_id',

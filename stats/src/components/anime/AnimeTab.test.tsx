@@ -45,6 +45,7 @@ function installDom(): () => void {
 
 function libraryItem(anilistId: number | null): AnimeLibraryItem {
   return {
+    mediaKind: 'anime',
     animeId: 7,
     canonicalTitle: 'Test Anime Season 2',
     anilistId,
@@ -61,6 +62,7 @@ function libraryItem(anilistId: number | null): AnimeLibraryItem {
 function detailData(anilistId: number | null): AnimeDetailData {
   return {
     detail: {
+      mediaKind: 'anime',
       animeId: 7,
       canonicalTitle: 'Test Anime Season 2',
       anilistId,
@@ -173,6 +175,58 @@ test('AnimeTab refetches the library after the AniList entry is relinked', async
       root.unmount();
     });
   } finally {
+    Object.assign(apiClient, original);
+    uninstallDom();
+  }
+});
+
+test('Library kind filter separates YouTube channels from anime and updates totals', async () => {
+  const uninstallDom = installDom();
+  const original = {
+    getAnimeLibrary: apiClient.getAnimeLibrary,
+    getAnimeMergeRecommendations: apiClient.getAnimeMergeRecommendations,
+  };
+  apiClient.getAnimeLibrary = async () => [
+    { ...libraryItem(null), totalActiveMs: 60_000 },
+    {
+      ...libraryItem(null),
+      animeId: 8,
+      mediaKind: 'youtube',
+      canonicalTitle: 'Language Channel',
+      totalActiveMs: 120_000,
+    },
+  ];
+  apiClient.getAnimeMergeRecommendations = async () => ({ recommendations: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(<AnimeTab />);
+    });
+    assert.match(container.textContent ?? '', /Test Anime Season 2/);
+    assert.match(container.textContent ?? '', /Language Channel/);
+    assert.match(container.textContent ?? '', /2 titles · 3m/);
+    await act(async () => {
+      findButton(container, 'YouTube').click();
+    });
+    assert.doesNotMatch(container.textContent ?? '', /Test Anime Season 2/);
+    assert.match(container.textContent ?? '', /Language Channel/);
+    assert.match(container.textContent ?? '', /1 channel · 2m/);
+    assert.equal(findButton(container, 'YouTube').getAttribute('aria-pressed'), 'true');
+    await act(async () => {
+      findButton(container, 'Anime').click();
+    });
+    assert.match(container.textContent ?? '', /Test Anime Season 2/);
+    assert.doesNotMatch(container.textContent ?? '', /Language Channel/);
+    await act(async () => {
+      findButton(container, 'All Titles').click();
+    });
+    assert.match(container.textContent ?? '', /Language Channel/);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
     Object.assign(apiClient, original);
     uninstallDom();
   }

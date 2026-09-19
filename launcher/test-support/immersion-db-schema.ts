@@ -22,7 +22,8 @@ export const IMMERSION_DB_FIXTURE_DDL = `
     description TEXT,
     metadata_json TEXT,
     CREATED_DATE TEXT,
-    LAST_UPDATE_DATE TEXT
+    LAST_UPDATE_DATE TEXT,
+    media_kind TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube'))
   );
   CREATE TABLE imm_videos(
     video_id INTEGER PRIMARY KEY AUTOINCREMENT,

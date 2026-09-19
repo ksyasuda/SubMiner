@@ -1,3 +1,4 @@
+import type { MediaKind } from '../../../shared/media-kind';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
@@ -24,6 +25,7 @@ export interface TrackerPreparedStatements {
 }
 
 export interface AnimeRecordInput {
+  mediaKind?: MediaKind;
   parsedTitle: string;
   canonicalTitle: string;
   seasonScope?: number | null;
@@ -600,6 +602,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       `
         UPDATE imm_anime
         SET
+          media_kind = COALESCE(?, media_kind),
           canonical_title = COALESCE(NULLIF(?, ''), canonical_title),
           anilist_id = COALESCE(?, anilist_id),
           title_romaji = COALESCE(?, title_romaji),
@@ -610,6 +613,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
+      byAnilistId || byNormalizedTitle ? (input.mediaKind ?? null) : null,
       canonicalTitleUpdate,
       input.anilistId,
       input.titleRomaji,
@@ -627,6 +631,7 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
     .prepare(
       `
         INSERT INTO imm_anime(
+          media_kind,
           normalized_title_key,
           canonical_title,
           anilist_id,
@@ -636,10 +641,11 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
           metadata_json,
           CREATED_DATE,
           LAST_UPDATE_DATE
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
     .run(
+      input.mediaKind ?? 'anime',
       normalizedTitleKey,
       canonicalTitle,
       input.anilistId,
@@ -803,6 +809,7 @@ export function linkYoutubeVideoToAnimeRecord(
   }
 
   const animeId = getOrCreateAnimeRecord(db, {
+    mediaKind: 'youtube',
     parsedTitle: identity.parsedTitle,
     canonicalTitle: identity.canonicalTitle,
     anilistId: null,
@@ -875,6 +882,22 @@ function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
   }
 }
 
+// Older builds can create channel rows with the default anime kind even after
+// the schema upgrade. Repair classification on every startup without moving videos.
+function classifyYoutubeChannels(db: DatabaseSync): void {
+  db.exec(`
+    UPDATE imm_anime
+    SET media_kind = 'youtube'
+    WHERE media_kind = 'anime'
+      AND (
+        normalized_title_key LIKE 'youtube channel %'
+        OR CASE WHEN json_valid(metadata_json)
+           THEN json_extract(metadata_json, '$.source') = 'youtube-channel'
+           ELSE 0 END
+      )
+  `);
+}
+
 export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_schema_version (
@@ -897,6 +920,7 @@ export function ensureSchema(db: DatabaseSync): void {
     .prepare('SELECT schema_version FROM imm_schema_version ORDER BY schema_version DESC LIMIT 1')
     .get() as { schema_version: number } | null;
   if (currentVersion?.schema_version === SCHEMA_VERSION) {
+    classifyYoutubeChannels(db);
     ensureLexicalDailyRollupTables(db);
     ensureLifetimeSummaryTables(db);
     ensureStatsExcludedWordsTable(db);
@@ -921,6 +945,13 @@ export function ensureSchema(db: DatabaseSync): void {
       LAST_UPDATE_DATE TEXT
     );
   `);
+  addColumnIfMissing(
+    db,
+    'imm_anime',
+    'media_kind',
+    "TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube'))",
+  );
+  classifyYoutubeChannels(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_videos(
       video_id INTEGER PRIMARY KEY AUTOINCREMENT,

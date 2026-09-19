@@ -16,6 +16,7 @@ test('AnimeHeader uses the linked AniList id to avoid stale cached cover art', (
   const markup = renderToStaticMarkup(
     <AnimeHeader
       detail={{
+        mediaKind: 'anime',
         animeId: 42,
         canonicalTitle: 'Test Anime',
         anilistId: 21699,
