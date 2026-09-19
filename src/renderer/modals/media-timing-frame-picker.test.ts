@@ -28,27 +28,27 @@ function fixture() {
   return { picker, requests, complete, isStale: () => stale };
 }
 
-test('manual image selection stays fixed across audio edits and reset follows midpoint again', async () => {
+test('image follows the audio midpoint until a manual selection stays fixed across audio edits', async () => {
   const { picker, requests, complete } = fixture();
   picker.open('r', true, 11);
   await tick(5);
   complete(0, 11);
   await tick(0);
   assert.equal(picker.getScreenshotTime(), undefined);
-  picker.choose(13);
-  await tick(5);
-  complete(1, 13);
-  await tick(0);
   picker.updateMidpoint(12);
   await tick(5);
-  assert.equal(picker.getScreenshotTime(), 13);
-  assert.equal(requests.length, 2);
-  picker.reset();
-  await tick(5);
-  assert.equal(requests[2]?.request.timestamp, 12);
-  assert.equal(picker.getScreenshotTime(), undefined);
-  complete(2, 12);
+  assert.equal(requests[1]?.request.timestamp, 12);
+  complete(1, 12);
   await tick(0);
+  assert.equal(picker.getScreenshotTime(), undefined);
+  picker.choose(13);
+  await tick(5);
+  complete(2, 13);
+  await tick(0);
+  picker.updateMidpoint(14);
+  await tick(5);
+  assert.equal(picker.getScreenshotTime(), 13);
+  assert.equal(requests.length, 3);
   picker.close();
 });
 
@@ -73,8 +73,8 @@ test('scrubbing coalesces requests and never commits an older preview', async ()
   picker.close();
 });
 
-test('failed manual previews block confirmation until reset; failed default previews allow audio review', async () => {
-  const { picker, requests } = fixture();
+test('failed manual previews block confirmation until a valid choice; failed default previews allow audio review', async () => {
+  const { picker, requests, complete } = fixture();
   picker.open('r', true, 11);
   await tick(5);
   requests[0]!.resolve({ ok: false });
@@ -85,8 +85,12 @@ test('failed manual previews block confirmation until reset; failed default prev
   requests[1]!.resolve({ ok: false });
   await tick(0);
   assert.equal(picker.getState().blockConfirm, true);
-  picker.reset();
+  picker.choose(13);
+  await tick(5);
+  complete(2, 13);
+  await tick(0);
   assert.equal(picker.getState().blockConfirm, false);
+  assert.equal(picker.getScreenshotTime(), 13);
   picker.close();
 });
 

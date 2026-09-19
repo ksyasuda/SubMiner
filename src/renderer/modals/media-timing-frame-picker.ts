@@ -118,10 +118,6 @@ export function createMediaTimingFramePicker(options: {
       state.manual = true;
       request(time, direction);
     },
-    reset() {
-      state.manual = false;
-      request(midpoint);
-    },
     close,
     getState: () => ({ ...state }),
     getScreenshotTime: () => (state.manual && !state.blockConfirm ? state.timestamp : undefined),

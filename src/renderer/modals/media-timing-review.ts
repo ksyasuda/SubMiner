@@ -288,7 +288,6 @@ export function createMediaTimingReviewModal(
       state.loading ||
       state.timestamp === undefined ||
       state.timestamp >= timelineEnd - 0.001;
-    dom.mediaTimingReviewFrameReset.disabled = resolveInFlight;
     dom.mediaTimingReviewFrameSlider.disabled = resolveInFlight;
     dom.mediaTimingReviewConfirm.disabled = resolveInFlight || state.blockConfirm;
   }
@@ -962,9 +961,6 @@ export function createMediaTimingReviewModal(
     });
     ctx.dom.mediaTimingReviewFramePrevious.addEventListener('click', () => stepFrame(-1));
     ctx.dom.mediaTimingReviewFrameNext.addEventListener('click', () => stepFrame(1));
-    ctx.dom.mediaTimingReviewFrameReset.addEventListener('click', () => {
-      if (!resolveInFlight) framePicker.reset();
-    });
     const track = ctx.dom.mediaTimingReviewSelectionTrack;
     track.addEventListener('pointerdown', beginDrag);
     track.addEventListener('pointermove', (event) => {
