@@ -128,11 +128,11 @@ test('split video streams never read an audio-only cache as a video source', asy
 });
 
 test('disabled screenshots and missing video inputs do not trigger extraction', async () => {
-  for (const enabled of [false, true]) {
-    const { runtime, payload, decision, frames } = await start(
-      { resolveVideoSource: async () => null },
-      enabled,
-    );
+  for (const [enabled, options] of [
+    [false, {}],
+    [true, { resolveVideoSource: async () => null }],
+  ] as const) {
+    const { runtime, payload, decision, frames } = await start(options, enabled);
     assert.equal((await runtime.getFrame({ reviewId: payload.reviewId, timestamp: 11 })).ok, false);
     assert.equal(frames.length, 0);
     await runtime.dispose();

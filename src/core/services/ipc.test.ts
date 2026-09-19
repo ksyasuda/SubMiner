@@ -671,7 +671,7 @@ test('registerIpcHandlers accepts the keep-without-media timing decision', async
   assert.deepEqual(requests, [{ reviewId: 'review-1', decision: { action: 'skip-media' } }]);
 });
 
-test('frame IPC validates timestamps and directions and preserves the screenshot decision', async () => {
+test('frame IPC validates timestamps and directions', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const requests: unknown[] = [];
   registerIpcHandlers(
@@ -680,15 +680,10 @@ test('frame IPC validates timestamps and directions and preserves the screenshot
         requests.push(request);
         return { ok: true };
       },
-      resolveMediaTimingReview: async (request) => {
-        requests.push(request);
-        return { ok: true };
-      },
     }),
     registrar,
   );
   const frame = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewFrame)!;
-  const resolve = handlers.handle.get(IPC_CHANNELS.request.mediaTimingReviewResolve)!;
   const valid = { reviewId: 'r', timestamp: 13, direction: 1 };
   assert.deepEqual(await frame({}, valid), { ok: true });
   for (const invalid of [
@@ -700,24 +695,10 @@ test('frame IPC validates timestamps and directions and preserves the screenshot
   ]) {
     assert.equal(((await frame({}, invalid)) as { ok: boolean }).ok, false);
   }
-  const decision = {
-    reviewId: 'r',
-    decision: { action: 'confirm', startTime: 10, endTime: 12, screenshotTime: 13 },
-  };
-  assert.deepEqual(await resolve({}, decision), { ok: true });
-  assert.equal(
-    (
-      (await resolve(
-        {},
-        { ...decision, decision: { ...decision.decision, screenshotTime: Infinity } },
-      )) as { ok: boolean }
-    ).ok,
-    false,
-  );
-  assert.deepEqual(requests, [valid, decision]);
+  assert.deepEqual(requests, [valid]);
 });
 
-test('registerIpcHandlers validates and forwards combined timing review text', async () => {
+test('registerIpcHandlers validates and forwards timing review text and screenshot selection', async () => {
   const { registrar, handlers } = createFakeIpcRegistrar();
   const requests: unknown[] = [];
   registerIpcHandlers(
@@ -742,6 +723,7 @@ test('registerIpcHandlers validates and forwards combined timing review text', a
           startTime: 10,
           endTime: 12,
           text: '前の行 対象の行',
+          screenshotTime: 13,
         },
       },
     ),
@@ -755,20 +737,23 @@ test('registerIpcHandlers validates and forwards combined timing review text', a
         startTime: 10,
         endTime: 12,
         text: '前の行 対象の行',
+        screenshotTime: 13,
       },
     },
   ]);
 
-  assert.deepEqual(
-    await handler!(
-      {},
-      {
-        reviewId: 'review-1',
-        decision: { action: 'confirm', startTime: 10, endTime: 12, text: '   ' },
-      },
-    ),
-    { ok: false, message: 'Timing review is unavailable.' },
-  );
+  for (const invalid of [{ text: '   ' }, { screenshotTime: Infinity }]) {
+    assert.deepEqual(
+      await handler!(
+        {},
+        {
+          reviewId: 'review-1',
+          decision: { action: 'confirm', startTime: 10, endTime: 12, ...invalid },
+        },
+      ),
+      { ok: false, message: 'Timing review is unavailable.' },
+    );
+  }
   assert.equal(requests.length, 1);
 });
 

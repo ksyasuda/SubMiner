@@ -53,6 +53,7 @@ export type RendererDom = {
   mediaTimingReviewFrameStatus: HTMLElement;
   mediaTimingReviewFramePrevious: HTMLButtonElement;
   mediaTimingReviewFrameNext: HTMLButtonElement;
+  mediaTimingReviewFrameReset: HTMLButtonElement;
   mediaTimingReviewModal: HTMLDivElement;
   mediaTimingReviewKind: HTMLDivElement;
   mediaTimingReviewText: HTMLElement;
@@ -271,6 +272,9 @@ export function resolveRendererDom(): RendererDom {
       'mediaTimingReviewFramePrevious',
     ),
     mediaTimingReviewFrameNext: getRequiredElement<HTMLButtonElement>('mediaTimingReviewFrameNext'),
+    mediaTimingReviewFrameReset: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewFrameReset',
+    ),
     mediaTimingReviewModal: getRequiredElement<HTMLDivElement>('mediaTimingReviewModal'),
     mediaTimingReviewKind: getRequiredElement<HTMLDivElement>('mediaTimingReviewKind'),
     mediaTimingReviewText: getRequiredElement<HTMLElement>('mediaTimingReviewText'),

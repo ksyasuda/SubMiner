@@ -19,40 +19,43 @@ function fixture() {
       picker.close();
     },
   });
-  const complete = (index: number, timestamp: number) =>
-    requests[index]!.resolve({
-      ok: true,
-      timestamp,
-      dataUrl: `data:image/jpeg;base64,${timestamp}`,
-    });
+  const complete = async (index: number, result: number | MediaTimingReviewFrameResult) => {
+    requests[index]!.resolve(
+      typeof result === 'number'
+        ? { ok: true, timestamp: result, dataUrl: `data:image/jpeg;base64,${result}` }
+        : result,
+    );
+    await tick(0);
+  };
   return { picker, requests, complete, isStale: () => stale };
 }
 
-test('image follows the audio midpoint until a manual selection stays fixed across audio edits', async () => {
+test('a chosen frame stays fixed until Reset restores midpoint tracking', async () => {
   const { picker, requests, complete } = fixture();
   picker.open('r', true, 11);
   await tick(5);
-  complete(0, 11);
-  await tick(0);
-  assert.equal(picker.getScreenshotTime(), undefined);
-  picker.updateMidpoint(12);
-  await tick(5);
-  assert.equal(requests[1]?.request.timestamp, 12);
-  complete(1, 12);
-  await tick(0);
+  await complete(0, 11);
   assert.equal(picker.getScreenshotTime(), undefined);
   picker.choose(13);
   await tick(5);
-  complete(2, 13);
-  await tick(0);
-  picker.updateMidpoint(14);
+  await complete(1, 13);
+  picker.updateMidpoint(12);
   await tick(5);
   assert.equal(picker.getScreenshotTime(), 13);
-  assert.equal(requests.length, 3);
+  assert.equal(requests.length, 2);
+  picker.reset();
+  await tick(5);
+  assert.equal(requests[2]?.request.timestamp, 12);
+  await complete(2, 12);
+  assert.equal(picker.getScreenshotTime(), undefined);
+  picker.updateMidpoint(14);
+  await tick(5);
+  assert.equal(requests[3]?.request.timestamp, 14);
+  await complete(3, 14);
   picker.close();
 });
 
-test('scrubbing coalesces requests and never commits an older preview', async () => {
+test('scrubbing keeps only the latest requested frame', async () => {
   const { picker, requests, complete } = fixture();
   picker.open('r', true, 11);
   await tick(5);
@@ -62,51 +65,43 @@ test('scrubbing coalesces requests and never commits an older preview', async ()
   await tick(5);
   assert.equal(requests.length, 1);
   assert.equal(picker.getState().blockConfirm, true);
-  complete(0, 11);
+  await complete(0, 11);
   await tick(5);
   assert.equal(picker.getState().timestamp, undefined);
   assert.equal(requests[1]?.request.timestamp, 14);
-  complete(1, 14);
-  await tick(0);
+  await complete(1, 14);
   assert.equal(picker.getScreenshotTime(), 14);
   assert.equal(picker.getState().blockConfirm, false);
   picker.close();
 });
 
-test('failed manual previews block confirmation until a valid choice; failed default previews allow audio review', async () => {
-  const { picker, requests, complete } = fixture();
+test('failed manual previews block confirmation; Reset allows the default fallback', async () => {
+  const { picker, complete } = fixture();
   picker.open('r', true, 11);
   await tick(5);
-  requests[0]!.resolve({ ok: false });
-  await tick(0);
+  await complete(0, { ok: false });
   assert.equal(picker.getState().blockConfirm, false);
   picker.choose(12);
   await tick(5);
-  requests[1]!.resolve({ ok: false });
-  await tick(0);
+  await complete(1, { ok: false });
   assert.equal(picker.getState().blockConfirm, true);
-  picker.choose(13);
-  await tick(5);
-  complete(2, 13);
-  await tick(0);
+  picker.reset();
   assert.equal(picker.getState().blockConfirm, false);
-  assert.equal(picker.getScreenshotTime(), 13);
   picker.close();
 });
 
-test('closing or replacing a review invalidates pending images, and stale responses close the active review', async () => {
+test('replacing a review ignores old frames; stale responses close the current review', async () => {
   const { picker, requests, complete, isStale } = fixture();
   picker.open('old', true, 11);
   await tick(5);
   picker.close();
   picker.open('new', true, 22);
   await tick(5);
-  complete(0, 11);
+  await complete(0, 11);
   await tick(5);
   assert.equal(picker.getState().timestamp, undefined);
   assert.equal(requests[1]?.request.reviewId, 'new');
-  requests[1]!.resolve({ ok: false, stale: true });
-  await tick(0);
+  await complete(1, { ok: false, stale: true });
   assert.equal(isStale(), true);
   assert.equal(picker.getState().enabled, false);
 });
