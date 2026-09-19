@@ -5394,3 +5394,91 @@ test('getVocabularySummary keeps different known-word snapshots independent', as
     cleanupDbPath(dbPath);
   }
 });
+
+for (const provider of ['anilist', 'tmdb'] as const) {
+  test(`${provider} reassignment keeps metadata and artwork on download failure, then replaces or clears both`, async () => {
+    const dbPath = makeDbPath();
+    const originalFetch = globalThis.fetch;
+    let tracker: ImmersionTrackerService | null = null;
+    try {
+      const Ctor = await loadTrackerCtor();
+      tracker = new Ctor({ dbPath });
+      const { db } = tracker as unknown as { db: DatabaseSync };
+      db.exec(`
+        INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, CREATED_DATE, LAST_UPDATE_DATE)
+          VALUES (1, 'show', 'Show', 1000, 1000);
+        INSERT INTO imm_videos(video_id, video_key, canonical_title, source_type, anime_id, duration_ms, CREATED_DATE, LAST_UPDATE_DATE)
+          VALUES (1, 'local:/tmp/show.mkv', 'Show', 1, 1, 0, 1000, 1000);
+      `);
+      const tmdb = {
+        tmdbId: 12,
+        tmdbType: 'tv' as const,
+        titleEnglish: 'Drama',
+        titleNative: null,
+        description: 'New description',
+        episodesTotal: 10,
+      };
+      globalThis.fetch = async () => new Response(new Uint8Array([1, 2, 3]));
+      if (provider === 'anilist') {
+        await tracker.reassignAnimeTmdb(1, { ...tmdb, posterUrl: 'https://images.test/old' });
+      } else {
+        await tracker.reassignAnimeAnilist(1, {
+          anilistId: 42,
+          coverUrl: 'https://images.test/old',
+        });
+      }
+      assert.equal(await tracker.hasAnime(1), true);
+      assert.equal(await tracker.hasAnime(999), false);
+      const readMetadata = () =>
+        db.prepare('SELECT * FROM imm_anime WHERE anime_id = 1').get() as {
+          media_kind: string;
+          anilist_id: number | null;
+          tmdb_id: number | null;
+        };
+      const before = readMetadata();
+      const oldArt = await tracker.getAnimeCoverArt(1);
+      const snapshot = (value: unknown) =>
+        JSON.stringify(value, (key, item: unknown) => (key === '_metadata' ? undefined : item));
+      const reassign = (url: string | null) =>
+        provider === 'anilist'
+          ? tracker!.reassignAnimeAnilist(1, { anilistId: 99, coverUrl: url })
+          : tracker!.reassignAnimeTmdb(1, { ...tmdb, posterUrl: url });
+      for (const failure of ['http', 'network']) {
+        globalThis.fetch = async () => {
+          if (failure === 'network') throw new Error('offline');
+          return new Response(null, { status: 503 });
+        };
+        await assert.rejects(reassign('https://images.test/new'));
+        assert.equal(snapshot(readMetadata()), snapshot(before));
+        assert.equal(snapshot(await tracker.getAnimeCoverArt(1)), snapshot(oldArt));
+      }
+      globalThis.fetch = async () => new Response(new Uint8Array([9, 8, 7]));
+      if (provider === 'anilist') {
+        // Retained sessions without lifetime summaries exercise the bootstrap
+        // inside the reassignment transaction.
+        db.exec(`INSERT INTO imm_sessions(session_uuid, video_id, started_at_ms, ended_at_ms,
+          status, active_watched_ms, CREATED_DATE, LAST_UPDATE_DATE)
+          VALUES ('retained-session', 1, '1000', '2000', 2, 1000, 1000, 2000)`);
+      }
+      await reassign('https://images.test/new');
+      const detail = readMetadata();
+      assert.equal(detail.media_kind, provider === 'anilist' ? 'anime' : 'live_action');
+      assert.equal(detail.anilist_id, provider === 'anilist' ? 99 : null);
+      assert.equal(detail.tmdb_id, provider === 'tmdb' ? 12 : null);
+      if (provider === 'anilist') {
+        assert.equal((await tracker.getAnimeDetail(1))?.totalActiveMs, 1000);
+      }
+      assert.deepEqual(
+        new Uint8Array((await tracker.getAnimeCoverArt(1))!.coverBlob!),
+        new Uint8Array([9, 8, 7]),
+      );
+      await reassign(null);
+      assert.equal(await tracker.getAnimeCoverArt(1), null);
+      assert.equal(readMetadata().media_kind, detail.media_kind);
+    } finally {
+      globalThis.fetch = originalFetch;
+      tracker?.destroy();
+      cleanupDbPath(dbPath);
+    }
+  });
+}

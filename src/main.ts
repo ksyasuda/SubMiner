@@ -430,7 +430,7 @@ import {
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
-import { createTmdbClient, resolveTmdbApiKey } from './core/services/tmdb/tmdb-client';
+import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
 import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { createJellyfinTokenStore } from './core/services/jellyfin-token-store';
 import { applyRuntimeOptionResultRuntime } from './core/services/runtime-options-ipc';
@@ -1689,7 +1689,10 @@ const statsCoverArtFetcher = createCoverArtFetcher(
   {
     liveAction: createLiveActionMetadataResolver(
       createTmdbClient({
-        resolveApiKey: () => resolveTmdbApiKey(configService.getConfig().tmdb, bundledTmdbApiKey),
+        resolveApiKey: createTmdbApiKeyResolver(
+          () => configService.getConfig().tmdb,
+          () => bundledTmdbApiKey,
+        ),
       }),
       createLogger('main:tmdb'),
     ),

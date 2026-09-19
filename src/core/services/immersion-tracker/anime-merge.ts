@@ -179,6 +179,18 @@ export function mergeAnimeRecordsInTransaction(
     return summary;
   }
 
+  // Validate the whole group before moving anything, including when the
+  // unlinked target would inherit conflicting providers from two sources.
+  const metadata = [targetAnimeId, ...new Set(sourceAnimeIds)].map((id) =>
+    readAnimeMetadata(db, id),
+  );
+  if (
+    metadata.some((row) => row?.anilist_id != null) &&
+    metadata.some((row) => row?.tmdb_id != null)
+  ) {
+    throw new Error('Cannot merge AniList and TMDB library entries');
+  }
+
   const updatedAt = toDbTimestamp(nowMs());
   const sourceVideosStmt = db.prepare(
     'SELECT video_id AS videoId FROM imm_videos WHERE anime_id = ?',

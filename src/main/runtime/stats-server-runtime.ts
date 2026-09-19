@@ -5,7 +5,7 @@ import {
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
 } from '../../core/services';
 import { startStatsServer } from '../../core/services/stats-server';
-import { createTmdbClient, resolveTmdbApiKey } from '../../core/services/tmdb/tmdb-client';
+import { createTmdbClient, createTmdbApiKeyResolver } from '../../core/services/tmdb/tmdb-client';
 import { createLogger } from '../../logger';
 import type { ResolvedConfig } from '../../types/config';
 import type { AppState } from '../state';
@@ -169,8 +169,10 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
         getStatsMiningAlassPath: () => deps.getResolvedConfig().subsync.alass_path,
         anilistRateLimiter: deps.getAnilistRateLimiter(),
         tmdbClient: createTmdbClient({
-          resolveApiKey: () =>
-            resolveTmdbApiKey(deps.getResolvedConfig().tmdb, deps.getBundledTmdbApiKey?.() ?? null),
+          resolveApiKey: createTmdbApiKeyResolver(
+            () => deps.getResolvedConfig().tmdb,
+            () => deps.getBundledTmdbApiKey?.() ?? null,
+          ),
         }),
         resolveAnkiNoteId: (noteId: number) => deps.resolveAnkiNoteId(noteId),
         resolveSentenceSearchHeadwords: (term: string) => deps.resolveSentenceSearchHeadwords(term),

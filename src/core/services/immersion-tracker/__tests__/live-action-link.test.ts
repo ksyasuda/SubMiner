@@ -7,6 +7,7 @@ import { Database } from '../sqlite.js';
 import type { DatabaseSync } from '../sqlite.js';
 import { applyPragmas, ensureSchema, getOrCreateAnimeRecord } from '../storage.js';
 import { repairLegacySeasonlessAnimeRows } from '../anime-season-repair.js';
+import { mergeAnimeRecords, mergeAnimeRecordsInTransaction } from '../anime-merge.js';
 import { getVideoTmdbLink, linkAnimeToTmdbTitle } from '../live-action-link.js';
 import { getAnimeCoverArt, getCoverArt } from '../query-library.js';
 import { clearAnimeCoverArt, upsertCoverArt } from '../query-maintenance.js';
@@ -234,3 +235,50 @@ test('clearAnimeCoverArt drops every episode cover of the entry and its orphaned
     assert.equal(blobs, 1);
   });
 });
+
+for (const targetId of [1, 2, 3]) {
+  test(`merge rejects mixed providers before moving any source into entry ${targetId}`, () => {
+    withDb((db) => {
+      insertAnime(db, 1, 'Anime', 77);
+      insertAnime(db, 2, 'Drama');
+      insertAnime(db, 3, 'Unlinked');
+      insertEpisode(db, 1, 1, 1);
+      insertEpisode(db, 2, 2, 1);
+      db.exec(
+        "UPDATE imm_anime SET media_kind = 'live_action', tmdb_id = 12, tmdb_type = 'tv' WHERE anime_id = 2",
+      );
+      for (const merge of [mergeAnimeRecords, mergeAnimeRecordsInTransaction]) {
+        assert.throws(() => merge(db, targetId, [3, 1, 2]), /Cannot merge AniList and TMDB/);
+        assert.equal(animeCount(db), 3);
+        assert.equal(videoOwner(db, 1), 1);
+        assert.equal(videoOwner(db, 2), 2);
+      }
+    });
+  });
+}
+
+for (const mode of ['manual', 'auto'] as const) {
+  test(`TMDB ${mode} linking rolls back the merge when the survivor update fails`, () => {
+    withDb((db) => {
+      insertAnime(db, 1, 'New entry');
+      insertAnime(db, 2, 'Existing entry');
+      insertEpisode(db, 1, 1, 1);
+      insertEpisode(db, 2, 2, 2);
+      db.prepare(
+        "UPDATE imm_anime SET tmdb_id = ?, tmdb_type = 'tv', media_kind = 'live_action' WHERE anime_id = 2",
+      ).run(HANZAWA.tmdbId);
+      db.exec(`CREATE TRIGGER reject_link BEFORE UPDATE ON imm_anime
+        WHEN NEW.description = 'A banker fights back.'
+        BEGIN SELECT RAISE(ABORT, 'rejected survivor update'); END`);
+      assert.throws(
+        () => linkAnimeToTmdbTitle(db, 1, HANZAWA, { mode }),
+        /rejected survivor update/,
+      );
+      assert.equal(animeCount(db), 2);
+      assert.equal(videoOwner(db, 1), 1);
+      assert.equal(videoOwner(db, 2), 2);
+      assert.equal(animeRow(db, 1)?.tmdbId, null);
+      assert.equal(animeRow(db, 2)?.tmdbId, HANZAWA.tmdbId);
+    });
+  });
+}

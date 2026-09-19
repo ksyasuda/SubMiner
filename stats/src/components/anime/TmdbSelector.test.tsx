@@ -152,3 +152,122 @@ test('TmdbSelector explains a missing API key instead of showing "No results"', 
     uninstallDom();
   }
 });
+
+for (const staleFailure of [false, true]) {
+  test(`TmdbSelector ignores superseded ${staleFailure ? 'errors' : 'results'} and loading changes`, async () => {
+    const uninstallDom = installDom();
+    const originalSearch = apiClient.searchTmdb;
+    const requests: Array<{
+      resolve: (results: StatsTmdbSearchResult[]) => void;
+      reject: (error: Error) => void;
+    }> = [];
+    apiClient.searchTmdb = () =>
+      new Promise((resolve, reject) => {
+        requests.push({ resolve, reject });
+      });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      const render = (initialQuery: string) =>
+        root.render(
+          <TmdbSelector
+            animeId={1}
+            initialQuery={initialQuery}
+            onClose={() => {}}
+            onLinked={() => {}}
+          />,
+        );
+      await act(async () => {
+        render('First title');
+      });
+      await act(async () => {
+        render('Second title');
+      });
+      assert.equal(requests.length, 2);
+      await act(async () => {
+        if (staleFailure) requests[0]!.reject(new Error('stale error'));
+        else requests[0]!.resolve([HANZAWA]);
+      });
+      assert.match(container.textContent ?? '', /Searching/);
+      assert.doesNotMatch(container.textContent ?? '', /Hanzawa|failed/);
+      await act(async () => {
+        requests[1]!.resolve([HANZAWA]);
+      });
+      assert.match(container.textContent ?? '', /Hanzawa/);
+      assert.doesNotMatch(container.textContent ?? '', /Searching/);
+      await act(async () => {
+        render('Third title');
+      });
+      await act(async () => {
+        render('');
+      });
+      await act(async () => {
+        requests[2]!.resolve([HANZAWA]);
+      });
+      assert.doesNotMatch(container.textContent ?? '', /Hanzawa|Searching/);
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      apiClient.searchTmdb = originalSearch;
+      uninstallDom();
+    }
+  });
+}
+
+test('TmdbSelector invalidates requests as soon as the user edits or clears the query', async () => {
+  const uninstallDom = installDom();
+  const originalSearch = apiClient.searchTmdb;
+  const requests: Array<(results: StatsTmdbSearchResult[]) => void> = [];
+  apiClient.searchTmdb = () =>
+    new Promise((resolve) => {
+      requests.push(resolve);
+    });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(
+        <TmdbSelector animeId={1} initialQuery="First" onClose={() => {}} onLinked={() => {}} />,
+      );
+    });
+    const input = container.querySelector('input');
+    assert.ok(input);
+    const setValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )?.set;
+    assert.ok(setValue);
+    const edit = async (value: string) => {
+      await act(async () => {
+        setValue.call(input, value);
+        input.dispatchEvent(new window.Event('input', { bubbles: true }));
+        input.dispatchEvent(new window.KeyboardEvent('keyup', { bubbles: true }));
+      });
+    };
+    await edit('Second');
+    await act(async () => {
+      requests[0]!([HANZAWA]);
+    });
+    assert.doesNotMatch(container.textContent ?? '', /Hanzawa|No results/);
+    assert.match(container.textContent ?? '', /Searching/);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    });
+    assert.equal(requests.length, 2);
+    await edit('');
+    assert.doesNotMatch(container.textContent ?? '', /Searching/);
+    await act(async () => {
+      requests[1]!([HANZAWA]);
+    });
+    assert.doesNotMatch(container.textContent ?? '', /Hanzawa|Searching/);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    apiClient.searchTmdb = originalSearch;
+    uninstallDom();
+  }
+});

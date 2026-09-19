@@ -105,7 +105,9 @@ export function mergeAnime(
   const byTmdb = local.query(
     'SELECT anime_id FROM imm_anime WHERE tmdb_id = ? AND tmdb_type = ? ORDER BY anime_id LIMIT 1',
   );
-  const byTitleKey = local.query('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ?');
+  const byTitleKey = local.query(
+    `SELECT anime_id, anilist_id, tmdb_id, tmdb_type FROM imm_anime WHERE normalized_title_key = ?`,
+  );
   // A TMDB link only fills in when the local row is unlinked: a row already
   // pinned to AniList stays anime, and vice versa, so the two link kinds never
   // coexist on one entry.
@@ -131,9 +133,21 @@ export function mergeAnime(
     `SELECT anime_id, ${ANIME_COPY_COLUMNS.join(', ')} FROM imm_anime`,
   )) {
     const remoteId = Number(row.anime_id);
+    const titleMatch = byTitleKey.get(row.normalized_title_key) as SqlRow | undefined;
+    const compatibleTitleMatch =
+      titleMatch &&
+      ((titleMatch.anilist_id === null && titleMatch.tmdb_id === null) ||
+        (row.anilist_id === null && row.tmdb_id === null) ||
+        (titleMatch.tmdb_id === null &&
+          row.tmdb_id === null &&
+          titleMatch.anilist_id === row.anilist_id) ||
+        (titleMatch.anilist_id === null &&
+          row.anilist_id === null &&
+          titleMatch.tmdb_id === row.tmdb_id &&
+          titleMatch.tmdb_type === row.tmdb_type));
     const existing = ((row.anilist_id !== null ? byAnilist.get(row.anilist_id) : undefined) ??
       (row.tmdb_id !== null ? byTmdb.get(row.tmdb_id, row.tmdb_type) : undefined) ??
-      byTitleKey.get(row.normalized_title_key)) as SqlRow | undefined;
+      (compatibleTitleMatch ? titleMatch : undefined)) as SqlRow | undefined;
     if (existing) {
       const localId = Number(existing.anime_id);
       map.set(remoteId, localId);
@@ -151,9 +165,14 @@ export function mergeAnime(
       );
       continue;
     }
-    // No local row matched by anilist_id (checked first in `existing` above)
-    // or title key, so the remote anilist_id — if any — is free to insert as-is.
-    const values = ANIME_COPY_COLUMNS.map((column) => row[column]);
+    // Conflicting providers can share a title, but the stored title key is unique.
+    let titleKey = row.normalized_title_key;
+    for (let suffix = 1; byTitleKey.get(titleKey); suffix += 1) {
+      titleKey = `${row.normalized_title_key}:sync:${suffix}`;
+    }
+    const values = ANIME_COPY_COLUMNS.map((column) =>
+      column === 'normalized_title_key' ? titleKey : row[column],
+    );
     map.set(remoteId, insertRow(local, 'imm_anime', ANIME_COPY_COLUMNS, values));
     summary.animeAdded += 1;
   }

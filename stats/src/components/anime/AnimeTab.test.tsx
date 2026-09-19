@@ -183,3 +183,42 @@ test('AnimeTab refetches the library after the AniList entry is relinked', async
     uninstallDom();
   }
 });
+
+test('AnimeTab watch time follows the displayed kind filter', async () => {
+  const uninstallDom = installDom();
+  const original = apiClient.getAnimeLibrary;
+  apiClient.getAnimeLibrary = async () => [
+    { ...libraryItem(42), totalActiveMs: 3600000 },
+    {
+      ...libraryItem(null),
+      animeId: 8,
+      canonicalTitle: 'Drama',
+      mediaKind: 'live_action',
+      tmdbId: 12,
+      tmdbType: 'tv',
+      totalActiveMs: 7200000,
+    },
+  ];
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => {
+      root.render(<AnimeTab />);
+    });
+    assert.match(container.textContent ?? '', /2 titles · 3h/);
+    const select = container.querySelector('select');
+    assert.ok(select);
+    await act(async () => {
+      select.value = 'live_action';
+      select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    });
+    assert.match(container.textContent ?? '', /1 titles · 2h/);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    apiClient.getAnimeLibrary = original;
+    uninstallDom();
+  }
+});

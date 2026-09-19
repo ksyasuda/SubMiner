@@ -82,6 +82,39 @@ export async function resolveTmdbApiKey(
   return bundledKey;
 }
 
+/** Cache successful command output until either credential setting changes. */
+export function createTmdbApiKeyResolver(
+  getConfig: () => TmdbConfig | undefined,
+  getBundledKey: () => string | null = () => null,
+): () => Promise<string | null> {
+  let state:
+    | {
+        apiKey: string | undefined;
+        apiKeyCommand: string | undefined;
+        pending: Promise<string | null> | null;
+      }
+    | undefined;
+
+  return async () => {
+    const config = getConfig();
+    if (
+      !state ||
+      state.apiKey !== config?.apiKey ||
+      state.apiKeyCommand !== config?.apiKeyCommand
+    ) {
+      state = { apiKey: config?.apiKey, apiKeyCommand: config?.apiKeyCommand, pending: null };
+    }
+    const current = state;
+    const literal = current.apiKey?.trim();
+    if (literal) return literal;
+    if (!current.apiKeyCommand?.trim()) return getBundledKey();
+    current.pending ??= resolveTmdbApiKey(current);
+    const key = await current.pending;
+    if (!key) current.pending = null;
+    return key ?? getBundledKey();
+  };
+}
+
 interface RawSearchItem {
   media_type?: string;
   id?: number;

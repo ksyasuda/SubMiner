@@ -123,7 +123,7 @@ export function AnimeTab({
     return sortAnime(base, sortKey);
   }, [anime, search, sortKey, kindFilter]);
 
-  const totalMs = anime.reduce((sum, a) => sum + a.totalActiveMs, 0);
+  const totalMs = filtered.reduce((sum, a) => sum + a.totalActiveMs, 0);
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);

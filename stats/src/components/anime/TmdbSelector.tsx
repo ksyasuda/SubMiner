@@ -27,6 +27,7 @@ export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbS
   const [linking, setLinking] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSequenceRef = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -38,28 +39,44 @@ export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbS
     setLinking(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (normalizedInitialQuery) void doSearch(normalizedInitialQuery);
+    return () => {
+      searchSequenceRef.current += 1;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, [initialQuery, animeId]);
 
   const doSearch = async (q: string) => {
+    const sequence = ++searchSequenceRef.current;
     const searchQuery = normalizeAnilistSearchQuery(q);
     if (!searchQuery) {
       setResults([]);
+      setError(null);
+      setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      setResults(await apiClient.searchTmdb(searchQuery));
+      const nextResults = await apiClient.searchTmdb(searchQuery);
+      if (sequence === searchSequenceRef.current) setResults(nextResults);
     } catch (err) {
+      if (sequence !== searchSequenceRef.current) return;
       setResults([]);
       setError(describeSearchError(err));
+    } finally {
+      if (sequence === searchSequenceRef.current) setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleInput = (value: string) => {
+    searchSequenceRef.current += 1;
     setQuery(value);
+    setResults([]);
+    setError(null);
+    const hasQuery = Boolean(normalizeAnilistSearchQuery(value));
+    setLoading(hasQuery);
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!hasQuery) return;
     debounceRef.current = setTimeout(() => void doSearch(value), 400);
   };
 

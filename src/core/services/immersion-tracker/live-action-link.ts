@@ -1,6 +1,7 @@
 import type { DatabaseSync } from './sqlite';
 import type { TmdbMediaType } from '../../../shared/media-kind';
-import { mergeAnimeRecords } from './anime-merge';
+import { mergeAnimeRecordsInTransaction } from './anime-merge';
+import { recomputeLifetimeAnimeAggregatesInTransaction } from './lifetime';
 import { toDbTimestamp } from './query-shared';
 import { nowMs } from './time';
 
@@ -64,17 +65,45 @@ export function linkAnimeToTmdbTitle(
   input: LiveActionTitleInput,
   options: LiveActionLinkOptions,
 ): LiveActionLinkResult {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = linkAnimeToTmdbTitleInTransaction(db, animeId, input, options);
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/** Caller owns the write transaction, including any artwork replacement. */
+export function linkAnimeToTmdbTitleInTransaction(
+  db: DatabaseSync,
+  animeId: number,
+  input: LiveActionTitleInput,
+  options: LiveActionLinkOptions,
+): LiveActionLinkResult {
+  const target = db.prepare('SELECT anilist_id FROM imm_anime WHERE anime_id = ?').get(animeId) as
+    | { anilist_id: number | null }
+    | undefined;
+  if (!target) throw new Error('Unknown library entry');
+  if (target.anilist_id !== null) {
+    if (options.mode === 'auto')
+      throw new Error('Cannot automatically replace an AniList identity');
+    // An explicit reassignment changes providers before compatible rows merge.
+    db.prepare('UPDATE imm_anime SET anilist_id = NULL WHERE anime_id = ?').run(animeId);
+  }
   const others = findOtherTmdbHolders(db, animeId, input);
   let survivor = animeId;
   let mergedAnimeIds: number[] = [];
   if (others.length > 0) {
     if (options.mode === 'manual') {
-      mergedAnimeIds = mergeAnimeRecords(db, animeId, others).mergedAnimeIds;
+      mergedAnimeIds = mergeAnimeRecordsInTransaction(db, animeId, others).mergedAnimeIds;
     } else {
       // Keep the entry the user already sees; the newcomer is the transient
       // "Show Season 3" row that a fresh season folder just created.
       survivor = others[0]!;
-      mergedAnimeIds = mergeAnimeRecords(db, survivor, [
+      mergedAnimeIds = mergeAnimeRecordsInTransaction(db, survivor, [
         animeId,
         ...others.slice(1),
       ]).mergedAnimeIds;
@@ -129,6 +158,7 @@ export function linkAnimeToTmdbTitle(
       survivor,
     );
   }
+  if (mergedAnimeIds.length > 0) recomputeLifetimeAnimeAggregatesInTransaction(db);
   return { animeId: survivor, mergedAnimeIds };
 }
 

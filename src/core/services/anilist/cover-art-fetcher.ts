@@ -175,8 +175,13 @@ export function createCoverArtFetcher(
     details: TmdbTitleDetails,
   ): Promise<boolean> => {
     const row = db
-      .prepare('SELECT anime_id AS animeId FROM imm_videos WHERE video_id = ?')
-      .get(videoId) as { animeId: number | null } | undefined;
+      .prepare(
+        `SELECT v.anime_id AS animeId, a.anilist_id AS anilistId
+                FROM imm_videos v LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+                WHERE v.video_id = ?`,
+      )
+      .get(videoId) as { animeId: number | null; anilistId: number | null } | undefined;
+    if (row?.anilistId != null) return false;
     if (row?.animeId) {
       const link = linkAnimeToTmdbTitle(db, row.animeId, details, { mode: 'auto' });
       if (link.mergedAnimeIds.length > 0) {
@@ -281,8 +286,16 @@ export function createCoverArtFetcher(
 
       // A live-action entry already knows its TMDB title; AniList has nothing
       // to add and would only produce a spurious anime match.
+      const hasAnilistLink = Boolean(
+        db
+          .prepare(
+            `SELECT 1 FROM imm_videos v JOIN imm_anime a ON a.anime_id = v.anime_id
+         WHERE v.video_id = ? AND a.anilist_id IS NOT NULL`,
+          )
+          .get(videoId),
+      );
       const tmdbLink = getVideoTmdbLink(db, videoId);
-      if (tmdbLink) {
+      if (tmdbLink && !hasAnilistLink) {
         const details = await options.liveAction?.resolveById(tmdbLink.tmdbType, tmdbLink.tmdbId);
         if (details) {
           return storeLiveActionArt(db, videoId, details);
@@ -353,7 +366,7 @@ export function createCoverArtFetcher(
 
       const selected = resolution?.media ?? null;
       if (!selected) {
-        if (options.liveAction) {
+        if (options.liveAction && !hasAnilistLink) {
           for (const searchTitle of searchTitles) {
             const details = await options.liveAction.resolveByTitle(searchTitle);
             if (details) {

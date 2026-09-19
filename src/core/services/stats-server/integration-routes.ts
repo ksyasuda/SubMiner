@@ -106,6 +106,7 @@ export function registerStatsIntegrationRoutes(
     ) {
       return c.body(null, 400);
     }
+    if (!(await tracker.hasAnime(animeId))) return c.body(null, 404);
     const tmdbClient = options?.tmdbClient;
     if (!tmdbClient) return c.json(statsJson('error', { error: 'TMDB is not available' }), 503);
     try {

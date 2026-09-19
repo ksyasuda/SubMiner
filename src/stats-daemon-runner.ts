@@ -8,7 +8,7 @@ import { ImmersionTrackerService } from './core/services/immersion-tracker-servi
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
 import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
-import { createTmdbClient, resolveTmdbApiKey } from './core/services/tmdb/tmdb-client';
+import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
 import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { startStatsServer } from './core/services/stats-server';
 import {
@@ -199,7 +199,10 @@ async function main(): Promise<void> {
       },
     });
     const tmdbClient = createTmdbClient({
-      resolveApiKey: () => resolveTmdbApiKey(configService.reloadConfig().tmdb, bundledTmdbApiKey),
+      resolveApiKey: createTmdbApiKeyResolver(
+        () => configService.reloadConfig().tmdb,
+        () => bundledTmdbApiKey,
+      ),
     });
     tracker.setCoverArtFetcher(
       createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art'), {

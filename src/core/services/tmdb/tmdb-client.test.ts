@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { TmdbApiKeyMissingError, createTmdbClient, resolveTmdbApiKey } from './tmdb-client.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type { TmdbConfig } from '../../../types/integrations';
+import {
+  TmdbApiKeyMissingError,
+  createTmdbClient,
+  createTmdbApiKeyResolver,
+  resolveTmdbApiKey,
+} from './tmdb-client.js';
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -109,16 +118,17 @@ test('search sends a v3 key as a query parameter and drops people from multi res
 });
 
 test('a v4 read token travels as a bearer header instead of api_key', async () => {
+  const v4Token = ['eyJ', 'test-header', '.payload', '.sig'].join('');
   const { calls, fetchImpl } = captureFetch(() => jsonResponse({ results: [] }));
   const client = createTmdbClient({
-    resolveApiKey: async () => 'eyJhbGciOiJIUzI1NiJ9.payload.sig',
+    resolveApiKey: async () => v4Token,
     fetch: fetchImpl,
   });
   await client.search('x');
   assert.equal(calls[0]!.url.searchParams.has('api_key'), false);
   assert.equal(
     (calls[0]!.init?.headers as Record<string, string>).Authorization,
-    'Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig',
+    `Bearer ${v4Token}`,
   );
 });
 
@@ -193,4 +203,54 @@ test('getDetails returns null for an unknown id', async () => {
   const { fetchImpl } = captureFetch(() => jsonResponse({ status_message: 'nope' }, 404));
   const client = createTmdbClient({ resolveApiKey: async () => 'k', fetch: fetchImpl });
   assert.equal(await client.getDetails('tv', 1), null);
+});
+
+test('client reuses command output across requests and invalidates it when either setting changes', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tmdb-command-'));
+  const counter = path.join(dir, 'calls');
+  const command = `printf x >> '${counter}'; printf command-key`;
+  let config: TmdbConfig = { apiKeyCommand: command };
+  const { calls, fetchImpl } = captureFetch(() => jsonResponse({ results: [] }));
+  const client = createTmdbClient({
+    resolveApiKey: createTmdbApiKeyResolver(
+      () => config,
+      () => 'bundled',
+    ),
+    fetch: fetchImpl,
+  });
+  try {
+    await Promise.all([client.search('a'), client.search('b')]);
+    await client.getDetails('tv', 1);
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'x');
+    assert.ok(calls.every(({ url }) => url.searchParams.get('api_key') === 'command-key'));
+    config = { ...config, apiKey: 'literal' };
+    await client.search('c');
+    assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'literal');
+    config = { ...config, apiKey: '' };
+    await client.search('d');
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'xx');
+    config = { apiKeyCommand: command.replace('command-key', 'new-key') };
+    await client.search('e');
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'xxx');
+    assert.equal(calls.at(-1)?.url.searchParams.get('api_key'), 'new-key');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('failed commands retry instead of caching the bundled fallback', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-tmdb-retry-'));
+  const marker = path.join(dir, 'ready');
+  const resolve = createTmdbApiKeyResolver(
+    () => ({
+      apiKeyCommand: `if [ -f '${marker}' ]; then printf recovered; else touch '${marker}'; exit 1; fi`,
+    }),
+    () => 'bundled',
+  );
+  try {
+    assert.equal(await resolve(), 'bundled');
+    assert.equal(await resolve(), 'recovered');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

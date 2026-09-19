@@ -1178,6 +1178,8 @@ Release builds ship with a project TMDB key, so nothing needs to be configured. 
 | `tmdb.apiKey`        | string | Your own TMDB API key or read access token; overrides the bundled key (default: empty)             |
 | `tmdb.apiKeyCommand` | string | Shell command that prints the key to stdout, used instead of `apiKey` to keep it out of the config |
 
+Successful `apiKeyCommand` output is cached for the running client until `tmdb.apiKey` or `tmdb.apiKeyCommand` changes. Failed or empty command output is retried on the next request.
+
 Changes apply to the next TMDB request without a restart.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
