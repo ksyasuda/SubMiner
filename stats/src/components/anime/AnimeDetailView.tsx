@@ -241,7 +241,7 @@ export function AnimeDetailView({
       />
       <AnimeWatchChart animeId={animeId} />
       <AnimeWordList animeId={animeId} onNavigateToWord={onNavigateToWord} />
-      {detail.mediaKind === 'anime' && showAnilistSelector && (
+      {detail.mediaKind !== 'youtube' && showAnilistSelector && (
         <AnilistSelector
           animeId={animeId}
           initialQuery={detail.canonicalTitle}
