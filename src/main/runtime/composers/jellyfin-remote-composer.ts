@@ -91,6 +91,7 @@ export function composeJellyfinRemoteHandlers(
       getNow: options.getNow,
       ticksPerSecond: options.ticksPerSecond,
       logDebug: options.logDebug,
+      logWarn: options.logWarn,
     });
   const reportJellyfinRemoteProgress = createReportJellyfinRemoteProgressHandler(
     buildReportJellyfinRemoteProgressMainDepsHandler(),

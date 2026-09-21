@@ -203,6 +203,7 @@ export type JellyfinRemoteStoppedReporterDeps = {
   getNow?: () => number;
   ticksPerSecond: number;
   logDebug: (message: string, error: unknown) => void;
+  logWarn?: (message: string) => void;
 };
 
 export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteStoppedReporterDeps) {
@@ -244,7 +245,7 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
       } catch (error) {
         deps.logDebug('Failed to report Jellyfin remote final progress', error);
       }
-      await session.reportStopped({
+      const reported = await session.reportStopped({
         itemId: playback.itemId,
         mediaSourceId: playback.mediaSourceId,
         positionTicks,
@@ -254,6 +255,11 @@ export function createReportJellyfinRemoteStoppedHandler(deps: JellyfinRemoteSto
         subtitleStreamIndex: playback.subtitleStreamIndex,
         eventName: 'stop',
       });
+      if (reported === false) {
+        deps.logWarn?.(
+          `Jellyfin did not accept the playback stop report for item ${playback.itemId}; the server may keep showing it as playing.`,
+        );
+      }
     } catch (error) {
       deps.logDebug('Failed to report Jellyfin remote stop', error);
     } finally {

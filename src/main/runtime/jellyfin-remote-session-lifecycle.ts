@@ -38,6 +38,7 @@ type JellyfinRemoteServiceOptions = {
   };
   onConnected: () => void;
   onDisconnected: () => void;
+  logWarn?: (message: string, details?: unknown) => void;
   onPlay: (payload: JellyfinRemoteEventPayload) => void;
   onPlaystate: (payload: JellyfinRemoteEventPayload) => void;
   onGeneralCommand: (payload: JellyfinRemoteEventPayload) => void;
@@ -110,6 +111,7 @@ export function createStartJellyfinRemoteSessionHandler(deps: {
       onDisconnected: () => {
         deps.logWarn('Jellyfin remote websocket disconnected; retrying.');
       },
+      logWarn: (message, details) => deps.logWarn(message, details),
       onPlay: (payload) => {
         void deps.handlePlay(payload).catch((error) => {
           deps.logWarn('Failed handling Jellyfin remote Play event', error);
