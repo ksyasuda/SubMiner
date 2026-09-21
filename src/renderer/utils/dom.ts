@@ -21,6 +21,8 @@ export type RendererDom = {
   jimakuFilesSection: HTMLDivElement;
   jimakuFilesList: HTMLUListElement;
   jimakuBroadenButton: HTMLButtonElement;
+  jimakuTabAnimeButton: HTMLButtonElement;
+  jimakuTabLiveActionButton: HTMLButtonElement;
 
   tsukihimeModal: HTMLDivElement;
   tsukihimeTitleInput: HTMLInputElement;
@@ -44,6 +46,14 @@ export type RendererDom = {
   youtubePickerStatus: HTMLDivElement;
   youtubePickerTracks: HTMLUListElement;
 
+  mediaTimingReviewFramePicker: HTMLDivElement;
+  mediaTimingReviewFrameImage: HTMLImageElement;
+  mediaTimingReviewFrameSlider: HTMLInputElement;
+  mediaTimingReviewFrameTime: HTMLElement;
+  mediaTimingReviewFrameStatus: HTMLElement;
+  mediaTimingReviewFramePrevious: HTMLButtonElement;
+  mediaTimingReviewFrameNext: HTMLButtonElement;
+  mediaTimingReviewFrameReset: HTMLButtonElement;
   mediaTimingReviewModal: HTMLDivElement;
   mediaTimingReviewKind: HTMLDivElement;
   mediaTimingReviewText: HTMLElement;
@@ -218,6 +228,8 @@ export function resolveRendererDom(): RendererDom {
     jimakuFilesSection: getRequiredElement<HTMLDivElement>('jimakuFilesSection'),
     jimakuFilesList: getRequiredElement<HTMLUListElement>('jimakuFiles'),
     jimakuBroadenButton: getRequiredElement<HTMLButtonElement>('jimakuBroaden'),
+    jimakuTabAnimeButton: getRequiredElement<HTMLButtonElement>('jimakuTabAnime'),
+    jimakuTabLiveActionButton: getRequiredElement<HTMLButtonElement>('jimakuTabLiveAction'),
 
     tsukihimeModal: getRequiredElement<HTMLDivElement>('tsukihimeModal'),
     tsukihimeTitleInput: getRequiredElement<HTMLInputElement>('tsukihimeTitle'),
@@ -245,6 +257,24 @@ export function resolveRendererDom(): RendererDom {
     youtubePickerStatus: getRequiredElement<HTMLDivElement>('youtubePickerStatus'),
     youtubePickerTracks: getRequiredElement<HTMLUListElement>('youtubePickerTracks'),
 
+    mediaTimingReviewFramePicker: getRequiredElement<HTMLDivElement>(
+      'mediaTimingReviewFramePicker',
+    ),
+    mediaTimingReviewFrameImage: getRequiredElement<HTMLImageElement>(
+      'mediaTimingReviewFrameImage',
+    ),
+    mediaTimingReviewFrameSlider: getRequiredElement<HTMLInputElement>(
+      'mediaTimingReviewFrameSlider',
+    ),
+    mediaTimingReviewFrameTime: getRequiredElement<HTMLElement>('mediaTimingReviewFrameTime'),
+    mediaTimingReviewFrameStatus: getRequiredElement<HTMLElement>('mediaTimingReviewFrameStatus'),
+    mediaTimingReviewFramePrevious: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewFramePrevious',
+    ),
+    mediaTimingReviewFrameNext: getRequiredElement<HTMLButtonElement>('mediaTimingReviewFrameNext'),
+    mediaTimingReviewFrameReset: getRequiredElement<HTMLButtonElement>(
+      'mediaTimingReviewFrameReset',
+    ),
     mediaTimingReviewModal: getRequiredElement<HTMLDivElement>('mediaTimingReviewModal'),
     mediaTimingReviewKind: getRequiredElement<HTMLDivElement>('mediaTimingReviewKind'),
     mediaTimingReviewText: getRequiredElement<HTMLElement>('mediaTimingReviewText'),

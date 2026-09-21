@@ -147,6 +147,9 @@ export class PendingYoutubeMediaQueue {
       generateAudio: shouldGenerateAudio(config),
       generateImage: shouldGenerateImage(config),
       volumeScale,
+      ...(job.context?.screenshotTime !== undefined
+        ? { screenshotTime: job.context.screenshotTime }
+        : {}),
       ...(job.context?.mediaPaddingSeconds !== undefined
         ? { mediaPaddingSeconds: job.context.mediaPaddingSeconds }
         : {}),
@@ -320,6 +323,7 @@ export class PendingYoutubeMediaQueue {
           job.endTime,
           animatedLeadInSeconds,
           job.mediaPaddingSeconds,
+          job.screenshotTime,
         );
         if (imageBuffer) {
           await this.deps.client.storeMediaFile(imageFilename, imageBuffer);
@@ -381,6 +385,7 @@ export class PendingYoutubeMediaQueue {
     endTime: number,
     animatedLeadInSeconds = 0,
     mediaPaddingSeconds?: number,
+    screenshotTime?: number,
   ): Promise<Buffer | null> {
     const config = this.deps.getConfig();
     if (config.media?.imageType === 'avif') {
@@ -399,7 +404,7 @@ export class PendingYoutubeMediaQueue {
       );
     }
 
-    const timestamp = startTime + (endTime - startTime) / 2;
+    const timestamp = screenshotTime ?? startTime + (endTime - startTime) / 2;
     return this.deps.mediaGenerator.generateScreenshot(videoPath, timestamp, {
       format: config.media?.imageFormat as 'jpg' | 'png' | 'webp',
       quality: config.media?.imageQuality,

@@ -48,7 +48,8 @@ export function AnimeCard({
       <div className="p-3">
         <div className="text-sm font-medium text-ctp-text truncate">{anime.canonicalTitle}</div>
         <div className="text-xs text-ctp-overlay2 mt-1">
-          {anime.episodeCount} episode{anime.episodeCount !== 1 ? 's' : ''}
+          {anime.episodeCount} {anime.mediaKind === 'youtube' ? 'video' : 'episode'}
+          {anime.episodeCount !== 1 ? 's' : ''}
         </div>
         <div className="text-xs text-ctp-overlay2">
           {formatDuration(anime.totalActiveMs)} · {formatNumber(anime.totalCards)} cards

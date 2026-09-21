@@ -46,10 +46,10 @@ function installDom(): () => void {
 
 function libraryItem(animeId: number, title: string, episodeCount: number): AnimeLibraryItem {
   return {
+    mediaKind: 'anime',
     animeId,
     canonicalTitle: title,
     anilistId: null,
-    mediaKind: 'anime',
     tmdbId: null,
     tmdbType: null,
     totalSessions: 1,
@@ -72,7 +72,9 @@ function findButton(container: Element, label: string): HTMLElement {
 
 /** Library cards only expose aria-pressed while selection mode is on. */
 function cardButtons(container: Element): HTMLButtonElement[] {
-  return [...container.querySelectorAll('button[aria-pressed]')] as unknown as HTMLButtonElement[];
+  return [
+    ...container.querySelectorAll('.grid button[aria-pressed]'),
+  ] as unknown as HTMLButtonElement[];
 }
 
 function mergeButton(container: Element): HTMLButtonElement {

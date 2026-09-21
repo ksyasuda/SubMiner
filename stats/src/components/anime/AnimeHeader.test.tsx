@@ -6,10 +6,10 @@ import { confirmAnimeDelete, setDeleteConfirmPresenter } from '../../lib/delete-
 import type { AnimeDetailData } from '../../types/stats';
 
 const DETAIL: AnimeDetailData['detail'] = {
+  mediaKind: 'anime',
   animeId: 3,
   canonicalTitle: 'Project Radio Noise Season 2',
   anilistId: 20661,
-  mediaKind: 'anime',
   tmdbId: null,
   tmdbType: null,
   titleRomaji: 'Toaru Kagaku no Railgun S',
@@ -111,4 +111,17 @@ test('AnimeHeader offers to link an unlinked anime entry to TMDB', () => {
 
   assert.match(markup, /Link to TMDB/);
   assert.doesNotMatch(markup, /themoviedb\.org/);
+});
+
+test('YouTube channel headers show videos and omit all AniList controls', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeHeader
+      detail={{ ...DETAIL, mediaKind: 'youtube' }}
+      anilistEntries={[{ anilistId: 20661, titleRomaji: null, titleEnglish: null, season: null }]}
+      onChangeAnilist={() => {}}
+    />,
+  );
+  assert.match(markup, /YouTube channel/);
+  assert.match(markup, /video/);
+  assert.doesNotMatch(markup, /AniList|anilist\.co|episode/);
 });

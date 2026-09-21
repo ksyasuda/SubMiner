@@ -189,6 +189,10 @@ The review opens on the subtitle range plus your configured audio padding. Subti
 
 **Adjusting the clip.** Drag either edge to trim, drag the middle to slide the whole clip without changing its length, or click anywhere on the waveform to snap the nearer edge there. A focused edge also moves with the arrow keys: 100 ms per press, or 500 ms with Shift. The 100 ms buttons do the same thing. Earlier and Later each reveal two more seconds of timeline without moving the selection.
 
+**Choosing the screenshot.** With still images enabled, drag the screenshot slider or use the Frame buttons to choose a video frame independently of the audio. Earlier and Later reveal more time for both sliders. The image follows the audio midpoint until you pick a frame, then stays fixed while you trim audio. Reset below the image restores automatic selection; the audio Reset affects only the audio. The screenshot slider also supports arrow keys, Home, and End.
+
+The picker supports local video and seekable remote streams, including Jellyfin, without seeking the main player. A selected frame must load before you can confirm; if it fails, choose another frame or Reset. The picker is hidden when image generation is disabled or animated AVIF is selected. Animated images continue to use the reviewed audio range.
+
 **Keys.** Space previews the selection with a playhead sweeping the clip. The preview ends when the hidden player has actually played the last sample, so Bluetooth output latency does not clip the tail. Enter confirms and Escape cancels.
 
 **The waveform.** SubMiner reads a center channel when one carries dialogue and falls back to a mono mix otherwise, keeps only the 250 to 3500 Hz speech band, and draws each slice's loudness against the clip's own noise floor. Steady background music flattens out and dialogue stands up, which makes it much easier to tell adjacent lines apart. The mined subtitle appears as a tinted band with labeled line-start and line-end rails. If waveform analysis fails, the timing controls still work.

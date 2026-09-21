@@ -1,3 +1,8 @@
+import {
+  MEDIA_KINDS,
+  shareTitleNamespace,
+  type MediaKind,
+} from '../../../../src/shared/media-kind';
 import { useState, useMemo, useEffect } from 'react';
 import { useAnimeLibrary } from '../../hooks/useAnimeLibrary';
 import { formatDuration } from '../../lib/formatters';
@@ -13,7 +18,6 @@ import { AnimeMergeDialog } from './AnimeMergeDialog';
 import { DuplicateReviewStrip } from './DuplicateReviewStrip';
 
 type SortKey = 'lastWatched' | 'watchTime' | 'cards' | 'episodes';
-type KindFilter = 'all' | 'anime' | 'live_action';
 
 const GRID_CLASSES: Record<LibraryCardSize, string> = {
   sm: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
@@ -21,11 +25,12 @@ const GRID_CLASSES: Record<LibraryCardSize, string> = {
   lg: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7',
 };
 
-const KIND_OPTIONS: { key: KindFilter; label: string }[] = [
-  { key: 'all', label: 'All Titles' },
-  { key: 'anime', label: 'Anime' },
-  { key: 'live_action', label: 'Live Action' },
-];
+const KIND_LABELS: Record<MediaKind | 'all', string> = {
+  all: 'All Titles',
+  anime: 'Anime',
+  live_action: 'Live Action',
+  youtube: 'YouTube',
+};
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'lastWatched', label: 'Last Watched' },
@@ -74,8 +79,8 @@ export function AnimeTab({
     clearRecommendation,
   } = useAnimeLibrary();
   const [search, setSearch] = useState('');
+  const [mediaKind, setMediaKind] = useState<MediaKind | 'all'>('all');
   const [sortKey, setSortKey] = useState<SortKey>('lastWatched');
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [cardSize, setCardSize] = useState<LibraryCardSize>(() =>
     readLibraryCardSizePreference(
       getLibraryCardSizeStorage(typeof window === 'undefined' ? null : window),
@@ -116,17 +121,22 @@ export function AnimeTab({
   }, [initialAnimeId, onClearInitialAnime]);
 
   const filtered = useMemo(() => {
-    const byKind = kindFilter === 'all' ? anime : anime.filter((a) => a.mediaKind === kindFilter);
+    const entries = anime.filter((entry) => mediaKind === 'all' || entry.mediaKind === mediaKind);
     const base = search.trim()
-      ? byKind.filter((a) => a.canonicalTitle.toLowerCase().includes(search.toLowerCase()))
-      : byKind;
+      ? entries.filter((a) => a.canonicalTitle.toLowerCase().includes(search.toLowerCase()))
+      : entries;
     return sortAnime(base, sortKey);
-  }, [anime, search, sortKey, kindFilter]);
+  }, [anime, search, sortKey, mediaKind]);
 
   const totalMs = filtered.reduce((sum, a) => sum + a.totalActiveMs, 0);
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  // Anime and live-action entries may be combined (the server only rejects
+  // conflicting AniList/TMDB links); channels never mix with either.
+  const mixedKindsChecked = checkedEntries.some(
+    (entry) => !shareTitleNamespace(entry.mediaKind, checkedEntries[0]!.mediaKind),
+  );
   const hydratedRecommendations = recommendations
     .map((recommendation) => ({
       ...recommendation,
@@ -134,7 +144,12 @@ export function AnimeTab({
         .map((animeId) => anime.find((entry) => entry.animeId === animeId))
         .filter((entry): entry is (typeof anime)[number] => entry !== undefined),
     }))
-    .filter((recommendation) => recommendation.entries.length >= 2);
+    .filter(
+      (recommendation) =>
+        recommendation.entries.length >= 2 &&
+        (mediaKind === 'all' ||
+          recommendation.entries.every((entry) => entry.mediaKind === mediaKind)),
+    );
   const activeRecommendation = hydratedRecommendations[0] ?? null;
   const reviewEntries = (reviewAnimeIds ?? [])
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
@@ -164,7 +179,31 @@ export function AnimeTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div
+          className="flex bg-ctp-surface0 rounded-lg p-0.5 border border-ctp-surface1"
+          aria-label="Media kind"
+          role="group"
+        >
+          {(['all', ...MEDIA_KINDS] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              aria-pressed={mediaKind === kind}
+              onClick={() => {
+                setMediaKind(kind);
+                exitSelectionMode();
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
+                mediaKind === kind
+                  ? 'bg-ctp-surface2 text-ctp-text'
+                  : 'text-ctp-overlay2 hover:text-ctp-subtext0'
+              }`}
+            >
+              {KIND_LABELS[kind]}
+            </button>
+          ))}
+        </div>
         <input
           type="text"
           placeholder="Search library..."
@@ -173,25 +212,13 @@ export function AnimeTab({
           className="flex-1 bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-3 py-2 text-sm text-ctp-text placeholder:text-ctp-overlay2 focus:outline-none focus:border-ctp-blue"
         />
         <select
-          value={kindFilter}
-          onChange={(e) => setKindFilter(e.target.value as KindFilter)}
-          aria-label="Filter by media kind"
-          className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
-        >
-          {KIND_OPTIONS.map((opt) => (
-            <option key={opt.key} value={opt.key}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
           className="bg-ctp-surface0 border border-ctp-surface1 rounded-lg px-2 py-2 text-sm text-ctp-text focus:outline-none focus:border-ctp-blue"
         >
           {SORT_OPTIONS.map((opt) => (
             <option key={opt.key} value={opt.key}>
-              {opt.label}
+              {opt.key === 'episodes' && mediaKind === 'youtube' ? 'Videos' : opt.label}
             </option>
           ))}
         </select>
@@ -223,7 +250,15 @@ export function AnimeTab({
           {selectionMode ? 'Cancel' : 'Select'}
         </button>
         <div className="text-xs text-ctp-overlay2 shrink-0">
-          {filtered.length} titles · {formatDuration(totalMs)}
+          {filtered.length}{' '}
+          {mediaKind === 'youtube'
+            ? filtered.length === 1
+              ? 'channel'
+              : 'channels'
+            : filtered.length === 1
+              ? 'title'
+              : 'titles'}{' '}
+          · {formatDuration(totalMs)}
         </div>
       </div>
 
@@ -248,11 +283,13 @@ export function AnimeTab({
           <div className="text-xs text-ctp-overlay2">
             {checkedEntries.length === 0
               ? 'Pick the duplicate entries to combine'
-              : `${checkedEntries.length} selected`}
+              : mixedKindsChecked
+                ? 'YouTube channels cannot be combined with other titles'
+                : `${checkedEntries.length} selected`}
           </div>
           <button
             type="button"
-            disabled={checkedEntries.length < 2}
+            disabled={checkedEntries.length < 2 || mixedKindsChecked}
             onClick={() => setShowMergeDialog(true)}
             className="px-3 py-1.5 rounded-lg bg-ctp-blue/15 border border-ctp-blue/40 text-xs text-ctp-blue hover:bg-ctp-blue/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >

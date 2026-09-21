@@ -393,7 +393,14 @@ export function parseKikuMergePreviewRequest(value: unknown): KikuMergePreviewRe
 
 export function parseJimakuSearchQuery(value: unknown): JimakuSearchQuery | null {
   if (!isObject(value) || typeof value.query !== 'string') return null;
-  return { query: value.query };
+  if (
+    value.category !== undefined &&
+    value.category !== 'anime' &&
+    value.category !== 'liveAction'
+  ) {
+    return null;
+  }
+  return { query: value.query, category: value.category };
 }
 
 export function parseJimakuFilesQuery(value: unknown): JimakuFilesQuery | null {

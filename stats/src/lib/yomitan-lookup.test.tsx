@@ -116,8 +116,8 @@ test('AnimeOverviewStats renders aggregate Yomitan lookup metrics', () => {
       detail={{
         animeId: 1,
         canonicalTitle: 'Anime',
-        anilistId: null,
         mediaKind: 'anime',
+        anilistId: null,
         tmdbId: null,
         tmdbType: null,
         titleRomaji: null,

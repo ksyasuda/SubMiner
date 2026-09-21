@@ -33,6 +33,7 @@ export function getAnimeLibrary(db: DatabaseSync): AnimeLibraryRow[] {
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
+      a.media_kind AS mediaKind,
       a.anilist_id AS anilistId,
       a.media_kind AS mediaKind,
       a.tmdb_id AS tmdbId,
@@ -66,6 +67,7 @@ export function getAnimeDetail(db: DatabaseSync, animeId: number): AnimeDetailRo
     SELECT
       a.anime_id AS animeId,
       a.canonical_title AS canonicalTitle,
+      a.media_kind AS mediaKind,
       a.anilist_id AS anilistId,
       a.media_kind AS mediaKind,
       a.tmdb_id AS tmdbId,

@@ -170,7 +170,7 @@ export function AnimeDetailView({
 
   if (loading) return <div className="text-ctp-overlay2 p-4">Loading...</div>;
   if (error) return <div className="text-ctp-red p-4">Error: {error}</div>;
-  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Anime not found</div>;
+  if (!data?.detail) return <div className="text-ctp-overlay2 p-4">Library entry not found</div>;
 
   const { detail, episodes, anilistEntries } = data;
 
@@ -229,6 +229,7 @@ export function AnimeDetailView({
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}
+        mediaKind={detail.mediaKind}
         animeId={animeId}
         onEpisodeMoved={(removedPreviousAnime) => {
           onEpisodeMoved?.();
@@ -240,7 +241,7 @@ export function AnimeDetailView({
       />
       <AnimeWatchChart animeId={animeId} />
       <AnimeWordList animeId={animeId} onNavigateToWord={onNavigateToWord} />
-      {showAnilistSelector && (
+      {detail.mediaKind === 'anime' && showAnilistSelector && (
         <AnilistSelector
           animeId={animeId}
           initialQuery={detail.canonicalTitle}

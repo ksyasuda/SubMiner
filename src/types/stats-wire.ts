@@ -242,10 +242,10 @@ export const EventType = {
 export type EventType = (typeof EventType)[keyof typeof EventType];
 
 export interface AnimeLibraryItem {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
-  mediaKind: MediaKind;
   tmdbId: number | null;
   tmdbType: TmdbMediaType | null;
   totalSessions: number;
@@ -266,10 +266,10 @@ export interface AnilistEntry {
 
 export interface AnimeDetailData {
   detail: {
+    mediaKind: MediaKind;
     animeId: number;
     canonicalTitle: string;
     anilistId: number | null;
-    mediaKind: MediaKind;
     tmdbId: number | null;
     tmdbType: TmdbMediaType | null;
     titleRomaji: string | null;

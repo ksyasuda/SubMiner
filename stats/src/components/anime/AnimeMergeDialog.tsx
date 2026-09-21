@@ -13,8 +13,10 @@ interface AnimeMergeDialogProps {
 
 const PROVIDER_CONFLICT_MESSAGE =
   'AniList-linked and TMDB-linked entries cannot be merged together. Relink one of them first.';
+const KIND_CONFLICT_MESSAGE =
+  'YouTube channels cannot be merged with anime or live-action entries.';
 
-/** Merging an AniList entry with a TMDB entry is rejected by the server (409). */
+/** Merging an AniList entry with a TMDB entry is rejected by the server (409), as is mixing in a channel. */
 function hasProviderConflict(entries: AnimeLibraryItem[]): boolean {
   return (
     entries.some((entry) => entry.anilistId !== null) &&
@@ -22,9 +24,11 @@ function hasProviderConflict(entries: AnimeLibraryItem[]): boolean {
   );
 }
 
-function describeMergeError(err: unknown): string {
+function describeMergeError(err: unknown, entries: AnimeLibraryItem[]): string {
   const message = err instanceof Error ? err.message : '';
-  if (/^Stats API error: 409\b/.test(message)) return PROVIDER_CONFLICT_MESSAGE;
+  if (/^Stats API error: 409\b/.test(message)) {
+    return hasProviderConflict(entries) ? PROVIDER_CONFLICT_MESSAGE : KIND_CONFLICT_MESSAGE;
+  }
   return message || 'Failed to merge these entries.';
 }
 
@@ -67,7 +71,7 @@ export function AnimeMergeDialog({ entries, onClose, onMerged }: AnimeMergeDialo
       const result = await apiClient.mergeAnime(keeperId, sourceAnimeIds);
       onMerged(result.animeId);
     } catch (err) {
-      setError(describeMergeError(err));
+      setError(describeMergeError(err, entries));
       setMerging(false);
     }
   };

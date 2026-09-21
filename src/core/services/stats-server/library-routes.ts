@@ -2,6 +2,7 @@ import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
 import {
   INCOMPATIBLE_PROVIDER_MERGE_MESSAGE,
+  MEDIA_KIND_MISMATCH_MESSAGE,
   UNKNOWN_MOVE_TARGET_MESSAGE,
 } from '../immersion-tracker/anime-merge.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
@@ -248,13 +249,17 @@ export function registerStatsLibraryRoutes(
     const body = await c.req.json().catch(() => null);
     const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
     if (sourceAnimeIds.length === 0) return c.body(null, 400);
-    let summary;
+    let summary: Awaited<ReturnType<typeof tracker.mergeAnime>>;
     try {
       summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
     } catch (error) {
-      // Mixing providers is a rejected request, not a server fault, so the
-      // dashboard can explain it instead of showing a bare 500.
-      if (error instanceof Error && error.message === INCOMPATIBLE_PROVIDER_MERGE_MESSAGE) {
+      // Mixing providers or kinds is a rejected request, not a server fault,
+      // so the dashboard can explain it instead of showing a bare 500.
+      if (
+        error instanceof Error &&
+        (error.message === INCOMPATIBLE_PROVIDER_MERGE_MESSAGE ||
+          error.message === MEDIA_KIND_MISMATCH_MESSAGE)
+      ) {
         return c.json(statsJson('error', { error: error.message }), 409);
       }
       throw error;
@@ -293,6 +298,9 @@ export function registerStatsLibraryRoutes(
       // reported to the caller as "not found".
       if (error instanceof Error && error.message === UNKNOWN_MOVE_TARGET_MESSAGE) {
         return c.body(null, 404);
+      }
+      if (error instanceof Error && error.message === MEDIA_KIND_MISMATCH_MESSAGE) {
+        return c.text(MEDIA_KIND_MISMATCH_MESSAGE, 409);
       }
       throw error;
     }

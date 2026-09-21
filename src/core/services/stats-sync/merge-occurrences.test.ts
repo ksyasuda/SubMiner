@@ -98,3 +98,122 @@ for (const legacyOccurrences of [false, true]) {
     }
   });
 }
+
+test('sync preserves the YouTube media kind when adding a channel', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-youtube-'));
+  try {
+    const localPath = buildDb(dir, 'local.sqlite', {
+      word: '猫',
+      seenMs: BASE_MS,
+      legacyOccurrences: false,
+    });
+    const remotePath = buildDb(dir, 'remote.sqlite', {
+      word: '犬',
+      seenMs: BASE_MS,
+      legacyOccurrences: false,
+    });
+    const remote = new Database(remotePath);
+    remote.exec("UPDATE imm_anime SET media_kind = 'youtube'");
+    remote.close();
+    mergeSnapshotIntoDb(localPath, remotePath);
+    const local = new Database(localPath);
+    try {
+      const row = local
+        .prepare(
+          "SELECT media_kind FROM imm_anime WHERE normalized_title_key = 'key-remote.sqlite'",
+        )
+        .get();
+      assert.ok(row && typeof row === 'object' && 'media_kind' in row);
+      assert.equal(row.media_kind, 'youtube');
+    } finally {
+      local.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('sync separates same-title kinds and repairs only identifiable legacy channels', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-sync-kinds-'));
+  const localPath = buildDb(dir, 'local', {
+    word: 'local',
+    seenMs: BASE_MS,
+    legacyOccurrences: false,
+  });
+  const remotePath = buildDb(dir, 'remote', {
+    word: 'remote',
+    seenMs: BASE_MS,
+    legacyOccurrences: false,
+  });
+  try {
+    const local = new Database(localPath);
+    local.exec(`UPDATE imm_anime SET normalized_title_key = 'shared', anilist_id = 42;
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, metadata_json, title_english, LAST_UPDATE_DATE)
+        VALUES (2, 'legacy', 'Local channel', '{"source":"youtube-channel"}', 'Keep local', '9999999999999');
+      UPDATE imm_anime SET anilist_id = 99 WHERE anime_id = 2;
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, media_kind, anilist_id)
+        VALUES (3, 'other shared', 'Channel with bad ID', 'youtube', 77);`);
+    local.close();
+    const remote = new Database(remotePath);
+    remote.exec(`UPDATE imm_anime SET normalized_title_key = 'shared', media_kind = 'youtube', anilist_id = 42;
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, media_kind, title_english, description, LAST_UPDATE_DATE)
+        VALUES (2, 'legacy', 'Remote channel', 'youtube', 'Remote title', 'Fill missing', '1');
+      INSERT INTO imm_anime(anime_id, normalized_title_key, canonical_title, media_kind, anilist_id)
+        VALUES (3, 'other shared', 'Real anime', 'anime', 77);`);
+    remote.close();
+    mergeSnapshotIntoDb(localPath, remotePath);
+    mergeSnapshotIntoDb(localPath, remotePath);
+    const db = new Database(localPath);
+    try {
+      const rows = db
+        .prepare(
+          'SELECT media_kind FROM imm_anime WHERE normalized_title_key = ? ORDER BY media_kind',
+        )
+        .all('shared');
+      assert.deepEqual(rows, [{ media_kind: 'anime' }, { media_kind: 'youtube' }]);
+      assert.deepEqual(
+        db
+          .prepare(
+            "SELECT media_kind FROM imm_anime WHERE normalized_title_key = 'other shared' ORDER BY media_kind",
+          )
+          .all(),
+        [{ media_kind: 'anime' }, { media_kind: 'youtube' }],
+      );
+      assert.equal(
+        (
+          db.prepare('SELECT media_kind FROM imm_anime WHERE anilist_id = 77').get() as {
+            media_kind: string;
+          }
+        ).media_kind,
+        'anime',
+      );
+      assert.deepEqual(
+        db
+          .prepare(
+            'SELECT media_kind, anilist_id, title_english, description FROM imm_anime WHERE anime_id = 2',
+          )
+          .all()[0],
+        {
+          media_kind: 'youtube',
+          anilist_id: null,
+          title_english: 'Keep local',
+          description: 'Fill missing',
+        },
+      );
+      assert.equal(
+        (
+          db
+            .prepare(
+              "SELECT a.media_kind FROM imm_videos v JOIN imm_anime a ON a.anime_id = v.anime_id WHERE v.video_key = 'video-remote'",
+            )
+            .get() as { media_kind: string }
+        ).media_kind,
+        'youtube',
+      );
+    } finally {
+      db.close();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

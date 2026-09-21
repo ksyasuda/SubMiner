@@ -251,6 +251,16 @@ export function createCoverArtFetcher(
 
   return {
     async fetchIfMissing(db, videoId, canonicalTitle): Promise<boolean> {
+      const channel = db
+        .prepare(
+          `
+        SELECT 1 FROM imm_videos v
+        JOIN imm_anime a ON a.anime_id = v.anime_id
+        WHERE v.video_id = ? AND a.media_kind = 'youtube'
+      `,
+        )
+        .get(videoId);
+      if (channel) return false;
       const existing = getCoverArt(db, videoId);
       if (existing?.coverBlob) {
         return true;

@@ -39,6 +39,7 @@ export function AnimeHeader({
   onDeleteAnime,
   isDeletingAnime = false,
 }: AnimeHeaderProps) {
+  const isYoutube = detail.mediaKind === 'youtube';
   const altTitles = [detail.titleRomaji, detail.titleEnglish, detail.titleNative].filter(
     (t): t is string => t != null && t !== detail.canonicalTitle,
   );
@@ -69,7 +70,9 @@ export function AnimeHeader({
         )}
         <div className="text-sm text-ctp-subtext0 mt-2 flex items-center gap-2">
           <span>
-            {detail.episodeCount} episode{detail.episodeCount !== 1 ? 's' : ''}
+            {isYoutube ? 'YouTube channel · ' : ''}
+            {detail.episodeCount} {isYoutube ? 'video' : 'episode'}
+            {detail.episodeCount !== 1 ? 's' : ''}
           </span>
           {isLiveAction && (
             <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-ctp-peach/15 text-ctp-peach">
@@ -88,30 +91,32 @@ export function AnimeHeader({
               View on TMDB <span className="text-[10px]">{'\u2197'}</span>
             </a>
           )}
-          {isLiveAction ? null : anilistEntries.length > 0 ? (
-            hasMultipleEntries ? (
-              anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
-            ) : (
+          {!isYoutube &&
+            !isLiveAction &&
+            (anilistEntries.length > 0 ? (
+              hasMultipleEntries ? (
+                anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
+              ) : (
+                <a
+                  href={`https://anilist.co/anime/${anilistEntries[0]!.anilistId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
+                >
+                  View on AniList <span className="text-[10px]">{'\u2197'}</span>
+                </a>
+              )
+            ) : detail.anilistId ? (
               <a
-                href={`https://anilist.co/anime/${anilistEntries[0]!.anilistId}`}
+                href={`https://anilist.co/anime/${detail.anilistId}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
               >
                 View on AniList <span className="text-[10px]">{'\u2197'}</span>
               </a>
-            )
-          ) : detail.anilistId ? (
-            <a
-              href={`https://anilist.co/anime/${detail.anilistId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
-            >
-              View on AniList <span className="text-[10px]">{'\u2197'}</span>
-            </a>
-          ) : null}
-          {onChangeAnilist && (
+            ) : null)}
+          {!isYoutube && onChangeAnilist && (
             <button
               type="button"
               onClick={onChangeAnilist}
@@ -123,7 +128,7 @@ export function AnimeHeader({
                 : 'Link to AniList'}
             </button>
           )}
-          {onChangeTmdb && (
+          {!isYoutube && onChangeTmdb && (
             <button
               type="button"
               onClick={onChangeTmdb}

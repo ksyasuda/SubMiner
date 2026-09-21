@@ -149,6 +149,10 @@ These settings come from `config.jsonc` (or built-in defaults); there are no CLI
 - **Secondary subtitle fails**: Secondary track failures never block playback. The primary subtitle loads independently.
 - **Native mpv secondary rendering**: Stays hidden during YouTube flows so the SubMiner overlay remains the visible secondary subtitle surface.
 
+## Viewing stats
+
+The stats Library groups tracked YouTube videos by channel when channel metadata is available. Select **YouTube** in the Library filter to see those channels separately from anime. Each channel page lists its videos, watch time, vocabulary, and mined cards. See [Immersion Tracking](/immersion-tracking#library).
+
 ## Related pages
 
 - [Usage - YouTube Playback](/usage#youtube-playback)

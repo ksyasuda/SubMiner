@@ -21,6 +21,8 @@ export interface MediaTimingReviewRequest {
   noteId?: number;
   audioPadding: number;
   maxMediaDuration: number;
+  /** Still screenshots only; animated images continue to follow the audio range. */
+  screenshotEnabled?: boolean;
 }
 
 /** A subtitle line adjacent to the mined one that the review can pull onto the card. */
@@ -32,7 +34,13 @@ export interface MediaTimingReviewContextLine {
 
 export type MediaTimingReviewDecision =
   /** `text` is set when the review combined adjacent lines into the card sentence. */
-  | { action: 'confirm'; startTime: number; endTime: number; text?: string }
+  | {
+      action: 'confirm';
+      startTime: number;
+      endTime: number;
+      text?: string;
+      screenshotTime?: number;
+    }
   | { action: 'use-original' }
   | { action: 'skip-media' }
   | { action: 'discard' };
@@ -53,6 +61,19 @@ export interface MediaTimingReviewOpenPayload {
   timelineEndTime: number;
   mediaDuration?: number;
   maxMediaDuration: number;
+  screenshotEnabled?: boolean;
+}
+
+export interface MediaTimingReviewFrameRequest {
+  reviewId: string;
+  timestamp: number;
+  /** Step to the adjacent decoded frame instead of seeking to a time. */
+  direction?: -1 | 1;
+}
+
+export interface MediaTimingReviewFrameResult extends MediaTimingReviewActionResult {
+  dataUrl?: string;
+  timestamp?: number;
 }
 
 export interface MediaTimingReviewPreviewRequest {

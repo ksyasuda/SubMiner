@@ -214,9 +214,10 @@ export function registerAnkiJimakuIpcRuntime(
     },
     getJimakuMediaInfo: () => options.parseMediaInfo(options.getCurrentMediaPath()),
     searchJimakuEntries: async (query) => {
-      logger.info(`[jimaku] search-entries query: "${query.query}"`);
+      const category = query.category ?? 'anime';
+      logger.info(`[jimaku] search-entries query: "${query.query}" category=${category}`);
       const response = await options.jimakuFetchJson<JimakuEntry[]>('/api/entries/search', {
-        anime: true,
+        anime: category === 'anime',
         query: query.query,
       });
       if (!response.ok) return response;

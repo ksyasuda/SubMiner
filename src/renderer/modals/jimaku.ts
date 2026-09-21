@@ -4,6 +4,7 @@ import type {
   JimakuEntry,
   JimakuFileEntry,
   JimakuMediaInfo,
+  JimakuSearchCategory,
 } from '../../types';
 import type { ModalStateReader, RendererContext } from '../context';
 
@@ -21,7 +22,12 @@ export function createJimakuModal(
       : 'rgba(255, 255, 255, 0.8)';
   }
 
+  // Bumped whenever the lists are reset (new search, tab switch, open, close)
+  // so any in-flight entries or files reply for the old state is discarded.
+  let searchGeneration = 0;
+
   function resetJimakuLists(): void {
+    searchGeneration += 1;
     ctx.state.jimakuEntries = [];
     ctx.state.jimakuFiles = [];
     ctx.state.selectedEntryIndex = 0;
@@ -33,6 +39,33 @@ export function createJimakuModal(
     ctx.dom.jimakuEntriesSection.classList.add('hidden');
     ctx.dom.jimakuFilesSection.classList.add('hidden');
     ctx.dom.jimakuBroadenButton.classList.add('hidden');
+  }
+
+  function renderTabs(): void {
+    const liveActionActive = ctx.state.jimakuActiveTab === 'liveAction';
+    const active = liveActionActive
+      ? ctx.dom.jimakuTabLiveActionButton
+      : ctx.dom.jimakuTabAnimeButton;
+    const inactive = liveActionActive
+      ? ctx.dom.jimakuTabAnimeButton
+      : ctx.dom.jimakuTabLiveActionButton;
+    active.classList.add('active');
+    active.setAttribute('aria-selected', 'true');
+    inactive.classList.remove('active');
+    inactive.setAttribute('aria-selected', 'false');
+  }
+
+  // Tabs map to Jimaku's anime / live-action catalogues, so switching re-runs
+  // the search server-side instead of filtering a shared result list.
+  function setActiveTab(tab: JimakuSearchCategory): void {
+    if (ctx.state.jimakuActiveTab === tab) return;
+    ctx.state.jimakuActiveTab = tab;
+    renderTabs();
+    if (getSearchQuery().query) {
+      void performJimakuSearch();
+    } else {
+      resetJimakuLists();
+    }
   }
 
   function formatEntryLabel(entry: JimakuEntry): string {
@@ -133,9 +166,12 @@ export function createJimakuModal(
     setJimakuStatus('Searching Jimaku...');
     ctx.state.currentEpisodeFilter = episode;
 
+    const category = ctx.state.jimakuActiveTab;
+    const generation = searchGeneration;
     const response: JimakuApiResponse<JimakuEntry[]> = await window.electronAPI.jimakuSearchEntries(
-      { query },
+      { query, category },
     );
+    if (generation !== searchGeneration) return;
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
@@ -148,7 +184,11 @@ export function createJimakuModal(
     ctx.state.selectedEntryIndex = 0;
 
     if (ctx.state.jimakuEntries.length === 0) {
-      setJimakuStatus('No entries found.');
+      setJimakuStatus(
+        category === 'anime'
+          ? 'No anime entries found. Try the Live action tab.'
+          : 'No live action entries found. Try the Anime tab.',
+      );
       return;
     }
 
@@ -167,12 +207,15 @@ export function createJimakuModal(
     ctx.dom.jimakuFilesList.innerHTML = '';
     ctx.dom.jimakuFilesSection.classList.add('hidden');
 
+    const generation = searchGeneration;
     const response: JimakuApiResponse<JimakuFileEntry[]> = await window.electronAPI.jimakuListFiles(
       {
         entryId,
         episode,
       },
     );
+    // The user may have picked another entry or reset the modal meanwhile.
+    if (generation !== searchGeneration || ctx.state.currentEntryId !== entryId) return;
     if (!response.ok) {
       const retry = response.error.retryAfter
         ? ` Retry after ${response.error.retryAfter.toFixed(1)}s.`
@@ -262,10 +305,15 @@ export function createJimakuModal(
 
     setJimakuStatus('Loading media info...');
     resetJimakuLists();
+    renderTabs();
 
+    // Media info can resolve after the user already closed the modal or
+    // started their own search; a stale reply must not touch the inputs.
+    const generation = searchGeneration;
     window.electronAPI
       .getJimakuMediaInfo()
       .then((info: JimakuMediaInfo) => {
+        if (generation !== searchGeneration) return;
         ctx.dom.jimakuTitleInput.value = info.title || '';
         ctx.dom.jimakuSeasonInput.value = info.season ? String(info.season) : '';
         ctx.dom.jimakuEpisodeInput.value = info.episode ? String(info.episode) : '';
@@ -280,6 +328,7 @@ export function createJimakuModal(
         }
       })
       .catch(() => {
+        if (generation !== searchGeneration) return;
         setJimakuStatus('Failed to load media info.', true);
       });
   }
@@ -312,6 +361,18 @@ export function createJimakuModal(
         e.preventDefault();
         void performJimakuSearch();
       }
+      return true;
+    }
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setActiveTab('anime');
+      return true;
+    }
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setActiveTab('liveAction');
       return true;
     }
 
@@ -366,6 +427,12 @@ export function createJimakuModal(
     });
     ctx.dom.jimakuCloseButton.addEventListener('click', () => {
       closeJimakuModal();
+    });
+    ctx.dom.jimakuTabAnimeButton.addEventListener('click', () => {
+      setActiveTab('anime');
+    });
+    ctx.dom.jimakuTabLiveActionButton.addEventListener('click', () => {
+      setActiveTab('liveAction');
     });
     ctx.dom.jimakuBroadenButton.addEventListener('click', () => {
       if (ctx.state.currentEntryId !== null) {

@@ -1,6 +1,7 @@
 import type { MediaKind, TmdbMediaType } from '../../../shared/media-kind';
 
-export const SCHEMA_VERSION = 24;
+// 26: live-action entries (TMDB link) and YouTube channels share the media_kind column.
+export const SCHEMA_VERSION = 26;
 export const DEFAULT_QUEUE_CAP = 1_000;
 export const DEFAULT_BATCH_SIZE = 25;
 export const DEFAULT_FLUSH_INTERVAL_MS = 500;
@@ -520,10 +521,10 @@ export interface YoutubeVideoMetadata {
 }
 
 export interface AnimeLibraryRow {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
-  mediaKind: MediaKind;
   tmdbId: number | null;
   tmdbType: TmdbMediaType | null;
   totalSessions: number;
@@ -536,10 +537,10 @@ export interface AnimeLibraryRow {
 }
 
 export interface AnimeDetailRow {
+  mediaKind: MediaKind;
   animeId: number;
   canonicalTitle: string;
   anilistId: number | null;
-  mediaKind: MediaKind;
   tmdbId: number | null;
   tmdbType: TmdbMediaType | null;
   titleRomaji: string | null;

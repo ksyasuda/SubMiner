@@ -7,10 +7,10 @@ test('AnimeCard includes linked AniList id in cover URLs to avoid stale library 
   const markup = renderToStaticMarkup(
     <AnimeCard
       anime={{
+        mediaKind: 'anime',
         animeId: 42,
         canonicalTitle: 'Test Anime',
         anilistId: 21699,
-        mediaKind: 'anime',
         tmdbId: null,
         tmdbType: null,
         totalSessions: 1,
