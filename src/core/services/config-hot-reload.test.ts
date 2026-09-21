@@ -1,11 +1,46 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_CONFIG, deepCloneConfig } from '../../config';
+import { buildConfigSettingsRegistry, getConfigValueAtPath } from '../../config/settings/registry';
 import {
   classifyConfigHotReloadDiff,
   createConfigHotReloadRuntime,
   type ConfigHotReloadRuntimeDeps,
 } from './config-hot-reload';
+
+test('every LIVE settings field is classified without a restart warning', () => {
+  for (const field of buildConfigSettingsRegistry(DEFAULT_CONFIG)) {
+    if (field.restartBehavior !== 'hot-reload') continue;
+    const next = deepCloneConfig(DEFAULT_CONFIG);
+    const segments = field.configPath.split('.');
+    const leaf = segments.pop();
+    assert.ok(leaf);
+    const parent = segments.length ? getConfigValueAtPath(next, segments.join('.')) : next;
+    assert.ok(parent && typeof parent === 'object', field.configPath);
+    // The classifier compares structure; validation of field values is tested separately.
+    Object.defineProperty(parent, leaf, {
+      value: getConfigValueAtPath(next, field.configPath) === null ? 'changed' : null,
+      enumerable: true,
+    });
+    const diff = classifyConfigHotReloadDiff(DEFAULT_CONFIG, next);
+    assert.deepEqual(diff.restartRequiredFields, [], field.configPath);
+    assert.ok(diff.hotReloadFields.length > 0, field.configPath);
+  }
+});
+
+test('live notifications and subtitle generation changes preserve unrelated restart warnings', () => {
+  const next = deepCloneConfig(DEFAULT_CONFIG);
+  next.notifications.overlayPosition = 'top';
+  next.subtitleGeneration.threads += 1;
+  next.websocket.port += 1;
+
+  const diff = classifyConfigHotReloadDiff(DEFAULT_CONFIG, next);
+  assert.deepEqual(
+    new Set(diff.hotReloadFields),
+    new Set(['notifications.overlayPosition', 'subtitleGeneration.threads']),
+  );
+  assert.deepEqual(diff.restartRequiredFields, ['websocket.port']);
+});
 
 test('classifyConfigHotReloadDiff separates hot and restart-required fields', () => {
   const prev = deepCloneConfig(DEFAULT_CONFIG);
@@ -15,7 +50,7 @@ test('classifyConfigHotReloadDiff separates hot and restart-required fields', ()
 
   const diff = classifyConfigHotReloadDiff(prev, next);
   assert.deepEqual(diff.hotReloadFields, ['subtitleStyle']);
-  assert.deepEqual(diff.restartRequiredFields, ['websocket']);
+  assert.deepEqual(diff.restartRequiredFields, ['websocket.port']);
 });
 
 test('classifyConfigHotReloadDiff treats safe nested config paths as hot-reloadable', () => {
@@ -101,7 +136,11 @@ test('classifyConfigHotReloadDiff keeps unsafe nested siblings restart-required'
   const diff = classifyConfigHotReloadDiff(prev, next);
 
   assert.deepEqual(diff.hotReloadFields, []);
-  assert.deepEqual(diff.restartRequiredFields, ['ankiConnect', 'stats']);
+  assert.deepEqual(diff.restartRequiredFields, [
+    'ankiConnect.url',
+    'ankiConnect.ai.model',
+    'stats.serverPort',
+  ]);
 });
 
 test('config hot reload runtime debounces rapid watch events', () => {

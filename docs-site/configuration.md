@@ -61,7 +61,7 @@ The Settings window preserves existing JSONC comments, trailing commas, and unre
 
 Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `jimaku.apiKeyCommand` when available.
 
-Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
+Saving validates the candidate config before writing. Saving only fields marked **LIVE** shows "Saved. Live settings applied." If a save also changes fields that need a restart, the banner lists only the sections containing those changed fields. Live changes still apply in the same save.
 
 ## Configuration file
 
@@ -103,7 +103,7 @@ SubMiner watches the active config file (`config.jsonc` or `config.json`) while 
 
 Hot-reloadable settings include subtitle appearance, sidebar controls, keybindings,
 shortcuts, notifications, logging level, selected source-language preferences,
-Jimaku/Subsync settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
+Jimaku/Subsync and subtitle-generation settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
 stats keys (`stats.toggleKey`, `stats.markWatchedKey`), the secondary-subtitle default
 mode, and the Anki deck, known-word, N+1, field, sentence-card, and Kiku options
 listed in the reference tables below.
@@ -975,7 +975,7 @@ This example is intentionally compact. The option table below documents availabl
 | `tags`                                            | array of strings                            | Tags automatically added to cards mined/updated by SubMiner (default: `['SubMiner']`; set `[]` to disable automatic tagging).                                                                                                   |
 | `ankiConnect.deck`                                | string                                      | Restrict duplicate detection and card enrichment to this Anki deck. Leave empty to use the Yomitan mining deck when available. In Settings, this dropdown auto-fills and persists Yomitan's current mining deck when available. |
 | `fields.word`                                     | string                                      | Card field for mined word / expression text (default: `Expression`)                                                                                                                                                             |
-| `fields.audio`                                    | string                                      | Card field for the generated sentence audio clip (default: `ExpressionAudio`). Set this to a dedicated field such as `SentenceAudio` so it does not collide with the word audio Yomitan writes.                                  |
+| `fields.audio`                                    | string                                      | Card field for the generated sentence audio clip (default: `ExpressionAudio`). Set this to a dedicated field such as `SentenceAudio` so it does not collide with the word audio Yomitan writes.                                 |
 | `fields.image`                                    | string                                      | Card field for images (default: `Picture`)                                                                                                                                                                                      |
 | `fields.sentence`                                 | string                                      | Card field for sentences (default: `Sentence`)                                                                                                                                                                                  |
 | `fields.miscInfo`                                 | string                                      | Card field for metadata (default: `"MiscInfo"`, set to `null` to disable)                                                                                                                                                       |

@@ -1,9 +1,9 @@
+import { getConfigHotReloadField } from '../hot-reload';
 import type { ResolvedConfig } from '../../types/config';
 import type {
   ConfigSettingsCategory,
   ConfigSettingsControl,
   ConfigSettingsField,
-  ConfigSettingsRestartBehavior,
 } from '../../types/settings';
 import { CONFIG_OPTION_REGISTRY, DEFAULT_CONFIG } from '../definitions';
 import {
@@ -693,53 +693,6 @@ function compareFields(a: ConfigSettingsField, b: ConfigSettingsField): number {
   return a.configPath.localeCompare(b.configPath);
 }
 
-function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
-  if (
-    path === 'keybindings' ||
-    pathStartsWith(path, 'shortcuts') ||
-    pathStartsWith(path, 'subtitleStyle') ||
-    pathStartsWith(path, 'subtitleSidebar') ||
-    path === 'secondarySub.defaultMode' ||
-    path === 'ankiConnect.deck' ||
-    path === 'ankiConnect.ai.enabled' ||
-    path === 'ankiConnect.media.normalizeAudio' ||
-    path === 'ankiConnect.media.mirrorMpvVolume' ||
-    path === 'ankiConnect.media.reviewTiming' ||
-    path === 'ankiConnect.behavior.autoUpdateNewCards' ||
-    path === 'ankiConnect.knownWords.highlightEnabled' ||
-    path === 'ankiConnect.knownWords.refreshMinutes' ||
-    path === 'ankiConnect.knownWords.addMinedWordsImmediately' ||
-    path === 'ankiConnect.knownWords.matchMode' ||
-    path === 'ankiConnect.knownWords.decks' ||
-    path === 'ankiConnect.nPlusOne.enabled' ||
-    path === 'ankiConnect.nPlusOne.minSentenceWords' ||
-    path === 'ankiConnect.fields.word' ||
-    path === 'ankiConnect.fields.audio' ||
-    path === 'ankiConnect.fields.image' ||
-    path === 'ankiConnect.fields.sentence' ||
-    path === 'ankiConnect.fields.miscInfo' ||
-    path === 'ankiConnect.isLapis.sentenceCardModel' ||
-    path === 'ankiConnect.isKiku.fieldGrouping' ||
-    path === 'ankiConnect.isSenren.fieldGrouping' ||
-    path === 'ankiConnect.lapisKiku.wordCardKind' ||
-    path === 'mpv.aniskipEnabled' ||
-    path === 'mpv.aniskipButtonKey' ||
-    path === 'stats.toggleKey' ||
-    path === 'stats.markWatchedKey' ||
-    path === 'logging.level' ||
-    path === 'logging.rotation' ||
-    pathStartsWith(path, 'logging.files') ||
-    pathStartsWith(path, 'notifications') ||
-    path === 'youtube.primarySubLanguages' ||
-    pathStartsWith(path, 'jimaku') ||
-    pathStartsWith(path, 'subsync') ||
-    pathStartsWith(path, 'subtitleGeneration')
-  ) {
-    return 'hot-reload';
-  }
-  return 'restart';
-}
-
 function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
   const option = OPTION_BY_PATH.get(leaf.path);
   const { category, section } = categoryAndSection(leaf.path);
@@ -758,7 +711,7 @@ function fieldForLeaf(leaf: Leaf): ConfigSettingsField {
       ? { enumValues: option.settingsEnumValues ?? option.enumValues }
       : {}),
     ...(option?.enumLabels ? { enumLabels: option.enumLabels } : {}),
-    restartBehavior: restartBehaviorForPath(leaf.path),
+    restartBehavior: getConfigHotReloadField(leaf.path) ? 'hot-reload' : 'restart',
     advanced:
       leaf.path.startsWith('controller.') ||
       leaf.path.startsWith('immersionTracking.retention.') ||
