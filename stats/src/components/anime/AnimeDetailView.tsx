@@ -226,7 +226,7 @@ export function AnimeDetailView({
       <AnimeOverviewStats detail={detail} knownWordsSummary={knownWordsSummary} />
       <EpisodeList
         episodes={episodes}
-        isYoutube={detail.mediaKind === 'youtube'}
+        mediaKind={detail.mediaKind}
         animeId={animeId}
         onEpisodeMoved={(removedPreviousAnime) => {
           onEpisodeMoved?.();

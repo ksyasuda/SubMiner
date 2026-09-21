@@ -121,6 +121,7 @@ export function AnimeTab({
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
+  const mixedKindsChecked = new Set(checkedEntries.map((entry) => entry.mediaKind)).size > 1;
   const hydratedRecommendations = recommendations
     .map((recommendation) => ({
       ...recommendation,
@@ -267,11 +268,13 @@ export function AnimeTab({
           <div className="text-xs text-ctp-overlay2">
             {checkedEntries.length === 0
               ? 'Pick the duplicate entries to combine'
-              : `${checkedEntries.length} selected`}
+              : mixedKindsChecked
+                ? 'Anime and YouTube channels cannot be combined'
+                : `${checkedEntries.length} selected`}
           </div>
           <button
             type="button"
-            disabled={checkedEntries.length < 2}
+            disabled={checkedEntries.length < 2 || mixedKindsChecked}
             onClick={() => setShowMergeDialog(true)}
             className="px-3 py-1.5 rounded-lg bg-ctp-blue/15 border border-ctp-blue/40 text-xs text-ctp-blue hover:bg-ctp-blue/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >

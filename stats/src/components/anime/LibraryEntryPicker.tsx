@@ -4,11 +4,14 @@ import { formatDuration } from '../../lib/formatters';
 import { useModalFocus } from '../../hooks/useModalFocus';
 import { AnimeCoverImage } from './AnimeCoverImage';
 import type { AnimeLibraryItem } from '../../types/stats';
+import type { MediaKind } from '../../../../src/shared/media-kind';
 
 interface LibraryEntryPickerProps {
   heading: string;
   /** Entries that cannot be picked, typically the one being moved away from. */
   excludeAnimeIds?: number[];
+  /** When set, only entries of this kind are offered. */
+  mediaKind?: MediaKind;
   initialQuery?: string;
   busyAnimeId?: number | null;
   error?: string | null;
@@ -19,6 +22,7 @@ interface LibraryEntryPickerProps {
 export function LibraryEntryPicker({
   heading,
   excludeAnimeIds = [],
+  mediaKind,
   initialQuery = '',
   busyAnimeId = null,
   error = null,
@@ -69,9 +73,10 @@ export function LibraryEntryPicker({
     const term = query.trim().toLowerCase();
     return (entries ?? [])
       .filter((entry) => !excluded.has(entry.animeId))
+      .filter((entry) => mediaKind === undefined || entry.mediaKind === mediaKind)
       .filter((entry) => !term || entry.canonicalTitle.toLowerCase().includes(term))
       .sort((a, b) => b.lastWatchedMs - a.lastWatchedMs);
-  }, [entries, excluded, query]);
+  }, [entries, excluded, mediaKind, query]);
 
   return (
     <div
@@ -150,8 +155,8 @@ export function LibraryEntryPicker({
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-ctp-text truncate">{entry.canonicalTitle}</div>
                 <div className="text-xs text-ctp-overlay2 mt-0.5">
-                  {entry.episodeCount} episode{entry.episodeCount !== 1 ? 's' : ''} ·{' '}
-                  {formatDuration(entry.totalActiveMs)}
+                  {entry.episodeCount} {entry.mediaKind === 'youtube' ? 'video' : 'episode'}
+                  {entry.episodeCount !== 1 ? 's' : ''} · {formatDuration(entry.totalActiveMs)}
                 </div>
               </div>
               {busyAnimeId === entry.animeId ? (

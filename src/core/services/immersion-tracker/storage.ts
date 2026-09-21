@@ -610,7 +610,6 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
       `
         UPDATE imm_anime
         SET
-          media_kind = COALESCE(?, media_kind),
           canonical_title = COALESCE(NULLIF(?, ''), canonical_title),
           anilist_id = CASE WHEN ? = 'youtube' THEN NULL ELSE COALESCE(?, anilist_id) END,
           title_romaji = COALESCE(?, title_romaji),
@@ -621,7 +620,6 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         WHERE anime_id = ?
       `,
     ).run(
-      byAnilistId || byNormalizedTitle ? (input.mediaKind ?? null) : null,
       canonicalTitleUpdate,
       mediaKind,
       anilistId,

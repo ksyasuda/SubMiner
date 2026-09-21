@@ -1,6 +1,9 @@
 import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
-import { UNKNOWN_MOVE_TARGET_MESSAGE } from '../immersion-tracker/anime-merge.js';
+import {
+  MEDIA_KIND_MISMATCH_MESSAGE,
+  UNKNOWN_MOVE_TARGET_MESSAGE,
+} from '../immersion-tracker/anime-merge.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildSentenceSearchOptions,
@@ -245,7 +248,15 @@ export function registerStatsLibraryRoutes(
     const body = await c.req.json().catch(() => null);
     const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
     if (sourceAnimeIds.length === 0) return c.body(null, 400);
-    const summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    let summary: Awaited<ReturnType<typeof tracker.mergeAnime>>;
+    try {
+      summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    } catch (error) {
+      if (error instanceof Error && error.message === MEDIA_KIND_MISMATCH_MESSAGE) {
+        return c.text(MEDIA_KIND_MISMATCH_MESSAGE, 409);
+      }
+      throw error;
+    }
     // Nothing folded means the target or every source was already gone, so the
     // caller should not be told the merge succeeded.
     if (summary.mergedAnimeIds.length === 0) return c.body(null, 404);
@@ -280,6 +291,9 @@ export function registerStatsLibraryRoutes(
       // reported to the caller as "not found".
       if (error instanceof Error && error.message === UNKNOWN_MOVE_TARGET_MESSAGE) {
         return c.body(null, 404);
+      }
+      if (error instanceof Error && error.message === MEDIA_KIND_MISMATCH_MESSAGE) {
+        return c.text(MEDIA_KIND_MISMATCH_MESSAGE, 409);
       }
       throw error;
     }

@@ -6,6 +6,7 @@ import { buildLookupRateDisplay } from '../../lib/yomitan-lookup';
 import { EpisodeDetail } from './EpisodeDetail';
 import { LibraryEntryPicker } from './LibraryEntryPicker';
 import type { AnimeEpisode } from '../../types/stats';
+import type { MediaKind } from '../../../../src/shared/media-kind';
 
 /**
  * Row actions that only appear on hover. Keyboard focus and pointers with no
@@ -17,7 +18,8 @@ const HOVER_REVEALED =
 
 interface EpisodeListProps {
   episodes: AnimeEpisode[];
-  isYoutube?: boolean;
+  /** Kind of the owning entry; the move picker only offers entries of the same kind. */
+  mediaKind?: MediaKind;
   /** Entry these episodes currently belong to; excluded from the move picker. */
   animeId?: number;
   onEpisodeDeleted?: () => void;
@@ -28,12 +30,13 @@ interface EpisodeListProps {
 
 export function EpisodeList({
   episodes: initialEpisodes,
-  isYoutube = false,
+  mediaKind = 'anime',
   animeId,
   onEpisodeDeleted,
   onEpisodeMoved,
   onOpenDetail,
 }: EpisodeListProps) {
+  const isYoutube = mediaKind === 'youtube';
   const [expandedVideoId, setExpandedVideoId] = useState<number | null>(null);
   const [episodes, setEpisodes] = useState(initialEpisodes);
   const [movingEpisode, setMovingEpisode] = useState<AnimeEpisode | null>(null);
@@ -245,6 +248,7 @@ export function EpisodeList({
         <LibraryEntryPicker
           heading={`Move "${movingEpisode.canonicalTitle}" To`}
           excludeAnimeIds={animeId != null ? [animeId] : []}
+          mediaKind={mediaKind}
           busyAnimeId={moveTargetId}
           error={moveError}
           onSelect={(entry) => void handleMoveEpisode(movingEpisode.videoId, entry.animeId)}
