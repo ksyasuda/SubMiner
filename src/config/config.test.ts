@@ -2818,6 +2818,29 @@ test('forces Senren off when Kiku is also enabled and validates Senren fieldGrou
   );
 });
 
+test('warns and falls back when isSenren.enabled is not boolean', () => {
+  const dir = makeTempDir();
+  fs.writeFileSync(
+    path.join(dir, 'config.jsonc'),
+    `{
+      "ankiConnect": {
+        "isSenren": { "enabled": "true" }
+      }
+    }`,
+    'utf-8',
+  );
+
+  const service = new ConfigService(dir);
+
+  assert.equal(
+    service.getConfig().ankiConnect.isSenren.enabled,
+    DEFAULT_CONFIG.ankiConnect.isSenren.enabled,
+  );
+  assert.ok(
+    service.getWarnings().some((warning) => warning.path === 'ankiConnect.isSenren.enabled'),
+  );
+});
+
 test('accepts valid ankiConnect knownWords deck object', () => {
   const dir = makeTempDir();
   fs.writeFileSync(

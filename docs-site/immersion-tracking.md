@@ -31,11 +31,41 @@ Episode completion for local `watched` state uses the shared `DEFAULT_MIN_WATCH_
 
 The same immersion data powers the stats dashboard.
 
+The browser dashboard and in-app stats overlay both load from the local HTTP server.
+The server accepts loopback hosts only and rejects requests from other browser origins,
+including opaque origins such as `file://`. API clients without a browser origin can
+still use the local API. Mutation requests with a body must use `application/json`;
+bodyless deletion and Anki browse requests remain supported. Requests rejected by the
+host or origin checks receive `403`; mutation bodies without a JSON content type
+receive `415`.
+
+Use the loopback dashboard URL directly. Reverse-proxied dashboards and Tailscale
+Serve URLs are unsupported because their host or browser origin is not the local
+server's origin. SSH stats synchronization is unchanged.
+
+Scripts sending a JSON body must include the content type. For example, this
+requests a duplicate-line cleanup preview without changing the database. Replace
+the port if you configured a different `stats.serverPort`:
+
+```bash
+curl http://127.0.0.1:6969/api/stats/maintenance/duplicate-lines \
+  -H 'Content-Type: application/json' \
+  -d '{"dryRun":true}'
+```
+
 - In-app overlay: focus the visible overlay, then press the key from `stats.toggleKey` (default: `` ` `` / `Backquote`).
 - Launcher command: run `subminer stats` to start the local stats server on demand (it also opens the dashboard in your browser when `stats.autoOpenBrowser` is enabled; the default is `false`).
 - Background server: run `subminer stats -b` to start or reuse a dedicated background stats daemon without keeping the launcher attached, and `subminer stats -s` to stop that daemon.
 - Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables non-destructively (recomputed from per-episode history, so lifetime totals older than the session retention window are kept); `subminer stats cleanup --duplicate-lines` collapses repeated lines left behind by typeset subtitles (see [Repeated Line Cleanup](#repeated-line-cleanup)). `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
 - Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
+
+SubMiner waits for the local server to bind before reporting that the dashboard is available. If another process already uses the configured port, the command reports the startup error and the desktop app stays open. Opening the in-app dashboard also reports startup failures through your configured status notifications.
+
+`subminer stats -s` stops a background stats server or cancels a pending background start. It leaves a foreground-only server running, so an open in-app dashboard stays connected. Shutdown gives active HTTP requests one second to finish before closing their connections and finalizing stats.
+
+### Stats API resource IDs
+
+Resource IDs in URLs must be positive safe integers written as decimal digits without leading zeros, fractions, or exponent notation. ID lists in JSON bodies must contain positive safe integer numbers. Invalid IDs or list entries return `400` before any mutation; bulk requests do not apply just the valid subset. Pagination limits keep their existing rounding and bounds.
 
 ### Dashboard tabs
 

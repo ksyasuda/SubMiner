@@ -19,6 +19,23 @@ test('package scripts expose a sharded maintained source coverage lane with lcov
   );
 });
 
+test('source and coverage scripts discover the same maintained source lane', () => {
+  const sourceLane = packageJson.scripts['test:src']?.match(/run-test-lane\.mjs\s+([^\s]+)/)?.[1];
+  const coverageLane = packageJson.scripts['test:coverage:src']?.match(
+    /run-coverage-lane\.ts\s+([^\s]+)/,
+  )?.[1];
+
+  assert.equal(sourceLane, 'bun-src-full');
+  assert.equal(coverageLane, sourceLane);
+});
+
+test('environment suite owns launcher smoke execution', () => {
+  assert.match(
+    packageJson.scripts['test:env'] ?? '',
+    /^bun run test:launcher:smoke:src && bun run test:plugin:src && bun run test:immersion:sqlite:src$/,
+  );
+});
+
 test('ci delegates its gate instead of duplicating quality steps', () => {
   assert.match(
     ciWorkflow,

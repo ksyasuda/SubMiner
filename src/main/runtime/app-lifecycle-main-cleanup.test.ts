@@ -3,11 +3,14 @@ import test from 'node:test';
 import { createBuildOnWillQuitCleanupDepsHandler } from './app-lifecycle-main-cleanup';
 import { createOnWillQuitCleanupHandler } from './app-lifecycle-actions';
 
-test('cleanup deps builder returns handlers that guard optional runtime objects', () => {
+test('cleanup deps builder returns handlers that guard optional runtime objects', async () => {
   const calls: string[] = [];
   let reconnectTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {}, 60_000);
-  let immersionTracker: { destroy: () => void } | null = {
-    destroy: () => calls.push('destroy-immersion'),
+  let immersionTracker: { destroy: () => Promise<void> } | null = {
+    destroy: async () => {
+      await Promise.resolve();
+      calls.push('destroy-immersion');
+    },
   };
 
   const depsFactory = createBuildOnWillQuitCleanupDepsHandler({
@@ -54,6 +57,9 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
 
     getSubtitleTimingTracker: () => ({ destroy: () => calls.push('destroy-subtitle-tracker') }),
     getImmersionTracker: () => immersionTracker,
+    stopStatsServer: () => {
+      calls.push('stop-stats-server');
+    },
     clearImmersionTracker: () => {
       immersionTracker = null;
       calls.push('clear-immersion-ref');
@@ -81,7 +87,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   });
 
   const cleanup = createOnWillQuitCleanupHandler(depsFactory());
-  cleanup();
+  await cleanup();
 
   assert.ok(calls.includes('destroy-tray'));
   assert.ok(calls.includes('destroy-main-overlay-window'));
@@ -94,6 +100,7 @@ test('cleanup deps builder returns handlers that guard optional runtime objects'
   assert.ok(calls.includes('clear-reconnect-ref'));
   assert.ok(calls.includes('destroy-immersion'));
   assert.ok(calls.includes('clear-immersion-ref'));
+  assert.ok(calls.indexOf('destroy-immersion') < calls.indexOf('clear-immersion-ref'));
   assert.ok(calls.includes('destroy-first-run-window'));
   assert.ok(calls.includes('destroy-yomitan-settings-window'));
   assert.ok(calls.includes('stop-jellyfin-remote'));
@@ -144,6 +151,7 @@ test('cleanup deps builder skips destroyed yomitan window', () => {
     clearReconnectTimerRef: () => {},
     getSubtitleTimingTracker: () => null,
     getImmersionTracker: () => null,
+    stopStatsServer: () => {},
     clearImmersionTracker: () => {},
     getAnkiIntegration: () => null,
     getAnilistSetupWindow: () => null,
@@ -198,6 +206,7 @@ test('cleanup deps builder skips global shortcut cleanup before app ready', () =
     clearReconnectTimerRef: () => {},
     getSubtitleTimingTracker: () => null,
     getImmersionTracker: () => null,
+    stopStatsServer: () => {},
     clearImmersionTracker: () => {},
     getAnkiIntegration: () => null,
     getAnilistSetupWindow: () => null,

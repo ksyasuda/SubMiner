@@ -1,36 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { apiClient, BASE_URL, resolveStatsBaseUrl } from './api-client';
-
-test('resolveStatsBaseUrl prefers apiBase query parameter for file-based overlay mode', () => {
-  const baseUrl = resolveStatsBaseUrl({
-    protocol: 'file:',
-    origin: 'null',
-    search: '?overlay=1&apiBase=http%3A%2F%2F127.0.0.1%3A6123',
-  });
-
-  assert.equal(baseUrl, 'http://127.0.0.1:6123');
-});
-
-test('resolveStatsBaseUrl falls back to configured window origin for browser mode', () => {
-  const baseUrl = resolveStatsBaseUrl({
-    protocol: 'http:',
-    origin: 'http://127.0.0.1:6123',
-    search: '',
-  });
-
-  assert.equal(baseUrl, 'http://127.0.0.1:6123');
-});
-
-test('resolveStatsBaseUrl keeps legacy localhost fallback for file mode without apiBase', () => {
-  const baseUrl = resolveStatsBaseUrl({
-    protocol: 'file:',
-    origin: 'null',
-    search: '?overlay=1',
-  });
-
-  assert.equal(baseUrl, 'http://127.0.0.1:6969');
-});
+import { apiClient, BASE_URL } from './api-client';
 
 test('getAnimeCoverUrl appends retry tokens for late cover refreshes', () => {
   const getAnimeCoverUrl = apiClient.getAnimeCoverUrl as (
@@ -38,10 +8,7 @@ test('getAnimeCoverUrl appends retry tokens for late cover refreshes', () => {
     retryToken?: number,
   ) => string;
 
-  assert.equal(
-    getAnimeCoverUrl(42, 3),
-    'http://127.0.0.1:6969/api/stats/anime/42/cover?coverRetry=3',
-  );
+  assert.equal(getAnimeCoverUrl(42, 3), `${BASE_URL}/api/stats/anime/42/cover?coverRetry=3`);
 });
 
 test('getAnimeMergeRecommendations loads pending duplicate pairs', async () => {

@@ -7,6 +7,7 @@ import type { TmdbClient } from './tmdb/tmdb-client.js';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import type { RetimedSecondarySubtitleInput } from './secondary-subtitle-sidecar.js';
 import type { StatsServerMediaGenerator } from './stats-server/mining-support.js';
+import { enforceStatsRequestSafety } from './stats-server/request-safety.js';
 import {
   registerStatsAnalyticsRoutes,
   registerStatsIntegrationRoutes,
@@ -38,7 +39,10 @@ function toFetchRequest(req: IncomingMessage): Request {
     method,
     headers: toFetchHeaders(req.headers),
   };
-  if (method !== 'GET' && method !== 'HEAD') {
+  const hasBody =
+    req.headers['transfer-encoding'] !== undefined ||
+    Number(req.headers['content-length'] ?? 0) > 0;
+  if (method !== 'GET' && method !== 'HEAD' && hasBody) {
     init.body = Readable.toWeb(req) as BodyInit;
     init.duplex = 'half';
   }
@@ -51,8 +55,26 @@ async function writeFetchResponse(res: ServerResponse, response: Response): Prom
   res.end(Buffer.from(await response.arrayBuffer()));
 }
 
-function startNodeHttpServer(app: Hono, config: StatsServerConfig): { close: () => void } {
-  const server = http.createServer((req, res) => {
+export interface StatsServer {
+  close: () => Promise<void>;
+}
+
+const SHUTDOWN_GRACE_MS = 1_000;
+
+type BunServe = (options: {
+  fetch: (typeof Hono.prototype)['fetch'];
+  port: number;
+  hostname: string;
+}) => {
+  stop: () => Promise<void> | void;
+};
+
+export function startNodeHttpServer(
+  app: Hono,
+  config: StatsServerConfig,
+  createServer: (listener: http.RequestListener) => http.Server = http.createServer,
+): Promise<StatsServer> {
+  const server = createServer((req, res) => {
     void (async () => {
       try {
         await writeFetchResponse(res, await app.fetch(toFetchRequest(req)));
@@ -62,12 +84,33 @@ function startNodeHttpServer(app: Hono, config: StatsServerConfig): { close: () 
       }
     })();
   });
-  server.listen(config.port, '127.0.0.1');
-  return {
-    close: () => {
-      server.close();
-    },
-  };
+  return new Promise((resolve, reject) => {
+    const handleStartupError = (error: Error): void => {
+      server.removeListener('listening', handleListening);
+      reject(error);
+    };
+    const handleListening = (): void => {
+      server.removeListener('error', handleStartupError);
+      let closePromise: Promise<void> | null = null;
+      resolve({
+        close: () => {
+          closePromise ??= new Promise<void>((closeResolve, closeReject) => {
+            const forceClose = setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS);
+            server.close((error) => {
+              clearTimeout(forceClose);
+              if (error) closeReject(error);
+              else closeResolve();
+            });
+          });
+          return closePromise;
+        },
+      });
+    };
+
+    server.once('error', handleStartupError);
+    server.once('listening', handleListening);
+    server.listen(config.port, '127.0.0.1');
+  });
 }
 
 export interface StatsServerConfig {
@@ -120,6 +163,7 @@ export function createStatsApp(
   },
 ) {
   const app = new Hono();
+  app.use('*', enforceStatsRequestSafety);
   registerStatsAnalyticsRoutes(app, tracker, options);
   registerStatsLibraryRoutes(app, tracker, options);
   registerStatsIntegrationRoutes(app, tracker, options);
@@ -128,7 +172,10 @@ export function createStatsApp(
   return app;
 }
 
-export function startStatsServer(config: StatsServerConfig): { close: () => void } {
+export async function startStatsServerWithRuntime(
+  config: StatsServerConfig,
+  runtime: { bunServe: BunServe | null },
+): Promise<StatsServer> {
   const app = createStatsApp(config.tracker, {
     staticDir: config.staticDir,
     knownWordCachePath: config.knownWordCachePath,
@@ -148,20 +195,26 @@ export function startStatsServer(config: StatsServerConfig): { close: () => void
     resolveSentenceSearchHeadwords: config.resolveSentenceSearchHeadwords,
   });
 
-  const bunRuntime = globalThis as typeof globalThis & {
-    Bun?: {
-      serve?: (options: { fetch: (typeof app)['fetch']; port: number; hostname: string }) => {
-        stop: () => void;
-      };
-    };
-  };
-  if (bunRuntime.Bun?.serve) {
-    const server = bunRuntime.Bun.serve({
+  if (runtime.bunServe) {
+    const server = runtime.bunServe({
       fetch: app.fetch,
       port: config.port,
       hostname: '127.0.0.1',
     });
-    return { close: () => server.stop() };
+    let closePromise: Promise<void> | null = null;
+    return Promise.resolve({
+      close: () => {
+        closePromise ??= Promise.resolve().then(() => server.stop());
+        return closePromise;
+      },
+    });
   }
   return startNodeHttpServer(app, config);
+}
+
+export function startStatsServer(config: StatsServerConfig): Promise<StatsServer> {
+  const bunRuntime = globalThis as typeof globalThis & {
+    Bun?: { serve?: BunServe };
+  };
+  return startStatsServerWithRuntime(config, { bunServe: bunRuntime.Bun?.serve ?? null });
 }

@@ -541,7 +541,7 @@
   // ==========================================
   // AnkiConnect Integration
   // Automatic Anki updates and media generation options.
-  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume/reviewTiming, knownWords, nPlusOne, fields.word/audio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
+  // Hot-reload: ankiConnect.ai.enabled, media.normalizeAudio/mirrorMpvVolume/reviewTiming, knownWords, nPlusOne, fields.word/audio/wordAudio/image/sentence/miscInfo, behavior.autoUpdateNewCards, isLapis.sentenceCardModel, isKiku.fieldGrouping, isSenren.fieldGrouping, and lapisKiku.wordCardKind update live while SubMiner is running.
   // Shared AI provider transport settings are read from top-level ai and typically require restart.
   // Most other AnkiConnect settings still require restart.
   // ==========================================
@@ -562,6 +562,7 @@
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Card field that receives generated sentence audio.
+      "wordAudio": "ExpressionAudio", // Existing word-audio field read to time the frozen first frame of animated images. This mapping is only used for synchronization.
       "image": "Picture", // Card field that receives the captured screenshot or animated image.
       "sentence": "Sentence", // Card field that receives the source sentence text.
       "miscInfo": "MiscInfo", // Card field that receives the miscellaneous info pattern (see ankiConnect.metadata.pattern).
@@ -590,7 +591,7 @@
       "reviewTiming": false, // Review and preview subtitle media timing before SubMiner creates or enriches a mined card. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
-      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.
+      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds. 0 disables the cap.
     }, // Media setting.
     "knownWords": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false

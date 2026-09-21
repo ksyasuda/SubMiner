@@ -1,9 +1,9 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import * as path from 'path';
+import { createLogger } from '../../logger.js';
 import type { WindowGeometry } from '../../types.js';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
-  buildStatsWindowLoadFileOptions,
+  buildStatsWindowUrl,
   buildStatsWindowOptions,
   demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
@@ -26,17 +26,19 @@ import {
 } from './stats-window-layer.js';
 
 let statsWindow: BrowserWindow | null = null;
+let statsWindowGeneration = 0;
 let toggleRegistered = false;
 let nativeDialogLayerRegistered = false;
 const nativeDialogLayerSuspension = createStatsWindowLayerSuspensionState();
+const logger = createLogger('main:stats-window');
 
 export interface StatsWindowOptions {
-  /** Absolute path to stats/dist/ directory */
-  staticDir: string;
   /** Absolute path to the compiled preload-stats.js */
   preloadPath: string;
   /** Resolve the active stats API base URL */
-  getApiBaseUrl?: () => string;
+  getApiBaseUrl: () => Promise<string> | string;
+  /** Report server startup failure through the configured notification surface. */
+  onStartupError?: (error: unknown) => void;
   /** Resolve the active stats toggle key from config */
   getToggleKey: () => string;
   /** Resolve the tracked overlay/mpv bounds */
@@ -179,8 +181,16 @@ function registerStatsNativeDialogLayerHandlers(): void {
  * Toggle the stats overlay window: create on first call, then show/hide.
  * The React app stays mounted across toggles — state is preserved.
  */
-export function toggleStatsOverlay(options: StatsWindowOptions): void {
+export async function toggleStatsOverlay(options: StatsWindowOptions): Promise<void> {
   if (!statsWindow) {
+    const generation = statsWindowGeneration;
+    const apiBaseUrl = await Promise.resolve()
+      .then(() => options.getApiBaseUrl())
+      .catch((error: unknown) => {
+        options.onStartupError?.(error);
+        throw error;
+      });
+    if (generation !== statsWindowGeneration || statsWindow) return;
     statsWindow = new BrowserWindow(
       buildStatsWindowOptions({
         preloadPath: options.preloadPath,
@@ -194,8 +204,7 @@ export function toggleStatsOverlay(options: StatsWindowOptions): void {
       statsWindow?.setTitle(STATS_WINDOW_TITLE);
     });
 
-    const indexPath = path.join(options.staticDir, 'index.html');
-    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(options.getApiBaseUrl?.()));
+    statsWindow.loadURL(buildStatsWindowUrl(apiBaseUrl));
 
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);
@@ -243,7 +252,9 @@ export function registerStatsOverlayToggle(options: StatsWindowOptions): void {
   if (toggleRegistered) return;
   toggleRegistered = true;
   ipcMain.on(IPC_CHANNELS.command.toggleStatsOverlay, () => {
-    toggleStatsOverlay(options);
+    void toggleStatsOverlay(options).catch((error: unknown) => {
+      logger.error('Failed to open stats overlay:', error);
+    });
   });
 }
 
@@ -252,6 +263,7 @@ export function registerStatsOverlayToggle(options: StatsWindowOptions): void {
  * Call during app quit.
  */
 export function destroyStatsWindow(): void {
+  statsWindowGeneration += 1;
   if (statsWindow && !statsWindow.isDestroyed()) {
     statsWindow.destroy();
     statsWindow = null;

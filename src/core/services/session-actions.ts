@@ -3,7 +3,7 @@ import type { SessionActionId } from '../../types/session-bindings';
 import type { SessionActionDispatchRequest } from '../../types/runtime';
 
 export interface SessionActionExecutorDeps {
-  toggleStatsOverlay: () => void;
+  toggleStatsOverlay: () => Promise<void> | void;
   toggleVisibleOverlay: () => void;
   copyCurrentSubtitle: () => void;
   copySubtitleCount: (count: number) => void;
@@ -50,7 +50,7 @@ export async function dispatchSessionAction(
 ): Promise<void> {
   switch (request.actionId) {
     case 'toggleStatsOverlay':
-      deps.toggleStatsOverlay();
+      await deps.toggleStatsOverlay();
       return;
     case 'toggleVisibleOverlay':
       deps.toggleVisibleOverlay();

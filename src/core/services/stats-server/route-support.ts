@@ -48,6 +48,16 @@ export function parseIntQuery(
   return maxLimit === undefined ? parsed : Math.min(parsed, maxLimit);
 }
 
+export function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+export function parsePositiveId(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  return isPositiveSafeInteger(value) && String(value) === raw ? value : null;
+}
+
 export function parseTrendRange(raw: string | undefined): '7d' | '30d' | '90d' | '365d' | 'all' {
   return raw === '7d' || raw === '30d' || raw === '90d' || raw === '365d' || raw === 'all'
     ? raw
@@ -199,16 +209,16 @@ export async function enrichSessionsWithKnownWordMetrics<
   );
 }
 
-/** Deduplicated positive integer ids from an untrusted JSON body field. */
-export function parsePositiveIdList(raw: unknown): number[] {
-  if (!Array.isArray(raw)) return [];
+/** Deduplicated positive safe integer ids from an untrusted JSON body field. */
+export function parsePositiveIdList(raw: unknown, maxItems?: number): number[] | null {
+  if (!Array.isArray(raw)) return null;
   const ids = new Set<number>();
   for (const value of raw) {
-    if (Number.isSafeInteger(value) && (value as number) > 0) {
-      ids.add(value as number);
-    }
+    if (!isPositiveSafeInteger(value)) return null;
+    ids.add(value);
   }
-  return [...ids];
+  const parsed = [...ids];
+  return maxItems === undefined ? parsed : parsed.slice(0, maxItems);
 }
 
 export function parseBooleanQuery(raw: string | undefined, fallback: boolean): boolean {

@@ -8,6 +8,7 @@ import type {
   RemoteMediaWindowSource,
 } from '../../core/services/remote-media-window-cache';
 import type { MediaTimingPreviewSession } from '../../core/services/media-timing-preview';
+import { openMediaTimingReviewModal } from './media-timing-review-open';
 
 type MediaTimingPreviewSessionLike = Pick<MediaTimingPreviewSession, 'start'>;
 import {
@@ -15,6 +16,20 @@ import {
   collectMediaTimingContextLines,
   createMediaTimingReviewRuntime,
 } from './media-timing-review';
+
+function createDeferred<T>() {
+  let settle: ((value: T) => void) | null = null;
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve;
+  });
+  return {
+    promise,
+    resolve(value: T): void {
+      if (!settle) throw new Error('deferred promise is unavailable');
+      settle(value);
+    },
+  };
+}
 
 describe('buildMediaTimingReviewPayload', () => {
   test('starts from the padded range and leaves two seconds to drag on each side', () => {
@@ -762,6 +777,206 @@ test('disposing an open review settles it with original timing and restores play
     ['set_property', 'pause', 'yes'],
     ['set_property', 'pause', 'no'],
   ]);
+});
+
+for (const pendingSetup of ['properties', 'video-source'] as const) {
+  test(`disposing pending ${pendingSetup} cancels side effects and permits a fresh review`, async () => {
+    const setupGate = createDeferred<void>();
+    const commands: Array<Array<string | number>> = [];
+    let blockSetup = true;
+    let modalOpenCalls = 0;
+    let previewCreateCalls = 0;
+    let runtime: ReturnType<typeof createMediaTimingReviewRuntime>;
+    runtime = createMediaTimingReviewRuntime({
+      getMpvClient: () => ({
+        connected: true,
+        currentVideoPath: '/video/show.mkv',
+        requestProperty: async (name) => {
+          if (blockSetup && pendingSetup === 'properties') await setupGate.promise;
+          return name === 'pause' ? false : name === 'duration' ? 100 : null;
+        },
+        send: ({ command }) => commands.push(command),
+      }),
+      resolveVideoSource: async () => {
+        if (blockSetup && pendingSetup === 'video-source') await setupGate.promise;
+        return { path: '/video/show.mkv' };
+      },
+      getCurrentMediaPath: () => '/video/show.mkv',
+      getMpvExecutablePath: () => 'mpv',
+      generateWaveform: async () => [],
+      createPreviewSession: () => {
+        previewCreateCalls += 1;
+        return {
+          start: async () => undefined,
+          play: async () => undefined,
+          stop: async () => undefined,
+          onPlaybackEnded: () => undefined,
+          dispose: () => undefined,
+        };
+      },
+      openModal: async (payload) => {
+        modalOpenCalls += 1;
+        runtime.resolveReview({ reviewId: payload.reviewId, decision: { action: 'use-original' } });
+        return true;
+      },
+      showStatus: () => undefined,
+    });
+    const request = {
+      kind: 'word' as const,
+      text: '字幕',
+      startTime: 10,
+      endTime: 12,
+      audioPadding: 0,
+      maxMediaDuration: 30,
+      screenshotEnabled: true,
+    };
+
+    const pending = runtime.requestReview(request);
+    let pendingSettled = false;
+    void pending.finally(() => {
+      pendingSettled = true;
+    });
+    await Promise.resolve();
+    await runtime.dispose();
+
+    assert.equal(pendingSettled, true);
+    assert.deepEqual(await pending, { action: 'use-original' });
+    assert.deepEqual(commands, []);
+    assert.equal(modalOpenCalls, 0);
+    assert.equal(previewCreateCalls, 0);
+
+    setupGate.resolve();
+    await Promise.resolve();
+
+    blockSetup = false;
+    assert.deepEqual(await runtime.requestReview(request), { action: 'use-original' });
+    assert.equal(modalOpenCalls, 1);
+    assert.equal(previewCreateCalls, 1);
+  });
+}
+
+test('disposing during modal acknowledgement prevents the real opener from retrying', async () => {
+  const waiting = createDeferred<void>();
+  const acknowledgement = createDeferred<boolean>();
+  const commands: Array<Array<string | number>> = [];
+  let sendCalls = 0;
+  let previewDisposeCalls = 0;
+  let opening: Promise<boolean> | undefined;
+  const runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: async (name) => (name === 'pause' ? false : null),
+      send: ({ command }) => commands.push(command),
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
+    createPreviewSession: () => ({
+      start: async () => undefined,
+      play: async () => undefined,
+      stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
+      dispose: () => {
+        previewDisposeCalls += 1;
+      },
+    }),
+    openModal: (payload, signal) => {
+      opening = openMediaTimingReviewModal(
+        {
+          ensureOverlayStartupPrereqs: () => {},
+          ensureOverlayWindowsReadyForVisibilityActions: () => {},
+          sendToActiveOverlayWindow: () => {
+            sendCalls += 1;
+            return true;
+          },
+          waitForModalOpen: () => {
+            waiting.resolve();
+            return acknowledgement.promise;
+          },
+          logWarn: () => {},
+        },
+        payload,
+        signal,
+      );
+      return opening;
+    },
+    showStatus: () => {},
+  });
+  const pending = runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0,
+    maxMediaDuration: 30,
+  });
+  await waiting.promise;
+  await runtime.dispose();
+  assert.deepEqual(await pending, { action: 'use-original' });
+
+  acknowledgement.resolve(false);
+  assert.equal(await opening, false);
+  assert.equal(sendCalls, 1);
+  assert.equal(previewDisposeCalls, 1);
+  assert.deepEqual(commands, [
+    ['set_property', 'pause', 'yes'],
+    ['set_property', 'pause', 'no'],
+  ]);
+});
+
+test('disposing owns a preview session whose startup is still pending', async () => {
+  const openedPayload = createDeferred<MediaTimingReviewOpenPayload>();
+  const previewStarted = createDeferred<void>();
+  const previewStartGate = createDeferred<void>();
+  let previewDisposeCalls = 0;
+  const runtime = createMediaTimingReviewRuntime({
+    getMpvClient: () => ({
+      connected: true,
+      currentVideoPath: '/video/show.mkv',
+      requestProperty: async (name) => (name === 'duration' ? 100 : null),
+      send: () => undefined,
+    }),
+    getCurrentMediaPath: () => '/video/show.mkv',
+    getMpvExecutablePath: () => 'mpv',
+    generateWaveform: async () => [],
+    createPreviewSession: () => ({
+      start: async () => {
+        previewStarted.resolve();
+        await previewStartGate.promise;
+      },
+      play: async () => undefined,
+      stop: async () => undefined,
+      onPlaybackEnded: () => undefined,
+      dispose: () => {
+        previewDisposeCalls += 1;
+      },
+    }),
+    openModal: async (payload) => {
+      openedPayload.resolve(payload);
+      return true;
+    },
+    showStatus: () => undefined,
+  });
+
+  const pending = runtime.requestReview({
+    kind: 'sentence',
+    text: '字幕',
+    startTime: 10,
+    endTime: 12,
+    audioPadding: 0,
+    maxMediaDuration: 30,
+  });
+  await openedPayload.promise;
+  await previewStarted.promise;
+
+  await runtime.dispose();
+  assert.deepEqual(await pending, { action: 'use-original' });
+  assert.equal(previewDisposeCalls, 0);
+
+  previewStartGate.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(previewDisposeCalls, 1);
 });
 
 test('media timing review forwards the hidden player finishing a preview to the modal', async () => {

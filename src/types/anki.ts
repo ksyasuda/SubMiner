@@ -157,6 +157,7 @@ export interface AnkiConnectConfig {
   fields?: {
     word?: string;
     audio?: string;
+    wordAudio?: string;
     image?: string;
     sentence?: string;
     miscInfo?: string;

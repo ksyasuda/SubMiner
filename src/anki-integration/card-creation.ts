@@ -21,6 +21,7 @@ import {
   resolveAudioStreamIndexForMediaGeneration,
   type MediaGenerationInputResolverOptions,
 } from './media-source';
+import { clampMediaEndTime } from './media-duration';
 import { resolveWordCardKind } from './note-field-utils';
 import type { PendingYoutubeMediaUpdate } from './pending-youtube-media';
 import { resolveMpvVolumeScale } from './mpv-volume';
@@ -233,11 +234,12 @@ export class CardCreationService {
       let rangeEnd = Math.max(...timings.map((entry) => entry.endTime));
 
       const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
-      if (maxMediaDuration > 0 && rangeEnd - rangeStart > maxMediaDuration) {
+      const cappedRangeEnd = clampMediaEndTime(rangeStart, rangeEnd, maxMediaDuration);
+      if (cappedRangeEnd !== rangeEnd) {
         log.warn(
           `Media range ${(rangeEnd - rangeStart).toFixed(1)}s exceeds cap of ${maxMediaDuration}s, clamping`,
         );
-        rangeEnd = rangeStart + maxMediaDuration;
+        rangeEnd = cappedRangeEnd;
       }
 
       this.deps.showOsdNotification('Updating card from clipboard...');
@@ -437,9 +439,7 @@ export class CardCreationService {
       }
 
       const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
-      if (maxMediaDuration > 0 && endTime - startTime > maxMediaDuration) {
-        endTime = startTime + maxMediaDuration;
-      }
+      endTime = clampMediaEndTime(startTime, endTime, maxMediaDuration);
 
       this.deps.showOsdNotification('Marking card as audio card...');
       await this.deps.withUpdateProgress('Marking audio card', async () => {
@@ -600,11 +600,12 @@ export class CardCreationService {
     }
 
     const maxMediaDuration = this.deps.getConfig().media?.maxMediaDuration ?? 30;
-    if (maxMediaDuration > 0 && endTime - startTime > maxMediaDuration) {
+    const cappedEndTime = clampMediaEndTime(startTime, endTime, maxMediaDuration);
+    if (cappedEndTime !== endTime) {
       log.warn(
         `Sentence card media range ${(endTime - startTime).toFixed(1)}s exceeds cap of ${maxMediaDuration}s, clamping`,
       );
-      endTime = startTime + maxMediaDuration;
+      endTime = cappedEndTime;
     }
 
     try {

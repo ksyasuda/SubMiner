@@ -6,7 +6,7 @@ type EnsureStatsServerUrlDeps = {
   removeBackgroundState: () => void;
   isProcessAlive: (pid: number) => boolean;
   hasLocalStatsServer: () => boolean;
-  startLocalStatsServer: () => void;
+  startLocalStatsServer: () => Promise<void>;
   getConfiguredPort: () => number;
 };
 
@@ -18,8 +18,8 @@ export type EnsureStatsServerUrlResult = { url: string; source: 'background' | '
 
 export function createEnsureStatsServerUrlHandler(
   deps: EnsureStatsServerUrlDeps,
-): () => EnsureStatsServerUrlResult {
-  return () => {
+): () => Promise<EnsureStatsServerUrlResult> {
+  return async () => {
     const state = deps.readBackgroundState();
     if (!state) {
       deps.removeBackgroundState();
@@ -32,7 +32,7 @@ export function createEnsureStatsServerUrlHandler(
     }
 
     if (!deps.hasLocalStatsServer()) {
-      deps.startLocalStatsServer();
+      await deps.startLocalStatsServer();
     }
     return { url: formatStatsServerUrl(deps.getConfiguredPort()), source: 'local' };
   };

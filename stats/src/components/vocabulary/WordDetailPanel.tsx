@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useWordDetail } from '../../hooks/useWordDetail';
 import { apiClient } from '../../lib/api-client';
-import { assetUrl } from '../../lib/asset-url';
 import { epochMsFromDbTimestamp, formatNumber, formatRelativeDate } from '../../lib/formatters';
 import {
   buildStatsMineCardParams,
@@ -167,7 +166,7 @@ export function WordDetailPanel({
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('Anki Card Created', {
             body: `Mined: ${label}`,
-            icon: assetUrl('favicon.png'),
+            icon: '/favicon.png',
           });
         } else if (typeof Notification !== 'undefined' && Notification.permission !== 'denied') {
           Notification.requestPermission().then((p) => {

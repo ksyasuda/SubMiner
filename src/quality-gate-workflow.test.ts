@@ -22,7 +22,7 @@ test('quality gate checkout does not persist GitHub credentials', () => {
   );
 });
 
-test('quality gate installs Lua and runs the environment suite before coverage', () => {
+test('quality gate runs non-covered source suites and lets coverage gate the src lane', () => {
   assert.match(qualityGateWorkflow, /name: Install Lua/);
   assert.match(
     qualityGateWorkflow,
@@ -32,7 +32,18 @@ test('quality gate installs Lua and runs the environment suite before coverage',
   assert.match(qualityGateWorkflow, /apt-get\s+"\$\{apt_sources\[@\]\}"\s+install\s+-y\s+lua5\.4/);
   assert.match(
     qualityGateWorkflow,
-    /Test suite \(source\)\n\s*run: bun run test:fast\n\s*\n\s*- name: Environment suite\n\s*run: bun run test:env\n\s*\n\s*- name: Coverage suite \(maintained source lane\)/,
+    /Launcher unit and script suites\n\s*run: bun run test:launcher:unit:src && bun run test:scripts/,
+  );
+  assert.doesNotMatch(qualityGateWorkflow, /bun run test:fast/);
+  assert.match(qualityGateWorkflow, /run: bun run test:coverage:src/);
+});
+
+test('quality gate runs launcher smoke once through the environment suite and keeps artifacts', () => {
+  assert.match(qualityGateWorkflow, /name: Environment suite\n\s*run: bun run test:env/);
+  assert.doesNotMatch(qualityGateWorkflow, /run: bun run test:launcher:smoke:src/);
+  assert.match(
+    qualityGateWorkflow,
+    /name: Upload launcher smoke artifacts \(on failure\)[\s\S]*?if: failure\(\)[\s\S]*?path: \.tmp\/launcher-smoke\/\*\*/,
   );
 });
 
@@ -40,6 +51,13 @@ test('quality gate uploads maintained source coverage', () => {
   assert.match(qualityGateWorkflow, /run: bun run test:coverage:src/);
   assert.match(qualityGateWorkflow, /name: Upload coverage artifact/);
   assert.match(qualityGateWorkflow, /path: coverage\/test-src\/lcov\.info/);
+});
+
+test('quality gate preserves stats, compiled SQLite, and dist runtime checks', () => {
+  assert.match(qualityGateWorkflow, /run: bun run test:stats/);
+  assert.match(qualityGateWorkflow, /run: bun run build/);
+  assert.match(qualityGateWorkflow, /run: bun run test:immersion:sqlite:dist/);
+  assert.match(qualityGateWorkflow, /run: bun run test:smoke:dist/);
 });
 
 test('quality gate keeps pull request changelog enforcement event-aware', () => {

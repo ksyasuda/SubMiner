@@ -38,6 +38,7 @@ test('composeStartupLifecycleHandlers returns callable startup lifecycle handler
       clearReconnectTimerRef: () => {},
       getSubtitleTimingTracker: () => null,
       getImmersionTracker: () => null,
+      stopStatsServer: () => {},
       clearImmersionTracker: () => {},
       getAnkiIntegration: () => null,
       getAnilistSetupWindow: () => null,

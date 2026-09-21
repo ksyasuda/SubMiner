@@ -4,6 +4,7 @@ import { basename } from 'node:path';
 import { AnkiConnectClient } from '../../../anki-connect.js';
 import { getConfiguredWordFieldName } from '../../../anki-field-config.js';
 import { resolveAnimatedImageLeadInSeconds } from '../../../anki-integration/animated-image-sync.js';
+import { clampMediaEndTime } from '../../../anki-integration/media-duration.js';
 import { MediaGenerator } from '../../../media-generator.js';
 import { statsJson } from '../../../types/stats-http-contract.js';
 import {
@@ -113,8 +114,7 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
 
     const startSec = startMs / 1000;
     const endSec = endMs / 1000;
-    const rawDuration = endSec - startSec;
-    const clampedEndSec = rawDuration > maxMediaDuration ? startSec + maxMediaDuration : endSec;
+    const clampedEndSec = clampMediaEndTime(startSec, endSec, maxMediaDuration);
 
     const highlightedSentence = word
       ? sentence.replace(

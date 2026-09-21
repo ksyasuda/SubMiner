@@ -406,6 +406,17 @@ test('handleCliCommand ensures background stats server for second-instance --sta
   assert.equal(ensured.length, 1);
 });
 
+test('handleCliCommand reports unexpected background stats startup failures', async () => {
+  const startup = Promise.reject(new Error('startup unavailable'));
+  const { deps, calls, osd } = createDeps({ ensureBackgroundStatsServer: () => startup });
+
+  handleCliCommand(makeArgs({ start: true, background: true }), 'initial', deps);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(calls.includes('error:ensureBackgroundStatsServer failed:'));
+  assert.ok(osd.includes('Stats server startup failed: startup unavailable'));
+});
+
 test('handleCliCommand does not ensure background stats server for foreground --start', () => {
   const ensured: number[] = [];
   const { deps } = createDeps({

@@ -1,21 +1,11 @@
-import { DEFAULT_CONFIG } from '../../definitions';
 import type { ResolveContext } from '../context';
+import { applyFieldGroupingConfigResolution } from './field-grouping-config';
 
-export function applyAnkiSenrenResolution(context: ResolveContext): void {
-  if (
-    context.resolved.ankiConnect.isSenren.fieldGrouping !== 'auto' &&
-    context.resolved.ankiConnect.isSenren.fieldGrouping !== 'manual' &&
-    context.resolved.ankiConnect.isSenren.fieldGrouping !== 'disabled'
-  ) {
-    context.warn(
-      'ankiConnect.isSenren.fieldGrouping',
-      context.resolved.ankiConnect.isSenren.fieldGrouping,
-      DEFAULT_CONFIG.ankiConnect.isSenren.fieldGrouping,
-      'Expected auto, manual, or disabled.',
-    );
-    context.resolved.ankiConnect.isSenren.fieldGrouping =
-      DEFAULT_CONFIG.ankiConnect.isSenren.fieldGrouping;
-  }
+export function applyAnkiSenrenResolution(
+  context: ResolveContext,
+  ankiConnect: Record<string, unknown>,
+): void {
+  applyFieldGroupingConfigResolution(context, ankiConnect, 'isSenren');
 
   // Kiku and Senren field grouping write incompatible markup into the same note
   // fields, so only one may be active; Kiku wins to preserve pre-existing setups.

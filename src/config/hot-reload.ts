@@ -29,6 +29,7 @@ const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'ankiConnect.nPlusOne.minSentenceWords',
   'ankiConnect.fields.word',
   'ankiConnect.fields.audio',
+  'ankiConnect.fields.wordAudio',
   'ankiConnect.fields.image',
   'ankiConnect.fields.sentence',
   'ankiConnect.fields.miscInfo',

@@ -5,7 +5,11 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { createStatsApp, startStatsServer } from '../stats-server.js';
+import {
+  createStatsApp,
+  startNodeHttpServer,
+  startStatsServerWithRuntime,
+} from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import { INCOMPATIBLE_PROVIDER_MERGE_MESSAGE } from '../immersion-tracker/anime-merge.js';
 import {
@@ -442,6 +446,73 @@ async function withFakeAnkiConnect<T>(
 }
 
 describe('stats server API routes', () => {
+  it('rejects untrusted mutation requests before merging anime', async () => {
+    let merges = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          merges += 1;
+          return { survivingAnimeId: 1, mergedAnimeIds: [2], movedVideos: 1 };
+        },
+      }),
+    );
+    const rejectedHeaders: Record<string, string>[] = [
+      { Origin: 'https://attacker.example', 'Content-Type': 'text/plain' },
+      { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      { Origin: 'null', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost:4321', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost/', 'Content-Type': 'application/json' },
+      { 'Sec-Fetch-Site': 'cross-site', 'Content-Type': 'application/json' },
+      { Host: 'attacker.example', 'Content-Type': 'application/json' },
+    ];
+    for (const headers of rejectedHeaders) {
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 403, JSON.stringify(headers));
+    }
+    assert.equal(merges, 0);
+    for (const origin of [undefined, 'http://localhost']) {
+      const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
+      if (origin) headers.set('Origin', origin);
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 200);
+    }
+    assert.equal(merges, 2);
+  });
+
+  it('requires JSON for mutation bodies and preserves bodyless deletion', async () => {
+    let deletions = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
+        },
+      }),
+    );
+    const invalid = await app.request('/api/stats/sessions/1', {
+      method: 'DELETE',
+      body: '{}',
+    });
+    assert.equal(invalid.status, 415);
+    assert.equal(deletions, 0);
+    const valid = await app.request('/api/stats/sessions/1', { method: 'DELETE' });
+    assert.equal(valid.status, 200);
+    assert.equal(deletions, 1);
+    const rebound = await app.request('http://attacker.example/api/stats/sessions/1', {
+      method: 'DELETE',
+      headers: { Origin: 'http://attacker.example' },
+    });
+    assert.equal(rebound.status, 403);
+    assert.equal(deletions, 1);
+  });
+
   it('GET /api/stats/overview returns overview data', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/overview');
@@ -1006,6 +1077,23 @@ describe('stats server API routes', () => {
     assert.equal(seenLimit, 500);
   });
 
+  it('GET /api/stats/vocabulary floors fractional pagination limits', async () => {
+    let seenLimit = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        getVocabularyStats: async (limit?: number) => {
+          seenLimit = limit ?? 0;
+          return VOCABULARY_STATS;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/vocabulary?limit=12.9');
+
+    assert.equal(res.status, 200);
+    assert.equal(seenLimit, 12);
+  });
+
   it('GET /api/stats/vocabulary passes excludePos to tracker', async () => {
     let seenArgs: unknown[] = [];
     const app = createStatsApp(
@@ -1134,7 +1222,7 @@ describe('stats server API routes', () => {
       body: JSON.stringify({ dryRun: false, lookbackDays: null }),
     });
 
-    assert.equal(res.status, 415);
+    assert.equal(res.status, 403);
     assert.equal(cleanupCalls, 0);
   });
 
@@ -1353,7 +1441,7 @@ describe('stats server API routes', () => {
       }),
     );
 
-    for (const anilistId of [-1, 0, 1.5, '12', true, undefined]) {
+    for (const anilistId of [-1, 0, 1.5, 9_007_199_254_740_992, '12', true, undefined]) {
       const res = await app.request('/api/stats/anime/1/anilist', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1451,6 +1539,74 @@ describe('stats server API routes', () => {
     assert.equal(res.status, 404);
   });
 
+  it('resource routes reject fractional ids before calling dependencies', async () => {
+    const dependencyCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      dependencyCalls.push('fetch');
+      return new Response('{}', { status: 200 });
+    };
+
+    try {
+      const app = createStatsApp(
+        createMockTracker({
+          getWordDetail: async () => {
+            dependencyCalls.push('getWordDetail');
+            return null;
+          },
+          getSessionEvents: async () => {
+            dependencyCalls.push('getSessionEvents');
+            return [];
+          },
+          getEpisodeSessions: async () => {
+            dependencyCalls.push('getEpisodeSessions');
+            return [];
+          },
+          getAnimeCoverArt: async () => {
+            dependencyCalls.push('getAnimeCoverArt');
+            return null;
+          },
+          ensureAnimeCoverArt: async () => {
+            dependencyCalls.push('ensureAnimeCoverArt');
+            return false;
+          },
+          setVideoWatched: async () => {
+            dependencyCalls.push('setVideoWatched');
+          },
+          reassignAnimeAnilist: async () => {
+            dependencyCalls.push('reassignAnimeAnilist');
+          },
+        }),
+      );
+
+      const responses = await Promise.all([
+        app.request('/api/stats/vocabulary/1.9/detail'),
+        app.request('/api/stats/sessions/1.9/events'),
+        app.request('/api/stats/episode/1.9/detail'),
+        app.request('/api/stats/anime/1.9/cover'),
+        app.request('/api/stats/media/1.9/watched', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"watched":true}',
+        }),
+        app.request('/api/stats/anime/1.9/anilist', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{"anilistId":21858}',
+        }),
+        app.request('/api/stats/anki/browse?noteId=1.9', { method: 'POST' }),
+      ]);
+
+      assert.deepEqual(
+        responses.map((response) => response.status),
+        [400, 400, 400, 400, 400, 400, 400],
+      );
+      assert.deepEqual(dependencyCalls, []);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('POST /api/stats/covers batches stored cover art and backfills missing anime art in the background', async () => {
     let ensureCoverArtCalls = 0;
     const ensureAnimeCoverArtCalls: number[] = [];
@@ -1505,6 +1661,58 @@ describe('stats server API routes', () => {
     });
     assert.equal(ensureCoverArtCalls, 0);
     assert.deepEqual(ensureAnimeCoverArtCalls, [99999]);
+  });
+
+  it('JSON id lists reject malformed members before side effects', async () => {
+    const dependencyCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      dependencyCalls.push('fetch');
+      return new Response('{}', { status: 200 });
+    };
+
+    try {
+      const app = createStatsApp(
+        createMockTracker({
+          deleteSessions: async () => {
+            dependencyCalls.push('deleteSessions');
+          },
+          mergeAnime: async () => {
+            dependencyCalls.push('mergeAnime');
+            return { survivingAnimeId: 7, mergedAnimeIds: [], movedVideos: 0 };
+          },
+          getAnimeCoverArt: async () => {
+            dependencyCalls.push('getAnimeCoverArt');
+            return null;
+          },
+          ensureAnimeCoverArt: async () => {
+            dependencyCalls.push('ensureAnimeCoverArt');
+            return false;
+          },
+        }),
+      );
+      const request = async (path: string, body: string, method = 'POST'): Promise<Response> =>
+        await app.request(path, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        });
+
+      const responses = await Promise.all([
+        request('/api/stats/sessions', '{"sessionIds":[4,1.9,7]}', 'DELETE'),
+        request('/api/stats/anime/7/merge', '{"sourceAnimeIds":[8,"9"]}'),
+        request('/api/stats/covers', '{"animeIds":[1,1.9]}'),
+        request('/api/stats/anki/notesInfo', '{"noteIds":[1,1.9]}'),
+      ]);
+
+      assert.deepEqual(
+        responses.map((response) => response.status),
+        [400, 400, 400, 400],
+      );
+      assert.deepEqual(dependencyCalls, []);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('POST /api/stats/covers limits concurrent missing anime cover backfills', async () => {
@@ -1761,6 +1969,60 @@ describe('stats server API routes', () => {
       assert.equal(res.status, 400, JSON.stringify(body));
       assert.deepEqual(body, { error: 'endMs must be greater than startMs' });
       assert.equal(generatedAudio, false);
+    });
+  });
+
+  it('POST /api/stats/mine-card treats a zero media duration cap as unlimited', async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      const audioRanges: Array<{ start: number; end: number; padding: number | undefined }> = [];
+      const scenarios = [
+        { maxMediaDuration: 0, expectedEnd: 12 },
+        { maxMediaDuration: 1, expectedEnd: 11 },
+      ];
+
+      for (const scenario of scenarios) {
+        const app = createStatsApp(createMockTracker(), {
+          addYomitanNote: async () => null,
+          createMediaGenerator: () => ({
+            generateAudio: async (_path, start, end, padding) => {
+              audioRanges.push({ start, end, padding });
+              return Buffer.from('audio');
+            },
+            generateScreenshot: async () => null,
+            generateAnimatedImage: async () => null,
+          }),
+          ankiConnectConfig: {
+            deck: 'Mining',
+            media: {
+              generateAudio: true,
+              generateImage: false,
+              audioPadding: 0.25,
+              maxMediaDuration: scenario.maxMediaDuration,
+            },
+          },
+        });
+
+        const res = await app.request('/api/stats/mine-card?mode=word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 10_000,
+            endMs: 12_000,
+            sentence: '猫を見た',
+            word: '猫',
+          }),
+        });
+
+        assert.equal(res.status, 502);
+        assert.deepEqual(audioRanges.at(-1), {
+          start: 10,
+          end: scenario.expectedEnd,
+          padding: 0.25,
+        });
+      }
     });
   });
 
@@ -3264,6 +3526,46 @@ Aligned English subtitle
     assert.equal(deleteCalls, 0);
   });
 
+  it('DELETE /api/stats/sessions rejects a partly invalid id list without deleting', async () => {
+    let deleteCalls = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSessions: async () => {
+          deleteCalls += 1;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sessionIds":[4,1.9,7]}',
+    });
+
+    assert.equal(res.status, 400);
+    assert.equal(deleteCalls, 0);
+  });
+
+  it('DELETE /api/stats/sessions deduplicates valid ids', async () => {
+    let deletedSessionIds: number[] = [];
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSessions: async (sessionIds: number[]) => {
+          deletedSessionIds = sessionIds;
+        },
+      }),
+    );
+
+    const res = await app.request('/api/stats/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sessionIds":[4,4,7]}',
+    });
+
+    assert.equal(res.status, 200);
+    assert.deepEqual(deletedSessionIds, [4, 7]);
+  });
+
   it('DELETE /api/stats/anime/:animeId deletes the whole library entry', async () => {
     let deletedAnimeId: number | null = null;
     const app = createStatsApp(
@@ -3295,6 +3597,33 @@ Aligned English subtitle
 
     assert.equal(res.status, 400);
     assert.equal(deleteCalls, 0);
+  });
+
+  it('DELETE /api/stats/anime/:animeId rejects malformed anime ids before deleting', async () => {
+    let deletedAnimeId: number | null = null;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteAnime: async (animeId: number) => {
+          deletedAnimeId = animeId;
+        },
+      }),
+    );
+
+    for (const animeId of [
+      '1.9',
+      '1.0',
+      '1e2',
+      '9007199254740992',
+      '1%0A',
+      '%201',
+      '01',
+      '+1',
+      '0x1',
+    ]) {
+      const res = await app.request(`/api/stats/anime/${animeId}`, { method: 'DELETE' });
+      assert.equal(res.status, 400, `accepted malformed anime id: ${animeId}`);
+    }
+    assert.equal(deletedAnimeId, null);
   });
 
   it('POST /api/stats/anime/:animeId/merge folds the given entries into the target', async () => {
@@ -3758,103 +4087,190 @@ Aligned English subtitle
     assert.equal(ensureCalls, 1);
   });
 
-  it('starts the stats server with Bun.serve', () => {
-    type BunRuntime = {
-      Bun: {
-        serve: (options: { fetch: unknown; port: number; hostname: string }) => {
-          stop: () => void;
-        };
-      };
-    };
-
-    const bun = globalThis as typeof globalThis & BunRuntime;
-    const originalServe = bun.Bun.serve;
-    let servedWith: { fetch: unknown; port: number; hostname: string } | null = null;
+  it('starts and stops the stats server with Bun.serve', async () => {
+    const servedOptions: Array<{ fetch: unknown; port: number; hostname: string }> = [];
     let stopCalls = 0;
-
-    bun.Bun.serve = (options: { fetch: unknown; port: number; hostname: string }) => {
-      servedWith = options;
-      return {
-        stop: () => {
-          stopCalls += 1;
-        },
-      };
-    };
-
-    try {
-      const server = startStatsServer({
+    const server = await startStatsServerWithRuntime(
+      {
         port: 3210,
         staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-start-')),
         tracker: createMockTracker(),
-      });
+      },
+      {
+        bunServe: (options) => {
+          servedOptions.push(options);
+          return {
+            stop: () => {
+              stopCalls += 1;
+            },
+          };
+        },
+      },
+    );
 
-      if (servedWith === null) {
-        throw new Error('expected Bun.serve to be called');
-      }
+    const servedWith = servedOptions[0];
+    if (!servedWith) {
+      throw new Error('expected Bun.serve to be called');
+    }
 
-      const servedOptions = servedWith as {
-        fetch: unknown;
-        port: number;
-        hostname: string;
-      };
-      assert.equal(servedOptions.port, 3210);
-      assert.equal(servedOptions.hostname, '127.0.0.1');
-      assert.equal(typeof servedOptions.fetch, 'function');
+    assert.equal(servedWith.port, 3210);
+    assert.equal(servedWith.hostname, '127.0.0.1');
+    assert.equal(typeof servedWith.fetch, 'function');
 
-      server.close();
-      assert.equal(stopCalls, 1);
+    await Promise.all([server.close(), server.close()]);
+    assert.equal(stopCalls, 1);
+  });
+
+  it('waits for node:http listening and converts startup errors into rejections', async () => {
+    const app = createStatsApp(createMockTracker());
+    const listeningServer = http.createServer();
+    let closeCalls = 0;
+    Object.defineProperties(listeningServer, {
+      listen: {
+        value: () => listeningServer,
+      },
+      close: {
+        value: (callback?: (error?: Error) => void) => {
+          closeCalls += 1;
+          callback?.();
+          return listeningServer;
+        },
+      },
+    });
+
+    let startupSettled = false;
+    const startup = startNodeHttpServer(
+      app,
+      {
+        port: 3210,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-events-')),
+        tracker: createMockTracker(),
+      },
+      () => listeningServer,
+    );
+    void startup.finally(() => {
+      startupSettled = true;
+    });
+    await Promise.resolve();
+    assert.equal(startupSettled, false);
+
+    listeningServer.emit('listening');
+    const handle = await startup;
+    await Promise.all([handle.close(), handle.close()]);
+    assert.equal(closeCalls, 1);
+
+    const failingServer = http.createServer();
+    Object.defineProperty(failingServer, 'listen', {
+      value: () => failingServer,
+    });
+    const failedStartup = startNodeHttpServer(
+      app,
+      {
+        port: 3210,
+        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-error-')),
+        tracker: createMockTracker(),
+      },
+      () => failingServer,
+    );
+    failingServer.emit('error', Object.assign(new Error('address in use'), { code: 'EADDRINUSE' }));
+    await assert.rejects(
+      failedStartup,
+      (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE',
+    );
+  });
+
+  it('starts, rejects address conflicts, and stops through real node:http sockets', async () => {
+    const app = createStatsApp(createMockTracker());
+    const server = await startNodeHttpServer(app, {
+      port: 0,
+      staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
+      tracker: createMockTracker(),
+    });
+    await Promise.all([server.close(), server.close()]);
+
+    const blocker = http.createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.listen(0, '127.0.0.1', resolve);
+    });
+    const address = blocker.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('expected blocker to listen on a TCP port');
+    }
+
+    try {
+      await assert.rejects(
+        startNodeHttpServer(app, {
+          port: address.port,
+          staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-error-')),
+          tracker: createMockTracker(),
+        }),
+        (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE',
+      );
     } finally {
-      bun.Bun.serve = originalServe;
+      await new Promise<void>((resolve, reject) => {
+        blocker.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
     }
   });
 
-  it('falls back to node:http when Bun.serve is unavailable', () => {
-    type BunRuntime = {
-      Bun: {
-        serve?: (options: { fetch: unknown; port: number; hostname: string }) => {
-          stop: () => void;
-        };
-      };
-    };
-
-    const bun = globalThis as typeof globalThis & BunRuntime;
-    const originalServe = bun.Bun.serve;
-    const originalCreateServer = http.createServer;
-    let listenedWith: { port: number; hostname: string } | null = null;
-    let closeCalls = 0;
-    bun.Bun.serve = undefined;
-    (
-      http as typeof http & {
-        createServer: typeof http.createServer;
-      }
-    ).createServer = (() =>
-      ({
-        listen: (port: number, hostname: string) => {
-          listenedWith = { port, hostname };
+  it('enforces request safety through node:http without rejecting bodyless DELETEs', async () => {
+    await withTempDir(async (staticDir) => {
+      let deletions = 0;
+      const tracker = createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
         },
-        close: () => {
-          closeCalls += 1;
-        },
-      }) as unknown as ReturnType<typeof http.createServer>) as typeof http.createServer;
-
-    try {
-      const server = startStatsServer({
-        port: 0,
-        staticDir: fs.mkdtempSync(path.join(os.tmpdir(), 'subminer-stats-server-node-')),
-        tracker: createMockTracker(),
       });
-
-      assert.deepEqual(listenedWith, { port: 0, hostname: '127.0.0.1' });
-      server.close();
-      assert.equal(closeCalls, 1);
-    } finally {
-      bun.Bun.serve = originalServe;
-      (
-        http as typeof http & {
-          createServer: typeof http.createServer;
+      const listener = http.createServer();
+      const server = await startNodeHttpServer(
+        createStatsApp(tracker),
+        { port: 0, staticDir, tracker },
+        (handler) => {
+          listener.on('request', handler);
+          return listener;
+        },
+      );
+      try {
+        const address = listener.address();
+        assert.ok(address && typeof address !== 'string');
+        const origin = `http://127.0.0.1:${address.port}`;
+        const url = `${origin}/api/stats/sessions/1`;
+        for (const headers of [undefined, { 'Content-Length': '0' }]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 200);
+          await response.arrayBuffer();
         }
-      ).createServer = originalCreateServer;
-    }
+        assert.equal(deletions, 2);
+        for (const headers of [
+          new Headers({ Origin: 'https://attacker.example' }),
+          new Headers({ Origin: 'null' }),
+          new Headers({ Host: 'attacker.example' }),
+          new Headers({ 'Sec-Fetch-Site': 'same-site' }),
+        ]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 403, JSON.stringify(headers));
+          await response.arrayBuffer();
+        }
+        const invalid = await fetch(url, { method: 'DELETE', body: '{}' });
+        assert.equal(invalid.status, 415);
+        await invalid.arrayBuffer();
+        assert.equal(deletions, 2);
+        const valid = await fetch(url, {
+          method: 'DELETE',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        assert.equal(valid.status, 200);
+        await valid.arrayBuffer();
+        assert.equal(deletions, 3);
+      } finally {
+        await server.close();
+      }
+    });
   });
 });
 

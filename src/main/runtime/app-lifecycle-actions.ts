@@ -1,3 +1,26 @@
+export function createForceQuitHandler(deps: {
+  destroyImmersionTracker: () => void | Promise<void>;
+  logError: (error: unknown) => void;
+  exit: () => void;
+}) {
+  return async () => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => deps.destroyImmersionTracker()),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Stats finalization timed out.')), 1_000);
+        }),
+      ]);
+    } catch (error) {
+      deps.logError(error);
+    } finally {
+      clearTimeout(timeout);
+      deps.exit();
+    }
+  };
+}
+
 export function createOnWillQuitCleanupHandler(deps: {
   destroyTray: () => void;
   stopConfigHotReload: () => void;
@@ -18,7 +41,8 @@ export function createOnWillQuitCleanupHandler(deps: {
   destroyMpvSocket: () => void;
   clearReconnectTimer: () => void;
   destroySubtitleTimingTracker: () => void;
-  destroyImmersionTracker: () => void;
+  stopStatsServer: () => Promise<void> | void;
+  destroyImmersionTracker: () => void | Promise<void>;
   destroyAnkiIntegration: () => void;
   destroyAnilistSetupWindow: () => void;
   clearAnilistSetupWindow: () => void;
@@ -36,7 +60,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   cleanupJellyfinSubtitleCache: () => void;
   stopDiscordPresenceService: () => void;
 }) {
-  return (): Promise<void> => {
+  return async (): Promise<void> => {
     deps.destroyTray();
     deps.stopConfigHotReload();
     deps.restorePreviousSecondarySubVisibility();
@@ -44,7 +68,12 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
-    const stopSyncAutoScheduler = deps.stopSyncAutoScheduler();
+    const cleanupErrors: unknown[] = [];
+    const stopSyncAutoScheduler = Promise.resolve(deps.stopSyncAutoScheduler()).catch(
+      (error: unknown) => {
+        cleanupErrors.push(error);
+      },
+    );
     deps.clearWindowsVisibleOverlayForegroundPollLoop();
     deps.clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     deps.destroyMainOverlayWindow();
@@ -56,7 +85,16 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyMpvSocket();
     deps.clearReconnectTimer();
     deps.destroySubtitleTimingTracker();
-    deps.destroyImmersionTracker();
+    try {
+      await deps.stopStatsServer();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await deps.destroyImmersionTracker();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     deps.destroyAnkiIntegration();
     deps.destroyAnilistSetupWindow();
     deps.clearAnilistSetupWindow();
@@ -79,7 +117,10 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.cleanupYoutubeMediaCache();
     deps.cleanupRemoteMediaWindows();
     deps.stopDiscordPresenceService();
-    return Promise.resolve(stopSyncAutoScheduler);
+    await stopSyncAutoScheduler;
+    if (cleanupErrors.length > 0) {
+      throw cleanupErrors[0];
+    }
   };
 }
 
