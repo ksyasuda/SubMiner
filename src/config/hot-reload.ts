@@ -54,7 +54,7 @@ export function getConfigHotReloadField(path: string): string | null {
 
   // These consumers read the current config when the next operation starts.
   if (
-    ['jimaku', 'subsync', 'notifications', 'subtitleGeneration'].some((root) =>
+    ['jimaku', 'tmdb', 'subsync', 'notifications', 'subtitleGeneration'].some((root) =>
       pathStartsWith(path, root),
     )
   ) {

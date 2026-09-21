@@ -1,11 +1,13 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { AnkiConnectConfig } from '../../../types.js';
 import {
   statsJson,
   type StatsAnilistSearchResult,
   type StatsAnkiBrowseResponse,
 } from '../../../types/stats-http-contract.js';
+import { isTmdbMediaType } from '../../../shared/media-kind.js';
 import type { AnilistRateLimiter } from '../anilist/rate-limiter.js';
+import { TmdbApiKeyMissingError, type TmdbClient } from '../tmdb/tmdb-client.js';
 import { registerStatsCoverRoutes } from '../stats-cover-routes.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
@@ -29,6 +31,7 @@ export function registerStatsIntegrationRoutes(
     ankiConnectConfig?: AnkiConnectConfig;
     getAnkiConnectConfig?: () => AnkiConnectConfig | undefined;
     anilistRateLimiter?: AnilistRateLimiter;
+    tmdbClient?: TmdbClient;
     resolveAnkiNoteId?: (noteId: number) => number;
   },
 ): void {
@@ -70,6 +73,51 @@ export function registerStatsIntegrationRoutes(
       return c.json(statsJson('anilistSearch', json.data?.Page?.media ?? []));
     } catch {
       return c.json(statsJson('anilistSearch', []));
+    }
+  });
+
+  const tmdbUnavailable = (c: Context, err: unknown) => {
+    if (err instanceof TmdbApiKeyMissingError) {
+      return c.json(statsJson('error', { error: err.message }), 503);
+    }
+    return c.json(statsJson('error', { error: 'TMDB request failed' }), 502);
+  };
+
+  app.get('/api/stats/tmdb/search', async (c) => {
+    const query = (c.req.query('q') ?? '').trim();
+    if (!query) return c.json(statsJson('tmdbSearch', []));
+    const tmdbClient = options?.tmdbClient;
+    if (!tmdbClient) return c.json(statsJson('tmdbSearch', []));
+    try {
+      return c.json(statsJson('tmdbSearch', await tmdbClient.search(query)));
+    } catch (err) {
+      return tmdbUnavailable(c, err);
+    }
+  });
+
+  app.patch('/api/stats/anime/:animeId/tmdb', async (c) => {
+    const animeId = parsePositiveId(c.req.param('animeId'));
+    if (animeId === null) return c.body(null, 400);
+    const body = await c.req.json().catch(() => null);
+    const tmdbId = body?.tmdbId;
+    if (
+      typeof tmdbId !== 'number' ||
+      !Number.isInteger(tmdbId) ||
+      tmdbId <= 0 ||
+      !isTmdbMediaType(body?.tmdbType)
+    ) {
+      return c.body(null, 400);
+    }
+    if (!(await tracker.hasAnime(animeId))) return c.body(null, 404);
+    const tmdbClient = options?.tmdbClient;
+    if (!tmdbClient) return c.json(statsJson('error', { error: 'TMDB is not available' }), 503);
+    try {
+      const details = await tmdbClient.getDetails(body.tmdbType, tmdbId);
+      if (!details) return c.body(null, 404);
+      await tracker.reassignAnimeTmdb(animeId, details);
+      return c.json(statsJson('reassignAnimeTmdb', { ok: true }));
+    } catch (err) {
+      return tmdbUnavailable(c, err);
     }
   });
 

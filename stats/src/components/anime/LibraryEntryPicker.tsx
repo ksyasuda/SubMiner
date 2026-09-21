@@ -4,7 +4,7 @@ import { formatDuration } from '../../lib/formatters';
 import { useModalFocus } from '../../hooks/useModalFocus';
 import { AnimeCoverImage } from './AnimeCoverImage';
 import type { AnimeLibraryItem } from '../../types/stats';
-import type { MediaKind } from '../../../../src/shared/media-kind';
+import { shareTitleNamespace, type MediaKind } from '../../../../src/shared/media-kind';
 
 interface LibraryEntryPickerProps {
   heading: string;
@@ -73,7 +73,7 @@ export function LibraryEntryPicker({
     const term = query.trim().toLowerCase();
     return (entries ?? [])
       .filter((entry) => !excluded.has(entry.animeId))
-      .filter((entry) => mediaKind === undefined || entry.mediaKind === mediaKind)
+      .filter((entry) => mediaKind === undefined || shareTitleNamespace(entry.mediaKind, mediaKind))
       .filter((entry) => !term || entry.canonicalTitle.toLowerCase().includes(term))
       .sort((a, b) => b.lastWatchedMs - a.lastWatchedMs);
   }, [entries, excluded, mediaKind, query]);
@@ -149,7 +149,7 @@ export function LibraryEntryPicker({
               <AnimeCoverImage
                 animeId={entry.animeId}
                 title={entry.canonicalTitle}
-                coverRetryToken={entry.anilistId ?? 0}
+                coverRetryToken={entry.anilistId ?? entry.tmdbId ?? 0}
                 className="w-10 h-14 rounded shrink-0"
               />
               <div className="min-w-0 flex-1">

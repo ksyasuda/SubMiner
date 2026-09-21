@@ -93,7 +93,12 @@ const JSON_OBJECT_FIELDS = new Set([
   'subtitleSidebar.css',
 ]);
 
-export const SECRET_PATHS = new Set(['ai.apiKey', 'jimaku.apiKey', 'anilist.accessToken']);
+export const SECRET_PATHS = new Set([
+  'ai.apiKey',
+  'jimaku.apiKey',
+  'tmdb.apiKey',
+  'anilist.accessToken',
+]);
 
 const COLOR_SUFFIXES = new Set(['Color', 'color', 'backgroundColor', 'singleColor']);
 const SUBTITLE_CSS_MANAGED_CONFIG_PATHS = new Set([
@@ -135,6 +140,7 @@ const SECTION_ORDER = new Map<string, number>(
     'Anki AI',
     'AnkiConnect Proxy',
     'Jimaku',
+    'TMDB',
     'Subtitle Sync',
     'MPV Keybindings',
     'Overlay Shortcuts',
@@ -327,6 +333,7 @@ function humanizePath(path: string): string {
     .replace(/\bmpv\b/i, 'mpv')
     .replace(/\byomitan\b/i, 'Yomitan')
     .replace(/\bjimaku\b/i, 'Jimaku')
+    .replace(/\btmdb\b/i, 'TMDB')
     .replace(/\banilist\b/i, 'AniList')
     .replace(/\banki\b/i, 'Anki');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -442,7 +449,7 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('mpv.') || path.startsWith('youtube.')) {
     return { category: 'behavior', section: topSection(path) };
   }
-  if (path.startsWith('jimaku.') || path.startsWith('tsukihime.')) {
+  if (path.startsWith('jimaku.') || path.startsWith('tsukihime.') || path.startsWith('tmdb.')) {
     return { category: 'integrations', section: topSection(path) };
   }
   if (path.startsWith('subsync.')) {
@@ -510,6 +517,7 @@ function topSection(path: string): string {
     subsync: 'Subtitle Sync',
     texthooker: 'Texthooker',
     tsukihime: 'TsukiHime',
+    tmdb: 'TMDB',
     updates: 'Updates',
     websocket: 'WebSocket server',
     yomitan: 'Yomitan',

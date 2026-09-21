@@ -540,3 +540,200 @@ test('fetchIfMissing re-resolves an unresolved season once AniList publishes the
     cleanupDbPath(dbPath);
   }
 });
+
+for (const linkedToAnilist of [false, true]) {
+  test(`TMDB fallback preserves AniList identity when linked=${linkedToAnilist}`, async () => {
+    const dbPath = makeDbPath();
+    const db = new Database(dbPath);
+    ensureSchema(db);
+    const videoId = getOrCreateVideoRecord(db, 'local:/tmp/hanzawa-01.mkv', {
+      canonicalTitle: 'Hanzawa Naoki - 01.mkv',
+      sourcePath: '/tmp/hanzawa-01.mkv',
+      sourceUrl: null,
+      sourceType: SOURCE_TYPE_LOCAL,
+    });
+    const animeId = getOrCreateAnimeRecord(db, {
+      parsedTitle: 'Hanzawa Naoki',
+      canonicalTitle: 'Hanzawa Naoki',
+      anilistId: linkedToAnilist ? 42 : null,
+      titleRomaji: null,
+      titleEnglish: null,
+      titleNative: null,
+      metadataJson: null,
+    });
+    linkVideoToAnimeRecord(db, videoId, {
+      animeId,
+      parsedBasename: null,
+      parsedTitle: 'Hanzawa Naoki',
+      parsedSeason: null,
+      parsedEpisode: 1,
+      parserSource: 'fallback',
+      parserConfidence: 1,
+      parseMetadataJson: null,
+    });
+
+    const fetchCalls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      fetchCalls.push(url);
+      if (url.startsWith('https://graphql.anilist.co')) {
+        return createJsonResponse({ data: { Page: { media: [] } } });
+      }
+      assert.equal(url, 'https://image.tmdb.org/t/p/w500/hanzawa.jpg');
+      return new Response(new Uint8Array([5, 6, 7]), {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg' },
+      });
+    }) as typeof fetch;
+
+    const resolvedTitles: string[] = [];
+    try {
+      const fetcher = createCoverArtFetcher(
+        { acquire: async () => {}, recordResponse: () => {} },
+        console,
+        {
+          runGuessit: async () => {
+            throw new Error('guessit unavailable');
+          },
+          liveAction: {
+            async resolveByTitle(title) {
+              resolvedTitles.push(title);
+              if (title !== 'Hanzawa Naoki') return null;
+              return {
+                tmdbId: 61222,
+                tmdbType: 'tv',
+                titleEnglish: 'Hanzawa Naoki',
+                titleNative: '半沢直樹',
+                description: 'A banker fights back.',
+                posterUrl: 'https://image.tmdb.org/t/p/w500/hanzawa.jpg',
+                episodesTotal: 10,
+                year: 2013,
+                originalLanguage: 'ja',
+                isAnimation: false,
+                allTitles: ['Hanzawa Naoki', '半沢直樹'],
+              };
+            },
+            async resolveById() {
+              return null;
+            },
+          },
+        },
+      );
+
+      const fetched = await fetcher.fetchIfMissing(db, videoId, 'Hanzawa Naoki - 01.mkv');
+      const stored = getCoverArt(db, videoId);
+      const anime = db
+        .prepare(
+          'SELECT media_kind AS mediaKind, tmdb_id AS tmdbId, description FROM imm_anime WHERE anime_id = ?',
+        )
+        .get(animeId) as { mediaKind: string; tmdbId: number | null; description: string | null };
+
+      if (linkedToAnilist) {
+        assert.equal(fetched, false);
+        assert.equal(stored?.coverBlob, null);
+        assert.equal(stored?.coverUrl, null);
+        assert.equal(anime.mediaKind, 'anime');
+        assert.equal(anime.tmdbId, null);
+        assert.deepEqual(resolvedTitles, []);
+        const requestCount = fetchCalls.length;
+        assert.equal(await fetcher.fetchIfMissing(db, videoId, 'Hanzawa Naoki - 01.mkv'), false);
+        assert.equal(fetchCalls.length, requestCount);
+        return;
+      }
+      assert.equal(fetched, true);
+      // The raw fallback-parser title is tried first, then the tag-stripped one.
+      assert.deepEqual(resolvedTitles, ['Hanzawa Naoki - 01', 'Hanzawa Naoki']);
+      assert.equal(stored?.anilistId, null);
+      assert.equal(stored?.coverUrl, 'https://image.tmdb.org/t/p/w500/hanzawa.jpg');
+      assert.equal(Buffer.from(stored?.coverBlob ?? []).toString('hex'), '050607');
+      assert.equal(anime.mediaKind, 'live_action');
+      assert.equal(anime.tmdbId, 61222);
+      assert.equal(anime.description, 'A banker fights back.');
+      assert.ok(fetchCalls.some((url) => url.startsWith('https://graphql.anilist.co')));
+    } finally {
+      globalThis.fetch = originalFetch;
+      db.close();
+      cleanupDbPath(dbPath);
+    }
+  });
+}
+
+test('fetchIfMissing skips AniList for an entry already linked to TMDB', async () => {
+  const dbPath = makeDbPath();
+  const db = new Database(dbPath);
+  ensureSchema(db);
+  const videoId = getOrCreateVideoRecord(db, 'local:/tmp/hanzawa-02.mkv', {
+    canonicalTitle: 'Hanzawa Naoki - 02.mkv',
+    sourcePath: '/tmp/hanzawa-02.mkv',
+    sourceUrl: null,
+    sourceType: SOURCE_TYPE_LOCAL,
+  });
+  const animeId = getOrCreateAnimeRecord(db, {
+    parsedTitle: 'Hanzawa Naoki',
+    canonicalTitle: 'Hanzawa Naoki',
+    anilistId: null,
+    titleRomaji: null,
+    titleEnglish: null,
+    titleNative: null,
+    metadataJson: null,
+  });
+  linkVideoToAnimeRecord(db, videoId, {
+    animeId,
+    parsedBasename: null,
+    parsedTitle: 'Hanzawa Naoki',
+    parsedSeason: null,
+    parsedEpisode: 2,
+    parserSource: 'fallback',
+    parserConfidence: 1,
+    parseMetadataJson: null,
+  });
+  db.prepare(
+    "UPDATE imm_anime SET media_kind = 'live_action', tmdb_id = 61222, tmdb_type = 'tv' WHERE anime_id = ?",
+  ).run(animeId);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    assert.equal(String(input), 'https://image.tmdb.org/t/p/w500/hanzawa.jpg');
+    return new Response(new Uint8Array([1]), { status: 200 });
+  }) as typeof fetch;
+
+  const byIdCalls: Array<[string, number]> = [];
+  try {
+    const fetcher = createCoverArtFetcher(
+      { acquire: async () => {}, recordResponse: () => {} },
+      console,
+      {
+        liveAction: {
+          async resolveByTitle() {
+            throw new Error('title search must not run for a linked entry');
+          },
+          async resolveById(tmdbType, tmdbId) {
+            byIdCalls.push([tmdbType, tmdbId]);
+            return {
+              tmdbId,
+              tmdbType,
+              titleEnglish: 'Hanzawa Naoki',
+              titleNative: null,
+              description: null,
+              posterUrl: 'https://image.tmdb.org/t/p/w500/hanzawa.jpg',
+              episodesTotal: 10,
+              year: null,
+              originalLanguage: 'ja',
+              isAnimation: false,
+              allTitles: [],
+            };
+          },
+        },
+      },
+    );
+
+    assert.equal(await fetcher.fetchIfMissing(db, videoId, 'Hanzawa Naoki - 02.mkv'), true);
+    assert.deepEqual(byIdCalls, [['tv', 61222]]);
+    assert.equal(getCoverArt(db, videoId)?.coverBlob?.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    db.close();
+    cleanupDbPath(dbPath);
+  }
+});

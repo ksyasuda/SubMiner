@@ -1,10 +1,9 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import * as path from 'path';
 import { createLogger } from '../../logger.js';
 import type { WindowGeometry } from '../../types.js';
 import { IPC_CHANNELS } from '../../shared/ipc/contracts.js';
 import {
-  buildStatsWindowLoadFileOptions,
+  buildStatsWindowUrl,
   buildStatsWindowOptions,
   demoteVisibleStatsWindowBelowDialogs,
   presentStatsWindow,
@@ -34,12 +33,10 @@ const nativeDialogLayerSuspension = createStatsWindowLayerSuspensionState();
 const logger = createLogger('main:stats-window');
 
 export interface StatsWindowOptions {
-  /** Absolute path to stats/dist/ directory */
-  staticDir: string;
   /** Absolute path to the compiled preload-stats.js */
   preloadPath: string;
   /** Resolve the active stats API base URL */
-  getApiBaseUrl?: () => Promise<string> | string;
+  getApiBaseUrl: () => Promise<string> | string;
   /** Report server startup failure through the configured notification surface. */
   onStartupError?: (error: unknown) => void;
   /** Resolve the active stats toggle key from config */
@@ -188,7 +185,7 @@ export async function toggleStatsOverlay(options: StatsWindowOptions): Promise<v
   if (!statsWindow) {
     const generation = statsWindowGeneration;
     const apiBaseUrl = await Promise.resolve()
-      .then(() => options.getApiBaseUrl?.())
+      .then(() => options.getApiBaseUrl())
       .catch((error: unknown) => {
         options.onStartupError?.(error);
         throw error;
@@ -207,8 +204,7 @@ export async function toggleStatsOverlay(options: StatsWindowOptions): Promise<v
       statsWindow?.setTitle(STATS_WINDOW_TITLE);
     });
 
-    const indexPath = path.join(options.staticDir, 'index.html');
-    statsWindow.loadFile(indexPath, buildStatsWindowLoadFileOptions(apiBaseUrl));
+    statsWindow.loadURL(buildStatsWindowUrl(apiBaseUrl));
 
     statsWindow.on('closed', () => {
       options.onVisibilityChanged?.(false);

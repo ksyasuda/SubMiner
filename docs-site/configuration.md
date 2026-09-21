@@ -156,6 +156,7 @@ The configuration file includes several main sections:
 
 - [**Jimaku**](#jimaku) - Jimaku API configuration and defaults
 - [**TsukiHime**](#tsukihime) - Multi-language subtitle search and download
+- [**TMDB**](#tmdb) - Posters and synopses for live-action dramas and movies in the stats Library
 - [**Subtitle Sync**](#subtitle-sync) - Sync current subtitle with `alass`/`ffsubsync`
 - [**AniList**](#anilist) - Optional post-watch progress updates
 - [**Yomitan**](#yomitan) - Reuse an external read-only Yomitan profile
@@ -1157,6 +1158,32 @@ TsukiHime subtitle search works out of the box and needs no account or API key. 
 The keyboard shortcut lives under `shortcuts.openTsukihime` (default `Ctrl+Shift+T`; set to `null` to disable). The older `animetosho` section and `shortcuts.openAnimetosho` are still accepted as deprecated aliases, with the current names taking precedence when both are set.
 
 See [TsukiHime Integration](/tsukihime-integration) for the modal workflow, language tabs, and troubleshooting.
+
+### TMDB
+
+TMDB (The Movie Database) supplies posters, synopses, and show grouping for live-action dramas and movies in the stats [Library](/immersion-tracking#library). AniList only covers anime, so TMDB is what gives live-action titles a cover and a description.
+
+Release builds ship with a project TMDB key, so nothing needs to be configured. Set your own key to use your own quota, or when running SubMiner from source, where no key is bundled. Create one for free under **Settings > API** on [themoviedb.org](https://www.themoviedb.org/settings/api); either the short API key or the long "API Read Access Token" works.
+
+```json
+{
+  "tmdb": {
+    "apiKey": "",
+    "apiKeyCommand": "cat ~/.tmdb_key"
+  }
+}
+```
+
+| Option               | Values | Description                                                                                        |
+| -------------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `tmdb.apiKey`        | string | Your own TMDB API key or read access token; overrides the bundled key (default: empty)             |
+| `tmdb.apiKeyCommand` | string | Shell command that prints the key to stdout, used instead of `apiKey` to keep it out of the config |
+
+Successful `apiKeyCommand` output is cached for the running client until `tmdb.apiKey` or `tmdb.apiKeyCommand` changes. Failed or empty command output uses the bundled key when available and waits 30 seconds before the next request can retry the command. Changing either credential setting resets this cooldown.
+
+Changes apply to the next TMDB request without a restart.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ### Japanese subtitle generation
 

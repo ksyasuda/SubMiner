@@ -11,6 +11,7 @@ import {
   startStatsServerWithRuntime,
 } from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
+import { INCOMPATIBLE_PROVIDER_MERGE_MESSAGE } from '../immersion-tracker/anime-merge.js';
 import {
   clearRetimedSecondarySubtitleCache,
   resolveRetimedSecondarySubtitleTextFromSidecar,
@@ -311,6 +312,7 @@ function createMockTracker(
     getKanjiOccurrences: async () => OCCURRENCES,
     getAnimeLibrary: async () => ANIME_LIBRARY,
     getAnimeDetail: async (animeId: number) => (animeId === 1 ? ANIME_DETAIL : null),
+    hasAnime: async (animeId: number) => animeId === 1,
     getAnimeEpisodes: async () => ANIME_EPISODES,
     getAnimeAnilistEntries: async () => [],
     getAnimeWords: async () => ANIME_WORDS,
@@ -444,6 +446,73 @@ async function withFakeAnkiConnect<T>(
 }
 
 describe('stats server API routes', () => {
+  it('rejects untrusted mutation requests before merging anime', async () => {
+    let merges = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          merges += 1;
+          return { survivingAnimeId: 1, mergedAnimeIds: [2], movedVideos: 1 };
+        },
+      }),
+    );
+    const rejectedHeaders: Record<string, string>[] = [
+      { Origin: 'https://attacker.example', 'Content-Type': 'text/plain' },
+      { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      { Origin: 'null', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost:4321', 'Content-Type': 'application/json' },
+      { Origin: 'http://localhost/', 'Content-Type': 'application/json' },
+      { 'Sec-Fetch-Site': 'cross-site', 'Content-Type': 'application/json' },
+      { Host: 'attacker.example', 'Content-Type': 'application/json' },
+    ];
+    for (const headers of rejectedHeaders) {
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 403, JSON.stringify(headers));
+    }
+    assert.equal(merges, 0);
+    for (const origin of [undefined, 'http://localhost']) {
+      const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });
+      if (origin) headers.set('Origin', origin);
+      const response = await app.request('/api/stats/anime/1/merge', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sourceAnimeIds: [2] }),
+      });
+      assert.equal(response.status, 200);
+    }
+    assert.equal(merges, 2);
+  });
+
+  it('requires JSON for mutation bodies and preserves bodyless deletion', async () => {
+    let deletions = 0;
+    const app = createStatsApp(
+      createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
+        },
+      }),
+    );
+    const invalid = await app.request('/api/stats/sessions/1', {
+      method: 'DELETE',
+      body: '{}',
+    });
+    assert.equal(invalid.status, 415);
+    assert.equal(deletions, 0);
+    const valid = await app.request('/api/stats/sessions/1', { method: 'DELETE' });
+    assert.equal(valid.status, 200);
+    assert.equal(deletions, 1);
+    const rebound = await app.request('http://attacker.example/api/stats/sessions/1', {
+      method: 'DELETE',
+      headers: { Origin: 'http://attacker.example' },
+    });
+    assert.equal(rebound.status, 403);
+    assert.equal(deletions, 1);
+  });
+
   it('GET /api/stats/overview returns overview data', async () => {
     const app = createStatsApp(createMockTracker());
     const res = await app.request('/api/stats/overview');
@@ -1153,7 +1222,7 @@ describe('stats server API routes', () => {
       body: JSON.stringify({ dryRun: false, lookbackDays: null }),
     });
 
-    assert.equal(res.status, 415);
+    assert.equal(res.status, 403);
     assert.equal(cleanupCalls, 0);
   });
 
@@ -3662,6 +3731,25 @@ Aligned English subtitle
     assert.equal(res.status, 404);
   });
 
+  it('POST /api/stats/anime/:animeId/merge rejects mixed AniList and TMDB entries as 409', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          throw new Error(INCOMPATIBLE_PROVIDER_MERGE_MESSAGE);
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sourceAnimeIds":[8]}',
+    });
+
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { error: INCOMPATIBLE_PROVIDER_MERGE_MESSAGE });
+  });
+
   it('PATCH /api/stats/media/:videoId/anime reports an unknown target as 404', async () => {
     const app = createStatsApp(
       createMockTracker({
@@ -4128,4 +4216,108 @@ Aligned English subtitle
       });
     }
   });
+
+  it('enforces request safety through node:http without rejecting bodyless DELETEs', async () => {
+    await withTempDir(async (staticDir) => {
+      let deletions = 0;
+      const tracker = createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
+        },
+      });
+      const listener = http.createServer();
+      const server = await startNodeHttpServer(
+        createStatsApp(tracker),
+        { port: 0, staticDir, tracker },
+        (handler) => {
+          listener.on('request', handler);
+          return listener;
+        },
+      );
+      try {
+        const address = listener.address();
+        assert.ok(address && typeof address !== 'string');
+        const origin = `http://127.0.0.1:${address.port}`;
+        const url = `${origin}/api/stats/sessions/1`;
+        for (const headers of [undefined, { 'Content-Length': '0' }]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 200);
+          await response.arrayBuffer();
+        }
+        assert.equal(deletions, 2);
+        for (const headers of [
+          new Headers({ Origin: 'https://attacker.example' }),
+          new Headers({ Origin: 'null' }),
+          new Headers({ Host: 'attacker.example' }),
+          new Headers({ 'Sec-Fetch-Site': 'same-site' }),
+        ]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 403, JSON.stringify(headers));
+          await response.arrayBuffer();
+        }
+        const invalid = await fetch(url, { method: 'DELETE', body: '{}' });
+        assert.equal(invalid.status, 415);
+        await invalid.arrayBuffer();
+        assert.equal(deletions, 2);
+        const valid = await fetch(url, {
+          method: 'DELETE',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        assert.equal(valid.status, 200);
+        await valid.arrayBuffer();
+        assert.equal(deletions, 3);
+      } finally {
+        await server.close();
+      }
+    });
+  });
+});
+
+it('TMDB reassignment returns 404 for a missing library entry before fetching details', async () => {
+  const assignments: number[] = [];
+  let fetches = 0;
+  const app = createStatsApp(
+    createMockTracker({
+      reassignAnimeTmdb: async (animeId: number) => {
+        assignments.push(animeId);
+        return { animeId, mergedAnimeIds: [] };
+      },
+    }),
+    {
+      tmdbClient: {
+        search: async () => [],
+        getDetails: async () => {
+          fetches += 1;
+          return {
+            tmdbId: 12,
+            tmdbType: 'tv',
+            titleEnglish: 'Drama',
+            titleNative: null,
+            description: null,
+            posterUrl: null,
+            episodesTotal: 10,
+            year: null,
+            originalLanguage: 'ja',
+            isAnimation: false,
+            allTitles: ['Drama'],
+          };
+        },
+      },
+    },
+  );
+  const request = (animeId: number) =>
+    app.request(`/api/stats/anime/${animeId}/tmdb`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tmdbId: 12, tmdbType: 'tv' }),
+    });
+  assert.equal((await request(99999)).status, 404);
+  assert.equal(fetches, 0);
+  assert.deepEqual(assignments, []);
+  const response = await request(1);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+  assert.equal(fetches, 1);
+  assert.deepEqual(assignments, [1]);
 });

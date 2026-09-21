@@ -1,4 +1,4 @@
-import type { MediaKind } from '../../../shared/media-kind';
+import { sameTitleNamespaceSql, type MediaKind } from '../../../shared/media-kind';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { parseMediaInfo } from '../../../jimaku/utils';
@@ -591,14 +591,19 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
           anime_id: number;
         } | null)
       : null;
+  // Title lookups stay inside the kind's namespace: a parsed filename may land
+  // on a TMDB-linked live-action row, but never on a YouTube channel.
   const byNormalizedTitle = db
-    .prepare('SELECT anime_id FROM imm_anime WHERE normalized_title_key = ? AND media_kind = ?')
+    .prepare(
+      `SELECT anime_id FROM imm_anime
+      WHERE normalized_title_key = ? AND ${sameTitleNamespaceSql()}`,
+    )
     .get(normalizedTitleKey, mediaKind) as { anime_id: number } | null;
   const byTitleAlias = db
     .prepare(
       `SELECT a.anime_id FROM imm_anime_title_aliases AS alias
       JOIN imm_anime AS a ON a.anime_id = alias.anime_id
-      WHERE alias.normalized_title_key = ? AND a.media_kind = ?`,
+      WHERE alias.normalized_title_key = ? AND ${sameTitleNamespaceSql('a.media_kind')}`,
     )
     .get(normalizedTitleKey, mediaKind) as { anime_id: number } | null;
   const existing = byAnilistId ?? byNormalizedTitle ?? byTitleAlias;
@@ -611,7 +616,11 @@ export function getOrCreateAnimeRecord(db: DatabaseSync, input: AnimeRecordInput
         UPDATE imm_anime
         SET
           canonical_title = COALESCE(NULLIF(?, ''), canonical_title),
-          anilist_id = CASE WHEN ? = 'youtube' THEN NULL ELSE COALESCE(?, anilist_id) END,
+          anilist_id = CASE
+            WHEN ? = 'youtube' THEN NULL
+            WHEN tmdb_id IS NOT NULL THEN anilist_id
+            ELSE COALESCE(?, anilist_id)
+          END,
           title_romaji = COALESCE(?, title_romaji),
           title_english = COALESCE(?, title_english),
           title_native = COALESCE(?, title_native),
@@ -889,13 +898,19 @@ function migrateLegacyAnimeMetadata(db: DatabaseSync): void {
   }
 }
 
-// SQLite cannot drop a table-level UNIQUE constraint. Rebuild with IDs intact
-// and foreign keys disabled so dependent history and manual assignments survive.
-function migrateAnimeTitleUniqueness(db: DatabaseSync): void {
+// SQLite cannot drop a table-level UNIQUE constraint or a column CHECK.
+// Rebuild with IDs intact and foreign keys disabled so dependent history and
+// manual assignments survive. Two shapes need it: the original
+// `normalized_title_key UNIQUE`, and the v0.19.6 `media_kind` column whose
+// CHECK only allowed 'anime' and 'youtube'.
+const LEGACY_TITLE_UNIQUE_RE = /normalized_title_key TEXT NOT NULL UNIQUE/i;
+const LEGACY_MEDIA_KIND_CHECK_RE = /\s*CHECK\s*\(\s*media_kind IN \('anime',\s*'youtube'\)\s*\)/i;
+
+function migrateAnimeTableConstraints(db: DatabaseSync): void {
   const schema = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'imm_anime'").get() as {
     sql: string;
   };
-  if (/normalized_title_key TEXT NOT NULL UNIQUE/i.test(schema.sql)) {
+  if (LEGACY_TITLE_UNIQUE_RE.test(schema.sql) || LEGACY_MEDIA_KIND_CHECK_RE.test(schema.sql)) {
     const foreignKeys = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
     const sequence = db
       .prepare("SELECT seq FROM sqlite_sequence WHERE name = 'imm_anime'")
@@ -909,10 +924,8 @@ function migrateAnimeTitleUniqueness(db: DatabaseSync): void {
             /CREATE TABLE (?:IF NOT EXISTS )?["`]?imm_anime["`]?/i,
             'CREATE TABLE imm_anime_new',
           )
-          .replace(
-            /normalized_title_key TEXT NOT NULL UNIQUE/i,
-            'normalized_title_key TEXT NOT NULL',
-          ),
+          .replace(LEGACY_TITLE_UNIQUE_RE, 'normalized_title_key TEXT NOT NULL')
+          .replace(LEGACY_MEDIA_KIND_CHECK_RE, ''),
       );
       db.exec(`INSERT INTO imm_anime_new SELECT * FROM imm_anime;
         DROP TABLE imm_anime;
@@ -930,8 +943,11 @@ function migrateAnimeTitleUniqueness(db: DatabaseSync): void {
       db.exec(`PRAGMA foreign_keys = ${foreignKeys.foreign_keys}`);
     }
   }
-  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_kind_title
-    ON imm_anime(media_kind, normalized_title_key)`);
+  // v0.19.6 scoped titles per kind; anime and live-action now share one
+  // namespace (an entry moves between them when relinked), YouTube is separate.
+  db.exec(`DROP INDEX IF EXISTS idx_anime_kind_title;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_anime_namespace_title
+    ON imm_anime((media_kind = 'youtube'), normalized_title_key)`);
 }
 
 // Older builds can create channel rows with the default anime kind even after
@@ -995,17 +1011,20 @@ export function ensureSchema(db: DatabaseSync): void {
       title_native TEXT,
       episodes_total INTEGER,
       description TEXT,
+      media_kind TEXT NOT NULL DEFAULT 'anime',
+      tmdb_id INTEGER,
+      tmdb_type TEXT,
       metadata_json TEXT,
       CREATED_DATE TEXT,
       LAST_UPDATE_DATE TEXT
     );
   `);
-  addColumnIfMissing(
-    db,
-    'imm_anime',
-    'media_kind',
-    "TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube'))",
-  );
+  // Schema 26: media_kind separates anime, live-action (TMDB link) and YouTube
+  // channel entries. Kinds are validated in code, not by a CHECK constraint,
+  // so adding one later does not need a table rebuild.
+  addColumnIfMissing(db, 'imm_anime', 'media_kind', "TEXT NOT NULL DEFAULT 'anime'");
+  addColumnIfMissing(db, 'imm_anime', 'tmdb_id', 'INTEGER');
+  addColumnIfMissing(db, 'imm_anime', 'tmdb_type', 'TEXT');
   db.exec(`
     CREATE TABLE IF NOT EXISTS imm_videos(
       video_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1549,7 +1568,7 @@ export function ensureSchema(db: DatabaseSync): void {
     );
   }
 
-  migrateAnimeTitleUniqueness(db);
+  migrateAnimeTableConstraints(db);
   classifyYoutubeChannels(db);
   migrateSessionEventTimestampsToText(db);
 
@@ -1564,6 +1583,10 @@ export function ensureSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_anime_anilist_id
     ON imm_anime(anilist_id)
+  `);
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_anime_tmdb_id
+    ON imm_anime(tmdb_id, tmdb_type)
   `);
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_videos_anime_id

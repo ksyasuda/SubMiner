@@ -12,6 +12,7 @@ import type {
   ImmersionTrackingRetentionMode,
   ImmersionTrackingRetentionPreset,
   TsukihimeConfig,
+  TmdbConfig,
   JellyfinConfig,
   JimakuConfig,
   JimakuLanguagePreference,
@@ -160,6 +161,7 @@ export interface Config {
   /** @deprecated Use tsukihime. */
   animetosho?: TsukihimeConfig;
   tsukihime?: TsukihimeConfig;
+  tmdb?: TmdbConfig;
   anilist?: AnilistConfig;
   yomitan?: YomitanConfig;
   jellyfin?: JellyfinConfig;
@@ -332,6 +334,10 @@ export interface ResolvedConfig {
   tsukihime: TsukihimeConfig & {
     apiBaseUrl: string;
     maxSearchResults: number;
+  };
+  tmdb: {
+    apiKey: string;
+    apiKeyCommand: string;
   };
   anilist: {
     enabled: boolean;

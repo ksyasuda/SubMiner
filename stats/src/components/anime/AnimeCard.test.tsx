@@ -11,6 +11,8 @@ test('AnimeCard includes linked AniList id in cover URLs to avoid stale library 
         animeId: 42,
         canonicalTitle: 'Test Anime',
         anilistId: 21699,
+        tmdbId: null,
+        tmdbType: null,
         totalSessions: 1,
         totalActiveMs: 600_000,
         totalCards: 0,

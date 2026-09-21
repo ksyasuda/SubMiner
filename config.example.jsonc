@@ -660,6 +660,16 @@
   }, // TsukiHime subtitle search configuration for Japanese primary and configured secondary subtitles. No API key required.
 
   // ==========================================
+  // TMDB
+  // TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.
+  // Hot-reload: TMDB changes apply to the next TMDB request.
+  // ==========================================
+  "tmdb": {
+    "apiKey": "", // Your own TMDB API key or read access token for live-action posters and synopses in the stats Library. Release builds bundle a project key, so set this only to use your own quota or when running from source (free under Settings > API on themoviedb.org).
+    "apiKeyCommand": "" // Shell command that prints the TMDB API key to stdout. Used instead of apiKey to avoid storing the key in plain text.
+  }, // TMDB (The Movie Database) metadata for live-action dramas and movies in the stats Library: posters, synopses, and grouping by show.
+
+  // ==========================================
   // YouTube Playback Settings
   // Defaults for managed subtitle language preferences and YouTube subtitle loading.
   // Hot-reload: primarySubLanguages applies to the next YouTube subtitle load.

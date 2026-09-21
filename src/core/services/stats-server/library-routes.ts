@@ -1,6 +1,7 @@
 import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
 import {
+  INCOMPATIBLE_PROVIDER_MERGE_MESSAGE,
   MEDIA_KIND_MISMATCH_MESSAGE,
   UNKNOWN_MOVE_TARGET_MESSAGE,
 } from '../immersion-tracker/anime-merge.js';
@@ -252,8 +253,14 @@ export function registerStatsLibraryRoutes(
     try {
       summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
     } catch (error) {
-      if (error instanceof Error && error.message === MEDIA_KIND_MISMATCH_MESSAGE) {
-        return c.text(MEDIA_KIND_MISMATCH_MESSAGE, 409);
+      // Mixing providers or kinds is a rejected request, not a server fault,
+      // so the dashboard can explain it instead of showing a bare 500.
+      if (
+        error instanceof Error &&
+        (error.message === INCOMPATIBLE_PROVIDER_MERGE_MESSAGE ||
+          error.message === MEDIA_KIND_MISMATCH_MESSAGE)
+      ) {
+        return c.json(statsJson('error', { error: error.message }), 409);
       }
       throw error;
     }

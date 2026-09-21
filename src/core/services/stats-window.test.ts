@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buildStatsWindowLoadFileOptions,
+  buildStatsWindowUrl,
   buildStatsWindowOptions,
   buildStatsNativeConfirmDialogOptions,
   demoteVisibleStatsWindowBelowDialogs,
@@ -168,21 +168,12 @@ test('shouldHideStatsWindowForInput matches Escape and configured bare toggle ke
   );
 });
 
-test('buildStatsWindowLoadFileOptions enables overlay rendering mode', () => {
-  assert.deepEqual(buildStatsWindowLoadFileOptions(), {
-    query: {
-      overlay: '1',
-    },
-  });
+test('buildStatsWindowUrl enables overlay rendering on the local HTTP origin', () => {
+  assert.equal(buildStatsWindowUrl('http://127.0.0.1:6969'), 'http://127.0.0.1:6969/?overlay=1');
 });
 
-test('buildStatsWindowLoadFileOptions includes provided stats API base URL', () => {
-  assert.deepEqual(buildStatsWindowLoadFileOptions('http://127.0.0.1:6123'), {
-    query: {
-      overlay: '1',
-      apiBase: 'http://127.0.0.1:6123',
-    },
-  });
+test('buildStatsWindowUrl uses the active server port as the document origin', () => {
+  assert.equal(buildStatsWindowUrl('http://127.0.0.1:6123'), 'http://127.0.0.1:6123/?overlay=1');
 });
 
 test('resolveStatsWindowOuterBoundsForContent compensates for Wayland content insets', () => {

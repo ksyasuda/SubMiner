@@ -7,6 +7,7 @@ import { AnimeHeader } from './AnimeHeader';
 import { EpisodeList } from './EpisodeList';
 import { AnimeWordList } from './AnimeWordList';
 import { AnilistSelector } from './AnilistSelector';
+import { TmdbSelector } from './TmdbSelector';
 import { AnimeOverviewStats } from './AnimeOverviewStats';
 import { CHART_THEME } from '../../lib/chart-theme';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -20,11 +21,11 @@ interface AnimeDetailViewProps {
   /** Called after the whole library entry is deleted, so the caller can refresh. */
   onAnimeDeleted?: () => void;
   /**
-   * Called after the AniList link changes. The library list caches the old
-   * anilistId (and with it the cover URL), so it has to refetch or the grid
-   * keeps showing the previous title's art.
+   * Called after the AniList or TMDB link changes. The library list caches the
+   * old provider ids (and with them the cover URL and media kind), so it has to
+   * refetch or the grid keeps showing the previous title's art.
    */
-  onAnilistRelinked?: () => void;
+  onProviderRelinked?: () => void;
   /** Called after an episode is reassigned to another entry. */
   onEpisodeMoved?: () => void;
 }
@@ -151,11 +152,12 @@ export function AnimeDetailView({
   onNavigateToWord,
   onOpenEpisodeDetail,
   onAnimeDeleted,
-  onAnilistRelinked,
+  onProviderRelinked,
   onEpisodeMoved,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
   const [showAnilistSelector, setShowAnilistSelector] = useState(false);
+  const [showTmdbSelector, setShowTmdbSelector] = useState(false);
   const [coverRetryToken, setCoverRetryToken] = useState(0);
   const [isDeletingAnime, setIsDeletingAnime] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -219,6 +221,7 @@ export function AnimeDetailView({
         anilistEntries={anilistEntries ?? []}
         coverRetryToken={coverRetryToken}
         onChangeAnilist={() => setShowAnilistSelector(true)}
+        onChangeTmdb={() => setShowTmdbSelector(true)}
         onDeleteAnime={() => void handleDeleteAnime()}
         isDeletingAnime={isDeletingAnime}
       />
@@ -238,7 +241,7 @@ export function AnimeDetailView({
       />
       <AnimeWatchChart animeId={animeId} />
       <AnimeWordList animeId={animeId} onNavigateToWord={onNavigateToWord} />
-      {detail.mediaKind === 'anime' && showAnilistSelector && (
+      {detail.mediaKind !== 'youtube' && showAnilistSelector && (
         <AnilistSelector
           animeId={animeId}
           initialQuery={detail.canonicalTitle}
@@ -247,7 +250,20 @@ export function AnimeDetailView({
             setShowAnilistSelector(false);
             setCoverRetryToken((value) => value + 1);
             reload();
-            onAnilistRelinked?.();
+            onProviderRelinked?.();
+          }}
+        />
+      )}
+      {showTmdbSelector && (
+        <TmdbSelector
+          animeId={animeId}
+          initialQuery={detail.canonicalTitle}
+          onClose={() => setShowTmdbSelector(false)}
+          onLinked={() => {
+            setShowTmdbSelector(false);
+            setCoverRetryToken((value) => value + 1);
+            reload();
+            onProviderRelinked?.();
           }}
         />
       )}

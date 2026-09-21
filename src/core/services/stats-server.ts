@@ -3,9 +3,11 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import type { AnkiConnectConfig } from '../../types.js';
 import type { AnilistRateLimiter } from './anilist/rate-limiter.js';
+import type { TmdbClient } from './tmdb/tmdb-client.js';
 import type { ImmersionTrackerService } from './immersion-tracker-service.js';
 import type { RetimedSecondarySubtitleInput } from './secondary-subtitle-sidecar.js';
 import type { StatsServerMediaGenerator } from './stats-server/mining-support.js';
+import { enforceStatsRequestSafety } from './stats-server/request-safety.js';
 import {
   registerStatsAnalyticsRoutes,
   registerStatsIntegrationRoutes,
@@ -37,7 +39,10 @@ function toFetchRequest(req: IncomingMessage): Request {
     method,
     headers: toFetchHeaders(req.headers),
   };
-  if (method !== 'GET' && method !== 'HEAD') {
+  const hasBody =
+    req.headers['transfer-encoding'] !== undefined ||
+    Number(req.headers['content-length'] ?? 0) > 0;
+  if (method !== 'GET' && method !== 'HEAD' && hasBody) {
     init.body = Readable.toWeb(req) as BodyInit;
     init.duplex = 'half';
   }
@@ -125,6 +130,7 @@ export interface StatsServerConfig {
     input: RetimedSecondarySubtitleInput,
   ) => Promise<string> | string;
   anilistRateLimiter?: AnilistRateLimiter;
+  tmdbClient?: TmdbClient;
   addYomitanNote?: (word: string) => Promise<number | null>;
   resolveAnkiNoteId?: (noteId: number) => number;
   resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
@@ -147,6 +153,7 @@ export function createStatsApp(
       input: RetimedSecondarySubtitleInput,
     ) => Promise<string> | string;
     anilistRateLimiter?: AnilistRateLimiter;
+    tmdbClient?: TmdbClient;
     addYomitanNote?: (word: string) => Promise<number | null>;
     resolveAnkiNoteId?: (noteId: number) => number;
     resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
@@ -156,6 +163,7 @@ export function createStatsApp(
   },
 ) {
   const app = new Hono();
+  app.use('*', enforceStatsRequestSafety);
   registerStatsAnalyticsRoutes(app, tracker, options);
   registerStatsLibraryRoutes(app, tracker, options);
   registerStatsIntegrationRoutes(app, tracker, options);
@@ -181,6 +189,7 @@ export async function startStatsServerWithRuntime(
     getStatsMiningAlassPath: config.getStatsMiningAlassPath,
     resolveRetimedSecondarySubtitleText: config.resolveRetimedSecondarySubtitleText,
     anilistRateLimiter: config.anilistRateLimiter,
+    tmdbClient: config.tmdbClient,
     addYomitanNote: config.addYomitanNote,
     resolveAnkiNoteId: config.resolveAnkiNoteId,
     resolveSentenceSearchHeadwords: config.resolveSentenceSearchHeadwords,

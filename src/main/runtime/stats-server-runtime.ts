@@ -5,6 +5,7 @@ import {
   syncYomitanDefaultAnkiServer as syncYomitanDefaultAnkiServerCore,
 } from '../../core/services';
 import { startStatsServer, type StatsServer } from '../../core/services/stats-server';
+import { createTmdbClient, createTmdbApiKeyResolver } from '../../core/services/tmdb/tmdb-client';
 import { createLogger } from '../../logger';
 import type { ResolvedConfig } from '../../types/config';
 import type { AppState } from '../state';
@@ -46,6 +47,8 @@ export interface StatsServerRuntimeDeps {
   getAnilistRateLimiter: () => NonNullable<
     Parameters<typeof startStatsServer>[0]['anilistRateLimiter']
   >;
+  /** Project TMDB key staged into release builds; null for source builds. */
+  getBundledTmdbApiKey?: () => string | null;
   resolveAnkiNoteId: (noteId: number) => number;
   trackDuplicateNoteIdsForNote: (noteId: number, duplicateNoteIds: number[]) => void;
   resolveSentenceSearchHeadwords: (term: string) => Promise<string[]>;
@@ -155,6 +158,12 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
         deps.getResolvedConfig().secondarySub.secondarySubLanguages,
       getStatsMiningAlassPath: () => deps.getResolvedConfig().subsync.alass_path,
       anilistRateLimiter: deps.getAnilistRateLimiter(),
+      tmdbClient: createTmdbClient({
+        resolveApiKey: createTmdbApiKeyResolver(
+          () => deps.getResolvedConfig().tmdb,
+          () => deps.getBundledTmdbApiKey?.() ?? null,
+        ),
+      }),
       resolveAnkiNoteId: (noteId: number) => deps.resolveAnkiNoteId(noteId),
       resolveSentenceSearchHeadwords: (term: string) => deps.resolveSentenceSearchHeadwords(term),
       addYomitanNote: async (word: string) => {

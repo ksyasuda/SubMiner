@@ -6,6 +6,7 @@ interface AnimeHeaderProps {
   anilistEntries: AnilistEntry[];
   coverRetryToken?: number;
   onChangeAnilist?: () => void;
+  onChangeTmdb?: () => void;
   onDeleteAnime?: () => void;
   isDeletingAnime?: boolean;
 }
@@ -34,6 +35,7 @@ export function AnimeHeader({
   anilistEntries,
   coverRetryToken = 0,
   onChangeAnilist,
+  onChangeTmdb,
   onDeleteAnime,
   isDeletingAnime = false,
 }: AnimeHeaderProps) {
@@ -44,7 +46,12 @@ export function AnimeHeader({
   const uniqueAltTitles = [...new Set(altTitles)];
 
   const hasMultipleEntries = anilistEntries.length > 1;
-  const coverCacheToken = (detail.anilistId ?? 0) * 1_000_000 + coverRetryToken;
+  const isLiveAction = detail.mediaKind === 'live_action';
+  const tmdbUrl =
+    detail.tmdbId && detail.tmdbType
+      ? `https://www.themoviedb.org/${detail.tmdbType}/${detail.tmdbId}`
+      : null;
+  const coverCacheToken = (detail.anilistId ?? detail.tmdbId ?? 0) * 1_000_000 + coverRetryToken;
 
   return (
     <div className="flex gap-4">
@@ -61,13 +68,31 @@ export function AnimeHeader({
             {uniqueAltTitles.join(' · ')}
           </div>
         )}
-        <div className="text-sm text-ctp-subtext0 mt-2">
-          {isYoutube ? 'YouTube channel · ' : ''}
-          {detail.episodeCount} {isYoutube ? 'video' : 'episode'}
-          {detail.episodeCount !== 1 ? 's' : ''}
+        <div className="text-sm text-ctp-subtext0 mt-2 flex items-center gap-2">
+          <span>
+            {isYoutube ? 'YouTube channel · ' : ''}
+            {detail.episodeCount} {isYoutube ? 'video' : 'episode'}
+            {detail.episodeCount !== 1 ? 's' : ''}
+          </span>
+          {isLiveAction && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide bg-ctp-peach/15 text-ctp-peach">
+              {detail.tmdbType === 'movie' ? 'Movie' : 'Live action'}
+            </span>
+          )}
         </div>
         <div className="flex flex-wrap gap-1.5 mt-2">
+          {tmdbUrl && (
+            <a
+              href={tmdbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-blue hover:bg-ctp-surface2 hover:text-ctp-sapphire transition-colors"
+            >
+              View on TMDB <span className="text-[10px]">{'\u2197'}</span>
+            </a>
+          )}
           {!isYoutube &&
+            !isLiveAction &&
             (anilistEntries.length > 0 ? (
               hasMultipleEntries ? (
                 anilistEntries.map((entry) => <AnilistButton key={entry.anilistId} entry={entry} />)
@@ -101,6 +126,16 @@ export function AnimeHeader({
               {anilistEntries.length > 0 || detail.anilistId
                 ? 'Change AniList Entry'
                 : 'Link to AniList'}
+            </button>
+          )}
+          {!isYoutube && onChangeTmdb && (
+            <button
+              type="button"
+              onClick={onChangeTmdb}
+              title="Search TMDB and link this title to a live-action drama or movie"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-ctp-surface1 text-ctp-overlay2 hover:bg-ctp-surface2 hover:text-ctp-subtext0 transition-colors"
+            >
+              {tmdbUrl ? 'Change TMDB Title' : 'Link to TMDB'}
             </button>
           )}
           {onDeleteAnime && (

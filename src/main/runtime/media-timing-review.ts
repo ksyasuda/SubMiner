@@ -78,6 +78,15 @@ interface ActiveReview {
   resolve: (decision: MediaTimingReviewDecision) => void;
 }
 
+interface ReviewRequestLifecycle {
+  signal: AbortSignal;
+  cancelled: Promise<void>;
+  settled: Promise<void>;
+  isCancelled(): boolean;
+  cancel(): void;
+  markSettled(): void;
+}
+
 export interface MediaTimingReviewRuntimeDeps {
   getMpvClient: () => ReviewMpvClient | null;
   getCurrentMediaPath: () => string | null;
@@ -101,7 +110,7 @@ export interface MediaTimingReviewRuntimeDeps {
     next: MediaTimingReviewContextLine[];
   };
   decisionTimeoutMs?: number;
-  openModal: (payload: MediaTimingReviewOpenPayload) => Promise<boolean>;
+  openModal: (payload: MediaTimingReviewOpenPayload, signal: AbortSignal) => Promise<boolean>;
   /** Tells the modal that the hidden player finished the previewed clip. */
   onPreviewEnded?: (reviewId: string) => void;
   showStatus: (message: string) => void;
@@ -116,6 +125,33 @@ function booleanProperty(value: unknown): boolean | null {
   if (value === 'yes' || value === 1) return true;
   if (value === 'no' || value === 0) return false;
   return null;
+}
+
+function createReviewRequestLifecycle(): ReviewRequestLifecycle {
+  const controller = new AbortController();
+  let resolveCancellation: (() => void) | null = null;
+  let resolveSettled: (() => void) | null = null;
+  const cancellation = new Promise<void>((resolve) => {
+    resolveCancellation = resolve;
+  });
+  const settled = new Promise<void>((resolve) => {
+    resolveSettled = resolve;
+  });
+  return {
+    signal: controller.signal,
+    cancelled: cancellation,
+    settled,
+    isCancelled: () => controller.signal.aborted,
+    cancel: () => {
+      if (controller.signal.aborted) return;
+      controller.abort();
+      resolveCancellation?.();
+    },
+    markSettled: () => {
+      resolveSettled?.();
+      resolveSettled = null;
+    },
+  };
 }
 
 /**
@@ -245,7 +281,7 @@ export function buildMediaTimingReviewPayload(
 
 export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDeps) {
   let active: ActiveReview | null = null;
-  let reviewInProgress = false;
+  let currentRequest: ReviewRequestLifecycle | null = null;
   let pendingPauseRestore: ReviewMpvClient | null = null;
 
   function restorePendingPlayback(): void {
@@ -311,14 +347,12 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
 
     const previous = review.preview;
     const session = deps.createPreviewSession();
-    session.onPlaybackEnded(() => {
-      if (active === review && review.preview?.session === started) {
-        deps.onPreviewEnded?.(review.payload.reviewId);
-      }
-    });
     const { audioTrackId, ...previewOptions } = review.previewOptions;
-    const started = session
-      .start({
+    const startSession = async (): Promise<PreviewSession> => {
+      if (active !== review) {
+        throw new Error('This timing review is no longer active.');
+      }
+      await session.start({
         mediaPath,
         ...previewOptions,
         // A cached window keeps one audio stream, so mpv's track id from the source no longer applies.
@@ -327,19 +361,30 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
           : audioTrackId !== undefined
             ? { audioTrackId }
             : {}),
-      })
-      .then(() => session)
-      .catch((error) => {
+      });
+      return session;
+    };
+    const started = Promise.resolve()
+      .then(startSession)
+      .catch((error: unknown) => {
         session.dispose();
         throw error;
       });
     review.preview = { path: mediaPath, session: started };
+    session.onPlaybackEnded(() => {
+      if (active === review && review.preview?.session === started) {
+        deps.onPreviewEnded?.(review.payload.reviewId);
+      }
+    });
     void started.catch(() => {});
     if (previous) void previous.session.then((old) => old.dispose()).catch(() => {});
     return started;
   }
 
-  async function runReview(request: MediaTimingReviewRequest): Promise<MediaTimingReviewDecision> {
+  async function runReview(
+    request: MediaTimingReviewRequest,
+    lifecycle: ReviewRequestLifecycle,
+  ): Promise<MediaTimingReviewDecision> {
     const mpvClient = deps.getMpvClient();
     const mediaPath =
       deps.getCurrentMediaPath()?.trim() || mpvClient?.currentVideoPath?.trim() || '';
@@ -348,18 +393,30 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { action: 'use-original' };
     }
 
+    const setupPromise = Promise.all([
+      mpvClient.requestProperty?.('pause').catch(() => null) ?? null,
+      mpvClient.requestProperty?.('duration').catch(() => null) ?? null,
+      mpvClient.requestProperty?.('aid').catch(() => null) ?? null,
+      mpvClient.requestProperty?.('volume').catch(() => null) ?? null,
+      deps.resolveMediaSource?.().catch(() => null) ?? null,
+      request.screenshotEnabled ? (deps.resolveVideoSource?.().catch(() => null) ?? null) : null,
+    ]);
+    const setup = await Promise.race([
+      setupPromise.then((values) => ({ kind: 'ready' as const, values })),
+      lifecycle.cancelled.then(() => ({ kind: 'cancelled' as const })),
+    ]);
+    if (setup.kind === 'cancelled' || lifecycle.isCancelled()) {
+      return { action: 'use-original' };
+    }
     const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw, resolvedSource, videoSource] =
-      await Promise.all([
-        mpvClient.requestProperty?.('pause').catch(() => null) ?? null,
-        mpvClient.requestProperty?.('duration').catch(() => null) ?? null,
-        mpvClient.requestProperty?.('aid').catch(() => null) ?? null,
-        mpvClient.requestProperty?.('volume').catch(() => null) ?? null,
-        deps.resolveMediaSource?.().catch(() => null) ?? null,
-        request.screenshotEnabled ? (deps.resolveVideoSource?.().catch(() => null) ?? null) : null,
-      ]);
+      setup.values;
     const pauseState = booleanProperty(pauseRaw);
-    mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
     pendingPauseRestore = pauseState === false ? mpvClient : null;
+    mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
+    if (lifecycle.isCancelled()) {
+      restorePendingPlayback();
+      return { action: 'use-original' };
+    }
 
     let contextLines: ReturnType<NonNullable<typeof deps.getSubtitleContextLines>> | undefined;
     try {
@@ -423,9 +480,22 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       endTime: payload.timelineEndTime,
     }).catch(() => {});
 
-    const opened = await deps.openModal(payload).catch(() => false);
+    if (lifecycle.isCancelled() || active !== review) {
+      await cleanupActiveReview(review);
+      return { action: 'use-original' };
+    }
+    const openModal = deps.openModal(payload, lifecycle.signal).catch(() => false);
+    const openResult = await Promise.race([
+      openModal.then((opened) => ({ kind: 'opened' as const, opened })),
+      lifecycle.cancelled.then(() => ({ kind: 'cancelled' as const })),
+    ]);
+    if (openResult.kind === 'cancelled' || lifecycle.isCancelled() || active !== review) {
+      await cleanupActiveReview(review);
+      return { action: 'use-original' };
+    }
+    const { opened } = openResult;
     if (!opened) {
-      await cleanupActiveReview();
+      await cleanupActiveReview(review);
       deps.showStatus('Timing review could not open. Using the original subtitle timing.');
       return { action: 'use-original' };
     }
@@ -434,33 +504,43 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       () => resolveDecision({ action: 'use-original' }),
       Math.max(0, deps.decisionTimeoutMs ?? REVIEW_DECISION_TIMEOUT_MS),
     );
-    let decision: MediaTimingReviewDecision;
+    let decision: MediaTimingReviewDecision = { action: 'use-original' };
     try {
-      decision = await decisionPromise;
+      const decisionResult = await Promise.race([
+        decisionPromise.then((value) => ({ kind: 'decided' as const, value })),
+        lifecycle.cancelled.then(() => ({ kind: 'cancelled' as const })),
+      ]);
+      if (decisionResult.kind === 'decided') {
+        decision = decisionResult.value;
+      }
     } finally {
       clearTimeout(decisionWatchdog);
     }
-    await cleanupActiveReview();
+    await cleanupActiveReview(review);
     return decision;
   }
 
   async function requestReview(
     request: MediaTimingReviewRequest,
   ): Promise<MediaTimingReviewDecision> {
-    if (active || reviewInProgress) {
+    if (active || currentRequest) {
       deps.showStatus('Finish the current timing review before mining another card.');
       return { action: 'use-original' };
     }
-    reviewInProgress = true;
+    const lifecycle = createReviewRequestLifecycle();
+    currentRequest = lifecycle;
     try {
-      return await runReview(request);
+      return await runReview(request, lifecycle);
     } catch {
       await cleanupActiveReview();
       restorePendingPlayback();
       deps.showStatus('Timing review failed. Using the original subtitle timing.');
       return { action: 'use-original' };
     } finally {
-      reviewInProgress = false;
+      if (currentRequest === lifecycle) {
+        currentRequest = null;
+      }
+      lifecycle.markSettled();
     }
   }
 
@@ -603,9 +683,18 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
     try {
       const previewSession = current.preview ? await current.preview.session : null;
+      if (active !== current) {
+        return staleReviewResult();
+      }
       await previewSession?.stop();
+      if (active !== current) {
+        return staleReviewResult();
+      }
       return { ok: true };
     } catch (error) {
+      if (active !== current) {
+        return staleReviewResult();
+      }
       return {
         ok: false,
         message: `Could not stop preview: ${error instanceof Error ? error.message : String(error)}`,
@@ -641,8 +730,9 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     return { ok: true };
   }
 
-  async function cleanupActiveReview(): Promise<void> {
+  async function cleanupActiveReview(expected?: ActiveReview): Promise<void> {
     const current = active;
+    if (expected && current !== expected) return;
     active = null;
     if (!current) return;
     deps.clearFrameCache?.();
@@ -653,9 +743,12 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
   }
 
   async function dispose(): Promise<void> {
+    const request = currentRequest;
+    request?.cancel();
     active?.resolve({ action: 'use-original' });
     await cleanupActiveReview();
     restorePendingPlayback();
+    await request?.settled;
   }
 
   return {

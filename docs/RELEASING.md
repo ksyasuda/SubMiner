@@ -15,7 +15,10 @@
 
 Stable and prerelease workflows share `.github/workflows/package-release.yml`.
 Both callers explicitly pass the five required macOS signing/notarization
-secrets; `GITHUB_TOKEN` remains automatically available to the reusable workflow.
+secrets plus the optional `SUBMINER_TMDB_API_KEY` (the project TMDB key that
+`scripts/prepare-build-assets.mjs` stages into `dist/bundled-integration-keys.json`;
+artifacts built without it simply require users to set `tmdb.apiKey`).
+`GITHUB_TOKEN` remains automatically available to the reusable workflow.
 Each platform verifies its ASAR and external resources before signing, then
 measures the signed app and installers before upload. Missing runtime assets,
 foreign SQLite/Koffi binaries, duplicate UI fonts, demo media, source maps,

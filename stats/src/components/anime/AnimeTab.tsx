@@ -1,4 +1,8 @@
-import { MEDIA_KINDS, type MediaKind } from '../../../../src/shared/media-kind';
+import {
+  MEDIA_KINDS,
+  shareTitleNamespace,
+  type MediaKind,
+} from '../../../../src/shared/media-kind';
 import { useState, useMemo, useEffect } from 'react';
 import { useAnimeLibrary } from '../../hooks/useAnimeLibrary';
 import { formatDuration } from '../../lib/formatters';
@@ -19,6 +23,13 @@ const GRID_CLASSES: Record<LibraryCardSize, string> = {
   sm: 'grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11',
   md: 'grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9',
   lg: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7',
+};
+
+const KIND_LABELS: Record<MediaKind | 'all', string> = {
+  all: 'All Titles',
+  anime: 'Anime',
+  live_action: 'Live Action',
+  youtube: 'YouTube',
 };
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -121,7 +132,11 @@ export function AnimeTab({
   const checkedEntries = checkedAnimeIds
     .map((animeId) => anime.find((entry) => entry.animeId === animeId))
     .filter((entry): entry is (typeof anime)[number] => entry !== undefined);
-  const mixedKindsChecked = new Set(checkedEntries.map((entry) => entry.mediaKind)).size > 1;
+  // Anime and live-action entries may be combined (the server only rejects
+  // conflicting AniList/TMDB links); channels never mix with either.
+  const mixedKindsChecked = checkedEntries.some(
+    (entry) => !shareTitleNamespace(entry.mediaKind, checkedEntries[0]!.mediaKind),
+  );
   const hydratedRecommendations = recommendations
     .map((recommendation) => ({
       ...recommendation,
@@ -153,7 +168,7 @@ export function AnimeTab({
             : undefined
         }
         onAnimeDeleted={reload}
-        onAnilistRelinked={reload}
+        onProviderRelinked={reload}
         onEpisodeMoved={reload}
       />
     );
@@ -185,7 +200,7 @@ export function AnimeTab({
                   : 'text-ctp-overlay2 hover:text-ctp-subtext0'
               }`}
             >
-              {kind === 'all' ? 'All Titles' : kind === 'youtube' ? 'YouTube' : 'Anime'}
+              {KIND_LABELS[kind]}
             </button>
           ))}
         </div>
@@ -269,7 +284,7 @@ export function AnimeTab({
             {checkedEntries.length === 0
               ? 'Pick the duplicate entries to combine'
               : mixedKindsChecked
-                ? 'Anime and YouTube channels cannot be combined'
+                ? 'YouTube channels cannot be combined with other titles'
                 : `${checkedEntries.length} selected`}
           </div>
           <button
@@ -300,6 +315,11 @@ export function AnimeTab({
           ))}
         </div>
       )}
+
+      <p className="text-[11px] text-ctp-overlay2 pt-2">
+        Cover art and synopses come from AniList and TMDB. This product uses the TMDB API but is not
+        endorsed or certified by TMDB.
+      </p>
 
       {showMergeDialog && mergeEntries.length >= 2 && (
         <AnimeMergeDialog

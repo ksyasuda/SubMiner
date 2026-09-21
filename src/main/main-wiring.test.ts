@@ -453,7 +453,7 @@ test('Linux visible overlay recreation clears stale input state before creating 
   const source = readMainSource();
   const runtimeSource = readSource('src/main/runtime/visible-overlay-interaction-runtime.ts');
   const actionBlock = source.match(
-    /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?createWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
   )?.groups?.body;
   const resetBlock = runtimeSource.match(
     /function resetVisibleOverlayInputState\(\): void \{(?<body>[\s\S]*?)\n  \}/,
@@ -472,7 +472,7 @@ test('Linux visible overlay recreation clears stale input state before creating 
 test('Linux visible overlay recreation avoids display fallback before tracked geometry exists', () => {
   const source = readMainSource();
   const actionBlock = source.match(
-    /function createLinuxVisibleOverlayWindowForCurrentMode\([\s\S]*?\): void \{(?<body>[\s\S]*?)\n\}/,
+    /const linuxOverlayModeRuntime = createLinuxOverlayModeRuntime\(\{[\s\S]*?refreshWindow: \(\) => \{(?<body>[\s\S]*?)\n  \},/,
   )?.groups?.body;
 
   assert.ok(actionBlock);
@@ -480,7 +480,10 @@ test('Linux visible overlay recreation avoids display fallback before tracked ge
     actionBlock,
     /const trackedGeometry = overlayGeometryRuntime\.getCurrentTrackedOverlayGeometry\(\);/,
   );
-  assert.match(actionBlock, /if \(trackedGeometry\) \{/);
+  assert.match(
+    actionBlock,
+    /if \(trackedGeometry\) overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/,
+  );
   assert.match(actionBlock, /overlayManager\.setOverlayWindowBounds\(trackedGeometry\);/);
   assert.doesNotMatch(actionBlock, /setOverlayWindowBounds\(getCurrentOverlayGeometry\(\)\)/);
 });

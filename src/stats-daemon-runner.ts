@@ -7,6 +7,9 @@ import { createLogger, setLogLevel } from './logger';
 import { ImmersionTrackerService } from './core/services/immersion-tracker-service';
 import { createCoverArtFetcher } from './core/services/anilist/cover-art-fetcher';
 import { createAnilistRateLimiter } from './core/services/anilist/rate-limiter';
+import { createLiveActionMetadataResolver } from './core/services/tmdb/live-action-resolver';
+import { createTmdbClient, createTmdbApiKeyResolver } from './core/services/tmdb/tmdb-client';
+import { readBundledTmdbApiKey } from './core/services/tmdb/bundled-api-key';
 import { startStatsServer } from './core/services/stats-server';
 import {
   removeBackgroundStatsServerState,
@@ -124,6 +127,7 @@ const daemonUserDataPath = userDataPath;
 const statePath = path.join(userDataPath, 'stats-daemon.json');
 const knownWordCachePath = path.join(userDataPath, 'known-words-cache.json');
 const statsDistPath = path.join(__dirname, '..', 'stats', 'dist');
+const bundledTmdbApiKey = readBundledTmdbApiKey(__dirname);
 const wordHelperScriptPath = path.join(__dirname, 'stats-word-helper.js');
 
 let tracker: ImmersionTrackerService | null = null;
@@ -202,8 +206,16 @@ async function main(): Promise<void> {
         },
       },
     });
+    const tmdbClient = createTmdbClient({
+      resolveApiKey: createTmdbApiKeyResolver(
+        () => configService.reloadConfig().tmdb,
+        () => bundledTmdbApiKey,
+      ),
+    });
     tracker.setCoverArtFetcher(
-      createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art')),
+      createCoverArtFetcher(createAnilistRateLimiter(), createLogger('stats-daemon:cover-art'), {
+        liveAction: createLiveActionMetadataResolver(tmdbClient, createLogger('stats-daemon:tmdb')),
+      }),
     );
 
     statsServer = await startStatsServer({
@@ -212,6 +224,7 @@ async function main(): Promise<void> {
       tracker,
       knownWordCachePath,
       getAnkiConnectConfig: () => configService.reloadConfig().ankiConnect,
+      tmdbClient,
       getYomitanAnkiDeckName: async () =>
         await readStatsYomitanDeckName({
           helperScriptPath: wordHelperScriptPath,

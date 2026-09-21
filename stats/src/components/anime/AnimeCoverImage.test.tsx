@@ -20,6 +20,8 @@ test('AnimeHeader uses the linked AniList id to avoid stale cached cover art', (
         animeId: 42,
         canonicalTitle: 'Test Anime',
         anilistId: 21699,
+        tmdbId: null,
+        tmdbType: null,
         titleRomaji: null,
         titleEnglish: null,
         titleNative: null,

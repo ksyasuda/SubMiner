@@ -214,6 +214,8 @@ Confirming writes the combined lines to the sentence field. Reset drops the adde
 
 Clipboard updates and stats-dashboard mining never open timing review. The option is off by default and hot-reloads. **Review Media Timing** in the runtime options palette (`Ctrl/Cmd+Shift+O`) toggles it for the current session.
 
+If SubMiner closes the overlay while a timing review is still loading, it cancels pending setup and modal retries and restores playback if the review paused it. A new timing review can start after the overlay reopens.
+
 ### Screenshots (static)
 
 A single frame is captured at the current playback position.

@@ -81,7 +81,7 @@ test('schema 23 channel migration preserves history and manual assignments and i
     const history = getAnimeLibrary(db);
     // Reproduce the previous schema, including its lack of a media kind column.
     db.exec(
-      'DROP INDEX idx_anime_kind_title; ALTER TABLE imm_anime DROP COLUMN media_kind; DELETE FROM imm_schema_version; INSERT INTO imm_schema_version VALUES (23, 0)',
+      'DROP INDEX idx_anime_namespace_title; ALTER TABLE imm_anime DROP COLUMN media_kind; DELETE FROM imm_schema_version; INSERT INTO imm_schema_version VALUES (23, 0)',
     );
     ensureSchema(db);
     ensureSchema(db);
@@ -240,6 +240,52 @@ test('title identity and aliases never cross media kinds', () => {
   }
 });
 
+test('anime title lookups land on a same-named live-action entry but never on a channel', () => {
+  const db = new Database(':memory:');
+  try {
+    ensureSchema(db);
+    const dramaId = createAnime(db, 'Hanzawa Naoki');
+    db.prepare(
+      "UPDATE imm_anime SET media_kind = 'live_action', tmdb_id = 61222, tmdb_type = 'tv' WHERE anime_id = ?",
+    ).run(dramaId);
+    // A later season folder parses to the same title with the default anime
+    // kind and must join the TMDB-linked entry rather than duplicate it.
+    assert.equal(
+      getOrCreateAnimeRecord(db, {
+        parsedTitle: 'Hanzawa Naoki',
+        canonicalTitle: 'Hanzawa Naoki',
+        anilistId: 99,
+        titleRomaji: null,
+        titleEnglish: null,
+        titleNative: null,
+        metadataJson: null,
+      }),
+      dramaId,
+    );
+    const row = db
+      .prepare('SELECT media_kind, anilist_id, tmdb_id FROM imm_anime WHERE anime_id = ?')
+      .get(dramaId) as { media_kind: string; anilist_id: number | null; tmdb_id: number };
+    assert.equal(row.media_kind, 'live_action');
+    assert.equal(row.anilist_id, null);
+    assert.equal(row.tmdb_id, 61222);
+    assert.notEqual(
+      getOrCreateAnimeRecord(db, {
+        mediaKind: 'youtube',
+        parsedTitle: 'Hanzawa Naoki',
+        canonicalTitle: 'Hanzawa Naoki',
+        anilistId: null,
+        titleRomaji: null,
+        titleEnglish: null,
+        titleNative: null,
+        metadataJson: null,
+      }),
+      dramaId,
+    );
+  } finally {
+    db.close();
+  }
+});
+
 test('schema 24 title constraint migration preserves referenced data', () => {
   const db = new Database(':memory:');
   try {
@@ -273,7 +319,9 @@ test('schema 24 title constraint migration preserves referenced data', () => {
         title_romaji TEXT, title_english TEXT, title_native TEXT, episodes_total INTEGER,
         description TEXT, metadata_json TEXT, CREATED_DATE TEXT, LAST_UPDATE_DATE TEXT,
         media_kind TEXT NOT NULL DEFAULT 'anime' CHECK(media_kind IN ('anime', 'youtube')));
-      INSERT INTO imm_anime SELECT * FROM old_anime;
+      INSERT INTO imm_anime SELECT anime_id, normalized_title_key, canonical_title, anilist_id,
+        title_romaji, title_english, title_native, episodes_total, description, metadata_json,
+        CREATED_DATE, LAST_UPDATE_DATE, media_kind FROM old_anime;
       DROP TABLE old_anime;
       DELETE FROM imm_schema_version;
       INSERT INTO imm_schema_version VALUES (24, 0);
@@ -281,6 +329,10 @@ test('schema 24 title constraint migration preserves referenced data', () => {
     ensureSchema(db);
     ensureSchema(db);
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+    // The v0.19.6 CHECK only allowed anime and youtube; live-action must fit now.
+    db.prepare(
+      "INSERT INTO imm_anime(normalized_title_key, canonical_title, media_kind, tmdb_id, tmdb_type) VALUES ('drama', 'Drama', 'live_action', 1, 'tv')",
+    ).run();
     assert.equal(
       (db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys,
       1,

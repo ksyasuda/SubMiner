@@ -219,13 +219,8 @@ export function scheduleStatsWindowPostShowReconciles(
   }
 }
 
-export function buildStatsWindowLoadFileOptions(apiBaseUrl?: string): {
-  query: Record<string, string>;
-} {
-  return {
-    query: {
-      overlay: '1',
-      ...(apiBaseUrl ? { apiBase: apiBaseUrl } : {}),
-    },
-  };
+export function buildStatsWindowUrl(apiBaseUrl: string): string {
+  const url = new URL('/', apiBaseUrl);
+  url.searchParams.set('overlay', '1');
+  return url.toString();
 }

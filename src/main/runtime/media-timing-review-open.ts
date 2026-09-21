@@ -20,11 +20,13 @@ export async function openMediaTimingReviewModal(
     logWarn: (message: string) => void;
   },
   payload: MediaTimingReviewOpenPayload,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   return await retryOverlayModalOpen(
     { waitForModalOpen: deps.waitForModalOpen, logWarn: deps.logWarn },
     {
       modal: MODAL,
+      signal,
       // The review renderer regularly needs more than the 1.5 s the other modals allow; a
       // premature retry re-sends the payload and reloads the waveform for nothing.
       timeoutMs: 4_000,

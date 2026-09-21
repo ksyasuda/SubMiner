@@ -16,6 +16,9 @@ import {
   type AnilistQueryExecutor,
   type AnilistSeasonResolution,
 } from './season-resolver';
+import { getVideoTmdbLink, linkAnimeToTmdbTitle } from '../immersion-tracker/live-action-link';
+import type { LiveActionMetadataResolver } from '../tmdb/live-action-resolver';
+import type { TmdbTitleDetails } from '../tmdb/tmdb-client';
 
 const ANILIST_GRAPHQL_URL = 'https://graphql.anilist.co';
 const NO_MATCH_RETRY_MS = 5 * 60 * 1000;
@@ -39,6 +42,8 @@ interface CoverArtCandidate {
 
 interface CoverArtFetcherOptions {
   runGuessit?: GuessAnilistMediaInfoDeps['runGuessit'];
+  /** Live-action fallback consulted when AniList has no match for a title. */
+  liveAction?: LiveActionMetadataResolver;
 }
 
 export function stripFilenameTags(raw: string): string {
@@ -152,6 +157,60 @@ export function createCoverArtFetcher(
     return true;
   };
 
+  const cacheNoMatch = (db: DatabaseSync, videoId: number): void => {
+    upsertCoverArt(db, videoId, {
+      anilistId: null,
+      coverUrl: null,
+      coverBlob: null,
+      titleRomaji: null,
+      titleEnglish: null,
+      episodesTotal: null,
+    });
+  };
+
+  // Links the video's library entry to the TMDB title and stores its poster.
+  const storeLiveActionArt = async (
+    db: DatabaseSync,
+    videoId: number,
+    details: TmdbTitleDetails,
+  ): Promise<boolean> => {
+    const row = db
+      .prepare(
+        `SELECT v.anime_id AS animeId, a.anilist_id AS anilistId
+                FROM imm_videos v LEFT JOIN imm_anime a ON a.anime_id = v.anime_id
+                WHERE v.video_id = ?`,
+      )
+      .get(videoId) as { animeId: number | null; anilistId: number | null } | undefined;
+    if (row?.anilistId != null) return false;
+    if (row?.animeId) {
+      const link = linkAnimeToTmdbTitle(db, row.animeId, details, { mode: 'auto' });
+      if (link.mergedAnimeIds.length > 0) {
+        logger.info(
+          'cover-art: folded library entries %s into %d (same TMDB title)',
+          link.mergedAnimeIds.join(','),
+          link.animeId,
+        );
+      }
+    }
+    const coverBlob = details.posterUrl ? await downloadImage(details.posterUrl) : null;
+    upsertCoverArt(db, videoId, {
+      anilistId: null,
+      coverUrl: details.posterUrl,
+      coverBlob,
+      titleRomaji: null,
+      titleEnglish: details.titleEnglish,
+      episodesTotal: details.episodesTotal,
+    });
+    logger.info(
+      'cover-art: linked videoId=%d to TMDB %s/%d "%s"',
+      videoId,
+      details.tmdbType,
+      details.tmdbId,
+      details.titleEnglish ?? details.titleNative ?? '',
+    );
+    return coverBlob !== null;
+  };
+
   const resolveCanonicalTitle = (
     db: DatabaseSync,
     videoId: number,
@@ -197,7 +256,7 @@ export function createCoverArtFetcher(
           `
         SELECT 1 FROM imm_videos v
         JOIN imm_anime a ON a.anime_id = v.anime_id
-        WHERE v.video_id = ? AND a.media_kind != 'anime'
+        WHERE v.video_id = ? AND a.media_kind = 'youtube'
       `,
         )
         .get(videoId);
@@ -235,18 +294,31 @@ export function createCoverArtFetcher(
         return false;
       }
 
+      // A live-action entry already knows its TMDB title; AniList has nothing
+      // to add and would only produce a spurious anime match.
+      const hasAnilistLink = Boolean(
+        db
+          .prepare(
+            `SELECT 1 FROM imm_videos v JOIN imm_anime a ON a.anime_id = v.anime_id
+         WHERE v.video_id = ? AND a.anilist_id IS NOT NULL`,
+          )
+          .get(videoId),
+      );
+      const tmdbLink = getVideoTmdbLink(db, videoId);
+      if (tmdbLink && !hasAnilistLink) {
+        const details = await options.liveAction?.resolveById(tmdbLink.tmdbType, tmdbLink.tmdbId);
+        if (details) {
+          return storeLiveActionArt(db, videoId, details);
+        }
+        cacheNoMatch(db, videoId);
+        return false;
+      }
+
       const effectiveTitle = resolveCanonicalTitle(db, videoId, canonicalTitle);
       const cleaned = stripFilenameTags(effectiveTitle);
       if (!cleaned) {
         logger.warn('cover-art: empty title after stripping tags for videoId=%d', videoId);
-        upsertCoverArt(db, videoId, {
-          anilistId: null,
-          coverUrl: null,
-          coverBlob: null,
-          titleRomaji: null,
-          titleEnglish: null,
-          episodesTotal: null,
-        });
+        cacheNoMatch(db, videoId);
         return false;
       }
 
@@ -304,15 +376,16 @@ export function createCoverArtFetcher(
 
       const selected = resolution?.media ?? null;
       if (!selected) {
-        logger.info('cover-art: no Anilist results for "%s", caching no-match', searchBase);
-        upsertCoverArt(db, videoId, {
-          anilistId: null,
-          coverUrl: null,
-          coverBlob: null,
-          titleRomaji: null,
-          titleEnglish: null,
-          episodesTotal: null,
-        });
+        if (options.liveAction && !hasAnilistLink) {
+          for (const searchTitle of searchTitles) {
+            const details = await options.liveAction.resolveByTitle(searchTitle);
+            if (details) {
+              return storeLiveActionArt(db, videoId, details);
+            }
+          }
+        }
+        logger.info('cover-art: no Anilist or TMDB results for "%s", caching no-match', searchBase);
+        cacheNoMatch(db, videoId);
         return false;
       }
 

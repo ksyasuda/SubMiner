@@ -275,6 +275,9 @@ test('settings registry routes playback-related integrations into integrations',
   assert.equal(field('subsync.replace').section, 'Subtitle Sync');
   assert.equal(field('tsukihime.apiBaseUrl').category, 'integrations');
   assert.equal(field('tsukihime.apiBaseUrl').section, 'TsukiHime');
+  assert.equal(field('tmdb.apiKey').category, 'integrations');
+  assert.equal(field('tmdb.apiKey').section, 'TMDB');
+  assert.equal(field('tmdb.apiKey').secret, true);
 });
 
 test('settings registry puts feature toggles first, then other toggles alphabetically', () => {

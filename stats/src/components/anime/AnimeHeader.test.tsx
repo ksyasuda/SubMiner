@@ -10,6 +10,8 @@ const DETAIL: AnimeDetailData['detail'] = {
   animeId: 3,
   canonicalTitle: 'Project Radio Noise Season 2',
   anilistId: 20661,
+  tmdbId: null,
+  tmdbType: null,
   titleRomaji: 'Toaru Kagaku no Railgun S',
   titleEnglish: 'A Certain Scientific Railgun S',
   titleNative: null,
@@ -69,6 +71,46 @@ test('confirmAnimeDelete spells out how much data the entry deletion removes', a
   assert.match(seen[0] ?? '', /1 episode\b/);
   assert.match(seen[1] ?? '', /3 episodes/);
   assert.match(seen[0] ?? '', /every session and stat/);
+});
+
+test('AnimeHeader shows TMDB actions for a live-action entry and hides AniList links', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeHeader
+      detail={{
+        ...DETAIL,
+        anilistId: null,
+        mediaKind: 'live_action',
+        tmdbId: 61222,
+        tmdbType: 'tv',
+        titleRomaji: null,
+        titleEnglish: 'Hanzawa Naoki',
+        titleNative: '半沢直樹',
+        description: 'A banker fights back.',
+      }}
+      anilistEntries={[]}
+      onChangeAnilist={() => {}}
+      onChangeTmdb={() => {}}
+    />,
+  );
+
+  assert.match(markup, /https:\/\/www\.themoviedb\.org\/tv\/61222/);
+  assert.match(markup, /Change TMDB Title/);
+  assert.match(markup, /Live action/);
+  assert.match(markup, /A banker fights back\./);
+  assert.doesNotMatch(markup, /anilist\.co/);
+});
+
+test('AnimeHeader offers to link an unlinked anime entry to TMDB', () => {
+  const markup = renderToStaticMarkup(
+    <AnimeHeader
+      detail={{ ...DETAIL, anilistId: null }}
+      anilistEntries={[]}
+      onChangeTmdb={() => {}}
+    />,
+  );
+
+  assert.match(markup, /Link to TMDB/);
+  assert.doesNotMatch(markup, /themoviedb\.org/);
 });
 
 test('YouTube channel headers show videos and omit all AniList controls', () => {
