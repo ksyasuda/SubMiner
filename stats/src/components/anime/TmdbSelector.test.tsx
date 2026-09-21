@@ -153,6 +153,56 @@ test('TmdbSelector explains a missing API key instead of showing "No results"', 
   }
 });
 
+test('TmdbSelector reports a failed link as a link problem, not a search failure', async () => {
+  const uninstallDom = installDom();
+  const original = {
+    searchTmdb: apiClient.searchTmdb,
+    reassignAnimeTmdb: apiClient.reassignAnimeTmdb,
+  };
+  apiClient.searchTmdb = (async () => [HANZAWA]) as typeof apiClient.searchTmdb;
+  apiClient.reassignAnimeTmdb = (async () => {
+    throw new Error('Stats API error: 404');
+  }) as typeof apiClient.reassignAnimeTmdb;
+
+  try {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <TmdbSelector
+          animeId={9}
+          initialQuery="Hanzawa Naoki"
+          onClose={() => {}}
+          onLinked={() => {}}
+        />,
+      );
+    });
+
+    const pick = [...container.querySelectorAll('button')].find((button) =>
+      /Select/.test(button.textContent ?? ''),
+    );
+    assert.ok(pick);
+    await act(async () => {
+      pick.click();
+    });
+
+    assert.match(container.textContent ?? '', /TMDB has no details for this title/);
+    assert.doesNotMatch(container.textContent ?? '', /search failed/);
+    // The results stay on screen so the user can pick another one.
+    assert.match(container.textContent ?? '', /半沢直樹/);
+
+    await act(async () => {
+      root.unmount();
+    });
+  } finally {
+    apiClient.searchTmdb = original.searchTmdb;
+    apiClient.reassignAnimeTmdb = original.reassignAnimeTmdb;
+    uninstallDom();
+  }
+});
+
 for (const staleFailure of [false, true]) {
   test(`TmdbSelector ignores superseded ${staleFailure ? 'errors' : 'results'} and loading changes`, async () => {
     const uninstallDom = installDom();

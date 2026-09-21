@@ -248,7 +248,10 @@ for (const targetId of [1, 2, 3]) {
         "UPDATE imm_anime SET media_kind = 'live_action', tmdb_id = 12, tmdb_type = 'tv' WHERE anime_id = 2",
       );
       for (const merge of [mergeAnimeRecords, mergeAnimeRecordsInTransaction]) {
-        assert.throws(() => merge(db, targetId, [3, 1, 2]), /Cannot merge AniList and TMDB/);
+        assert.throws(
+          () => merge(db, targetId, [3, 1, 2]),
+          /AniList-linked and TMDB-linked library entries cannot be merged/,
+        );
         assert.equal(animeCount(db), 3);
         assert.equal(videoOwner(db, 1), 1);
         assert.equal(videoOwner(db, 2), 2);

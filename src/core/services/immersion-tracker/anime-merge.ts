@@ -5,6 +5,8 @@ import { nowMs } from './time';
 
 /** Thrown when a move names an episode or destination entry that is not there. */
 export const UNKNOWN_MOVE_TARGET_MESSAGE = 'Unknown episode or target library entry';
+export const INCOMPATIBLE_PROVIDER_MERGE_MESSAGE =
+  'AniList-linked and TMDB-linked library entries cannot be merged together';
 
 export interface AnimeMergeSummary {
   /** Library entry that owns every moved episode once the merge finishes. */
@@ -188,7 +190,7 @@ export function mergeAnimeRecordsInTransaction(
     metadata.some((row) => row?.anilist_id != null) &&
     metadata.some((row) => row?.tmdb_id != null)
   ) {
-    throw new Error('Cannot merge AniList and TMDB library entries');
+    throw new Error(INCOMPATIBLE_PROVIDER_MERGE_MESSAGE);
   }
 
   const updatedAt = toDbTimestamp(nowMs());

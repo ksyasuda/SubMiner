@@ -7,6 +7,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { createStatsApp, startStatsServer } from '../stats-server.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
+import { INCOMPATIBLE_PROVIDER_MERGE_MESSAGE } from '../immersion-tracker/anime-merge.js';
 import {
   clearRetimedSecondarySubtitleCache,
   resolveRetimedSecondarySubtitleTextFromSidecar,
@@ -3399,6 +3400,25 @@ Aligned English subtitle
     });
 
     assert.equal(res.status, 404);
+  });
+
+  it('POST /api/stats/anime/:animeId/merge rejects mixed AniList and TMDB entries as 409', async () => {
+    const app = createStatsApp(
+      createMockTracker({
+        mergeAnime: async () => {
+          throw new Error(INCOMPATIBLE_PROVIDER_MERGE_MESSAGE);
+        },
+      } as Partial<ImmersionTrackerService>),
+    );
+
+    const res = await app.request('/api/stats/anime/7/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"sourceAnimeIds":[8]}',
+    });
+
+    assert.equal(res.status, 409);
+    assert.deepEqual(await res.json(), { error: INCOMPATIBLE_PROVIDER_MERGE_MESSAGE });
   });
 
   it('PATCH /api/stats/media/:videoId/anime reports an unknown target as 404', async () => {

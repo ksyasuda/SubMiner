@@ -1,6 +1,9 @@
 import type { Hono } from 'hono';
 import { statsJson } from '../../../types/stats-http-contract.js';
-import { UNKNOWN_MOVE_TARGET_MESSAGE } from '../immersion-tracker/anime-merge.js';
+import {
+  INCOMPATIBLE_PROVIDER_MERGE_MESSAGE,
+  UNKNOWN_MOVE_TARGET_MESSAGE,
+} from '../immersion-tracker/anime-merge.js';
 import type { ImmersionTrackerService } from '../immersion-tracker-service.js';
 import {
   buildSentenceSearchOptions,
@@ -245,7 +248,17 @@ export function registerStatsLibraryRoutes(
     const body = await c.req.json().catch(() => null);
     const sourceAnimeIds = parsePositiveIdList(body?.sourceAnimeIds).filter((id) => id !== animeId);
     if (sourceAnimeIds.length === 0) return c.body(null, 400);
-    const summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    let summary;
+    try {
+      summary = await tracker.mergeAnime(animeId, sourceAnimeIds);
+    } catch (error) {
+      // Mixing providers is a rejected request, not a server fault, so the
+      // dashboard can explain it instead of showing a bare 500.
+      if (error instanceof Error && error.message === INCOMPATIBLE_PROVIDER_MERGE_MESSAGE) {
+        return c.json(statsJson('error', { error: error.message }), 409);
+      }
+      throw error;
+    }
     // Nothing folded means the target or every source was already gone, so the
     // caller should not be told the merge succeeded.
     if (summary.mergedAnimeIds.length === 0) return c.body(null, 404);

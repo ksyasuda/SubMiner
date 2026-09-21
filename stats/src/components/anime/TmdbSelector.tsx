@@ -10,13 +10,31 @@ interface TmdbSelectorProps {
   onLinked: () => void;
 }
 
+const MISSING_KEY_MESSAGE =
+  'TMDB API key not configured. Set tmdb.apiKey or tmdb.apiKeyCommand in your config.';
+
+function statusOf(err: unknown): number | null {
+  const match = err instanceof Error ? /^Stats API error: (\d{3})\b/.exec(err.message) : null;
+  return match ? Number(match[1]) : null;
+}
+
 // The stats API answers a missing key with 503 and the message from config.
 function describeSearchError(err: unknown): string {
-  const message = err instanceof Error ? err.message : '';
-  if (/\b503\b/.test(message)) {
-    return 'TMDB API key not configured. Set tmdb.apiKey or tmdb.apiKeyCommand in your config.';
-  }
+  if (statusOf(err) === 503) return MISSING_KEY_MESSAGE;
   return 'TMDB search failed. Check your connection and API key.';
+}
+
+// The link route answers 404 when TMDB has no details for the picked id or
+// when the library entry itself is gone.
+function describeLinkError(err: unknown): string {
+  switch (statusOf(err)) {
+    case 503:
+      return MISSING_KEY_MESSAGE;
+    case 404:
+      return 'TMDB has no details for this title. Pick another result or refresh the Library.';
+    default:
+      return 'Linking to TMDB failed. Check your connection and try again.';
+  }
 }
 
 export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbSelectorProps) {
@@ -90,7 +108,7 @@ export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbS
       });
       onLinked();
     } catch (err) {
-      setError(describeSearchError(err));
+      setError(describeLinkError(err));
       setLinking(null);
     }
   };
