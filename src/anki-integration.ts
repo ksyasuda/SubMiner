@@ -185,7 +185,7 @@ function extractFilenameFromMediaPath(rawPath: string): string {
 function shouldPreferMediaTitleForMiscInfo(rawPath: string, filename: string): boolean {
   const loweredPath = rawPath.toLowerCase();
   const loweredFilename = filename.toLowerCase();
-  if (loweredPath.includes('api_key=')) {
+  if (loweredPath.includes('api_key=') || loweredPath.includes('apikey=')) {
     return true;
   }
   if (loweredPath.startsWith('http://') || loweredPath.startsWith('https://')) {

@@ -12,7 +12,7 @@ This is the recommended way to use Jellyfin with SubMiner. A terminal-only optio
 
 ## Requirements
 
-- A Jellyfin server plus your username and password
+- A Jellyfin server plus your username and password (Jellyfin 12, which disables legacy authorization by default, is supported)
 - SubMiner installed and running (see [Installation](/installation))
 - On Linux, the session token is stored with `gnome-libsecret` by default
 

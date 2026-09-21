@@ -1545,3 +1545,25 @@ test('Anki metadata rejects a credential-bearing media title before metadata arr
   const result = privateApi.formatMiscInfoPattern('stream?api_key=test-secret', 426);
   assert.equal(result, '[SubMiner] Unknown media | Unknown media (00:07:06)');
 });
+
+test('AnkiIntegration.formatMiscInfoPattern treats ApiKey stream paths like legacy api_key ones', () => {
+  const integration = new AnkiIntegration(
+    { metadata: { pattern: '[SubMiner] %f (%t)' } } as never,
+    {} as never,
+    {
+      currentSubText: '',
+      currentVideoPath: 'stream?static=true&ApiKey=secret-token&MediaSourceId=ms-1',
+      currentTimePos: 426,
+      currentSubStart: 426,
+      currentSubEnd: 428,
+      currentMediaTitle: '[Jellyfin/direct] Bocchi the Rock! - S01E02',
+      send: () => true,
+    } as unknown as never,
+  );
+  const privateApi = integration as unknown as {
+    formatMiscInfoPattern: (fallbackFilename: string, startTimeSeconds?: number) => string;
+  };
+  const result = privateApi.formatMiscInfoPattern('audio_123.mp3', 426);
+  assert.equal(result, '[SubMiner] [Jellyfin/direct] Bocchi the Rock! - S01E02 (00:07:06)');
+  assert.equal(result.includes('ApiKey='), false);
+});

@@ -342,7 +342,7 @@ export class JellyfinRemoteSessionService {
     const baseUrl = new URL(`${this.serverUrl}/`);
     const socketUrl = new URL('/socket', baseUrl);
     socketUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    socketUrl.searchParams.set('api_key', this.accessToken);
+    socketUrl.searchParams.set('ApiKey', this.accessToken);
     socketUrl.searchParams.set('deviceId', this.deviceId);
     return socketUrl.toString();
   }
@@ -350,8 +350,6 @@ export class JellyfinRemoteSessionService {
   private createSocket(url: string): JellyfinRemoteSocket {
     const headers: JellyfinRemoteSocketHeaders = {
       Authorization: this.authHeader,
-      'X-Emby-Authorization': this.authHeader,
-      'X-Emby-Token': this.accessToken,
     };
     if (this.socketHeadersFactory) {
       return this.socketHeadersFactory(url, headers);
@@ -375,8 +373,6 @@ export class JellyfinRemoteSessionService {
         method: 'GET',
         headers: {
           Authorization: this.authHeader,
-          'X-Emby-Authorization': this.authHeader,
-          'X-Emby-Token': this.accessToken,
         },
       });
       if (!response.ok) return false;
@@ -398,8 +394,6 @@ export class JellyfinRemoteSessionService {
         headers: {
           'Content-Type': 'application/json',
           Authorization: this.authHeader,
-          'X-Emby-Authorization': this.authHeader,
-          'X-Emby-Token': this.accessToken,
         },
         body: JSON.stringify(payload),
       });

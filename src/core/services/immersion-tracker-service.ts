@@ -369,6 +369,7 @@ function buildJellyfinStatsMediaPath(mediaPath: string, itemId: string): string 
 
 const JELLYFIN_MEDIA_ALIAS_QUERY_KEYS = [
   'api_key',
+  'ApiKey',
   'StartTimeTicks',
   'AudioStreamIndex',
   'SubtitleStreamIndex',

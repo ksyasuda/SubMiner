@@ -228,7 +228,7 @@ export function pickLibrary(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';
@@ -266,7 +266,7 @@ export function pickItem(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';
@@ -304,7 +304,7 @@ export function pickGroup(
     commandExists('chafa') && commandExists('curl')
       ? `
 id={1}
-url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&api_key=${escapeShellSingle(session.accessToken)}
+url=${escapeShellSingle(session.serverUrl)}/Items/$id/Images/Primary?maxHeight=720\\&quality=85\\&ApiKey=${escapeShellSingle(session.accessToken)}
 curl -fsSL "$url" 2>/dev/null | chafa --format=symbols --symbols=vhalf+wide --size=${'${FZF_PREVIEW_COLUMNS}'}x${'${FZF_PREVIEW_LINES}'} - 2>/dev/null
 `.trim()
       : 'echo "Install curl + chafa for image preview"';

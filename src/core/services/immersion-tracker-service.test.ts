@@ -3174,6 +3174,7 @@ test('Jellyfin metadata cleanup requires both an API key and a stream marker', a
       { filename: 'stream?api_key=secret', leaked: true },
       { filename: '/STREAM?API_KEY=secret', leaked: true },
       { filename: '/Videos/item?api_key=secret', leaked: true },
+      { filename: '/Videos/item?ApiKey=secret', leaked: true },
       { filename: 'MediaSourceId=item api key secret', leaked: true },
       { filename: 'An API Key Story', leaked: false },
       { filename: 'api_key=ordinary-metadata', leaked: false },

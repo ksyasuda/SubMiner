@@ -279,7 +279,7 @@ test('resolvePlaybackPlan prefers transcode when directPlayPreferred is disabled
     assert.equal(plan.mode, 'transcode');
     const url = new URL(plan.url);
     assert.match(url.pathname, /\/Videos\/movie-2\/master\.m3u8$/);
-    assert.equal(url.searchParams.get('api_key'), 'token');
+    assert.equal(url.searchParams.get('ApiKey'), 'token');
     assert.equal(url.searchParams.get('AudioStreamIndex'), '4');
     assert.equal(url.searchParams.get('StartTimeTicks'), '10000000');
   } finally {
@@ -365,7 +365,7 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
                 IsForced: true,
                 IsExternal: true,
                 DeliveryMethod: 'External',
-                DeliveryUrl: '/Videos/movie-1/ms-1/Subtitles/3/Stream.srt',
+                DeliveryUrl: '/Videos/movie-1/ms-1/Subtitles/3/Stream.srt?api_key=server-token',
                 IsExternalUrl: false,
               },
               {
@@ -402,11 +402,11 @@ test('listSubtitleTracks returns all subtitle streams with delivery urls', async
     );
     assert.equal(
       tracks[0]!.deliveryUrl,
-      'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/2/Stream.srt?api_key=token',
+      'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/2/Stream.srt?ApiKey=token',
     );
     assert.equal(
       tracks[1]!.deliveryUrl,
-      'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/3/Stream.srt?api_key=token',
+      'http://jellyfin.local/Videos/movie-1/ms-1/Subtitles/3/Stream.srt?ApiKey=token',
     );
     assert.equal(tracks[2]!.deliveryUrl, 'https://cdn.example.com/subs.srt');
   } finally {
@@ -505,7 +505,7 @@ test('resolvePlaybackPlan reuses server transcoding url and appends missing para
     const url = new URL(plan.url);
     assert.match(url.pathname, /\/Videos\/movie-4\/master\.m3u8$/);
     assert.equal(url.searchParams.get('VideoCodec'), 'hevc');
-    assert.equal(url.searchParams.get('api_key'), 'token');
+    assert.equal(url.searchParams.get('ApiKey'), 'token');
     assert.equal(url.searchParams.get('AudioStreamIndex'), '3');
     assert.equal(url.searchParams.get('SubtitleStreamIndex'), '8');
     assert.equal(url.searchParams.get('StartTimeTicks'), '50000000');
@@ -626,7 +626,7 @@ test('listSubtitleTracks falls back from PlaybackInfo to item media sources', as
     assert.equal(tracks[0]!.index, 11);
     assert.equal(
       tracks[0]!.deliveryUrl,
-      'http://jellyfin.local/Videos/movie-fallback/ms-fallback/Subtitles/11/Stream.srt?api_key=token',
+      'http://jellyfin.local/Videos/movie-fallback/ms-fallback/Subtitles/11/Stream.srt?ApiKey=token',
     );
   } finally {
     globalThis.fetch = originalFetch;
@@ -785,6 +785,70 @@ test('resolvePlaybackPlan surfaces no-source and no-stream fallback errors', asy
         ),
       /Jellyfin item cannot be streamed by direct play or transcoding\./,
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('API requests authenticate with the MediaBrowser header only (no legacy X-Emby-Token)', async () => {
+  const originalFetch = globalThis.fetch;
+  const seenHeaders: Headers[] = [];
+  globalThis.fetch = (async (_input, init) => {
+    seenHeaders.push(new Headers(init?.headers));
+    return new Response(JSON.stringify({ Items: [] }), { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    await listLibraries(
+      { serverUrl: 'http://jellyfin.local', accessToken: 'token', userId: 'u1', username: 'kyle' },
+      clientInfo,
+    );
+    assert.equal(seenHeaders.length, 1);
+    const headers = seenHeaders[0]!;
+    const authorization = headers.get('authorization') ?? '';
+    assert.match(authorization, /^MediaBrowser /);
+    assert.match(authorization, /Token="token"/);
+    assert.match(authorization, /DeviceId="subminer-test"/);
+    assert.equal(headers.has('x-emby-token'), false);
+    assert.equal(headers.has('x-emby-authorization'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolvePlaybackPlan replaces a legacy api_key on the server transcoding url with ApiKey', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(
+      JSON.stringify({
+        Id: 'movie-legacy',
+        Name: 'Movie Legacy',
+        MediaSources: [
+          {
+            Id: 'ms-legacy',
+            Container: 'mkv',
+            SupportsDirectStream: false,
+            SupportsTranscoding: true,
+            TranscodingUrl: '/Videos/movie-legacy/master.m3u8?VideoCodec=hevc&api_key=server-token',
+          },
+        ],
+      }),
+      { status: 200 },
+    )) as typeof fetch;
+
+  try {
+    const plan = await resolvePlaybackPlan(
+      { serverUrl: 'http://jellyfin.local', accessToken: 'token', userId: 'u1', username: 'kyle' },
+      clientInfo,
+      { enabled: true, directPlayPreferred: true },
+      { itemId: 'movie-legacy' },
+    );
+
+    assert.equal(plan.mode, 'transcode');
+    const url = new URL(plan.url);
+    assert.equal(url.searchParams.get('ApiKey'), 'token');
+    assert.equal(url.searchParams.has('api_key'), false);
+    assert.equal(url.searchParams.get('VideoCodec'), 'hevc');
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -82,7 +82,7 @@ function parseLegacyJellyfinStreamUrl(value: string | null): URL | null {
     ) {
       return null;
     }
-    if (!url.searchParams.has('api_key')) {
+    if (!url.searchParams.has('api_key') && !url.searchParams.has('ApiKey')) {
       return null;
     }
     return url;
@@ -130,13 +130,13 @@ function repairLeakedJellyfinAnimeTitles(db: DatabaseSync, currentTimestamp: str
               SELECT v.canonical_title
               FROM imm_videos v
               WHERE v.anime_id = a.anime_id
-                AND v.canonical_title NOT LIKE '%api_key=%'
+                AND v.canonical_title NOT LIKE '%api_key=%' AND v.canonical_title NOT LIKE '%ApiKey=%'
                 AND lower(v.canonical_title) NOT LIKE '%api key%'
               ORDER BY v.LAST_UPDATE_DATE DESC, v.video_id DESC
               LIMIT 1
             ) AS linked_video_title
           FROM imm_anime a
-          WHERE a.canonical_title LIKE '%api_key=%'
+          WHERE a.canonical_title LIKE '%api_key=%' OR a.canonical_title LIKE '%ApiKey=%'
              OR lower(a.canonical_title) LIKE '%api key%'
              OR lower(a.normalized_title_key) LIKE '%api key%'
         `,
@@ -244,11 +244,11 @@ function repairLeakedJellyfinVideoParseMetadata(
           LAST_UPDATE_DATE = ?
         WHERE source_type = 2
           AND (
-            parsed_basename LIKE '%api_key=%'
+            parsed_basename LIKE '%api_key=%' OR parsed_basename LIKE '%ApiKey=%'
             OR lower(parsed_basename) LIKE '%api key%'
-            OR parsed_title LIKE '%api_key=%'
+            OR parsed_title LIKE '%api_key=%' OR parsed_title LIKE '%ApiKey=%'
             OR lower(parsed_title) LIKE '%api key%'
-            OR parse_metadata_json LIKE '%api_key=%'
+            OR parse_metadata_json LIKE '%api_key=%' OR parse_metadata_json LIKE '%ApiKey=%'
             OR lower(parse_metadata_json) LIKE '%api key%'
           )
       `,
@@ -267,7 +267,7 @@ function repairLeakedJellyfinAnimeParseMetadata(
     UPDATE imm_anime
     SET metadata_json = NULL, LAST_UPDATE_DATE = ?
     WHERE (
-      metadata_json LIKE '%api_key=%'
+      metadata_json LIKE '%api_key=%' OR metadata_json LIKE '%ApiKey=%'
       OR lower(metadata_json) LIKE '%api key%'
     ) AND (
       lower(metadata_json) LIKE '%stream?%'
@@ -295,11 +295,11 @@ export function repairJellyfinStreamVideoLinks(db: DatabaseSync): JellyfinLinkRe
         FROM imm_videos
         WHERE source_type = 2
           AND (
-            video_key LIKE '%api_key=%'
+            video_key LIKE '%api_key=%' OR video_key LIKE '%ApiKey=%'
             OR lower(video_key) LIKE '%api key%'
-            OR source_url LIKE '%api_key=%'
+            OR source_url LIKE '%api_key=%' OR source_url LIKE '%ApiKey=%'
             OR lower(source_url) LIKE '%api key%'
-            OR canonical_title LIKE '%api_key=%'
+            OR canonical_title LIKE '%api_key=%' OR canonical_title LIKE '%ApiKey=%'
             OR lower(canonical_title) LIKE '%api key%'
           )
       `,

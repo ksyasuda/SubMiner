@@ -89,7 +89,6 @@ export async function jellyfinApiRequest<T>(
   const url = `${session.serverUrl}${requestPath}`;
   const response = await fetch(url, {
     headers: {
-      'X-Emby-Token': session.accessToken,
       Authorization: `MediaBrowser Token="${session.accessToken}"`,
     },
   });
@@ -103,7 +102,7 @@ export async function jellyfinApiRequest<T>(
 }
 
 function itemPreviewUrl(session: JellyfinSessionConfig, id: string): string {
-  return `${session.serverUrl}/Items/${id}/Images/Primary?maxHeight=720&quality=85&api_key=${encodeURIComponent(session.accessToken)}`;
+  return `${session.serverUrl}/Items/${id}/Images/Primary?maxHeight=720&quality=85&ApiKey=${encodeURIComponent(session.accessToken)}`;
 }
 
 function jellyfinIconCacheDir(session: JellyfinSessionConfig): string {

@@ -58,7 +58,7 @@ test('start posts capabilities on socket connect', async () => {
     accessToken: 'token-1',
     deviceId: 'device-1',
     webSocketFactory: (url) => {
-      assert.equal(url, 'ws://jellyfin.local:8096/socket?api_key=token-1&deviceId=device-1');
+      assert.equal(url, 'ws://jellyfin.local:8096/socket?ApiKey=token-1&deviceId=device-1');
       const socket = new FakeWebSocket();
       sockets.push(socket);
       return socket as unknown as any;
@@ -99,7 +99,8 @@ test('socket headers include jellyfin authorization metadata', () => {
   assert.equal(seenHeaders.length, 1);
   assert.ok(seenHeaders[0]!['Authorization']!.includes('Client="SubMiner"'));
   assert.ok(seenHeaders[0]!['Authorization']!.includes('DeviceId="device-auth"'));
-  assert.ok(seenHeaders[0]!['X-Emby-Authorization']);
+  assert.equal('X-Emby-Authorization' in seenHeaders[0]!, false);
+  assert.equal('X-Emby-Token' in seenHeaders[0]!, false);
 });
 
 test('dispatches inbound Play, Playstate, and GeneralCommand messages', () => {
