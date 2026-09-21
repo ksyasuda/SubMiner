@@ -169,7 +169,7 @@ test('shouldHideStatsWindowForInput matches Escape and configured bare toggle ke
 });
 
 test('buildStatsWindowUrl enables overlay rendering on the local HTTP origin', () => {
-  assert.equal(buildStatsWindowUrl(), 'http://127.0.0.1:6969/?overlay=1');
+  assert.equal(buildStatsWindowUrl('http://127.0.0.1:6969'), 'http://127.0.0.1:6969/?overlay=1');
 });
 
 test('buildStatsWindowUrl uses the active server port as the document origin', () => {

@@ -23,24 +23,8 @@ import type { StatsMineCardParams, StatsMineCardResponse } from './mining';
 import { appendCoverRetryToken } from './cover-retry';
 import { trackDelete } from './delete-progress';
 
-type StatsLocationLike = Pick<Location, 'protocol' | 'origin' | 'search'>;
-
-export function resolveStatsBaseUrl(location?: StatsLocationLike): string {
-  const resolvedLocation =
-    location ??
-    (typeof window === 'undefined'
-      ? { protocol: 'file:', origin: 'null', search: '' }
-      : window.location);
-
-  const queryApiBase = new URLSearchParams(resolvedLocation.search).get('apiBase')?.trim();
-  if (queryApiBase) {
-    return queryApiBase;
-  }
-
-  return resolvedLocation.protocol === 'file:' ? 'http://127.0.0.1:6969' : resolvedLocation.origin;
-}
-
-export const BASE_URL = resolveStatsBaseUrl();
+// Both browser and in-app dashboards use the server that served the page.
+export const BASE_URL = typeof window === 'undefined' ? '' : window.location.origin;
 
 async function fetchResponse(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${BASE_URL}${path}`, init);

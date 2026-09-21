@@ -1,4 +1,5 @@
-type: fixed
+type: changed
+breaking: true
 area: stats
 
 - Reject requests from untrusted browser origins and hosts before stats data, media, or Anki operations run, and require JSON for mutation bodies.

@@ -4195,4 +4195,60 @@ Aligned English subtitle
       });
     }
   });
+
+  it('enforces request safety through node:http without rejecting bodyless DELETEs', async () => {
+    await withTempDir(async (staticDir) => {
+      let deletions = 0;
+      const tracker = createMockTracker({
+        deleteSession: async () => {
+          deletions += 1;
+        },
+      });
+      const listener = http.createServer();
+      const server = await startNodeHttpServer(
+        createStatsApp(tracker),
+        { port: 0, staticDir, tracker },
+        (handler) => {
+          listener.on('request', handler);
+          return listener;
+        },
+      );
+      try {
+        const address = listener.address();
+        assert.ok(address && typeof address !== 'string');
+        const origin = `http://127.0.0.1:${address.port}`;
+        const url = `${origin}/api/stats/sessions/1`;
+        for (const headers of [undefined, { 'Content-Length': '0' }]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 200);
+          await response.arrayBuffer();
+        }
+        assert.equal(deletions, 2);
+        for (const headers of [
+          new Headers({ Origin: 'https://attacker.example' }),
+          new Headers({ Origin: 'null' }),
+          new Headers({ Host: 'attacker.example' }),
+          new Headers({ 'Sec-Fetch-Site': 'same-site' }),
+        ]) {
+          const response = await fetch(url, { method: 'DELETE', headers });
+          assert.equal(response.status, 403, JSON.stringify(headers));
+          await response.arrayBuffer();
+        }
+        const invalid = await fetch(url, { method: 'DELETE', body: '{}' });
+        assert.equal(invalid.status, 415);
+        await invalid.arrayBuffer();
+        assert.equal(deletions, 2);
+        const valid = await fetch(url, {
+          method: 'DELETE',
+          headers: { Origin: origin, 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        assert.equal(valid.status, 200);
+        await valid.arrayBuffer();
+        assert.equal(deletions, 3);
+      } finally {
+        await server.close();
+      }
+    });
+  });
 });

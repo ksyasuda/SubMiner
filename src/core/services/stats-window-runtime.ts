@@ -219,7 +219,7 @@ export function scheduleStatsWindowPostShowReconciles(
   }
 }
 
-export function buildStatsWindowUrl(apiBaseUrl = 'http://127.0.0.1:6969'): string {
+export function buildStatsWindowUrl(apiBaseUrl: string): string {
   const url = new URL('/', apiBaseUrl);
   url.searchParams.set('overlay', '1');
   return url.toString();

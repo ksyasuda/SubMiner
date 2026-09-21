@@ -19,6 +19,7 @@ export const enforceStatsRequestSafety: MiddlewareHandler = async (c, next) => {
     if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::[0-9]+)?$/i.test(host)) {
       return c.body(null, 403);
     }
+    // Node derives the request URL from Host; Bun provides them independently.
     try {
       if (new URL(`http://${host}`).origin !== url.origin) return c.body(null, 403);
     } catch {
