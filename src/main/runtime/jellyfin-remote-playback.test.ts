@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   markJellyfinRemotePlaybackLoaded,
+  createJellyfinRemoteReportTracker,
   createReportJellyfinRemoteProgressHandler,
   createReportJellyfinRemoteStoppedHandler,
   secondsToJellyfinTicks,
@@ -527,4 +528,71 @@ test('createReportJellyfinRemoteStoppedHandler ignores startup stop churn before
 
   assert.equal(stopped, false);
   assert.equal(cleared, false);
+});
+
+test('createReportJellyfinRemoteStoppedHandler clears playback before reporting and waits for in-flight progress', async () => {
+  const tracker = createJellyfinRemoteReportTracker();
+  let playback: { itemId: string; playMethod: 'DirectPlay'; loadedMediaPath: string } | null = {
+    itemId: 'item-1',
+    playMethod: 'DirectPlay',
+    loadedMediaPath: 'http://pve-main:8096/Videos/item-1/stream',
+  };
+  const calls: string[] = [];
+  let releaseProgress: () => void = () => undefined;
+  const progressGate = new Promise<void>((resolve) => {
+    releaseProgress = resolve;
+  });
+  const session = {
+    isConnected: () => true,
+    reportProgress: async ({ eventName }: { eventName: string }) => {
+      calls.push(`progress:${eventName}:${playback ? 'active' : 'cleared'}`);
+      if (calls.length === 1) await progressGate;
+      return true;
+    },
+    reportStopped: async () => {
+      calls.push(`stopped:${playback ? 'active' : 'cleared'}`);
+      return true;
+    },
+  };
+  const shared = {
+    getActivePlayback: () => playback,
+    clearActivePlayback: () => {
+      playback = null;
+    },
+    getSession: () => session,
+    getMpvClient: () => ({ currentTimePos: 42 }),
+    ticksPerSecond: 10_000_000,
+    logDebug: () => undefined,
+    reportTracker: tracker,
+  };
+  const reportProgress = createReportJellyfinRemoteProgressHandler({
+    ...shared,
+    getNow: () => 10_000,
+    getLastProgressAtMs: () => 0,
+    setLastProgressAtMs: () => undefined,
+    progressIntervalMs: 3000,
+  });
+  const reportStopped = createReportJellyfinRemoteStoppedHandler(shared);
+
+  // A periodic tick is mid-request when the stop starts.
+  const tick = reportProgress(true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(calls, ['progress:TimeUpdate:active']);
+  const stop = reportStopped();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(playback, null);
+  assert.deepEqual(calls, ['progress:TimeUpdate:active']);
+
+  // A tick fired after the stop began must not report anything.
+  await reportProgress(true);
+  assert.deepEqual(calls, ['progress:TimeUpdate:active']);
+
+  releaseProgress();
+  await tick;
+  await stop;
+  assert.deepEqual(calls, [
+    'progress:TimeUpdate:active',
+    'progress:TimeUpdate:cleared',
+    'stopped:cleared',
+  ]);
 });

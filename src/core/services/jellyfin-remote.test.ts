@@ -478,3 +478,38 @@ test('warns once per failing timeline endpoint until it recovers', async () => {
   assert.equal(await service.reportStopped(state), false);
   assert.equal(warnings.length, 2);
 });
+
+test('ignores messages from a superseded socket', () => {
+  const sockets: FakeWebSocket[] = [];
+  const playPayloads: unknown[] = [];
+
+  const service = new JellyfinRemoteSessionService({
+    serverUrl: 'http://jellyfin.local',
+    accessToken: 'token-stale',
+    deviceId: 'device-stale',
+    webSocketFactory: () => {
+      const socket = new FakeWebSocket();
+      sockets.push(socket);
+      return socket as unknown as any;
+    },
+    fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
+    onPlay: (payload) => {
+      playPayloads.push(payload);
+    },
+    setTimer: (() => 1 as unknown as ReturnType<typeof setTimeout>) as unknown as typeof setTimeout,
+    clearTimer: (() => undefined) as typeof clearTimeout,
+  });
+
+  service.start();
+  service.stop();
+  service.start();
+  sockets[1]!.emit('open');
+  assert.equal(sockets.length, 2);
+
+  sockets[0]!.emit('message', JSON.stringify({ MessageType: 'ForceKeepAlive', Data: 10 }));
+  sockets[0]!.emit('message', JSON.stringify({ MessageType: 'Play', Data: { ItemIds: ['x'] } }));
+
+  assert.deepEqual(sockets[0]!.sent, []);
+  assert.deepEqual(playPayloads, []);
+  assert.deepEqual(sockets[1]!.sent, ['{"MessageType":"KeepAlive"}']);
+});

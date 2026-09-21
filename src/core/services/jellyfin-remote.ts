@@ -334,6 +334,7 @@ export class JellyfinRemoteSessionService {
     });
 
     socket.on('message', (rawData) => {
+      if (this.socket !== socket || !this.running) return;
       this.lastInboundAtMs = this.now();
       this.handleInboundMessage(socket, rawData);
     });
