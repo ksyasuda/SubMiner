@@ -364,6 +364,7 @@ test('settings registry marks safe live config paths as hot-reloadable', () => {
     'ankiConnect.nPlusOne.minSentenceWords',
     'ankiConnect.fields.word',
     'ankiConnect.fields.audio',
+    'ankiConnect.fields.wordAudio',
     'ankiConnect.fields.image',
     'ankiConnect.fields.sentence',
     'ankiConnect.fields.miscInfo',

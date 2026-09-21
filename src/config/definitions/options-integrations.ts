@@ -83,6 +83,13 @@ export function buildIntegrationConfigOptionRegistry(
       description: 'Card field that receives generated sentence audio.',
     },
     {
+      path: 'ankiConnect.fields.wordAudio',
+      kind: 'string',
+      defaultValue: defaultConfig.ankiConnect.fields.wordAudio,
+      description:
+        'Existing word-audio field read to time the frozen first frame of animated images. This mapping is only used for synchronization.',
+    },
+    {
       path: 'ankiConnect.fields.image',
       kind: 'string',
       defaultValue: defaultConfig.ankiConnect.fields.image,

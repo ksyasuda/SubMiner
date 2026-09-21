@@ -14,7 +14,8 @@ test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for
   const leadInSeconds = await resolveAnimatedImageLeadInSeconds({
     config: {
       fields: {
-        audio: 'ExpressionAudio',
+        audio: 'SentenceAudio',
+        wordAudio: 'Pronunciation',
       },
       media: {
         imageType: 'avif',
@@ -25,7 +26,8 @@ test('resolveAnimatedImageLeadInSeconds sums configured word audio durations for
     noteInfo: {
       noteId: 42,
       fields: {
-        ExpressionAudio: {
+        SentenceAudio: { value: '[sound:sentence.mp3]' },
+        Pronunciation: {
           value: '[sound:word.mp3][sound:alt.ogg]',
         },
       },
@@ -121,3 +123,32 @@ test('resolveAnimatedImageLeadInSeconds falls back to zero when sync is disabled
 
   assert.equal(leadInSeconds, 0);
 });
+
+for (const sentenceAudio of ['', '[sound:sentence.mp3]']) {
+  test(`word audio defaults independently of sentence audio (${sentenceAudio ? 'existing' : 'new'} note)`, async () => {
+    const retrieved: string[] = [];
+    const leadInSeconds = await resolveAnimatedImageLeadInSeconds({
+      config: {
+        fields: { audio: 'SentenceAudio' },
+        media: { imageType: 'avif' },
+      },
+      noteInfo: {
+        noteId: 42,
+        fields: {
+          ExpressionAudio: { value: '[sound:word.mp3]' },
+          SentenceAudio: { value: sentenceAudio },
+        },
+      },
+      resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
+        preferredNames.find((name) => name !== undefined && name in noteInfo.fields) ?? null,
+      retrieveMediaFileBase64: async (filename) => {
+        retrieved.push(filename);
+        return 'd29yZA==';
+      },
+      probeAudioDurationSeconds: async (_buffer, filename) => (filename === 'word.mp3' ? 0.6 : 4),
+    });
+
+    assert.equal(leadInSeconds, 0.6);
+    assert.deepEqual(retrieved, ['word.mp3']);
+  });
+}

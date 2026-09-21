@@ -228,6 +228,7 @@ export interface ResolvedConfig {
     fields: {
       word: string;
       audio: string;
+      wordAudio: string;
       image: string;
       sentence: string;
       miscInfo: string;

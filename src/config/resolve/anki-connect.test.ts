@@ -290,6 +290,28 @@ test('accepts ankiConnect.media.syncAnimatedImageToWordAudio override', () => {
   );
 });
 
+test('word audio mapping defaults and validates independently of sentence audio', () => {
+  for (const wordAudio of [undefined, 'Pronunciation', 7]) {
+    const { context, warnings } = makeContext({
+      fields: {
+        audio: 'SentenceAudio',
+        ...(wordAudio !== undefined ? { wordAudio } : {}),
+      },
+    });
+    applyAnkiConnectResolution(context);
+
+    assert.equal(context.resolved.ankiConnect.fields.audio, 'SentenceAudio');
+    assert.equal(
+      context.resolved.ankiConnect.fields.wordAudio,
+      typeof wordAudio === 'string' ? wordAudio : DEFAULT_CONFIG.ankiConnect.fields.wordAudio,
+    );
+    assert.deepEqual(
+      warnings.map((warning) => warning.path),
+      typeof wordAudio === 'number' ? ['ankiConnect.fields.wordAudio'] : [],
+    );
+  }
+});
+
 test('invalid modern Anki subtrees warn and keep resolved defaults', () => {
   const { context, warnings } = makeContext({
     fields: { word: 7 },

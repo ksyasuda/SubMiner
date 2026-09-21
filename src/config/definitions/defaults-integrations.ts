@@ -29,6 +29,7 @@ export const INTEGRATIONS_DEFAULT_CONFIG: Pick<
     fields: {
       word: 'Expression',
       audio: 'ExpressionAudio',
+      wordAudio: 'ExpressionAudio',
       image: 'Picture',
       sentence: 'Sentence',
       miscInfo: 'MiscInfo',

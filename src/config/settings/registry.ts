@@ -715,6 +715,7 @@ function restartBehaviorForPath(path: string): ConfigSettingsRestartBehavior {
     path === 'ankiConnect.nPlusOne.minSentenceWords' ||
     path === 'ankiConnect.fields.word' ||
     path === 'ankiConnect.fields.audio' ||
+    path === 'ankiConnect.fields.wordAudio' ||
     path === 'ankiConnect.fields.image' ||
     path === 'ankiConnect.fields.sentence' ||
     path === 'ankiConnect.fields.miscInfo' ||

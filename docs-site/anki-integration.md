@@ -125,6 +125,7 @@ SubMiner maps its data to your Anki note fields. Configure these under `ankiConn
   "fields": {
     "word": "Expression",        // mined word / expression text
     "audio": "SentenceAudio",    // sentence audio clip cut from the video
+    "wordAudio": "ExpressionAudio", // existing Yomitan word audio, read for animation sync
     "image": "Picture",          // screenshot or animated clip
     "sentence": "Sentence",      // subtitle text
     "miscInfo": "MiscInfo"       // metadata (filename, timestamp)
@@ -135,6 +136,8 @@ SubMiner maps its data to your Anki note fields. Configure these under `ankiConn
 `fields.audio` receives the **sentence** audio SubMiner cuts from the video, not word audio. Yomitan writes its own dictionary audio when you mine, so point this at a separate field such as `SentenceAudio` to keep the two apart. The built-in default is still `ExpressionAudio`, which collides with Yomitan on note types that use that field for word audio.
 
 Field names are matched against your Anki note type case-insensitively (an exact match wins, then a lowercase comparison). If a configured field does not exist on the note type, SubMiner skips it without error.
+
+`fields.wordAudio` selects the existing dictionary-audio field used to calculate the animated image's opening freeze. This mapping only reads audio; `fields.audio` still controls where generated sentence audio is written. See [config.example.jsonc](/config.example.jsonc) for defaults.
 
 These mappings always control normal word-card enrichment, including Yomitan proxy/polling updates and manual clipboard updates. Enabling Lapis or Kiku does not replace the configured word-card sentence and audio fields with `Sentence` and `SentenceAudio`. The dedicated sentence-card and audio-card shortcuts still use those Lapis/Kiku field names.
 
@@ -237,7 +240,7 @@ SubMiner can produce an animated AVIF spanning the subtitle duration instead of 
 }
 ```
 
-Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`) in your FFmpeg build. Generation timeout is 60 seconds. `media.syncAnimatedImageToWordAudio` (default `true`) prepends a frozen first frame matching the existing word-audio duration, so the motion starts together with the sentence audio.
+Animated AVIF requires an AV1 encoder (`libaom-av1`, `libsvtav1`, or `librav1e`) in your FFmpeg build. Generation timeout is 60 seconds. `media.syncAnimatedImageToWordAudio` (default `true`) prepends a frozen first frame matching the existing audio duration in `fields.wordAudio`, so the motion starts together with the sentence audio. The freeze is baked into the image when mined; changing the mapping does not repair previously generated images.
 
 ### Behavior options
 

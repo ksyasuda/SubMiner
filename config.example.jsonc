@@ -562,6 +562,7 @@
     "fields": {
       "word": "Expression", // Card field for the mined word or expression text.
       "audio": "ExpressionAudio", // Card field that receives generated sentence audio.
+      "wordAudio": "ExpressionAudio", // Existing word-audio field read to time the frozen first frame of animated images. This mapping is only used for synchronization.
       "image": "Picture", // Card field that receives the captured screenshot or animated image.
       "sentence": "Sentence", // Card field that receives the source sentence text.
       "miscInfo": "MiscInfo", // Card field that receives the miscellaneous info pattern (see ankiConnect.metadata.pattern).
