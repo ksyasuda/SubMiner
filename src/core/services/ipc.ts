@@ -24,6 +24,8 @@ import type {
   MediaTimingReviewActionResult,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewFrameRequest,
+  MediaTimingReviewFrameResult,
   MediaTimingReviewWaveformRequest,
   MediaTimingReviewWaveformResult,
 } from '../../types/anki';
@@ -111,6 +113,9 @@ export interface IpcServiceDeps {
   previewMediaTimingReview?: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;
+  getMediaTimingReviewFrame?: (
+    request: MediaTimingReviewFrameRequest,
+  ) => Promise<MediaTimingReviewFrameResult>;
   getMediaTimingReviewWaveform?: (
     request: MediaTimingReviewWaveformRequest,
   ) => Promise<MediaTimingReviewWaveformResult>;
@@ -269,6 +274,26 @@ function parseMediaTimingReviewWaveformRequest(
   return parseMediaTimingReviewPreviewRequest(payload);
 }
 
+function parseMediaTimingReviewFrameRequest(
+  payload: unknown,
+): MediaTimingReviewFrameRequest | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  if (
+    typeof record.reviewId !== 'string' ||
+    !record.reviewId ||
+    typeof record.timestamp !== 'number' ||
+    !Number.isFinite(record.timestamp) ||
+    (record.direction !== undefined && record.direction !== -1 && record.direction !== 1)
+  )
+    return null;
+  return {
+    reviewId: record.reviewId,
+    timestamp: record.timestamp,
+    ...(record.direction !== undefined ? { direction: record.direction as -1 | 1 } : {}),
+  };
+}
+
 function parseMediaTimingReviewResolveRequest(
   payload: unknown,
 ): MediaTimingReviewResolveRequest | null {
@@ -291,6 +316,9 @@ function parseMediaTimingReviewResolveRequest(
     Number.isFinite(decisionRecord.startTime) &&
     typeof decisionRecord.endTime === 'number' &&
     Number.isFinite(decisionRecord.endTime) &&
+    (decisionRecord.screenshotTime === undefined ||
+      (typeof decisionRecord.screenshotTime === 'number' &&
+        Number.isFinite(decisionRecord.screenshotTime))) &&
     (decisionRecord.text === undefined ||
       (typeof decisionRecord.text === 'string' && decisionRecord.text.trim().length > 0))
   ) {
@@ -300,6 +328,9 @@ function parseMediaTimingReviewResolveRequest(
         action: 'confirm',
         startTime: decisionRecord.startTime,
         endTime: decisionRecord.endTime,
+        ...(decisionRecord.screenshotTime === undefined
+          ? {}
+          : { screenshotTime: decisionRecord.screenshotTime as number }),
         ...(decisionRecord.text === undefined ? {} : { text: decisionRecord.text }),
       },
     };
@@ -365,6 +396,7 @@ export interface IpcDepsRuntimeOptions {
     request: YoutubePickerResolveRequest,
   ) => Promise<YoutubePickerResolveResult>;
   previewMediaTimingReview?: IpcServiceDeps['previewMediaTimingReview'];
+  getMediaTimingReviewFrame?: IpcServiceDeps['getMediaTimingReviewFrame'];
   getMediaTimingReviewWaveform?: IpcServiceDeps['getMediaTimingReviewWaveform'];
   stopMediaTimingReviewPreview?: IpcServiceDeps['stopMediaTimingReviewPreview'];
   resolveMediaTimingReview?: IpcServiceDeps['resolveMediaTimingReview'];
@@ -463,6 +495,7 @@ export function createIpcDepsRuntime(options: IpcDepsRuntimeOptions): IpcService
     runSubsyncManual: options.runSubsyncManual,
     onYoutubePickerResolve: options.onYoutubePickerResolve,
     previewMediaTimingReview: options.previewMediaTimingReview,
+    getMediaTimingReviewFrame: options.getMediaTimingReviewFrame,
     getMediaTimingReviewWaveform: options.getMediaTimingReviewWaveform,
     stopMediaTimingReviewPreview: options.stopMediaTimingReviewPreview,
     resolveMediaTimingReview: options.resolveMediaTimingReview,
@@ -611,6 +644,16 @@ export function registerIpcHandlers(deps: IpcServiceDeps, ipc: IpcMainRegistrar 
         return { ok: false, message: 'Timing waveform is unavailable.' };
       }
       return await deps.getMediaTimingReviewWaveform(request);
+    },
+  );
+  ipc.handle(
+    IPC_CHANNELS.request.mediaTimingReviewFrame,
+    async (_event: unknown, payload: unknown) => {
+      const request = parseMediaTimingReviewFrameRequest(payload);
+      if (!request || !deps.getMediaTimingReviewFrame) {
+        return { ok: false, message: 'Screenshot preview is unavailable.' };
+      }
+      return await deps.getMediaTimingReviewFrame(request);
     },
   );
   ipc.handle(

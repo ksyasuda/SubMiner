@@ -8,6 +8,8 @@ import type {
   MediaTimingReviewOpenPayload,
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewFrameRequest,
+  MediaTimingReviewFrameResult,
   MediaTimingReviewWaveformRequest,
   MediaTimingReviewWaveformResult,
 } from './anki';
@@ -550,6 +552,9 @@ export interface ElectronAPI {
   previewMediaTimingReview: (
     request: MediaTimingReviewPreviewRequest,
   ) => Promise<MediaTimingReviewActionResult>;
+  getMediaTimingReviewFrame: (
+    request: MediaTimingReviewFrameRequest,
+  ) => Promise<MediaTimingReviewFrameResult>;
   getMediaTimingReviewWaveform: (
     request: MediaTimingReviewWaveformRequest,
   ) => Promise<MediaTimingReviewWaveformResult>;

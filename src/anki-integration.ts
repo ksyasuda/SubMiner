@@ -1118,9 +1118,11 @@ export class AnkiIntegration {
       return null;
     }
     const mediaRange = this.getSubtitleMediaRange(context);
-    const timestamp = context
-      ? mediaRange.startTime + (mediaRange.endTime - mediaRange.startTime) / 2
-      : this.mpvClient.currentTimePos || 0;
+    const timestamp =
+      context?.screenshotTime ??
+      (context
+        ? mediaRange.startTime + (mediaRange.endTime - mediaRange.startTime) / 2
+        : this.mpvClient.currentTimePos || 0);
 
     if (this.config.media?.imageType === 'avif') {
       return this.mediaGenerator.generateAnimatedImage(
@@ -1797,6 +1799,8 @@ export class AnkiIntegration {
       ...request,
       audioPadding: Math.max(0, this.config.media.audioPadding ?? 0),
       maxMediaDuration: Math.max(0, this.config.media.maxMediaDuration ?? 30),
+      screenshotEnabled:
+        this.config.media.generateImage !== false && this.config.media.imageType !== 'avif',
     });
   }
 

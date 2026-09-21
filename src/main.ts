@@ -475,6 +475,7 @@ import { MediaTimingPreviewSession } from './core/services/media-timing-preview'
 import { getSharedRemoteMediaWindowCache } from './core/services/remote-media-window-cache';
 import { resolveMediaGenerationInput } from './anki-integration/media-source';
 import { generateSpeechWaveform } from './core/services/media-timing-waveform';
+import { createMediaTimingFrameExtractor } from './core/services/media-timing-frame';
 import {
   collectMediaTimingContextLines,
   createMediaTimingReviewRuntime,
@@ -2905,6 +2906,7 @@ function createOverlayHostedModalOpenDeps(): {
   };
 }
 
+const mediaTimingFrameExtractor = createMediaTimingFrameExtractor();
 const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
   getMpvClient: () => appState.mpvClient,
   getCurrentMediaPath: () =>
@@ -2913,6 +2915,14 @@ const mediaTimingReviewRuntime = createMediaTimingReviewRuntime({
     configService.getConfig().mpv.executablePath || process.env.SUBMINER_MPV_PATH?.trim() || '',
   createPreviewSession: () => new MediaTimingPreviewSession(),
   generateWaveform: (options) => generateSpeechWaveform(options),
+  generateFrame: (options) => mediaTimingFrameExtractor.generate(options),
+  clearFrameCache: () => mediaTimingFrameExtractor.clear(),
+  resolveVideoSource: () =>
+    resolveMediaGenerationInput(appState.mpvClient, 'video', {
+      getCachedMediaPath: (currentVideoPath, kind) =>
+        getCachedYoutubeMediaPathForCurrentPlayback(currentVideoPath, kind),
+      remoteCacheMode: shouldRequireYoutubeMediaCacheForCurrentPlayback() ? 'required' : 'optional',
+    }),
   resolveMediaSource: async () => {
     const resolved = await resolveMediaGenerationInput(appState.mpvClient, 'audio', {
       getCachedMediaPath: (currentVideoPath, kind) =>
@@ -5586,6 +5596,7 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
     },
     mainDeps: {
       previewMediaTimingReview: (request) => mediaTimingReviewRuntime.previewRange(request),
+      getMediaTimingReviewFrame: (request) => mediaTimingReviewRuntime.getFrame(request),
       getMediaTimingReviewWaveform: (request) => mediaTimingReviewRuntime.getWaveform(request),
       stopMediaTimingReviewPreview: (reviewId) => mediaTimingReviewRuntime.stopPreview(reviewId),
       resolveMediaTimingReview: (request) => mediaTimingReviewRuntime.resolveReview(request),

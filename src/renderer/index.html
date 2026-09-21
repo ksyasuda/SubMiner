@@ -297,6 +297,57 @@
             </div>
             <blockquote id="mediaTimingReviewText" class="media-timing-review-text"></blockquote>
 
+            <div id="mediaTimingReviewFramePicker" class="media-timing-frame-picker hidden">
+              <div class="media-timing-frame-image-shell">
+                <img
+                  id="mediaTimingReviewFrameImage"
+                  class="hidden"
+                  alt="Selected card screenshot"
+                />
+              </div>
+              <div class="media-timing-frame-controls">
+                <div class="media-timing-frame-heading">
+                  <label for="mediaTimingReviewFrameSlider">Card screenshot</label>
+                  <output id="mediaTimingReviewFrameTime" for="mediaTimingReviewFrameSlider"
+                    >—</output
+                  >
+                </div>
+                <input
+                  id="mediaTimingReviewFrameSlider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.001"
+                  value="0"
+                  aria-label="Screenshot time"
+                />
+                <div class="media-timing-frame-buttons">
+                  <button
+                    id="mediaTimingReviewFramePrevious"
+                    type="button"
+                    aria-label="Previous video frame"
+                  >
+                    ← Frame
+                  </button>
+                  <button
+                    id="mediaTimingReviewFrameNext"
+                    type="button"
+                    aria-label="Next video frame"
+                  >
+                    Frame →
+                  </button>
+                  <button
+                    id="mediaTimingReviewFrameReset"
+                    type="button"
+                    aria-label="Reset screenshot"
+                  >
+                    Reset
+                  </button>
+                </div>
+                <p id="mediaTimingReviewFrameStatus" role="status"></p>
+              </div>
+            </div>
+
             <div class="media-timing-review-readout" aria-live="polite">
               <div>
                 <span>Starts</span>

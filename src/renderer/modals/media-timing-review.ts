@@ -1,3 +1,4 @@
+import { createMediaTimingFramePicker } from './media-timing-frame-picker';
 import type {
   MediaTimingReviewContextLine,
   MediaTimingReviewDecision,
@@ -252,6 +253,45 @@ export function createMediaTimingReviewModal(
     isModalLayer: ctx.platform.isModalLayer,
   });
   const previewRequest = createMediaTimingPreviewRequestGuard();
+  const framePicker = createMediaTimingFramePicker({
+    load: (request) => window.electronAPI.getMediaTimingReviewFrame(request),
+    onChange: () => renderFramePicker(),
+    onStale: () => closeResolvedReview(),
+  });
+
+  function renderFramePicker(): void {
+    const state = framePicker.getState();
+    const dom = ctx.dom;
+    dom.mediaTimingReviewFramePicker.classList.toggle('hidden', !state.enabled);
+    dom.mediaTimingReviewFramePicker.setAttribute('aria-busy', String(state.loading));
+    dom.mediaTimingReviewFrameSlider.min = String(timelineStart);
+    dom.mediaTimingReviewFrameSlider.max = String(Math.max(timelineStart, timelineEnd - 0.001));
+    const shownTime = state.loading ? state.requestedTime : state.timestamp;
+    if (shownTime !== undefined) dom.mediaTimingReviewFrameSlider.value = String(shownTime);
+    dom.mediaTimingReviewFrameTime.textContent =
+      shownTime === undefined ? '—' : formatMediaTimingTimestamp(shownTime);
+    dom.mediaTimingReviewFrameSlider.setAttribute(
+      'aria-valuetext',
+      dom.mediaTimingReviewFrameTime.textContent,
+    );
+    dom.mediaTimingReviewFrameStatus.textContent = state.message;
+    dom.mediaTimingReviewFrameImage.classList.toggle('hidden', !state.dataUrl);
+    if (state.dataUrl) dom.mediaTimingReviewFrameImage.src = state.dataUrl;
+    else dom.mediaTimingReviewFrameImage.removeAttribute('src');
+    dom.mediaTimingReviewFramePrevious.disabled =
+      resolveInFlight ||
+      state.loading ||
+      state.timestamp === undefined ||
+      state.timestamp <= timelineStart;
+    dom.mediaTimingReviewFrameNext.disabled =
+      resolveInFlight ||
+      state.loading ||
+      state.timestamp === undefined ||
+      state.timestamp >= timelineEnd - 0.001;
+    dom.mediaTimingReviewFrameSlider.disabled = resolveInFlight;
+    dom.mediaTimingReviewFrameReset.disabled = resolveInFlight || !state.manual;
+    dom.mediaTimingReviewConfirm.disabled = resolveInFlight || state.blockConfirm;
+  }
 
   function setStatus(message: string, isError = false): void {
     ctx.dom.mediaTimingReviewStatus.textContent = message;
@@ -308,6 +348,8 @@ export function createMediaTimingReviewModal(
   }
 
   function renderSelection(): void {
+    framePicker.updateMidpoint(selectionStart + (selectionEnd - selectionStart) / 2);
+    renderFramePicker();
     const span = Math.max(MINIMUM_CLIP_SECONDS, timelineEnd - timelineStart);
     const startPercent = ((selectionStart - timelineStart) / span) * 100;
     const endPercent = ((selectionEnd - timelineStart) / span) * 100;
@@ -690,6 +732,7 @@ export function createMediaTimingReviewModal(
     window.electronAPI.notifyOverlayModalClosed('media-timing-review');
     options.syncSettingsModalSubtitleSuppression();
     payload = null;
+    framePicker.close();
     if (!options.modalStateReader.isAnyModalOpen()) {
       ctx.dom.overlay.classList.remove('interactive');
       if (ctx.platform.shouldToggleMouseIgnore) {
@@ -701,6 +744,7 @@ export function createMediaTimingReviewModal(
   async function resolveReview(decision: MediaTimingReviewDecision): Promise<void> {
     if (!payload || resolveInFlight) return;
     resolveInFlight = true;
+    renderFramePicker();
     stopPreview();
     const controls = ctx.dom.mediaTimingReviewModal.querySelectorAll<HTMLButtonElement>('button');
     controls.forEach((button) => {
@@ -733,12 +777,14 @@ export function createMediaTimingReviewModal(
   }
 
   function confirmSelection(): void {
-    if (!payload) return;
+    if (!payload || framePicker.getState().blockConfirm) return;
+    const screenshotTime = framePicker.getScreenshotTime();
     const includesAdjacentLines = previousCount > 0 || nextCount > 0;
     void resolveReview({
       action: 'confirm',
       startTime: selectionStart,
       endTime: selectionEnd,
+      ...(screenshotTime !== undefined ? { screenshotTime } : {}),
       ...(includesAdjacentLines ? { text: currentLineSelection().sentence } : {}),
     });
   }
@@ -818,6 +864,11 @@ export function createMediaTimingReviewModal(
       nextPayload.noteId !== undefined ? 'Delete card' : "Don't create card";
     setStatus('');
     showEditor();
+    framePicker.open(
+      nextPayload.reviewId,
+      nextPayload.screenshotEnabled === true,
+      selectionStart + (selectionEnd - selectionStart) / 2,
+    );
     renderSelection();
     renderSentence();
     ctx.state.mediaTimingReviewModalOpen = true;
@@ -892,6 +943,28 @@ export function createMediaTimingReviewModal(
   }
 
   function wireDomEvents(): void {
+    ctx.dom.mediaTimingReviewFrameSlider.addEventListener('input', () => {
+      if (!resolveInFlight) framePicker.choose(Number(ctx.dom.mediaTimingReviewFrameSlider.value));
+    });
+    const stepFrame = (direction: -1 | 1) => {
+      const state = framePicker.getState();
+      if (!resolveInFlight && !state.loading && state.timestamp !== undefined)
+        framePicker.choose(state.timestamp, direction);
+    };
+    ctx.dom.mediaTimingReviewFrameSlider.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        stepFrame(-1);
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        stepFrame(1);
+      }
+    });
+    ctx.dom.mediaTimingReviewFramePrevious.addEventListener('click', () => stepFrame(-1));
+    ctx.dom.mediaTimingReviewFrameNext.addEventListener('click', () => stepFrame(1));
+    ctx.dom.mediaTimingReviewFrameReset.addEventListener('click', () => {
+      if (!resolveInFlight) framePicker.reset();
+    });
     const track = ctx.dom.mediaTimingReviewSelectionTrack;
     track.addEventListener('pointerdown', beginDrag);
     track.addEventListener('pointermove', (event) => {

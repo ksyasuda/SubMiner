@@ -729,6 +729,7 @@ test('NoteUpdateWorkflow uses the combined review sentence for the card and medi
     startTime: 2,
     endTime: 7,
     text: 'previous-line current-line next-line',
+    screenshotTime: 8,
   });
   harness.deps.generateAudio = async (context) => {
     audioContexts.push(context);
@@ -745,6 +746,7 @@ test('NoteUpdateWorkflow uses the combined review sentence for the card and medi
   assert.equal(audioContexts[0]?.startTime, 2);
   assert.equal(audioContexts[0]?.endTime, 7);
   assert.equal(audioContexts[0]?.mediaPaddingSeconds, 0);
+  assert.equal(audioContexts[0]?.screenshotTime, 8);
 });
 
 test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails', async () => {

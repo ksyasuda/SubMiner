@@ -7,10 +7,13 @@ import type {
   MediaTimingReviewPreviewRequest,
   MediaTimingReviewRequest,
   MediaTimingReviewResolveRequest,
+  MediaTimingReviewFrameRequest,
+  MediaTimingReviewFrameResult,
   MediaTimingReviewWaveformRequest,
   MediaTimingReviewWaveformResult,
 } from '../../types/anki';
 import type { SpeechWaveformOptions } from '../../core/services/media-timing-waveform';
+import type { MediaTimingFrameOptions } from '../../core/services/media-timing-frame';
 import {
   isRemoteMediaWindowSourcePath,
   type RemoteMediaWindow,
@@ -59,6 +62,8 @@ interface ActiveReview {
   mediaPath: string;
   /** What the waveform reads when no cached window is available. */
   waveformMedia: MediaInput;
+  videoSource: ReviewMediaSource | null;
+  frameInFlight: boolean;
   audioStreamIndex?: number;
   /** Remote source to download windows of; null for local media or without a cache. */
   windowSource: RemoteMediaWindowSource | null;
@@ -81,6 +86,11 @@ export interface MediaTimingReviewRuntimeDeps {
   generateWaveform: (options: SpeechWaveformOptions) => Promise<number[]>;
   /** Resolves the FFmpeg-readable stream URL and headers behind the current media path. */
   resolveMediaSource?: () => Promise<ReviewMediaSource | null>;
+  resolveVideoSource?: () => Promise<ReviewMediaSource | null>;
+  generateFrame?: (
+    options: MediaTimingFrameOptions,
+  ) => Promise<{ dataUrl: string; timestamp: number }>;
+  clearFrameCache?: () => void;
   /** Downloads (or reuses) a local window of a remote source covering the range. */
   acquireMediaWindow?: (
     source: RemoteMediaWindowSource,
@@ -227,6 +237,9 @@ export function buildMediaTimingReviewPayload(
     timelineEndTime,
     ...(duration !== null && duration > 0 ? { mediaDuration: duration } : {}),
     maxMediaDuration,
+    ...(request.screenshotEnabled !== undefined
+      ? { screenshotEnabled: request.screenshotEnabled }
+      : {}),
   };
 }
 
@@ -335,13 +348,15 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return { action: 'use-original' };
     }
 
-    const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw, resolvedSource] = await Promise.all([
-      mpvClient.requestProperty?.('pause').catch(() => null) ?? null,
-      mpvClient.requestProperty?.('duration').catch(() => null) ?? null,
-      mpvClient.requestProperty?.('aid').catch(() => null) ?? null,
-      mpvClient.requestProperty?.('volume').catch(() => null) ?? null,
-      deps.resolveMediaSource?.().catch(() => null) ?? null,
-    ]);
+    const [pauseRaw, durationRaw, audioTrackRaw, volumeRaw, resolvedSource, videoSource] =
+      await Promise.all([
+        mpvClient.requestProperty?.('pause').catch(() => null) ?? null,
+        mpvClient.requestProperty?.('duration').catch(() => null) ?? null,
+        mpvClient.requestProperty?.('aid').catch(() => null) ?? null,
+        mpvClient.requestProperty?.('volume').catch(() => null) ?? null,
+        deps.resolveMediaSource?.().catch(() => null) ?? null,
+        request.screenshotEnabled ? (deps.resolveVideoSource?.().catch(() => null) ?? null) : null,
+      ]);
     const pauseState = booleanProperty(pauseRaw);
     mpvClient.send({ command: ['set_property', 'pause', 'yes'] });
     pendingPauseRestore = pauseState === false ? mpvClient : null;
@@ -383,6 +398,8 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       payload,
       mediaPath,
       waveformMedia: inputOptions ? { path: sourcePath, inputOptions } : sourcePath,
+      videoSource,
+      frameInFlight: false,
       ...(audioStreamIndex !== undefined ? { audioStreamIndex } : {}),
       windowSource,
       window: null,
@@ -527,6 +544,58 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     }
   }
 
+  async function getFrame(
+    request: MediaTimingReviewFrameRequest,
+  ): Promise<MediaTimingReviewFrameResult> {
+    const current = active;
+    if (!current || request.reviewId !== current.payload.reviewId) return staleReviewResult();
+    if (!current.payload.screenshotEnabled || !deps.generateFrame || !current.videoSource) {
+      return { ok: false, message: 'Screenshot preview is unavailable for this media.' };
+    }
+    if (
+      !Number.isFinite(request.timestamp) ||
+      request.timestamp < 0 ||
+      (current.payload.mediaDuration !== undefined &&
+        request.timestamp >= current.payload.mediaDuration) ||
+      (request.direction !== undefined && request.direction !== -1 && request.direction !== 1)
+    ) {
+      return { ok: false, message: 'The screenshot time is invalid.' };
+    }
+    if (current.frameInFlight)
+      return { ok: false, message: 'A screenshot preview is already loading.' };
+    current.frameInFlight = true;
+    try {
+      // Reuse the audio window only when it contains this same video source (not split streams).
+      const range = {
+        startTime: Math.max(0, Math.min(current.payload.timelineStartTime, request.timestamp - 2)),
+        endTime: Math.min(
+          current.payload.mediaDuration ?? Infinity,
+          Math.max(current.payload.timelineEndTime, request.timestamp + 2),
+        ),
+      };
+      const window =
+        current.windowSource?.path === current.videoSource.path
+          ? await ensureWindow(current, range)
+          : null;
+      if (active !== current) return staleReviewResult();
+      const frame = await deps.generateFrame({
+        media: window?.media ?? current.videoSource,
+        timestamp: request.timestamp,
+        ...(request.direction !== undefined ? { direction: request.direction } : {}),
+      });
+      if (active !== current) return staleReviewResult();
+      return { ok: true, ...frame };
+    } catch {
+      if (active !== current) return staleReviewResult();
+      return {
+        ok: false,
+        message: 'Screenshot preview unavailable. Try another time or reset to the midpoint.',
+      };
+    } finally {
+      current.frameInFlight = false;
+    }
+  }
+
   async function stopPreview(reviewId: string): Promise<MediaTimingReviewActionResult> {
     const current = active;
     if (!current || reviewId !== current.payload.reviewId) {
@@ -550,12 +619,22 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
       return staleReviewResult();
     }
     if (request.decision.action === 'confirm') {
-      const { startTime, endTime, text } = request.decision;
+      const { startTime, endTime, text, screenshotTime } = request.decision;
       if (!isValidMediaTimingRange(current.payload, startTime, endTime)) {
         return { ok: false, message: 'The selected timing range is invalid.' };
       }
       if (text !== undefined && (typeof text !== 'string' || text.trim().length === 0)) {
         return { ok: false, message: 'The combined sentence text is invalid.' };
+      }
+      if (
+        screenshotTime !== undefined &&
+        (!current.payload.screenshotEnabled ||
+          !Number.isFinite(screenshotTime) ||
+          screenshotTime < 0 ||
+          (current.payload.mediaDuration !== undefined &&
+            screenshotTime >= current.payload.mediaDuration))
+      ) {
+        return { ok: false, message: 'The screenshot time is invalid.' };
       }
     }
     current.resolve(request.decision);
@@ -566,6 +645,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     const current = active;
     active = null;
     if (!current) return;
+    deps.clearFrameCache?.();
     void current.preview?.session.then((session) => session.dispose()).catch(() => {});
     if (current.restorePlayback && current.mpvClient.connected) {
       current.mpvClient.send({ command: ['set_property', 'pause', 'no'] });
@@ -582,6 +662,7 @@ export function createMediaTimingReviewRuntime(deps: MediaTimingReviewRuntimeDep
     requestReview,
     previewRange,
     getWaveform,
+    getFrame,
     stopPreview,
     resolveReview,
     dispose,

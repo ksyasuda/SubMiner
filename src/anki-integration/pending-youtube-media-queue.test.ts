@@ -51,6 +51,41 @@ function createDeps(
   return deps;
 }
 
+test('queued media keeps a chosen screenshot separate from the reviewed audio range', async () => {
+  const screenshots: number[] = [];
+  const audioRanges: number[][] = [];
+  const deps = createDeps();
+  deps.client.notesInfo = async () => [{ noteId: 42, fields: { Picture: { value: '' } } }];
+  deps.mediaGenerator.generateScreenshot = async (_media, time) => {
+    screenshots.push(time);
+    return Buffer.from('image');
+  };
+  deps.mediaGenerator.generateAudio = async (_media, start, end, padding) => {
+    audioRanges.push([start, end, padding ?? -1]);
+    return Buffer.from('audio');
+  };
+  const queue = new PendingYoutubeMediaQueue(deps);
+  assert.equal(
+    await queue.queueFromNote({
+      noteId: 42,
+      noteInfo: { noteId: 42, fields: {} },
+      label: 'test',
+      context: {
+        source: 'overlay',
+        text: '字幕',
+        startTime: 1,
+        endTime: 2,
+        mediaPaddingSeconds: 0,
+        screenshotTime: 3.125,
+      },
+    }),
+    true,
+  );
+  await queue.handleReady('https://youtu.be/abc123', '/cache/video.mkv');
+  assert.deepEqual(screenshots, [3.125]);
+  assert.deepEqual(audioRanges, [[1, 2, 0]]);
+});
+
 test('PendingYoutubeMediaQueue treats cache lookup failures as an immediate generation fallback', async () => {
   const deps = createDeps({
     getCachedMediaPath: async () => {

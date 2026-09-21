@@ -61,7 +61,7 @@ The Settings window preserves existing JSONC comments, trailing commas, and unre
 
 Secret fields do not display stored values. They show whether a value is configured; entering a new value writes it, and reset clears the explicit path. Prefer command-based secret options such as `jimaku.apiKeyCommand` when available.
 
-Saving validates the candidate config before writing. Live-reloadable changes are applied immediately; other changes return a restart-required banner in the window.
+Saving validates the candidate config before writing. Saving only fields marked **LIVE** shows "Saved. Live settings applied." If a save also changes fields that need a restart, the banner lists only the sections containing those changed fields. Live changes still apply in the same save.
 
 ## Configuration file
 
@@ -103,7 +103,7 @@ SubMiner watches the active config file (`config.jsonc` or `config.json`) while 
 
 Hot-reloadable settings include subtitle appearance, sidebar controls, keybindings,
 shortcuts, notifications, logging level, selected source-language preferences,
-Jimaku/Subsync settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
+Jimaku/Subsync and subtitle-generation settings, AniSkip settings (`mpv.aniskipEnabled`, `mpv.aniskipButtonKey`),
 stats keys (`stats.toggleKey`, `stats.markWatchedKey`), the secondary-subtitle default
 mode, and the Anki deck, known-word, N+1, field, sentence-card, and Kiku options
 listed in the reference tables below.

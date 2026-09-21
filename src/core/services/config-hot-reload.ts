@@ -1,3 +1,4 @@
+import { getConfigHotReloadField } from '../../config/hot-reload';
 import { type ReloadConfigStrictResult } from '../../config';
 import type { ConfigValidationWarning } from '../../types';
 import type { ResolvedConfig } from '../../types';
@@ -33,10 +34,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function pathStartsWith(path: string, prefix: string): boolean {
-  return path === prefix || path.startsWith(`${prefix}.`);
-}
-
 function collectChangedPaths(prev: unknown, next: unknown, prefix = ''): string[] {
   if (isEqual(prev, next)) {
     return [];
@@ -52,60 +49,6 @@ function collectChangedPaths(prev: unknown, next: unknown, prefix = ''): string[
   );
 }
 
-const HOT_RELOAD_ROOTS = ['subtitleStyle', 'keybindings', 'shortcuts', 'subtitleSidebar'] as const;
-
-const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
-  'secondarySub.defaultMode',
-  'mpv.aniskipEnabled',
-  'mpv.aniskipButtonKey',
-  'ankiConnect.ai.enabled',
-  'stats.toggleKey',
-  'stats.markWatchedKey',
-  'logging.level',
-  'logging.rotation',
-  'logging.files',
-  'youtube.primarySubLanguages',
-  'jimaku',
-  'subsync',
-  'ankiConnect.deck',
-  'ankiConnect.media.normalizeAudio',
-  'ankiConnect.media.mirrorMpvVolume',
-  'ankiConnect.media.reviewTiming',
-  'ankiConnect.behavior.autoUpdateNewCards',
-  'ankiConnect.knownWords.highlightEnabled',
-  'ankiConnect.knownWords.refreshMinutes',
-  'ankiConnect.knownWords.addMinedWordsImmediately',
-  'ankiConnect.knownWords.matchMode',
-  'ankiConnect.knownWords.decks',
-  'ankiConnect.nPlusOne.enabled',
-  'ankiConnect.nPlusOne.minSentenceWords',
-  'ankiConnect.fields.word',
-  'ankiConnect.fields.audio',
-  'ankiConnect.fields.image',
-  'ankiConnect.fields.sentence',
-  'ankiConnect.fields.miscInfo',
-  'ankiConnect.isLapis.sentenceCardModel',
-  'ankiConnect.isKiku.fieldGrouping',
-  'ankiConnect.isSenren.fieldGrouping',
-  'ankiConnect.lapisKiku.wordCardKind',
-] as const;
-
-function hotReloadFieldForChangedPath(path: string): string | null {
-  for (const root of HOT_RELOAD_ROOTS) {
-    if (pathStartsWith(path, root)) {
-      return root;
-    }
-  }
-
-  for (const hotPath of HOT_RELOAD_EXACT_OR_PREFIX_PATHS) {
-    if (pathStartsWith(path, hotPath)) {
-      return hotPath === 'jimaku' || hotPath === 'subsync' ? path : hotPath;
-    }
-  }
-
-  return null;
-}
-
 function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotReloadDiff {
   const hotReloadFields: string[] = [];
   const restartRequiredFields: string[] = [];
@@ -113,33 +56,11 @@ function classifyDiff(prev: ResolvedConfig, next: ResolvedConfig): ConfigHotRelo
   const changedPaths = collectChangedPaths(prev, next);
 
   for (const path of changedPaths) {
-    const hotReloadField = hotReloadFieldForChangedPath(path);
+    const hotReloadField = getConfigHotReloadField(path);
     if (hotReloadField) {
       hotReloadFieldSet.add(hotReloadField);
-    }
-  }
-
-  const keys = new Set([
-    ...(Object.keys(prev) as Array<keyof ResolvedConfig>),
-    ...(Object.keys(next) as Array<keyof ResolvedConfig>),
-  ]);
-
-  for (const key of keys) {
-    if (
-      key === 'subtitleStyle' ||
-      key === 'keybindings' ||
-      key === 'shortcuts' ||
-      key === 'subtitleSidebar'
-    ) {
-      continue;
-    }
-
-    const changedPathsForKey = changedPaths.filter((path) => pathStartsWith(path, String(key)));
-    const hasRestartRequiredChange = changedPathsForKey.some(
-      (path) => !hotReloadFieldForChangedPath(path),
-    );
-    if (hasRestartRequiredChange) {
-      restartRequiredFields.push(String(key));
+    } else {
+      restartRequiredFields.push(path);
     }
   }
 
