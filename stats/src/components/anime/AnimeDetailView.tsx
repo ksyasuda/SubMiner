@@ -21,11 +21,11 @@ interface AnimeDetailViewProps {
   /** Called after the whole library entry is deleted, so the caller can refresh. */
   onAnimeDeleted?: () => void;
   /**
-   * Called after the AniList link changes. The library list caches the old
-   * anilistId (and with it the cover URL), so it has to refetch or the grid
-   * keeps showing the previous title's art.
+   * Called after the AniList or TMDB link changes. The library list caches the
+   * old provider ids (and with them the cover URL and media kind), so it has to
+   * refetch or the grid keeps showing the previous title's art.
    */
-  onAnilistRelinked?: () => void;
+  onProviderRelinked?: () => void;
   /** Called after an episode is reassigned to another entry. */
   onEpisodeMoved?: () => void;
 }
@@ -152,7 +152,7 @@ export function AnimeDetailView({
   onNavigateToWord,
   onOpenEpisodeDetail,
   onAnimeDeleted,
-  onAnilistRelinked,
+  onProviderRelinked,
   onEpisodeMoved,
 }: AnimeDetailViewProps) {
   const { data, loading, error, reload } = useAnimeDetail(animeId);
@@ -250,7 +250,7 @@ export function AnimeDetailView({
             setShowAnilistSelector(false);
             setCoverRetryToken((value) => value + 1);
             reload();
-            onAnilistRelinked?.();
+            onProviderRelinked?.();
           }}
         />
       )}
@@ -263,7 +263,7 @@ export function AnimeDetailView({
             setShowTmdbSelector(false);
             setCoverRetryToken((value) => value + 1);
             reload();
-            onAnilistRelinked?.();
+            onProviderRelinked?.();
           }}
         />
       )}

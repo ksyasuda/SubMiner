@@ -168,7 +168,7 @@ export function AnimeTab({
             : undefined
         }
         onAnimeDeleted={reload}
-        onAnilistRelinked={reload}
+        onProviderRelinked={reload}
         onEpisodeMoved={reload}
       />
     );
