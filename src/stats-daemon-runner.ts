@@ -157,7 +157,7 @@ function shutdown(code = 0): Promise<void> {
     }
     statsServer = null;
     try {
-      tracker?.destroy();
+      await tracker?.destroy();
     } catch {
       // ignore
     }

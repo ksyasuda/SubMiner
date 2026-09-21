@@ -84,8 +84,9 @@ bun run docs:build
   bundle is absent.
 - The check runs the emitted stats daemon under Electron's Node runtime. It opens
   the production HTTP server, queries the overview endpoint through native
-  libsql-backed storage, shuts the daemon down, and verifies that the port and
-  ownership state are released.
+  libsql-backed storage, and leaves an HTTP request body unfinished before
+  shutting the daemon down. It verifies a clean exit and that the port and
+  ownership state are released despite the unfinished request.
 - The check also occupies the configured port, requires startup to fail without
   stale ownership state, releases the conflict, and verifies a clean retry.
 - This is not a full Electron UI startup check. It does not require a display and

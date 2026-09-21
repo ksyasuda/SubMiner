@@ -1017,7 +1017,7 @@ function requestAppQuit(): void {
   if (!forceQuitTimer) {
     forceQuitTimer = setTimeout(() => {
       logger.warn('App quit timed out; forcing process exit.');
-      createForceQuitHandler({
+      void createForceQuitHandler({
         destroyImmersionTracker: () => appState.immersionTracker?.destroy(),
         logError: (error) => logger.error('Failed to finalize stats before forced exit.', error),
         exit: () => app.exit(0),
@@ -4126,6 +4126,11 @@ const immersionTrackerStartupMainDeps: Parameters<
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
         getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
+        onStartupError: (error) =>
+          overlayNotificationsRuntime.showConfiguredStatusNotification(
+            `Stats server startup failed: ${error instanceof Error ? error.message : String(error)}`,
+            { title: 'Stats' },
+          ),
         getToggleKey: () => configService.getConfig().stats.toggleKey,
         resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {
@@ -5504,6 +5509,11 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
         staticDir: statsDistPath,
         preloadPath: statsPreloadPath,
         getApiBaseUrl: async () => (await ensureStatsServerStarted()).url,
+        onStartupError: (error) =>
+          overlayNotificationsRuntime.showConfiguredStatusNotification(
+            `Stats server startup failed: ${error instanceof Error ? error.message : String(error)}`,
+            { title: 'Stats' },
+          ),
         getToggleKey: () => configService.getConfig().stats.toggleKey,
         resolveBounds: () => overlayGeometryRuntime.getCurrentOverlayGeometry(),
         onVisibilityChanged: (visible) => {

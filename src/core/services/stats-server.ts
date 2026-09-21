@@ -54,6 +54,8 @@ export interface StatsServer {
   close: () => Promise<void>;
 }
 
+const SHUTDOWN_GRACE_MS = 1_000;
+
 type BunServe = (options: {
   fetch: (typeof Hono.prototype)['fetch'];
   port: number;
@@ -88,7 +90,9 @@ export function startNodeHttpServer(
       resolve({
         close: () => {
           closePromise ??= new Promise<void>((closeResolve, closeReject) => {
+            const forceClose = setTimeout(() => server.closeAllConnections(), SHUTDOWN_GRACE_MS);
             server.close((error) => {
+              clearTimeout(forceClose);
               if (error) closeReject(error);
               else closeResolve();
             });

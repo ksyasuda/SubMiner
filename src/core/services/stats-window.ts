@@ -40,6 +40,8 @@ export interface StatsWindowOptions {
   preloadPath: string;
   /** Resolve the active stats API base URL */
   getApiBaseUrl?: () => Promise<string> | string;
+  /** Report server startup failure through the configured notification surface. */
+  onStartupError?: (error: unknown) => void;
   /** Resolve the active stats toggle key from config */
   getToggleKey: () => string;
   /** Resolve the tracked overlay/mpv bounds */
@@ -185,7 +187,12 @@ function registerStatsNativeDialogLayerHandlers(): void {
 export async function toggleStatsOverlay(options: StatsWindowOptions): Promise<void> {
   if (!statsWindow) {
     const generation = statsWindowGeneration;
-    const apiBaseUrl = await options.getApiBaseUrl?.();
+    const apiBaseUrl = await Promise.resolve()
+      .then(() => options.getApiBaseUrl?.())
+      .catch((error: unknown) => {
+        options.onStartupError?.(error);
+        throw error;
+      });
     if (generation !== statsWindowGeneration || statsWindow) return;
     statsWindow = new BrowserWindow(
       buildStatsWindowOptions({

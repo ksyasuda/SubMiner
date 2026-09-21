@@ -75,6 +75,7 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
     | { kind: 'stopping'; token: symbol; promise: Promise<void> };
 
   let localStatsServerState: LocalStatsServerState = { kind: 'stopped' };
+  const pendingBackgroundStarts = new Set<symbol>();
   const statsDaemonStatePath = path.join(deps.userDataPath, 'stats-daemon.json');
   const startServer = deps.startServer ?? startStatsServer;
   const readDaemonState =
@@ -279,27 +280,36 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
       deps.setStatsStartupInProgress(false);
     }
 
-    const port = deps.getResolvedConfig().stats.serverPort;
-    const result = await ensureStatsServerStarted();
-    if (result.source === 'local') {
-      if (localStatsServerState.kind !== 'running') {
-        throw new Error('Stats server startup was cancelled.');
+    const request = Symbol('background-stats-startup');
+    pendingBackgroundStarts.add(request);
+    try {
+      const port = deps.getResolvedConfig().stats.serverPort;
+      const result = await ensureStatsServerStarted();
+      if (result.source === 'local') {
+        if (localStatsServerState.kind !== 'running') {
+          throw new Error('Stats server startup was cancelled.');
+        }
+        writeBackgroundStatsServerState(statsDaemonStatePath, {
+          pid: process.pid,
+          port,
+          startedAtMs: Date.now(),
+        });
       }
-      writeBackgroundStatsServerState(statsDaemonStatePath, {
-        pid: process.pid,
-        port,
-        startedAtMs: Date.now(),
-      });
+      return { url: result.url, runningInCurrentProcess: result.source === 'local' };
+    } finally {
+      pendingBackgroundStarts.delete(request);
     }
-    return { url: result.url, runningInCurrentProcess: result.source === 'local' };
   };
 
   const stopBackgroundStatsServer = async (): Promise<{ ok: boolean; stale: boolean }> => {
     const state = readDaemonState(statsDaemonStatePath);
     if (!state) {
-      const hadLocalServer = localStatsServerState.kind !== 'stopped';
-      await stopStatsServer();
-      return { ok: true, stale: !hadLocalServer };
+      if (pendingBackgroundStarts.size > 0) {
+        await stopStatsServer();
+        return { ok: true, stale: false };
+      }
+      removeDaemonState(statsDaemonStatePath);
+      return { ok: true, stale: true };
     }
     if (isSelfOwnedBackgroundStatsDaemonState(state)) {
       await stopStatsServer();

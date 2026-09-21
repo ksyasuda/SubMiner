@@ -205,6 +205,35 @@ test('stopping a self-owned background server closes its local handle', async ()
   assert.equal(closeCalls, 1);
 });
 
+test('background stop leaves a foreground-only server available', async () => {
+  let closeCalls = 0;
+  let startCalls = 0;
+  const { runtime } = createRuntimeHarness(async () => {
+    startCalls += 1;
+    return {
+      close: async () => {
+        closeCalls += 1;
+      },
+    };
+  });
+  const foreground = await runtime.ensureStatsServerStarted();
+  assert.deepEqual(await runtime.stopBackgroundStatsServer(), { ok: true, stale: true });
+  assert.equal(closeCalls, 0);
+  assert.deepEqual(await runtime.ensureStatsServerStarted(), foreground);
+  assert.equal(startCalls, 1);
+  await runtime.stopStatsServer();
+});
+
+test('background stop leaves a pending foreground-only startup alone', async () => {
+  const deferred = createDeferred<StatsServer>();
+  const { runtime } = createRuntimeHarness(() => deferred.promise);
+  const startup = runtime.ensureStatsServerStarted();
+  assert.deepEqual(await runtime.stopBackgroundStatsServer(), { ok: true, stale: true });
+  deferred.resolve({ close: async () => {} });
+  assert.deepEqual(await startup, { url: 'http://127.0.0.1:5175', source: 'local' });
+  await runtime.stopStatsServer();
+});
+
 test('a startup requested during shutdown waits and then restarts', async () => {
   const closeDeferred = createDeferred<void>();
   const firstServer: StatsServer = { close: () => closeDeferred.promise };

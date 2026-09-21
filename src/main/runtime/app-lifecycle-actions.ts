@@ -1,14 +1,21 @@
 export function createForceQuitHandler(deps: {
-  destroyImmersionTracker: () => void;
+  destroyImmersionTracker: () => void | Promise<void>;
   logError: (error: unknown) => void;
   exit: () => void;
 }) {
-  return () => {
+  return async () => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      deps.destroyImmersionTracker();
+      await Promise.race([
+        Promise.resolve().then(() => deps.destroyImmersionTracker()),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Stats finalization timed out.')), 1_000);
+        }),
+      ]);
     } catch (error) {
       deps.logError(error);
     } finally {
+      clearTimeout(timeout);
       deps.exit();
     }
   };
@@ -35,7 +42,7 @@ export function createOnWillQuitCleanupHandler(deps: {
   clearReconnectTimer: () => void;
   destroySubtitleTimingTracker: () => void;
   stopStatsServer: () => Promise<void> | void;
-  destroyImmersionTracker: () => void;
+  destroyImmersionTracker: () => void | Promise<void>;
   destroyAnkiIntegration: () => void;
   destroyAnilistSetupWindow: () => void;
   clearAnilistSetupWindow: () => void;
@@ -61,7 +68,12 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.unregisterAllGlobalShortcuts();
     deps.stopSubtitleWebsocket();
     deps.stopTexthookerService();
-    const stopSyncAutoScheduler = deps.stopSyncAutoScheduler();
+    const cleanupErrors: unknown[] = [];
+    const stopSyncAutoScheduler = Promise.resolve(deps.stopSyncAutoScheduler()).catch(
+      (error: unknown) => {
+        cleanupErrors.push(error);
+      },
+    );
     deps.clearWindowsVisibleOverlayForegroundPollLoop();
     deps.clearLinuxMpvFullscreenOverlayRefreshTimeouts();
     deps.destroyMainOverlayWindow();
@@ -73,15 +85,16 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.destroyMpvSocket();
     deps.clearReconnectTimer();
     deps.destroySubtitleTimingTracker();
-    let statsServerStopFailed = false;
-    let statsServerStopError: unknown;
     try {
       await deps.stopStatsServer();
     } catch (error) {
-      statsServerStopFailed = true;
-      statsServerStopError = error;
+      cleanupErrors.push(error);
     }
-    deps.destroyImmersionTracker();
+    try {
+      await deps.destroyImmersionTracker();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
     deps.destroyAnkiIntegration();
     deps.destroyAnilistSetupWindow();
     deps.clearAnilistSetupWindow();
@@ -105,8 +118,8 @@ export function createOnWillQuitCleanupHandler(deps: {
     deps.cleanupRemoteMediaWindows();
     deps.stopDiscordPresenceService();
     await stopSyncAutoScheduler;
-    if (statsServerStopFailed) {
-      throw statsServerStopError;
+    if (cleanupErrors.length > 0) {
+      throw cleanupErrors[0];
     }
   };
 }

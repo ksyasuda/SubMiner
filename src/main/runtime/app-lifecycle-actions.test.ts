@@ -7,10 +7,10 @@ import {
   createShouldRestoreWindowsOnActivateHandler,
 } from './app-lifecycle-actions';
 
-test('forced quit finalizes stats before exiting, even when finalization throws', () => {
+test('forced quit finalizes stats before exiting, even when finalization throws', async () => {
   for (const fails of [false, true]) {
     const calls: string[] = [];
-    createForceQuitHandler({
+    await createForceQuitHandler({
       destroyImmersionTracker: () => {
         calls.push('finalize');
         if (fails) throw new Error('flush failed');
@@ -57,7 +57,10 @@ test('on will quit cleanup handler runs all cleanup steps', async () => {
       await Promise.resolve();
       calls.push('stop-stats-server-complete');
     },
-    destroyImmersionTracker: () => calls.push('destroy-immersion'),
+    destroyImmersionTracker: async () => {
+      await Promise.resolve();
+      calls.push('destroy-immersion');
+    },
     destroyAnkiIntegration: () => calls.push('destroy-anki'),
     destroyAnilistSetupWindow: () => calls.push('destroy-anilist-window'),
     clearAnilistSetupWindow: () => calls.push('clear-anilist-window'),
@@ -89,6 +92,33 @@ test('on will quit cleanup handler runs all cleanup steps', async () => {
   assert.ok(calls.includes('cleanup-remote-media-windows'));
   assert.ok(calls.indexOf('flush-mpv-log') < calls.indexOf('destroy-socket'));
   assert.ok(calls.indexOf('stop-stats-server-complete') < calls.indexOf('destroy-immersion'));
+  assert.ok(calls.indexOf('destroy-immersion') < calls.indexOf('destroy-anki'));
+});
+
+test('forced quit waits for asynchronous stats finalization', async () => {
+  const calls: string[] = [];
+  await createForceQuitHandler({
+    destroyImmersionTracker: async () => {
+      await Promise.resolve();
+      calls.push('finalized');
+    },
+    logError: () => calls.push('error'),
+    exit: () => calls.push('exit'),
+  })();
+  assert.deepEqual(calls, ['finalized', 'exit']);
+});
+
+test('forced quit exits when asynchronous stats finalization never settles', async () => {
+  const calls: string[] = [];
+  await createForceQuitHandler({
+    destroyImmersionTracker: () => new Promise<void>(() => {}),
+    logError: (error) => {
+      assert.match(String(error), /Stats finalization timed out/);
+      calls.push('timeout');
+    },
+    exit: () => calls.push('exit'),
+  })();
+  assert.deepEqual(calls, ['timeout', 'exit']);
 });
 
 test('on will quit cleanup handler cleans jellyfin subtitle cache when stopping remote session fails', async () => {

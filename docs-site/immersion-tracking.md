@@ -37,7 +37,9 @@ The same immersion data powers the stats dashboard.
 - Maintenance commands: run `subminer stats cleanup` or `subminer stats cleanup -v` to backfill/repair vocabulary metadata (`headword`, `reading`, POS) and purge stale or excluded rows from `imm_words` on demand; `subminer stats cleanup -l` repairs lifetime summary tables non-destructively (recomputed from per-episode history, so lifetime totals older than the session retention window are kept); `subminer stats cleanup --duplicate-lines` collapses repeated lines left behind by typeset subtitles (see [Repeated Line Cleanup](#repeated-line-cleanup)). `subminer stats rebuild` and `subminer stats backfill` rebuild or backfill rollup data.
 - Browser page: open `http://127.0.0.1:6969` directly if the local stats server is already running.
 
-SubMiner waits for the local server to bind before reporting that the dashboard is available. If another process already uses the configured port, the command reports the startup error and the desktop app stays open.
+SubMiner waits for the local server to bind before reporting that the dashboard is available. If another process already uses the configured port, the command reports the startup error and the desktop app stays open. Opening the in-app dashboard also reports startup failures through your configured status notifications.
+
+`subminer stats -s` stops a background stats server or cancels a pending background start. It leaves a foreground-only server running, so an open in-app dashboard stays connected. Shutdown gives active HTTP requests one second to finish before closing their connections and finalizing stats.
 
 ### Stats API resource IDs
 

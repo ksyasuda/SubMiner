@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -216,6 +217,8 @@ async function runHealthyStartup(userDataPath, port, responseName) {
   const statePath = join(userDataPath, 'stats-daemon.json');
   const databasePath = join(userDataPath, 'immersion.sqlite');
   const daemon = spawnDaemon(userDataPath, responsePath);
+  let shutdownResult;
+  let unfinishedRequest;
 
   try {
     const startup = await waitForResponse(responsePath, daemon);
@@ -243,11 +246,34 @@ async function runHealthyStartup(userDataPath, port, responseName) {
       statSync(databasePath).size > 0,
       'The compiled tracker created an empty SQLite file.',
     );
+
+    // Leave a real request body unfinished so shutdown must bound its drain wait.
+    unfinishedRequest = httpRequest(new URL('/api/stats/anki/notesInfo', startup.url), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': '1000',
+        Expect: '100-continue',
+      },
+      signal: AbortSignal.timeout(START_TIMEOUT_MS),
+    });
+    await new Promise((resolvePromise, reject) => {
+      unfinishedRequest.on('error', reject);
+      unfinishedRequest.once('continue', () => {
+        unfinishedRequest.write('{');
+        resolvePromise();
+      });
+      unfinishedRequest.flushHeaders();
+    });
   } finally {
-    const result = await stopDaemon(daemon);
-    assert.equal(result.code, 0, `Stats daemon shutdown failed.\n${daemon.getOutput()}`);
+    try {
+      shutdownResult = await stopDaemon(daemon);
+    } finally {
+      unfinishedRequest?.destroy();
+    }
   }
 
+  assert.equal(shutdownResult.code, 0, `Stats daemon shutdown failed.\n${daemon.getOutput()}`);
   assert.equal(existsSync(statePath), false, 'Stats daemon state remained after shutdown.');
   await assertPortCanBind(port);
 }

@@ -44,7 +44,7 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
   clearReconnectTimerRef: () => void;
 
   getSubtitleTimingTracker: () => Destroyable | null;
-  getImmersionTracker: () => Destroyable | null;
+  getImmersionTracker: () => { destroy: () => void | Promise<void> } | null;
   stopStatsServer: () => Promise<void> | void;
   clearImmersionTracker: () => void;
   getAnkiIntegration: () => Destroyable | null;
@@ -122,10 +122,10 @@ export function createBuildOnWillQuitCleanupDepsHandler(deps: {
       deps.getSubtitleTimingTracker()?.destroy();
     },
     stopStatsServer: () => deps.stopStatsServer(),
-    destroyImmersionTracker: () => {
+    destroyImmersionTracker: async () => {
       const tracker = deps.getImmersionTracker();
       if (!tracker) return;
-      tracker.destroy();
+      await tracker.destroy();
       deps.clearImmersionTracker();
     },
     destroyAnkiIntegration: () => {
