@@ -203,6 +203,70 @@ test('TmdbSelector reports a failed link as a link problem, not a search failure
   }
 });
 
+test('TmdbSelector cannot be dismissed while a link is in flight', async () => {
+  const uninstallDom = installDom();
+  const original = {
+    searchTmdb: apiClient.searchTmdb,
+    reassignAnimeTmdb: apiClient.reassignAnimeTmdb,
+  };
+  let finishLink: () => void = () => {};
+  let closed = 0;
+  apiClient.searchTmdb = (async () => [HANZAWA]) as typeof apiClient.searchTmdb;
+  apiClient.reassignAnimeTmdb = (() =>
+    new Promise<void>((resolve) => {
+      finishLink = resolve;
+    })) as typeof apiClient.reassignAnimeTmdb;
+
+  try {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <TmdbSelector
+          animeId={9}
+          initialQuery="Hanzawa Naoki"
+          onClose={() => {
+            closed += 1;
+          }}
+          onLinked={() => {}}
+        />,
+      );
+    });
+
+    const pick = [...container.querySelectorAll('button')].find((button) =>
+      /Select/.test(button.textContent ?? ''),
+    );
+    assert.ok(pick);
+    await act(async () => {
+      pick.click();
+    });
+
+    const close = [...container.querySelectorAll('button')].find((button) =>
+      /✕/.test(button.textContent ?? ''),
+    ) as HTMLButtonElement | undefined;
+    assert.ok(close);
+    assert.equal(close.disabled, true);
+    await act(async () => {
+      (container.firstElementChild as HTMLElement).click();
+    });
+    assert.equal(closed, 0);
+
+    await act(async () => {
+      finishLink();
+    });
+
+    await act(async () => {
+      root.unmount();
+    });
+  } finally {
+    apiClient.searchTmdb = original.searchTmdb;
+    apiClient.reassignAnimeTmdb = original.reassignAnimeTmdb;
+    uninstallDom();
+  }
+});
+
 for (const staleFailure of [false, true]) {
   test(`TmdbSelector ignores superseded ${staleFailure ? 'errors' : 'results'} and loading changes`, async () => {
     const uninstallDom = installDom();

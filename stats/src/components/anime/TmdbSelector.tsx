@@ -113,8 +113,17 @@ export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbS
     }
   };
 
+  // Dismissing mid-link would leave the caller unaware of a relink that is
+  // still going to land, so the backdrop and close button wait for it.
+  const handleDismiss = () => {
+    if (linking === null) onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+      onClick={handleDismiss}
+    >
       <div className="absolute inset-0 bg-ctp-crust/70 backdrop-blur-[2px]" />
       <div
         className="relative bg-ctp-base border border-ctp-surface1 rounded-xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col animate-fade-in"
@@ -125,8 +134,9 @@ export function TmdbSelector({ animeId, initialQuery, onClose, onLinked }: TmdbS
             <h3 className="text-sm font-semibold text-ctp-text">Select TMDB Title</h3>
             <button
               type="button"
-              onClick={onClose}
-              className="text-ctp-overlay2 hover:text-ctp-text text-lg leading-none"
+              onClick={handleDismiss}
+              disabled={linking !== null}
+              className="text-ctp-overlay2 hover:text-ctp-text text-lg leading-none disabled:opacity-50"
             >
               {'✕'}
             </button>
