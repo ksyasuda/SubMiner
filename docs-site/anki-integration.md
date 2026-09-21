@@ -19,6 +19,8 @@ This project is built primarily for [Kiku](https://kiku.youyoumu.my.id/) and [La
 
 AnkiConnect listens on `http://127.0.0.1:8765` by default. If you changed the port in AnkiConnect's settings, update `ankiConnect.url` in your SubMiner config.
 
+AnkiConnect and Kiku/Senren settings follow the [configuration validation rules](/configuration#configuration-file): invalid values produce a warning and fall back to the option's default. Use JSON booleans such as `true`, not strings such as `"true"`, and a positive number for `ankiConnect.pollingRate`.
+
 ## Auto-enrichment transport
 
 When you add a word via Yomitan, SubMiner detects the new card and fills in the sentence, audio, and image fields automatically. Two detection methods are available:
