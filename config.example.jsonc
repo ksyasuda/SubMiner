@@ -591,7 +591,7 @@
       "reviewTiming": false, // Review and preview subtitle media timing before SubMiner creates or enriches a mined card. Values: true | false
       "audioPadding": 0, // Seconds of padding appended to both ends of generated sentence audio and animated AVIF clips.
       "fallbackDuration": 3, // Fallback clip duration in seconds when subtitle timing data is unavailable.
-      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds.
+      "maxMediaDuration": 30 // Maximum allowed media clip duration in seconds. 0 disables the cap.
     }, // Media setting.
     "knownWords": {
       "highlightEnabled": false, // Enable fast local highlighting for words already known in Anki. Values: true | false

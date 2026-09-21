@@ -175,7 +175,7 @@ Audio is extracted from the video file using the subtitle's start and end timest
     "mirrorMpvVolume": true,     // apply the current mpv volume level
     "reviewTiming": false,       // review and adjust timing before media generation
     "audioPadding": 0,           // optional seconds before and after subtitle timing
-    "maxMediaDuration": 30       // cap total duration in seconds; 0 disables the cap
+    "maxMediaDuration": 30       // cap total duration in seconds
   }
 }
 ```
@@ -185,6 +185,8 @@ Output format: MP3 at 44100 Hz. If the video has multiple audio streams, SubMine
 `mirrorMpvVolume` is also enabled by default. Immediately before extracting each playback-overlay card's audio, SubMiner reads mpv's numeric `volume` and applies mpv's cubic software-volume curve after loudness normalization. For example, mpv volume `50` produces `0.5³ = 0.125` gain. Amplified output above mpv volume `100` is limited to a `-1 dBFS` ceiling before MP3 encoding to prevent clipping. It ignores mpv's separate `mute` state. If the volume property is missing, invalid, or unavailable, extraction continues with unity scaling; disabling this option skips the query and volume filter. Changing this setting applies to the next extraction without restarting SubMiner. YouTube cards queued for a background media-cache download retain the volume captured when the card was mined. Stats-dashboard mining does not currently have access to the active mpv property client, so it does not apply mpv volume scaling.
 
 The audio is uploaded to Anki's media folder and inserted as `[sound:audio_<timestamp>.mp3]`.
+
+Overlay and stats-dashboard mining use the same `media.maxMediaDuration` limit. See the [configuration example](/config.example.jsonc) for its default and how to disable the cap.
 
 Set `media.reviewTiming` to `true` to pause playback and check the clip before its media is generated. It applies to word, sentence, and audio cards.
 

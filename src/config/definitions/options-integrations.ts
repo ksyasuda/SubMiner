@@ -295,7 +295,7 @@ export function buildIntegrationConfigOptionRegistry(
       path: 'ankiConnect.media.maxMediaDuration',
       kind: 'number',
       defaultValue: defaultConfig.ankiConnect.media.maxMediaDuration,
-      description: 'Maximum allowed media clip duration in seconds.',
+      description: 'Maximum allowed media clip duration in seconds. 0 disables the cap.',
     },
     {
       path: 'ankiConnect.knownWords.matchMode',

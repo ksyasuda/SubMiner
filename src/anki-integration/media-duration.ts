@@ -1,3 +1,4 @@
+/** Zero or a negative cap leaves the requested end time unchanged. */
 export function clampMediaEndTime(
   startTime: number,
   endTime: number,
