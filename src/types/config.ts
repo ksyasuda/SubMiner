@@ -126,6 +126,7 @@ export interface ShortcutsConfig {
   openRuntimeOptions?: string | null;
   openJimaku?: string | null;
   openTsukihime?: string | null;
+  openSubtitleSelection?: string | null;
   openSubtitleGeneration?: string | null;
   openSessionHelp?: string | null;
   openControllerSelect?: string | null;
@@ -152,6 +153,7 @@ export interface Config {
   shortcuts?: RawShortcutsConfig;
   secondarySub?: SecondarySubConfig;
   subsync?: SubsyncConfig;
+  subtitleSelection?: { enabled?: boolean };
   subtitleGeneration?: Partial<SubtitleGenerationConfig>;
   startupWarmups?: StartupWarmupsConfig;
   subtitleStyle?: SubtitleStyleConfig;
@@ -304,6 +306,7 @@ export interface ResolvedConfig {
   shortcuts: Required<ShortcutsConfig>;
   secondarySub: Required<SecondarySubConfig>;
   subsync: Required<SubsyncConfig>;
+  subtitleSelection: { enabled: boolean };
   subtitleGeneration: SubtitleGenerationConfig;
   startupWarmups: {
     lowPowerMode: boolean;

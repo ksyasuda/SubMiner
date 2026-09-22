@@ -525,6 +525,13 @@ export interface ElectronAPI {
   focusMainWindow: () => Promise<void>;
   activatePlaybackWindowForOverlayInteraction: () => Promise<boolean>;
   getSubtitleStyle: () => Promise<SubtitleRendererStyleConfig | null>;
+  onSubtitleSelectionOpen: (callback: () => void) => void;
+  getSubtitleSelection: () => Promise<
+    import('../shared/subtitle-selection').SubtitleSelectionState
+  >;
+  applySubtitleSelection: (
+    request: import('../shared/subtitle-selection').SubtitleSelectionRequest,
+  ) => Promise<void>;
   onSubsyncManualOpen: (callback: (payload: SubsyncManualPayload) => void) => void;
   runSubsyncManual: (request: SubsyncManualRunRequest) => Promise<SubsyncResult>;
   onKikuFieldGroupingRequest: (callback: (data: KikuFieldGroupingRequestData) => void) => void;
@@ -604,6 +611,7 @@ export interface ElectronAPI {
     modal:
       | 'runtime-options'
       | 'subsync'
+      | 'subtitle-selection'
       | 'subtitle-generation'
       | 'jimaku'
       | 'tsukihime'
@@ -622,6 +630,7 @@ export interface ElectronAPI {
     modal:
       | 'runtime-options'
       | 'subsync'
+      | 'subtitle-selection'
       | 'subtitle-generation'
       | 'jimaku'
       | 'tsukihime'
@@ -637,6 +646,7 @@ export interface ElectronAPI {
       | 'changelog',
   ) => void;
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => void;
+  onSessionBindingsChanged: (callback: (bindings: CompiledSessionBinding[]) => void) => void;
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => void;
 }
 

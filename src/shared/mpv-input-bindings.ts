@@ -59,9 +59,12 @@ export function keyboardEventToMpvKey(
   return normalizeMpvInputKey([...modifiers, key].join('+'));
 }
 
-export function parseMpvInputBindingKeys(value: unknown): string[] {
+export function parseMpvInputBindingKeys(
+  value: unknown,
+  { includeIgnored = true }: { includeIgnored?: boolean } = {},
+): string[] {
   if (!Array.isArray(value)) return [];
-  const bindings = new Map<string, { priority: number; owned: boolean }>();
+  const bindings = new Map<string, { priority: number; owned: boolean; ignored: boolean }>();
   for (const candidate of value) {
     const entry: unknown = candidate;
     if (
@@ -94,8 +97,14 @@ export function parseMpvInputBindingKeys(value: unknown): string[] {
       entry.priority > previous.priority ||
       (entry.priority === previous.priority && owned)
     ) {
-      bindings.set(key, { priority: entry.priority, owned });
+      bindings.set(key, {
+        priority: entry.priority,
+        owned,
+        ignored: entry.cmd.trim().replace(MPV_COMMAND_PREFIXES, '') === 'ignore',
+      });
     }
   }
-  return [...bindings].filter(([, binding]) => !binding.owned).map(([key]) => key);
+  return [...bindings]
+    .filter(([, binding]) => !binding.owned && (includeIgnored || !binding.ignored))
+    .map(([key]) => key);
 }

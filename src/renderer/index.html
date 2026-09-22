@@ -833,6 +833,43 @@
           </div>
         </div>
       </div>
+      <div id="subtitleSelectionModal" class="modal hidden" aria-hidden="true">
+        <div
+          class="modal-content subsync-modal-content"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="subtitleSelectionTitle"
+        >
+          <div class="modal-header">
+            <h2 id="subtitleSelectionTitle">Select subtitles</h2>
+            <button id="subtitleSelectionClose" class="modal-close" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="subsync-form">
+              <label class="subsync-field">
+                <span>Primary subtitle</span>
+                <select id="subtitleSelectionPrimary"></select>
+              </label>
+              <label class="subsync-field">
+                <span>Secondary subtitle</span>
+                <select id="subtitleSelectionSecondary"></select>
+              </label>
+            </div>
+            <div
+              id="subtitleSelectionStatus"
+              class="runtime-options-status"
+              role="status"
+              aria-live="polite"
+            ></div>
+            <div class="subsync-footer">
+              <button id="subtitleSelectionApply" class="kiku-confirm-button" type="button">
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="subsyncModal" class="modal hidden" aria-hidden="true">
         <div class="modal-content subsync-modal-content">
           <div class="modal-header">

@@ -70,6 +70,12 @@ local ctx = {
 				numericSelectionTimeoutMs = 3000,
 				bindings = {
 					{
+						key = { code = "KeyG-KeyS", modifiers = {} },
+						actionType = "session-action",
+						actionId = "openSubtitleSelection",
+						cliArgs = { "--session-action", '{"actionId":"openSubtitleSelection"}' },
+					},
+					{
 						key = {
 							code = "KeyO",
 							modifiers = { "alt", "shift" },
@@ -312,7 +318,8 @@ local ctx = {
 						cliArgs = { "--session-action", '{"actionId":"openFuturePanel"}' },
 					},
 				},
-			}, nil
+			},
+				nil
 		end,
 	},
 	state = {
@@ -430,17 +437,11 @@ assert_true(play_next_call ~= nil, "play-next binding should invoke CLI action")
 assert_true(play_next_call[2] == "--play-next-subtitle", "play-next binding should pass CLI flag")
 
 local character_dictionary_manager = find_binding("Ctrl+d")
-assert_true(
-	character_dictionary_manager ~= nil,
-	"character dictionary manager binding should be registered"
-)
+assert_true(character_dictionary_manager ~= nil, "character dictionary manager binding should be registered")
 
 character_dictionary_manager.fn()
 local character_dictionary_manager_call = recorded.async_calls[#recorded.async_calls]
-assert_true(
-	character_dictionary_manager_call ~= nil,
-	"character dictionary manager binding should invoke CLI action"
-)
+assert_true(character_dictionary_manager_call ~= nil, "character dictionary manager binding should invoke CLI action")
 assert_true(
 	character_dictionary_manager_call[2] == "--session-action",
 	"character dictionary manager binding should use generic session action CLI flag"
@@ -474,3 +475,35 @@ assert_true(call[2] == "--mine-sentence-multiple", "CLI action should enter mine
 assert_true(call[3] == nil, "CLI action should not bind a plugin-side digit count")
 
 print("plugin session binding regression tests: OK")
+
+local selector = find_binding("g-s")
+assert_true(selector ~= nil, "subtitle selection should override mpv g-s with a forced sequence")
+selector.fn()
+local selection_call = recorded.async_calls[#recorded.async_calls]
+assert_true(
+	selection_call[3] == '{"actionId":"openSubtitleSelection"}',
+	"subtitle selection should dispatch its session action"
+)
+
+local native_bindings = {}
+function mp.get_property_native(name)
+	assert_true(name == "input-bindings", "only native input bindings should be queried")
+	return native_bindings
+end
+
+for _, case in ipairs({
+	{ key = "g", priority = 1, enabled = false },
+	{ key = "G", priority = 1, enabled = true },
+	{ key = "Shift+g", priority = 1, enabled = true },
+	{ key = "Ctrl+g", priority = 1, enabled = true },
+	{ key = "g", priority = -1, enabled = true },
+	{ key = "g", priority = 1, cmd = "ignore", enabled = true },
+	{ key = "g", priority = 1, cmd = "no-osd ignore", enabled = true },
+}) do
+	native_bindings = { { key = case.key, cmd = case.cmd or "show-text single", priority = case.priority } }
+	recorded.bindings = {}
+	assert_true(bindings.reload_bindings(), "binding reload should succeed")
+	assert_true((find_binding("g-s") ~= nil) == case.enabled, "sequence prefix conflict: " .. case.key)
+end
+assert_true(#recorded.osd > 0, "native prefix conflicts should be visible")
+print("plugin sequence conflict tests: OK")

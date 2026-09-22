@@ -3228,6 +3228,16 @@ iframe[id^='yomitan-popup'],
   padding: 8px 10px;
 }
 
+.subsync-field select:focus-visible {
+  outline: 2px solid var(--ctp-blue);
+  outline-offset: 2px;
+}
+
+#subtitleSelectionModal .kiku-confirm-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .subsync-footer {
   display: flex;
   justify-content: flex-end;

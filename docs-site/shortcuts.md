@@ -88,6 +88,7 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 | `Ctrl+Shift+T`     | Open TsukiHime subtitle search modal (EN/JA tabs)       | `shortcuts.openTsukihime`                 |
 | `Ctrl/Cmd+N`       | Toggle overlay notification history panel                | `shortcuts.toggleNotificationHistory`      |
 | `Ctrl+Alt+C`       | Open the manual YouTube subtitle picker                  | `keybindings`                              |
+| `g` then `s`       | Select primary and secondary subtitles, when enabled     | `shortcuts.openSubtitleSelection`                                                               |
 | `Ctrl+Alt+S`       | Open subtitle sync (subsync) modal                       | `shortcuts.triggerSubsync`                 |
 | `Ctrl/Cmd+A`       | Append clipboard video path to mpv playlist              | `shortcuts.appendClipboardVideoToQueue`    |
 | `\`                | Toggle subtitle sidebar                                  | `subtitleSidebar.toggleKey` (overlay) / `shortcuts.toggleSubtitleSidebar` (mpv session binding) |
@@ -97,6 +98,8 @@ Mouse-hover playback behavior is configured separately from shortcuts: `subtitle
 `shortcuts.openAnimetosho` remains accepted as a deprecated alias for `shortcuts.openTsukihime`. The current name takes precedence when both are configured.
 
 The stats toggle is handled inside the focused visible overlay window. It is configurable through the top-level `stats.toggleKey` setting and defaults to `Backquote`.
+
+Enable the subtitle selector in **Settings → Behavior → Subtitle Selection**. Its shortcut overrides mpv subtitle selection only while enabled. In the focused overlay, press the second key within one second. Single-key bindings take priority: if `g` already has an action in SubMiner or mpv, `g-s` is disabled with a conflict warning, and `g` still runs immediately. Remap the sequence or remove the conflicting single-key binding. The existing `y` prefix is reserved for its built-in commands. mpv bindings are checked on connection, configuration changes, and overlay focus; refresh the overlay after changing another script's bindings. See [subtitle selection](/configuration#subtitle-selection).
 
 The subtitle sidebar toggle is overlay-local and only opens when SubMiner has a parsed cue list for the active subtitle source.
 

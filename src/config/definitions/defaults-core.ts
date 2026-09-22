@@ -99,6 +99,7 @@ export const CORE_DEFAULT_CONFIG: Pick<
     openRuntimeOptions: 'CommandOrControl+Shift+O',
     openJimaku: 'Ctrl+Shift+J',
     openTsukihime: 'Ctrl+Shift+T',
+    openSubtitleSelection: 'g-s',
     openSubtitleGeneration: 'Ctrl+Shift+G',
     openSessionHelp: 'CommandOrControl+Slash',
     openControllerSelect: 'Alt+C',

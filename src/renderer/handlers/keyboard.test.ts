@@ -92,6 +92,7 @@ function createEmptyShortcuts(): ConfiguredShortcuts {
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleSelection: null,
     openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
@@ -2400,6 +2401,89 @@ test('stalled mpv discovery does not delay configured overlay controls', async (
     await handlers.setupMpvInputForwarding();
     testGlobals.dispatchKeydown({ key: ' ', code: 'Space' });
     assert.deepEqual(testGlobals.mpvCommands, [['cycle', 'pause']]);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('session binding: g-s opens subtitle selection only after the complete sequence', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'shortcuts.openSubtitleSelection',
+        originalKey: 'g-s',
+        key: { code: 'KeyG-KeyS', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openSubtitleSelection',
+      },
+    ]);
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    assert.deepEqual(testGlobals.sessionActions, []);
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    assert.deepEqual(testGlobals.sessionActions, [
+      { actionId: 'openSubtitleSelection', payload: undefined },
+    ]);
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    handlers.updateSessionBindings([]);
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    assert.equal(testGlobals.sessionActions.length, 1);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('single-key actions run immediately even if a conflicting sequence reaches the renderer', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'sequence',
+        originalKey: 'g-s',
+        key: { code: 'KeyG-KeyS', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openSubtitleSelection',
+      },
+      {
+        sourcePath: 'single',
+        originalKey: 'g',
+        key: { code: 'KeyG', modifiers: [] },
+        actionType: 'mpv-command',
+        command: ['show-text', 'single'],
+      },
+    ]);
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    assert.deepEqual(testGlobals.mpvCommands, [['show-text', 'single']]);
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    assert.deepEqual(testGlobals.sessionActions, []);
+  } finally {
+    testGlobals.restore();
+  }
+});
+
+test('an unfinished built-in y chord cannot start a configured sequence', async () => {
+  const { handlers, testGlobals } = createKeyboardHandlerHarness();
+  try {
+    await handlers.setupMpvInputForwarding();
+    handlers.updateSessionBindings([
+      {
+        sourcePath: 'sequence',
+        originalKey: 'g-s',
+        key: { code: 'KeyG-KeyS', modifiers: [] },
+        actionType: 'session-action',
+        actionId: 'openSubtitleSelection',
+      },
+    ]);
+    testGlobals.dispatchKeydown({ key: 'y', code: 'KeyY' });
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    assert.deepEqual(testGlobals.sessionActions, []);
+    testGlobals.dispatchKeydown({ key: 'g', code: 'KeyG' });
+    testGlobals.dispatchKeydown({ key: 's', code: 'KeyS' });
+    assert.equal(testGlobals.sessionActions.length, 1);
   } finally {
     testGlobals.restore();
   }

@@ -25,6 +25,7 @@ export interface SessionActionExecutorDeps {
   openControllerDebug: () => void;
   openJimaku: () => void;
   openTsukihime: () => void;
+  openSubtitleSelection: () => void;
   openSubtitleGeneration: () => void;
   openYoutubeTrackPicker: () => void | Promise<void>;
   openPlaylistBrowser: () => boolean | void | Promise<boolean | void>;
@@ -119,6 +120,9 @@ export async function dispatchSessionAction(
       return;
     case 'openTsukihime':
       deps.openTsukihime();
+      return;
+    case 'openSubtitleSelection':
+      deps.openSubtitleSelection();
       return;
     case 'openSubtitleGeneration':
       deps.openSubtitleGeneration();

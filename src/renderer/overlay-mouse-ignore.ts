@@ -10,6 +10,7 @@ function isBlockingOverlayModalOpen(state: RendererState): boolean {
     state.youtubePickerModalOpen ||
     state.kikuModalOpen ||
     state.runtimeOptionsModalOpen ||
+    state.subtitleSelectionModalOpen ||
     state.subsyncModalOpen ||
     state.subtitleGenerationModalOpen ||
     state.sessionHelpModalOpen,

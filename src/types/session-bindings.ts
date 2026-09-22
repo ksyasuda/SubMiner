@@ -23,6 +23,7 @@ export type SessionActionId =
   | 'openControllerDebug'
   | 'openJimaku'
   | 'openTsukihime'
+  | 'openSubtitleSelection'
   | 'openSubtitleGeneration'
   | 'openYoutubePicker'
   | 'openPlaylistBrowser'

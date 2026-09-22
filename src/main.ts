@@ -466,6 +466,11 @@ import { handleMpvCommandFromIpcRuntime } from './main/ipc-mpv-command';
 import { registerIpcRuntimeServices } from './main/ipc-runtime';
 import { createSubtitleGenerationRuntime } from './main/runtime/subtitle-generation-runtime';
 import { registerSubtitleGenerationIpc } from './main/runtime/subtitle-generation-ipc';
+import {
+  createSubtitleSelectionRuntime,
+  openSubtitleSelectionModal,
+  registerSubtitleSelectionIpc,
+} from './main/runtime/subtitle-selection';
 import { openSubtitleGenerationModal } from './main/runtime/subtitle-generation-open';
 import { createAnkiJimakuIpcRuntimeServiceDeps } from './main/dependencies';
 import { createMainBootServices, type MainBootServicesResult } from './main/boot/services';
@@ -4583,6 +4588,7 @@ const {
       maybeStartOverlayLoadingOsd();
       flushQueuedMpvOsdNotifications();
       secondarySubtitleTrackController.scheduleRefresh(0);
+      void refreshMpvSessionBindings();
       if (appState.sessionBindingsInitialized) {
         sendMpvCommandRuntime(appState.mpvClient, [
           'script-message',
@@ -5235,20 +5241,32 @@ const {
   },
 });
 
-const { persistSessionBindings, refreshCurrentSessionBindings } = createSessionBindingsRuntime({
-  configDir: CONFIG_DIR,
-  getKeybindings: () => appState.keybindings,
-  getConfiguredShortcuts: () => getConfiguredShortcuts(),
-  getResolvedConfig: () => configService.getConfig(),
-  getMpvClient: () => appState.mpvClient,
-  setSessionBindings: (bindings) => {
-    appState.sessionBindings = bindings;
-  },
-  setSessionBindingsInitialized: (initialized) => {
-    appState.sessionBindingsInitialized = initialized;
-  },
-  logWarn: (message) => logger.warn(message),
-});
+const { persistSessionBindings, refreshCurrentSessionBindings, refreshMpvSessionBindings } =
+  createSessionBindingsRuntime({
+    configDir: CONFIG_DIR,
+    getKeybindings: () => appState.keybindings,
+    getConfiguredShortcuts: () => getConfiguredShortcuts(),
+    getResolvedConfig: () => configService.getConfig(),
+    getMpvClient: () => appState.mpvClient,
+    setSessionBindings: (bindings) => {
+      appState.sessionBindings = bindings;
+    },
+    setSessionBindingsInitialized: (initialized) => {
+      appState.sessionBindingsInitialized = initialized;
+    },
+    logWarn: (message) => logger.warn(message),
+    onBindingsChanged: (bindings) =>
+      overlayManager.broadcastToOverlayWindows(IPC_CHANNELS.event.sessionBindingsChanged, bindings),
+    onWarning: (warning) => {
+      if (warning.kind !== 'conflict') return;
+      overlayNotificationsRuntime.showOverlayNotification({
+        id: `session-binding-conflict:${warning.path}`,
+        title: 'Shortcut conflict',
+        body: warning.message,
+        variant: 'warning',
+      });
+    },
+  });
 
 const { flushMpvLog, showMpvOsd } = createMpvOsdRuntimeHandlers({
   appendToMpvLogMainDeps: {
@@ -5503,6 +5521,14 @@ async function dispatchSessionAction(request: SessionActionDispatchRequest): Pro
     openJimaku: () => openJimakuOverlay(),
     openTsukihime: () => openTsukihimeOverlay(),
     openSessionHelp: () => openSessionHelpOverlay(),
+    openSubtitleSelection: () => {
+      if (!configService.getConfig().subtitleSelection.enabled) return;
+      openOverlayHostedModalWithOsd(
+        openSubtitleSelectionModal,
+        'Subtitle selection overlay unavailable.',
+        'Failed to open subtitle selection overlay.',
+      );
+    },
     openSubtitleGeneration: () => openSubtitleGenerationOverlay(),
     openCharacterDictionaryManager: () => openCharacterDictionaryManagerOverlay(),
     openControllerSelect: () => openControllerSelectOverlay(),
@@ -5855,8 +5881,9 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
       saveSubtitlePosition: (position) => saveSubtitlePosition(position),
       getMecabTokenizer: () => appState.mecabTokenizer,
       getKeybindings: () => appState.keybindings,
-      getMpvInputBindings: () =>
-        readMpvInputBindings({
+      getMpvInputBindings: async () => {
+        await refreshMpvSessionBindings();
+        return readMpvInputBindings({
           getMpvClient: () => appState.mpvClient,
           getConfiguredKeybindings: () => configService.getConfig().keybindings ?? [],
           platform:
@@ -5865,8 +5892,12 @@ const { registerIpcRuntimeHandlers } = composeIpcRuntimeHandlers({
               : process.platform === 'win32'
                 ? 'win32'
                 : 'linux',
-        }),
-      getSessionBindings: () => appState.sessionBindings,
+        });
+      },
+      getSessionBindings: async () => {
+        await refreshMpvSessionBindings();
+        return appState.sessionBindings;
+      },
       getConfiguredShortcuts: () => getConfiguredShortcuts(),
       dispatchSessionAction: (request) => dispatchSessionAction(request),
       getStatsToggleKey: () => configService.getConfig().stats.toggleKey,
@@ -6649,6 +6680,17 @@ function setOverlayVisible(visible: boolean): void {
 }
 
 registerIpcRuntimeHandlers();
+registerSubtitleSelectionIpc({
+  ipc: ipcMain,
+  isAllowedSender: (sender) =>
+    [overlayManager.getMainWindow(), overlayManager.getModalWindow()].some(
+      (window) => window && !window.isDestroyed() && window.webContents === sender,
+    ),
+  runtime: createSubtitleSelectionRuntime({
+    isEnabled: () => configService.getConfig().subtitleSelection.enabled,
+    getMpvClient: () => appState.mpvClient,
+  }),
+});
 const subtitleGenerationRuntime = createSubtitleGenerationRuntime({
   getConfig: () => configService.getConfig().subtitleGeneration,
   getModelDirectory: () =>

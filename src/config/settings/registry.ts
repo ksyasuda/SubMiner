@@ -455,6 +455,9 @@ function categoryAndSection(path: string): { category: ConfigSettingsCategory; s
   if (path.startsWith('subsync.')) {
     return { category: 'integrations', section: topSection(path) };
   }
+  if (path.startsWith('subtitleSelection.')) {
+    return { category: 'behavior', section: 'Subtitle Selection' };
+  }
   if (path.startsWith('subtitleGeneration.')) {
     return { category: 'integrations', section: 'Japanese Subtitle Generation' };
   }
@@ -631,6 +634,7 @@ function subsectionForPath(path: string): string | undefined {
       leaf === 'openRuntimeOptions' ||
       leaf === 'openJimaku' ||
       leaf === 'openTsukihime' ||
+      leaf === 'openSubtitleSelection' ||
       leaf === 'openSubtitleGeneration' ||
       leaf === 'openSessionHelp' ||
       leaf === 'openControllerSelect' ||

@@ -629,6 +629,13 @@ export function buildCoreConfigOptionRegistry(
       description: 'Accelerator that opens the session help / keybinding cheatsheet.',
     },
     {
+      path: 'shortcuts.openSubtitleSelection',
+      kind: 'string',
+      defaultValue: defaultConfig.shortcuts.openSubtitleSelection,
+      description:
+        'Open subtitle selection when enabled. Use g-s to press g then s. Set null to unbind.',
+    },
+    {
       path: 'shortcuts.openSubtitleGeneration',
       kind: 'string',
       defaultValue: defaultConfig.shortcuts.openSubtitleGeneration,

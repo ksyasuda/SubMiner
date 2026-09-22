@@ -43,6 +43,7 @@ function createDeps(overrides: Partial<SessionActionExecutorDeps> = {}) {
     openControllerDebug: () => calls.push('controller-debug'),
     openJimaku: () => calls.push('jimaku'),
     openTsukihime: () => calls.push('tsukihime'),
+    openSubtitleSelection: () => calls.push('subtitle-selection'),
     openSubtitleGeneration: () => calls.push('subtitle-generation'),
     openYoutubeTrackPicker: () => {
       calls.push('youtube');

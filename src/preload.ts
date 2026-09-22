@@ -81,6 +81,7 @@ import { IPC_CHANNELS } from './shared/ipc/contracts';
 import type { SubtitleGenerationProgress } from './shared/subtitle-generation';
 
 const overlayLayer = resolveOverlayLayerFromArgv(process.argv);
+const onSubtitleSelectionOpen = createQueuedIpcListener(IPC_CHANNELS.event.subtitleSelectionOpen);
 const onSubtitleGenerationOpen = createQueuedIpcListener(IPC_CHANNELS.event.subtitleGenerationOpen);
 
 type EmptyListener = () => void;
@@ -463,6 +464,11 @@ const electronAPI: ElectronAPI = {
     ) as Promise<boolean>,
   getSubtitleStyle: (): Promise<SubtitleStyleConfig | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleStyle),
+  onSubtitleSelectionOpen,
+  getSubtitleSelection: () => ipcRenderer.invoke(IPC_CHANNELS.request.getSubtitleSelection),
+  applySubtitleSelection: (
+    request: import('./shared/subtitle-selection').SubtitleSelectionRequest,
+  ) => ipcRenderer.invoke(IPC_CHANNELS.request.applySubtitleSelection, request),
   onSubsyncManualOpen: onSubsyncManualOpenEvent,
   runSubsyncManual: (request: SubsyncManualRunRequest): Promise<SubsyncResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.request.runSubsyncManual, request),
@@ -579,6 +585,14 @@ const electronAPI: ElectronAPI = {
   },
   reportOverlayContentBounds: (measurement: OverlayContentMeasurement) => {
     ipcRenderer.send(IPC_CHANNELS.command.reportOverlayContentBounds, measurement);
+  },
+  onSessionBindingsChanged: (
+    callback: (bindings: import('./types').CompiledSessionBinding[]) => void,
+  ) => {
+    ipcRenderer.on(
+      IPC_CHANNELS.event.sessionBindingsChanged,
+      (_event, bindings: import('./types').CompiledSessionBinding[]) => callback(bindings),
+    );
   },
   onConfigHotReload: (callback: (payload: ConfigHotReloadPayload) => void) => {
     ipcRenderer.on(

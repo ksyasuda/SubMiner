@@ -15,6 +15,7 @@ export function createKeyboardHandlers(
     handleRuntimeOptionsKeydown: (e: KeyboardEvent) => boolean;
     handleCharacterDictionaryKeydown: (e: KeyboardEvent) => boolean;
     handleSubsyncKeydown: (e: KeyboardEvent) => boolean;
+    handleSubtitleSelectionKeydown?: (e: KeyboardEvent) => boolean;
     handleSubtitleGenerationKeydown?: (e: KeyboardEvent) => boolean;
     handleKikuKeydown: (e: KeyboardEvent) => boolean;
     handleJimakuKeydown: (e: KeyboardEvent) => boolean;
@@ -133,7 +134,10 @@ export function createKeyboardHandlers(
     updateConfiguredShortcuts(shortcuts, statsToggleKey, markWatchedKey);
   }
 
+  let pendingSequence: { prefix: string; expires: number } | null = null;
+
   function updateSessionBindings(bindings: CompiledSessionBinding[]): void {
+    pendingSequence = null;
     ctx.state.sessionBindings = bindings;
     ctx.state.sessionBindingMap = new Map(
       bindings.map((binding) => [keyEventToStringFromBinding(binding), binding]),
@@ -1049,7 +1053,10 @@ export function createKeyboardHandlers(
     window.addEventListener('focus', () => {
       void importedMpvBindings.refresh();
     });
-    window.addEventListener('blur', importedMpvBindings.releaseAll);
+    window.addEventListener('blur', () => {
+      pendingSequence = null;
+      importedMpvBindings.releaseAll();
+    });
     window.addEventListener('beforeunload', () => {
       clearTimeout(lateScriptRefresh);
       importedMpvBindings.dispose();
@@ -1103,6 +1110,13 @@ export function createKeyboardHandlers(
     );
 
     document.addEventListener('keydown', (e: KeyboardEvent) => {
+      const sequence = pendingSequence;
+      pendingSequence = null;
+      if (ctx.state.subtitleSelectionModalOpen) {
+        pendingSequence = null;
+        options.handleSubtitleSelectionKeydown?.(e);
+        return;
+      }
       if (ctx.state.subtitleGenerationModalOpen) {
         options.handleSubtitleGenerationKeydown?.(e);
         return;
@@ -1187,11 +1201,22 @@ export function createKeyboardHandlers(
       }
 
       if (isTextEntryTarget(e.target)) {
+        pendingSequence = null;
         return;
       }
 
       if (handlePendingNumericSelection(e)) {
         return;
+      }
+
+      const sequenceKey = keyEventToString(e);
+      if (sequence && !ctx.state.chordPending && Date.now() <= sequence.expires && !e.repeat) {
+        const binding = ctx.state.sessionBindingMap.get(`${sequence.prefix}-${sequenceKey}`);
+        if (binding) {
+          e.preventDefault();
+          dispatchSessionBinding(binding);
+          return;
+        }
       }
 
       if (isStatsOverlayToggle(e)) {
@@ -1274,6 +1299,16 @@ export function createKeyboardHandlers(
       if (binding) {
         e.preventDefault();
         dispatchSessionBinding(binding);
+        return;
+      }
+      if (
+        !e.repeat &&
+        ctx.state.sessionBindings.some((binding) =>
+          keyEventToStringFromBinding(binding).startsWith(`${sequenceKey}-`),
+        )
+      ) {
+        pendingSequence = { prefix: sequenceKey, expires: Date.now() + 1000 };
+        e.preventDefault();
         return;
       }
       if (

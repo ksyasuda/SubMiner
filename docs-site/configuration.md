@@ -1117,6 +1117,14 @@ When the manual merge popup opens, SubMiner pauses playback and closes any open 
 
 <a :href="withBase('/assets/kiku-integration.webm')" target="_blank" rel="noreferrer">Open demo in a new tab</a>
 
+## Subtitle Selection
+
+Enable **Settings → Behavior → Subtitle Selection → Enabled** to choose mpv's primary and secondary subtitle tracks from a SubMiner modal. The feature is disabled by default. The dialog uses the same overlay focus and subtitle suppression behavior as the other modals.
+
+Press `g` then `s` to open it. Both selectors include **None**. Choose different tracks and click **Apply** to load them into mpv, or close the dialog to keep the current selection. Embedded and already-loaded external subtitle tracks are listed with their title, language, and codec when available.
+
+`subtitleSelection.enabled` controls the feature. `shortcuts.openSubtitleSelection` changes its shortcut, or accepts `null` to unbind it. Enabling the feature overrides mpv's binding for that shortcut when its first key is free; disabling it restores mpv's binding. Existing single-key actions take priority over sequences; see [shortcut conflicts](/shortcuts). Both settings apply immediately. See the [generated configuration example](/config.example.jsonc) for defaults.
+
 ## External integrations
 
 ### Jimaku

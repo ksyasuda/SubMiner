@@ -93,7 +93,7 @@ export interface IpcServiceDeps {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
-  getSessionBindings?: () => CompiledSessionBinding[];
+  getSessionBindings?: () => CompiledSessionBinding[] | Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => unknown;
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;
@@ -378,7 +378,7 @@ export interface IpcDepsRuntimeOptions {
   handleMpvCommand: (command: Array<string | number>) => void;
   getKeybindings: () => unknown;
   getMpvInputBindings?: () => Promise<MpvInputBindingsSnapshot>;
-  getSessionBindings?: () => CompiledSessionBinding[];
+  getSessionBindings?: () => CompiledSessionBinding[] | Promise<CompiledSessionBinding[]>;
   getConfiguredShortcuts: () => unknown;
   dispatchSessionAction?: (request: SessionActionDispatchRequest) => void | Promise<void>;
   getStatsToggleKey: () => string;

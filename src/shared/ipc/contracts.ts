@@ -4,6 +4,7 @@ import type { RuntimeOptionId, RuntimeOptionValue } from '../../types/runtime-op
 export const OVERLAY_HOSTED_MODALS = [
   'runtime-options',
   'subsync',
+  'subtitle-selection',
   'subtitle-generation',
   'jimaku',
   'tsukihime',
@@ -51,6 +52,8 @@ export const IPC_CHANNELS = {
     dispatchSessionAction: 'session-action:dispatch',
   },
   request: {
+    getSubtitleSelection: 'subtitle-selection:get',
+    applySubtitleSelection: 'subtitle-selection:apply',
     requestSubtitleGenerationOpen: 'subtitle-generation:open',
     getSubtitleGenerationStatus: 'subtitle-generation:status',
     startSubtitleGeneration: 'subtitle-generation:start',
@@ -143,6 +146,7 @@ export const IPC_CHANNELS = {
     mediaTimingReviewResolve: 'media-timing-review:resolve',
   },
   event: {
+    subtitleSelectionOpen: 'subtitle-selection:opened',
     subtitleGenerationOpen: 'subtitle-generation:opened',
     subtitleGenerationProgress: 'subtitle-generation:progress',
     subtitleSet: 'subtitle:set',
@@ -174,6 +178,7 @@ export const IPC_CHANNELS = {
     controllerDebugOpen: 'controller-debug:open',
     subtitleSidebarToggle: 'subtitle-sidebar:toggle',
     primarySubtitleBarToggle: 'primary-subtitle-bar:toggle',
+    sessionBindingsChanged: 'session-bindings:changed',
     configHotReload: 'config:hot-reload',
     overlayNotification: 'overlay:notification',
     notificationHistoryToggle: 'notification-history:toggle',

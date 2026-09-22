@@ -24,6 +24,7 @@ function createShortcuts(overrides: Partial<ConfiguredShortcuts> = {}): Configur
     openRuntimeOptions: null,
     openJimaku: null,
     openTsukihime: null,
+    openSubtitleSelection: null,
     openSubtitleGeneration: null,
     openSessionHelp: null,
     openControllerSelect: null,
@@ -706,4 +707,59 @@ test('buildPluginSessionBindingsArtifact preserves plugin selector CLI for no-co
 
   assert.equal(byActionId.get('copySubtitleMultiple')?.cliArgs, undefined);
   assert.equal(byActionId.get('mineSentenceMultiple')?.cliArgs, undefined);
+});
+
+test('single keys reserve sequence prefixes without reserving the second stroke', () => {
+  for (const key of ['g', 'Ctrl+g', 's']) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: 'g-s' }),
+      keybindings: [createKeybinding(key, ['show-text', 'single'])],
+      platform: 'linux',
+    });
+    assert.ok(result.bindings.some((binding) => binding.originalKey === key));
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === 'g-s'),
+      key !== 'g',
+    );
+    assert.equal(result.warnings.length, key === 'g' ? 1 : 0);
+    if (key === 'g') assert.match(result.warnings[0]!.message, /Single-key bindings take priority/);
+  }
+});
+
+test('configured shortcuts and built-in overlay keys also reserve sequence prefixes', () => {
+  for (const prefix of ['g', 'y', 'v']) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: `${prefix}-s`, copySubtitle: 'g' }),
+      keybindings: [],
+      platform: 'linux',
+    });
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === `${prefix}-s`),
+      false,
+    );
+    assert.ok(result.bindings.some((binding) => binding.originalKey === 'g'));
+    assert.equal(result.warnings.length, 1);
+  }
+});
+
+test('sequence reservations follow the sidebar code and literal Shift semantics', () => {
+  for (const [toggleKey, disabled] of [
+    ['KeyG', true],
+    ['g', false],
+    ['G', true],
+  ] as const) {
+    const result = compileSessionBindings({
+      shortcuts: createShortcuts({ openSubtitleSelection: 'Shift+g-s' }),
+      keybindings: [],
+      platform: 'linux',
+      rawConfig: {
+        ...DEFAULT_CONFIG,
+        subtitleSidebar: { ...DEFAULT_CONFIG.subtitleSidebar, toggleKey },
+      },
+    });
+    assert.equal(
+      result.bindings.some((binding) => binding.originalKey === 'Shift+g-s'),
+      !disabled,
+    );
+  }
 });

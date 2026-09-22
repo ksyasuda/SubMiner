@@ -16,6 +16,7 @@ export interface ConfiguredShortcuts {
   openRuntimeOptions: string | null | undefined;
   openJimaku: string | null | undefined;
   openTsukihime: string | null | undefined;
+  openSubtitleSelection: string | null | undefined;
   openSubtitleGeneration: string | null | undefined;
   openSessionHelp: string | null | undefined;
   openControllerSelect: string | null | undefined;
@@ -68,6 +69,10 @@ export function resolveConfiguredShortcuts(
     openRuntimeOptions: normalizeShortcut(shortcutValue('openRuntimeOptions')),
     openJimaku: normalizeShortcut(shortcutValue('openJimaku')),
     openTsukihime: normalizeShortcut(shortcutValue('openTsukihime')),
+    openSubtitleSelection:
+      config.subtitleSelection?.enabled === true
+        ? normalizeShortcut(shortcutValue('openSubtitleSelection'))
+        : null,
     openSubtitleGeneration: normalizeShortcut(shortcutValue('openSubtitleGeneration')),
     openSessionHelp: normalizeShortcut(shortcutValue('openSessionHelp')),
     openControllerSelect: normalizeShortcut(shortcutValue('openControllerSelect')),

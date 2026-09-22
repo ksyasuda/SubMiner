@@ -7,6 +7,15 @@
 {
 
   // ==========================================
+  // Subtitle Selection
+  // Select primary and secondary mpv subtitle tracks from the overlay.
+  // Hot-reload: enabling or disabling updates the session shortcut immediately.
+  // ==========================================
+  "subtitleSelection": {
+    "enabled": false // Use the SubMiner modal to select primary and secondary subtitle tracks. When enabled, its shortcut overrides mpv subtitle selection. Values: true | false
+  }, // Select primary and secondary mpv subtitle tracks from the overlay.
+
+  // ==========================================
   // Japanese Subtitle Generation
   // Generate timed Japanese subtitles from local audio using whisper.cpp.
   // Configure an existing GGML model path or explicitly download a SubMiner-managed model.
@@ -223,6 +232,7 @@
     "openRuntimeOptions": "CommandOrControl+Shift+O", // Accelerator that opens the runtime options modal.
     "openJimaku": "Ctrl+Shift+J", // Accelerator that opens the Jimaku subtitle search modal.
     "openTsukihime": "Ctrl+Shift+T", // Accelerator that opens the TsukiHime subtitle search modal (configured secondary/Japanese primary tabs).
+    "openSubtitleSelection": "g-s", // Open subtitle selection when enabled. Use g-s to press g then s. Set null to unbind.
     "openSubtitleGeneration": "Ctrl+Shift+G", // Accelerator that opens the standalone Japanese subtitle generation modal.
     "openSessionHelp": "CommandOrControl+Slash", // Accelerator that opens the session help / keybinding cheatsheet.
     "openControllerSelect": "Alt+C", // Accelerator that opens the controller selection and learn-mode modal.

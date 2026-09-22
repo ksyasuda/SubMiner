@@ -2,7 +2,13 @@ function pathStartsWith(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}.`);
 }
 
-const HOT_RELOAD_ROOTS = ['subtitleStyle', 'keybindings', 'shortcuts', 'subtitleSidebar'] as const;
+const HOT_RELOAD_ROOTS = [
+  'subtitleStyle',
+  'keybindings',
+  'shortcuts',
+  'subtitleSidebar',
+  'subtitleSelection',
+] as const;
 
 const HOT_RELOAD_EXACT_OR_PREFIX_PATHS = [
   'secondarySub.defaultMode',

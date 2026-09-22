@@ -103,3 +103,13 @@ test('SubMiner ownership recognizes leading mpv prefixes without matching comman
     ['d', 'e', 'f', 'g'],
   );
 });
+
+test('sequence conflict discovery allows winning ignore bindings used by mpv sequence prefixes', () => {
+  const bindings = [
+    { key: 'g', cmd: 'show-text old', priority: 0 },
+    { key: 'g', cmd: 'no-osd ignore', priority: 1 },
+    { key: 'h', cmd: 'show-text action', priority: 0 },
+  ];
+  assert.deepEqual(parseMpvInputBindingKeys(bindings), ['g', 'h']);
+  assert.deepEqual(parseMpvInputBindingKeys(bindings, { includeIgnored: false }), ['h']);
+});

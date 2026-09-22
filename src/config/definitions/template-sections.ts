@@ -2,6 +2,12 @@ import { ConfigTemplateSection } from './shared';
 
 const CORE_TEMPLATE_SECTIONS: ConfigTemplateSection[] = [
   {
+    title: 'Subtitle Selection',
+    description: ['Select primary and secondary mpv subtitle tracks from the overlay.'],
+    notes: ['Hot-reload: enabling or disabling updates the session shortcut immediately.'],
+    key: 'subtitleSelection',
+  },
+  {
     title: 'Japanese Subtitle Generation',
     description: [
       'Generate timed Japanese subtitles from local audio using whisper.cpp.',

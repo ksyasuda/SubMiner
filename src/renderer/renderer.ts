@@ -44,6 +44,7 @@ import { wireSubtitleSidebarSelection } from './modals/subtitle-sidebar-selectio
 import { isControllerInteractionBlocked } from './controller-interaction-blocking.js';
 import { createCharacterDictionaryModal } from './modals/character-dictionary.js';
 import { createRuntimeOptionsModal } from './modals/runtime-options.js';
+import { createSubtitleSelectionModal } from './modals/subtitle-selection';
 import { createSubsyncModal } from './modals/subsync.js';
 import { createSubtitleGenerationModal } from './modals/subtitle-generation.js';
 import { createYoutubeTrackPickerModal } from './modals/youtube-track-picker.js';
@@ -154,6 +155,12 @@ const modalDescriptors = [
     suppressesSubtitles: true,
   },
   {
+    id: 'subtitle-selection',
+    isOpen: () => ctx.state.subtitleSelectionModalOpen,
+    close: () => subtitleSelectionModal.close(),
+    suppressesSubtitles: true,
+  },
+  {
     id: 'subsync',
     isOpen: () => ctx.state.subsyncModalOpen,
     close: () => subsyncModal.closeSubsyncModal(),
@@ -214,6 +221,9 @@ const runtimeOptionsModal = createRuntimeOptionsModal(ctx, {
 });
 const characterDictionaryModal = createCharacterDictionaryModal(ctx, {
   modalStateReader: { isAnyModalOpen },
+  syncSettingsModalSubtitleSuppression,
+});
+const subtitleSelectionModal = createSubtitleSelectionModal(ctx, {
   syncSettingsModalSubtitleSuppression,
 });
 const subsyncModal = createSubsyncModal(ctx, {
@@ -293,6 +303,7 @@ const mediaTimingReviewModal = createMediaTimingReviewModal(ctx, {
 const keyboardHandlers = createKeyboardHandlers(ctx, {
   handleRuntimeOptionsKeydown: runtimeOptionsModal.handleRuntimeOptionsKeydown,
   handleCharacterDictionaryKeydown: characterDictionaryModal.handleCharacterDictionaryKeydown,
+  handleSubtitleSelectionKeydown: subtitleSelectionModal.handleKeydown,
   handleSubsyncKeydown: subsyncModal.handleSubsyncKeydown,
   handleSubtitleGenerationKeydown: subtitleGenerationModal.handleKeydown,
   handleKikuKeydown: kikuModal.handleKikuKeydown,
@@ -624,6 +635,9 @@ function registerModalOpenHandlers(): void {
       youtubePickerModal.closeYoutubePickerModal();
     });
   });
+  window.electronAPI.onSubtitleSelectionOpen(() => {
+    runGuarded('subtitle-selection:open', () => subtitleSelectionModal.open());
+  });
   window.electronAPI.onSubsyncManualOpen((payload: SubsyncManualPayload) => {
     runGuarded('subsync:manual-open', () => {
       subsyncModal.openSubsyncModal(payload);
@@ -849,6 +863,7 @@ async function init(): Promise<void> {
   playlistBrowserModal.wireDomEvents();
   kikuModal.wireDomEvents();
   runtimeOptionsModal.wireDomEvents();
+  subtitleSelectionModal.wireDomEvents();
   subsyncModal.wireDomEvents();
   subtitleGenerationModal.wireDomEvents();
   controllerSelectModal.wireDomEvents();
@@ -858,6 +873,7 @@ async function init(): Promise<void> {
   subtitleSidebarModal.wireDomEvents();
   characterDictionaryModal.wireDomEvents();
   window.addEventListener('beforeunload', () => {
+    subtitleSelectionModal.dispose();
     subtitleGenerationModal.dispose();
     subtitleSidebarModal.disposeDomEvents();
   });
@@ -867,9 +883,13 @@ async function init(): Promise<void> {
       runtimeOptionsModal.updateRuntimeOptions(options);
     });
   });
+  window.electronAPI.onSessionBindingsChanged(keyboardHandlers.updateSessionBindings);
   window.electronAPI.onConfigHotReload((payload: ConfigHotReloadPayload) => {
     runGuarded('config:hot-reload', () => {
-      keyboardHandlers.updateSessionBindings(payload.sessionBindings);
+      void window.electronAPI
+        .getSessionBindings()
+        .then(keyboardHandlers.updateSessionBindings)
+        .catch((error: unknown) => console.error('Could not refresh session bindings', error));
       void keyboardHandlers.refreshConfiguredShortcuts();
       subtitleRenderer.applySubtitleStyle(payload.subtitleStyle);
       subtitleRenderer.updatePrimarySubMode(payload.primarySubMode);

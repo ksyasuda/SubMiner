@@ -6,6 +6,13 @@ export function buildSubtitleConfigOptionRegistry(
   defaultConfig: ResolvedConfig,
 ): ConfigOptionRegistryEntry[] {
   return [
+    {
+      path: 'subtitleSelection.enabled',
+      kind: 'boolean',
+      defaultValue: defaultConfig.subtitleSelection.enabled,
+      description:
+        'Use the SubMiner modal to select primary and secondary subtitle tracks. When enabled, its shortcut overrides mpv subtitle selection.',
+    },
     ...(
       ['whisperPath', 'modelPath', 'ffmpegPath', 'ffprobePath', 'vadModelPath', 'vadPath'] as const
     ).map((key) => ({
