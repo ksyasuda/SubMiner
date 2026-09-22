@@ -35,6 +35,7 @@ export const MPV_REQUEST_ID_SUB_USE_MARGINS = 122;
 export const MPV_REQUEST_ID_PAUSE = 123;
 export const MPV_REQUEST_ID_TRACK_LIST_SECONDARY = 200;
 export const MPV_REQUEST_ID_TRACK_LIST_AUDIO = 201;
+export const MPV_REQUEST_ID_MEDIA_TITLE = 202;
 
 export type MpvMessageParser = (message: MpvMessage) => void;
 export type MpvParseErrorHandler = (line: string, error: unknown) => void;
@@ -335,14 +336,18 @@ export async function dispatchMpvProtocolMessage(
     } else if (msg.name === 'fullscreen') {
       deps.emitFullscreenChange({ fullscreen: asBoolean(msg.data, false) });
     } else if (msg.name === 'media-title') {
-      const title = typeof msg.data === 'string' ? sanitizeMediaTitle(msg.data) : null;
-      if (typeof msg.data === 'string' && msg.data.trim() && !title) return;
-      deps.emitMediaTitleChange({
-        title,
-      });
+      applyMediaTitle(deps, msg.data);
     } else if (msg.name === 'path') {
       const path = (msg.data as string) || '';
       deps.setCurrentVideoPath(path);
+      // A forced title set before loadfile arrives ahead of the path change that clears the
+      // cached title and never fires again, so read it back once the new path is known.
+      if (path) {
+        deps.sendCommand({
+          command: ['get_property', 'media-title'],
+          request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+        });
+      }
       deps.emitMediaPathChange({ path });
       deps.autoLoadSecondarySubTrack(path);
       deps.syncCurrentAudioStreamIndex();
@@ -467,6 +472,8 @@ export async function dispatchMpvProtocolMessage(
       deps.emitSubtitleAssChange({ text: (msg.data as string) || '' });
     } else if (msg.request_id === MPV_REQUEST_ID_PATH) {
       deps.emitMediaPathChange({ path: (msg.data as string) || '' });
+    } else if (msg.request_id === MPV_REQUEST_ID_MEDIA_TITLE) {
+      applyMediaTitle(deps, msg.data);
     } else if (msg.request_id === MPV_REQUEST_ID_AID) {
       deps.setCurrentAudioTrackId(typeof msg.data === 'number' ? (msg.data as number) : null);
       deps.syncCurrentAudioStreamIndex();
@@ -555,6 +562,17 @@ export function asBoolean(value: unknown, fallback: boolean): boolean {
 export function asFiniteNumber(value: unknown, fallback: number): number {
   const nextValue = Number(value);
   return Number.isFinite(nextValue) ? nextValue : fallback;
+}
+
+// URL-derived titles (mpv falls back to the basename of a query-bearing stream URL) must not
+// replace known metadata, so they are dropped instead of cached.
+function applyMediaTitle(
+  deps: Pick<MpvProtocolHandleMessageDeps, 'emitMediaTitleChange'>,
+  data: unknown,
+): void {
+  const title = typeof data === 'string' ? sanitizeMediaTitle(data) : null;
+  if (typeof data === 'string' && data.trim() && !title) return;
+  deps.emitMediaTitleChange({ title });
 }
 
 export function parseVisibilityProperty(value: unknown): boolean | null {

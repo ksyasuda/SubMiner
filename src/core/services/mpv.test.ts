@@ -9,6 +9,7 @@ import {
 } from './mpv';
 import {
   MPV_REQUEST_ID_TRACK_LIST_AUDIO,
+  MPV_REQUEST_ID_MEDIA_TITLE,
   MPV_REQUEST_ID_TRACK_LIST_SECONDARY,
 } from './mpv-protocol';
 
@@ -135,9 +136,15 @@ test('MpvIpcClient ignores URL-derived titles without replacing known metadata',
   assert.deepEqual(titles, ['My Anime S01E02']);
 });
 
-test('MpvIpcClient clears cached media title when media path changes', async () => {
+test('MpvIpcClient clears cached media title when media path changes and reads it back', async () => {
   const client = new MpvIpcClient('/tmp/mpv.sock', makeDeps());
+  const commands: Array<{ command?: unknown[]; request_id?: number }> = [];
+  (client as any).send = (command: { command?: unknown[]; request_id?: number }) => {
+    commands.push(command);
+    return true;
+  };
 
+  // A forced title (Jellyfin sets force-media-title before loadfile) arrives before the path.
   await invokeHandleMessage(client, {
     event: 'property-change',
     name: 'media-title',
@@ -148,11 +155,33 @@ test('MpvIpcClient clears cached media title when media path changes', async () 
   await invokeHandleMessage(client, {
     event: 'property-change',
     name: 'path',
-    data: '/tmp/new-episode.mkv',
+    data: 'http://pve-main:8096/Videos/item/stream?static=true&ApiKey=secret',
   });
 
-  assert.equal(client.currentVideoPath, '/tmp/new-episode.mkv');
+  assert.equal(
+    client.currentVideoPath,
+    'http://pve-main:8096/Videos/item/stream?static=true&ApiKey=secret',
+  );
   assert.equal(client.currentMediaTitle, null);
+  const titleRequest = commands.find(
+    (command) => command.command?.[0] === 'get_property' && command.command?.[1] === 'media-title',
+  );
+  assert.equal(titleRequest?.request_id, MPV_REQUEST_ID_MEDIA_TITLE);
+
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+    error: 'success',
+    data: '[Jellyfin/direct] Episode 1',
+  });
+  assert.equal(client.currentMediaTitle, '[Jellyfin/direct] Episode 1');
+
+  // A URL-derived read-back must not poison the cache.
+  await invokeHandleMessage(client, {
+    request_id: MPV_REQUEST_ID_MEDIA_TITLE,
+    error: 'success',
+    data: 'stream?static=true&ApiKey=secret',
+  });
+  assert.equal(client.currentMediaTitle, '[Jellyfin/direct] Episode 1');
 });
 
 test('MpvIpcClient skips secondary subtitle autoload when media path is managed', async () => {
