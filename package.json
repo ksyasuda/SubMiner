@@ -128,7 +128,7 @@
     "@electron/asar": "3.4.1",
     "@types/node": "^24.10.0",
     "@types/ws": "^8.18.1",
-    "electron": "42.6.0",
+    "electron": "43.4.1",
     "electron-builder": "26.15.3",
     "esbuild": "^0.25.12",
     "eslint": "^10.8.0",
