@@ -29,6 +29,9 @@ jobs:
       - name: Verify Windows launcher bootstrap
         run: bun test src/main/runtime/windows-launcher-bootstrap.test.ts
 
+      - name: Verify native mpv process launch
+        run: bun test src/main/runtime/mpv-process.test.ts
+
       - name: Verify POSIX launcher bootstrap
         run: bun test src/main/runtime/posix-launcher-bootstrap.test.ts
 

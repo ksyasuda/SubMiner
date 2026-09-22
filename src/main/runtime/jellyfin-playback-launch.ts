@@ -165,7 +165,7 @@ export function createPlayJellyfinItemInMpvHandler(deps: {
     const mpvClient = deps.getMpvClient();
     if (!connected || !mpvClient) {
       throw new Error(
-        'MPV not connected and auto-launch failed. Ensure mpv is installed and available in PATH.',
+        'MPV not connected and auto-launch failed. Check mpv.executablePath or ensure mpv is available in PATH.',
       );
     }
 

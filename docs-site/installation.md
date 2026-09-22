@@ -120,10 +120,10 @@ pip install ffsubsync
 
 Windows 10 or later. No compositor tools or window helpers are needed - native window tracking is built in.
 
-You need **mpv** (required) and **ffmpeg** (strongly recommended, for card audio and screenshots), and both must be on your `PATH`.
+You need **mpv** (required) and **ffmpeg** (strongly recommended, for card audio and screenshots). Put mpv on `PATH` or set `mpv.executablePath` during setup. ffmpeg must be on `PATH`.
 
 ::: tip What is PATH?
-`PATH` is the list of folders Windows searches when a program asks to run another program by name. SubMiner runs `mpv` and `ffmpeg` by name, so if their folders are not on `PATH`, SubMiner cannot find them even though they are installed. The routes below mostly handle `PATH` for you; the manual route explains how to add a folder yourself.
+`PATH` is the list of folders Windows searches when a program asks to run another program by name. SubMiner uses it to find ffmpeg and, unless an executable path is configured, mpv. The routes below mostly handle `PATH` for you; the manual route explains how to add a folder yourself.
 :::
 
 You can install these with a package manager or by hand. Coverage differs, so pick based on what you need:

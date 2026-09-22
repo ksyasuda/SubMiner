@@ -54,6 +54,7 @@ test('composeJellyfinRuntimeHandlers returns callable jellyfin runtime handlers'
       sleep: async () => {},
     },
     launchMpvIdleForJellyfinPlaybackMainDeps: {
+      getMpvExecutablePath: () => 'mpv',
       getSocketPath: () => '/tmp/test-mpv.sock',
       getLaunchMode: () => 'normal',
       platform: 'linux',

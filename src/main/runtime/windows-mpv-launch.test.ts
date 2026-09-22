@@ -29,12 +29,12 @@ test('resolveWindowsMpvPath prefers SUBMINER_MPV_PATH', () => {
   assert.equal(resolved, 'C:\\mpv\\mpv.exe');
 });
 
-test('resolveWindowsMpvPath prefers configured executable path before PATH', () => {
+test('resolveWindowsMpvPath prefers configured executable path before environment and PATH', () => {
   const resolved = resolveWindowsMpvPath(
     createDeps({
-      getEnv: () => undefined,
+      getEnv: () => 'C:\\other\\mpv.exe',
       runWhere: () => ({ status: 0, stdout: 'C:\\tools\\mpv.exe\r\n' }),
-      fileExists: (candidate) => candidate === 'C:\\mpv\\mpv.exe',
+      fileExists: (candidate) => ['C:\\mpv\\mpv.exe', 'C:\\other\\mpv.exe'].includes(candidate),
     }),
     '  C:\\mpv\\mpv.exe  ',
   );
@@ -51,6 +51,16 @@ test('resolveWindowsMpvPath falls back to where.exe output', () => {
   );
 
   assert.equal(resolved, 'C:\\tools\\mpv.exe');
+});
+
+test('resolveWindowsMpvPath ignores an invalid environment override but keeps config authoritative', () => {
+  const deps = createDeps({
+    getEnv: () => 'C:\\missing\\mpv.exe',
+    runWhere: () => ({ status: 0, stdout: 'C:\\tools\\mpv.exe\r\n' }),
+    fileExists: (candidate) => candidate === 'C:\\tools\\mpv.exe',
+  });
+  assert.equal(resolveWindowsMpvPath(deps), 'C:\\tools\\mpv.exe');
+  assert.equal(resolveWindowsMpvPath(deps, 'C:\\missing\\mpv.exe'), '');
 });
 
 test('buildWindowsMpvLaunchArgs uses explicit SubMiner defaults and targets', () => {

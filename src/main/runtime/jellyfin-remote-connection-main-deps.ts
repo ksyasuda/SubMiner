@@ -16,6 +16,7 @@ export function createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(
   deps: LaunchMpvForJellyfinDeps,
 ) {
   return (): LaunchMpvForJellyfinDeps => ({
+    getMpvExecutablePath: () => deps.getMpvExecutablePath(),
     getSocketPath: () => deps.getSocketPath(),
     getLaunchMode: () => deps.getLaunchMode(),
     platform: deps.platform,
@@ -26,7 +27,7 @@ export function createBuildLaunchMpvIdleForJellyfinPlaybackMainDepsHandler(
     getDefaultMpvLogPath: () => deps.getDefaultMpvLogPath(),
     defaultMpvArgs: deps.defaultMpvArgs,
     removeSocketPath: (socketPath: string) => deps.removeSocketPath(socketPath),
-    spawnMpv: (args: string[]) => deps.spawnMpv(args),
+    spawnMpv: (executablePath, args) => deps.spawnMpv(executablePath, args),
     logWarn: (message: string, error: unknown) => deps.logWarn(message, error),
     logInfo: (message: string) => deps.logInfo(message),
   });

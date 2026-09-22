@@ -75,7 +75,6 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 import * as fs from 'fs';
-import { spawn } from 'node:child_process';
 import * as os from 'os';
 import * as path from 'path';
 import { MecabTokenizer } from './mecab-tokenizer';
@@ -122,11 +121,6 @@ import {
 import { printHelp } from './cli/help';
 import { IPC_CHANNELS, type OverlayHostedModal } from './shared/ipc/contracts';
 import { buildMpvLoggingArgs } from './shared/mpv-logging-args';
-import {
-  MPV_X11_BACKEND_ARGS,
-  applyX11EnvOverrides,
-  shouldForceX11WaylandSession,
-} from './shared/mpv-x11-backend';
 import { AnkiConnectClient } from './anki-connect';
 import {
   getStartupModeFlags,
@@ -393,6 +387,7 @@ import {
   getConfiguredWindowsMpvPathStatus,
   launchWindowsMpv,
 } from './main/runtime/windows-mpv-launch';
+import { resolveMpvExecutablePath, spawnMpvProcess } from './main/runtime/mpv-process';
 import { createWaitForMpvConnectedHandler } from './main/runtime/jellyfin-remote-connection';
 import {
   DEFAULT_JELLYFIN_CLIENT_NAME,
@@ -676,22 +671,6 @@ const MPV_JELLYFIN_DEFAULT_ARGS = [
   '--alang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
   '--slang=ja,jp,jpn,japanese,en,eng,english,enus,en-us',
 ] as const;
-
-/**
- * Spawn a SubMiner-managed mpv (Jellyfin/YouTube) detached. On unsupported Wayland
- * sessions it is pinned to XWayland — Wayland-hint env stripped and an X11 GPU context
- * appended — so the XWayland overlay can stay above it, matching the `subminer` launcher.
- */
-function spawnManagedMpvProcess(args: string[]): ReturnType<typeof spawn> {
-  if (!shouldForceX11WaylandSession(process.env)) {
-    return spawn('mpv', args, { detached: true, stdio: 'ignore' });
-  }
-  return spawn('mpv', [...args, ...MPV_X11_BACKEND_ARGS], {
-    detached: true,
-    stdio: 'ignore',
-    env: applyX11EnvOverrides({ ...process.env }),
-  });
-}
 
 let activeJellyfinRemotePlayback: ActiveJellyfinRemotePlaybackState | null = null;
 let jellyfinRemoteLastProgressAtMs = 0;
@@ -3179,18 +3158,20 @@ const {
     sleep: (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
   },
   launchMpvIdleForJellyfinPlaybackMainDeps: {
+    getMpvExecutablePath: () =>
+      resolveMpvExecutablePath(configService.getConfig().mpv.executablePath),
     getSocketPath: () => appState.mpvSocketPath,
     getLaunchMode: () => configService.getConfig().mpv.launchMode,
     platform: process.platform,
     execPath: process.execPath,
     getRuntimePluginEntrypoint: () => resolveBundledMpvRuntimePluginEntrypoint(),
-    getInstalledPluginDetection: () =>
+    getInstalledPluginDetection: (mpvExecutablePath) =>
       detectInstalledMpvPlugin({
         platform: process.platform,
         homeDir: os.homedir(),
         xdgConfigHome: process.env.XDG_CONFIG_HOME,
         appDataDir: app.getPath('appData'),
-        mpvExecutablePath: configService.getConfig().mpv.executablePath,
+        mpvExecutablePath,
       }),
     getPluginRuntimeConfig: () => getMpvPluginRuntimeConfig(),
     getDefaultMpvLogPath: () => (isLogFileEnabled('mpv') ? DEFAULT_MPV_LOG_PATH : ''),
@@ -3198,7 +3179,7 @@ const {
     removeSocketPath: (socketPath) => {
       fs.rmSync(socketPath, { force: true });
     },
-    spawnMpv: (args) => spawnManagedMpvProcess(args),
+    spawnMpv: spawnMpvProcess,
     logWarn: (message, error) => logger.warn(message, error),
     logInfo: (message) => logger.info(message),
   },

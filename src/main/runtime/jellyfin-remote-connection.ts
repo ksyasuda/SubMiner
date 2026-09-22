@@ -41,23 +41,25 @@ export function createWaitForMpvConnectedHandler(deps: WaitForMpvConnectedDeps) 
 }
 
 export type LaunchMpvForJellyfinDeps = {
+  getMpvExecutablePath: () => string;
   getSocketPath: () => string;
   getLaunchMode: () => MpvLaunchMode;
   platform: NodeJS.Platform;
   execPath: string;
   getRuntimePluginEntrypoint?: () => string | null | undefined;
-  getInstalledPluginDetection?: () => InstalledMpvPluginDetection;
+  getInstalledPluginDetection?: (mpvExecutablePath: string) => InstalledMpvPluginDetection;
   getPluginRuntimeConfig?: () => SubminerPluginRuntimeScriptOptConfig;
   getDefaultMpvLogPath: () => string;
   defaultMpvArgs: readonly string[];
   removeSocketPath: (socketPath: string) => void;
-  spawnMpv: (args: string[]) => SpawnedProcessLike;
+  spawnMpv: (executablePath: string, args: string[]) => SpawnedProcessLike;
   logWarn: (message: string, error: unknown) => void;
   logInfo: (message: string) => void;
 };
 
 export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvForJellyfinDeps) {
   return (): void => {
+    const executablePath = deps.getMpvExecutablePath();
     const socketPath = deps.getSocketPath();
     if (deps.platform !== 'win32') {
       try {
@@ -78,7 +80,7 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
         )
       : [`subminer-binary_path=${deps.execPath}`, `subminer-socket_path=${socketPath}`];
     const scriptOpts = `--script-opts=${scriptOptParts.join(',')}`;
-    const installedPlugin = deps.getInstalledPluginDetection?.();
+    const installedPlugin = deps.getInstalledPluginDetection?.(executablePath);
     const runtimePluginEntrypoint = installedPlugin?.installed
       ? ''
       : (deps.getRuntimePluginEntrypoint?.()?.trim() ?? '');
@@ -95,7 +97,7 @@ export function createLaunchMpvIdleForJellyfinPlaybackHandler(deps: LaunchMpvFor
       ...(defaultMpvLogPath ? [`--log-file=${defaultMpvLogPath}`] : []),
       `--input-ipc-server=${socketPath}`,
     ];
-    const proc = deps.spawnMpv(mpvArgs);
+    const proc = deps.spawnMpv(executablePath, mpvArgs);
     proc.on('error', (error) => {
       deps.logWarn('Failed to launch mpv for Jellyfin remote playback', error);
     });
