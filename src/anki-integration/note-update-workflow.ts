@@ -74,6 +74,10 @@ export interface NoteUpdateWorkflowDeps {
     sentenceFurigana: string,
     noteFields: Record<string, string>,
   ) => string;
+  generateSentenceFurigana?: (
+    text: string,
+    noteFields: Record<string, string>,
+  ) => Promise<string | null>;
   setCardTypeFields: (
     updatedFields: Record<string, string>,
     availableFieldNames: string[],
@@ -282,7 +286,27 @@ export class NoteUpdateWorkflow {
       const existingSentenceFurigana = sentenceFuriganaField
         ? noteInfo.fields[sentenceFuriganaField]?.value || ''
         : '';
-      if (sentenceFuriganaField && existingSentenceFurigana && this.deps.processSentenceFurigana) {
+      const sentenceChanged =
+        sentenceField &&
+        currentSubtitleText &&
+        normalizeSubtitleContextText(currentSubtitleText) !==
+          normalizeSubtitleContextText(noteInfo.fields[sentenceField]?.value ?? '');
+      if (sentenceFuriganaField && sentenceChanged) {
+        let furigana: string | null = null;
+        try {
+          furigana =
+            (await this.deps.generateSentenceFurigana?.(currentSubtitleText, fields)) ?? null;
+        } catch (error) {
+          this.deps.logWarn('Failed to regenerate sentence furigana:', error);
+        }
+        // Empty furigana lets card templates fall back to the updated Sentence field.
+        updatedFields[sentenceFuriganaField] = furigana ?? '';
+        updatePerformed = true;
+      } else if (
+        sentenceFuriganaField &&
+        existingSentenceFurigana &&
+        this.deps.processSentenceFurigana
+      ) {
         const processedSentenceFurigana = this.deps.processSentenceFurigana(
           existingSentenceFurigana,
           fields,

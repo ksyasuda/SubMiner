@@ -1,3 +1,4 @@
+import type { StatsMiningRouteOptions } from './stats-server/mining-support';
 import { Hono } from 'hono';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
@@ -132,6 +133,7 @@ export interface StatsServerConfig {
   anilistRateLimiter?: AnilistRateLimiter;
   tmdbClient?: TmdbClient;
   addYomitanNote?: (word: string) => Promise<number | null>;
+  generateSentenceFurigana?: StatsMiningRouteOptions['generateSentenceFurigana'];
   resolveAnkiNoteId?: (noteId: number) => number;
   resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
 }
@@ -155,6 +157,7 @@ export function createStatsApp(
     anilistRateLimiter?: AnilistRateLimiter;
     tmdbClient?: TmdbClient;
     addYomitanNote?: (word: string) => Promise<number | null>;
+    generateSentenceFurigana?: StatsMiningRouteOptions['generateSentenceFurigana'];
     resolveAnkiNoteId?: (noteId: number) => number;
     resolveSentenceSearchHeadwords?: (term: string) => Promise<string[]> | string[];
     createMediaGenerator?: () => StatsServerMediaGenerator;
@@ -191,6 +194,7 @@ export async function startStatsServerWithRuntime(
     anilistRateLimiter: config.anilistRateLimiter,
     tmdbClient: config.tmdbClient,
     addYomitanNote: config.addYomitanNote,
+    generateSentenceFurigana: config.generateSentenceFurigana,
     resolveAnkiNoteId: config.resolveAnkiNoteId,
     resolveSentenceSearchHeadwords: config.resolveSentenceSearchHeadwords,
   });

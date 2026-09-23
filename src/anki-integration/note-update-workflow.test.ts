@@ -166,13 +166,14 @@ test('NoteUpdateWorkflow uses configured fields for word-card enrichment with La
 
 test('NoteUpdateWorkflow updates sentence furigana when highlight processor changes it', async () => {
   const harness = createWorkflowHarness();
+  harness.deps.getCurrentSubtitleText = () => 'tokugi';
   harness.deps.client.notesInfo = async () =>
     [
       {
         noteId: 42,
         fields: {
           Expression: { value: 'tokugi' },
-          Sentence: { value: '' },
+          Sentence: { value: 'tokugi' },
           SentenceFurigana: { value: '<span class="term">tokugi</span>' },
         },
       },
@@ -184,7 +185,7 @@ test('NoteUpdateWorkflow updates sentence furigana when highlight processor chan
 
   assert.equal(harness.updates.length, 1);
   assert.deepEqual(harness.updates[0]?.fields, {
-    Sentence: 'subtitle-text',
+    Sentence: 'tokugi',
     SentenceFurigana: '<span class="term"><b>tokugi</b></span>',
   });
 });
@@ -775,4 +776,64 @@ test('NoteUpdateWorkflow keeps cache unchanged and reports when deletion fails',
   assert.equal(removedKnownWord, false);
   assert.deepEqual(statusMessages, ['Card deletion failed: delete failed']);
   assert.ok(harness.warnings.length === 0);
+});
+
+for (const outcome of ['success', 'unavailable', 'throws'] as const) {
+  test(`NoteUpdateWorkflow regenerates expanded furigana (${outcome})`, async () => {
+    const harness = createWorkflowHarness();
+    harness.deps.client.notesInfo = async () => [
+      {
+        noteId: 42,
+        fields: {
+          Expression: { value: '猫' },
+          Sentence: { value: '<b>猫</b>を見た。' },
+          SentenceFurigana: { value: ' 猫[ねこ]を 見[み]た。' },
+        },
+      },
+    ];
+    harness.deps.captureSubtitleMediaContext = () => ({
+      source: 'overlay',
+      text: '猫を見た。',
+      startTime: 4,
+      endTime: 6,
+    });
+    harness.deps.reviewMediaTiming = async () => ({
+      action: 'confirm',
+      text: '猫を見た。犬もいた。',
+      startTime: 2,
+      endTime: 8,
+    });
+    harness.deps.generateSentenceFurigana = async (text, fields) => {
+      assert.equal(text, '猫を見た。犬もいた。');
+      assert.equal(fields.expression, '猫');
+      if (outcome === 'throws') throw new Error('parser unavailable');
+      return outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。 犬[いぬ]もいた。' : null;
+    };
+    await harness.workflow.execute(42);
+    assert.equal(harness.updates[0]?.fields.Sentence, '猫を見た。犬もいた。');
+    assert.equal(
+      harness.updates[0]?.fields.SentenceFurigana,
+      outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。 犬[いぬ]もいた。' : '',
+    );
+  });
+}
+
+test('NoteUpdateWorkflow preserves native furigana formatting when sentence context is unchanged', async () => {
+  const harness = createWorkflowHarness();
+  harness.deps.client.notesInfo = async () => [
+    {
+      noteId: 42,
+      fields: {
+        Expression: { value: '猫' },
+        Sentence: { value: '<b>猫</b>を見た。' },
+        SentenceFurigana: { value: '<ruby>猫<rt>ねこ</rt></ruby>を見た。' },
+      },
+    },
+  ];
+  harness.deps.getCurrentSubtitleText = () => '猫を見た。';
+  harness.deps.generateSentenceFurigana = async () => {
+    assert.fail('unchanged sentence must keep native formatting');
+  };
+  await harness.workflow.execute(42);
+  assert.equal(harness.updates[0]?.fields.SentenceFurigana, undefined);
 });

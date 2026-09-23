@@ -39,6 +39,7 @@ export type StatsMiningRouteOptions = {
     input: RetimedSecondarySubtitleInput,
   ) => Promise<string> | string;
   addYomitanNote?: (word: string) => Promise<number | null>;
+  generateSentenceFurigana?: (text: string, highlightedText?: string) => Promise<string | null>;
   createMediaGenerator?: () => StatsServerMediaGenerator;
   onMiningTiming?: (event: StatsMiningTimingEvent) => void;
   nowMs?: () => number;

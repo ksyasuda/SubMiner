@@ -212,6 +212,8 @@ Confirming writes the combined lines to the sentence field. Reset drops the adde
 
 **Canceling.** You can go back to editing, finish with the original timing, create the card without audio or an image, or discard it. Discard deletes an existing Yomitan or audio card, and skips creation entirely for a direct sentence card. A failed audio preview does not block confirmation or card creation.
 
+When word-card enrichment changes the sentence context, including an expanded timing-review selection, SubMiner regenerates `SentenceFurigana` from the final sentence. Unchanged sentences keep their existing furigana formatting. If generation fails, SubMiner clears stale furigana so compatible templates can fall back to `Sentence`.
+
 Clipboard updates and stats-dashboard mining never open timing review. The option is off by default and hot-reloads. **Review Media Timing** in the runtime options palette (`Ctrl/Cmd+Shift+O`) toggles it for the current session.
 
 If SubMiner closes the overlay while a timing review is still loading, it cancels pending setup and modal retries and restores playback if the review paused it. A new timing review can start after the overlay reopens.

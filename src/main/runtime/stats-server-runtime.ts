@@ -1,3 +1,4 @@
+import { generateSentenceFurigana } from '../../core/services/tokenizer/sentence-furigana';
 import path from 'node:path';
 import type { BrowserWindow } from 'electron';
 import {
@@ -166,6 +167,8 @@ export function createStatsServerRuntime(deps: StatsServerRuntimeDeps): {
       }),
       resolveAnkiNoteId: (noteId: number) => deps.resolveAnkiNoteId(noteId),
       resolveSentenceSearchHeadwords: (term: string) => deps.resolveSentenceSearchHeadwords(term),
+      generateSentenceFurigana: (text, highlightedText) =>
+        generateSentenceFurigana(text, highlightedText, yomitanDeps, yomitanLogger),
       addYomitanNote: async (word: string) => {
         const ankiConnectConfig = deps.getResolvedConfig().ankiConnect;
         const ankiUrl = ankiConnectConfig.url || 'http://127.0.0.1:8765';

@@ -4321,3 +4321,62 @@ it('TMDB reassignment returns 404 for a missing library entry before fetching de
   assert.equal(fetches, 1);
   assert.deepEqual(assignments, [1]);
 });
+
+for (const outcome of ['success', 'unavailable', 'throws', 'no-field'] as const) {
+  it(`stats word mining updates full sentence furigana without media (${outcome})`, async () => {
+    await withTempDir(async (dir) => {
+      const sourcePath = path.join(dir, 'episode.mkv');
+      fs.writeFileSync(sourcePath, 'fake media');
+      await withFakeAnkiConnect(
+        async (requests, url) => {
+          let calls = 0;
+          const app = createStatsApp(createMockTracker(), {
+            ankiConnectConfig: {
+              url,
+              deck: 'Mining',
+              media: { generateAudio: false, generateImage: false },
+            },
+            addYomitanNote: async () => 12345,
+            generateSentenceFurigana: async (text, word) => {
+              calls++;
+              assert.equal(text, '猫を見た。');
+              assert.equal(word, '猫');
+              if (outcome === 'throws') throw new Error('parser unavailable');
+              return outcome === 'success' ? '<b> 猫[ねこ]</b>を 見[み]た。' : null;
+            },
+          });
+          const response = await app.request('/api/stats/mine-card?mode=word', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourcePath,
+              startMs: 1000,
+              endMs: 2000,
+              sentence: '猫を見た。',
+              word: '猫',
+            }),
+          });
+          assert.equal(response.status, 200);
+          const fields = requests.find((request) => request.action === 'updateNoteFields')?.params
+            ?.note?.fields;
+          assert.equal(fields?.Sentence, '<b>猫</b>を見た。');
+          assert.equal(
+            fields?.sentencefurigana,
+            outcome === 'no-field'
+              ? undefined
+              : outcome === 'success'
+                ? '<b> 猫[ねこ]</b>を 見[み]た。'
+                : '',
+          );
+          assert.equal(calls, outcome === 'no-field' ? 0 : 1);
+        },
+        {
+          notesInfoFields: {
+            Sentence: { value: '猫' },
+            ...(outcome === 'no-field' ? {} : { sentencefurigana: { value: ' 猫[ねこ]' } }),
+          },
+        },
+      );
+    });
+  });
+}

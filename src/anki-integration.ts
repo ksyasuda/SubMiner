@@ -243,6 +243,9 @@ export class AnkiIntegration {
   private recordCardsMinedCallback: ((count: number, noteIds?: number[]) => void) | null = null;
   private knownWordCacheUpdatedCallback: (() => void) | null = null;
   private consumeSubtitleMiningContextCallback: (() => SubtitleMiningContext | null) | null = null;
+  private generateSentenceFuriganaCallback:
+    | ((text: string, highlightedText?: string) => Promise<string | null>)
+    | null = null;
   private mediaTimingReviewCallback:
     | ((request: MediaTimingReviewRequest) => Promise<MediaTimingReviewDecision>)
     | null = null;
@@ -666,6 +669,13 @@ export class AnkiIntegration {
       processSentence: (mpvSentence, noteFields) => this.processSentence(mpvSentence, noteFields),
       processSentenceFurigana: (sentenceFurigana, noteFields) =>
         this.processSentenceFurigana(sentenceFurigana, noteFields),
+      generateSentenceFurigana: async (text, noteFields) =>
+        this.generateSentenceFuriganaCallback?.(
+          text,
+          this.config.behavior?.highlightWord === false
+            ? undefined
+            : this.getSentenceHighlightText(noteFields),
+        ) ?? null,
       setCardTypeFields: (updatedFields, availableFieldNames, cardKind) =>
         this.setCardTypeFields(updatedFields, availableFieldNames, cardKind),
       resolveConfiguredFieldName: (noteInfo, ...preferredNames) =>
@@ -1781,6 +1791,10 @@ export class AnkiIntegration {
 
   setSubtitleMiningContextConsumer(callback: (() => SubtitleMiningContext | null) | null): void {
     this.consumeSubtitleMiningContextCallback = callback;
+  }
+
+  setSentenceFuriganaGenerator(callback: typeof this.generateSentenceFuriganaCallback): void {
+    this.generateSentenceFuriganaCallback = callback;
   }
 
   setMediaTimingReviewCallback(

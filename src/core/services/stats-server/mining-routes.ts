@@ -17,7 +17,6 @@ import {
   getStatsDirectMiningAudioFieldNames,
   getStatsWordMiningAudioFieldName,
   resolveStatsNoteFieldName,
-  shouldUseStatsLapisKikuCardFields,
   statsMiningLogger,
   type StatsMiningRouteOptions,
   type StatsServerNoteInfo,
@@ -228,19 +227,11 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
 
       let imageBuffer = imageResult.status === 'fulfilled' ? imageResult.value : null;
       let noteInfo: StatsServerNoteInfo | null = null;
-      if (
-        audioBuffer ||
-        (syncAnimatedImageToWordAudio && generateImage) ||
-        shouldUseStatsLapisKikuCardFields(ankiConfig)
-      ) {
-        try {
-          const noteInfoResult = (await client.notesInfo([noteId])) as StatsServerNoteInfo[];
-          noteInfo = noteInfoResult[0] ?? null;
-        } catch (err) {
-          if (syncAnimatedImageToWordAudio && generateImage) {
-            errors.push(`image: ${(err as Error).message}`);
-          }
-        }
+      try {
+        const noteInfoResult = (await client.notesInfo([noteId])) as StatsServerNoteInfo[];
+        noteInfo = noteInfoResult[0] ?? null;
+      } catch (error) {
+        errors.push(`note fields: ${error instanceof Error ? error.message : String(error)}`);
       }
       if (syncAnimatedImageToWordAudio && generateImage) {
         try {
@@ -272,6 +263,20 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
       const imageFieldName = ankiConfig.fields?.image ?? 'Picture';
 
       mediaFields[sentenceFieldName] = highlightedSentence;
+      const furiganaFieldName = noteInfo
+        ? resolveStatsNoteFieldName(noteInfo, 'SentenceFurigana')
+        : null;
+      if (furiganaFieldName) {
+        let furigana: string | null = null;
+        try {
+          furigana = (await options?.generateSentenceFurigana?.(sentence, word)) ?? null;
+        } catch (error) {
+          statsMiningLogger.warn('Failed to generate sentence furigana:', error);
+        }
+        mediaFields[furiganaFieldName] = furigana ?? '';
+        if (furigana === null)
+          errors.push('furigana: unavailable; using the full sentence without readings');
+      }
       applyStatsWordCardFields(mediaFields, noteInfo, ankiConfig);
 
       if (audioBuffer) {
