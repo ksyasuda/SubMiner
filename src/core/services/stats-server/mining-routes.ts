@@ -269,7 +269,11 @@ export function registerStatsMiningRoutes(app: Hono, options?: StatsMiningRouteO
       if (furiganaFieldName) {
         let furigana: string | null = null;
         try {
-          furigana = (await options?.generateSentenceFurigana?.(sentence, word)) ?? null;
+          furigana =
+            (await options?.generateSentenceFurigana?.(
+              sentence,
+              ankiConfig.behavior?.highlightWord === false ? undefined : word,
+            )) ?? null;
         } catch (error) {
           statsMiningLogger.warn('Failed to generate sentence furigana:', error);
         }

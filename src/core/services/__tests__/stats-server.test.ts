@@ -4380,3 +4380,42 @@ for (const outcome of ['success', 'unavailable', 'throws', 'no-field'] as const)
     });
   });
 }
+
+it('stats word mining skips furigana highlighting when highlightWord is disabled', async () => {
+  await withTempDir(async (dir) => {
+    const sourcePath = path.join(dir, 'episode.mkv');
+    fs.writeFileSync(sourcePath, 'fake media');
+    await withFakeAnkiConnect(
+      async (_requests, url) => {
+        const highlights: Array<string | undefined> = [];
+        const app = createStatsApp(createMockTracker(), {
+          ankiConnectConfig: {
+            url,
+            deck: 'Mining',
+            media: { generateAudio: false, generateImage: false },
+            behavior: { highlightWord: false },
+          },
+          addYomitanNote: async () => 12345,
+          generateSentenceFurigana: async (_text, highlightedText) => {
+            highlights.push(highlightedText);
+            return ' 猫[ねこ]を 見[み]た。';
+          },
+        });
+        const response = await app.request('/api/stats/mine-card?mode=word', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath,
+            startMs: 1000,
+            endMs: 2000,
+            sentence: '猫を見た。',
+            word: '猫',
+          }),
+        });
+        assert.equal(response.status, 200);
+        assert.deepEqual(highlights, [undefined]);
+      },
+      { notesInfoFields: { Sentence: { value: '猫' }, SentenceFurigana: { value: ' 猫[ねこ]' } } },
+    );
+  });
+});
