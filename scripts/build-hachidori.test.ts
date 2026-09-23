@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -41,5 +42,12 @@ test('Hachidori staging configures Electron without changing the fork source', a
     permissions: originalManifest.permissions.filter(
       (permission: string) => permission !== 'userScripts',
     ),
+    key: manifest.key,
   });
+  // The ID keys Hachidori's stored dictionaries and settings; changing the key orphans them.
+  const digest = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex');
+  const extensionId = [...digest.slice(0, 32)]
+    .map((digit) => String.fromCharCode(97 + parseInt(digit, 16)))
+    .join('');
+  assert.equal(extensionId, 'jpfgmfknblendgepdejlfhocdcnjjelj');
 });

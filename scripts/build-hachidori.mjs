@@ -57,6 +57,11 @@ for (const [file, replacements] of Object.entries(hostConfiguration)) {
   fs.writeFileSync(filePath, text);
 }
 manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
+// A fixed key pins the extension ID, so Hachidori's storage origin (dictionaries,
+// settings, setup state) survives userData path changes. Electron otherwise
+// derives the ID from the unpacked directory path.
+manifest.key =
+  'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA40zTTbhCbrKnDOqj17tosDChP60VXuuMjR0tFFR/kAet21jrYn0JKPzqqNpXMGaJsx1chnuMOgaP0zuOT+gv9DNVV83wGLhQL7cC4LCoGN648WqnE2jYqBPj6hdD5A/N3uPeKFRAHkiC9HKoj2Et6sYZFTqag79QqQkkUz17X2VpjuTGmTP3lvhyEwhJWQKzOU0k6dTn6fKB2ZSqTebpw/JS2G8jf58vHlQOcfLhIiolKCG9DfMuo11aoG1s3AsFmQmw9VVyp4wgyQ80UI4lyBdqboanJxEiZ211+HKWPEgtG6VML1+Uo59qWS3uBU1apxE1+7E51UBEHaTsxajFIQIDAQAB';
 fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 for (const file of ['LICENSE', 'SOURCE.json', 'README.md']) {
   fs.copyFileSync(path.join(source, file), path.join(output, file));
